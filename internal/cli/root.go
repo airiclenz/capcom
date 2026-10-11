@@ -65,6 +65,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	failure, isTyped := err.(*Error)
+	if isTyped && failure.isRendered {
+		return failure.ExitCode()
+	}
 	if !isTyped {
 		// cobra rejected the invocation before any command ran (unknown command, bad flag,
 		// wrong argument count); command failures always arrive typed via runE.
@@ -94,7 +97,10 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
 	root.PersistentFlags().BoolVar(&a.isKV, flagKV, false, "print KEY=VALUE lines ending in STATUS=")
 	root.AddCommand(a.newInitCommand())
+	root.AddCommand(a.newListCommand())
 	root.AddCommand(a.newReindexCommand())
+	root.AddCommand(a.newSearchCommand())
+	root.AddCommand(a.newShowCommand())
 	root.AddCommand(a.newVersionCommand())
 	return root
 }
@@ -178,7 +184,9 @@ func runE(body func(cmd *cobra.Command, args []string) error) func(*cobra.Comman
 }
 
 // emit renders a successful result in the selected format, the index's warnings ahead of the
-// command's own. A command that offers no --kv records rejects --kv as a usage error.
+// command's own. A command that offers no --kv records rejects --kv as a usage error. A result
+// carrying a Failure is rendered with it, and emit then returns that failure, marked rendered, so
+// the command still exits with its code.
 func (a *app) emit(cmd *cobra.Command, result Result) error {
 	if a.isKV && result.KV == nil {
 		return UsageErrorf("%s does not support --kv", cmd.CommandPath())
@@ -188,7 +196,15 @@ func (a *app) emit(cmd *cobra.Command, result Result) error {
 		warnings = append(warnings, warning.String())
 	}
 	result.Warnings = append(warnings, result.Warnings...)
-	return a.renderer.Render(result)
+	if err := a.renderer.Render(result); err != nil {
+		return err
+	}
+	if result.Failure == nil {
+		return nil
+	}
+	rendered := *result.Failure
+	rendered.isRendered = true
+	return &rendered
 }
 
 // newVersionCommand reports the embedded release version.

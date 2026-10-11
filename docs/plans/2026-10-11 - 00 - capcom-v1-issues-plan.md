@@ -134,7 +134,13 @@ Depends on item 4.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/` ; `GOMEMLIMIT=2GiB go test -count=1 -run Reindex ./internal/cli/`
 **Commit:** `feat(index): disposable SQLite index with incremental refresh and FTS`
 
-## 6. Read commands: list, show, search
+## 6. Read commands: list, show, search — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): re-derived from two assumptions of the header base — (1) that item 3's `tree.Resolve` serves the commands: it needs a fully loaded `tree.Tree`, which the index-backed commands never build, so id/alias/prefix resolution is `(*index.Index).Resolve` in internal/index/query.go (same order and the same `tree.ErrNotFound` / `*tree.AmbiguousError` errors); (2) that item 1's output contract can print a partial result: it renders either a result or an error, so `Result.Failure` (internal/cli/output.go), `Error.isRendered` (internal/cli/errors.go) and the matching `emit`/`Run` handling (internal/cli/root.go) were added for `show` with a missing id.
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by the new list, search and show commands, registered in the root command's AddCommand list.
+NOTES (2026-10-11): an explicit `--status` or `--category` lifts list's default "not closed" rule (so `--status done` lists done issues); `--all` lifts it too. List flags are repeatable and comma-separated; values within a flag OR, except `--label`, which requires every label; `--no-label` excludes any. `--parent` lists direct children only. Undeclared statuses/types, unknown categories, priorities outside 0–4, a negative `--limit` and `--planned` with `--unplanned` are usage errors (exit 2); an unknown `--parent` is not_found. list and search do not offer `--kv`.
+NOTES (2026-10-11): show text prints `id`, `path`, `parent`, then the frontmatter keys in file order with `category` after `status` (lists in flow style, empty fields left out except priority), a blank line when the body does not start with one, then the body verbatim; several issues are separated by a blank line. With a missing id, `--json` writes one envelope of kind `issue` holding the found issues (each with `body`) AND an `error` member; `--kv` closes a failed argument's record with `ID=<arg>`, `MESSAGE=`, `STATUS=<code>`; text writes the joined failures to stderr. An ambiguous prefix is `invalid` (exit 1). show does not expose the etag yet (item 8's decision).
+NOTES (2026-10-11): search with no hit is `not_found` (exit 3), per the goal's "never empty output"; an empty `list` result is a success with no lines. List and search load each hit through `Index.Issue` (four small queries per issue) — fine at repo scale, a single joined query is the improvement if it ever shows in a profile.
 
 Depends on item 5.
 **What:**

@@ -35,6 +35,9 @@ type Error struct {
 	Path    string
 	Line    int
 	isUsage bool
+	// isRendered marks a failure the output layer already wrote with its partial result; Run
+	// only maps it to the exit code.
+	isRendered bool
 }
 
 // Errorf builds an Error with the given code and a formatted message.

@@ -22,13 +22,17 @@ const (
 
 // Result is what a successful command hands to the output layer. Text is written verbatim in
 // text mode (the command owns its trailing newline); Kind and Data form the --json envelope;
-// KV holds the --kv records, and a command that leaves KV nil does not support --kv.
+// KV holds the --kv records, and a command that leaves KV nil does not support --kv. Failure,
+// when set, is a failure that goes with a partial result (a multi-id command missing one id): text
+// writes it to stderr after the result, --json sets it as the envelope's error next to its data,
+// and --kv leaves it to the records' own STATUS lines.
 type Result struct {
 	Kind     string
 	Data     any
 	Text     string
 	KV       []KVRecord
 	Warnings []string
+	Failure  *Error
 }
 
 // KVRecord is one block of --kv output: its pairs in order, then a closing STATUS line
@@ -106,8 +110,13 @@ func (r textRenderer) Render(result Result) error {
 	for _, warning := range result.Warnings {
 		out.WriteString(textWarnLabel + warning + "\n")
 	}
-	_, err := io.WriteString(r.stdout, out.String())
-	return err
+	if _, err := io.WriteString(r.stdout, out.String()); err != nil {
+		return err
+	}
+	if result.Failure == nil {
+		return nil
+	}
+	return r.RenderError(result.Failure)
 }
 
 func (r textRenderer) RenderError(failure *Error) error {
@@ -122,19 +131,25 @@ type jsonRenderer struct {
 }
 
 func (r jsonRenderer) Render(result Result) error {
-	return r.write(Envelope{Kind: result.Kind, Data: result.Data, Warnings: result.Warnings})
+	envelope := Envelope{Kind: result.Kind, Data: result.Data, Warnings: result.Warnings}
+	if result.Failure != nil {
+		envelope.Error = errorBody(result.Failure)
+	}
+	return r.write(envelope)
 }
 
 func (r jsonRenderer) RenderError(failure *Error) error {
-	return r.write(Envelope{
-		Kind: kindError,
-		Error: &ErrorBody{
-			Code:    failure.Code,
-			Message: failure.Message,
-			Path:    failure.Path,
-			Line:    failure.Line,
-		},
-	})
+	return r.write(Envelope{Kind: kindError, Error: errorBody(failure)})
+}
+
+// errorBody is the envelope's error member for failure.
+func errorBody(failure *Error) *ErrorBody {
+	return &ErrorBody{
+		Code:    failure.Code,
+		Message: failure.Message,
+		Path:    failure.Path,
+		Line:    failure.Line,
+	}
 }
 
 func (r jsonRenderer) write(envelope Envelope) error {
