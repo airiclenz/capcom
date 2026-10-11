@@ -141,7 +141,12 @@ internal/cli/testharness_test.go — runCLI
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/agents/` ; `GOMEMLIMIT=2GiB go test -count=1 -run 'Prime|Agents|Init|Check|Know' ./internal/cli/`
 **Commit:** `feat(cli): prime briefing, AGENTS.md managed block and Claude hooks`
 
-## 16. Docs and dogfooding
+## 16. Docs and dogfooding — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the repo's interim register `ISSUES.md` is gitignored and untracked, so it is left in place unchanged; its two entries now also exist as capcom issues (`serialize-escape-nonprintable`, `cli-package-file-map`, bodies carried over, titles reworded as problem statements), and the Managed block now names capcom as the register of record — later DEFERs belong in `.capcom/issues/`, and the local `ISSUES.md` can be retired by the owner.
+NOTES (2026-10-11): follow-up work filed beyond `ISSUES.md`: `release-pipeline` (P3, the release pipeline and Homebrew formula left out of both v1 plans). Item 11's `know verify` ENOTDIR DEFER is not filed here, so the closeout can register it once without a duplicate.
+NOTES (2026-10-11): two top-level Notes were added (`cli-test-harness`, `store-layout`) so the Managed block lists real knowledge; `init --claude-hooks` was not run on the repo (`.claude/settings.json` is not in the item's Files).
+NOTES (2026-10-11): Note frontmatter quotes text with single quotes (yaml.v3 default) where issue files use double quotes, so format.md describes Note quoting without claiming the issue form; aligning the two is pre-existing debt from item 11.
 
 Depends on item 15.
 **What:**

@@ -139,6 +139,56 @@ out, each warning naming the other. The index refreshes itself on every command 
 re-reading only the files whose size or modification time changed; `capcom reindex` rebuilds it
 from scratch.
 
+## Note files
+
+A **Note** is one fact about the repository that an agent pulls up on demand: a convention, a
+gotcha, why something is the way it is. Notes live in the Knowledge tree under
+`.capcom/knowledge/`, which follows the tree rules above: the id is the file name, a Note's
+children sit in the sibling directory of the same name, and no id or alias may appear twice in the
+Knowledge tree. The Knowledge tree and the Issue tree are checked apart from each other, so a Note
+may share an id with an issue.
+
+A Note file is markdown with a YAML frontmatter between two `---` lines, read the same way as an
+issue file:
+
+```markdown
+---
+title: CLI tests run through runCLI and never in parallel
+labels: [testing]
+refs: [internal/cli/testharness_test.go#func runCLI, docs/adr/0007-tests-use-real-temp-files-sqlite-and-git.md]
+aliases: [cli-tests]
+---
+
+CLI tests drive every command in process through `runCLI`, in a real temp git repository.
+```
+
+| Key       | Value                                                                      | Required |
+|-----------|----------------------------------------------------------------------------|----------|
+| `title`   | One line that reads on its own.                                            | yes      |
+| `labels`  | A list of Labels.                                                          | no       |
+| `refs`    | A list of the files, directories and symbols the Note depends on.          | no       |
+| `aliases` | A list of the Note's former ids.                                           | no       |
+
+Any other key is an error, the id included. capcom writes a Note with the keys in the order of the
+table, empty fields left out, lists in flow style on one line, text unquoted wherever YAML reads it
+back unchanged and quoted otherwise, and the body byte for byte. The body is free markdown.
+
+### Refs
+
+A **Ref** is either a path or `path#symbol`:
+
+- the path is relative to the root of the working tree, with forward slashes, and names a file or a
+  directory (`docs/format.md`, `internal/lock`);
+- an absolute path, or one that climbs out of the working tree (`../other`), is an error, and so is
+  a path that leaves the tree through a symbolic link;
+- after the first `#` comes a symbol: text the file must contain, found by a plain text search
+  (`internal/lock/lock.go#func Open`). It is not parsed as code, so any text works, and a symbol
+  needs a file, not a directory.
+
+A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists every such Ref as
+`path:line: ref "<ref>": <why>`, citing the Ref's line in the Note file, and fails when it finds
+one; `capcom check` reports them too.
+
 ## Config
 
 `.capcom/config.yaml` is optional, and so is every key in it: a missing key takes the value shown
@@ -182,3 +232,72 @@ elsewhere:
 - **ready.hide** — labels whose issues `ready` leaves out by default.
 - **lock.ttl** — a positive duration (`2h`, `90m`).
 - **elsewhere.days** — a whole number of days, 0 or more.
+
+## The lock record
+
+A Tree lock belongs to one worktree (ADR 0005). Its record is a JSON file under the git common
+dir, shared by every worktree of the clone and never committed:
+
+```text
+<git-common-dir>/capcom/locks/
+  _main.json         the primary worktree's lock
+  _main.lck          the guard file of the record next to it
+  wt-<name>.json     the lock of the linked worktree named <name>
+```
+
+A worktree's key is `_main` for the primary worktree and `wt-` plus the linked worktree's name
+otherwise (the last element of its git dir, `<git-common-dir>/worktrees/<name>`). A free lock has
+no record file.
+
+```json
+{
+  "token": "ff6d642521c9bff460590d1469040ae1",
+  "purpose": "implementing the release plan",
+  "holder": "airic@devbox",
+  "host": "devbox",
+  "user": "airic",
+  "branch": "main",
+  "since": "2026-10-11T14:08:52.330264702Z",
+  "heartbeat": "2026-10-11T15:02:10.118520331Z"
+}
+```
+
+- **token** — the secret `lock acquire` hands the holder: 128 random bits in hex. The holder
+  presents it to `lock touch`, `lock release` and a re-acquire; capcom never shows it to anyone
+  else.
+- **purpose** — what the holder is doing, from `--purpose`.
+- **holder** — who holds the lock, from `--holder`; `user@host` by default.
+- **host**, **user**, **branch** — where the lock was acquired: the machine, the user and the
+  branch checked out.
+- **since** — when the lock was acquired; resuming it with the token keeps this time.
+- **heartbeat** — when the lock was last acquired, resumed or touched.
+
+Both times are RFC3339 in UTC. A lock whose heartbeat is older than `lock.ttl` in `config.yaml`
+(2 h by default) is **stale**: it is still held, but another session may take it over with
+`lock acquire --take-stale`, and `lock break` frees it whoever holds it. The lock is advisory;
+capcom installs no git hooks, and `lock check` lets a repository opt in to a check of its own.
+Every change to a record runs under an OS file lock on its `.lck` file, held only for that read and
+write, and the record is replaced atomically.
+
+## The Managed block in AGENTS.md
+
+`AGENTS.md` at the root of the working tree stays a hand-written agent guide. capcom owns only the
+**Managed block**: the lines from `<!-- BEGIN CAPCOM -->` to `<!-- END CAPCOM -->`, each marker on a
+line of its own. The block holds a short paragraph naming capcom as the issue register of record,
+the handful of commands an agent needs, and the top level of the Knowledge tree, one
+`` - `<id>`: <title> `` line per top-level Note in id order. It is rendered from the Note files
+alone, so the same tree always yields the same block.
+
+- `capcom agents` writes the block: it replaces the lines between the markers, or appends the
+  block to the end of the file when it has none, and creates `AGENTS.md` when there is none. Every
+  byte outside the markers is kept, and so are the file's line endings (LF or CRLF).
+- `capcom agents --check` fails when the block is out of date, and `capcom check` reports an
+  out-of-date block as an `agents-block` problem at the begin marker's line. A file without the
+  block is neither: the block is opt-in.
+- A top-level `capcom know add` refreshes the block when `AGENTS.md` already holds one and it went
+  out of date; it never adds a block to a file without one. Adding a Note below another changes
+  nothing, since the block lists only the top level.
+- A marker that appears twice, an end marker before the begin marker, or a begin marker that is
+  never closed is an error at that marker's line, for `agents` and `check` alike.
+
+Edits inside the markers are overwritten on the next refresh; write anything else outside them.
