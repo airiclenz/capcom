@@ -109,7 +109,7 @@ internal/check/check.go — issue/Note Validate calls (parsed files only)
 
 **Commit:** `fix(validate): report an empty label the parser would reject`
 
-## 3. Add the internal/cli file map and structural test
+## 3. Add the internal/cli file map and structural test — ✅ DONE (2026-10-11)
 
 **What:** `internal/cli` has 24 non-test files, well past the ~10-file threshold, but no file map. This item resolves the
 chore `cli-package-file-map`.
