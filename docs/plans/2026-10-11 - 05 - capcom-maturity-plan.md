@@ -464,7 +464,7 @@ TestInit_Plain_PrintsTheHooksSnippetInTextModeOnly, writeClaudeSettings
 **Closes:** codex-hooks
 **Commit:** `feat(init): add --codex-hooks to brief Codex at session start`
 
-## 11. Close the gaps in the beads migration guide
+## 11. Close the gaps in the beads migration guide — ✅ DONE (2026-10-11)
 
 **What:** Depends on items 6, 9 and 10, which the guide now references.
 **Goal:** `docs/migrating-from-beads.md` covers every gap the feasibility scan found:
