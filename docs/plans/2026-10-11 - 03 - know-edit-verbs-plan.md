@@ -151,7 +151,11 @@ the parse error; `internal/issue/move_test.go` keeps the alias and dep rewrites;
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/ ./internal/issue/` and `GOMEMLIMIT=2GiB go test -count=1 -run Mv ./internal/cli/`
 **Commit:** `refactor(tree): extract the type-agnostic mover from issue moves`
 
-## 5. capcom know mv
+## 5. capcom know mv — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): `knowledge.PlanMove` returns `*knowledge.Move` (embeds `*tree.Move`, adds `Original` and `Content`); the moved Note is always parsed, as `issue.PlanMove` does, and is rewritten only on a rename; `--if-match` is checked against `Original` after planning and before `Apply`.
+NOTES (2026-10-11): `noteMoveFailure` types an unparseable moved Note itself rather than calling `noteFailure`, because the tree path is absolute and the error must name the file relative to the working tree root.
+NOTES (2026-10-11): know mv refreshes a stale AGENTS.md block after every move, as know update does, rather than only when the top level changed; only a stale block is ever rewritten.
 
 **What:**
 **Goal:** `capcom know mv <id> [<new-id>] [--parent <id|.>] [--if-match <etag>]` renames a Note
