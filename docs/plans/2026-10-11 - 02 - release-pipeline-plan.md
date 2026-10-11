@@ -261,7 +261,11 @@ instruction plus frontmatter, like apogee's.
 **Depends on:** item 5
 **Commit:** `feat(skills): add the release-notes-capcom skill`
 
-## 10. release-capcom skill
+## 10. release-capcom skill — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): frontmatter follows item 9's `release-notes-capcom` shape (`name` + `description`) rather than apogee's `id`/`displayName`/`summary`/`triggers` keys, so both canonical capcom skills read alike.
+NOTES (2026-10-11): with no tag yet the version proposal reads `highestTag` as `v0.0.0` and always proposes minor (`v0.1.0`) for the first release; the report names `gh repo create airiclenz/homebrew-tap --public` / `gh repo create airiclenz/scoop-bucket --public` as the owner's manual setup commands, and relays the kept-manifest command `publish` prints for winget.
+NOTES (2026-10-11): the skill cites `docs/adr/0008-the-repo-owns-its-release-pipeline.md`, which item 11 creates; it does not exist yet.
 
 **What:**
 **Goal:** `.agents/skills/release-capcom/SKILL.md` cuts a capcom release end to end — status, notes via release-notes-capcom, notes approval, version confirmation, `prepare`, `publish --dry-run`, one confirmation, `publish`, report — and `.claude/skills/release-capcom/SKILL.md` points to it.
