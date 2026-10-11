@@ -36,7 +36,8 @@ _Avoid_: epic, container
 **Format version**:
 The integer a repository's capcom files declare in the `format:` key of `config.yaml`, saying which
 file format they are written in; a missing key means 1. A binary refuses a store whose **Format
-version** is above the highest it reads, and adding any key to the files raises it.
+version** is above the highest it reads, and adding any key to the files raises it: format 2 added
+**Related links**.
 _Avoid_: schema version, store version, config version
 
 ### Work
@@ -78,6 +79,11 @@ _Avoid_: spec, design doc
 A directed edge between two **Issues**: the dependent **Issue** cannot be worked until the one it
 depends on is closed.
 _Avoid_: link, relation
+
+**Related link**:
+An undirected tie between two **Issues** that belong together, which blocks neither of them. It is
+stored on one of the two and shown on both.
+_Avoid_: relation, see-also, dependency
 
 **Elsewhere**:
 A change to an **Issue** that exists on another local branch, worktree or remote-tracking branch

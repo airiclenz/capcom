@@ -363,7 +363,9 @@ byte for byte; with `--drop-deps`, a file holding both is rewritten once.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run PlanMove ./internal/issue/`; `GOMEMLIMIT=2GiB go test -count=1 -run 'TestMv_|TestRm_' ./internal/cli/`
 **Commit:** `feat(cli): keep related links through mv and rm`
 
-## 12. Document related links and store format 2
+## 12. Document related links and store format 2 — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): the closeout should also drop the last sentence of the existing [Unreleased] `format:` bullet ("`capcom init` writes the key only as a `# format: 1` comment."), which item 8's entry supersedes (init now writes `format: 2`); the sidecar format can only add entries, so the amendment is recorded here.
+NOTES (2026-10-12): format.md gains a `### Related links` subsection after the rm paragraph, and its Config intro now says a missing `format` key means 1, not the value shown, since the template now shows `format: 2`. CONTEXT.md's **Format version** entry gains "format 2 added **Related links**". ADRs and docs/design/research-notes.md are left unchanged.
 
 **What:**
 **Goal:** docs/format.md documents `related` (Fields table), `related add|rm`, `show` output, format

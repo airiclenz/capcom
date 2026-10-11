@@ -32,12 +32,16 @@ and show up in code review like the code they describe.
 ## What it does
 
 - **Issues as files.** One markdown file per issue under `.capcom/issues/`, with a short YAML
-  header for status, priority, labels and dependencies. Git does the syncing, the history and the
-  merging, and the issues travel with the branch they were changed on. Ids are readable slugs
-  you choose (`login-timeout-race`); the directory tree is the hierarchy, so a child issue is a
-  file in its parent's directory. Renaming one (`capcom mv`) is a plain file rename that keeps the
-  old id as an alias and rewrites the dependencies that named it; `capcom rm` deletes one that has
-  no children and nothing depending on it (`--drop-deps` removes those dependencies instead).
+  header for status, priority, labels, dependencies and related links. Git does the syncing, the
+  history and the merging, and the issues travel with the branch they were changed on. Ids are
+  readable slugs you choose (`login-timeout-race`); the directory tree is the hierarchy, so a child
+  issue is a file in its parent's directory. Renaming one (`capcom mv`) is a plain file rename that
+  keeps the old id as an alias and rewrites the dependencies and related links that named it;
+  `capcom rm` deletes one that has no children and nothing depending on it (`--drop-deps` removes
+  those dependencies instead) and drops the related links that name it.
+- **Related links.** `capcom related add` links two issues that belong together without making
+  either wait for the other; `capcom show` lists the link on both issues, and
+  `capcom related rm` removes it.
 - **A fast index that can't drift.** A local SQLite index under the git directory is built from
   those files for quick queries ("what's ready to work on?") and refreshes itself on every
   command. It is a cache: delete it and capcom rebuilds it.
@@ -68,8 +72,9 @@ and show up in code review like the code they describe.
 
 Every command prints plain text by default and a versioned JSON envelope with `--json`. `show`,
 `close`, `reopen`, every `lock` subcommand, `version` and the commands that write an issue
-(`create`, `update`, `log`, `mv`, `rm`, `dep add`, `dep rm`) also take `--kv`, after the command name,
-and print `KEY=VALUE` lines ending in `STATUS=`; the other commands do not offer it.
+(`create`, `update`, `log`, `mv`, `rm`, `dep add`, `dep rm`, `related add`, `related rm`) also
+take `--kv`, after the command name, and print `KEY=VALUE` lines ending in `STATUS=`; the other
+commands do not offer it.
 Exit codes: 0 ok, 1 error, 2 usage, 3 not found or locked. capcom runs on Linux, macOS and Windows.
 
 ## Works with any coding agent
@@ -147,6 +152,8 @@ capcom search refresh timeout
 capcom update login-timeout-race --priority 1 --add-label owner-run
 capcom log login-timeout-race "reproduced with two tabs"
 capcom dep add login-timeout-race token-store-rework
+capcom related add login-timeout-race session-refresh-bug   # shown on both; blocks neither
+capcom related rm login-timeout-race session-refresh-bug
 capcom mv login-timeout-race --parent login-flow
 capcom close login-timeout-race --reason "Fixed in 3f2a1c9"
 capcom reopen login-timeout-race --reason "Came back on Safari"

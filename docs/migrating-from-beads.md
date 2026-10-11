@@ -123,7 +123,7 @@ it, not to the one it names.
 |-------------------|-----------------------------------------------------------------------------------------|
 | `blocks`          | The capcom id of `depends_on_id` goes into the issue's `deps`.                          |
 | `parent-child`    | The issue's file moves into the directory of its parent (`depends_on_id`), see below.   |
-| `related`         | A Log entry on both issues, each naming the other: `related to <capcom id>`.            |
+| `related`         | `capcom related add <capcom id> <capcom id of depends_on_id>`, on one side only.        |
 | `discovered-from` | A Log entry: `discovered while working on <capcom id>`.                                 |
 
 Nesting comes from the parent-child dependencies alone. Dotted beads ids (`apogee-kk0.4`) are
@@ -131,9 +131,12 @@ usually children of the id before the dot, but not every child has a dotted id, 
 the dots. Write each `deps` entry as the capcom id, not the alias, although an alias resolves
 too.
 
-beads keeps one `related` link that both issues show. capcom has no such link: the relation
-becomes one-way prose in each issue's Log, which no command follows or queries, so write the entry
-on both sides, or one side loses it.
+beads keeps one `related` link that both issues show, and so does capcom: `capcom related add`
+stores it on the first issue only, and `capcom show` lists it on both. Run it once per beads
+`related` dependency after the files are written, or write the other issue's capcom id into the
+issue's `related` list by hand; never on both sides. Unlike a dependency, it blocks neither issue.
+The store `capcom init` writes is format 2, which the `related` key needs (see Config in
+[format.md](format.md#config)).
 
 ### Log entries
 
@@ -144,7 +147,7 @@ item, oldest first:
 ## Log
 
 - 2026-09-14 airic: reproduced with two tabs.
-- 2026-09-15 beads: related to session-refresh-bug
+- 2026-09-15 beads: discovered while working on session-refresh-bug
 ```
 
 A comment becomes `- <date of created_at> <author>: <text>`, the text verbatim, with any further
@@ -152,8 +155,8 @@ lines indented two spaces under the item. The `notes` field is often a running r
 dated entries; split it into one Log entry per date, each with that date and the author `beads`,
 since beads keeps no author for it, and sort them in among the comments by date. A `notes` value
 with no dated entries becomes one entry dated by `closed_at`, else by `created_at`. Never date a
-note by `updated_at`: it moves on every edit, so it files old notes after later comments. Related
-and discovered-from links use the date of the dependency and the author `beads`.
+note by `updated_at`: it moves on every edit, so it files old notes after later comments.
+Discovered-from links use the date of the dependency and the author `beads`.
 
 ### Mentions of other issues
 

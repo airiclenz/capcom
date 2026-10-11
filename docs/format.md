@@ -95,6 +95,7 @@ The refresh path and the timeout path both clear the session.
 | `priority` | A whole number from 0 (most urgent) to 4. A file without one reads as 2.    | always written              |
 | `labels`   | A list of Labels: cross-cutting markers such as `owner-run`.                | no                          |
 | `deps`     | A list of the ids of the issues this one depends on.                        | no                          |
+| `related`  | A list of the ids of the issues this one is related to, without depending on them (format 2). | no      |
 | `plan`     | The basename of a Plan document, resolved against the config's `plans` directories. An issue with a plan is Planned. | no |
 | `aliases`  | A list of the issue's former ids.                                           | no                          |
 | `created`  | When the issue was created: an RFC3339 timestamp.                           | yes                         |
@@ -113,7 +114,34 @@ issue with children, an issue whose children directory still holds any file, and
 issues depend on (their `deps` name its id or an alias), listing those issues; `--drop-deps`
 removes their `deps` entries for it instead. A `deps` entry of the issue on itself does not count.
 Like `update`, it takes `--if-match <etag>` and refuses with a conflict when the file's etag
-differs. capcom deletes the file itself and never runs git.
+differs. Other issues' `related` entries naming the issue never refuse it: they are always
+removed, and those issues are reported as `related_dropped`. capcom deletes the file itself and
+never runs git.
+
+### Related links
+
+A **Related link** ties two issues together without either depending on the other: it never
+affects `ready`, `dep` or blocking. `capcom related add <a> <b>` writes the canonical id of `b`
+into the `related` list of `a`, and only there; the other issue's file is not touched. Linking an
+issue to itself is refused, and a link already held by either issue changes nothing. The first link
+written in a store below format 2 raises `config.yaml` to `format: 2` (see Config) and warns:
+
+```text
+warning: .capcom/config.yaml: store format raised to 2; capcom releases that read only format 1 can no longer read this store
+```
+
+`capcom related rm <a> <b>` removes the link from whichever issue holds it: the entries of `a`
+naming `b`, or failing that, the entries of `b` naming `a`. Two issues that are not linked are
+`not_found`. A `b` that names no issue is matched by its exact text among the entries of `a`, so a
+link to an issue that no longer exists can still be removed. Both commands take `--if-match <etag>`,
+checked against the file they write, and `--kv`.
+
+`capcom show` lists an issue's links on both issues: a `related: [...]` line after `deps:` in the
+text, and `"related": [...]` in `--json`, always present. The list holds the issue's own `related`
+entries in file order, then the ids of the issues whose links name it, in id order, each once. A
+renaming `capcom mv` rewrites every `related` entry naming the old id or one of its aliases, as it
+does `deps`. `capcom check` reports a `related` entry that names no issue (`missing-related`) or
+names the issue itself (`field`), at the `related` line.
 
 ### Canonical form
 
@@ -284,12 +312,13 @@ one; `capcom check` reports them too.
 ## Config
 
 `.capcom/config.yaml` is optional, and so is every key in it: a missing key takes the value shown
-below, which is the file `capcom init` writes. An unknown key or a bad value is an error citing its
+below, which is the file `capcom init` writes, except `format`, whose missing key means 1. An
+unknown key or a bad value is an error citing its
 line.
 
 ```yaml
-# The store format version; left as a comment, since a missing key means format 1.
-# format: 1
+# The store format version. capcom refuses a store whose format is newer than it reads.
+format: 2
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
@@ -324,8 +353,12 @@ elsewhere:
   key: a store whose format is newer than the binary reads fails every command with
   `.capcom/config.yaml:<line>: store format <n> is newer than this capcom reads (up to <max>); upgrade capcom`,
   except `capcom prime`, which reports it as one `warning: store:` line and exits 0. Unknown keys
-  stay errors, and any new key in an issue, a Note or this file raises the format. `capcom init`
-  writes the key only as a comment while the format is 1, because v0.1.0 rejects it as an unknown key.
+  stay errors, and any new key in an issue, a Note or this file raises the format. Format 2 adds
+  the `related` key to issue files. `capcom init` writes `format: 2`. The first
+  `capcom related add` in a store below format 2 raises it: it replaces the `format:` line, or the
+  format-1 template's commented `# format: 1` line, with `format: 2`, keeping every other byte, and
+  creates `config.yaml` holding only that line when the store has none. It warns that capcom
+  releases reading only format 1, v0.1.0 among them, can no longer read the store.
 - **statuses** — an ordered mapping of status name to Status category. Every rule in capcom reads
   the category, never the name (ADR 0003). At least one status must be in `todo` and one in
   `done`. When capcom moves an issue into a category (create, close, reopen) it uses the first
