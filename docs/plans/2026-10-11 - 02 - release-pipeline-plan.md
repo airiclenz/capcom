@@ -162,7 +162,11 @@ apogee cmd/release/probes_test.go — fakeRemote; apogee cmd/release/status_test
 **Depends on:** item 4
 **Commit:** `feat(release): add the status verb and the channel probes`
 
-## 6. Formula and Scoop templates, and the smoke verb
+## 6. Formula and Scoop templates, and the smoke verb — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): winget rendering is `renderWingetManifests(version, sums) ([]renderedFile, error)` returning {name, content} in komac file naming (AiricLenz.Capcom.yaml, .installer.yaml, .locale.en-US.yaml) from the `wingetManifests` table; templates are named winget.version/installer/defaultLocale.yaml.tmpl. packageData gained `ReleaseURL()` (release page, for ReleaseNotesUrl) and `WingetPackageID()` (the probes.go constant); packageArchive gained `UpperSHA256()`, since InstallerSha256 is written upper-case as komac writes it.
+NOTES (2026-10-11): golden formula and winget manifests are rendered at 0.0.0 from fixture hashes (capcom has no published release to pin live hashes from); the winget golden test also parses each manifest with yaml.v3. The formula's install comment drops apogee's build-tag sentence, which does not apply to capcom.
+NOTES (2026-10-11): smoke's version check runs `<binary> version` and requires the first two fields of its output to be exactly `capcom X.Y.Z` (apogee used a substring match on `--version`); gitObjectTag, nonInteractiveEnv and the new versionArgument constant live in smoke.go; publishVersion ("v0.24.11") and writeReleaseTree (bare VERSION) live in smoke_test.go. The smoke Long text drops apogee's "publish runs it as its last step" sentence until item 7 adds publish; item 7 should restore it.
 
 **What:** Recast at the regression check (2026-10-11).
 **Goal:** `cmd/release` renders `Formula/capcom.rb` and `bucket/capcom.json` from embedded templates and a release's `SHA256SUMS`, and `go run ./cmd/release smoke [vX.Y.Z] [--dist-dir D]` runs apogee's smoke checks against capcom's release.
