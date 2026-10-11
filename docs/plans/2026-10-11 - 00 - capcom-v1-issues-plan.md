@@ -110,7 +110,18 @@ Depends on item 3.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/issue/`
 **Commit:** `feat(issue): markdown issue file format with stable round-trip`
 
-## 5. The index
+## 5. The index — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): API as built — `index.Open(*store.Store, ...Option)`, `WithClock` (test seam for the racy-clean rule), `(*Index).Refresh()` / `Rebuild()` returning `Report{Rebuilt, Parsed, Removed, Indexed, Warnings []Warning}`, `(*Index).Issue(id) (Entry, found, error)` (exact id, excluded rows hidden), `(*Index).Search(text)` (each word quoted as an FTS5 token, AND-ed), `index.Path(store)`, `Warning{Path, Line, Message}.String()`. CLI: commands opt in via the cobra annotation `capcom-index` = `refresh`|`rebuild`; root's PersistentPreRunE (`app.prepare`) opens store+index once, `emit` prepends the index warnings, `Run` closes the index. Items 6+ add the annotation and read `a.issueIndex`.
+NOTES (2026-10-11): re-derived from the assumption that item 3's `tree.Load` supplies the duplicate detection — `Load` fails fast on the first bad name/duplicate and needs every file parsed for aliases, which defeats incremental refresh and warn-and-exclude. The index walks the tree itself (`internal/index/walk.go`, split out of refresh.go for size) with item 3's `tree.ValidateID`/`ValidateAlias` and layout rules, and detects duplicate ids/aliases in SQL on every refresh; invalid-id files and directories without a valid node file are warned about and skipped with their subtree.
+NOTES (2026-10-11): rows are keyed by file path, not id (duplicates share an id); `issues.excluded` marks duplicate rivals so a survivor returns once its rival is gone without a re-parse. The `files` table column holding a file's problems is `problems` (JSON), re-warned each refresh until the file changes. Files failing `issue.Validate` (undeclared status/type, missing closed/reason, ...) are excluded like parse failures, so every indexed row has a category; consequently the meta config hash covers the declared types as well as the status map.
+NOTES (2026-10-11): racy-clean uses the refresh start truncated to the second (coarse-mtime filesystems), so a file modified within the second before a refresh is re-read once more next time.
+NOTES (2026-10-11): `modernc.org/sqlite` pinned at v1.44.3, the newest whose dependency set keeps `go 1.24` (v1.47+ / x/sys v0.42 need go 1.25); `go get` rewrote the directive to `go 1.24.0`.
+NOTES (2026-10-11): consequential edit — go.mod: made necessary by the index's new `modernc.org/sqlite` dependency (pinned v1.44.3, `go mod tidy` run).
+NOTES (2026-10-11): consequential edit — go.sum: made necessary by the index's new `modernc.org/sqlite` dependency and its transitive modules (`go mod tidy` run).
+NOTES (2026-10-11): consequential edit — internal/store/store.go: made necessary by the index walking the issue tree; `(*Store).IssuesDir()` added so the index resolves `.capcom/issues` from the store instead of hard-coding it (ADR 0004).
+NOTES (2026-10-11): consequential edit — docs/format.md: made necessary by the index's warn-and-exclude handling; the Errors section gained a paragraph on how bad files and duplicate ids/aliases surface as `path:line` warnings.
+NOTES (2026-10-11): SQLite errors returned by `refresh()` (schema, sync, duplicate exclusion, count) and by the query helpers (`Issue`, `strings`/`Search`) carry the `index.Path(store)` prefix; a file-system error from reading an issue file is left unprefixed since it already names its own file.
 
 Depends on item 4.
 **What:**

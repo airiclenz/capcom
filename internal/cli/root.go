@@ -5,10 +5,13 @@ package cli
 
 import (
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom"
+	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 const (
@@ -16,6 +19,15 @@ const (
 	flagKV   = "kv"
 	// argsTerminator ends flag parsing; nothing after it is a flag.
 	argsTerminator = "--"
+)
+
+// annotationIndex is the cobra annotation a command sets to have the index ready before its body
+// runs: indexRefresh brings it up to date, indexRebuild recreates it. Commands without it never
+// open the store or the index.
+const (
+	annotationIndex = "capcom-index"
+	indexRefresh    = "refresh"
+	indexRebuild    = "rebuild"
 )
 
 // app carries one invocation's output streams and the renderer its global flags select. Run builds a
@@ -26,6 +38,11 @@ type app struct {
 	isJSON   bool
 	isKV     bool
 	renderer Renderer
+	// store and issueIndex are set for a command annotated with annotationIndex; Run closes the
+	// index. indexReport is what preparing the index did, and its warnings go with the result.
+	store       *store.Store
+	issueIndex  *index.Index
+	indexReport index.Report
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and
@@ -40,6 +57,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	root.SetErr(stderr)
 
 	err := root.Execute()
+	if closeErr := application.closeIndex(); closeErr != nil && err == nil {
+		err = asError(closeErr)
+	}
 	if err == nil {
 		return ExitOK
 	}
@@ -69,13 +89,65 @@ func (a *app) newRootCommand() *cobra.Command {
 		SilenceErrors:      true,
 		SilenceUsage:       true,
 		DisableSuggestions: true,
-		PersistentPreRunE:  a.selectRenderer,
+		PersistentPreRunE:  a.prepare,
 	}
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
 	root.PersistentFlags().BoolVar(&a.isKV, flagKV, false, "print KEY=VALUE lines ending in STATUS=")
 	root.AddCommand(a.newInitCommand())
+	root.AddCommand(a.newReindexCommand())
 	root.AddCommand(a.newVersionCommand())
 	return root
+}
+
+// prepare runs before every command body: it selects the renderer, then readies the index for a
+// command that asks for it.
+func (a *app) prepare(cmd *cobra.Command, args []string) error {
+	if err := a.selectRenderer(cmd, args); err != nil {
+		return err
+	}
+	return a.prepareIndex(cmd)
+}
+
+// prepareIndex opens the store and its index and refreshes or rebuilds it, once per command, as
+// the command's annotationIndex asks.
+func (a *app) prepareIndex(cmd *cobra.Command) error {
+	mode := cmd.Annotations[annotationIndex]
+	if mode == "" {
+		return nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return asError(err)
+	}
+	opened, err := store.Open(cwd)
+	if err != nil {
+		return storeFailure(err)
+	}
+	issueIndex, err := index.Open(opened)
+	if err != nil {
+		return asError(err)
+	}
+	a.store = opened
+	a.issueIndex = issueIndex
+
+	prepareIndex := issueIndex.Refresh
+	if mode == indexRebuild {
+		prepareIndex = issueIndex.Rebuild
+	}
+	report, err := prepareIndex()
+	if err != nil {
+		return asError(err)
+	}
+	a.indexReport = report
+	return nil
+}
+
+// closeIndex releases the index a command opened, if any.
+func (a *app) closeIndex() error {
+	if a.issueIndex == nil {
+		return nil
+	}
+	return a.issueIndex.Close()
 }
 
 // selectRenderer applies the global output flags once cobra has parsed them.
@@ -105,12 +177,17 @@ func runE(body func(cmd *cobra.Command, args []string) error) func(*cobra.Comman
 	}
 }
 
-// emit renders a successful result in the selected format. A command that offers no --kv
-// records rejects --kv as a usage error.
+// emit renders a successful result in the selected format, the index's warnings ahead of the
+// command's own. A command that offers no --kv records rejects --kv as a usage error.
 func (a *app) emit(cmd *cobra.Command, result Result) error {
 	if a.isKV && result.KV == nil {
 		return UsageErrorf("%s does not support --kv", cmd.CommandPath())
 	}
+	warnings := make([]string, 0, len(a.indexReport.Warnings)+len(result.Warnings))
+	for _, warning := range a.indexReport.Warnings {
+		warnings = append(warnings, warning.String())
+	}
+	result.Warnings = append(warnings, result.Warnings...)
 	return a.renderer.Render(result)
 }
 

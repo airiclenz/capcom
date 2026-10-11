@@ -132,6 +132,13 @@ cites the key's line; a value of the wrong shape cites the value's line; a value
 allow (an undeclared status or type, a priority out of range) cites its key's line; a missing
 `closed` or `reason` on a Closed issue cites the `status` line.
 
+A command does not fail on a bad issue file. The index (`<git-dir>/capcom/index.db`) leaves the file
+out and every command that reads it reports the file as a warning, after its result, until the file
+is fixed; the other issues stay usable. Two files that answer to the same id or alias are both left
+out, each warning naming the other. The index refreshes itself on every command that reads it,
+re-reading only the files whose size or modification time changed; `capcom reindex` rebuilds it
+from scratch.
+
 ## Config
 
 `.capcom/config.yaml` is optional, and so is every key in it: a missing key takes the value shown

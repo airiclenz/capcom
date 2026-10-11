@@ -99,6 +99,11 @@ func Init(cwd string) (*Store, []string, error) {
 	return store, created, nil
 }
 
+// IssuesDir returns the directory that holds the issue tree.
+func (s *Store) IssuesDir() string {
+	return filepath.Join(s.Root, issuesDir)
+}
+
 // locate resolves the store paths for cwd without touching the store itself.
 func locate(cwd string) (*Store, error) {
 	paths, err := gitx.Discover(cwd)
