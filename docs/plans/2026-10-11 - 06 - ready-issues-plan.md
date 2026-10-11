@@ -45,7 +45,7 @@ related links (store format 2).
 - 1-5, 8-12: guards merged into the item text (size cut)
 - 6: guard folded (re-check: label slots in git's %S %X %Y order, base first)
 
-## 1. Write verbs report a second, different problem on an already-warned file
+## 1. Write verbs report a second, different problem on an already-warned file — ✅ DONE (2026-10-11)
 
 **What:**
 **Goal:** a write verb drops a tree problem only when an index warning names the same file and

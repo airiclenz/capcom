@@ -154,7 +154,7 @@ func (a *app) treeProblems(err error) (tree.Errors, error) {
 // A problem blocks the command when it names a target as its file or as the other file of a
 // duplicate, or is an orphan directory where a target's children go; the blocking problems come
 // back as the command's failure. Every other problem is returned as a warning, "path: message",
-// unless the index refresh already warned about its file, so no file is reported twice.
+// unless the index refresh already warned about the same problem, so no problem is reported twice.
 func (a *app) triageTreeProblems(problems tree.Errors, targets ...string) ([]string, error) {
 	var blocking tree.Errors
 	var warnings []string
@@ -163,7 +163,7 @@ func (a *app) triageTreeProblems(problems tree.Errors, targets ...string) ([]str
 		switch {
 		case isBlockingTreeProblem(relative, targets):
 			blocking = append(blocking, problem)
-		case !a.isIndexWarnedAbout(relative.Path):
+		case !a.isIndexWarnedAbout(relative):
 			warnings = append(warnings, relative.Error())
 		}
 	}
@@ -266,13 +266,84 @@ func isBlockingTreeProblem(problem *tree.Error, targets []string) bool {
 	return false
 }
 
-// isIndexWarnedAbout reports whether this command's index refresh warned about the file at path,
-// relative to the working tree root with forward slashes.
-func (a *app) isIndexWarnedAbout(path string) bool {
+// isIndexWarnedAbout reports whether this command's index refresh warned about problem, its path
+// relative to the working tree root with forward slashes: a warning names the same file and the
+// same kind of problem. A different problem on a file the index warned about is not covered.
+func (a *app) isIndexWarnedAbout(problem *tree.Error) bool {
+	kind := treeProblemKindOf(problem)
+	if kind == problemKindOther {
+		return false
+	}
 	for _, warning := range a.indexReport.Warnings {
-		if warning.Path == path {
+		if warning.Path == problem.Path && indexWarningKindOf(warning.Message) == kind {
 			return true
 		}
 	}
 	return false
+}
+
+// problemKind is the class of a tree problem or an index warning, which is all
+// isIndexWarnedAbout compares: a tree problem and an index warning word the same problem
+// differently.
+type problemKind int
+
+// The problem kinds the tree and the index both report.
+const (
+	// problemKindOther is any problem the other side never reports, such as a bad status.
+	problemKindOther problemKind = iota
+	problemKindInvalidID
+	problemKindInvalidAlias
+	// problemKindDuplicate is an id or alias another file also has.
+	problemKindDuplicate
+	// problemKindRepeatedAlias is an alias that repeats its own node's id or is listed twice.
+	problemKindRepeatedAlias
+	problemKindOrphanDirectory
+)
+
+// The leading and trailing text of the index warnings that have no tree sentinel of their own:
+// the walk's directory beside an invalid node file, and aliasProblems' repeated aliases.
+const (
+	leftOutDirectoryWarningPrefix = "directory left out:"
+	aliasWarningPrefix            = "alias "
+	ownIDAliasWarningSuffix       = "'s own id"
+	listedTwiceAliasWarningSuffix = " is listed twice"
+)
+
+// treeProblemKindOf returns the kind of a tree.Load problem, by the sentinel it wraps. A duplicate
+// alias whose other file is its own is a repeated alias.
+func treeProblemKindOf(problem *tree.Error) problemKind {
+	switch {
+	case errors.Is(problem, tree.ErrInvalidID):
+		return problemKindInvalidID
+	case errors.Is(problem, tree.ErrInvalidAlias):
+		return problemKindInvalidAlias
+	case errors.Is(problem, tree.ErrDuplicate) && problem.Alias != "" && problem.Other == problem.Path:
+		return problemKindRepeatedAlias
+	case errors.Is(problem, tree.ErrDuplicate):
+		return problemKindDuplicate
+	case errors.Is(problem, tree.ErrOrphanDirectory):
+		return problemKindOrphanDirectory
+	}
+	return problemKindOther
+}
+
+// indexWarningKindOf returns the kind of an index warning, by its leading text: the text of the
+// tree sentinel it starts with, or one of the index's own wordings of the same problem.
+func indexWarningKindOf(message string) problemKind {
+	switch {
+	case strings.HasPrefix(message, tree.ErrInvalidID.Error()):
+		return problemKindInvalidID
+	case strings.HasPrefix(message, tree.ErrInvalidAlias.Error()):
+		return problemKindInvalidAlias
+	case strings.HasPrefix(message, tree.ErrDuplicate.Error()):
+		return problemKindDuplicate
+	case strings.HasPrefix(message, aliasWarningPrefix) &&
+		(strings.HasSuffix(message, ownIDAliasWarningSuffix) ||
+			strings.HasSuffix(message, listedTwiceAliasWarningSuffix)):
+		return problemKindRepeatedAlias
+	case strings.HasPrefix(message, tree.ErrOrphanDirectory.Error()),
+		strings.HasPrefix(message, leftOutDirectoryWarningPrefix):
+		return problemKindOrphanDirectory
+	}
+	return problemKindOther
 }

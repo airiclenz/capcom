@@ -438,8 +438,89 @@ func TestCreate_UnrelatedOrphanDirectory_WritesAndWarns(t *testing.T) {
 		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
 	}
 	readStoreFile(t, root, "good-one.md")
-	if want := ".capcom/issues/lost-dir: directory without its node file"; !strings.Contains(stdout+stderr, want) {
-		t.Errorf("stdout = %q stderr = %q, want a warning containing %q", stdout, stderr, want)
+	want := ".capcom/issues/lost-dir: directory without its node file"
+	if count := strings.Count(stdout+stderr, want); count != 1 {
+		t.Errorf("%q warned %d times, want once\nstdout = %q\nstderr = %q", want, count, stdout, stderr)
+	}
+}
+
+// assertWarnedOnce fails the test unless each of wants appears exactly once in output.
+func assertWarnedOnce(t *testing.T, output string, wants ...string) {
+	t.Helper()
+	for _, want := range wants {
+		if count := strings.Count(output, want); count != 1 {
+			t.Errorf("%q warned %d times, want once\noutput = %q", want, count, output)
+		}
+	}
+}
+
+func TestCreate_IndexWarnedFileWithDuplicateID_WarnsAboutBoth(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"dup-id.md":           validIssue,
+		"zz-parent.md":        validIssue,
+		"zz-parent/dup-id.md": readIssue("Bad status", "bogus", "", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "good-one.md")
+	assertWarnedOnce(
+		t,
+		stdout+stderr,
+		`status "bogus" is not declared`,
+		`.capcom/issues/zz-parent/dup-id.md: duplicate id "dup-id"`,
+	)
+}
+
+func TestCreate_IndexWarnedFileDuplicatedElsewhere_WarnsOnce(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"dup-id.md":           validIssue,
+		"zz-parent.md":        validIssue,
+		"zz-parent/dup-id.md": validIssue,
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "good-one.md")
+	assertWarnedOnce(
+		t,
+		stdout+stderr,
+		`.capcom/issues/dup-id.md: duplicate id "dup-id"`,
+		`.capcom/issues/zz-parent/dup-id.md: duplicate id "dup-id"`,
+	)
+}
+
+func TestCreate_IndexWarnedFileSelfAlias_WarnsOnce(t *testing.T) {
+	cases := []struct {
+		name    string
+		aliases string
+	}{
+		{name: "alias repeats its own id", aliases: "aliases: [self-alias]\n"},
+		{name: "alias listed twice", aliases: "aliases: [old-name, old-name]\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newWriteStore(t)
+			writeIssueFiles(t, root, map[string]string{
+				"self-alias.md": readIssue("Self alias", "open", tc.aliases, ""),
+			})
+
+			stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+			if exitCode != ExitOK {
+				t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+			}
+			readStoreFile(t, root, "good-one.md")
+			assertWarnedOnce(t, stdout+stderr, ".capcom/issues/self-alias.md")
+		})
 	}
 }
 
