@@ -1,11 +1,13 @@
 ---
 title: Notes cannot be changed, moved or removed through capcom
-status: open
+status: done
 type: feature
 priority: 2
 labels: [knowledge, cli]
 plan: 2026-10-11 - 03 - know-edit-verbs-plan
 created: 2026-10-11T17:48:07Z
+closed: 2026-10-11T18:36:37Z
+reason: "Resolved by plan 2026-10-11 - 03 - know-edit-verbs-plan (00332bf): know update, know mv, know rm and Note etags"
 ---
 
 Notes can be added but not changed through capcom. `capcom know` has `add`, `search`, `show`,
