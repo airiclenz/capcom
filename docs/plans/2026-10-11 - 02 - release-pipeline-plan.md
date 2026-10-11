@@ -55,7 +55,7 @@ workflow, and two project-local release skills.
 - 7: guard folded (re-check: done winget state and hasTap in the publish fakes, manifest dir kept on failed submit, winget absence resolved once into publishRun, `komac submit` in mutatingCommands)
 - 9: guard folded (decision: no-release baseline read as whole history, root commit from `git rev-list --max-parents=0 HEAD`)
 
-## 1. Escape every YAML non-printable rune in issue frontmatter
+## 1. Escape every YAML non-printable rune in issue frontmatter — ✅ DONE (2026-10-11)
 
 **What:**
 **Goal:** `issue.Serialize` output re-parses for any frontmatter text value, including ones holding U+FFFE and U+FFFF, and the round-trip stays byte-stable.

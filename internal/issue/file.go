@@ -346,9 +346,18 @@ func isPlainSafe(value string, isFlowEntry bool) bool {
 }
 
 // needsEscape reports a rune a YAML double-quoted scalar must escape: control characters, the
-// Unicode line breaks YAML folds, and the byte order mark.
+// Unicode line breaks YAML folds, the byte order mark, and every other rune outside YAML 1.2's
+// printable set (the surrogates and the noncharacters U+FFFE and U+FFFF), which a YAML parser
+// rejects when written raw.
 func needsEscape(r rune) bool {
-	return unicode.IsControl(r) || r == '\u2028' || r == '\u2029' || r == '\uFEFF'
+	switch {
+	case unicode.IsControl(r), r == '\u2028', r == '\u2029', r == '\uFEFF':
+		return true
+	case r <= '\uD7FF', r >= '\uE000' && r <= '\uFFFD', r >= '\U00010000' && r <= unicode.MaxRune:
+		return false
+	default:
+		return true
+	}
 }
 
 // doubleQuoted renders value as a YAML double-quoted scalar on one line.

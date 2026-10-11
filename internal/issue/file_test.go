@@ -282,7 +282,7 @@ func TestSerialize_TrickyText_RoundTrips(t *testing.T) {
 		"a: b", "a:b", "a #b", "#x", "- x", "-x", "? x", "&anchor", "*alias", "!tag", "%x", "@x",
 		"`x`", "'quoted'", `"quoted"`, `back\slash`, " leading", "trailing ", "multi\nline",
 		"tab\there", "bell\a", "line\u2028separator", "[x]", "{x}", "x, y", "x]", "ünïcode ✓",
-		"plain words",
+		"plain words", "non\uFFFEcharacter", "non\uFFFFcharacter", "\uFFFE", "\uFFFF",
 	}
 	for _, value := range values {
 		t.Run(value, func(t *testing.T) {
