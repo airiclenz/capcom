@@ -171,7 +171,16 @@ Depends on item 6.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run Ready ./internal/issue/ ./internal/cli/`
 **Commit:** `feat(issue): ready rules by status category`
 
-## 8. Write commands: create, update, log
+## 8. Write commands: create, update, log — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by the new create, log and update commands, registered in the root command's AddCommand list.
+NOTES (2026-10-11): consequential edit — internal/cli/show.go: made necessary by show exposing the etag; showResult builds the text, KV and JSON records, so it reads the issue file and passes its etag to issueText/issueKV/issueData.
+NOTES (2026-10-11): consequential edit — internal/cli/read_test.go: made necessary by the etag the item adds to show; the exact-output show text and --kv tests now expect the `etag:` / `ETAG=` line (new helper fileETag).
+NOTES (2026-10-11): the Log append is split in two so internal/issue stays free of git: `issue.Issue.AppendLog(date, author, text)` in mutate.go is the single writer of Log entries, and author resolution is `gitx.AuthorName(dir)` ($GIT_AUTHOR_NAME, `git config user.name`, $USER; ErrNoAuthor when all are empty). The CLI helper `(*app).appendLog` in internal/cli/log.go combines them; item 9's reopen should call that helper.
+NOTES (2026-10-11): the shared read-modify-write cycle is `(*app).editIssue(arg, ifMatch, edit)` in internal/cli/update.go (resolve, read, if-match, parse, edit, validate, atomic write, result with new etag); log uses it and close/reopen/dep can too. `writeIssueFile` validates and writes; `readTextInput` reads a `--*-file` path or stdin (`-`).
+NOTES (2026-10-11): design calls the plan left open: without --type create uses `task` when configured, else the first configured type; a body from --body-file and every --body-append block are separated from what precedes them by a blank line (a new body starts with the blank line after the frontmatter); a Log entry's later lines are indented two spaces; the Log section runs to the next `#`/`##` heading; the log date is the local calendar date; update with no change flag exits usage; --body-append and --body-append-file are mutually exclusive; a done→dropped status change is refused too (out of a closed category); `create --status <closed>` is refused invalid; `log` takes exactly two args (quote the text).
+NOTES (2026-10-11): create checks ids and aliases with `tree.Load` on the issue directory, so one misnamed issue file or duplicate id in the tree blocks create until fixed; a file that does not parse contributes no aliases (the index refresh already warns about it).
+NOTES (2026-10-11): on Windows $USER is usually unset (USERNAME is), so `log` there needs GIT_AUTHOR_NAME or git user.name; AuthorName follows the plan's three sources only.
 
 Depends on item 6.
 **What:** Recast at the regression check (2026-10-11).

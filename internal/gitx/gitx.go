@@ -19,6 +19,16 @@ const (
 	discoverOutputs  = 3
 )
 
+// Sources of an author name, in the order AuthorName tries them.
+const (
+	authorNameVariable = "GIT_AUTHOR_NAME"
+	userNameKey        = "user.name"
+	userVariable       = "USER"
+)
+
+// ErrNoAuthor reports that no author name is configured anywhere AuthorName looks.
+var ErrNoAuthor = errors.New("no author name: set GIT_AUTHOR_NAME, git config user.name or USER")
+
 // ErrNotWorkTree reports a directory outside any git working tree: not in a repository at all, or
 // inside a bare repository or a .git directory.
 var ErrNotWorkTree = errors.New("not inside a git working tree")
@@ -103,6 +113,28 @@ func Run(dir string, args ...string) (string, error) {
 		return "", fmt.Errorf("run git %s: %w", strings.Join(args, " "), err)
 	}
 	return stdout.String(), nil
+}
+
+// AuthorName returns the name a capcom write records as its author: the first non-empty of the
+// GIT_AUTHOR_NAME environment variable, `git config user.name` as read in dir, and the USER
+// environment variable. An unset user.name is not a failure; it fails with ErrNoAuthor when all
+// three are empty, and with git's own error when git cannot run at all.
+func AuthorName(dir string) (string, error) {
+	if name := strings.TrimSpace(os.Getenv(authorNameVariable)); name != "" {
+		return name, nil
+	}
+	output, err := Run(dir, "config", userNameKey)
+	var gitFailure *Error
+	if err != nil && !errors.As(err, &gitFailure) {
+		return "", err
+	}
+	if name := strings.TrimSpace(output); name != "" {
+		return name, nil
+	}
+	if name := strings.TrimSpace(os.Getenv(userVariable)); name != "" {
+		return name, nil
+	}
+	return "", ErrNoAuthor
 }
 
 // cleanPath turns one path line of git output into a native, cleaned path; git prints forward

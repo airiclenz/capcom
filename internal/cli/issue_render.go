@@ -13,7 +13,7 @@ import (
 const textIndent = "  "
 
 // issueData is one issue in the --json data of list, show and search. Lists are always present,
-// empty when the file has none; Body is set by show only.
+// empty when the file has none; ETag and Body are set by show only.
 type issueData struct {
 	ID       string   `json:"id"`
 	Path     string   `json:"path"`
@@ -30,6 +30,7 @@ type issueData struct {
 	Created  string   `json:"created,omitempty"`
 	Closed   string   `json:"closed,omitempty"`
 	Reason   string   `json:"reason,omitempty"`
+	ETag     string   `json:"etag,omitempty"`
 	Body     *string  `json:"body,omitempty"`
 }
 
@@ -78,13 +79,14 @@ func issueLines(entries []index.Entry, issuesPrefix string) string {
 	return text.String()
 }
 
-// issueText renders one issue in full: its id, location and frontmatter as `key: value` lines in
-// the file's key order, a blank line, then the body byte for byte. Empty fields are left out,
-// except priority.
-func issueText(entry index.Entry, body string) string {
+// issueText renders one issue in full: its id, location, etag and frontmatter as `key: value`
+// lines in the file's key order, a blank line, then the body byte for byte. Empty fields are left
+// out, except priority.
+func issueText(entry index.Entry, etag string, body string) string {
 	fields := []KVPair{
 		{"id", entry.ID},
 		{"path", entry.Path},
+		{"etag", etag},
 		{"parent", entry.ParentID},
 		{"title", entry.Title},
 		{"status", entry.Status},
@@ -119,10 +121,11 @@ func issueText(entry index.Entry, body string) string {
 }
 
 // issueKV is the --kv record of one issue. STATUS is the outcome of looking it up; the issue's own
-// status is ISSUE_STATUS.
-func issueKV(entry index.Entry) KVRecord {
+// status is ISSUE_STATUS. ETAG is the file's etag, for update --if-match.
+func issueKV(entry index.Entry, etag string) KVRecord {
 	return KVRecord{Pairs: []KVPair{
 		{"ID", entry.ID},
+		{"ETAG", etag},
 		{"ISSUE_STATUS", entry.Status},
 		{"CATEGORY", string(entry.Category)},
 		{"TITLE", entry.Title},

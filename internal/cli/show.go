@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -61,14 +62,20 @@ func (a *app) showResult(args []string) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
+		file, err := a.readIssueFile(entry.Path)
+		if err != nil {
+			return Result{}, err
+		}
+		etag := issue.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}
-		text.WriteString(issueText(entry, body))
-		issue := newIssueData(entry)
-		issue.Body = &body
-		data = append(data, issue)
-		result.KV = append(result.KV, issueKV(entry))
+		text.WriteString(issueText(entry, etag, body))
+		shown := newIssueData(entry)
+		shown.ETag = etag
+		shown.Body = &body
+		data = append(data, shown)
+		result.KV = append(result.KV, issueKV(entry, etag))
 	}
 	if result.Failure != nil {
 		result.Failure.Message = strings.Join(messages, failureSeparator)

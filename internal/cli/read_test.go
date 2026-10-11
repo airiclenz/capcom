@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/issue"
 )
 
 // readIssue is the content of a valid issue file with the given extra frontmatter lines and body.
@@ -55,6 +57,12 @@ func writeIssueFiles(t *testing.T, root string, files map[string]string) {
 			t.Fatalf("WriteFile: %v", err)
 		}
 	}
+}
+
+// fileETag returns the etag of the issue file at a slash path below .capcom/issues/.
+func fileETag(t *testing.T, root string, name string) string {
+	t.Helper()
+	return issue.ETag([]byte(readStoreFile(t, root, name)))
 }
 
 // listIDs runs capcom list --json with args and returns the listed ids.
@@ -173,6 +181,7 @@ func TestShow_Text_PrintsFrontmatterThenBodyVerbatim(t *testing.T) {
 
 	want := "id: session-refresh\n" +
 		"path: .capcom/issues/login-flow/session-refresh.md\n" +
+		"etag: " + fileETag(t, root, "login-flow/session-refresh.md") + "\n" +
 		"parent: login-flow\n" +
 		"title: " + longTitle + "\n" +
 		"status: parked\ncategory: waiting\ntype: task\npriority: 2\nlabels: [auth]\n" +
@@ -225,7 +234,7 @@ func TestShow_KV_ClosesEachIDWithItsStatus(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "show", "--kv", "rel", "absent")
 
-	want := "ID=release-checklist\nISSUE_STATUS=open\nCATEGORY=todo\nTITLE=Release checklist\nSTATUS=ok\n" +
+	want := "ID=release-checklist\nETAG=" + fileETag(t, root, "release-checklist.md") + "\nISSUE_STATUS=open\nCATEGORY=todo\nTITLE=Release checklist\nSTATUS=ok\n" +
 		"ID=absent\nMESSAGE=id \"absent\" not found\nSTATUS=not_found\n"
 	if exitCode != ExitNotFound || stdout != want {
 		t.Errorf("exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)

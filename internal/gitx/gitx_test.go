@@ -119,3 +119,35 @@ func TestRun_DisablesOptionalLocks(t *testing.T) {
 		t.Errorf("GIT_OPTIONAL_LOCKS = %q (%v), want 0", output, err)
 	}
 }
+
+func TestAuthorName_Sources_FirstNonEmptyWins(t *testing.T) {
+	cases := []struct {
+		name       string
+		authorName string
+		userName   string
+		user       string
+		want       string
+		wantErr    error
+	}{
+		{name: "author variable", authorName: "Env Author", userName: "Config User", user: "login", want: "Env Author"},
+		{name: "git config", userName: "Config User", user: "login", want: "Config User"},
+		{name: "user variable", user: "login", want: "login"},
+		{name: "none", wantErr: ErrNoAuthor},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newRepo(t)
+			if tc.userName != "" {
+				git(t, root, "config", "user.name", tc.userName)
+			}
+			t.Setenv("GIT_AUTHOR_NAME", tc.authorName)
+			t.Setenv("USER", tc.user)
+
+			name, err := AuthorName(root)
+
+			if name != tc.want || !errors.Is(err, tc.wantErr) {
+				t.Errorf("AuthorName = %q, %v; want %q, %v", name, err, tc.want, tc.wantErr)
+			}
+		})
+	}
+}
