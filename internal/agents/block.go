@@ -47,6 +47,8 @@ const blockIntro = `<!-- Managed by capcom: run "capcom agents" to refresh. Edit
 capcom is the issue register of record for this repository. Issues and Knowledge Notes are
 markdown files under ` + "`.capcom/`" + `, versioned with the code; track work there and nowhere else.
 
+Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclenz/capcom#install.
+
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
 - ` + "`capcom show <id>`" + `: one issue in full
 - ` + "`capcom create --id <slug> --title <title>`" + `: file a new issue

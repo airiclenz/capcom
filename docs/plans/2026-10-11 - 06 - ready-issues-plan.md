@@ -96,7 +96,7 @@ directory; exit 0; stderr has the old path 0 times, the new once.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run 'TestMv_|TestKnowMv_' ./internal/cli/`; `go vet ./internal/cli/`
 **Commit:** `fix(cli): name a moved child's bad file by its path after the move`
 
-## 3. The AGENTS.md block links to capcom's source and install instructions
+## 3. The AGENTS.md block links to capcom's source and install instructions — ✅ DONE (2026-10-11)
 
 **What:**
 **Goal:** the Managed block gains, right after the "capcom is the issue register of record"

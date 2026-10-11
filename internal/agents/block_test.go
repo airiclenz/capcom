@@ -22,6 +22,31 @@ const goldenBlock = `<!-- BEGIN CAPCOM -->
 capcom is the issue register of record for this repository. Issues and Knowledge Notes are
 markdown files under ` + "`.capcom/`" + `, versioned with the code; track work there and nowhere else.
 
+Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclenz/capcom#install.
+
+- ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
+- ` + "`capcom show <id>`" + `: one issue in full
+- ` + "`capcom create --id <slug> --title <title>`" + `: file a new issue
+- ` + "`capcom close <id> --reason <text>`" + `: close an issue
+- ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+
+Knowledge tree, top level:
+
+- ` + "`release-flow`" + `: Release flow
+- ` + "`testing-rules`" + `: Testing rules and fixtures
+<!-- END CAPCOM -->`
+
+// installLine is the paragraph that points an agent without a capcom binary at its source.
+const installLine = "Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#install."
+
+// preInstallLineBlock is goldenBlock as capcom rendered it before the block gained installLine.
+const preInstallLineBlock = `<!-- BEGIN CAPCOM -->
+<!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->
+## Issues and knowledge: capcom
+
+capcom is the issue register of record for this repository. Issues and Knowledge Notes are
+markdown files under ` + "`.capcom/`" + `, versioned with the code; track work there and nowhere else.
+
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
 - ` + "`capcom show <id>`" + `: one issue in full
 - ` + "`capcom create --id <slug> --title <title>`" + `: file a new issue
@@ -105,6 +130,27 @@ func TestWrite_StaleBlock_RefreshesInPlaceKeepingSurroundingBytes(t *testing.T) 
 	}
 }
 
+func TestWrite_BlockWithoutInstallLine_PutsItInsideTheMarkersKeepingSurroundingBytes(t *testing.T) {
+	t.Parallel()
+	before := "# Guide\n\n  "
+	after := "  \n\n## Hand-written tail\n\nKeep  this\ttext.\n"
+	root := writeGuide(t, before+preInstallLineBlock+after)
+
+	status, err := Write(root, goldenNotes)
+
+	if err != nil || status.State != StateStale || status.Line != 3 {
+		t.Fatalf("Write = %+v, %v; want stale at line 3", status, err)
+	}
+	got := readGuideText(t, root)
+	if want := before + goldenBlock + after; got != want {
+		t.Errorf("AGENTS.md =\n%q\nwant\n%q", got, want)
+	}
+	begin, line, end := strings.Index(got, BeginMarker), strings.Index(got, installLine), strings.Index(got, EndMarker)
+	if begin < 0 || line < begin || end < line {
+		t.Errorf("install line at %d, want between the markers at %d and %d", line, begin, end)
+	}
+}
+
 func TestWrite_CurrentBlock_LeavesTheFileAlone(t *testing.T) {
 	t.Parallel()
 	root := writeGuide(t, goldenBlock+"\n")
@@ -159,6 +205,7 @@ func TestInspect_States(t *testing.T) {
 		{"current in CRLF", strings.ReplaceAll(goldenBlock, "\n", "\r\n") + "\r\n", StateCurrent},
 		{"stale", Render(nil) + "\n", StateStale},
 		{"hand-edited inside", strings.Replace(goldenBlock, "most urgent", "least urgent", 1), StateStale},
+		{"without the install line", "# Guide\n\n" + preInstallLineBlock + "\n", StateStale},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -193,8 +240,8 @@ func TestInspect_TangledMarkers_FailAtTheMarkerLine(t *testing.T) {
 	}{
 		{"never closed", "# Guide\n" + BeginMarker + "\ntext\n", 2},
 		{"end first", EndMarker + "\n" + BeginMarker + "\n", 1},
-		{"second begin", goldenBlock + "\n\n" + BeginMarker + "\n", 20},
-		{"second end", goldenBlock + "\n" + EndMarker + "\n", 19},
+		{"second begin", goldenBlock + "\n\n" + BeginMarker + "\n", 22},
+		{"second end", goldenBlock + "\n" + EndMarker + "\n", 21},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

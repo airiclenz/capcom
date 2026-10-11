@@ -349,7 +349,9 @@ write, and the record is replaced atomically.
 `AGENTS.md` at the root of the working tree stays a hand-written agent guide. capcom owns only the
 **Managed block**: the lines from `<!-- BEGIN CAPCOM -->` to `<!-- END CAPCOM -->`, each marker on a
 line of its own. The block holds a short paragraph naming capcom as the issue register of record,
-the handful of commands an agent needs, and the top level of the Knowledge tree, one
+an install pointer for an agent without a `capcom` binary (capcom's source and the README's
+install instructions, https://github.com/airiclenz/capcom#install), the handful of commands an
+agent needs, and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order. It is rendered from the Note files
 alone, so the same tree always yields the same block.
 

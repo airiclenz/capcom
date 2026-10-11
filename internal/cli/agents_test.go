@@ -98,6 +98,29 @@ func TestAgentsCheck_StaleBlock_FailsAtTheMarkerLine(t *testing.T) {
 	}
 }
 
+func TestCheck_AgentsBlockWithoutInstallLine_IsStaleUntilAgentsRefreshesIt(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "agents")
+	installParagraph := "Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#install.\n\n"
+	current := readAgentsGuide(t, root)
+	writeAgentsGuide(t, root, strings.Replace(current, installParagraph, "", 1))
+
+	stdout, _, exitCode := runCLI(t, root, "check", "--json")
+	_, _, refreshExit := runCLI(t, root, "agents")
+	_, _, afterExit := runCLI(t, root, "check")
+
+	data, _ := decodeEnvelope(t, stdout)["data"].([]any)
+	if len(data) != 1 {
+		t.Fatalf("check --json on the pre-install-line block = %d, data %v; want one problem", exitCode, data)
+	}
+	if problem, _ := data[0].(map[string]any); exitCode != ExitError || problem["code"] != "agents-block" || problem["line"] != float64(1) {
+		t.Errorf("check --json on the pre-install-line block = %d, data %v; want 1 and one agents-block at line 1", exitCode, data)
+	}
+	if refreshExit != ExitOK || afterExit != ExitOK || readAgentsGuide(t, root) != current {
+		t.Errorf("agents = %d, then check = %d; want 0, 0 and the block with the install line back", refreshExit, afterExit)
+	}
+}
+
 func TestAgentsCheck_NoGuideOrNoBlock_ExitsZero(t *testing.T) {
 	root := newKnowStore(t)
 
