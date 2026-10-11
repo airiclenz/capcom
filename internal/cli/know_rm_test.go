@@ -162,3 +162,35 @@ func TestKnowRm_UnknownID_FailsNotFound(t *testing.T) {
 		t.Errorf("know rm of an unknown id = %d, error %v; want not_found", exitCode, failure)
 	}
 }
+
+func TestKnowRm_UnrelatedBadFileName_RemovesAndWarnsOnce(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"Bad_Name.md": "---\ntitle: Bad name\n---\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "rm", "release-flow")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	if noteFileExists(t, root, "release-flow.md") {
+		t.Error("release-flow.md was not removed")
+	}
+	if count := strings.Count(stdout+stderr, ".capcom/knowledge/Bad_Name.md"); count != 1 {
+		t.Errorf("Bad_Name.md named %d times, want once\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+}
+
+func TestKnowRm_ChildOfDuplicateParent_Fails(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"zz-other.md": "---\ntitle: Other\n---\n", "zz-other/testing-rules.md": "---\ntitle: Testing rules too\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "rm", "git-fixtures")
+
+	want := `duplicate id "testing-rules"`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if !noteFileExists(t, root, "testing-rules/git-fixtures.md") {
+		t.Error("git-fixtures.md was removed below the duplicate parent")
+	}
+}

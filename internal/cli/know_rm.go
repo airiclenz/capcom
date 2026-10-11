@@ -49,14 +49,24 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 // removeNote resolves arg and deletes its Note file together with the Note's own children
 // directory when that is empty, then the parent's children directory when the removal emptied it.
 // Before anything is deleted it refuses a Note with children, a children directory holding other
-// files, and an --if-match that is not the file's etag. The result names the removed file; a stale
-// capcom block of AGENTS.md is refreshed afterwards.
+// files, and an --if-match that is not the file's etag. The result names the removed file, with a
+// warning for every tree problem that concerns neither the Note nor its parent; a stale capcom
+// block of AGENTS.md is refreshed afterwards.
 func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
+	problems, err := a.treeProblems(err)
 	if err != nil {
-		return Result{}, a.treeLoadFailure(err)
+		return Result{}, err
 	}
 	node, err := resolveNode(notes, arg)
+	if err != nil {
+		return Result{}, err
+	}
+	parentPath := ""
+	if parent, isFound := notes.Lookup(node.ParentID); isFound {
+		parentPath = a.worktreeRelative(parent.Path)
+	}
+	warnings, err := a.triageTreeProblems(problems, a.worktreeRelative(node.Path), parentPath)
 	if err != nil {
 		return Result{}, err
 	}
@@ -97,6 +107,7 @@ func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 	}
 
 	result := noteRemoveResult(node.ID, path)
+	result.Warnings = append(result.Warnings, warnings...)
 	if node.ParentID != "" {
 		a.removeEmptyParentDir(filepath.Dir(node.Path), &result)
 	}

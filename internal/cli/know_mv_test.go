@@ -177,3 +177,35 @@ func TestKnowMv_TangledAgentsMarkers_WarnsAndKeepsTheMove(t *testing.T) {
 		t.Errorf("the move was not kept, or AGENTS.md changed to %q", readAgentsGuide(t, root))
 	}
 }
+
+func TestKnowMv_UnrelatedBadFileName_MovesAndWarnsOnce(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"Bad_Name.md": "---\ntitle: Bad name\n---\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "mv", "release-flow", "release-steps")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	if !noteFileExists(t, root, "release-steps.md") {
+		t.Error("release-steps.md was not written")
+	}
+	if count := strings.Count(stdout+stderr, ".capcom/knowledge/Bad_Name.md"); count != 1 {
+		t.Errorf("Bad_Name.md named %d times, want once\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+}
+
+func TestKnowMv_BelowDuplicateParent_Fails(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"zz-other.md": "---\ntitle: Other\n---\n", "zz-other/testing-rules.md": "---\ntitle: Testing rules too\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "mv", "release-flow", "--parent", "testing-rules")
+
+	want := `duplicate id "testing-rules"`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if !noteFileExists(t, root, "release-flow.md") {
+		t.Error("release-flow.md was moved below the duplicate parent")
+	}
+}

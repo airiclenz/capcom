@@ -322,3 +322,49 @@ func TestKnowAdd_TopLevelWithoutAgentsBlock_LeavesAgentsAlone(t *testing.T) {
 		t.Errorf("know add = %q, AGENTS.md = %q; want AGENTS.md untouched", stdout, readAgentsGuide(t, root))
 	}
 }
+
+func TestKnowAdd_UnrelatedBadFileName_WritesAndWarnsOnce(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"Bad_Name.md": "---\ntitle: Bad name\n---\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "good-note", "--title", "Good note")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	if !noteFileExists(t, root, "good-note.md") {
+		t.Error("good-note.md was not written")
+	}
+	if count := strings.Count(stdout+stderr, ".capcom/knowledge/Bad_Name.md"); count != 1 {
+		t.Errorf("Bad_Name.md named %d times, want once\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+}
+
+func TestKnowAdd_UnderParentInOrphanDirectory_Fails(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"lost-dir/parent-note.md": "---\ntitle: Parent note\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "child-note", "--title", "Child", "--parent", "parent-note")
+
+	if exitCode == ExitOK {
+		t.Errorf("exit = %d stderr = %q, want a failure", exitCode, stderr)
+	}
+	if noteFileExists(t, root, "lost-dir/parent-note/child-note.md") {
+		t.Error("child-note.md was written below the orphaned parent")
+	}
+}
+
+func TestKnowAdd_BesideOrphanChildrenDirectory_Fails(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"foo-bar/stray-child.md": "---\ntitle: Stray child\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "foo-bar", "--title", "Foo bar")
+
+	want := ".capcom/knowledge/foo-bar: directory without its node file"
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if noteFileExists(t, root, "foo-bar.md") {
+		t.Error("foo-bar.md was written beside its orphan directory")
+	}
+}

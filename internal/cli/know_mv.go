@@ -49,11 +49,13 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 // moveNote resolves the Note args[0] names and moves it to the new id args[1], when given, and
 // below options.parent, when reparented. It refuses with conflict, before anything moves, when
 // --if-match is set and is not the Note file's etag. The result names the Note's new id, path and
-// etag; a stale capcom block of AGENTS.md is refreshed afterwards.
+// etag, with a warning for every tree problem that concerns neither the Note, its new path nor the
+// new parent; a stale capcom block of AGENTS.md is refreshed afterwards.
 func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
+	problems, err := a.treeProblems(err)
 	if err != nil {
-		return Result{}, a.treeLoadFailure(err)
+		return Result{}, err
 	}
 	node, err := resolveNode(notes, args[0])
 	if err != nil {
@@ -73,6 +75,14 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	if err != nil {
 		return Result{}, a.noteMoveFailure(err, node)
 	}
+	resolvedParentID := ""
+	if options.isReparented {
+		resolvedParentID = destination.ParentID
+	}
+	warnings, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID)
+	if err != nil {
+		return Result{}, err
+	}
 	if current := edit.ETag(move.Original); options.ifMatch != "" && options.ifMatch != current {
 		return Result{}, &Error{
 			Code:    CodeConflict,
@@ -85,6 +95,7 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	}
 	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
 	result := noteWriteResult(move.NewID, path, edit.ETag(move.Content))
+	result.Warnings = append(result.Warnings, warnings...)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
 }

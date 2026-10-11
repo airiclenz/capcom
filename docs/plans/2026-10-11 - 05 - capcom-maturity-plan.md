@@ -221,7 +221,12 @@ internal/cli/write_test.go — mustRun, TestCreate_UnderParent_CreatesParentDire
 
 **Commit:** `fix(cli): let create and mv warn about unrelated tree problems`
 
-## 5. `know add`, `know mv` and `know rm` warn about unrelated tree problems
+## 5. `know add`, `know mv` and `know rm` warn about unrelated tree problems — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): consequential edit — docs/format.md: made necessary by know add/mv/rm now warning about unrelated tree problems (one sentence after item 4's create/mv sentence).
+
+NOTES (2026-10-11): the broken-parent case is tested for all three verbs: `know add --parent` with the parent inside an orphan directory (fails on resolving it, not_found, as before), and `know mv --parent` / `know rm` of a child where the parent's id is duplicated (fails naming the duplicate).
+
 
 **What:** Depends on item 4. This applies item 4's rule and helper to the Knowledge verbs and
 completes `write-verbs-bad-files`.

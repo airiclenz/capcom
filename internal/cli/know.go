@@ -295,7 +295,8 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 }
 
 // addNote places the new Note in the Knowledge tree and writes it, reporting the etag of the
-// bytes written.
+// bytes written, with a warning for every tree problem that concerns neither the Note's path nor
+// its parent.
 func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, error) {
 	if err := tree.ValidateID(options.id); err != nil {
 		return Result{}, Errorf(CodeInvalid, "%s", err.Error())
@@ -306,13 +307,18 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 		}
 	}
 	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
+	problems, err := a.treeProblems(err)
 	if err != nil {
-		return Result{}, a.treeLoadFailure(err)
+		return Result{}, err
 	}
 	if existing, found := notes.Lookup(options.id); found {
 		return Result{}, noteExistsFailure(options.id, existing, a.store.WorktreeRoot)
 	}
-	path, err := a.newNotePath(notes, options)
+	path, parentPath, err := a.newNotePath(notes, options)
+	if err != nil {
+		return Result{}, err
+	}
+	warnings, err := a.triageTreeProblems(problems, path, parentPath)
 	if err != nil {
 		return Result{}, err
 	}
@@ -329,6 +335,7 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 		return Result{}, asError(err)
 	}
 	result := noteWriteResult(options.id, path, edit.ETag(content))
+	result.Warnings = append(result.Warnings, warnings...)
 	if options.parent == "" {
 		a.refreshAgentsAfterWrite(&result)
 	}
@@ -364,23 +371,24 @@ func (a *app) refreshAgentsAfterWrite(result *Result) {
 	result.Text += "refreshed: " + agents.FileName + "\n"
 }
 
-// newNotePath returns where the new Note goes, relative to the working tree root with forward
-// slashes: below its resolved --parent, or at the top of the Knowledge tree.
-func (a *app) newNotePath(notes *tree.Tree, options *knowAddOptions) (string, error) {
-	parentID := ""
+// newNotePath returns where the new Note goes, below its resolved --parent or at the top of the
+// Knowledge tree, and the file of that parent, "" at the top; both relative to the working tree
+// root with forward slashes.
+func (a *app) newNotePath(notes *tree.Tree, options *knowAddOptions) (string, string, error) {
+	parent := tree.Node{}
 	if options.parent != "" {
-		parent, err := notes.Resolve(options.parent)
+		resolved, err := notes.Resolve(options.parent)
 		if err != nil {
 			failure, _ := resolveFailure(err) // either way the command stops here
-			return "", failure
+			return "", "", failure
 		}
-		parentID = parent.ID
+		parent = resolved
 	}
-	absolute, err := notes.PathFor(options.id, parentID)
+	absolute, err := notes.PathFor(options.id, parent.ID)
 	if err != nil {
-		return "", asError(err)
+		return "", "", asError(err)
 	}
-	return relativeSlashPath(a.store.WorktreeRoot, absolute), nil
+	return relativeSlashPath(a.store.WorktreeRoot, absolute), a.worktreeRelative(parent.Path), nil
 }
 
 // newNote builds the Note the flags describe: labels without repeats or empty entries, and the
