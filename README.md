@@ -61,7 +61,9 @@ and show up in code review like the code they describe.
   short block in `AGENTS.md` up to date, between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->`,
   and leaves the rest of the file alone.
 - **One validator.** `capcom check` validates every config, issue and Note file and lists each
-  problem as `path:line: message`, so an agent can fix files in a loop.
+  problem as `path:line: message`, so an agent can fix files in a loop. `capcom fmt` rewrites
+  hand-written issue and Note files in canonical form, so their first capcom edit changes only
+  what it means to change; `capcom fmt --check` fails when a file would change.
 
 Every command prints plain text by default and a versioned JSON envelope with `--json`. `show`,
 `close`, `reopen`, every `lock` subcommand, `version` and the commands that write an issue
@@ -159,6 +161,7 @@ capcom know verify              # Note refs that no longer resolve
 
 capcom agents                   # write or refresh the capcom block of AGENTS.md
 capcom check                    # validate the whole store
+capcom fmt                      # rewrite issue and Note files in canonical form
 capcom prime                    # the session-start briefing
 capcom reindex                  # rebuild the index from scratch
 ```

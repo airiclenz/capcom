@@ -126,6 +126,14 @@ back yields the same bytes, so a write only changes what it means to change:
 Hand-written files may use any valid YAML for these keys (block-style lists, quoted text, comments,
 another time zone); capcom reads them and writes them back in the canonical form.
 
+`capcom fmt` rewrites every issue file and every Note file whose bytes differ from its canonical
+form, lists each one relative to the working tree root, then prints `formatted <n> files`; a second
+run changes nothing. A file that does not parse or validate, or that the tree cannot place, is left
+untouched and reported as a `warning:` without failing the command; `capcom check` is the
+validator. `capcom fmt --check` writes nothing, lists each file that would change, and exits 1, as
+`capcom check` does on a problem, when any would. With `--json` the result is kind `fmt` with the
+data `{"paths": [...]}`.
+
 ### Errors
 
 Every problem with an issue file names the file, and the line when one is to blame, as

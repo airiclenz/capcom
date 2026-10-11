@@ -377,7 +377,11 @@ internal/gitx/branches_test.go — TestBranches_ListsEveryLocalBranchAndMarksThe
 **Closes:** elsewhere-remote-refs
 **Commit:** `feat(elsewhere): scan remote-tracking branches`
 
-## 9. `capcom fmt` rewrites issues and Notes in canonical form
+## 9. `capcom fmt` rewrites issues and Notes in canonical form — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): `fmt` opens the store itself and does not refresh the index, as `check` and `agents` do, so a broken file is warned about once (by `fmt`) rather than also by the index refresh; the next indexed command refreshes the index from the rewritten files.
+NOTES (2026-10-11): the item does not say what `fmt --check` prints after its list; it ends with `would format <n> files`, the counterpart of `formatted <n> files`. The --json data is `{"paths": [...]}` in both modes.
+NOTES (2026-10-11): a file is compared byte for byte with `Serialize()` and written through the existing `writeIssueFile`/`writeNoteFile`, which do the CRLF to LF and atomic write. Nothing was copied and update.go is unchanged.
 
 **What:** Agent-written files churn on their first capcom edit, because every write re-serializes
 the frontmatter (for example, `plan:` is written unquoted).
