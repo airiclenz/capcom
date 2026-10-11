@@ -195,6 +195,26 @@ func TestKnowMv_UnrelatedBadFileName_MovesAndWarnsOnce(t *testing.T) {
 	}
 }
 
+func TestKnowMv_BadFileInMovedChildrenDir_WarnsWithNewPath(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"release-flow/Bad_Name.md": "---\ntitle: Bad name\n---\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "mv", "release-flow", "release-steps")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	if !noteFileExists(t, root, "release-steps/Bad_Name.md") {
+		t.Error("release-steps/Bad_Name.md did not move")
+	}
+	if count := strings.Count(stdout+stderr, ".capcom/knowledge/release-flow/Bad_Name.md"); count != 0 {
+		t.Errorf("old path named %d times, want 0\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+	if count := strings.Count(stdout+stderr, ".capcom/knowledge/release-steps/Bad_Name.md"); count != 1 {
+		t.Errorf("new path named %d times, want once\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+}
+
 func TestKnowMv_BelowDuplicateParent_Fails(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{"zz-other.md": "---\ntitle: Other\n---\n", "zz-other/testing-rules.md": "---\ntitle: Testing rules too\n---\n"})

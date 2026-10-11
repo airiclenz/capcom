@@ -156,21 +156,41 @@ func (a *app) treeProblems(err error) (tree.Errors, error) {
 // back as the command's failure. Every other problem is returned as a warning, "path: message",
 // unless the index refresh already warned about the same problem, so no problem is reported twice.
 func (a *app) triageTreeProblems(problems tree.Errors, targets ...string) ([]string, error) {
+	warned, err := a.splitTreeProblems(problems, targets...)
+	if err != nil {
+		return nil, err
+	}
+	return treeProblemWarnings(warned), nil
+}
+
+// splitTreeProblems splits problems as triageTreeProblems does, but returns the problems to warn
+// about as tree errors, their paths relative to the working tree root with forward slashes, for a
+// command that renames those paths before it renders them.
+func (a *app) splitTreeProblems(problems tree.Errors, targets ...string) (tree.Errors, error) {
 	var blocking tree.Errors
-	var warnings []string
+	var warned tree.Errors
 	for _, problem := range problems {
 		relative := a.relativeTreeError(problem)
 		switch {
 		case isBlockingTreeProblem(relative, targets):
 			blocking = append(blocking, problem)
 		case !a.isIndexWarnedAbout(relative):
-			warnings = append(warnings, relative.Error())
+			warned = append(warned, relative)
 		}
 	}
 	if len(blocking) > 0 {
 		return nil, a.treeLoadFailure(blocking)
 	}
-	return warnings, nil
+	return warned, nil
+}
+
+// treeProblemWarnings renders each problem as a warning, "path: message".
+func treeProblemWarnings(problems tree.Errors) []string {
+	var warnings []string
+	for _, problem := range problems {
+		warnings = append(warnings, problem.Error())
+	}
+	return warnings
 }
 
 // orphanedIDFailure refuses id, the new id of a node being written or moved, when a node file

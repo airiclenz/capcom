@@ -147,6 +147,24 @@ func TestMv_UnrelatedBadFileName_MovesAndWarnsOnce(t *testing.T) {
 	}
 }
 
+func TestMv_BadFileInMovedChildrenDir_WarnsWithNewPath(t *testing.T) {
+	root := newMoveStore(t)
+	writeIssueFiles(t, root, map[string]string{"login-flow/Bad_Name.md": validIssue})
+
+	stdout, stderr, exitCode := runCLI(t, root, "mv", "login-flow", "auth-flow")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "auth-flow/Bad_Name.md")
+	if count := strings.Count(stdout+stderr, ".capcom/issues/login-flow/Bad_Name.md"); count != 0 {
+		t.Errorf("old path named %d times, want 0\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+	if count := strings.Count(stdout+stderr, ".capcom/issues/auth-flow/Bad_Name.md"); count != 1 {
+		t.Errorf("new path named %d times, want once\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+}
+
 func TestMv_DuplicateID_FailsNamingBothFiles(t *testing.T) {
 	root := newIssueStore(t, map[string]string{
 		"dup-issue.md":  readIssue("Duplicate", "open", "", ""),

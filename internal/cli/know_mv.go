@@ -79,7 +79,7 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	if options.isReparented {
 		resolvedParentID = destination.ParentID
 	}
-	warnings, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID, readNoteAliases)
+	warned, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID, readNoteAliases)
 	if err != nil {
 		return Result{}, err
 	}
@@ -95,7 +95,7 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	}
 	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
 	result := noteWriteResult(move.NewID, path, edit.ETag(move.Content))
-	result.Warnings = append(result.Warnings, warnings...)
+	result.Warnings = append(result.Warnings, a.movedWarnings(move.Move, warned)...)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
 }

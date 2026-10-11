@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -72,7 +73,7 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	if isReparented {
 		resolvedParentID = destination.ParentID
 	}
-	warnings, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID, readAliases)
+	warned, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID, readAliases)
 	if err != nil {
 		return Result{}, err
 	}
@@ -81,7 +82,7 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	}
 	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
 	result := writeResult(move.NewID, path, edit.ETag(move.Content))
-	result.Warnings = append(result.Warnings, warnings...)
+	result.Warnings = append(result.Warnings, a.movedWarnings(move.Move, warned)...)
 	for _, unread := range move.Unread {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
 			"%s: deps not checked for %s: the file does not parse",
@@ -92,17 +93,18 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	return result, nil
 }
 
-// triageMoveProblems triages the tree problems of move as triageTreeProblems does, against the
-// moved issue's file, its new path and the file of newParentID, the parent the command resolved
-// ("" when it resolved none, or the top of the tree). A new id is first refused as
-// orphanedIDFailure does, with aliases reading the Aliases of a file inside an orphan directory.
+// triageMoveProblems splits the tree problems of move as splitTreeProblems does, against the
+// moved node's file, its new path and the file of newParentID, the parent the command resolved
+// ("" when it resolved none, or the top of the tree), and returns the problems to warn about. A
+// new id is first refused as orphanedIDFailure does, with aliases reading the Aliases of a file
+// inside an orphan directory.
 func (a *app) triageMoveProblems(
 	issues *tree.Tree,
 	problems tree.Errors,
 	move *tree.Move,
 	newParentID string,
 	aliases tree.AliasFunc,
-) ([]string, error) {
+) (tree.Errors, error) {
 	if move.NewID != move.Node.ID {
 		if err := a.orphanedIDFailure(problems, move.NewID, aliases); err != nil {
 			return nil, err
@@ -112,12 +114,39 @@ func (a *app) triageMoveProblems(
 	if parent, isFound := issues.Lookup(newParentID); isFound {
 		parentPath = a.worktreeRelative(parent.Path)
 	}
-	return a.triageTreeProblems(
+	return a.splitTreeProblems(
 		problems,
 		a.worktreeRelative(move.Node.Path),
 		a.worktreeRelative(move.NewPath),
 		parentPath,
 	)
+}
+
+// movedWarnings renders warned, the problems triageMoveProblems returned, as warnings once move
+// has been applied. A path inside the moved node's children directory, in warned and in the
+// index refresh's warnings alike, is renamed to where that file now lives, so no warning names a
+// file by a path that no longer exists.
+func (a *app) movedWarnings(move *tree.Move, warned tree.Errors) []string {
+	oldDir := a.worktreeRelative(strings.TrimSuffix(move.Node.Path, nodeFileExtension)) + "/"
+	newDir := a.worktreeRelative(strings.TrimSuffix(move.NewPath, nodeFileExtension)) + "/"
+	for i := range a.indexReport.Warnings {
+		warning := &a.indexReport.Warnings[i]
+		warning.Path = movedPath(warning.Path, oldDir, newDir)
+	}
+	for _, problem := range warned {
+		problem.Path = movedPath(problem.Path, oldDir, newDir)
+		problem.Other = movedPath(problem.Other, oldDir, newDir)
+	}
+	return treeProblemWarnings(warned)
+}
+
+// movedPath returns path with its leading oldDir replaced by newDir, or path unchanged when it
+// does not lie inside oldDir. All three use forward slashes; both directories end in one.
+func movedPath(path string, oldDir string, newDir string) string {
+	if rest, isInside := strings.CutPrefix(path, oldDir); isInside {
+		return newDir + rest
+	}
+	return path
 }
 
 // resolveNode resolves arg to its node in issues, typing the failure as resolveFailure does.

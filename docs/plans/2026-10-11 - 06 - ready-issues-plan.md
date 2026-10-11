@@ -71,7 +71,10 @@ and `TestCreate_UnrelatedOrphanDirectory_WritesAndWarns`.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run 'UnrelatedBadFileName|IndexWarnedFile|OrphanDirectory' ./internal/cli/`; `go vet ./internal/cli/`
 **Commit:** `fix(cli): report a second tree problem on a file the index already warned about`
 
-## 2. mv and know mv warn with a moved child's post-move path
+## 2. mv and know mv warn with a moved child's post-move path — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): re-derived from the assumption that triageMoveProblems' warnings can be remapped by path after Apply: triageTreeProblems returns rendered strings, so errors.go gains splitTreeProblems (the same split, returning the warned problems as tree errors) and treeProblemWarnings, with triageTreeProblems now a wrapper over the two; triageMoveProblems returns tree errors and the one helper movedWarnings (mv.go, using movedPath) remaps Path and Other of those and Path of a.indexReport.Warnings after Apply.
+NOTES (2026-10-11): the tests count the old and new paths in stdout+stderr, not stderr alone as the item's Tests line says: in text mode capcom prints warnings to stdout after the result.
 
 **What:**
 **Goal:** after `capcom mv`/`know mv`, a warning about an unrelated bad file in the moved node's
