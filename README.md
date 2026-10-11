@@ -1,5 +1,6 @@
 # capcom: a git-native issue tracker and knowledge base for AI coding agents
 
+[![Release](https://img.shields.io/github/v/release/airiclenz/capcom)](https://github.com/airiclenz/capcom/releases/latest)
 [![CI](https://github.com/airiclenz/capcom/actions/workflows/ci.yml/badge.svg)](https://github.com/airiclenz/capcom/actions/workflows/ci.yml)
 [![Go version](https://img.shields.io/github/go-mod/go-version/airiclenz/capcom)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -16,9 +17,6 @@ In spaceflight, CAPCOM is the one voice on the ground that talks to the crew. `c
 role for a code repository: it keeps the issue list, says who is currently working on the tree,
 and answers the agents' questions about the project, all from plain files that live in the repo
 itself.
-
-> **Status: v1, pre-release.** Every command below works. Until the first release is published,
-> install it with `go install`; Homebrew, Scoop and winget packages follow from that release on.
 
 **Contents:** [Why](#why) · [Features](#what-it-does) · [Works with](#works-with-any-coding-agent) ·
 [Install](#install) · [Quick start](#quick-start) · [Commands](#usage) · [FAQ](#faq) ·
@@ -83,8 +81,7 @@ make that easy:
 
 ## Install
 
-capcom is a single binary and runs inside a git repository. The Homebrew, Scoop and winget
-packages are available from the first published release on.
+capcom is a single binary and runs inside a git repository.
 
 Homebrew (macOS, Linux):
 
