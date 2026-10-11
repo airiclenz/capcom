@@ -188,7 +188,12 @@ apogee cmd/release/smoke.go — runSmoke, checkReportsVersion; apogee cmd/releas
 **Depends on:** item 5
 **Commit:** `feat(release): render the Homebrew formula and Scoop manifest, add the smoke verb`
 
-## 7. Publish verb with the channel steps and the first winget submission
+## 7. Publish verb with the channel steps and the first winget submission — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): consequential edit — cmd/release/smoke.go: made necessary by registering publish (the smoke verb's help again says publish runs it as its last step, as apogee's does)
+NOTES (2026-10-11): consequential edit — cmd/release/probes.go: made necessary by the failed `komac submit` outcome (the stateSetupPending comment named only a tap or bucket repository)
+NOTES (2026-10-11): the VERSION-at-HEAD check compares to the bare X.Y.Z and tolerates a leading "v", as readBareVersion and prepare's check do; TestPublishAcceptsAVersionFileWithALeadingV pins it
+NOTES (2026-10-11): winget presence is resolved by publishRun.resolveWingetPackage (channels.go) with its own `gh api .../contents/manifests/a/AiricLenz/Capcom` read, called in runPublish only while the winget step is pending; a non-404 failure is a refusal. A failed `komac submit` travels as a setupPendingError sentinel that converge records as a setup-pending row
 
 **What:** Recast at the regression check (2026-10-11).
 **Goal:** `go run ./cmd/release publish vX.Y.Z --notes-file F [--dry-run]` converges tag → GitHub release → homebrew → scoop → winget → smoke, skipping done steps, and submits winget with `komac submit` of the rendered manifests when the package is absent and `komac update` otherwise.

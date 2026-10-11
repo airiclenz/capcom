@@ -43,7 +43,8 @@ const (
 	// statePending: publish has the step to do.
 	statePending stepState = "pending"
 	// stateSetupPending: the channel's one-time setup — its tap or bucket repository — has not
-	// landed; publish skips the step.
+	// landed; publish skips the step. publish also reports winget so when its first `komac
+	// submit` fails, keeping the rendered manifests for a human to submit.
 	stateSetupPending stepState = "setup-pending"
 	// stateUnknown: the probe could not run, or found the remote in a state publish cannot
 	// converge from; the detail names which.

@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"debug/buildinfo"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -593,4 +595,109 @@ func TestSmokeFailureIsARunFailure(t *testing.T) {
 	if err == nil || exitCodeFor(err) != exitRunFailed {
 		t.Errorf("smoke error = %v (exit %d), want a run failure (exit %d)", err, exitCodeFor(err), exitRunFailed)
 	}
+}
+
+// TestPublishRunsTheSmokeTestLast pins publish's last step: after the release and the channels,
+// it smoke-tests the version from the checkout, handing over the directory this run built the
+// assets in — still holding them while smoke runs, removed after.
+func TestPublishRunsTheSmokeTestLast(t *testing.T) {
+	t.Parallel()
+	notesPath := filepath.Join(t.TempDir(), "notes.md")
+	writeTestFile(t, notesPath, "## What's new\n\n- A release.\n")
+	var asked []smokeOptions
+	var builtSums string
+	smoke := func(_ context.Context, output io.Writer, options smokeOptions) error {
+		asked = append(asked, options)
+		raw, err := os.ReadFile(filepath.Join(options.distDir, checksumsFile))
+		builtSums = string(raw)
+		_, _ = fmt.Fprintln(output, "SMOKE RAN")
+		return err
+	}
+
+	result := runTestPublishWith(t, newPublishFake(), publishOptions{notesFile: notesPath, smoke: smoke})
+
+	if result.err != nil {
+		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+	}
+	if len(asked) != 1 {
+		t.Fatalf("smoke ran %d times, want once", len(asked))
+	}
+	if asked[0].version != publishVersion || asked[0].distDir == "" || asked[0].readBuildInfo == nil {
+		t.Errorf("smoke was asked for %+v, want %s over this run's build", asked[0], publishVersion)
+	}
+	if builtSums != rebuiltSums(t) {
+		t.Errorf("the build directory smoke got held SHA256SUMS %q, want this run's build", builtSums)
+	}
+	if _, err := os.Stat(asked[0].distDir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the build directory %s outlived the run: %v", asked[0].distDir, err)
+	}
+	lines := strings.Split(result.output, "\n")
+	released, ran := lineIndex(lines, "release:"), lineIndex(lines, "SMOKE RAN")
+	if released < 0 || ran < released || ran < lineIndex(lines, "smoke: smoke-test v0.24.11 as published") {
+		t.Errorf("smoke ran at line %d, after the release at %d? output:\n%s", ran, released, result.output)
+	}
+	if !hasRow(result.output, "smoke done passed by this run") {
+		t.Errorf("the step table does not report smoke done:\n%s", result.output)
+	}
+}
+
+// TestPublishSmokeStepWithoutABuild pins the smoke step on a run that builds nothing, a dry run
+// and a failing smoke test: a finished release is smoke-tested with no build to compare, a dry
+// run only says it would smoke-test, and a failed check fails publish.
+func TestPublishSmokeStepWithoutABuild(t *testing.T) {
+	t.Parallel()
+
+	finished := func() *publishFake {
+		fake := newPublishFake()
+		fake.repo.remote.tagObject = "tag"
+		fake.repo.remote.release = releaseJSON("uploaded", releaseAssetsV02411...)
+		return fake
+	}
+
+	t.Run("a finished release", func(t *testing.T) {
+		t.Parallel()
+
+		result := runTestPublish(t, finished(), false)
+
+		if result.err != nil {
+			t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+		}
+		if len(result.smokes) != 1 || result.smokes[0].distDir != "" || result.smokes[0].version != publishVersion {
+			t.Errorf("smoke was asked for %+v, want one run of %s with no build", result.smokes, publishVersion)
+		}
+	})
+
+	t.Run("a dry run", func(t *testing.T) {
+		t.Parallel()
+
+		result := runTestPublish(t, newPublishFake(), true)
+
+		if result.err != nil {
+			t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+		}
+		if len(result.smokes) != 0 {
+			t.Errorf("a dry run ran smoke %d times, want none", len(result.smokes))
+		}
+		if !hasRow(result.output, "  smoke smoke-test v0.24.11 as published") {
+			t.Errorf("the plan does not name the smoke step:\n%s", result.output)
+		}
+	})
+
+	t.Run("a failing smoke test", func(t *testing.T) {
+		t.Parallel()
+		notesPath := filepath.Join(t.TempDir(), "notes.md")
+		writeTestFile(t, notesPath, "notes\n")
+		smoke := func(context.Context, io.Writer, smokeOptions) error {
+			return errors.New("1 smoke check(s) failed for v0.24.11")
+		}
+
+		result := runTestPublishWith(t, finished(), publishOptions{notesFile: notesPath, smoke: smoke})
+
+		if result.err == nil || !strings.Contains(result.err.Error(), "the smoke step failed: 1 smoke check(s) failed") {
+			t.Errorf("publish error = %v, want the smoke step's failure", result.err)
+		}
+		if !hasRow(result.output, "smoke pending") {
+			t.Errorf("the step table was not printed after the failure:\n%s", result.output)
+		}
+	})
 }

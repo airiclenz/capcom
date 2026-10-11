@@ -1,11 +1,13 @@
 // Command release is capcom's release maintainer program: it does the deterministic half of
 // cutting a release — building the archives, reporting where the release stands, making the
-// rollup and bump commits, and smoke-testing a published release — the same way on Linux, macOS and Windows, leaving the judgment half
+// rollup and bump commits, publishing the release and its package channels, and smoke-testing a
+// published release — the same way on Linux, macOS and Windows, leaving the judgment half
 // (release notes, the version to cut) to the committed release skills.
 //
 //	go run ./cmd/release dist [--src DIR] [--out DIR]
 //	go run ./cmd/release status [vX.Y.Z] [--json]
 //	go run ./cmd/release prepare vX.Y.Z
+//	go run ./cmd/release publish vX.Y.Z --notes-file F [--dry-run] [--tag-timeout D]
 //	go run ./cmd/release smoke [vX.Y.Z] [--dist-dir D]
 //
 // Every external command it runs goes through one runner seam (runner.go), so its tests never
@@ -49,13 +51,15 @@ func newRootCommand(commands runner) *cobra.Command {
 		Short: "Build and publish a capcom release",
 		Long: "release does the deterministic work of a capcom release: it cross-builds the\n" +
 			"release archives and their checksums, reports the release gate and where each\n" +
-			"publish step stands, makes the CHANGELOG rollup and VERSION bump commits, and\n" +
-			"smoke-tests a published release, the same way on every host.",
+			"publish step stands, makes the CHANGELOG rollup and VERSION bump commits, publishes\n" +
+			"the GitHub release, the Homebrew formula, the Scoop manifest and the winget\n" +
+			"submission, and smoke-tests a published release, the same way on every host.",
 		SilenceErrors: true,
 	}
 	cmd.AddCommand(newDistCommand(commands))
 	cmd.AddCommand(newStatusCommand(commands))
 	cmd.AddCommand(newPrepareCommand(commands))
+	cmd.AddCommand(newPublishCommand(commands))
 	cmd.AddCommand(newSmokeCommand(commands))
 	return cmd
 }

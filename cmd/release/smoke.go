@@ -105,7 +105,8 @@ func newSmokeCommand(commands runner) *cobra.Command {
 			"Homebrew, `brew upgrade capcom` moves it onto the version; and the Scoop bucket's\n" +
 			"manifest names the version and both Windows archives' hashes. A check whose tool or\n" +
 			"input is missing prints SKIP and never counts as a pass. The version defaults to\n" +
-			"VERSION; a bare X.Y.Z reads as vX.Y.Z. It exits 1 when any check fails.",
+			"VERSION; a bare X.Y.Z reads as vX.Y.Z. It exits 1 when any check fails. publish runs\n" +
+			"it as its last step.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) > 1 {
 				return fmt.Errorf("smoke takes at most one version, got %d arguments", len(args))
