@@ -30,6 +30,7 @@
 //   - `prime.go` — capcom prime: the session Briefing
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first
 //   - `reindex.go` — capcom reindex: rebuilds the index from the issue and Note files
+//   - `related.go` — capcom related add and rm: the related links between issues, raising the store format
 //   - `rm.go` — capcom rm: removes an issue that has no children
 //   - `root.go` — Run, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word

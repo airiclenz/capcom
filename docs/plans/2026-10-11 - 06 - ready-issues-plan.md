@@ -306,7 +306,12 @@ and self entries at the line (self `field`); an alias resolves.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/ ./internal/check/`
 **Commit:** `feat(index): index related links and check them`
 
-## 10. capcom related add|rm, and show lists links on both issues
+## 10. capcom related add|rm, and show lists links on both issues — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): showResult lives in internal/cli/show.go, which the item's Files line leaves out. show.go now builds the show data as a new `showData` type (in issue_render.go). It embeds the shared `issueData` and adds `related`, so list, search, ready and dep list are unchanged. A new `app.showLinks` builds the list. `issueText` takes the related list as a new parameter and prints `related:` after `deps:`.
+NOTES (2026-10-12): `related add` raises the store format inside the editIssue change function. The raise runs after the `--if-match` check passes and before the issue file is written. It runs only when a link is actually added, so a no-op add never raises. If the issue then fails validation, the format is raised anyway. A missing config.yaml counts as format 1 (item 8's note) and is created as `format: 2\n` through config.RaiseFormat. An existing file is written byte for byte through `replaceFileBytes`.
+NOTES (2026-10-12): a no-op `related add` still goes through editIssue on the first issue, as `dep add` does. That includes the case where the second issue holds the link. It writes the first issue's file unchanged and reports its etag, and `--if-match` is checked against that file.
+NOTES (2026-10-12): `related rm` removes the link from the first issue when that issue holds it, and otherwise from the second. A link written on both issues by hand takes two rm calls. A second argument that names no issue is matched by exact text in the first issue's entries, as `dep rm` does, so a `missing-related` entry can be removed.
+NOTES (2026-10-12): show removes duplicate links by exact text. When a file names an issue by an alias and that issue also links back, both forms are listed. This happens only with hand-written aliases, because `related add` stores the canonical id.
 
 **What:**
 **Goal:** `capcom related add <a> <b>` writes `b` into `a`'s `related` (refused if `a == b`; no-op

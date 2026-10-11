@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -42,7 +43,7 @@ func (a *app) newShowCommand() *cobra.Command {
 // returns the paths of the issues found, relative to the worktree root.
 func (a *app) showResult(args []string) (Result, []string, error) {
 	result := Result{Kind: "issue", KV: []KVRecord{}}
-	data := make([]issueData, 0, len(args))
+	data := make([]showData, 0, len(args))
 	var shownPaths []string
 	var text strings.Builder
 	var messages []string
@@ -72,12 +73,16 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 		if err != nil {
 			return Result{}, nil, err
 		}
+		related, err := a.showLinks(entry)
+		if err != nil {
+			return Result{}, nil, err
+		}
 		etag := edit.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}
-		text.WriteString(issueText(entry, etag, body))
-		shown := newIssueData(entry)
+		text.WriteString(issueText(entry, etag, related, body))
+		shown := showData{issueData: newIssueData(entry), Related: related}
 		shown.ETag = etag
 		shown.Body = &body
 		data = append(data, shown)
@@ -90,6 +95,23 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 	result.Data = data
 	result.Text = text.String()
 	return result, shownPaths, nil
+}
+
+// showLinks lists an issue's Related links for show: its own related entries in the file's order,
+// as the file writes them, then the ids of the issues whose links name it, in id order. Each
+// appears once; an issue with no links yields an empty list.
+func (a *app) showLinks(entry index.Entry) ([]string, error) {
+	linkedBy, err := a.issueIndex.RelatedBy(entry.ID)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]string, 0, len(entry.Related)+len(linkedBy))
+	for _, link := range slices.Concat(entry.Related, linkedBy) {
+		if !slices.Contains(links, link) {
+			links = append(links, link)
+		}
+	}
+	return links, nil
 }
 
 // resolveFailure types a failure to resolve an argument: no match is not_found, an ambiguous

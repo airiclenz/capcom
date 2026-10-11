@@ -79,10 +79,17 @@ func issueLines(entries []index.Entry, issuesPrefix string) string {
 	return text.String()
 }
 
+// showData is one issue in the --json data of show: the shared form, plus its Related links as
+// showLinks lists them, always present.
+type showData struct {
+	issueData
+	Related []string `json:"related"`
+}
+
 // issueText renders one issue in full: its id, location, etag and frontmatter as `key: value`
-// lines in the file's key order, a blank line, then the body byte for byte. Empty fields are left
-// out, except priority.
-func issueText(entry index.Entry, etag string, body string) string {
+// lines in the file's key order, a blank line, then the body byte for byte. related is the issue's
+// links as showLinks lists them. Empty fields are left out, except priority.
+func issueText(entry index.Entry, etag string, related []string, body string) string {
 	fields := []KVPair{
 		{"id", entry.ID},
 		{"path", entry.Path},
@@ -95,6 +102,7 @@ func issueText(entry index.Entry, etag string, body string) string {
 		{"priority", fmt.Sprint(entry.Priority)},
 		{"labels", flowList(entry.Labels)},
 		{"deps", flowList(entry.Deps)},
+		{"related", flowList(related)},
 		{"plan", entry.Plan},
 		{"aliases", flowList(entry.Aliases)},
 		{"created", formatTimestamp(entry.Created)},

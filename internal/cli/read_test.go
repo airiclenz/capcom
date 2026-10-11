@@ -490,6 +490,11 @@ func TestKV_SupportingCommands_ListKVAndEndWithStatus(t *testing.T) {
 			setup: [][]string{{"dep", "add", "login-flow", "release-checklist"}},
 			args:  []string{"dep", "rm", "login-flow", "release-checklist"},
 		},
+		"related add": {args: []string{"related", "add", "login-flow", "release-checklist"}},
+		"related rm": {
+			setup: [][]string{{"related", "add", "login-flow", "release-checklist"}},
+			args:  []string{"related", "rm", "login-flow", "release-checklist"},
+		},
 		"lock acquire": {args: []string{"lock", "acquire", "--purpose", "kv"}},
 		"lock check":   {args: []string{"lock", "check"}},
 		"lock status":  {args: []string{"lock", "status"}},
