@@ -31,7 +31,9 @@
 - 15: guard folded (ordered settings merge; prime bypasses shared Refresh)
 - 15: init snippet kept — owner Q18, not a tip; "no tips" does not apply
 
-## 0. Verify the issue-core plan is archived
+## 0. Verify the issue-core plan is archived — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): verification only — archived plan present with items 1–10 all marked ✅ DONE; internal/{cli,config,store,gitx,tree,issue,index} exist; `GOMEMLIMIT=2GiB go build ./...` succeeds. No files changed, nothing to commit.
 
 **What:**
 **Goal:** plan `2026-10-11 - 00 - capcom-v1-issues-plan.md` exists under `docs/plans/archived/` and every one of its items 1–10 carries ✅ in its heading; the packages it built (`internal/cli`, `internal/config`, `internal/store`, `internal/gitx`, `internal/tree`, `internal/issue`, `internal/index`) exist and build.
