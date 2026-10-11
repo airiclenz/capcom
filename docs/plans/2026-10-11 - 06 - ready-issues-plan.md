@@ -220,7 +220,11 @@ outside any `.capcom/`.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/gitx/`; `GOMEMLIMIT=2GiB go test -count=1 -run MergeDriver ./internal/cli/`; `go vet ./internal/gitx/ ./internal/cli/`
 **Commit:** `feat(cli): add capcom merge-driver for issue Log sections`
 
-## 7. capcom init --merge-driver turns the driver on, and the docs describe it
+## 7. capcom init --merge-driver turns the driver on, and the docs describe it — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): `--json` data gains `merge_driver` (added or present, like `claude_hooks`) and `git_config` (the two commands). This way an agent using `--json` still gets the commands that text mode prints. The plan names neither field.
+NOTES (2026-10-12): an existing `.gitattributes` is rewritten through item 6's `replaceFileBytes` in `internal/cli/merge_driver.go`, which keeps bytes and mode. A missing file is created with `tree.WriteFileAtomic`, because a new file has no bytes, mode or CRLF to keep; `replaceFileBytes` needs an existing file.
+NOTES (2026-10-12): the line ending is CRLF when the file holds any CRLF, LF otherwise. A last line without a line ending gets one first. An existing line counts as the driver line when its whitespace-separated fields match, however they are spaced.
+NOTES (2026-10-12): docs/format.md gains a "#### The Log merge driver" subsection under "### Merge conflicts in the Log". README gains a Usage line and a FAQ entry. This repo's own `.gitattributes` gains the line.
 
 **What:** Recast at the regression check (2026-10-11).
 **Goal:** `capcom init --merge-driver` adds the line `.capcom/issues/**/*.md merge=capcom-log` to

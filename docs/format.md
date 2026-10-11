@@ -182,6 +182,39 @@ To resolve a Log conflict:
 2. Delete the marker lines.
 3. Run `capcom check` to confirm no `conflict` problem is left, then finish the merge as usual.
 
+#### The Log merge driver
+
+capcom ships a git merge driver, `capcom merge-driver`, that merges an issue's Log by entry, so
+two branches that each log on the same issue merge without a conflict. It keeps one side's
+entries in their order and merges the other side's new entries in by date; an entry one side
+deleted stays deleted. The rest of the file merges with `git merge-file`: when both sides change
+the same lines outside the Log, the driver leaves conflict markers and git stops on the conflict
+as usual. The markers carry git's branch labels, or `<path> (ours)`, `<path> (base)` and
+`<path> (theirs)` from a git older than 2.44. A Log the driver cannot split into entries merges
+as plain text.
+
+To turn the driver on:
+
+1. Run `capcom init --merge-driver`. It adds this line to the `.gitattributes` at the working tree
+   root, creating the file when missing; an existing file keeps its bytes and its line endings, and
+   a re-run adds nothing:
+
+   ```
+   .capcom/issues/**/*.md merge=capcom-log
+   ```
+
+2. Run the two commands it prints. capcom never writes `.git/config`, and git does not version its
+   config, so every clone runs them once:
+
+   ```sh
+   git config merge.capcom-log.name "capcom Log merge"
+   git config merge.capcom-log.driver "capcom merge-driver %O %A %B %P %S %X %Y"
+   ```
+
+Commit `.gitattributes`. A clone without the config ignores the `merge=capcom-log` attribute and
+merges issue files with git's normal text merge, so a Log conflict there is resolved by hand as
+above.
+
 ## Note files
 
 A **Note** is one fact about the repository that an agent pulls up on demand: a convention, a

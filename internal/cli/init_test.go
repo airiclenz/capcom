@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -598,5 +599,94 @@ func TestInitCodexHooks_WithoutClaudeHooks_StillPrintsTheClaudeSnippet(t *testin
 	}
 	if _, err := os.Stat(filepath.Join(plainRoot, ".codex")); !os.IsNotExist(err) {
 		t.Errorf("plain init created .codex: %v", err)
+	}
+}
+
+// The git config lines init --merge-driver prints, exactly as the user runs them.
+const (
+	wantDriverName    = `git config merge.capcom-log.name "capcom Log merge"`
+	wantDriverCommand = `git config merge.capcom-log.driver "capcom merge-driver %O %A %B %P %S %X %Y"`
+)
+
+// writeGitattributes writes content to .gitattributes at root with the given permissions.
+func writeGitattributes(t *testing.T, root string, content string, mode os.FileMode) string {
+	t.Helper()
+	path := filepath.Join(root, ".gitattributes")
+	if err := os.WriteFile(path, []byte(content), mode); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	return path
+}
+
+func TestInitMergeDriver_NoGitattributes_CreatesItOnAnExistingStore(t *testing.T) {
+	root := newGitRepo(t)
+	plain := mustRun(t, root, "init")
+	_, plainErr := os.Stat(filepath.Join(root, ".gitattributes"))
+
+	stdout := mustRun(t, root, "init", "--merge-driver")
+
+	content, err := os.ReadFile(filepath.Join(root, ".gitattributes"))
+	if err != nil || string(content) != ".capcom/issues/**/*.md merge=capcom-log\n" {
+		t.Errorf(".gitattributes = %v %q, want the merge driver line", err, content)
+	}
+	if !os.IsNotExist(plainErr) || strings.Contains(plain, "merge.capcom-log") {
+		t.Errorf("plain init wrote .gitattributes (%v) or printed the driver config:\n%s", plainErr, plain)
+	}
+	wantText := "added the capcom-log merge driver to .gitattributes\n" +
+		"git uses the capcom-log merge driver only once it is configured; run:\n" +
+		"  " + wantDriverName + "\n  " + wantDriverCommand + "\n"
+	if !strings.Contains(stdout, wantText) {
+		t.Errorf("init --merge-driver stdout:\n%s\nwant it to contain:\n%s", stdout, wantText)
+	}
+}
+
+func TestInitMergeDriver_ExistingGitattributes_KeepsItsBytesAndAddsTheLineOnce(t *testing.T) {
+	root := newGitRepo(t)
+	before := "* text=auto eol=lf\n*.png   binary"
+	path := writeGitattributes(t, root, before, 0o644)
+
+	first := mustRun(t, root, "init", "--merge-driver", "--json")
+	merged, err := os.ReadFile(path)
+	second := mustRun(t, root, "init", "--merge-driver", "--json")
+	again, againErr := os.ReadFile(path)
+
+	want := before + "\n.capcom/issues/**/*.md merge=capcom-log\n"
+	if err != nil || string(merged) != want {
+		t.Fatalf(".gitattributes = %v %q, want %q", err, merged, want)
+	}
+	if againErr != nil || string(again) != want {
+		t.Errorf("a second init --merge-driver changed .gitattributes: %q", again)
+	}
+	firstData := decodeEnvelope(t, first)["data"].(map[string]any)
+	secondData := decodeEnvelope(t, second)["data"].(map[string]any)
+	if firstData["merge_driver"] != claudeHooksAdded || secondData["merge_driver"] != claudeHooksPresent {
+		t.Errorf("merge_driver = %v then %v, want %s then %s",
+			firstData["merge_driver"], secondData["merge_driver"], claudeHooksAdded, claudeHooksPresent)
+	}
+	if fmt.Sprint(secondData["git_config"]) != fmt.Sprint([]any{wantDriverName, wantDriverCommand}) {
+		t.Errorf("git_config = %v, want both git config commands", secondData["git_config"])
+	}
+}
+
+func TestInitMergeDriver_CRLFGitattributes_StayCRLFAndKeepTheirMode(t *testing.T) {
+	root := newGitRepo(t)
+	before := "* text=auto\r\n*.sh eol=lf\r\n"
+	path := writeGitattributes(t, root, before, 0o600)
+
+	stdout := mustRun(t, root, "init", "--merge-driver")
+
+	content, err := os.ReadFile(path)
+	want := before + ".capcom/issues/**/*.md merge=capcom-log\r\n"
+	if err != nil || string(content) != want {
+		t.Errorf(".gitattributes = %v %q, want %q", err, content, want)
+	}
+	if info, err := os.Stat(path); runtime.GOOS != "windows" && (err != nil || info.Mode().Perm() != 0o600) {
+		t.Errorf(".gitattributes mode = %v %v, want 0600 kept", info, err)
+	}
+	if !strings.Contains(stdout, wantDriverName+"\n") || !strings.Contains(stdout, wantDriverCommand+"\n") {
+		t.Errorf("init --merge-driver stdout:\n%s\nwant both git config lines", stdout)
 	}
 }

@@ -137,6 +137,7 @@ git add .capcom AGENTS.md && git commit -m "chore: track issues with capcom"
 capcom init                     # create .capcom/ in this git repository
 capcom init --claude-hooks      # ...and run capcom prime from Claude Code's session hooks
 capcom init --codex-hooks       # ...and run capcom prime from Codex's session hooks
+capcom init --merge-driver      # ...and merge issue Logs by entry (prints two git config lines)
 
 capcom create --id login-timeout-race --title "Session refresh races the login timeout" --type bug
 capcom ready                    # issues that are open and unblocked, most urgent first
@@ -188,6 +189,13 @@ the git directory, never committed, and rebuilt on demand.
 **How does a team or several agents share issues?**
 Through git, like the code: push, pull and merge. Each issue is its own file, so changes to
 different issues merge without conflicts, and `capcom check` validates the result after a merge.
+
+**What happens when two branches log on the same issue?**
+Both append to its `## Log`, and git's normal merge stops on a conflict there.
+`capcom init --merge-driver` adds `.capcom/issues/**/*.md merge=capcom-log` to `.gitattributes`
+and prints two `git config` commands to run once per clone; with them, git merges the Log by
+entry. Without them, git merges as usual and you resolve the conflict by hand, keeping both
+sides' entries ([docs/format.md](docs/format.md#merge-conflicts-in-the-log)).
 
 **Can two agents work in the same repository at once?**
 Yes. The Tree lock tells each agent session whether another one is editing the working tree, and
