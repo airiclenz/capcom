@@ -66,7 +66,7 @@ The left column is the key in the beads export.
 | beads status  | capcom status                                                                              |
 |---------------|--------------------------------------------------------------------------------------------|
 | `open`        | `open`, or `parked` when the issue carries the `parked` label.                             |
-| `in_progress` | A status in the `doing` category. The default config has none: add one such as `active: doing` to `statuses`, or write `open`. |
+| `in_progress` | `active`.                                                                                  |
 | `blocked`     | `open` when a dependency blocks it, since capcom derives blocking from `deps`; `parked` when it waits on something outside the tracker. |
 | `deferred`    | `parked`.                                                                                  |
 | `closed`      | `done`; `dropped` when the close reason says it was abandoned, rejected or a duplicate.    |

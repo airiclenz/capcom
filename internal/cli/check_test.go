@@ -50,7 +50,7 @@ func TestCheck_JSONWithProblems_IsKindCheckWithProblemList(t *testing.T) {
 		"path":    ".capcom/issues/valid-issue.md",
 		"line":    float64(3),
 		"code":    "field",
-		"message": "status \"wip\" is not declared in config; use one of [open parked done dropped]",
+		"message": "status \"wip\" is not declared in config; use one of [open active parked done dropped]",
 	}}
 	if !reflect.DeepEqual(envelope["data"], want) {
 		t.Errorf("data = %v, want %v", envelope["data"], want)

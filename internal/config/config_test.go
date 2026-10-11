@@ -43,6 +43,16 @@ func TestDefault_ElsewhereAndLock_HaveDocumentedDefaults(t *testing.T) {
 	}
 }
 
+func TestDefault_DoingCategory_HasActiveStatus(t *testing.T) {
+	t.Parallel()
+
+	status, hasDoing := Default().DefaultStatus(CategoryDoing)
+
+	if !hasDoing || status != "active" {
+		t.Errorf("DefaultStatus(doing) = %q, %v, want \"active\", true", status, hasDoing)
+	}
+}
+
 func TestParse_PartialConfig_KeepsDefaultsForMissingKeys(t *testing.T) {
 	t.Parallel()
 	content := "lock:\n  ttl: 90m\n"

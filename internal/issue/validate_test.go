@@ -66,7 +66,7 @@ func TestValidate_ParsedFile_ProblemCitesKeyLine(t *testing.T) {
 		{
 			name:    "undeclared status",
 			content: "---\ntitle: T\nstatus: review\ntype: bug\ncreated: 2026-10-11T09:30:00Z\n---\n",
-			want:    testPath + `:3: status "review" is not declared in config; use one of [open parked done dropped]`,
+			want:    testPath + `:3: status "review" is not declared in config; use one of [open active parked done dropped]`,
 		},
 		{
 			name:    "undeclared type",
@@ -142,7 +142,7 @@ func TestValidate_MissingStatus_IsRequired(t *testing.T) {
 
 	problems := problemStrings(issue.Validate(testPath, missing, config.Default()))
 
-	want := testPath + ": status is required; use one of [open parked done dropped]"
+	want := testPath + ": status is required; use one of [open active parked done dropped]"
 	if len(problems) != 1 || problems[0] != want {
 		t.Errorf("Validate = %q, want [%s]", problems, want)
 	}

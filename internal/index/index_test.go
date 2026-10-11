@@ -209,7 +209,7 @@ func TestRefresh_ParseFailure_WarnsOnEveryRefreshAndIndexesTheRest(t *testing.T)
 	second := refresh(t, x)
 
 	want := []string{
-		`.capcom/issues/bad-status.md:3: status "nonsense" is not declared in config; use one of [open parked done dropped]`,
+		`.capcom/issues/bad-status.md:3: status "nonsense" is not declared in config; use one of [open active parked done dropped]`,
 		".capcom/issues/broken-issue.md:1: the frontmatter opened here is never closed by a --- line",
 	}
 	for name, report := range map[string]Report{"first": first, "second": second} {

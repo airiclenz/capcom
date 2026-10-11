@@ -56,6 +56,7 @@ const DefaultFile = `# capcom configuration. Every key is optional; a missing ke
 # capcom's rules read only the category. The first status listed in a category is its default.
 statuses:
   open: todo
+  active: doing
   parked: waiting
   done: done
   dropped: dropped
@@ -136,6 +137,7 @@ func Default() Config {
 	return Config{
 		Statuses: []Status{
 			{Name: "open", Category: CategoryTodo},
+			{Name: "active", Category: CategoryDoing},
 			{Name: "parked", Category: CategoryWaiting},
 			{Name: "done", Category: CategoryDone},
 			{Name: "dropped", Category: CategoryDropped},
