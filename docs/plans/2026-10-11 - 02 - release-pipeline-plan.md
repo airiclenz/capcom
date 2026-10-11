@@ -213,7 +213,10 @@ apogee cmd/release/publish_test.go — newPublishFake, mutatingCommands; apogee 
 **Depends on:** item 6
 **Commit:** `feat(release): add the publish verb with Homebrew, Scoop and winget steps`
 
-## 8. Tag on VERSION bump and cross-build in CI
+## 8. Tag on VERSION bump and cross-build in CI — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): version-bump.sh's refusal message is prefixed `VERSION:1:` so it names the file and line (AGENTS.md error rule); otherwise the apogee script is kept, with the bare `[0-9]+.[0-9]+.[0-9]+` check and the `v` prefix added to the emitted tag.
+NOTES (2026-10-11): the new `cross` job uses `actions/checkout@v4` / `actions/setup-go@v5` to match capcom's existing ci.yml rather than apogee's SHA pins, and builds only `./cmd/capcom` (apogee's extra `go build ./...` step dropped, per the Goal); tag-on-version-bump.yml keeps apogee's SHA pins as copied.
 
 **What:**
 **Goal:** A push to `main` that changes VERSION to a bare `X.Y.Z` creates the annotated tag `vX.Y.Z` on that commit (existing tags are left alone), and CI cross-builds `./cmd/capcom` for the six release targets.

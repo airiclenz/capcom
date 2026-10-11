@@ -1,0 +1,62 @@
+name: tag-on-version-bump
+
+# Tags the commit where the top-level VERSION file changes, so every version-number
+# decision is pinned by a tag instead of by memory. VERSION holds a bare X.Y.Z; the tag
+# this creates is `v` + VERSION, and it IS the release tag: a release cut ends with its
+# VERSION bump (the CHANGELOG rollup lands first) and never tags by hand. It creates a
+# git tag only — it does not publish a GitHub Release, build binaries, or touch the
+# Homebrew tap, Scoop bucket or winget; `go run ./cmd/release publish` does those on top
+# of the tag, locally. Re-runs are harmless: an existing tag is left exactly as it is.
+#
+# Tags created with GITHUB_TOKEN do not trigger other workflows. That is what keeps this
+# from looping with ci.yml — and it also means a future `on: push: tags:` workflow would
+# not fire from these tags.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  tag:
+    name: tag the VERSION bump
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Actions are pinned by commit SHA with the release tag in the comment beside it.
+      # Bump by resolving the new tag's commit — never by editing the tag comment alone.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The script walks before..after and reads VERSION at the bump commit's parent,
+          # and `before` can be many commits back — a shallow clone leaves those objects
+          # absent.
+          fetch-depth: 0
+          # The script only READS history; the token goes to the API step below and nowhere else.
+          persist-credentials: false
+      - id: detect
+        name: Decide whether VERSION changed
+        run: .github/scripts/version-bump.sh "${{ github.event.before }}" "${{ github.sha }}"
+      - name: Create the annotated tags
+        if: steps.detect.outputs.bumps != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BUMPS: ${{ steps.detect.outputs.bumps }}
+        with:
+          # The one step that writes is the one step that visibly holds the credential.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            for (const pair of process.env.BUMPS.trim().split(/\s+/)) {
+              const [sha, tag] = pair.split('=')
+              const ref = `tags/${tag}`
+              try {
+                const existing = await github.rest.git.getRef({ ...context.repo, ref })
+                core.info(`${tag} already exists at ${existing.data.object.sha} — leaving it alone`)
+                continue
+              } catch (err) {
+                if (err.status !== 404) throw err   // getRef THROWS on a missing ref
+              }
+              const obj = await github.rest.git.createTag({
+                ...context.repo, tag, message: tag, object: sha, type: 'commit',
+              })
+              await github.rest.git.createRef({ ...context.repo, ref: `refs/${ref}`, sha: obj.data.sha })
+              core.info(`tagged ${sha} as ${tag}`)
+            }
