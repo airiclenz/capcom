@@ -73,7 +73,11 @@ Depends on item 1.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/config/ ./internal/store/ ./internal/gitx/` ; `GOMEMLIMIT=2GiB go test -count=1 -run Init ./internal/cli/`
 **Commit:** `feat(store): config, store root discovery and capcom init`
 
-## 3. The tree: ids, children, aliases, resolution, atomic writes
+## 3. The tree: ids, children, aliases, resolution, atomic writes — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): API as built — `Load(dir, AliasFunc) (*Tree, error)` (a nil AliasFunc means no aliases; its error is returned unchanged, so the per-kind parser names its own file), `Tree.Resolve`, `Tree.ChildrenOf(id)` ("" = top level), `Tree.PathFor(id, parentID)`, plus `Tree.Lookup(name)` (exact id or alias, no prefix — for the "new id may not reuse an id or alias" check in create/mv), `Tree.Nodes()` (ordered by id), `Tree.Dir()`, `ValidateID`, `ValidateAlias`. Errors: `*tree.Error{Path, Err}` wrapping sentinels `ErrInvalidID`, `ErrInvalidAlias`, `ErrDuplicate`, `ErrOrphanDirectory`; resolution returns `ErrNotFound` or `*AmbiguousError{Arg, Candidates}` (matches `ErrAmbiguous`). The CLI mapping (not found → `not_found`, ambiguous → `invalid`) and relativising the absolute paths in `tree.Error` belong to the commands that use the tree (item 6 on).
+NOTES (2026-10-11): choices the plan left open — `Load` fails on the first problem (deterministic order) rather than collecting all; a `.md` file whose name is not a valid id fails `Load` with `ErrInvalidID` naming the file; an alias equal to the node's own id counts as a duplicate; `PathFor` validates the id (no path escape) and fails `ErrNotFound` for an unknown parent; `WriteFileAtomic` creates a missing parent directory (a first child's `<parent>/` dir), streams through a CRLF→LF converter so the LF guarantee holds for any caller, sets mode 0644, and removes the temp file on every failure path.
+NOTES (2026-10-11): the atomic-write tests live in `tree_test.go`, since the item's Files list no `atomic_test.go`.
 
 Depends on item 2.
 **What:**
