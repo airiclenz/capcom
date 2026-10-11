@@ -90,7 +90,14 @@ Depends on item 2.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/`
 **Commit:** `feat(tree): directory-tree hierarchy, id rules, aliases and atomic writes`
 
-## 4. Issue file format
+## 4. Issue file format — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): API as built — `issue.Parse(path, data) (Issue, error)`, `Issue.Serialize() []byte`, `issue.ETag(data) string` (FNV-1a 64, 16 hex digits), `issue.Validate(path, Issue, config.Config) []*Error` (nil when valid, problems in frontmatter order), `*issue.Error{Path, Line, Message}` rendering `path:line: message`; constants `MinPriority`, `MaxPriority`, `DefaultPriority`. Parse records each key's file line in an unexported map so Validate can cite it; an Issue built in memory has no lines.
+NOTES (2026-10-11): deviation from the assumed approach — the frontmatter is decoded through `yaml.Node` with a per-key dispatch (as `internal/config` does) instead of struct decoding with `KnownFields(true)`, so unknown keys, duplicate keys and wrong-shaped values all cite the exact file line without parsing yaml.v3's error text; syntax errors still parse the `yaml: line N` text and add the fence offset.
+NOTES (2026-10-11): deviation — emission is hand-written, not `yaml.v3` Encoder+SetIndent(2): yaml.v3 v3.0.1 has no public line-width setting and folds scalars past 80 columns. A string is written plain only when yaml.v3 reads it back as the identical `!!str` in its context (mapping value or flow entry), else double-quoted with escapes, always on one line; never block style, so the 2-space-indent clause has no site.
+NOTES (2026-10-11): choices the plan left open — CRLF is normalised to LF before parsing; a missing `priority` reads as 2; null values read as empty; timestamps are truncated to the second in UTC; Validate also requires `title` and `created`, and cites the `status` line for a missing `closed`/`reason` on a Closed issue. Non-closed issues carrying `closed`/`reason` are not flagged (left to reopen/check).
+NOTES (2026-10-11): yaml.v3 counts parser (not scanner) errors from line 0, so a flow-sequence syntax error may cite the line above the fault; the test only pins that it cites a frontmatter line.
+NOTES (2026-10-11): golden files live in `internal/issue/testdata/` (not in the plan's Files list) because one golden's body holds a ``` code block that a Go raw string cannot carry.
 
 Depends on item 3.
 **What:**
