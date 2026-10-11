@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/edit"
 )
 
 // writeNoteFiles writes Note files, named by slash paths below .capcom/knowledge/, creating their
@@ -20,6 +22,26 @@ func writeNoteFiles(t *testing.T, root string, files map[string]string) {
 			t.Fatalf("WriteFile: %v", err)
 		}
 	}
+}
+
+// noteFileETag returns the etag of the Note file at a slash path below .capcom/knowledge/.
+func noteFileETag(t *testing.T, root string, name string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, ".capcom", "knowledge", filepath.FromSlash(name)))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	return edit.ETag(data)
+}
+
+// textETag returns the value of the etag: line of a text output, empty when it has none.
+func textETag(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		if value, isEtag := strings.CutPrefix(line, "etag: "); isEtag {
+			return value
+		}
+	}
+	return ""
 }
 
 // newKnowStore creates a store holding a three-level Knowledge tree and one issue sharing a
@@ -93,10 +115,51 @@ func TestKnowShow_Text_PrintsFrontmatterThenBody(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "know", "show", "no-parallel")
 
-	want := "id: no-parallel\npath: .capcom/knowledge/testing-rules/cli-tests/no-parallel.md\nparent: cli-tests\n" +
+	want := "id: no-parallel\npath: .capcom/knowledge/testing-rules/cli-tests/no-parallel.md\n" +
+		"etag: " + noteFileETag(t, root, "testing-rules/cli-tests/no-parallel.md") + "\nparent: cli-tests\n" +
 		"title: No parallel\nrefs: [go.mod]\n\nThe harness changes directory.\n"
 	if exitCode != ExitOK || stdout != want {
 		t.Errorf("know show = %d\n%s\nwant\n%s", exitCode, stdout, want)
+	}
+}
+
+func TestKnowShow_PrintsEtag_MatchingTheFile(t *testing.T) {
+	root := newKnowStore(t)
+	want := noteFileETag(t, root, "testing-rules.md")
+
+	textOutput := mustRun(t, root, "know", "show", "testing-rules")
+	jsonData, _ := decodeEnvelope(t, mustRun(t, root, "know", "show", "testing-rules", "--json"))["data"].([]any)
+
+	jsonEtag, _ := jsonData[0].(map[string]any)["etag"].(string)
+	if textEtag := textETag(textOutput); textEtag != want || jsonEtag != want {
+		t.Errorf("etags = text %q json %q; want %q", textEtag, jsonEtag, want)
+	}
+}
+
+func TestKnowSearch_JSON_CarriesNoEtag(t *testing.T) {
+	root := newKnowStore(t)
+
+	jsonData, _ := decodeEnvelope(t, mustRun(t, root, "know", "search", "harness", "--json"))["data"].([]any)
+
+	if _, hasEtag := jsonData[0].(map[string]any)["etag"]; hasEtag {
+		t.Errorf("know search --json data = %v; want no etag", jsonData[0])
+	}
+}
+
+func TestKnowAdd_PrintsEtag(t *testing.T) {
+	root := newKnowStore(t)
+
+	textOutput := mustRun(t, root, "know", "add", "--id", "seed-repos", "--title", "Seed repos", "--parent", "git-fixtures")
+	jsonOutput := mustRun(t, root, "know", "add", "--id", "api-design", "--title", "API design", "--json")
+
+	textWant := noteFileETag(t, root, "testing-rules/git-fixtures/seed-repos.md")
+	jsonData, _ := decodeEnvelope(t, jsonOutput)["data"].(map[string]any)
+	jsonEtag, _ := jsonData["etag"].(string)
+	if textEtag := textETag(textOutput); textEtag != textWant {
+		t.Errorf("know add text etag = %q; want %q\n%s", textEtag, textWant, textOutput)
+	}
+	if jsonWant := noteFileETag(t, root, "api-design.md"); jsonEtag != jsonWant {
+		t.Errorf("know add --json etag = %q; want %q\n%s", jsonEtag, jsonWant, jsonOutput)
 	}
 }
 

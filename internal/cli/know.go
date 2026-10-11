@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/agents"
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -29,10 +30,11 @@ const (
 const unlimitedDepth = 0
 
 // noteData is one Note in the --json data of the know commands. Lists are always present, empty
-// when the file has none; Body is set by know show only.
+// when the file has none; ETag and Body are set by know show only.
 type noteData struct {
 	ID      string   `json:"id"`
 	Path    string   `json:"path"`
+	ETag    string   `json:"etag,omitempty"`
 	Parent  string   `json:"parent,omitempty"`
 	Title   string   `json:"title"`
 	Labels  []string `json:"labels"`
@@ -201,7 +203,8 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 	return cmd
 }
 
-// noteShowResult renders each Note in full, separated by a blank line.
+// noteShowResult renders each Note in full, separated by a blank line. The etag comes from the
+// Note file as it is on disk, the bytes a later --if-match is checked against.
 func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
 	data := make([]noteData, 0, len(entries))
 	var text strings.Builder
@@ -210,11 +213,17 @@ func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
+		file, err := a.readIssueFile(entry.Path)
+		if err != nil {
+			return Result{}, err
+		}
+		etag := edit.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}
-		text.WriteString(noteText(entry, body))
+		text.WriteString(noteText(entry, etag, body))
 		shown := newNoteData(entry)
+		shown.ETag = etag
 		shown.Body = &body
 		data = append(data, shown)
 	}
@@ -281,7 +290,8 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 	return cmd
 }
 
-// addNote places the new Note in the Knowledge tree and writes it.
+// addNote places the new Note in the Knowledge tree and writes it, reporting the etag of the
+// bytes written.
 func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, error) {
 	if err := tree.ValidateID(options.id); err != nil {
 		return Result{}, Errorf(CodeInvalid, "%s", err.Error())
@@ -310,11 +320,14 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 	if problems := knowledge.Validate(path, note); len(problems) > 0 {
 		return Result{}, &Error{Code: CodeInvalid, Path: path, Message: problems[0].Message}
 	}
-	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(note.Serialize())); err != nil {
+	content := note.Serialize()
+	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(content)); err != nil {
 		return Result{}, asError(err)
 	}
-	data := map[string]string{"id": options.id, "path": path}
-	result := Result{Kind: "note-write", Data: data, Text: fmt.Sprintf("id: %s\npath: %s\n", options.id, path)}
+	etag := edit.ETag(content)
+	data := map[string]string{"id": options.id, "path": path, "etag": etag}
+	text := fmt.Sprintf("id: %s\npath: %s\netag: %s\n", options.id, path, etag)
+	result := Result{Kind: "note-write", Data: data, Text: text}
 	if options.parent == "" {
 		a.refreshAgentsAfterAdd(&result, data)
 	}
@@ -498,12 +511,13 @@ func newNoteData(entry index.NoteEntry) noteData {
 	}
 }
 
-// noteText renders one Note in full: its id, location and frontmatter as `key: value` lines, a
-// blank line, then the body byte for byte. Empty fields are left out.
-func noteText(entry index.NoteEntry, body string) string {
+// noteText renders one Note in full: its id, location, etag and frontmatter as `key: value`
+// lines, a blank line, then the body byte for byte. Empty fields are left out.
+func noteText(entry index.NoteEntry, etag string, body string) string {
 	fields := []KVPair{
 		{"id", entry.ID},
 		{"path", entry.Path},
+		{"etag", etag},
 		{"parent", entry.ParentID},
 		{"title", entry.Title},
 		{"labels", flowList(entry.Labels)},

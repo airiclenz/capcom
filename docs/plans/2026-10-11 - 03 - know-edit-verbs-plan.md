@@ -71,7 +71,9 @@ issue tests stay green.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/edit/ ./internal/issue/` and `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`
 **Commit:** `refactor(edit): share label, body and etag helpers between issues and Notes`
 
-## 2. Notes carry an etag in know show and know add
+## 2. Notes carry an etag in know show and know add — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): added TestKnowSearch_JSON_CarriesNoEtag beyond the named tests, pinning the regression guard that know search --json does not gain an etag; test helpers noteFileETag and textETag added to know_test.go.
 
 **What:**
 **Goal:** `capcom know show <id>` prints `etag: <hex>` (text) and an `etag` field (`--json`),
