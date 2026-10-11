@@ -383,3 +383,18 @@ func TestKnowAdd_IDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 		t.Error("dup-id.md was written beside the orphaned file of the same id")
 	}
 }
+
+func TestKnowAdd_AliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"lost-dir/other-id.md": "---\ntitle: Lost note\naliases: [dup-id]\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "dup-id", "--title", "Duplicate")
+
+	want := `.capcom/knowledge/lost-dir/other-id.md: id "dup-id" is already an alias of this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if noteFileExists(t, root, "dup-id.md") {
+		t.Error("dup-id.md was written although an orphaned Note has it as an alias")
+	}
+}

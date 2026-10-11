@@ -224,3 +224,18 @@ func TestKnowMv_OntoIDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 		t.Error("release-flow.md was moved onto the orphaned id")
 	}
 }
+
+func TestKnowMv_OntoAliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"lost-dir/other-id.md": "---\ntitle: Lost note\naliases: [dup-id]\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "mv", "release-flow", "dup-id")
+
+	want := `.capcom/knowledge/lost-dir/other-id.md: id "dup-id" is already an alias of this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if !noteFileExists(t, root, "release-flow.md") {
+		t.Error("release-flow.md was moved onto an orphaned Note's alias")
+	}
+}

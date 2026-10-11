@@ -442,3 +442,37 @@ func TestCreate_UnrelatedOrphanDirectory_WritesAndWarns(t *testing.T) {
 		t.Errorf("stdout = %q stderr = %q, want a warning containing %q", stdout, stderr, want)
 	}
 }
+
+func TestCreate_AliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lost-dir/deeper-dir/other-id.md": readIssue("Lost", "open", "aliases: [dup-id]\n", ""),
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "dup-id", "--title", "Duplicate")
+
+	want := `.capcom/issues/lost-dir/deeper-dir/other-id.md: id "dup-id" is already an alias of this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "dup-id.md")); err == nil {
+		t.Error("dup-id.md was written although an orphaned file has it as an alias")
+	}
+}
+
+func TestCreate_OrphanDirectoryWithOtherAlias_WritesAndWarns(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lost-dir/other-id.md": readIssue("Lost", "open", "aliases: [other-alias]\n", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "good-one.md")
+	if want := ".capcom/issues/lost-dir: directory without its node file"; !strings.Contains(stdout+stderr, want) {
+		t.Errorf("stdout = %q stderr = %q, want a warning containing %q", stdout, stderr, want)
+	}
+}

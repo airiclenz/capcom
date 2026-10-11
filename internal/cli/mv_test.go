@@ -177,3 +177,18 @@ func TestMv_OntoIDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 	}
 	readStoreFile(t, root, "renamed-issue.md")
 }
+
+func TestMv_OntoAliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newMoveStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lost-dir/other-id.md": readIssue("Lost", "open", "aliases: [dup-id]\n", ""),
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "mv", "renamed-issue", "dup-id")
+
+	want := `.capcom/issues/lost-dir/other-id.md: id "dup-id" is already an alias of this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	readStoreFile(t, root, "renamed-issue.md")
+}

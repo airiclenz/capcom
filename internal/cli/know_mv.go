@@ -79,7 +79,7 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	if options.isReparented {
 		resolvedParentID = destination.ParentID
 	}
-	warnings, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID)
+	warnings, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID, readNoteAliases)
 	if err != nil {
 		return Result{}, err
 	}

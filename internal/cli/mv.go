@@ -72,7 +72,7 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	if isReparented {
 		resolvedParentID = destination.ParentID
 	}
-	warnings, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID)
+	warnings, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID, readAliases)
 	if err != nil {
 		return Result{}, err
 	}
@@ -95,15 +95,16 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 // triageMoveProblems triages the tree problems of move as triageTreeProblems does, against the
 // moved issue's file, its new path and the file of newParentID, the parent the command resolved
 // ("" when it resolved none, or the top of the tree). A new id is first refused as
-// orphanedIDFailure does.
+// orphanedIDFailure does, with aliases reading the Aliases of a file inside an orphan directory.
 func (a *app) triageMoveProblems(
 	issues *tree.Tree,
 	problems tree.Errors,
 	move *tree.Move,
 	newParentID string,
+	aliases tree.AliasFunc,
 ) ([]string, error) {
 	if move.NewID != move.Node.ID {
-		if err := a.orphanedIDFailure(problems, move.NewID); err != nil {
+		if err := a.orphanedIDFailure(problems, move.NewID, aliases); err != nil {
 			return nil, err
 		}
 	}

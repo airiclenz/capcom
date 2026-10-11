@@ -81,7 +81,7 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error)
 	if existing, found := issues.Lookup(options.id); found {
 		return Result{}, existsFailure(options.id, existing, a.store.WorktreeRoot)
 	}
-	if err := a.orphanedIDFailure(problems, options.id); err != nil {
+	if err := a.orphanedIDFailure(problems, options.id, readAliases); err != nil {
 		return Result{}, err
 	}
 	path, parentPath, err := a.newIssuePath(issues, options)
