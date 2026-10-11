@@ -125,6 +125,7 @@ func TestVerify_Refs_FlagOnlyTheBrokenOnes(t *testing.T) {
 		"  - internal/../../outside.go\n"+
 		"  - /etc/passwd\n"+
 		"  - internal/cli#runCLI\n"+
+		"  - internal/cli/harness.go/sub\n"+
 		"---\n")
 
 	findings, err := Verify(root, notePath, "some-note", note)
@@ -143,6 +144,7 @@ func TestVerify_Refs_FlagOnlyTheBrokenOnes(t *testing.T) {
 		notePath + `:10: ref "internal/../../outside.go": escapes the working tree`,
 		notePath + `:11: ref "/etc/passwd": escapes the working tree: write a path relative to its root`,
 		notePath + `:12: ref "internal/cli#runCLI": is a directory; symbol "runCLI" needs a file`,
+		notePath + `:13: ref "internal/cli/harness.go/sub": no such file or directory`,
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("findings =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

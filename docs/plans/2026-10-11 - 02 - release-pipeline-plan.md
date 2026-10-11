@@ -74,7 +74,7 @@ internal/knowledge/note.go — Note.Serialize (yaml.v3 encoder, already escapes 
 **Closes:** serialize-escape-nonprintable
 **Commit:** `fix(issue): escape YAML non-printable runes when serializing frontmatter`
 
-## 2. A Ref below a file is a broken Ref, not a fatal error
+## 2. A Ref below a file is a broken Ref, not a fatal error — ✅ DONE (2026-10-11)
 
 **What:**
 **Goal:** `capcom know verify` lists a Ref like `README.md/sub` (parent is a file) as a broken Ref with the message `no such file or directory`, and every other finding still prints.

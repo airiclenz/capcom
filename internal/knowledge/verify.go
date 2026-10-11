@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // symbolSeparator splits a Ref into its path and the symbol text the file must contain.
@@ -56,8 +57,8 @@ func ValidateRef(ref string) error {
 
 // Verify checks every Ref of note, the Note with id noteID stored at notePath (relative to
 // worktreeRoot with forward slashes), and returns a Finding for each one that does not resolve: a
-// malformed Ref, one escaping the working tree (symbolic links included), a missing path, and a
-// `path#symbol` whose file does not contain the symbol text. A Note without Refs has no Findings.
+// malformed Ref, one escaping the working tree (symbolic links included), a missing path (one
+// below a file included), and a `path#symbol` whose file does not contain the symbol text. A Note without Refs has no Findings.
 // It fails only when a file cannot be read for another reason than being missing.
 func Verify(worktreeRoot string, notePath string, noteID string, note Note) ([]Finding, error) {
 	root, err := filepath.EvalSymlinks(worktreeRoot)
@@ -116,7 +117,7 @@ func checkRef(root string, ref string) (message string, err error) {
 	}
 	target := filepath.Join(root, filepath.FromSlash(refPath))
 	resolved, err := filepath.EvalSymlinks(target)
-	if errors.Is(err, fs.ErrNotExist) {
+	if isMissing(err) {
 		return "no such file or directory", nil
 	}
 	if err != nil {
@@ -129,6 +130,12 @@ func checkRef(root string, ref string) (message string, err error) {
 		return "", nil
 	}
 	return checkSymbol(resolved, symbol)
+}
+
+// isMissing reports whether err says a path does not exist. A path below a file (`file.go/sub`)
+// fails with ENOTDIR on Unix rather than ENOENT, yet it is just as absent.
+func isMissing(err error) bool {
+	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }
 
 // checkSymbol returns why the file at path does not hold symbol, or "" when it does.

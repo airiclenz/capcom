@@ -168,6 +168,21 @@ func TestKnowVerify_BrokenRefs_ListsEachWithItsLineAndFails(t *testing.T) {
 	}
 }
 
+func TestKnowVerify_RefBelowAFile_IsListedAsBroken(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"below-a-file.md": "---\ntitle: Below a file\nrefs:\n  - go.mod/sub\n  - gone.go\n---\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "verify")
+
+	want := ".capcom/knowledge/below-a-file.md:4: ref \"go.mod/sub\": no such file or directory\n" +
+		".capcom/knowledge/below-a-file.md:5: ref \"gone.go\": no such file or directory\n"
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "2 note refs do not resolve") {
+		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
+	}
+}
+
 func TestKnowVerify_EveryRefResolves_PrintsNothing(t *testing.T) {
 	root := newKnowStore(t)
 
