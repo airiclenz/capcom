@@ -41,7 +41,7 @@ Every command will also offer JSON output, so agents and scripts can drive it as
 ```sh
 capcom ready                    # issues that are open and unblocked
 capcom show login-timeout-race
-capcom lock acquire "implementing the release plan"
+capcom lock acquire --purpose "implementing the release plan"
 capcom know search release
 capcom prime                    # the session-start briefing
 ```

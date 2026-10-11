@@ -65,7 +65,13 @@ Depends on item 0 (provides items 3 and 5).
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/knowledge/` ; `GOMEMLIMIT=2GiB go test -count=1 -run Notes ./internal/index/` ; `GOMEMLIMIT=2GiB go test -count=1 -run Know ./internal/cli/`
 **Commit:** `feat(knowledge): notes tree, search and ref verification`
 
-## 12. Tree lock
+## 12. Tree lock — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by the new lock command (registers `lock` with the root command)
+NOTES (2026-10-11): consequential edit — README.md: made necessary by `lock acquire` taking its purpose as `--purpose` (the planned-usage line showed it as a positional argument)
+NOTES (2026-10-11): go.sum unchanged — `go mod tidy` only moved golang.org/x/sys v0.37.0 from indirect to direct; its hashes were already recorded
+NOTES (2026-10-11): unspecified behaviours decided — releasing a free lock succeeds with LOCK=free; touching a free lock fails not_found (exit 3) still emitting a LOCK=free record; failures render the lock as found with STATUS=locked/not_found; `check` counts a stale lock of another holder as held (exit 3); a resume keeps `since` and replaces purpose and holder; `break` reports LOCK=released (free when nothing was held); TOKEN is never shown to a non-holder; default holder is `$USER@host` (`USERNAME` on Windows); lock commands need an initialized store (the TTL comes from config.yaml)
+NOTES (2026-10-11): `//go:build unix` includes aix, where golang.org/x/sys/unix has no Flock — not a target platform (Linux, macOS, Windows build and vet clean)
 
 Depends on item 0 (provides item 2).
 **What:**
