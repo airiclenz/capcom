@@ -418,7 +418,11 @@ internal/check/check.go — loadTree, issues; internal/cli/know.go — readNoteA
 **Closes:** fmt-verb
 **Commit:** `feat(cli): add capcom fmt to rewrite files in canonical form`
 
-## 10. `capcom init --codex-hooks`
+## 10. `capcom init --codex-hooks` — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): mergeClaudeHooks is now mergeHooks(worktreeRoot, hookSettings{path, events}), and the Claude-named hook types are now settingsHook/hookGroup/hookEvent; item 11's Read-first anchor `mergeClaudeHooks` resolves to mergeHooks.
+NOTES (2026-10-11): the existing added/present constants keep their names (claudeHooksAdded/claudeHooksPresent) and serve codex_hooks too, so the existing --claude-hooks tests stay unchanged.
+NOTES (2026-10-11): in text mode, --codex-hooks without --claude-hooks prints the Codex status line and the config.toml note before the unchanged Claude snippet, which stays last, exactly as plain init prints it.
 
 **What:** apogee runs Codex beside Claude Code. capcom installs hooks only for Claude
 (`mergeClaudeHooks` in `internal/cli/init.go`).

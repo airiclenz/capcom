@@ -371,3 +371,232 @@ func TestInitClaudeHooks_UnusableSettings_FailWithPath(t *testing.T) {
 		})
 	}
 }
+
+// codexHooksBefore is a Codex hooks file holding bd hooks, its group members not in capcom's order.
+const codexHooksBefore = `{
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bd codex-hook PreCompact",
+            "statusMessage": "Checking Beads context",
+            "type": "command"
+          }
+        ],
+        "matcher": "manual|auto"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bd codex-hook SessionStart",
+            "statusMessage": "Loading Beads context",
+            "type": "command"
+          }
+        ],
+        "matcher": "startup|resume|clear"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "bd codex-hook UserPromptSubmit",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
+`
+
+// codexHooksAfter is codexHooksBefore once init --codex-hooks merged the capcom prime hooks.
+const codexHooksAfter = `{
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "bd codex-hook PreCompact",
+            "statusMessage": "Checking Beads context",
+            "type": "command"
+          }
+        ],
+        "matcher": "manual|auto"
+      },
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "capcom prime"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bd codex-hook SessionStart",
+            "statusMessage": "Loading Beads context",
+            "type": "command"
+          }
+        ],
+        "matcher": "startup|resume|clear"
+      },
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "capcom prime"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "bd codex-hook UserPromptSubmit",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}
+`
+
+// codexHooksNew is the Codex hooks file init --codex-hooks creates.
+const codexHooksNew = `{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "capcom prime"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "capcom prime"
+          }
+        ]
+      }
+    ]
+  }
+}
+`
+
+// writeCodexHooks writes content as the .codex/hooks.json of root.
+func writeCodexHooks(t *testing.T, root string, content string) string {
+	t.Helper()
+	path := filepath.Join(root, ".codex", "hooks.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	return path
+}
+
+func TestInitCodexHooks_NoHooksFile_CreatesIt(t *testing.T) {
+	root := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--codex-hooks", "--json")
+
+	content, err := os.ReadFile(filepath.Join(root, ".codex", "hooks.json"))
+	if err != nil || string(content) != codexHooksNew {
+		t.Errorf("hooks.json = %v\n%s\nwant\n%s", err, content, codexHooksNew)
+	}
+	data := decodeEnvelope(t, stdout)["data"].(map[string]any)
+	if _, isClaude := data["claude_hooks"]; data["codex_hooks"] != claudeHooksAdded || isClaude {
+		t.Errorf("data = %v, want codex_hooks %s and no claude_hooks", data, claudeHooksAdded)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude")); !os.IsNotExist(err) {
+		t.Errorf("init --codex-hooks created .claude: %v", err)
+	}
+}
+
+func TestInitCodexHooks_ExistingHooks_KeepsThemInOrderAndIsIdempotent(t *testing.T) {
+	root := newGitRepo(t)
+	path := writeCodexHooks(t, root, codexHooksBefore)
+
+	first := mustRun(t, root, "init", "--codex-hooks")
+	merged, err := os.ReadFile(path)
+	second := mustRun(t, root, "init", "--codex-hooks", "--json")
+	again, againErr := os.ReadFile(path)
+
+	if err != nil || string(merged) != codexHooksAfter {
+		t.Fatalf("hooks.json = %v\n%s\nwant\n%s", err, merged, codexHooksAfter)
+	}
+	if againErr != nil || string(again) != codexHooksAfter {
+		t.Errorf("a second init --codex-hooks changed hooks.json:\n%s", again)
+	}
+	wantFirst := "added the capcom prime hooks to .codex/hooks.json\n" + codexFeatureNote
+	if !strings.Contains(first, wantFirst) {
+		t.Errorf("init --codex-hooks output = %q, want it to contain %q", first, wantFirst)
+	}
+	if data := decodeEnvelope(t, second)["data"].(map[string]any); data["codex_hooks"] != claudeHooksPresent {
+		t.Errorf("re-run codex_hooks = %v, want %s", data["codex_hooks"], claudeHooksPresent)
+	}
+}
+
+func TestInitCodexHooks_UnusableHooksFile_FailsWithPath(t *testing.T) {
+	cases := []struct {
+		name       string
+		content    string
+		wantPrefix string
+	}{
+		{"syntax error", "{\n  \"a\": 1,\n  oops\n}\n", "capcom: .codex/hooks.json:3: "},
+		{"not an object", "[1, 2]\n", "capcom: .codex/hooks.json: "},
+		{"hooks not an object", "{\"hooks\": [1]}\n", "capcom: .codex/hooks.json: hooks "},
+		{"event not an array", "{\"hooks\": {\"PreCompact\": {}}}\n", "capcom: .codex/hooks.json: hooks.PreCompact "},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newGitRepo(t)
+			path := writeCodexHooks(t, root, testCase.content)
+
+			_, stderr, exitCode := runCLI(t, root, "init", "--codex-hooks")
+
+			content, _ := os.ReadFile(path)
+			if exitCode != ExitError || !strings.HasPrefix(stderr, testCase.wantPrefix) || string(content) != testCase.content {
+				t.Errorf("init --codex-hooks = %d, stderr %q, file %q; want 1, %q and the file untouched",
+					exitCode, stderr, content, testCase.wantPrefix)
+			}
+		})
+	}
+}
+
+func TestInitCodexHooks_WithoutClaudeHooks_StillPrintsTheClaudeSnippet(t *testing.T) {
+	root := newGitRepo(t)
+	plainRoot := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--codex-hooks")
+	plain := mustRun(t, plainRoot, "init")
+
+	if !strings.HasSuffix(stdout, codexFeatureNote+"\n"+claudeHooksSnippet()) {
+		t.Errorf("init --codex-hooks stdout:\n%s\nwant the Codex note, then the Claude snippet as plain init prints it", stdout)
+	}
+	if !strings.HasSuffix(plain, "\n"+claudeHooksSnippet()) || strings.Contains(plain, codexFeatureNote) || strings.Contains(plain, codexHooksPath) {
+		t.Errorf("plain init stdout:\n%s\nwant the Claude snippet and nothing about Codex", plain)
+	}
+	if _, err := os.Stat(filepath.Join(plainRoot, ".codex")); !os.IsNotExist(err) {
+		t.Errorf("plain init created .codex: %v", err)
+	}
+}

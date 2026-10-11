@@ -79,8 +79,10 @@ make that easy:
 
 - **`AGENTS.md`.** `capcom agents` writes a short block telling agents how to use capcom into
   `AGENTS.md`, the instructions file most coding agents read on start-up.
-- **Claude Code hooks.** `capcom init --claude-hooks` runs `capcom prime` from Claude Code's
-  session hooks, so every session starts with a briefing.
+- **Claude Code and Codex hooks.** `capcom init --claude-hooks` runs `capcom prime` from Claude
+  Code's session hooks, so every session starts with a briefing. `capcom init --codex-hooks` does
+  the same for Codex through `.codex/hooks.json`; Codex runs hooks only with
+  `[features] hooks = true` in its `config.toml`.
 - **Machine-readable output.** `--json` and `--kv` give agents stable output to parse, and
   `capcom check` gives them `path:line: message` errors to fix in a loop.
 
@@ -133,6 +135,7 @@ git add .capcom AGENTS.md && git commit -m "chore: track issues with capcom"
 ```sh
 capcom init                     # create .capcom/ in this git repository
 capcom init --claude-hooks      # ...and run capcom prime from Claude Code's session hooks
+capcom init --codex-hooks       # ...and run capcom prime from Codex's session hooks
 
 capcom create --id login-timeout-race --title "Session refresh races the login timeout" --type bug
 capcom ready                    # issues that are open and unblocked, most urgent first

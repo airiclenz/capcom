@@ -27,12 +27,21 @@ type initData struct {
 	Created []string `json:"created"`
 	// ClaudeHooks is what --claude-hooks did to the Claude Code settings: added or present.
 	ClaudeHooks string `json:"claude_hooks,omitempty"`
+	// CodexHooks is what --codex-hooks did to the Codex hooks file: added or present.
+	CodexHooks string `json:"codex_hooks,omitempty"`
 }
 
-// flagClaudeHooks makes init add the capcom prime hooks to the Claude Code settings.
-const flagClaudeHooks = "claude-hooks"
+// Flags of init: add the capcom prime hooks to the Claude Code settings, or to the Codex hooks.
+const (
+	flagClaudeHooks = "claude-hooks"
+	flagCodexHooks  = "codex-hooks"
+)
 
-// ClaudeHooks values of initData.
+// codexFeatureNote is what init --codex-hooks prints in text mode: Codex ignores its hooks file
+// unless the feature is on.
+const codexFeatureNote = "Codex runs hooks only with [features] hooks = true in its config.toml\n"
+
+// ClaudeHooks and CodexHooks values of initData.
 const (
 	claudeHooksAdded   = "added"
 	claudeHooksPresent = "present"
@@ -40,9 +49,11 @@ const (
 
 // newInitCommand creates the store in the current git working tree, or does nothing when it
 // already exists. With --claude-hooks it also merges the hooks running capcom prime into
-// .claude/settings.json; without it, text mode prints those hooks for the user to add.
+// .claude/settings.json; without it, text mode prints those hooks for the user to add. With
+// --codex-hooks it merges the same hooks into .codex/hooks.json; the two flags are independent.
 func (a *app) newInitCommand() *cobra.Command {
 	isClaudeHooks := false
+	isCodexHooks := false
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create the capcom store (.capcom/) in this git repository",
@@ -61,26 +72,43 @@ func (a *app) newInitCommand() *cobra.Command {
 			}
 			data := initData{Root: opened.Root, Created: created}
 			text := initText(opened.Root, created)
-			if !isClaudeHooks {
-				return a.emit(cmd, Result{Kind: "init", Data: data, Text: text + "\n" + claudeHooksSnippet()})
+			snippet := "\n" + claudeHooksSnippet()
+			if isClaudeHooks {
+				var line string
+				if data.ClaudeHooks, line, err = installHooks(opened.WorktreeRoot, claudeHooks); err != nil {
+					return err
+				}
+				text += line
+				snippet = ""
 			}
-			isAdded, err := mergeClaudeHooks(opened.WorktreeRoot)
-			if err != nil {
-				return err
+			if isCodexHooks {
+				var line string
+				if data.CodexHooks, line, err = installHooks(opened.WorktreeRoot, codexHooks); err != nil {
+					return err
+				}
+				text += line + codexFeatureNote
 			}
-			if isAdded {
-				data.ClaudeHooks = claudeHooksAdded
-				text += "added the " + primeCommand + " hooks to " + claudeSettingsPath + "\n"
-			} else {
-				data.ClaudeHooks = claudeHooksPresent
-				text += claudeSettingsPath + " already runs " + primeCommand + "\n"
-			}
-			return a.emit(cmd, Result{Kind: "init", Data: data, Text: text})
+			return a.emit(cmd, Result{Kind: "init", Data: data, Text: text + snippet})
 		}),
 	}
 	cmd.Flags().BoolVar(&isClaudeHooks, flagClaudeHooks, false,
 		"also add SessionStart and PreCompact hooks running capcom prime to "+claudeSettingsPath)
+	cmd.Flags().BoolVar(&isCodexHooks, flagCodexHooks, false,
+		"also add SessionStart and PreCompact hooks running capcom prime to "+codexHooksPath)
 	return cmd
+}
+
+// installHooks merges the capcom prime hooks into target's settings file and returns the initData
+// value and the text line saying what it did.
+func installHooks(worktreeRoot string, target hookSettings) (status string, line string, err error) {
+	isAdded, err := mergeHooks(worktreeRoot, target)
+	if err != nil {
+		return "", "", err
+	}
+	if isAdded {
+		return claudeHooksAdded, "added the " + primeCommand + " hooks to " + target.path + "\n", nil
+	}
+	return claudeHooksPresent, target.path + " already runs " + primeCommand + "\n", nil
 }
 
 func initText(root string, created []string) string {
@@ -117,10 +145,13 @@ func storeFailure(err error) *Error {
 // The Claude Code settings file init --claude-hooks merges into, relative to the working tree root.
 const claudeSettingsPath = ".claude/settings.json"
 
-// primeCommand is the command the Claude Code hooks run.
+// The Codex hooks file init --codex-hooks merges into, relative to the working tree root.
+const codexHooksPath = ".codex/hooks.json"
+
+// primeCommand is the command the Claude Code and Codex hooks run.
 const primeCommand = "capcom prime"
 
-// Keys of the Claude Code settings capcom writes.
+// Keys of the Claude Code settings and Codex hooks capcom writes; both share one hooks shape.
 const (
 	settingsHooksKey  = "hooks"
 	hookTypeCommand   = "command"
@@ -128,35 +159,61 @@ const (
 	settingsSeparator = ","
 )
 
-// claudeHook is one hook of a Claude Code hook group.
-type claudeHook struct {
+// settingsHook is one hook of a hook group.
+type settingsHook struct {
 	Type    string `json:"type"`
 	Command string `json:"command"`
 }
 
-// claudeHookGroup is one entry of a Claude Code hook event: a matcher and the hooks it runs.
-type claudeHookGroup struct {
-	Matcher string       `json:"matcher,omitempty"`
-	Hooks   []claudeHook `json:"hooks"`
+// hookGroup is one entry of a hook event: a matcher and the hooks it runs.
+type hookGroup struct {
+	Matcher string         `json:"matcher,omitempty"`
+	Hooks   []settingsHook `json:"hooks"`
 }
 
-// claudeHookEvent is a Claude Code hook event and the group capcom adds to it.
-type claudeHookEvent struct {
+// hookEvent is a hook event and the group capcom adds to it.
+type hookEvent struct {
 	name  string
-	group claudeHookGroup
+	group hookGroup
 }
 
-// claudeHookEvents are the events whose hooks run capcom prime: every session start, including a
-// resume, a /clear and the restart after compaction, and the moment before compaction.
-var claudeHookEvents = []claudeHookEvent{
-	{name: "SessionStart", group: claudeHookGroup{
+// hookSettings is a settings file init merges the capcom prime hooks into: its path relative to
+// the working tree root, and the events whose hooks run capcom prime.
+type hookSettings struct {
+	path   string
+	events []hookEvent
+}
+
+// claudeHookEvents are the Claude Code events whose hooks run capcom prime: every session start,
+// including a resume, a /clear and the restart after compaction, and the moment before compaction.
+var claudeHookEvents = []hookEvent{
+	{name: "SessionStart", group: hookGroup{
 		Matcher: "startup|resume|clear|compact",
-		Hooks:   []claudeHook{{Type: hookTypeCommand, Command: primeCommand}},
+		Hooks:   []settingsHook{{Type: hookTypeCommand, Command: primeCommand}},
 	}},
-	{name: "PreCompact", group: claudeHookGroup{
-		Hooks: []claudeHook{{Type: hookTypeCommand, Command: primeCommand}},
+	{name: "PreCompact", group: hookGroup{
+		Hooks: []settingsHook{{Type: hookTypeCommand, Command: primeCommand}},
 	}},
 }
+
+// codexHookEvents are the Codex events whose hooks run capcom prime: every session start, including
+// a resume and a /clear, and the moment before a manual or automatic compaction.
+var codexHookEvents = []hookEvent{
+	{name: "SessionStart", group: hookGroup{
+		Matcher: "startup|resume|clear",
+		Hooks:   []settingsHook{{Type: hookTypeCommand, Command: primeCommand}},
+	}},
+	{name: "PreCompact", group: hookGroup{
+		Matcher: "manual|auto",
+		Hooks:   []settingsHook{{Type: hookTypeCommand, Command: primeCommand}},
+	}},
+}
+
+// The settings files init merges the capcom prime hooks into.
+var (
+	claudeHooks = hookSettings{path: claudeSettingsPath, events: claudeHookEvents}
+	codexHooks  = hookSettings{path: codexHooksPath, events: codexHookEvents}
+)
 
 // jsonMember is one member of a JSON object, its value kept byte for byte.
 type jsonMember struct {
@@ -176,32 +233,32 @@ func claudeHooksSnippet() string {
 		claudeSettingsPath + " (or run capcom init --" + flagClaudeHooks + "):\n" + string(indentJSON(encodeObject(settings)))
 }
 
-// mergeClaudeHooks adds the capcom prime hook group to each event of claudeHookEvents in the Claude
-// Code settings of the working tree at worktreeRoot, creating the file when missing. An event that
-// already runs capcom prime is left as it is, so a re-run changes nothing; isAdded reports whether
-// the file was written. Only the hooks member is rewritten: every other member keeps its key order
-// and its values their bytes, re-indented two spaces. It fails, naming the file, on a settings file
-// that is not a JSON object or whose hooks are not shaped as Claude Code reads them.
-func mergeClaudeHooks(worktreeRoot string) (isAdded bool, err error) {
-	path := filepath.Join(worktreeRoot, filepath.FromSlash(claudeSettingsPath))
+// mergeHooks adds the capcom prime hook group to each event of target in target's settings file in
+// the working tree at worktreeRoot, creating the file when missing. An event that already runs
+// capcom prime is left as it is, so a re-run changes nothing; isAdded reports whether the file was
+// written. Only the hooks member is rewritten: every other member keeps its key order and its
+// values their bytes, re-indented two spaces. It fails, naming the file, on a settings file that is
+// not a JSON object or whose hooks are not shaped as Claude Code and Codex read them.
+func mergeHooks(worktreeRoot string, target hookSettings) (isAdded bool, err error) {
+	path := filepath.Join(worktreeRoot, filepath.FromSlash(target.path))
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return false, &Error{Code: CodeInvalid, Path: claudeSettingsPath, Message: err.Error()}
+		return false, &Error{Code: CodeInvalid, Path: target.path, Message: err.Error()}
 	}
 	settings, err := decodeObject(content)
 	if err != nil {
-		return false, settingsFailure(content, "", err)
+		return false, settingsFailure(target.path, content, "", err)
 	}
 	position := slices.IndexFunc(settings, func(member jsonMember) bool { return member.key == settingsHooksKey })
 	var hooks []jsonMember
 	if position >= 0 {
 		if hooks, err = decodeObject(settings[position].value); err != nil {
-			return false, settingsFailure(nil, settingsHooksKey, err)
+			return false, settingsFailure(target.path, nil, settingsHooksKey, err)
 		}
 	}
 
-	for _, event := range claudeHookEvents {
-		isEventAdded, err := addHookGroup(&hooks, event)
+	for _, event := range target.events {
+		isEventAdded, err := addHookGroup(target.path, &hooks, event)
 		if err != nil {
 			return false, err
 		}
@@ -221,26 +278,26 @@ func mergeClaudeHooks(worktreeRoot string) (isAdded bool, err error) {
 	return true, nil
 }
 
-// addHookGroup appends event's group to the event's array in hooks, unless one of its groups
-// already runs capcom prime. Existing groups are kept byte for byte.
-func addHookGroup(hooks *[]jsonMember, event claudeHookEvent) (bool, error) {
+// addHookGroup appends event's group to the event's array in hooks, read from the settings file at
+// path, unless one of its groups already runs capcom prime. Existing groups are kept byte for byte.
+func addHookGroup(path string, hooks *[]jsonMember, event hookEvent) (bool, error) {
 	position := slices.IndexFunc(*hooks, func(member jsonMember) bool { return member.key == event.name })
 	var groups []json.RawMessage
 	if position >= 0 {
 		if err := json.Unmarshal((*hooks)[position].value, &groups); err != nil {
 			return false, &Error{
 				Code:    CodeInvalid,
-				Path:    claudeSettingsPath,
+				Path:    path,
 				Message: settingsHooksKey + "." + event.name + " must be an array of hook groups",
 			}
 		}
 	}
 	for _, raw := range groups {
-		var group claudeHookGroup
+		var group hookGroup
 		if json.Unmarshal(raw, &group) != nil {
 			continue // a group of another shape is not capcom's
 		}
-		if slices.ContainsFunc(group.Hooks, func(hook claudeHook) bool { return hook.Command == primeCommand }) {
+		if slices.ContainsFunc(group.Hooks, func(hook settingsHook) bool { return hook.Command == primeCommand }) {
 			return false, nil
 		}
 	}
@@ -288,10 +345,10 @@ func decodeObject(content []byte) ([]jsonMember, error) {
 	return members, nil
 }
 
-// settingsFailure types a settings file that cannot be read as an object: invalid at the file,
-// and at the line of a syntax error in content. member names the member at fault, if any.
-func settingsFailure(content []byte, member string, err error) *Error {
-	failure := &Error{Code: CodeInvalid, Path: claudeSettingsPath, Message: "invalid settings: " + err.Error()}
+// settingsFailure types a settings file that cannot be read as an object: invalid at the file at
+// path, and at the line of a syntax error in content. member names the member at fault, if any.
+func settingsFailure(path string, content []byte, member string, err error) *Error {
+	failure := &Error{Code: CodeInvalid, Path: path, Message: "invalid settings: " + err.Error()}
 	if member != "" {
 		failure.Message = member + " " + err.Error()
 	}
