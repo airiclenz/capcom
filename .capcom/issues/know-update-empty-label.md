@@ -1,9 +1,11 @@
 ---
 title: know update --add-label writes an empty label that breaks the Note
-status: open
+status: done
 type: bug
 priority: 2
 created: 2026-10-11T18:36:10Z
+closed: 2026-10-11T19:00:08Z
+reason: "Resolved by plan 2026-10-11 - 04 - empty-labels-and-cli-file-map-plan, item 1 (archived in 0e1d745): edit.Labels drops empty entries, so know update/create/update write labels: [x, y]"
 ---
 
 

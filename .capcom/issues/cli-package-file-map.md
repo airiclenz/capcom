@@ -1,9 +1,11 @@
 ---
 title: internal/cli has no doc.go file map or structural test
-status: open
+status: done
 type: chore
 priority: 2
 created: 2026-10-11T14:07:46Z
+closed: 2026-10-11T19:00:08Z
+reason: "Resolved by plan 2026-10-11 - 04 - empty-labels-and-cli-file-map-plan, item 3 (archived in 0e1d745): internal/cli/doc.go file map plus TestDocFileMap_MatchesDirectory"
 ---
 
 `internal/cli` has grown well past ten non-test files (`create.go`, `update.go` and `log.go` first
