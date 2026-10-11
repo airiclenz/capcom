@@ -183,7 +183,12 @@ a blank line in an entry; a non-entry line falls back; a hunk spanning the place
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run Merge ./internal/issue/`; `go vet ./internal/issue/`
 **Commit:** `feat(issue): merge three versions of an issue's Log by entry`
 
-## 6. capcom merge-driver: the git merge driver command
+## 6. capcom merge-driver: the git merge driver command — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): the command accepts 4 to 7 arguments and falls back per label: each label that is absent, empty or a literal `%S`, `%X` or `%Y` gets its `<path> (...)` fallback. So 5 or 6 arguments are accepted too, not only 4 or 7.
+NOTES (2026-10-12): the plan does not say where item 5's text-merge adapter goes. It is `gitTextMerge` in `internal/cli/merge_driver.go`; its three temp inputs sit in an `os.MkdirTemp` directory that is removed after the merge.
+NOTES (2026-10-12): `replaceFileBytes` in `internal/cli/merge_driver.go` repeats the byte-keeping temp-plus-rename of `internal/agents/block.go`'s unexported `replaceFile` (item 7 needs the same thing for `.gitattributes`). Sharing one helper would need a common package, which is outside this item.
+NOTES (2026-10-12): `git merge-file` reads `merge.conflictStyle` only inside a repository, so the test that checks the base label (`|||||||`, diff3 style) runs in a git repo. The other tests run outside any repository.
+NOTES (2026-10-12): README and `docs/format.md` are left to item 7, which owns describing the driver setup.
 
 **What:** Recast at the regression check (2026-10-11).
 **Goal:** `capcom merge-driver <base> <ours> <theirs> <path> [<base-label> <ours-label> <theirs-label>]`

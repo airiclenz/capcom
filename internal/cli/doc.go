@@ -24,6 +24,7 @@
 //   - `list.go` — capcom list: lists issues by filter
 //   - `lock.go` — capcom lock acquire, touch, release, break, check and status: the Tree lock
 //   - `log.go` — capcom log: appends an entry to an issue's Log
+//   - `merge_driver.go` — capcom merge-driver: the git merge driver for issue files, Log by entry
 //   - `mv.go` — capcom mv: renames an issue or moves it below another
 //   - `output.go` — the output contract: Result, the --json Envelope, --kv records and Renderers
 //   - `prime.go` — capcom prime: the session Briefing

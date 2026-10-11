@@ -104,6 +104,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newListCommand())
 	root.AddCommand(a.newLockCommand())
 	root.AddCommand(a.newLogCommand())
+	root.AddCommand(a.newMergeDriverCommand())
 	root.AddCommand(a.newMvCommand())
 	root.AddCommand(a.newPrimeCommand())
 	root.AddCommand(a.newReadyCommand())
