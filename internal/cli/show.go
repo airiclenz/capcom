@@ -16,8 +16,8 @@ const failureSeparator = "; "
 
 // newShowCommand prints each named issue in full. Every argument is resolved on its own; the
 // issues found are printed even when another argument fails, and the command then exits with the
-// first failure's code. Changes to the shown issues on other local branches are reported apart
-// from them (Elsewhere).
+// first failure's code. Changes to the shown issues on other local and remote-tracking branches
+// are reported apart from them (Elsewhere).
 func (a *app) newShowCommand() *cobra.Command {
 	var isElsewhereSkipped bool
 	cmd := &cobra.Command{

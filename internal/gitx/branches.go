@@ -12,10 +12,16 @@ import (
 const (
 	// branchRefPrefix is the namespace of local branches.
 	branchRefPrefix = "refs/heads/"
-	// branchFormat prints one local branch per line: its full ref, its tip's committer time in
-	// Unix seconds and "*" when it is the branch checked out in this worktree.
-	branchFormat = "%(refname)%00%(committerdate:unix)%00%(HEAD)"
-	branchFields = 3
+	// remoteRefPrefix is the namespace of remote-tracking branches.
+	remoteRefPrefix = "refs/remotes/"
+	// remoteHeadName is the last component of refs/remotes/<remote>/HEAD, the remote's default
+	// branch pointer, which names no branch of its own.
+	remoteHeadName = "HEAD"
+	// branchFormat prints one branch per line: its full ref, its tip's object name, its tip's
+	// committer time in Unix seconds, "*" when it is the branch checked out in this worktree and
+	// the full ref of its upstream, empty when it has none.
+	branchFormat = "%(refname)%00%(objectname)%00%(committerdate:unix)%00%(HEAD)%00%(upstream)"
+	branchFields = 5
 	// currentMarker is what %(HEAD) prints for the branch checked out in this worktree.
 	currentMarker = "*"
 	// notAncestorExit is the exit code of `merge-base --is-ancestor` when the answer is no.
@@ -40,17 +46,25 @@ const (
 	Removed  ChangeKind = "removed"
 )
 
-// Branch is one local branch.
+// Branch is one local branch or remote-tracking branch.
 type Branch struct {
-	// Name is the branch name without refs/heads/, e.g. "feature/login".
+	// Name is the short name: without refs/heads/ for a local branch, e.g. "feature/login", and
+	// without refs/remotes/ for a remote-tracking one, e.g. "origin/feature/login".
 	Name string
 	// Ref is the full ref, e.g. "refs/heads/feature/login"; pass it to git, never Name, so a
 	// branch named like a tag or an option stays unambiguous.
 	Ref string
+	// Commit is the object name of the branch's tip commit.
+	Commit string
 	// Tip is the committer time of the branch's tip commit.
 	Tip time.Time
 	// IsCurrent is true for the branch checked out in the worktree Branches ran in.
 	IsCurrent bool
+	// IsRemote is true for a remote-tracking branch, one under refs/remotes/.
+	IsRemote bool
+	// Upstream is the full ref of the branch's upstream, e.g. "refs/remotes/origin/main" or
+	// "refs/heads/main"; empty when it has none.
+	Upstream string
 }
 
 // FileChange is one file ChangedFiles reports.
@@ -60,10 +74,12 @@ type FileChange struct {
 	Kind ChangeKind
 }
 
-// Branches lists the local branches of the repository containing dir, sorted by name, including
-// the ones checked out in other worktrees.
+// Branches lists the local branches of the repository containing dir, including the ones checked
+// out in other worktrees, and then its remote-tracking branches, each group sorted by name. It
+// never fetches, so a remote-tracking branch is as fresh as the last fetch. The refs/remotes/
+// <remote>/HEAD pointers are left out.
 func Branches(dir string) ([]Branch, error) {
-	output, err := Run(dir, "for-each-ref", "--format="+branchFormat, branchRefPrefix)
+	output, err := Run(dir, "for-each-ref", "--format="+branchFormat, branchRefPrefix, remoteRefPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -77,15 +93,26 @@ func Branches(dir string) ([]Branch, error) {
 		if len(fields) != branchFields {
 			return nil, fmt.Errorf("git for-each-ref in %s: unexpected line %q", dir, line)
 		}
-		seconds, err := strconv.ParseInt(fields[1], 10, 64)
+		ref := fields[0]
+		if isRemoteHead(ref) {
+			continue
+		}
+		seconds, err := strconv.ParseInt(fields[2], 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("git for-each-ref in %s: tip time of %s: %w", dir, fields[0], err)
+			return nil, fmt.Errorf("git for-each-ref in %s: tip time of %s: %w", dir, ref, err)
+		}
+		name, isRemote := strings.CutPrefix(ref, remoteRefPrefix)
+		if !isRemote {
+			name = strings.TrimPrefix(ref, branchRefPrefix)
 		}
 		branches = append(branches, Branch{
-			Name:      strings.TrimPrefix(fields[0], branchRefPrefix),
-			Ref:       fields[0],
+			Name:      name,
+			Ref:       ref,
+			Commit:    fields[1],
 			Tip:       time.Unix(seconds, 0),
-			IsCurrent: fields[2] == currentMarker,
+			IsCurrent: fields[3] == currentMarker,
+			IsRemote:  isRemote,
+			Upstream:  fields[4],
 		})
 	}
 	return branches, nil
@@ -155,6 +182,14 @@ func ShowFile(dir, revision, path string) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(output), nil
+}
+
+// isRemoteHead reports whether ref is refs/remotes/<remote>/HEAD, a remote's default branch
+// pointer rather than a branch.
+func isRemoteHead(ref string) bool {
+	rest, isRemote := strings.CutPrefix(ref, remoteRefPrefix)
+	remote, name, hasName := strings.Cut(rest, "/")
+	return isRemote && hasName && remote != "" && name == remoteHeadName
 }
 
 // changeKind maps a `diff --name-status` letter to its kind.

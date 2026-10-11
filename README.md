@@ -54,7 +54,8 @@ and show up in code review like the code they describe.
   changed with `capcom know update`, renamed or moved with `capcom know mv` (the old id stays an
   alias, as with `capcom mv`) and deleted with `capcom know rm`.
 - **Changes on other branches.** `ready`, `list`, `show` and `prime` warn when an issue was
-  changed on another local branch that is not merged yet; capcom never merges them itself.
+  changed on another local or remote-tracking branch that is not merged yet; capcom never merges
+  them itself, and never fetches, so remote-tracking branches are as fresh as the last fetch.
 - **A briefing at session start.** `capcom prime` prints the ready work, the issues in progress,
   the lock holders, unmerged changes elsewhere and the health of the store. capcom also keeps a
   short block in `AGENTS.md` up to date, between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->`,

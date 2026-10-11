@@ -49,8 +49,8 @@ type listOptions struct {
 }
 
 // newListCommand lists issues in tree order, one line each. Without flags it lists every issue
-// that is not Closed. Issue changes on other local branches are reported apart from the list
-// (Elsewhere).
+// that is not Closed. Issue changes on other local and remote-tracking branches are reported
+// apart from the list (Elsewhere).
 func (a *app) newListCommand() *cobra.Command {
 	options := &listOptions{}
 	cmd := &cobra.Command{

@@ -5,9 +5,15 @@ capcom reports is the state of the checked-out branch. Closing an issue in the s
 fix means the two merge together or not at all, and git is the only sync path, so the drift bd
 suffered between its Dolt database, its JSONL export and its separate Dolt remote cannot happen.
 The price is that a change made on one branch is not visible on another until it is merged. capcom
-softens that with a cheap warning: `ready` and `prime` scan local branches and worktrees whose
-issue files differ from HEAD and report those changes separately (`elsewhere`), without merging
-any state.
+softens that with a cheap warning: `ready` and `prime` scan local branches, worktrees and
+remote-tracking branches whose issue files differ from HEAD and report those changes separately
+(`elsewhere`), without merging any state.
+
+Amended 2026-10-11: the scan originally read local branches and worktrees only. It now reads
+remote-tracking branches (`refs/remotes/`) too, reported by their short name (`origin/x`), and
+still never fetches, so they are as fresh as the last fetch. The current branch's remote-tracking
+upstream is not reported, and a local branch and a remote-tracking branch of the same name that
+hold the same work are reported once.
 
 A central store, with one issue state shared by every branch, may be added later as an optional
 mode: the issue files on a dedicated data branch, checked out in a hidden worktree. Two rules keep

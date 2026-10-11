@@ -248,3 +248,113 @@ func TestScan_FreshRepository_ReportsNothing(t *testing.T) {
 		t.Errorf("report = %+v, want nothing in a repository without branches", report)
 	}
 }
+
+// newClone creates an origin repository whose main branch holds two open issues, clones it and
+// returns both roots; the clone is on main, tracking origin/main.
+func newClone(t *testing.T) (origin, clone string) {
+	t.Helper()
+	origin = newIssueRepo(t)
+	git(t, origin, "branch", "-M", "main")
+	clone, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	git(t, origin, "clone", "-q", origin, clone)
+	return origin, clone
+}
+
+// entryLines renders every entry of report with Entry.String.
+func entryLines(report Report) []string {
+	var lines []string
+	for _, entry := range report.Entries {
+		lines = append(lines, entry.String())
+	}
+	return lines
+}
+
+func TestScan_RemoteOnlyBranch_IsReportedByItsShortName(t *testing.T) {
+	origin, clone := newClone(t)
+	onBranch(t, origin, "fix-login", map[string]string{"login-flow.md": issueFile("done")})
+	git(t, clone, "fetch", "-q")
+
+	report := scan(clone)
+
+	want := []string{"login-flow: done on origin/fix-login (unmerged)"}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) || len(report.Warnings) != 0 {
+		t.Errorf("entries = %q, warnings = %q; want %q and no warnings", lines, report.Warnings, want)
+	}
+}
+
+func TestScan_PushedLocalBranch_IsReportedOnce(t *testing.T) {
+	_, clone := newClone(t)
+	onBranch(t, clone, "fix-login", map[string]string{"login-flow.md": issueFile("done")})
+	git(t, clone, "push", "-q", "origin", "fix-login")
+
+	report := scan(clone)
+
+	want := []string{"login-flow: done on fix-login (unmerged)"}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) || len(report.Warnings) != 0 {
+		t.Errorf("entries = %q, warnings = %q; want %q and no warnings", lines, report.Warnings, want)
+	}
+}
+
+func TestScan_LocalBranchBehindItsRemote_ReportsTheRemoteOnly(t *testing.T) {
+	origin, clone := newClone(t)
+	onBranch(t, clone, "fix-login", map[string]string{"login-flow.md": issueFile("done")})
+	git(t, clone, "push", "-q", "origin", "fix-login")
+	git(t, origin, "checkout", "-q", "fix-login")
+	commitIssues(t, origin, map[string]string{"login-flow/session-refresh.md": issueFile("done")})
+	git(t, origin, "checkout", "-q", "main")
+	git(t, clone, "fetch", "-q")
+
+	report := scan(clone)
+
+	want := []string{
+		"login-flow: done on origin/fix-login (unmerged)",
+		"session-refresh: done on origin/fix-login (unmerged)",
+	}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) || len(report.Warnings) != 0 {
+		t.Errorf("entries = %q, warnings = %q; want %q and no warnings", lines, report.Warnings, want)
+	}
+}
+
+func TestScan_UpstreamOfTheCurrentBranch_IsNotReported(t *testing.T) {
+	origin, clone := newClone(t)
+	commitIssues(t, origin, map[string]string{"login-flow.md": issueFile("done")})
+	git(t, clone, "fetch", "-q")
+
+	report := scan(clone)
+
+	if len(report.Entries) != 0 || len(report.Warnings) != 0 {
+		t.Errorf("report = %+v, want nothing for origin/main, the upstream of main", report)
+	}
+}
+
+func TestScan_LocalUpstream_IsStillReported(t *testing.T) {
+	_, clone := newClone(t)
+	git(t, clone, "switch", "-q", "-c", "feat", "--track", "main")
+	git(t, clone, "switch", "-q", "main")
+	commitIssues(t, clone, map[string]string{"login-flow.md": issueFile("done")})
+	git(t, clone, "switch", "-q", "feat")
+
+	report := scan(clone)
+
+	want := []string{"login-flow: done on main (unmerged)"}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) || len(report.Warnings) != 0 {
+		t.Errorf("entries = %q, warnings = %q; want %q and no warnings", lines, report.Warnings, want)
+	}
+}
+
+func TestScan_OriginHead_IsIgnored(t *testing.T) {
+	origin, clone := newClone(t)
+	onBranch(t, origin, "fix-login", map[string]string{"login-flow.md": issueFile("done")})
+	git(t, clone, "fetch", "-q")
+	git(t, clone, "remote", "set-head", "origin", "fix-login")
+
+	report := scan(clone)
+
+	want := []string{"login-flow: done on origin/fix-login (unmerged)"}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) {
+		t.Errorf("entries = %q, want %q and nothing on origin/HEAD", lines, want)
+	}
+}

@@ -51,7 +51,8 @@ type readyData struct {
 
 // newReadyCommand lists the Ready issues, most urgent first and in tree order within a priority.
 // A dependency counted as satisfied only because it was dropped is reported as a warning. Issue
-// changes on other local branches are reported apart from the list (Elsewhere).
+// changes on other local and remote-tracking branches are reported apart from the list
+// (Elsewhere).
 func (a *app) newReadyCommand() *cobra.Command {
 	options := &readyOptions{}
 	cmd := &cobra.Command{

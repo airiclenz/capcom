@@ -43,6 +43,50 @@ func TestBranches_ListsEveryLocalBranchAndMarksTheCurrentOne(t *testing.T) {
 	}
 }
 
+func TestBranches_Clone_ListsRemoteTrackingBranchesButNotOriginHead(t *testing.T) {
+	origin := newRepo(t)
+	git(t, origin, "branch", "feature/login")
+	clone, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	git(t, origin, "clone", "-q", origin, clone)
+
+	branches, err := Branches(clone)
+
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	var local, remote []string
+	var currentUpstream string
+	for _, branch := range branches {
+		if branch.Ref == "refs/remotes/origin/HEAD" {
+			t.Errorf("branch %+v: refs/remotes/origin/HEAD is not a branch", branch)
+		}
+		if branch.Commit == "" || branch.Tip.IsZero() {
+			t.Errorf("branch %+v: want a tip commit and time", branch)
+		}
+		if branch.IsCurrent {
+			currentUpstream = branch.Upstream
+		}
+		if !branch.IsRemote {
+			local = append(local, branch.Name)
+			continue
+		}
+		remote = append(remote, branch.Name)
+		if branch.Ref != "refs/remotes/"+branch.Name {
+			t.Errorf("branch %+v: want ref refs/remotes/<name>", branch)
+		}
+	}
+	if len(local) != 1 || len(remote) != 2 || remote[0] != "origin/feature/login" {
+		t.Fatalf("local = %q, remote = %q; want one local branch, origin/feature/login and the default",
+			local, remote)
+	}
+	if want := "refs/remotes/origin/" + local[0]; currentUpstream != want {
+		t.Errorf("upstream of the current branch = %q, want %q", currentUpstream, want)
+	}
+}
+
 func TestBranches_UnbornRepository_ListsNone(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

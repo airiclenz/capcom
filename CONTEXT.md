@@ -80,8 +80,8 @@ depends on is closed.
 _Avoid_: link, relation
 
 **Elsewhere**:
-A change to an **Issue** that exists on another local branch or worktree but not on the current
-one, reported beside a result and never merged into it.
+A change to an **Issue** that exists on another local branch, worktree or remote-tracking branch
+but not on the current one, reported beside a result and never merged into it.
 _Avoid_: remote state, pending
 
 ### Coordination

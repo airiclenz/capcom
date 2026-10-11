@@ -120,7 +120,7 @@ type Lock struct {
 	TTL time.Duration
 }
 
-// Elsewhere configures the scan of other local branches.
+// Elsewhere configures the scan of other local and remote-tracking branches.
 type Elsewhere struct {
 	// Days is the age, in days, beyond which a branch tip is ignored. Never negative.
 	Days int

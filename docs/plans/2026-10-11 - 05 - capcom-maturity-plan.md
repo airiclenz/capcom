@@ -334,7 +334,11 @@ internal/cli/lock.go — newLockCommand; internal/cli/output.go — kvRenderer.R
 **Closes:** kv-flag-scope
 **Commit:** `fix(cli): offer --kv only on the commands that print KV records`
 
-## 8. Elsewhere scans remote-tracking branches
+## 8. Elsewhere scans remote-tracking branches — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): `gitx.Branch` gains `Commit`, `IsRemote` and `Upstream`; `Branches` lists local branches first, then remote-tracking ones (for-each-ref refname order), so Elsewhere entries keep that order, and the `Report.Entries` doc now says so. De-duplication runs in `Scan` after the HEAD check and before the per-branch `IsAncestor`/`ChangedFiles` loop, on the candidates that survived the window and current/upstream filters.
+NOTES (2026-10-11): `refs/remotes/<remote>/HEAD` is skipped by name (exactly one component after the remote), and same-name matching takes the part of `origin/x` after the first `/`, so both assume remote names without a slash. ADR 0004 line 8 is rewritten and a dated "Amended 2026-10-11" paragraph records the change. The `config.yaml` template comment ("Branches whose tip is older...") is left unchanged, since it already covers both kinds.
+
 
 **What:** Elsewhere lists only `refs/heads/` (`branchRefPrefix` in `internal/gitx/branches.go`).
 **Goal:** `gitx.Branches` lists `refs/heads/` and `refs/remotes/`, skipping `refs/remotes/*/HEAD`.
