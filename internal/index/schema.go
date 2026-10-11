@@ -14,7 +14,7 @@ import (
 
 // schemaVersion identifies the table layout below. Bump it whenever the layout or the meaning of a
 // column changes: an index recorded under another version is dropped and rebuilt.
-const schemaVersion = 2
+const schemaVersion = 3
 
 // Keys of the meta table.
 const (
@@ -44,8 +44,8 @@ var (
 // schemaStatements create the index tables. Every row hangs off a files row by path, the
 // worktree-relative path of the file it came from; issues.excluded and notes.excluded mark a
 // parsed node that a duplicate id or alias keeps out of every query. labels, aliases and fts are
-// shared by issues and Notes and carry the kind of the file each row came from; refs holds the
-// Refs of Notes in file order.
+// shared by issues and Notes and carry the kind of the file each row came from; related holds the
+// related links of issues as written, in file order; refs holds the Refs of Notes in file order.
 var schemaStatements = []string{
 	`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 	`CREATE TABLE files (
@@ -86,6 +86,9 @@ var schemaStatements = []string{
 	`CREATE INDEX labels_by_path ON labels (path)`,
 	`CREATE TABLE deps (path TEXT NOT NULL, from_id TEXT NOT NULL, to_id TEXT NOT NULL)`,
 	`CREATE INDEX deps_by_path ON deps (path)`,
+	`CREATE TABLE related (path TEXT NOT NULL, from_id TEXT NOT NULL, to_id TEXT NOT NULL)`,
+	`CREATE INDEX related_by_path ON related (path)`,
+	`CREATE INDEX related_by_to_id ON related (to_id)`,
 	`CREATE TABLE aliases (path TEXT NOT NULL, kind TEXT NOT NULL, alias TEXT NOT NULL)`,
 	`CREATE INDEX aliases_by_path ON aliases (path)`,
 	`CREATE TABLE refs (path TEXT NOT NULL, ref TEXT NOT NULL)`,
@@ -94,7 +97,7 @@ var schemaStatements = []string{
 }
 
 // rowTables are the tables holding one file's rows, cleared by path when the file changes or goes.
-var rowTables = []string{"files", "issues", "notes", "labels", "deps", "aliases", "refs", "fts"}
+var rowTables = []string{"files", "issues", "notes", "labels", "deps", "related", "aliases", "refs", "fts"}
 
 // configHash fingerprints the parts of the config the indexed rows depend on: the status map
 // (each status's category is stored, ADR 0003) and the declared types (Validate decides which

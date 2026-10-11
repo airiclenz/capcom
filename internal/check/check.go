@@ -1,7 +1,7 @@
 // Package check validates a whole store at once, for `capcom check`: the config, the issue tree
 // and the Knowledge tree, read straight from the files and never from the index. It owns no rule
-// of its own beyond resolving deps and plans and finding the git conflict markers a merge leaves in
-// an issue or Note file; it collects what the config parser, the tree loader, the issue and Note
+// of its own beyond resolving deps, related links and plans and finding the git conflict markers a
+// merge leaves in an issue or Note file; it collects what the config parser, the tree loader, the issue and Note
 // parsers and validators, the dependency cycle search and the Ref verifier report, each as a
 // Problem citing the file and, when known, the line (ADR 0006). It also reports an AGENTS.md whose
 // capcom Managed block is out of date or whose markers are tangled; an AGENTS.md without the block,
@@ -47,6 +47,8 @@ const (
 	CodeField = "field"
 	// CodeMissingDep is a dependency that names no issue.
 	CodeMissingDep = "missing-dep"
+	// CodeMissingRelated is a related link that names no issue.
+	CodeMissingRelated = "missing-related"
 	// CodeCycle is a dependency cycle.
 	CodeCycle = "cycle"
 	// CodeMissingPlan is a plan found in none of the configured plans directories.
@@ -392,7 +394,8 @@ func graphNodes(entries []parsedIssue) []issue.Node {
 	return nodes
 }
 
-// checkIssue checks one parsed issue: its fields against the config, its plan and its deps.
+// checkIssue checks one parsed issue: its fields against the config, its plan, its deps and its
+// related links.
 func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	path := entry.node.Path
 	for _, problem := range issue.Validate(c.relative(path), entry.issue, c.store.Config) {
@@ -410,6 +413,28 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 			c.add(path, entry.issue.DepsLine(), CodeMissingDep, fmt.Sprintf(
 				"dependency %q names no issue by id or by an alias only one issue has",
 				dep,
+			))
+		}
+	}
+	c.checkRelated(entry, graph)
+}
+
+// checkRelated checks the related links of one parsed issue: each must resolve to an issue other
+// than the issue itself, by id or by an alias. Both problems cite the related key's line.
+func (c *checker) checkRelated(entry parsedIssue, graph issue.DepGraph) {
+	path := entry.node.Path
+	for _, related := range entry.issue.Related {
+		id, isFound := graph.Resolve(related)
+		switch {
+		case !isFound:
+			c.add(path, entry.issue.RelatedLine(), CodeMissingRelated, fmt.Sprintf(
+				"related %q names no issue by id or by an alias only one issue has",
+				related,
+			))
+		case id == entry.node.ID:
+			c.add(path, entry.issue.RelatedLine(), CodeField, fmt.Sprintf(
+				"related %q names the issue itself",
+				related,
 			))
 		}
 	}

@@ -163,6 +163,21 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 			want:  issues + "login-flow.md:8:" + check.CodeMissingDep,
 		},
 		{
+			name:  "related resolving to nothing",
+			files: map[string]string{issues + "login-flow.md": issueFile("labels: [auth]\nrelated: [no-such-issue]\n")},
+			want:  issues + "login-flow.md:8:" + check.CodeMissingRelated,
+		},
+		{
+			name:  "related naming the issue itself",
+			files: map[string]string{issues + "login-flow.md": issueFile("related: [login-flow]\n")},
+			want:  issues + "login-flow.md:7:" + check.CodeField,
+		},
+		{
+			name:  "related naming the issue itself by its alias",
+			files: map[string]string{issues + "login-flow.md": issueFile("aliases: [old-flow]\nrelated: [old-flow]\n")},
+			want:  issues + "login-flow.md:8:" + check.CodeField,
+		},
+		{
 			name: "closed without closed",
 			files: map[string]string{issues + "login-flow.md": strings.Replace(
 				issueFile("reason: finished\n"), "status: open", "status: done", 1,
@@ -202,6 +217,20 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				t.Errorf("problems = %v, want %v", problems, want)
 			}
 		})
+	}
+}
+
+func TestRun_RelatedNamingAnAlias_ReportsNothing(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		issues + "login-flow.md":      issueFile("related: [apogee-kk0.4]\n"),
+		issues + "session-timeout.md": issueFile("aliases: [apogee-kk0.4]\n"),
+	})
+
+	problems := runCheck(t, root)
+
+	if len(problems) != 0 {
+		t.Fatalf("problems = %v, want none", problems)
 	}
 }
 

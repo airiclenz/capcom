@@ -280,7 +280,10 @@ issue: `related` round-trips in canonical order; an empty list omitted as `deps`
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/config/ ./internal/issue/`; `GOMEMLIMIT=2GiB go test -count=1 -run 'Init|NewerStoreFormat' ./internal/cli/`
 **Commit:** `feat(issue): add the related key and raise the store format to 2`
 
-## 9. The index and check know related links
+## 9. The index and check know related links — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): `Entry.Related` holds the file's related links, filled by `Index.Issue`. The reverse comes from a separate method, `Index.RelatedBy(id string) ([]string, error)`, rather than an `Entry` field, so every `List` row does not pay for the alias join. It returns the ids of usable issues that name `id` or one of its aliases, each once, in id order. It leaves out the issue itself and any issue a duplicate excludes.
+NOTES (2026-10-12): check uses a new code, `CodeMissingRelated` ("missing-related"), as the Goal names it. The approach text said `CodeMissingDep`. A self link is matched after resolving, so a related entry naming the issue's own alias also counts as `field`. The check runs in a new `checker.checkRelated` called from `checkIssue`. The package doc now says check resolves related links too.
+NOTES (2026-10-12): the schema is now version 3. The new `related` table is indexed by path and by `to_id`.
 
 **What:**
 **Goal:** the index stores issues' `related` entries; `index.Entry` exposes them and the issues

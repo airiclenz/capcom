@@ -384,3 +384,111 @@ func TestRefresh_BadNames_WarnAndSkip(t *testing.T) {
 		t.Errorf("report = %+v, want 1 indexed and 3 warnings", report)
 	}
 }
+
+// relatedIssueText is the content of a valid open issue whose frontmatter ends with extra lines.
+func relatedIssueText(title, extra string) string {
+	return strings.Replace(issueText(title, "open", ""), "\n---\n", "\n"+extra+"---\n", 1)
+}
+
+// mustRelatedBy returns RelatedBy(id) and fails the test on error.
+func mustRelatedBy(t *testing.T, x *Index, id string) []string {
+	t.Helper()
+	holders, err := x.RelatedBy(id)
+	if err != nil {
+		t.Fatalf("RelatedBy(%q): %v", id, err)
+	}
+	return holders
+}
+
+func TestRefresh_RelatedLinks_FilledAfterRefreshAndAnEdit(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "target-issue.md", issueText("Target", "open", ""))
+	writeIssue(t, s, "other-issue.md", issueText("Other", "open", ""))
+	writeIssue(t, s, "holder-issue.md", relatedIssueText("Holder", "related: [target-issue, other-issue]\n"))
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+
+	related := mustIssue(t, x, "holder-issue").Related
+	holders := mustRelatedBy(t, x, "target-issue")
+
+	if want := []string{"target-issue", "other-issue"}; !slices.Equal(related, want) {
+		t.Errorf("Related = %v, want %v", related, want)
+	}
+	if want := []string{"holder-issue"}; !slices.Equal(holders, want) {
+		t.Errorf("RelatedBy(target-issue) = %v, want %v", holders, want)
+	}
+
+	writeIssue(t, s, "holder-issue.md", relatedIssueText("Holder, edited", "related: [other-issue]\n"))
+	refresh(t, x)
+
+	if related := mustIssue(t, x, "holder-issue").Related; !slices.Equal(related, []string{"other-issue"}) {
+		t.Errorf("Related after the edit = %v, want [other-issue]", related)
+	}
+	if holders := mustRelatedBy(t, x, "target-issue"); len(holders) != 0 {
+		t.Errorf("RelatedBy(target-issue) after the edit = %v, want none", holders)
+	}
+}
+
+func TestRelatedBy_HolderNamesAnAlias_FindsTheHolder(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "target-issue.md", relatedIssueText("Target", "aliases: [old-target]\n"))
+	writeIssue(t, s, "holder-issue.md", relatedIssueText("Holder", "related: [old-target]\n"))
+	writeIssue(t, s, "both-issue.md", relatedIssueText("Both", "related: [target-issue, old-target]\n"))
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+
+	holders := mustRelatedBy(t, x, "target-issue")
+
+	if want := []string{"both-issue", "holder-issue"}; !slices.Equal(holders, want) {
+		t.Errorf("RelatedBy(target-issue) = %v, want %v", holders, want)
+	}
+}
+
+func TestRelatedBy_DuplicateExcludedHolder_IsSkipped(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "target-issue.md", issueText("Target", "open", ""))
+	writeIssue(t, s, "dup-issue.md", relatedIssueText("Top dup", "related: [target-issue]\n"))
+	writeIssue(t, s, "target-issue/dup-issue.md", relatedIssueText("Nested dup", "related: [target-issue]\n"))
+	writeIssue(t, s, "kept-issue.md", relatedIssueText("Kept", "related: [target-issue]\n"))
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+
+	holders := mustRelatedBy(t, x, "target-issue")
+
+	if want := []string{"kept-issue"}; !slices.Equal(holders, want) {
+		t.Errorf("RelatedBy(target-issue) = %v, want %v", holders, want)
+	}
+}
+
+func TestRefresh_IndexFromBeforeRelatedLinks_RebuildsWithThem(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "target-issue.md", issueText("Target", "open", ""))
+	writeIssue(t, s, "holder-issue.md", relatedIssueText("Holder", "related: [target-issue]\n"))
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+	db, err := sql.Open(driverName, Path(s))
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	// An index of the previous schema version has no related table.
+	_, err = db.Exec(`DROP TABLE related`)
+	if err == nil {
+		_, err = db.Exec(`UPDATE meta SET value = ? WHERE key = ?`, schemaVersion-1, metaSchemaVersion)
+	}
+	if closeErr := db.Close(); err != nil || closeErr != nil {
+		t.Fatalf("downgrade the index: %v, %v", err, closeErr)
+	}
+
+	report := refresh(t, x)
+
+	if !report.Rebuilt {
+		t.Errorf("report = %+v, want a rebuild", report)
+	}
+	if holders := mustRelatedBy(t, x, "target-issue"); !slices.Equal(holders, []string{"holder-issue"}) {
+		t.Errorf("RelatedBy(target-issue) = %v, want [holder-issue]", holders)
+	}
+}

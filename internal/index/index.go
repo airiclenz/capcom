@@ -87,7 +87,8 @@ type Report struct {
 	Warnings []Warning
 }
 
-// Entry is one indexed issue. Times are zero when the file leaves them out.
+// Entry is one indexed issue. Times are zero when the file leaves them out. Related holds the
+// related links as the file writes them; the issues linking to this one come from RelatedBy.
 type Entry struct {
 	ID       string
 	Path     string
@@ -103,6 +104,7 @@ type Entry struct {
 	Title    string
 	Labels   []string
 	Deps     []string
+	Related  []string
 	Aliases  []string
 }
 
@@ -170,6 +172,7 @@ func (x *Index) Issue(id string) (entry Entry, found bool, err error) {
 	}{
 		{`SELECT label FROM labels WHERE path = ? ORDER BY rowid`, &entry.Labels},
 		{`SELECT to_id FROM deps WHERE path = ? ORDER BY rowid`, &entry.Deps},
+		{`SELECT to_id FROM related WHERE path = ? ORDER BY rowid`, &entry.Related},
 		{`SELECT alias FROM aliases WHERE path = ? ORDER BY rowid`, &entry.Aliases},
 	}
 	for _, list := range lists {
@@ -178,6 +181,25 @@ func (x *Index) Issue(id string) (entry Entry, found bool, err error) {
 		}
 	}
 	return entry, true, nil
+}
+
+// RelatedBy returns the ids of the usable issues whose related links name the usable issue id, by
+// its id or by one of its aliases, each once in id order. The issue itself is left out, and an id
+// no usable issue has yields none.
+func (x *Index) RelatedBy(id string) ([]string, error) {
+	return x.strings(
+		context.Background(),
+		`SELECT DISTINCT holder.id FROM related
+			JOIN issues AS holder ON holder.path = related.path
+			WHERE holder.excluded = 0 AND holder.id <> ?1 AND (
+				related.to_id IN (SELECT id FROM issues WHERE id = ?1 AND excluded = 0)
+				OR related.to_id IN (SELECT aliases.alias FROM aliases
+					JOIN issues AS target ON target.path = aliases.path
+					WHERE aliases.kind = ?2 AND target.id = ?1 AND target.excluded = 0)
+			)
+			ORDER BY holder.id`,
+		id, kindIssue,
+	)
 }
 
 // Search returns the ids of the usable issues whose title or body contains every word of text,

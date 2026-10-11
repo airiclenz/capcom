@@ -334,6 +334,11 @@ func (r *refresher) insertIssue(file foundFile, parsed issue.Issue) error {
 			`INSERT INTO deps (path, from_id, to_id) VALUES (?, ?, ?)`, []any{file.path, file.id, dep},
 		})
 	}
+	for _, related := range parsed.Related {
+		statements = append(statements, statement{
+			`INSERT INTO related (path, from_id, to_id) VALUES (?, ?, ?)`, []any{file.path, file.id, related},
+		})
+	}
 	return r.exec(file, statements)
 }
 

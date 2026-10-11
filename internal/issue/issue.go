@@ -90,6 +90,12 @@ func (i Issue) DepsLine() int {
 	return i.lines[keyDeps]
 }
 
+// RelatedLine returns the 1-based line of the related key in the file the Issue was parsed from,
+// or 0 when the file has none or the Issue was built in memory.
+func (i Issue) RelatedLine() int {
+	return i.lines[keyRelated]
+}
+
 // PlanLine returns the 1-based line of the plan key in the file the Issue was parsed from, or 0
 // when the file has none or the Issue was built in memory.
 func (i Issue) PlanLine() int {
