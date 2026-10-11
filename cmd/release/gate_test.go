@@ -35,7 +35,7 @@ type fakeCommit struct {
 }
 
 // fakeRepo answers the gate's and the baseline's commands the way git and gh would over a
-// checkout whose history is commits, and refuses any other command as unexpected.
+// checkout whose history is commits, and hands the publish-step probes' commands to remote.
 type fakeRepo struct {
 	commits    map[string]fakeCommit
 	head       string
@@ -45,9 +45,12 @@ type fakeRepo struct {
 	greenRuns []string
 	// failing names a command — "git rev-list" — that fails outright, as one that cannot run.
 	failing string
-	// release is what `gh release view` prints; tags is what `git tag --list` prints.
+	// release is what `gh release view` prints, "" for a repository with no published release;
+	// tags is what `git tag --list` prints.
 	release string
 	tags    string
+	// remote is where the publish channels stand; its zero value has published nothing.
+	remote fakeRemote
 }
 
 // linearHistory is root ← feature ← bump ← rollup, each commit with its own path set.
@@ -109,13 +112,16 @@ func (r fakeRepo) respond(call recordedCall) (string, error) {
 		}
 		return "[]\n", nil
 	case command == "gh release view --json tagName,publishedAt":
+		if r.release == "" {
+			return "", fmt.Errorf("%s: %s", command, ghNoRelease)
+		}
 		return r.release, nil
 	case call.name == "git" && len(args) == 3 && args[0] == "rev-list" && args[1] == "--count":
 		return "7\n", nil
 	case command == "git tag --list v*":
 		return r.tags, nil
 	}
-	return "", fmt.Errorf("unexpected command: %s", command)
+	return r.remote.respond(call)
 }
 
 // resolve turns the gate's symbolic names into commits.

@@ -137,7 +137,11 @@ apogee cmd/release/prepare_test.go — prepareRepo, preparedTags; CHANGELOG.md �
 **Depends on:** item 3
 **Commit:** `feat(release): add the release gate and the prepare verb`
 
-## 5. Status verb and channel probes
+## 5. Status verb and channel probes — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): no published release is detected by `gh release view` failing with "release not found" (new isReleaseNotFound helper, also used by readReleaseAssets); the baseline is then tag "", range HEAD, counted with `git rev-list --count HEAD`; stepsVersion probes VERSION's steps when the baseline has no tag but a range, and probes nothing when the baseline could not be read (range ""). The text report prints "no published release, HEAD: N commits"; verified live: `go run ./cmd/release status --json` exits 1 on the blocked gate with valid JSON, baseline range HEAD, all six steps pending.
+NOTES (2026-10-11): probeWinget treats a 404 on the package directory as not-yet-listed and still checks open pull requests, so an open first-submission ("New package: ...") pull request reads done; with none it is pending, naming `komac submit`. wingetPull test helper gained a title-kind parameter; added cases "tap repo absent", "tap repo unreadable", "winget first submission open"; "formula unreadable" now fails only the contents call.
+NOTES (2026-10-11): fakeRepo's latest-release answer fails with "release not found" when its `release` field is "" (the no-published-release case); apogee-only fixtures (apogee formula head, assets copied from a real apogee release, the retracted v1.8.0 tag, "micro-bump" wording) are replaced with capcom ones; main.go's package doc and root Long text now name status.
 
 **What:**
 **Goal:** `go run ./cmd/release status [vX.Y.Z] [--json]` reports the gate, the baseline and the state (`done|pending|setup-pending|unknown`) of the steps tag, release, homebrew, scoop, winget, smoke for capcom's channels, and works when no release was ever published.
