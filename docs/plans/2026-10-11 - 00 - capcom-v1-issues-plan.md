@@ -195,7 +195,12 @@ internal/cli/testharness_test.go — runCLI
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/issue/ ./internal/gitx/` ; `GOMEMLIMIT=2GiB go test -count=1 -run 'Create|Update|Log' ./internal/cli/`
 **Commit:** `feat(cli): create, update and log issues`
 
-## 9. Close, reopen and dependencies
+## 9. Close, reopen and dependencies — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by the new close, dep and reopen commands, registered in the root command's AddCommand list.
+NOTES (2026-10-11): re-derived from the guard's "every dep string resolves through `tree.Resolve`": the CLI holds no tree.Tree for resolution, so command arguments resolve through `index.Resolve` (the index's mirror of tree.Resolve: exact, alias, prefix — what every other command uses), and deps stored in files resolve exact-then-unique-alias, never prefix, through `issue.DepGraph`, which reuses the ready rules' resolver; both reach the canonical id before FindCycle, before storing, and in dep rm / dep list dependents matching.
+NOTES (2026-10-11): `issue.FindCycle(edges, from, to)` is the pure func the plan names (shortest way back, returned as `from, to, ..., from`); `issue.DepGraph` (NewDepGraph, Resolve, Dependents, FindCycle) wraps it with the canonical edge map built from the index's issues. `loadDepGraph` in dep.go builds its Node list like ready.go's readyEntries does; ready.go was left untouched.
+NOTES (2026-10-11): design calls the plan left open: close writes no Log entry; close text prints `<id>  closed|already_closed` per id, `--json` kind `close` with `[{id, outcome, path, etag}]`; an ambiguous prefix in close gets `STATUS=invalid`; an id given twice is `already_closed` the second time; reopen accepts `--status` in the todo, doing or waiting category; dep add of an edge already present (by id or alias) succeeds without changing deps; dep add/rm print the issue-write result (id, path, etag); dep list `--json` kind `deps` with `{id, deps, missing, dependents}` and no `--kv`; `capcom dep` alone prints its help.
 
 Depends on item 8.
 **What:**
