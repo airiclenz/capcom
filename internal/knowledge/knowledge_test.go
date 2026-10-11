@@ -89,6 +89,18 @@ func TestValidate_NoTitleOrPathlessRef_ReportsBoth(t *testing.T) {
 	}
 }
 
+func TestValidate_EmptyLabel_Reported(t *testing.T) {
+	t.Parallel()
+	note := Note{Title: "Some note", Labels: []string{"cli", "", ""}}
+
+	problems := Validate(notePath, note)
+
+	want := notePath + ": labels: every entry must be non-empty text"
+	if len(problems) != 1 || problems[0].Error() != want {
+		t.Errorf("problems = %v, want [%s]", problems, want)
+	}
+}
+
 func TestSerialize_ThenParse_RoundTrips(t *testing.T) {
 	t.Parallel()
 	original := Note{

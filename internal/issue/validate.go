@@ -12,8 +12,8 @@ import (
 // problem cites the line of the key it concerns when the issue came from Parse.
 //
 // An issue needs a title, a declared status, a declared type, a priority from MinPriority to
-// MaxPriority and a created time. An issue whose status is in the done or dropped category (ADR
-// 0003) also needs a closed time and a reason.
+// MaxPriority and a created time, and every label must be non-empty. An issue whose status is in
+// the done or dropped category (ADR 0003) also needs a closed time and a reason.
 func Validate(path string, issue Issue, cfg config.Config) []*Error {
 	v := validator{path: path, issue: issue}
 
@@ -41,6 +41,9 @@ func Validate(path string, issue Issue, cfg config.Config) []*Error {
 			MinPriority,
 			MaxPriority,
 		)
+	}
+	if slices.Contains(issue.Labels, "") {
+		v.add(keyLabels, "%s: every entry must be non-empty text", keyLabels)
 	}
 	if issue.Created.IsZero() {
 		v.add(keyCreated, "%s is required", keyCreated)

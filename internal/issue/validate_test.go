@@ -136,6 +136,18 @@ func TestValidate_ReturnsEveryProblem(t *testing.T) {
 	}
 }
 
+func TestValidate_EmptyLabel_Reported(t *testing.T) {
+	labelled := validIssue()
+	labelled.Labels = []string{"cli", "", ""}
+
+	problems := problemStrings(issue.Validate(testPath, labelled, config.Default()))
+
+	want := testPath + ": labels: every entry must be non-empty text"
+	if len(problems) != 1 || problems[0] != want {
+		t.Errorf("Validate = %q, want [%s]", problems, want)
+	}
+}
+
 func TestValidate_MissingStatus_IsRequired(t *testing.T) {
 	missing := validIssue()
 	missing.Status = ""

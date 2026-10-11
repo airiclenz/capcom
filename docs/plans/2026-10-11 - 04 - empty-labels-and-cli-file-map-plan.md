@@ -76,7 +76,9 @@ internal/cli/know_update_test.go — readNoteFile, newKnowStore (know_test.go)
 
 **Commit:** `fix(edit): drop empty labels when merging so no write stores one`
 
-## 2. Validation refuses an empty label
+## 2. Validation refuses an empty label — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): both Validate functions report a list with empty entries once, not once per empty entry, citing the labels key line (the parser also stops at the first one); issue.Validate tests it with slices.Contains(issue.Labels, ""), which is the exact `== ""` comparison the guard requires.
 
 **What:** This fixes the gap the bug exposed. `issue.Validate` and `knowledge.Validate` accept an
 empty label even though the parser rejects one, so a write can produce a file that cannot be read.

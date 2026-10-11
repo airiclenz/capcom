@@ -124,8 +124,8 @@ func Parse(path string, data []byte) (Note, error) {
 
 // Validate checks note and returns every problem it finds, or nil when there is none. path names
 // the file in each problem, and a problem cites the line of the key it concerns when the Note came
-// from Parse. A Note needs a title, and every Ref must name a path. Whether a Ref resolves is
-// Verify's to check, so a Note with a stale Ref stays usable.
+// from Parse. A Note needs a title, every label must be non-empty, and every Ref must name a path.
+// Whether a Ref resolves is Verify's to check, so a Note with a stale Ref stays usable.
 func Validate(path string, note Note) []*Error {
 	var problems []*Error
 	if strings.TrimSpace(note.Title) == "" {
@@ -134,6 +134,16 @@ func Validate(path string, note Note) []*Error {
 			Line:    note.lines[keyTitle],
 			Message: keyTitle + " is required",
 		})
+	}
+	for _, label := range note.Labels {
+		if label == "" {
+			problems = append(problems, &Error{
+				Path:    path,
+				Line:    note.lines[keyLabels],
+				Message: keyLabels + ": every entry must be non-empty text",
+			})
+			break
+		}
 	}
 	for i, ref := range note.Refs {
 		refPath, _, _ := strings.Cut(ref, symbolSeparator)
