@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-11
+
 ### Added
 
 - `capcom` binary with a `version` command and three output modes: plain text, a versioned `--json` envelope (`{schema, kind, data, elsewhere, warnings}` or `{schema, kind: "error", error: {code, message}}`) and `--kv` `KEY=VALUE` lines ending in `STATUS=`. Exit codes: 0 ok, 1 error, 2 usage, 3 not found or locked.
