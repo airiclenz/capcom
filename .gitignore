@@ -1,0 +1,20 @@
+.DS_Store
+
+# Go build artifacts (the capcom binary if built at the repo root, test bins, coverage profiles)
+/capcom
+/capcom.exe
+*.test
+*.out
+.go-cache
+
+# Release archives staged by a dist build — published as GitHub release assets, never committed
+/dist/
+
+# Local cross-repo development against a sibling checkout. The module graph must only ever
+# record a tagged requirement, so the workspace file that overrides it stays local.
+/go.work
+/go.work.sum
+
+# Machine-local agent instructions
+/CLAUDE.local.md
+/AGENTS.local.md
