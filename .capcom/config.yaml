@@ -4,6 +4,7 @@
 # capcom's rules read only the category. The first status listed in a category is its default.
 statuses:
   open: todo
+  active: doing
   parked: waiting
   done: done
   dropped: dropped
