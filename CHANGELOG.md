@@ -53,3 +53,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - An issue whose title, reason, label or other frontmatter text holds a rune outside YAML's printable set (U+FFFE, U+FFFF) is now written escaped, so the file parses back instead of failing with `control characters are not allowed`.
 - `capcom know verify` and `capcom check` list a Ref whose path runs below a file (`README.md/sub`) as a broken Ref with `no such file or directory`, instead of aborting with `not a directory` before printing any other finding.
+- An empty entry in a label list (`--label "x,,y"` on `create` and `know add`, `--add-label "x,,y"` on `update` and `know update`) is dropped instead of being written as `""`, which left an issue or Note file that no longer parsed.
