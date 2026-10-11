@@ -78,12 +78,13 @@ func (f Filter) sql() (string, []any) {
 	addIn("priority", toAny(f.Priorities))
 
 	for _, label := range f.Labels {
-		conditions = append(conditions, "EXISTS (SELECT 1 FROM labels WHERE labels.path = issues.path AND label = ?)")
-		args = append(args, label)
+		conditions = append(conditions, "EXISTS (SELECT 1 FROM labels WHERE labels.path = issues.path AND labels.kind = ? AND label = ?)")
+		args = append(args, kindIssue, label)
 	}
 	if len(f.NoLabels) > 0 {
-		conditions = append(conditions, "NOT EXISTS (SELECT 1 FROM labels WHERE labels.path = issues.path AND label IN ("+
+		conditions = append(conditions, "NOT EXISTS (SELECT 1 FROM labels WHERE labels.path = issues.path AND labels.kind = ? AND label IN ("+
 			placeholders(len(f.NoLabels))+"))")
+		args = append(args, kindIssue)
 		args = append(args, toAny(f.NoLabels)...)
 	}
 	if f.ParentID != "" {
@@ -117,37 +118,52 @@ func (f Filter) sql() (string, []any) {
 // then the one id the argument is a prefix of. It fails with an error matching tree.ErrNotFound
 // when nothing matches, and with a *tree.AmbiguousError when the prefix matches several ids.
 func (x *Index) Resolve(arg string) (Entry, error) {
-	ctx := context.Background()
-	entry, found, err := x.Issue(arg)
-	if err != nil || found {
-		return entry, err
-	}
-
-	owners, err := x.strings(ctx, `SELECT issues.id FROM aliases JOIN issues ON issues.path = aliases.path
-		WHERE aliases.alias = ? AND issues.excluded = 0`, arg)
+	id, err := x.resolveID(issueNodes, arg)
 	if err != nil {
 		return Entry{}, err
 	}
-	if len(owners) == 1 {
-		return x.resolved(arg, owners[0])
+	return x.resolved(arg, id)
+}
+
+// resolveID finds the id of the usable node of one kind that arg names, the way Resolve does.
+func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
+	ctx := context.Background()
+	exact, err := x.strings(ctx, `SELECT id FROM `+nodes.table+` WHERE id = ? AND excluded = 0`, arg)
+	if err != nil || len(exact) == 1 {
+		return firstOf(exact), err
+	}
+
+	owners, err := x.strings(ctx, `SELECT `+nodes.table+`.id FROM aliases
+		JOIN `+nodes.table+` ON `+nodes.table+`.path = aliases.path
+		WHERE aliases.kind = ? AND aliases.alias = ? AND `+nodes.table+`.excluded = 0`, nodes.kind, arg)
+	if err != nil || len(owners) == 1 {
+		return firstOf(owners), err
 	}
 
 	var candidates []string
 	if arg != "" {
-		candidates, err = x.strings(ctx, `SELECT id FROM issues
+		candidates, err = x.strings(ctx, `SELECT id FROM `+nodes.table+`
 			WHERE excluded = 0 AND substr(id, 1, length(?1)) = ?1 ORDER BY id`, arg)
 		if err != nil {
-			return Entry{}, err
+			return "", err
 		}
 	}
 	switch len(candidates) {
 	case 0:
-		return Entry{}, fmt.Errorf("id %q %w", arg, tree.ErrNotFound)
+		return "", fmt.Errorf("id %q %w", arg, tree.ErrNotFound)
 	case 1:
-		return x.resolved(arg, candidates[0])
+		return candidates[0], nil
 	default:
-		return Entry{}, &tree.AmbiguousError{Arg: arg, Candidates: candidates}
+		return "", &tree.AmbiguousError{Arg: arg, Candidates: candidates}
 	}
+}
+
+// firstOf returns the first value, or "" when there is none.
+func firstOf(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 // resolved returns the issue arg resolved to; it is gone only if the index changed underneath.
@@ -159,10 +175,11 @@ func (x *Index) resolved(arg, id string) (Entry, error) {
 	return entry, err
 }
 
-// Body returns the markdown body of the issue file at path (an Entry's Path), byte for byte.
+// Body returns the markdown body of the issue or Note file at path (an Entry's or NoteEntry's
+// Path), byte for byte.
 func (x *Index) Body(path string) (string, error) {
 	var body string
-	err := x.db.QueryRowContext(context.Background(), `SELECT body FROM issues_fts WHERE path = ?`, path).Scan(&body)
+	err := x.db.QueryRowContext(context.Background(), `SELECT body FROM fts WHERE path = ?`, path).Scan(&body)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("%s: %w", path, tree.ErrNotFound)
 	}

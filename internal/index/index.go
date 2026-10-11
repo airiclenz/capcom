@@ -1,9 +1,9 @@
 // Package index keeps the disposable SQLite index of a store at `<git-dir>/capcom/index.db`. The
-// index mirrors the issue tree and is never committed; the markdown files stay the truth. Refresh
-// brings it up to date incrementally, re-parsing only the files whose size or mtime changed, and
-// Rebuild (or deleting the file) recreates it from scratch. A file that cannot be used is reported
-// as a Warning and left out while the rest stays queryable. The index only reads `.capcom/`; it
-// never writes there.
+// index mirrors the issue tree and the Knowledge tree and is never committed; the markdown files
+// stay the truth. Refresh brings it up to date incrementally, re-parsing only the files whose size
+// or mtime changed, and Rebuild (or deleting the file) recreates it from scratch. A file that
+// cannot be used is reported as a Warning and left out while the rest stays queryable. The index
+// only reads `.capcom/`; it never writes there.
 package index
 
 import (
@@ -188,16 +188,22 @@ func (x *Index) Search(text string) ([]string, error) {
 	if len(words) == 0 {
 		return nil, nil
 	}
+	return x.strings(
+		context.Background(),
+		`SELECT issues.id FROM fts JOIN issues ON issues.path = fts.path
+			WHERE fts MATCH ? AND fts.kind = ? AND issues.excluded = 0 ORDER BY fts.rank, issues.id`,
+		matchExpression(words), kindIssue,
+	)
+}
+
+// matchExpression turns words into an FTS5 query that needs every word, each quoted so FTS5
+// operators in it are taken literally.
+func matchExpression(words []string) string {
 	terms := make([]string, 0, len(words))
 	for _, word := range words {
 		terms = append(terms, `"`+strings.ReplaceAll(word, `"`, `""`)+`"`)
 	}
-	return x.strings(
-		context.Background(),
-		`SELECT issues.id FROM issues_fts JOIN issues ON issues.path = issues_fts.path
-			WHERE issues_fts MATCH ? AND issues.excluded = 0 ORDER BY issues_fts.rank, issues.id`,
-		strings.Join(terms, " "),
-	)
+	return strings.Join(terms, " ")
 }
 
 // strings runs a query selecting one text column and returns its values in order.

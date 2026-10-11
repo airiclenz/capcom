@@ -13,14 +13,14 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Node layout of the issue tree (ADR 0001), as the tree package reads it.
+// Node layout of the issue tree and the Knowledge tree (ADR 0001), as the tree package reads it.
 const (
 	nodeExtension = ".md"
 	hiddenPrefix  = "."
 )
 
-// walkIssues lists the node files of the issue tree in issuesDir, in path order, with paths
-// relative to worktreeRoot. A missing issuesDir is an empty tree. A file whose name is not a valid
+// walkIssues lists the node files of the tree in issuesDir (the issue tree, or the Knowledge
+// tree), in path order, with paths relative to worktreeRoot. A missing issuesDir is an empty tree. A file whose name is not a valid
 // id and a directory without a valid node file are warned about through r and skipped, with the
 // directory's whole subtree.
 func walkIssues(worktreeRoot, issuesDir string, r *refresher) ([]foundFile, error) {

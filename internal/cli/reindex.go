@@ -16,12 +16,12 @@ type reindexData struct {
 	Issues int `json:"issues"`
 }
 
-// newReindexCommand rebuilds the index from the issue files. The rebuild itself runs in
+// newReindexCommand rebuilds the index from the issue and Note files. The rebuild itself runs in
 // prepareIndex, as the command's annotation asks.
 func (a *app) newReindexCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:         "reindex",
-		Short:       "Rebuild the index from the issue files",
+		Short:       "Rebuild the index from the issue and Note files",
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRebuild},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

@@ -43,7 +43,16 @@ NOTES (2026-10-11): verification only — archived plan present with items 1–1
 **Acceptance:** `test -f "docs/plans/archived/2026-10-11 - 00 - capcom-v1-issues-plan.md"` ; `GOMEMLIMIT=2GiB go build ./...`
 **Commit:** none (verification only)
 
-## 11. Knowledge: Notes and `capcom know`
+## 11. Knowledge: Notes and `capcom know` — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): re-derived from issue search living in internal/index/query.go (Search and its FTS query live in internal/index/index.go; matchExpression extracted there and shared with SearchNotes)
+NOTES (2026-10-11): consequential edit — internal/store/store.go: made necessary by the index walking `.capcom/knowledge/` (new KnowledgeDir accessor beside IssuesDir)
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by the new `know` command (registered in the command tree)
+NOTES (2026-10-11): consequential edit — internal/index/walk.go: made necessary by walkIssues now also walking the Knowledge tree (doc comments only)
+NOTES (2026-10-11): consequential edit — internal/cli/reindex.go: made necessary by the index now holding Notes (help text and comment only)
+NOTES (2026-10-11): the shared FTS table is renamed from `issues_fts` to `fts` (with a `kind` column), since it now holds Notes; labels and aliases gained a `kind` column, Notes' refs live in a new `refs` table, and duplicate detection runs per kind
+NOTES (2026-10-11): design calls the plan left open — `--depth N` counts levels below the start (0 = all); `--with-children` shows direct children only; `know show` takes one id; `know verify` exits 1 (invalid) when any ref is broken; no `--kv` on know commands
+NOTES (2026-10-11): the Note frontmatter parser duplicates the small fence/YAML-line helpers of internal/issue/file.go (kept private there); a shared frontmatter package would remove that, and docs/format.md's Note section is left to item 16
 
 Depends on item 0 (provides items 3 and 5).
 **What:**

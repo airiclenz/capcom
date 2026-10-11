@@ -14,6 +14,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -22,7 +23,8 @@ import (
 // since a same-size edit in that second could leave its mtime unchanged.
 const racyGranularity = time.Second
 
-// Refresh brings the index up to date with the issue tree on disk in one IMMEDIATE transaction.
+// Refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
+// IMMEDIATE transaction.
 // It re-parses only the files that are new, changed in size or mtime, or racily clean, drops the
 // rows of files that are gone, and rebuilds everything when the schema version or the configured
 // statuses and types changed. Files that cannot be used are reported in the Report's Warnings and
@@ -31,7 +33,8 @@ func (x *Index) Refresh() (Report, error) {
 	return x.refresh(false)
 }
 
-// Rebuild drops every table and indexes the whole issue tree again, in one transaction.
+// Rebuild drops every table and indexes the whole issue tree and Knowledge tree again, in one
+// transaction.
 func (x *Index) Rebuild() (Report, error) {
 	return x.refresh(true)
 }
@@ -55,7 +58,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 		return Report{}, x.databaseError(err)
 	}
 	r := &refresher{ctx: ctx, tx: tx, config: x.store.Config, refreshed: start.UnixNano()}
-	found, err := walkIssues(x.store.WorktreeRoot, x.store.IssuesDir(), r)
+	found, err := walkStore(x.store, r)
 	if err != nil {
 		return Report{}, err
 	}
@@ -77,6 +80,27 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line), cmp.Compare(a.Message, b.Message))
 	})
 	return report, nil
+}
+
+// walkStore lists the node files of the issue tree and then of the Knowledge tree, each in path
+// order and marked with its kind.
+func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
+	trees := []struct {
+		dir  string
+		kind string
+	}{{s.IssuesDir(), kindIssue}, {s.KnowledgeDir(), kindNote}}
+	var found []foundFile
+	for _, current := range trees {
+		files, err := walkIssues(s.WorktreeRoot, current.dir, r)
+		if err != nil {
+			return nil, err
+		}
+		for i := range files {
+			files[i].kind = current.kind
+		}
+		found = append(found, files...)
+	}
+	return found, nil
 }
 
 // databaseError prefixes err with the index file's path, so a failure of the database names the
@@ -110,6 +134,8 @@ type foundFile struct {
 	// path is relative to the working tree root, with forward slashes.
 	path     string
 	absolute string
+	// kind is kindIssue or kindNote, by the tree the file was found in.
+	kind     string
 	id       string
 	parentID string
 	size     int64
@@ -210,7 +236,15 @@ func (r *refresher) indexFile(file foundFile) error {
 		return fmt.Errorf("%s: %w", file.path, err)
 	}
 
-	parsed, problems := parseIssue(file, data, r.config)
+	var problems []Warning
+	var insert func() error
+	if file.kind == kindNote {
+		note, noteProblems := parseNote(file, data)
+		problems, insert = noteProblems, func() error { return r.insertNote(file, note) }
+	} else {
+		parsed, issueProblems := parseIssue(file, data, r.config)
+		problems, insert = issueProblems, func() error { return r.insertIssue(file, parsed) }
+	}
 	var stored sql.NullString
 	if len(problems) > 0 {
 		encoded, err := json.Marshal(problems)
@@ -223,7 +257,7 @@ func (r *refresher) indexFile(file foundFile) error {
 	_, err = r.tx.ExecContext(
 		r.ctx,
 		`INSERT INTO files (path, kind, size, mtime, refreshed, problems) VALUES (?, ?, ?, ?, ?, ?)`,
-		file.path, kindIssue, file.size, file.mtime, r.refreshed, stored,
+		file.path, file.kind, file.size, file.mtime, r.refreshed, stored,
 	)
 	if err != nil {
 		return fmt.Errorf("index %s: %w", file.path, err)
@@ -231,7 +265,7 @@ func (r *refresher) indexFile(file foundFile) error {
 	if len(problems) > 0 {
 		return nil
 	}
-	return r.insertIssue(file, parsed)
+	return insert()
 }
 
 // parseIssue parses and validates one issue file and returns every problem that keeps it out of
@@ -250,20 +284,27 @@ func parseIssue(file foundFile, data []byte, cfg config.Config) (issue.Issue, []
 	for _, failure := range issue.Validate(file.path, parsed, cfg) {
 		problems = append(problems, Warning{Path: failure.Path, Line: failure.Line, Message: failure.Message})
 	}
+	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
+}
+
+// aliasProblems returns a problem for every alias of the node file that is invalid, repeats the
+// node's own id or is listed twice.
+func aliasProblems(file foundFile, aliases []string) []Warning {
+	var problems []Warning
 	seen := map[string]bool{}
-	for _, alias := range parsed.Aliases {
+	for _, alias := range aliases {
 		aliasErr := tree.ValidateAlias(alias)
 		switch {
 		case aliasErr != nil:
 			problems = append(problems, Warning{Path: file.path, Message: aliasErr.Error()})
 		case alias == file.id:
-			problems = append(problems, Warning{Path: file.path, Message: fmt.Sprintf("alias %q repeats the issue's own id", alias)})
+			problems = append(problems, Warning{Path: file.path, Message: fmt.Sprintf("alias %q repeats the %s's own id", alias, file.kind)})
 		case seen[alias]:
 			problems = append(problems, Warning{Path: file.path, Message: fmt.Sprintf("alias %q is listed twice", alias)})
 		}
 		seen[alias] = true
 	}
-	return parsed, problems
+	return problems
 }
 
 // statement is one SQL statement with its arguments.
@@ -284,24 +325,36 @@ func (r *refresher) insertIssue(file foundFile, parsed issue.Issue) error {
 			parsed.Reason, parsed.Title,
 		},
 	}, {
-		`INSERT INTO issues_fts (path, title, body) VALUES (?, ?, ?)`,
-		[]any{file.path, parsed.Title, parsed.Body},
+		`INSERT INTO fts (path, kind, title, body) VALUES (?, ?, ?, ?)`,
+		[]any{file.path, kindIssue, parsed.Title, parsed.Body},
 	}}
-	for _, label := range parsed.Labels {
-		statements = append(statements, statement{
-			`INSERT INTO labels (path, label) VALUES (?, ?)`, []any{file.path, label},
-		})
-	}
+	statements = append(statements, sharedListStatements(file, parsed.Labels, parsed.Aliases)...)
 	for _, dep := range parsed.Deps {
 		statements = append(statements, statement{
 			`INSERT INTO deps (path, from_id, to_id) VALUES (?, ?, ?)`, []any{file.path, file.id, dep},
 		})
 	}
-	for _, alias := range parsed.Aliases {
+	return r.exec(file, statements)
+}
+
+// sharedListStatements are the rows of the labels and aliases a node file of either kind records.
+func sharedListStatements(file foundFile, labels []string, aliases []string) []statement {
+	statements := make([]statement, 0, len(labels)+len(aliases))
+	for _, label := range labels {
 		statements = append(statements, statement{
-			`INSERT INTO aliases (path, alias) VALUES (?, ?)`, []any{file.path, alias},
+			`INSERT INTO labels (path, kind, label) VALUES (?, ?, ?)`, []any{file.path, file.kind, label},
 		})
 	}
+	for _, alias := range aliases {
+		statements = append(statements, statement{
+			`INSERT INTO aliases (path, kind, alias) VALUES (?, ?, ?)`, []any{file.path, file.kind, alias},
+		})
+	}
+	return statements
+}
+
+// exec runs the statements that index one file, in order.
+func (r *refresher) exec(file foundFile, statements []statement) error {
 	for _, current := range statements {
 		if _, err := r.tx.ExecContext(r.ctx, current.query, current.args...); err != nil {
 			return fmt.Errorf("index %s: %w", file.path, err)
@@ -320,19 +373,30 @@ func (r *refresher) forget(path string) error {
 	return nil
 }
 
-// claim is one name an issue answers to: its id or one of its Aliases.
+// claim is one name a node answers to: its id or one of its Aliases.
 type claim struct {
 	name string
 	path string
 	kind string
 }
 
-// excludeDuplicates keeps every issue that shares an id or alias with another file out of the
-// queries and warns about each, naming the other file (ADR 0002: names are unique across the
-// tree). It runs on every refresh, so an issue comes back once its rival is gone.
+// excludeDuplicates keeps every node that shares an id or alias with another file of its own tree
+// out of the queries and warns about each, naming the other file (ADR 0002: names are unique
+// across the tree). An issue and a Note never clash. It runs on every refresh, so a node comes
+// back once its rival is gone.
 func (r *refresher) excludeDuplicates() error {
-	rows, err := r.tx.QueryContext(r.ctx, `SELECT id, path, 'id' FROM issues
-		UNION ALL SELECT alias, path, 'alias' FROM aliases ORDER BY 1, 2`)
+	for _, nodes := range []nodeTable{issueNodes, noteNodes} {
+		if err := r.excludeDuplicatesOf(nodes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// excludeDuplicatesOf runs excludeDuplicates over the nodes of one kind.
+func (r *refresher) excludeDuplicatesOf(nodes nodeTable) error {
+	rows, err := r.tx.QueryContext(r.ctx, `SELECT id, path, 'id' FROM `+nodes.table+`
+		UNION ALL SELECT alias, path, 'alias' FROM aliases WHERE kind = ? ORDER BY 1, 2`, nodes.kind)
 	if err != nil {
 		return fmt.Errorf("read indexed names: %w", err)
 	}
@@ -353,11 +417,11 @@ func (r *refresher) excludeDuplicates() error {
 		return fmt.Errorf("read indexed names: %w", err)
 	}
 
-	if _, err := r.tx.ExecContext(r.ctx, `UPDATE issues SET excluded = 0`); err != nil {
-		return fmt.Errorf("reset excluded issues: %w", err)
+	if _, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = 0`); err != nil {
+		return fmt.Errorf("reset excluded %s: %w", nodes.table, err)
 	}
 	for _, name := range names {
-		if err := r.excludeClaims(byName[name]); err != nil {
+		if err := r.excludeClaims(nodes, byName[name]); err != nil {
 			return err
 		}
 	}
@@ -365,7 +429,7 @@ func (r *refresher) excludeDuplicates() error {
 }
 
 // excludeClaims excludes and warns about every claimant of one name when there is more than one.
-func (r *refresher) excludeClaims(claims []claim) error {
+func (r *refresher) excludeClaims(nodes nodeTable, claims []claim) error {
 	if len(claims) < 2 {
 		return nil
 	}
@@ -379,7 +443,7 @@ func (r *refresher) excludeClaims(claims []claim) error {
 				tree.ErrDuplicate, current.kind, current.name, other.kind, other.path,
 			))
 		}
-		if _, err := r.tx.ExecContext(r.ctx, `UPDATE issues SET excluded = 1 WHERE path = ?`, current.path); err != nil {
+		if _, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = 1 WHERE path = ?`, current.path); err != nil {
 			return fmt.Errorf("exclude %s: %w", current.path, err)
 		}
 	}

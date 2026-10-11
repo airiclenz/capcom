@@ -104,6 +104,11 @@ func (s *Store) IssuesDir() string {
 	return filepath.Join(s.Root, issuesDir)
 }
 
+// KnowledgeDir returns the directory that holds the Knowledge tree.
+func (s *Store) KnowledgeDir() string {
+	return filepath.Join(s.Root, knowledgeDir)
+}
+
 // locate resolves the store paths for cwd without touching the store itself.
 func locate(cwd string) (*Store, error) {
 	paths, err := gitx.Discover(cwd)

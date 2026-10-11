@@ -14,7 +14,7 @@ import (
 
 // schemaVersion identifies the table layout below. Bump it whenever the layout or the meaning of a
 // column changes: an index recorded under another version is dropped and rebuilt.
-const schemaVersion = 1
+const schemaVersion = 2
 
 // Keys of the meta table.
 const (
@@ -22,12 +22,30 @@ const (
 	metaConfigHash    = "config_hash"
 )
 
-// kindIssue is the files.kind of an issue file.
-const kindIssue = "issue"
+// The kind of a node file, kept in files.kind and in every table both kinds share.
+const (
+	kindIssue = "issue"
+	kindNote  = "note"
+)
+
+// nodeTable is the table holding the nodes of one kind, by id, with their excluded flag.
+type nodeTable struct {
+	kind  string
+	table string
+}
+
+// Node tables of the issue tree and the Knowledge tree. Ids are unique within one kind only: an
+// issue and a Note may share an id.
+var (
+	issueNodes = nodeTable{kind: kindIssue, table: "issues"}
+	noteNodes  = nodeTable{kind: kindNote, table: "notes"}
+)
 
 // schemaStatements create the index tables. Every row hangs off a files row by path, the
-// worktree-relative path of the file it came from; issues.excluded marks a parsed issue that a
-// duplicate id or alias keeps out of every query.
+// worktree-relative path of the file it came from; issues.excluded and notes.excluded mark a
+// parsed node that a duplicate id or alias keeps out of every query. labels, aliases and fts are
+// shared by issues and Notes and carry the kind of the file each row came from; refs holds the
+// Refs of Notes in file order.
 var schemaStatements = []string{
 	`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 	`CREATE TABLE files (
@@ -55,17 +73,28 @@ var schemaStatements = []string{
 	)`,
 	`CREATE INDEX issues_by_id ON issues (id)`,
 	`CREATE INDEX issues_by_parent ON issues (parent)`,
-	`CREATE TABLE labels (path TEXT NOT NULL, label TEXT NOT NULL)`,
+	`CREATE TABLE notes (
+		path TEXT PRIMARY KEY,
+		id TEXT NOT NULL,
+		parent TEXT NOT NULL,
+		title TEXT NOT NULL,
+		excluded INTEGER NOT NULL DEFAULT 0
+	)`,
+	`CREATE INDEX notes_by_id ON notes (id)`,
+	`CREATE INDEX notes_by_parent ON notes (parent)`,
+	`CREATE TABLE labels (path TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL)`,
 	`CREATE INDEX labels_by_path ON labels (path)`,
 	`CREATE TABLE deps (path TEXT NOT NULL, from_id TEXT NOT NULL, to_id TEXT NOT NULL)`,
 	`CREATE INDEX deps_by_path ON deps (path)`,
-	`CREATE TABLE aliases (path TEXT NOT NULL, alias TEXT NOT NULL)`,
+	`CREATE TABLE aliases (path TEXT NOT NULL, kind TEXT NOT NULL, alias TEXT NOT NULL)`,
 	`CREATE INDEX aliases_by_path ON aliases (path)`,
-	`CREATE VIRTUAL TABLE issues_fts USING fts5 (path UNINDEXED, title, body)`,
+	`CREATE TABLE refs (path TEXT NOT NULL, ref TEXT NOT NULL)`,
+	`CREATE INDEX refs_by_path ON refs (path)`,
+	`CREATE VIRTUAL TABLE fts USING fts5 (path UNINDEXED, kind UNINDEXED, title, body)`,
 }
 
 // rowTables are the tables holding one file's rows, cleared by path when the file changes or goes.
-var rowTables = []string{"files", "issues", "labels", "deps", "aliases", "issues_fts"}
+var rowTables = []string{"files", "issues", "notes", "labels", "deps", "aliases", "refs", "fts"}
 
 // configHash fingerprints the parts of the config the indexed rows depend on: the status map
 // (each status's category is stored, ADR 0003) and the declared types (Validate decides which

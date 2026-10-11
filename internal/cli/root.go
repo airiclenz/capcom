@@ -100,6 +100,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newCreateCommand())
 	root.AddCommand(a.newDepCommand())
 	root.AddCommand(a.newInitCommand())
+	root.AddCommand(a.newKnowCommand())
 	root.AddCommand(a.newListCommand())
 	root.AddCommand(a.newLogCommand())
 	root.AddCommand(a.newMvCommand())
