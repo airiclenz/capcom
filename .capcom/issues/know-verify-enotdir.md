@@ -1,9 +1,11 @@
 ---
 title: know verify aborts on a ref below a file
-status: open
+status: done
 type: bug
 priority: 2
 created: 2026-10-11T14:13:10Z
+closed: 2026-10-11T16:12:01Z
+reason: "Fixed by plan 2026-10-11 - 02 - release-pipeline-plan, item 2 (archived at d2d7461): a Ref below a file is listed as broken"
 ---
 
 `capcom know verify` aborts with an error (exit 1, no list) on a Ref like

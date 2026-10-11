@@ -1,9 +1,11 @@
 ---
 title: No release pipeline or Homebrew formula yet
-status: open
+status: done
 type: feature
 priority: 3
 created: 2026-10-11T14:08:09Z
+closed: 2026-10-11T16:12:01Z
+reason: "Delivered by plan 2026-10-11 - 02 - release-pipeline-plan (archived at d2d7461): cmd/release pipeline, tag-on-bump cross-build, Homebrew/Scoop/winget publishing"
 ---
 
 capcom has no release pipeline yet: no tagged builds for Linux, macOS and Windows, no GitHub

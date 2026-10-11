@@ -1,9 +1,11 @@
 ---
 title: Serialize writes non-printable runes raw and breaks the round-trip
-status: open
+status: done
 type: bug
 priority: 2
 created: 2026-10-11T14:07:46Z
+closed: 2026-10-11T16:12:01Z
+reason: "Fixed by plan 2026-10-11 - 02 - release-pipeline-plan, item 1 (archived at d2d7461): Serialize escapes every YAML non-printable rune"
 ---
 
 `issue.Serialize` writes YAML-non-printable runes such as U+FFFE and U+FFFF
