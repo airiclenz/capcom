@@ -1,11 +1,12 @@
 package issue
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/airiclenz/capcom/internal/edit"
 )
 
 // LogHeading is the line that opens an issue's Log section.
@@ -15,26 +16,15 @@ const LogHeading = "## Log"
 // inside the entry's list item.
 const logContinuationIndent = "  "
 
-// ErrReplaceMatch reports body replacement text that does not occur exactly once in the body.
-var ErrReplaceMatch = errors.New("the text to replace must occur exactly once in the body")
+// ErrReplaceMatch reports body replacement text that does not occur exactly once in the body. It
+// is edit.ErrReplaceMatch, so errors.Is matches either name.
+var ErrReplaceMatch = edit.ErrReplaceMatch
 
 // WithLabels returns a copy of the issue with each label of add appended unless it is already
 // there, then each label of remove taken out. Labels keep their order; a label to remove that the
 // issue does not carry is ignored.
 func (i Issue) WithLabels(add []string, remove []string) Issue {
-	labels := slices.Clone(i.Labels)
-	for _, label := range add {
-		if !slices.Contains(labels, label) {
-			labels = append(labels, label)
-		}
-	}
-	labels = slices.DeleteFunc(labels, func(label string) bool {
-		return slices.Contains(remove, label)
-	})
-	if len(labels) == 0 {
-		labels = nil
-	}
-	i.Labels = labels
+	i.Labels = edit.Labels(i.Labels, add, remove)
 	return i
 }
 
@@ -43,7 +33,7 @@ func (i Issue) WithLabels(add []string, remove []string) Issue {
 // line endings in it are read as LF. An empty body gets the leading blank line a new issue file
 // has after its frontmatter.
 func (i Issue) AppendBody(text string) Issue {
-	i.Body = appendBlock(i.Body, withFinalNewline(normalizeNewlines(text)))
+	i.Body = edit.AppendBody(i.Body, text)
 	return i
 }
 
@@ -51,14 +41,11 @@ func (i Issue) AppendBody(text string) Issue {
 // replacement (CRLF line endings in either read as LF). It fails with an error wrapping
 // ErrReplaceMatch when old is empty or occurs in the body other than exactly once.
 func (i Issue) ReplaceBody(old string, replacement string) (Issue, error) {
-	old = normalizeNewlines(old)
-	if old == "" {
-		return Issue{}, fmt.Errorf("%w; the text to replace is empty", ErrReplaceMatch)
+	body, err := edit.ReplaceBody(i.Body, old, replacement)
+	if err != nil {
+		return Issue{}, err
 	}
-	if count := strings.Count(i.Body, old); count != 1 {
-		return Issue{}, fmt.Errorf("%w; %q occurs %d times", ErrReplaceMatch, old, count)
-	}
-	i.Body = strings.Replace(i.Body, old, normalizeNewlines(replacement), 1)
+	i.Body = body
 	return i, nil
 }
 
@@ -69,7 +56,7 @@ func (i Issue) ReplaceBody(old string, replacement string) (Issue, error) {
 // text are indented to stay inside the entry. This is the single writer of Log entries: capcom log
 // and reopen both append through it.
 func (i Issue) AppendLog(date time.Time, author string, text string) Issue {
-	lines := strings.Split(strings.TrimSpace(normalizeNewlines(text)), "\n")
+	lines := strings.Split(strings.TrimSpace(edit.NormalizeNewlines(text)), "\n")
 	entry := fmt.Sprintf(
 		"- %s %s: %s\n",
 		date.Format(time.DateOnly),
@@ -88,7 +75,7 @@ func appendLogEntry(body string, entry string) string {
 		return strings.TrimRight(line, " \t\n") == LogHeading
 	})
 	if start < 0 {
-		return appendBlock(body, LogHeading+"\n\n"+entry)
+		return edit.AppendBlock(body, LogHeading+"\n\n"+entry)
 	}
 
 	end := len(lines)
@@ -103,7 +90,7 @@ func appendLogEntry(body string, entry string) string {
 		last--
 	}
 
-	before := withFinalNewline(strings.Join(lines[:last+1], ""))
+	before := edit.WithFinalNewline(strings.Join(lines[:last+1], ""))
 	if last == start {
 		// The section has only its heading; a blank line separates it from the first entry.
 		before += "\n"
@@ -121,30 +108,4 @@ func isSectionBoundary(line string) bool {
 		}
 	}
 	return false
-}
-
-// appendBlock appends block to body after a blank line. A blank body becomes a blank line and the
-// block, the shape of a body right after the frontmatter.
-func appendBlock(body string, block string) string {
-	if strings.TrimSpace(body) == "" {
-		return "\n" + block
-	}
-	body = withFinalNewline(body)
-	if !strings.HasSuffix(body, "\n\n") {
-		body += "\n"
-	}
-	return body + block
-}
-
-// withFinalNewline returns text ending in a line break; empty text stays empty.
-func withFinalNewline(text string) string {
-	if text == "" || strings.HasSuffix(text, "\n") {
-		return text
-	}
-	return text + "\n"
-}
-
-// normalizeNewlines turns CRLF line endings into LF, the line ending issue bodies keep.
-func normalizeNewlines(text string) string {
-	return strings.ReplaceAll(text, "\r\n", "\n")
 }

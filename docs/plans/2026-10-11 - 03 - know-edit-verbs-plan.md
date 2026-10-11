@@ -44,7 +44,10 @@ an existing AGENTS.md Managed block when the top level changed.
 - 4 (round 2): guard folded (decision: noun phrase with its article, "an issue" / "a note"; destination checked before any file is read; rename-seam test moves to tree, `issue.SetMoveRename` deleted)
 - 5 (round 2): guard folded (decision: "a note" in lowercase, matching the Note errors in internal/cli/know.go)
 
-## 1. Shared label, body and etag helpers outside package issue
+## 1. Shared label, body and etag helpers outside package issue — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): TestETag moved from internal/issue/file_test.go to internal/edit/edit_test.go as TestETag_HashesContent, using inline byte inputs instead of issue golden files; the issue-level WithLabels/AppendBody/ReplaceBody tests were replaced by edit-level tests, leaving TestIssue_ReplaceBody_NotExactlyOnce_FailsWithErrReplaceMatch to pin the issue.ErrReplaceMatch alias.
+NOTES (2026-10-11): the editIssue callback parameter in internal/cli/update.go is renamed edit -> change (doc comment updated) so it does not shadow package edit.
 
 **What:**
 **Goal:** label merging, body append/replace and the file etag are free functions in a package

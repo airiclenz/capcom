@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -329,26 +328,5 @@ func TestSerialize_EmptyIssue_WritesPriorityOnly(t *testing.T) {
 
 	if serialized != "---\npriority: 0\n---\n" {
 		t.Errorf("Serialize = %q, want only the always-written priority", serialized)
-	}
-}
-
-func TestETag(t *testing.T) {
-	hexDigits := regexp.MustCompile(`^[0-9a-f]{16}$`)
-	first := readGolden(t, "full.md")
-	second := readGolden(t, "minimal.md")
-
-	firstTag := issue.ETag(first)
-
-	if !hexDigits.MatchString(firstTag) {
-		t.Errorf("ETag = %q, want 16 lowercase hex digits", firstTag)
-	}
-	if again := issue.ETag(bytes.Clone(first)); again != firstTag {
-		t.Errorf("ETag of equal bytes = %q, want %q", again, firstTag)
-	}
-	if other := issue.ETag(second); other == firstTag {
-		t.Errorf("ETag of different files are both %q", other)
-	}
-	if empty := issue.ETag(nil); empty != "cbf29ce484222325" {
-		t.Errorf("ETag(nil) = %q, want the FNV-1a 64 offset basis", empty)
 	}
 }

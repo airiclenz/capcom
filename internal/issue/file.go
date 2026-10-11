@@ -3,7 +3,6 @@ package issue
 import (
 	"bytes"
 	"fmt"
-	"hash/fnv"
 	"regexp"
 	"strconv"
 	"strings"
@@ -108,14 +107,6 @@ func (i Issue) Serialize() []byte {
 	out.WriteString(fenceLine)
 	out.WriteString(i.Body)
 	return []byte(out.String())
-}
-
-// ETag returns the entity tag of an issue file's content: its FNV-1a 64-bit hash as 16 lowercase
-// hex digits. A write can compare it to detect that the file changed since it was read.
-func ETag(data []byte) string {
-	hash := fnv.New64a()
-	hash.Write(data) // a hash.Hash never returns an error
-	return fmt.Sprintf("%016x", hash.Sum64())
 }
 
 // parser decodes the frontmatter of one file, attributing every failure to its path and line.

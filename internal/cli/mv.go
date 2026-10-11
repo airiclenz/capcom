@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -69,7 +70,7 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 		return Result{}, asError(err)
 	}
 	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
-	result := writeResult(move.NewID, path, issue.ETag(move.Content))
+	result := writeResult(move.NewID, path, edit.ETag(move.Content))
 	for _, unread := range move.Unread {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
 			"%s: deps not checked for %s: the file does not parse",

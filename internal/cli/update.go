@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -194,12 +195,12 @@ func readTextInput(cmd *cobra.Command, path string) (string, error) {
 
 // editIssue is the read-modify-write cycle every command that changes an existing issue goes
 // through: it resolves arg, reads the issue file, refuses with conflict when ifMatch is set and
-// is not the file's etag, applies edit to the parsed issue, then validates and writes the result
+// is not the file's etag, applies change to the parsed issue, then validates and writes the result
 // atomically. The result names the issue and its new etag.
 func (a *app) editIssue(
 	arg string,
 	ifMatch string,
-	edit func(issue.Issue) (issue.Issue, error),
+	change func(issue.Issue) (issue.Issue, error),
 ) (Result, error) {
 	entry, err := a.resolveIssue(arg)
 	if err != nil {
@@ -209,7 +210,7 @@ func (a *app) editIssue(
 	if err != nil {
 		return Result{}, err
 	}
-	if current := issue.ETag(data); ifMatch != "" && ifMatch != current {
+	if current := edit.ETag(data); ifMatch != "" && ifMatch != current {
 		return Result{}, &Error{
 			Code:    CodeConflict,
 			Path:    entry.Path,
@@ -220,7 +221,7 @@ func (a *app) editIssue(
 	if err != nil {
 		return Result{}, issueFailure(err)
 	}
-	edited, err := edit(parsed)
+	edited, err := change(parsed)
 	if err != nil {
 		failure := asError(err)
 		if failure.Path == "" {
@@ -265,7 +266,7 @@ func (a *app) writeIssueFile(path string, target issue.Issue) (string, error) {
 	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(data)); err != nil {
 		return "", asError(err)
 	}
-	return issue.ETag(data), nil
+	return edit.ETag(data), nil
 }
 
 // absoluteIssuePath turns path, relative to the working tree root with forward slashes, into a

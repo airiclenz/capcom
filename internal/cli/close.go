@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 )
 
@@ -139,7 +140,7 @@ func (a *app) closeOne(
 			return closeData{}, asError(err), nil
 		}
 		outcome.Outcome = outcomeAlreadyClosed
-		outcome.ETag = issue.ETag(file)
+		outcome.ETag = edit.ETag(file)
 		return outcome, nil, nil
 	}
 	writeData, err := a.editIssue(entry.ID, "", func(target issue.Issue) (issue.Issue, error) {

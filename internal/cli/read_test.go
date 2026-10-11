@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/edit"
 )
 
 // readIssue is the content of a valid issue file with the given extra frontmatter lines and body.
@@ -62,7 +62,7 @@ func writeIssueFiles(t *testing.T, root string, files map[string]string) {
 // fileETag returns the etag of the issue file at a slash path below .capcom/issues/.
 func fileETag(t *testing.T, root string, name string) string {
 	t.Helper()
-	return issue.ETag([]byte(readStoreFile(t, root, name)))
+	return edit.ETag([]byte(readStoreFile(t, root, name)))
 }
 
 // listIDs runs capcom list --json with args and returns the listed ids.

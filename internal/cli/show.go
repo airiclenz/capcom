@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
-	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -72,7 +72,7 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 		if err != nil {
 			return Result{}, nil, err
 		}
-		etag := issue.ETag(file)
+		etag := edit.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}
