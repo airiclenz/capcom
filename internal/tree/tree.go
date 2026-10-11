@@ -51,14 +51,27 @@ var (
 )
 
 // Error is a problem with one file or directory of a tree. Err wraps one of the sentinel errors.
+// Other is the file a duplicate id or alias also belongs to, kept out of Err so a caller can name
+// it relative to a root of its own; it is "" for every other problem. Alias is the alias an invalid
+// or duplicate alias problem is about, and "" for a problem with an id or a directory.
 type Error struct {
-	Path string
-	Err  error
+	Path  string
+	Other string
+	Alias string
+	Err   error
 }
 
 // Error renders "path: message".
 func (e *Error) Error() string {
-	return fmt.Sprintf("%s: %v", e.Path, e.Err)
+	return fmt.Sprintf("%s: %s", e.Path, e.Message())
+}
+
+// Message renders the problem without its path: Err, followed by Other when there is one.
+func (e *Error) Message() string {
+	if e.Other == "" {
+		return e.Err.Error()
+	}
+	return fmt.Sprintf("%v %s", e.Err, e.Other)
 }
 
 // Unwrap returns the underlying error, so errors.Is matches the sentinels.
@@ -142,7 +155,7 @@ func ValidateAlias(alias string) error {
 // dot and files not ending in .md are skipped. aliases may be nil when the kind has none.
 //
 // Load reports, as an *Error naming the file, an invalid id or alias, an id or alias used twice
-// anywhere in the tree (naming both files), and a child directory without its node file. It finds
+// anywhere in the tree (naming the other file in Other), and a child directory without its node file. It finds
 // every such problem in one pass and returns them all as Errors, together with the tree of what it
 // could place: a file with an invalid id, a directory without its node file (with its whole
 // subtree), a repeated id after its first file and an invalid or repeated alias are left out. A
@@ -235,8 +248,9 @@ func (t *Tree) indexIDs(problems *Errors) {
 	for _, node := range t.nodes {
 		if first, taken := t.byID[node.ID]; taken {
 			*problems = append(*problems, &Error{
-				Path: node.Path,
-				Err:  fmt.Errorf("%w id %q, also at %s", ErrDuplicate, node.ID, kept[first].Path),
+				Path:  node.Path,
+				Other: kept[first].Path,
+				Err:   fmt.Errorf("%w id %q, also at", ErrDuplicate, node.ID),
 			})
 			continue
 		}
@@ -274,23 +288,22 @@ func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 func (t *Tree) indexAlias(i int, alias string) *Error {
 	path := t.nodes[i].Path
 	if err := ValidateAlias(alias); err != nil {
-		return &Error{Path: path, Err: err}
+		return &Error{Path: path, Alias: alias, Err: err}
 	}
 	if owner, taken := t.byID[alias]; taken {
 		return &Error{
-			Path: path,
-			Err:  fmt.Errorf("%w alias %q: the id of %s", ErrDuplicate, alias, t.nodes[owner].Path),
+			Path:  path,
+			Other: t.nodes[owner].Path,
+			Alias: alias,
+			Err:   fmt.Errorf("%w alias %q: the id of", ErrDuplicate, alias),
 		}
 	}
 	if owner, taken := t.byAlias[alias]; taken {
 		return &Error{
-			Path: path,
-			Err: fmt.Errorf(
-				"%w alias %q: also an alias of %s",
-				ErrDuplicate,
-				alias,
-				t.nodes[owner].Path,
-			),
+			Path:  path,
+			Other: t.nodes[owner].Path,
+			Alias: alias,
+			Err:   fmt.Errorf("%w alias %q: also an alias of", ErrDuplicate, alias),
 		}
 	}
 	t.byAlias[alias] = i

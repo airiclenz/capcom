@@ -155,7 +155,7 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				issues + "login-flow.md": issueFile("aliases: [apogee-qi3]\n"),
 				issues + "export-csv.md": issueFile("aliases: [apogee-qi3]\n"),
 			},
-			want: issues + "login-flow.md:0:" + check.CodeDuplicate,
+			want: issues + "login-flow.md:7:" + check.CodeDuplicate,
 		},
 		{
 			name:  "dep resolving to nothing",
@@ -202,6 +202,36 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				t.Errorf("problems = %v, want %v", problems, want)
 			}
 		})
+	}
+}
+
+func TestRun_DuplicateIDAndAlias_NameBothFilesRelativeToTheWorktree(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		issues + "export-csv.md":                 issueFile("aliases: [apogee-qi3]\n"),
+		issues + "login-flow.md":                 issueFile("aliases: [apogee-qi3]\n"),
+		issues + "export-csv/session-timeout.md": issueFile(""),
+		issues + "login-flow/session-timeout.md": issueFile(""),
+	})
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.String())
+	}
+	want := []string{
+		issues + `login-flow.md:7: duplicate alias "apogee-qi3": also an alias of ` + issues + "export-csv.md",
+		issues + `login-flow/session-timeout.md: duplicate id "session-timeout", also at ` +
+			issues + "export-csv/session-timeout.md",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+	for _, line := range got {
+		if strings.Contains(line, root) {
+			t.Errorf("problem %q names an absolute path", line)
+		}
 	}
 }
 

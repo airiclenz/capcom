@@ -75,7 +75,7 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error)
 	}
 	issues, err := tree.Load(a.store.IssuesDir(), readAliases)
 	if err != nil {
-		return Result{}, asError(err)
+		return Result{}, a.treeLoadFailure(err)
 	}
 	if existing, found := issues.Lookup(options.id); found {
 		return Result{}, existsFailure(options.id, existing, a.store.WorktreeRoot)

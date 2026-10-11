@@ -91,3 +91,9 @@ func (i Issue) DepsLine() int {
 func (i Issue) PlanLine() int {
 	return i.lines[keyPlan]
 }
+
+// AliasesLine returns the 1-based line of the aliases key in the file the Issue was parsed from,
+// or 0 when the file has none or the Issue was built in memory.
+func (i Issue) AliasesLine() int {
+	return i.lines[keyAliases]
+}

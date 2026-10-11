@@ -46,7 +46,7 @@ func (a *app) newMvCommand() *cobra.Command {
 func (a *app) move(args []string, parent string, isReparented bool) (Result, error) {
 	issues, err := tree.Load(a.store.IssuesDir(), readAliases)
 	if err != nil {
-		return Result{}, asError(err)
+		return Result{}, a.treeLoadFailure(err)
 	}
 	node, err := resolveNode(issues, args[0])
 	if err != nil {

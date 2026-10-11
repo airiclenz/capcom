@@ -297,6 +297,33 @@ func TestLoad_AliasFuncError_ReturnedUnchanged(t *testing.T) {
 	}
 }
 
+func TestLoad_DuplicateAlias_NamesTheOtherFileApart(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "export-csv.md", "login-flow.md")
+
+	_, err := tree.Load(dir, aliasesByFile(map[string][]string{
+		"export-csv.md": {"apogee-qi3"},
+		"login-flow.md": {"apogee-qi3"},
+	}))
+
+	var problem *tree.Error
+	if !errors.As(err, &problem) || !errors.Is(err, tree.ErrDuplicate) {
+		t.Fatalf("Load = %v, want *tree.Error wrapping ErrDuplicate", err)
+	}
+	want := tree.Error{
+		Path:  filepath.Join(dir, "login-flow.md"),
+		Other: filepath.Join(dir, "export-csv.md"),
+		Alias: "apogee-qi3",
+	}
+	if problem.Path != want.Path || problem.Other != want.Other || problem.Alias != want.Alias {
+		t.Fatalf("problem = %+v, want Path %s, Other %s, Alias %s", problem, want.Path, want.Other, want.Alias)
+	}
+	if message := `duplicate alias "apogee-qi3": also an alias of ` + want.Other; problem.Message() != message {
+		t.Fatalf("Message = %q, want %q", problem.Message(), message)
+	}
+}
+
 func TestLoad_ManyProblems_AllReportedWithTheRestOfTheTree(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

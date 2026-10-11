@@ -129,7 +129,13 @@ internal/cli/prime_test.go — TestPrime_BrokenConfig_ExitsZeroWithOneWarning
 **Closes:** store-format-version
 **Commit:** `feat(config): add the store format version and refuse newer stores`
 
-## 3. Tree errors name files relative to the worktree, and duplicate aliases cite their line
+## 3. Tree errors name files relative to the worktree, and duplicate aliases cite their line — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): tree.Error also gained an exported Alias field (set on invalid and duplicate alias problems) so check can tell a duplicate alias from a duplicate id, which wrap the same ErrDuplicate sentinel; a Message() method renders Err plus Other without the path, and Error() keeps rendering both files.
+
+NOTES (2026-10-11): check cites the aliases line for an invalid alias as well as a duplicate one (both blame the aliases key); no existing fixture covered the invalid-alias line.
+
+NOTES (2026-10-11): the CLI's single relativizing method is app.treeLoadFailure in internal/cli/errors.go; tree.AliasFunc is unchanged and check looks the aliases line up through Issue.AliasesLine / Note.AliasesLine on the files its readers parsed, per the item's regression guard.
 
 **What:** This fixes `tree-error-paths`. `tree.Error` paths are absolute: `tree.Load` joins them
 onto the absolute issues or knowledge dir, and the messages "also at %s", "also an alias of %s" and

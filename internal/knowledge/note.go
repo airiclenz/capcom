@@ -78,6 +78,12 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Path, e.Message)
 }
 
+// AliasesLine returns the 1-based line of the aliases key in the file the Note was parsed from, or
+// 0 when the file has none or the Note was built in memory.
+func (n Note) AliasesLine() int {
+	return n.lines[keyAliases]
+}
+
 // RefLine returns the 1-based line of the i-th Ref in the file the Note was parsed from, or 0 for
 // a Note built in memory.
 func (n Note) RefLine(i int) int {

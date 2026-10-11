@@ -54,7 +54,7 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
 	if err != nil {
-		return Result{}, asError(err)
+		return Result{}, a.treeLoadFailure(err)
 	}
 	node, err := resolveNode(notes, arg)
 	if err != nil {

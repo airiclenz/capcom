@@ -143,16 +143,27 @@ func (c *checker) relative(path string) string {
 	return filepath.ToSlash(relative)
 }
 
-// loadTree loads the tree in dir, recording each of its load problems, and returns what could be
-// placed.
-func (c *checker) loadTree(dir string, aliases tree.AliasFunc) (*tree.Tree, error) {
+// loadTree loads the tree in dir, recording each of its load problems with every file it names
+// relative to the working tree root, and returns what could be placed. aliasesLine returns the
+// line of the aliases key in the file at a path aliases parsed, or 0; an alias problem cites it.
+func (c *checker) loadTree(
+	dir string,
+	aliases tree.AliasFunc,
+	aliasesLine func(path string) int,
+) (*tree.Tree, error) {
 	loaded, err := tree.Load(dir, aliases)
 	var problems tree.Errors
 	if !errors.As(err, &problems) {
 		return loaded, err
 	}
 	for _, problem := range problems {
-		c.add(problem.Path, 0, treeCode(problem.Err), problem.Err.Error())
+		relative := *problem
+		relative.Other = c.relative(problem.Other)
+		line := 0
+		if problem.Alias != "" {
+			line = aliasesLine(problem.Path)
+		}
+		c.add(problem.Path, line, treeCode(problem.Err), relative.Message())
 	}
 	return loaded, nil
 }
@@ -204,7 +215,8 @@ func (c *checker) issues() error {
 		parsed[path] = found
 		return found.Aliases, nil
 	}
-	loaded, err := c.loadTree(c.store.IssuesDir(), readAliases)
+	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
+	loaded, err := c.loadTree(c.store.IssuesDir(), readAliases, aliasesLine)
 	if err != nil {
 		return err
 	}
@@ -326,7 +338,8 @@ func (c *checker) notes() error {
 		parsed[path] = found
 		return found.Aliases, nil
 	}
-	loaded, err := c.loadTree(c.store.KnowledgeDir(), readAliases)
+	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
+	loaded, err := c.loadTree(c.store.KnowledgeDir(), readAliases, aliasesLine)
 	if err != nil {
 		return err
 	}

@@ -307,7 +307,7 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 	}
 	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
 	if err != nil {
-		return Result{}, asError(err)
+		return Result{}, a.treeLoadFailure(err)
 	}
 	if existing, found := notes.Lookup(options.id); found {
 		return Result{}, noteExistsFailure(options.id, existing, a.store.WorktreeRoot)

@@ -111,3 +111,23 @@ func TestMv_NothingToDo_FailsUsage(t *testing.T) {
 		t.Errorf("exit = %d stderr = %q", exitCode, stderr)
 	}
 }
+
+func TestMv_SecondHolderOfDuplicateAlias_FailsNamingTheFirstRelative(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"export-csv.md": readIssue("Export CSV", "open", "aliases: [apogee-qi3]\n", ""),
+		"login-flow.md": readIssue("Login flow", "open", "aliases: [apogee-qi3]\n", ""),
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "mv", "login-flow", "auth-flow")
+
+	want := `.capcom/issues/login-flow.md: duplicate alias "apogee-qi3": also an alias of .capcom/issues/export-csv.md`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if strings.Contains(stderr, root) {
+		t.Errorf("stderr = %q names an absolute path", stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "login-flow.md")); err != nil {
+		t.Errorf("login-flow.md: %v", err)
+	}
+}

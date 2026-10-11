@@ -53,7 +53,7 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
 	if err != nil {
-		return Result{}, asError(err)
+		return Result{}, a.treeLoadFailure(err)
 	}
 	node, err := resolveNode(notes, args[0])
 	if err != nil {
