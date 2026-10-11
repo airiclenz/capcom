@@ -214,6 +214,9 @@ below, which is the file `capcom init` writes. An unknown key or a bad value is 
 line.
 
 ```yaml
+# The store format version; left as a comment, since a missing key means format 1.
+# format: 1
+
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
 statuses:
@@ -242,6 +245,13 @@ elsewhere:
   days: 30
 ```
 
+- **format** — the store format version, a whole number of 1 or more; a missing key means 1
+  ([ADR 0009](adr/0009-the-store-declares-its-format-version.md)). It is read before every other
+  key: a store whose format is newer than the binary reads fails every command with
+  `.capcom/config.yaml:<line>: store format <n> is newer than this capcom reads (up to <max>); upgrade capcom`,
+  except `capcom prime`, which reports it as one `warning: store:` line and exits 0. Unknown keys
+  stay errors, and any new key in an issue, a Note or this file raises the format. `capcom init`
+  writes the key only as a comment while the format is 1, because v0.1.0 rejects it as an unknown key.
 - **statuses** — an ordered mapping of status name to Status category. Every rule in capcom reads
   the category, never the name (ADR 0003). At least one status must be in `todo` and one in
   `done`. When capcom moves an issue into a category (create, close, reopen) it uses the first

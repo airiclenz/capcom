@@ -164,6 +164,17 @@ func TestPrime_BrokenConfig_ExitsZeroWithOneWarning(t *testing.T) {
 	}
 }
 
+func TestPrime_NewerStoreFormat_ExitsZeroWithOneWarning(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
+	writeNewerFormatConfig(t, root)
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+	if exitCode != ExitOK || stderr != "" || stdout != "warning: store: "+newerFormatMessage+"\n" {
+		t.Errorf("prime = %d, stderr %q, stdout %q; want 0 and one too-new store warning", exitCode, stderr, stdout)
+	}
+}
+
 func TestPrime_GarbageIndex_ExitsZeroWithOneWarningLine(t *testing.T) {
 	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
 	mustRun(t, root, "reindex")

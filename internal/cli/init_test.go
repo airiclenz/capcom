@@ -55,6 +55,25 @@ func TestInit_NewRepository_CreatesStore(t *testing.T) {
 	}
 }
 
+func TestInit_WrittenConfig_CarriesFormatAsAComment(t *testing.T) {
+	root := newGitRepo(t)
+	runCLI(t, root, "init")
+	configPath := filepath.Join(root, ".capcom", "config.yaml")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	opened, openErr := store.Open(root)
+
+	if !strings.Contains(string(data), "\n# format: 1\n") || strings.Contains(string(data), "\nformat:") {
+		t.Errorf("config.yaml = %q, want format only as the comment line # format: 1", data)
+	}
+	if openErr != nil || opened.Config.Format != config.FormatVersion {
+		t.Errorf("store.Open = %v, format %v; want format %d", openErr, opened, config.FormatVersion)
+	}
+}
+
 func TestInit_ReRun_IsNoOp(t *testing.T) {
 	root := newGitRepo(t)
 	runCLI(t, root, "init")

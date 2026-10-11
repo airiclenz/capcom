@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -67,6 +68,47 @@ func TestParse_PartialConfig_KeepsDefaultsForMissingKeys(t *testing.T) {
 	}
 	if config.Elsewhere.Days != 30 || !reflect.DeepEqual(config.Statuses, Default().Statuses) {
 		t.Errorf("config = %+v, want the remaining keys at their defaults", config)
+	}
+}
+
+func TestParse_Format_MissingOrOneLoads(t *testing.T) {
+	t.Parallel()
+	for _, content := range []string{"types: [bug]\n", "format: 1\ntypes: [bug]\n"} {
+		config, err := Parse(testPath, []byte(content))
+
+		if err != nil || config.Format != 1 {
+			t.Errorf("Parse(%q) = format %d, %v; want format 1", content, config.Format, err)
+		}
+	}
+}
+
+func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		content  string
+		wantLine int
+	}{
+		{"format alone", "format: 2\n", 1},
+		{"after other keys", "types: [bug]\n\nformat: 2\n", 3},
+		{"unknown key above format", "colour: blue\nformat: 2\n", 2},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse(testPath, []byte(testCase.content))
+
+			var failure *Error
+			if !errors.As(err, &failure) {
+				t.Fatalf("err = %v, want *config.Error", err)
+			}
+			want := fmt.Sprintf("%s:%d: store format 2 is newer than this capcom reads (up to 1); upgrade capcom",
+				testPath, testCase.wantLine)
+			if err.Error() != want {
+				t.Errorf("err = %q, want %q", err.Error(), want)
+			}
+		})
 	}
 }
 
@@ -143,6 +185,11 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 		{"fractional days", "elsewhere:\n  days: 1.5\n", 2},
 		{"plans not a list", "\nplans: docs/plans\n", 2},
 		{"not a mapping", "- open\n", 1},
+		{"format zero", "format: 0\n", 1},
+		{"negative format", "types: [bug]\nformat: -1\n", 2},
+		{"non-integer format", "format: x\n", 1},
+		{"fractional format", "format: 1.5\n", 1},
+		{"format not a scalar", "format:\n  - 1\n", 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

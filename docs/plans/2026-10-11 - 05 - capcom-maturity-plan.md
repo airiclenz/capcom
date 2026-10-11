@@ -87,7 +87,9 @@ internal/cli/prime.go — brief; internal/config/config.go — DefaultFile, topL
 
 **Commit:** `docs(adr): record the store format version and forward-compat policy`
 
-## 2. Config `format` key; newer stores fail loudly
+## 2. Config `format` key; newer stores fail loudly — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the `create` failure on a format-2 store is pinned by `TestCreate_NewerStoreFormat_FailsWithoutWriting` in `internal/cli/read_test.go` (beside the list/check tests), since the Goal names `create` but the Tests list gives it no file.
 
 **What:** Depends on item 1.
 **Goal:** In `config.yaml`, `format: 1` or a missing key loads normally. `format: 2` makes `list`,

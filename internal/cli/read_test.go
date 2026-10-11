@@ -164,6 +164,58 @@ func TestList_BadFlags_ExitUsage(t *testing.T) {
 	}
 }
 
+// newerFormatMessage is the error every command but prime gives on a store of format 2, whose
+// format key sits on line 2 of the config written by writeNewerFormatConfig.
+const newerFormatMessage = ".capcom/config.yaml:2: store format 2 is newer than this capcom reads (up to 1); upgrade capcom"
+
+// writeNewerFormatConfig replaces the store's config.yaml with one declaring format 2.
+func writeNewerFormatConfig(t *testing.T, root string) {
+	t.Helper()
+	content := "# written by a newer capcom\nformat: 2\n"
+	if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+func TestList_NewerStoreFormat_FailsNamingTheFormatLine(t *testing.T) {
+	root := newReadStore(t)
+	writeNewerFormatConfig(t, root)
+
+	stdout, stderr, exitCode := runCLI(t, root, "list")
+
+	if exitCode == ExitOK || stdout != "" || stderr != "capcom: "+newerFormatMessage+"\n" {
+		t.Errorf("list = %d, stdout %q, stderr %q; want a failure carrying %q", exitCode, stdout, stderr, newerFormatMessage)
+	}
+}
+
+func TestCreate_NewerStoreFormat_FailsWithoutWriting(t *testing.T) {
+	root := newReadStore(t)
+	writeNewerFormatConfig(t, root)
+
+	_, _, exitCode := runCLI(t, root, "create", "--id", "new-issue", "--title", "New issue")
+
+	_, statErr := os.Stat(filepath.Join(root, ".capcom", "issues", "new-issue.md"))
+	if exitCode == ExitOK || statErr == nil {
+		t.Errorf("create = %d, file stat err %v; want a failure and no new issue file", exitCode, statErr)
+	}
+}
+
+func TestCheck_NewerStoreFormat_ReportsAConfigProblem(t *testing.T) {
+	root := newReadStore(t)
+	writeNewerFormatConfig(t, root)
+
+	stdout, stderr, exitCode := runCLI(t, root, "check")
+	jsonOut, _, jsonExitCode := runCLI(t, root, "check", "--json")
+
+	if exitCode != ExitError || stdout != newerFormatMessage+"\n" || stderr != "" {
+		t.Errorf("check = %d, stdout %q, stderr %q; want 1 and the too-new config problem", exitCode, stdout, stderr)
+	}
+	problems, _ := decodeEnvelope(t, jsonOut)["data"].([]any)
+	if jsonExitCode != ExitError || len(problems) != 1 || problems[0].(map[string]any)["code"] != "config" {
+		t.Errorf("check --json = %d, %s; want 1 and one config problem", jsonExitCode, jsonOut)
+	}
+}
+
 func TestList_UnknownParent_IsNotFound(t *testing.T) {
 	root := newReadStore(t)
 

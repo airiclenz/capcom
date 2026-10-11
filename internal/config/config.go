@@ -1,5 +1,5 @@
-// Package config parses and validates a store's config.yaml: the repository's statuses and the
-// Status category each maps to, its issue types, the plan directories, the ready filter, the Tree
+// Package config parses and validates a store's config.yaml: the store's format version, the
+// repository's statuses and the Status category each maps to, its issue types, the plan directories, the ready filter, the Tree
 // lock TTL and the Elsewhere window. Every key is optional and falls back to its default; an
 // unknown key or a bad value fails with the file and line it sits on.
 package config
@@ -30,8 +30,13 @@ const (
 // categories lists every category in its canonical order.
 var categories = []Category{CategoryTodo, CategoryDoing, CategoryWaiting, CategoryDone, CategoryDropped}
 
+// FormatVersion is the highest store format this capcom reads (ADR 0009). A config.yaml without a
+// format key is format 1.
+const FormatVersion = 1
+
 // Top-level and section keys of config.yaml.
 const (
+	keyFormat    = "format"
 	keyStatuses  = "statuses"
 	keyTypes     = "types"
 	keyPlans     = "plans"
@@ -51,6 +56,9 @@ const (
 
 // DefaultFile is the config.yaml `capcom init` writes. It parses to Default().
 const DefaultFile = `# capcom configuration. Every key is optional; a missing key takes the value shown here.
+
+# The store format version; left as a comment, since a missing key means format 1.
+# format: 1
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
@@ -88,6 +96,8 @@ type Status struct {
 
 // Config is a parsed, validated config.yaml.
 type Config struct {
+	// Format is the store format version, from 1 up to FormatVersion.
+	Format int
 	// Statuses in file order. Every name is unique, and at least one status is in the todo
 	// category and one in the done category.
 	Statuses  []Status
@@ -135,6 +145,7 @@ func (e *Error) Error() string {
 // Default returns the configuration used for every key a config file leaves out.
 func Default() Config {
 	return Config{
+		Format: FormatVersion,
 		Statuses: []Status{
 			{Name: "open", Category: CategoryTodo},
 			{Name: "active", Category: CategoryDoing},
@@ -185,6 +196,9 @@ func Parse(path string, data []byte) (Config, error) {
 	if root == nil {
 		return config, nil
 	}
+	if err := p.format(root, &config); err != nil {
+		return Config{}, err
+	}
 	if err := p.topLevel(root, &config); err != nil {
 		return Config{}, err
 	}
@@ -227,10 +241,35 @@ func (p parser) document(data []byte) (*yaml.Node, error) {
 	return root, nil
 }
 
-// topLevel applies every top-level key of root onto config.
+// format reads the format key of root before any other key is looked at, so a store newer than
+// this capcom fails as too new rather than on a key this capcom does not know (ADR 0009).
+func (p parser) format(root *yaml.Node, config *Config) error {
+	for index := 0; index+1 < len(root.Content); index += 2 {
+		key, value := root.Content[index], root.Content[index+1]
+		if key.Value != keyFormat {
+			continue
+		}
+		version, err := strconv.Atoi(value.Value)
+		if value.Kind != yaml.ScalarNode || err != nil || version < 1 {
+			return p.errorAt(value, "format: expected a whole number, 1 or more")
+		}
+		if version > FormatVersion {
+			return p.errorAt(key, "store format %d is newer than this capcom reads (up to %d); upgrade capcom",
+				version, FormatVersion)
+		}
+		config.Format = version
+		return nil
+	}
+	return nil
+}
+
+// topLevel applies every top-level key of root onto config. The format key was already read by
+// format.
 func (p parser) topLevel(root *yaml.Node, config *Config) error {
 	return p.eachKey(root, func(key, value *yaml.Node) error {
 		switch key.Value {
+		case keyFormat:
+			return nil
 		case keyStatuses:
 			return p.statuses(value, config)
 		case keyTypes:
