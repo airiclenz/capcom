@@ -92,7 +92,7 @@ last (the `etag:` line comes before it).
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run 'KnowShow|KnowAdd' ./internal/cli/`
 **Commit:** `feat(know): print the Note etag from know show and know add`
 
-## 3. capcom know update
+## 3. capcom know update — ✅ DONE (2026-10-11)
 
 **What:**
 **Goal:** `capcom know update <id>` changes a Note's title (`--title`), labels (`--add-label`,

@@ -24,6 +24,7 @@ const (
 	flagDepth        = "depth"
 	flagWithChildren = "with-children"
 	flagRef          = "ref"
+	kindNoteWrite    = "note-write"
 )
 
 // unlimitedDepth is the --depth of know tree that prints every level.
@@ -70,17 +71,18 @@ type knowAddOptions struct {
 	bodyFile string
 }
 
-// newKnowCommand groups the commands that read and add Knowledge Notes.
+// newKnowCommand groups the commands that read, add and change Knowledge Notes.
 func (a *app) newKnowCommand() *cobra.Command {
 	know := &cobra.Command{
 		Use:   "know",
-		Short: "Read, search, add and verify Knowledge Notes",
+		Short: "Read, search, add, update and verify Knowledge Notes",
 		Args:  cobra.NoArgs,
 	}
 	know.AddCommand(a.newKnowAddCommand())
 	know.AddCommand(a.newKnowSearchCommand())
 	know.AddCommand(a.newKnowShowCommand())
 	know.AddCommand(a.newKnowTreeCommand())
+	know.AddCommand(a.newKnowUpdateCommand())
 	know.AddCommand(a.newKnowVerifyCommand())
 	return know
 }
@@ -324,30 +326,40 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(content)); err != nil {
 		return Result{}, asError(err)
 	}
-	etag := edit.ETag(content)
-	data := map[string]string{"id": options.id, "path": path, "etag": etag}
-	text := fmt.Sprintf("id: %s\npath: %s\netag: %s\n", options.id, path, etag)
-	result := Result{Kind: "note-write", Data: data, Text: text}
+	result := noteWriteResult(options.id, path, edit.ETag(content))
 	if options.parent == "" {
-		a.refreshAgentsAfterAdd(&result, data)
+		a.refreshAgentsAfterWrite(&result)
 	}
 	return result, nil
 }
 
-// refreshAgentsAfterAdd refreshes the capcom block of AGENTS.md after a top-level Note joined the
-// Knowledge tree, so check stays green; an AGENTS.md without the block is left alone. The Note is
-// already written, so a failure here is a warning, not a failed command. A refresh is reported in
-// result's text and, as an agents key, in its --json data.
-func (a *app) refreshAgentsAfterAdd(result *Result, data map[string]string) {
+// noteWriteResult is the result of a command that wrote a Note: its id, path and new etag.
+func noteWriteResult(id string, path string, etag string) Result {
+	return Result{
+		Kind: kindNoteWrite,
+		Data: map[string]string{"id": id, "path": path, "etag": etag},
+		Text: fmt.Sprintf("id: %s\npath: %s\netag: %s\n", id, path, etag),
+	}
+}
+
+// refreshAgentsAfterWrite refreshes the capcom block of AGENTS.md after a Note write that may have
+// changed the Knowledge top level, so check stays green. Only a stale block is rewritten; an
+// AGENTS.md without the block is left alone. The Note is already written, so a failure here is a
+// warning, not a failed command. A refresh is reported in the text of result, a noteWriteResult,
+// and as an agents key in its --json data.
+func (a *app) refreshAgentsAfterWrite(result *Result) {
 	status, err := refreshAgentsBlock(a.store, true)
 	if err != nil {
 		result.Warnings = append(result.Warnings, flatten(err.Error())+"; the capcom block was not refreshed")
 		return
 	}
-	if status.State == agents.StateStale {
-		data["agents"] = blockRefreshed
-		result.Text += "refreshed: " + agents.FileName + "\n"
+	if status.State != agents.StateStale {
+		return
 	}
+	if data, isMap := result.Data.(map[string]string); isMap {
+		data["agents"] = blockRefreshed
+	}
+	result.Text += "refreshed: " + agents.FileName + "\n"
 }
 
 // newNotePath returns where the new Note goes, relative to the working tree root with forward
@@ -370,7 +382,7 @@ func (a *app) newNotePath(notes *tree.Tree, options *knowAddOptions) (string, er
 }
 
 // newNote builds the Note the flags describe: labels without repeats or empty entries, and the
-// body file's text after a blank line, ending in a line break.
+// body file's text as noteBody shapes it.
 func newNote(cmd *cobra.Command, options *knowAddOptions) (knowledge.Note, error) {
 	note := knowledge.Note{Title: options.title, Refs: options.refs}
 	for _, label := range options.labels {
@@ -385,15 +397,18 @@ func newNote(cmd *cobra.Command, options *knowAddOptions) (knowledge.Note, error
 	if err != nil {
 		return knowledge.Note{}, err
 	}
-	body = strings.ReplaceAll(body, "\r\n", "\n")
-	if strings.TrimSpace(body) == "" {
-		return note, nil
-	}
-	if !strings.HasSuffix(body, "\n") {
-		body += "\n"
-	}
-	note.Body = "\n" + body
+	note.Body = noteBody(body)
 	return note, nil
+}
+
+// noteBody shapes text as a whole Note body: CRLF line endings read as LF, blank text is no body,
+// and any other text follows the blank line after the frontmatter and ends in a line break.
+func noteBody(text string) string {
+	text = edit.NormalizeNewlines(text)
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+	return "\n" + edit.WithFinalNewline(text)
 }
 
 // readNoteAliases is the tree.AliasFunc of the Knowledge tree: the Aliases a Note file records. A
