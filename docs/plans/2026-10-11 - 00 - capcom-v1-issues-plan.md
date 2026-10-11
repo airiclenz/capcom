@@ -36,7 +36,11 @@
 - 9: guard folded (decision: reopen uses item 8's Log function)
 - 8: guards folded (decisions: author `$GIT_AUTHOR_NAME` → user.name → `$USER`; show exposes etag; literal `--body-append` + `--body-append-file`); recast
 
-## 1. Scaffold the module, CLI harness and output contract
+## 1. Scaffold the module, CLI harness and output contract — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): `CHANGELOG.md` with `[Unreleased]` (named in the Approach) was not created — it is not in the item's Files and the implementer never writes the CHANGELOG; the closeout must create it (with `## [Unreleased]`) when applying this entry.
+NOTES (2026-10-11): `Run` does not call `os.Getwd()` yet — no command in this item needs the working directory; item 2's store discovery adds it (the harness already enters `dir` via `t.Chdir`).
+NOTES (2026-10-11): output-contract choices the plan left open — a failure in `--kv` mode prints `MESSAGE=<path:line: msg>` then `STATUS=<code>` on stdout; `--json --kv` together and `--kv` on a command that offers no KV records are usage errors (exit 2); an untyped internal failure is reported with code `invalid`, exit 1 (the code set stays closed); text-mode warnings print as `warning: ...` lines on stdout after the result; cobra suggestions are disabled ("no tips").
 
 **What:**
 **Goal:** `go build ./cmd/capcom` yields a binary whose root command prints help; an in-process `cli.Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int` drives every command in tests; one output layer renders text, `--json` (versioned envelope) and `--kv` (`KEY=VALUE` lines ending `STATUS=`); typed errors map to the codes `not_found, exists, invalid, conflict, locked, not_initialized` and exit codes 0/1/2/3. CI runs `go vet` and `go test ./...` on ubuntu, macos and windows.
