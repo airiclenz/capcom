@@ -10,6 +10,9 @@
 # Release archives staged by a dist build — published as GitHub release assets, never committed
 /dist/
 
+# Skill run directories (release notes, implementation runs): scratch output, never committed
+/docs/skill-runs/
+
 # Local cross-repo development against a sibling checkout. The module graph must only ever
 # record a tagged requirement, so the workspace file that overrides it stays local.
 /go.work

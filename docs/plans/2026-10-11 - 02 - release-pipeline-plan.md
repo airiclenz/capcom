@@ -233,7 +233,12 @@ the six targets.
 **Acceptance:** `sh -n .github/scripts/version-bump.sh` ; `git ls-files -s .github/scripts/version-bump.sh | grep -q '^100755'` ; the throwaway-repo run above ; `CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -o /dev/null ./cmd/capcom` ; `grep -q '^  cross:' .github/workflows/ci.yml && grep -q 'goos: \[linux, darwin, windows\]' .github/workflows/ci.yml && grep -q 'goarch: \[amd64, arm64\]' .github/workflows/ci.yml && grep -q "CGO_ENABLED: '0'" .github/workflows/ci.yml` ; `grep -q 'contents: write' .github/workflows/tag-on-version-bump.yml && grep -q 'github-script' .github/workflows/tag-on-version-bump.yml && grep -q 'createTag' .github/workflows/tag-on-version-bump.yml`
 **Commit:** `ci: tag VERSION bumps and cross-build the release targets`
 
-## 9. release-notes-capcom skill
+## 9. release-notes-capcom skill — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the canonical SKILL.md frontmatter is `name` + `description` (the host-agnostic `.agents/skills` shape) in place of apogee's loader-specific `id`/`displayName`/`summary`/`triggers` keys.
+NOTES (2026-10-11): the no-release baseline is carried to every sub-agent as a `ROOT:` dispatch key (Phase 1 derives it with `git rev-list --max-parents=0 HEAD`); `_capcom.md` defines "the diff base" (tag, else ROOT) and the log range (`baseline.range`, `HEAD` with no release), and the scouts and verify diff from the diff base; the commits scout's `git diff <range> --stat` became `git diff <diff base> HEAD --stat`, since `git diff HEAD --stat` with range `HEAD` would show only uncommitted work.
+NOTES (2026-10-11): capcom issue ids are bare slugs, so trace-check's `apogee-…` bead-id pattern became a second grep of `notes.md` against the `.capcom/issues/` file slugs, written to `RUN_DIR/scratch/issue-ids.txt`.
+NOTES (2026-10-11): the changelog scout also reads `### Deprecated/Removed/Security` subsections when present, beyond the plan's Added/Changed/Fixed, and takes the subsection as a `Kind:` hint.
 
 **What:**
 **Goal:** `.agents/skills/release-notes-capcom/` holds a read-only, host-agnostic skill that drafts plain-language release notes for capcom from the baseline `go run ./cmd/release status --json` reports, and `.claude/skills/release-notes-capcom/SKILL.md` points to it.
