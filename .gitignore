@@ -18,6 +18,7 @@
 /go.work
 /go.work.sum
 
-# Machine-local agent instructions
+# Machine-local agent instructions. CLAUDE.md only imports AGENTS.md, the shared guide
+/CLAUDE.md
 /CLAUDE.local.md
 /AGENTS.local.md
