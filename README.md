@@ -7,8 +7,8 @@ role for a code repository: it keeps the issue list, says who is currently worki
 and answers the agents' questions about the project, all from plain files that live in the repo
 itself.
 
-> **Status: v1, pre-release.** Every command below works; there are no tagged releases yet, so
-> build it from source.
+> **Status: v1, pre-release.** Every command below works. Until the first release is published,
+> install it with `go install`; Homebrew, Scoop and winget packages follow from that release on.
 
 ## Why
 
@@ -53,11 +53,37 @@ Exit codes: 0 ok, 1 error, 2 usage, 3 not found or locked. capcom runs on Linux,
 
 ## Install
 
-capcom needs Go 1.24 or later and runs inside a git repository.
+capcom is a single binary and runs inside a git repository. The Homebrew, Scoop and winget
+packages are available from the first published release on.
+
+Homebrew (macOS, Linux):
+
+```sh
+brew install airiclenz/tap/capcom
+```
+
+Scoop (Windows):
+
+```sh
+scoop bucket add airiclenz https://github.com/airiclenz/scoop-bucket
+scoop install capcom
+```
+
+winget (Windows):
+
+```sh
+winget install AiricLenz.Capcom
+```
+
+From source, with Go 1.24 or later:
 
 ```sh
 go install github.com/airiclenz/capcom/cmd/capcom@latest
 ```
+
+Prebuilt archives for Linux, macOS and Windows on amd64 and arm64 are attached to each
+[GitHub release](https://github.com/airiclenz/capcom/releases). How a release is cut is described
+in [docs/releasing.md](docs/releasing.md).
 
 ## Usage
 

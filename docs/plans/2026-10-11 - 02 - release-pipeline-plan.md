@@ -284,7 +284,9 @@ ADR 0098 maps to `docs/adr/0008-the-repo-owns-its-release-pipeline.md` (item 11)
 **Depends on:** items 7, 9
 **Commit:** `feat(skills): add the release-capcom skill`
 
-## 11. Release docs, ADR and install instructions
+## 11. Release docs, ADR and install instructions — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): docs/releasing.md also names the one-time `gh repo create` commands for the tap and the bucket and `gh auth setup-git` for pushing them, since `publish` clones them with `gh repo clone` and pushes with `git push` (channels.go); the `gh repo create` commands are the ones the release-capcom skill reports.
 
 **What:**
 **Goal:** The repo documents its release pipeline: an ADR records it, `docs/releasing.md` covers one-time setup and the cut, `README.md` shows brew, scoop and winget installs, and AGENTS.md points agents at the release skill.
