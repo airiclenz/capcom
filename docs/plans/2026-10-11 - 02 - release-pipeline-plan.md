@@ -91,7 +91,11 @@ internal/check/check.go — checker.checkNote (second Verify caller: `capcom che
 **Closes:** know-verify-enotdir
 **Commit:** `fix(knowledge): report a Ref below a file as broken instead of aborting`
 
-## 3. cmd/release foundation and the dist verb
+## 3. cmd/release foundation and the dist verb — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): dropped the `modulePath` constant instead of setting it to `github.com/airiclenz/capcom` — its only use was the removed -X ldflags, so it would have been dead code.
+NOTES (2026-10-11): the ported ldflags test is recast as `TestDistBuildsEveryTargetWithTrimpathAndNoLdflags` (one case: `build -trimpath -o <path> ./cmd/capcom`, a single git call for the HEAD commit time); the "no release tag" case was deleted with the retraction cases as the plan says.
+NOTES (2026-10-11): `readBareVersion` errors name the full VERSION path (and `:1` for an empty file) per AGENTS.md, where apogee named only "VERSION".
 
 **What:**
 **Goal:** `go run ./cmd/release dist [--src DIR] [--out DIR]` writes six reproducible archives `capcom_<VERSION>_<os>_<arch>` (`.tar.gz`, `.zip` on Windows) for linux, darwin, windows × amd64, arm64, each holding `capcom_<ver>_<os>_<arch>/` with the binary, `LICENSE` and `README.md`, plus a sorted `SHA256SUMS`.
