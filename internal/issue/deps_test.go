@@ -132,3 +132,62 @@ func TestDepsGraph_FindCycle_FollowsEdgesWrittenAsAliases(t *testing.T) {
 		t.Errorf("FindCycle(by-id -> by-alias) = %v, want %v", got, want)
 	}
 }
+
+func TestCycles_Edges_ReportEachCycleOnceInCanonicalRotation(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		edges map[string][]string
+		want  [][]string
+	}{
+		{
+			name:  "no cycle",
+			edges: map[string][]string{"a": {"b"}, "b": {"c"}},
+			want:  nil,
+		},
+		{
+			name:  "self dependency",
+			edges: map[string][]string{"b": {"b"}},
+			want:  [][]string{{"b", "b"}},
+		},
+		{
+			name:  "one 3-cycle reported once from its smallest id",
+			edges: map[string][]string{"c": {"a"}, "a": {"b"}, "b": {"c"}},
+			want:  [][]string{{"a", "b", "c", "a"}},
+		},
+		{
+			name:  "two separate cycles",
+			edges: map[string][]string{"x": {"y"}, "y": {"x"}, "b": {"a"}, "a": {"b"}},
+			want:  [][]string{{"a", "b", "a"}, {"x", "y", "x"}},
+		},
+		{
+			name:  "two cycles sharing an edge",
+			edges: map[string][]string{"a": {"b"}, "b": {"a", "c"}, "c": {"b"}},
+			want:  [][]string{{"a", "b", "a"}, {"b", "c", "b"}},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := issue.Cycles(testCase.edges)
+
+			if !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("Cycles = %v, want %v", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestDepsGraph_Cycles_FollowsEdgesWrittenAsAliases(t *testing.T) {
+	t.Parallel()
+	nodes := depsNodes()
+	nodes[0] = withDeps(nodes[0], "by-alias")
+	graph := issue.NewDepGraph(nodes)
+
+	got := graph.Cycles()
+
+	if want := [][]string{{"by-alias", "db-schema", "by-alias"}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Cycles = %v, want %v", got, want)
+	}
+}

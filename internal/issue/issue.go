@@ -79,3 +79,15 @@ func (e *Error) Error() string {
 	}
 	return fmt.Sprintf("%s: %s", e.Path, e.Message)
 }
+
+// DepsLine returns the 1-based line of the deps key in the file the Issue was parsed from, or 0
+// when the file has none or the Issue was built in memory.
+func (i Issue) DepsLine() int {
+	return i.lines[keyDeps]
+}
+
+// PlanLine returns the 1-based line of the plan key in the file the Issue was parsed from, or 0
+// when the file has none or the Issue was built in memory.
+func (i Issue) PlanLine() int {
+	return i.lines[keyPlan]
+}

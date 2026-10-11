@@ -297,6 +297,46 @@ func TestLoad_AliasFuncError_ReturnedUnchanged(t *testing.T) {
 	}
 }
 
+func TestLoad_ManyProblems_AllReportedWithTheRestOfTheTree(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir,
+		"login-flow.md",
+		"login-flow/Bad_Name.md",
+		"orphan-dir/child-node.md",
+		"export-csv.md",
+		"export-csv/login-flow.md",
+	)
+
+	loaded, err := tree.Load(dir, aliasesByFile(map[string][]string{"export-csv.md": {"Bad Alias"}}))
+
+	var problems tree.Errors
+	if !errors.As(err, &problems) {
+		t.Fatalf("Load = %v, want tree.Errors", err)
+	}
+	var paths []string
+	for _, problem := range problems {
+		paths = append(paths, problem.Path)
+	}
+	want := []string{
+		filepath.Join(dir, "export-csv.md"),
+		filepath.Join(dir, "login-flow.md"),
+		filepath.Join(dir, "login-flow", "Bad_Name.md"),
+		filepath.Join(dir, "orphan-dir"),
+	}
+	if !reflect.DeepEqual(paths, want) {
+		t.Fatalf("problem paths = %v, want %v", paths, want)
+	}
+	for _, sentinel := range []error{tree.ErrDuplicate, tree.ErrInvalidAlias, tree.ErrInvalidID, tree.ErrOrphanDirectory} {
+		if !errors.Is(err, sentinel) {
+			t.Errorf("Load error does not wrap %v", sentinel)
+		}
+	}
+	if got := ids(loaded.Nodes()); !reflect.DeepEqual(got, []string{"export-csv", "login-flow"}) {
+		t.Errorf("Nodes = %v, want the placeable nodes", got)
+	}
+}
+
 func TestLoad_MissingDirectory_LoadsEmpty(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join(t.TempDir(), "issues")

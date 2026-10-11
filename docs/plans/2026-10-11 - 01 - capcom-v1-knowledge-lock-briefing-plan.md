@@ -101,7 +101,13 @@ Depends on item 0 (provides item 7).
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/elsewhere/ ./internal/gitx/` ; `GOMEMLIMIT=2GiB go test -count=1 -run 'Ready|List|Show' ./internal/cli/`
 **Commit:** `feat(elsewhere): report issue changes on unmerged local branches`
 
-## 14. `capcom check`
+## 14. `capcom check` — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): `issue.Cycles` is built on `FindCycle`'s breadth-first search (the shortest cycle through each edge, canonically rotated and deduplicated) rather than `FindCycle` being built on `Cycles`: one cycle search serves both, and `dep add` keeps its single O(V+E) search instead of enumerating every cycle of the graph.
+NOTES (2026-10-11): `tree.Load` now returns every load problem as `tree.Errors` (ordered by path, `errors.Is`/`As` reach each) together with the tree of what it could place; an unreadable directory and an AliasFunc error still stop it. `create`, `mv` and `know add` still stop on any error, so their behaviour is unchanged for a single problem.
+NOTES (2026-10-11): added `Issue.DepsLine()` and `Issue.PlanLine()` in `internal/issue/issue.go` (not in the item's Files list) so missing-dep, missing-plan and cycle problems cite the key's line; deps are cited at the `deps:` key line, since the issue parser records no per-entry lines.
+NOTES (2026-10-11): `internal/cli/root.go` (not in the item's Files list) registers the new command; `internal/cli/output.go` needed no change — check renders a normal `kind: check` result and returns an already-rendered failure, so `--json` carries no `error` member and text mode writes nothing to stderr.
+NOTES (2026-10-11): a config.yaml that cannot be used is reported as the only problem, since every issue rule reads the config; files below an orphan directory, under an invalid id or behind a duplicate id are not checked further (the index skips them the same way). A Ref without a path is reported once (by Note validation), not again by verification. The Managed-block staleness check is left to item 15 as planned.
 
 Depends on items 0 and 11.
 **What:**

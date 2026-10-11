@@ -66,6 +66,28 @@ func (e *Error) Unwrap() error {
 	return e.Err
 }
 
+// Errors is every problem Load found in one tree, ordered by path. errors.Is and errors.As reach
+// each problem, and through it the sentinel it wraps.
+type Errors []*Error
+
+// Error renders one "path: message" line per problem.
+func (e Errors) Error() string {
+	lines := make([]string, 0, len(e))
+	for _, problem := range e {
+		lines = append(lines, problem.Error())
+	}
+	return strings.Join(lines, "\n")
+}
+
+// Unwrap returns the problems, so errors.Is and errors.As look into each.
+func (e Errors) Unwrap() []error {
+	unwrapped := make([]error, 0, len(e))
+	for _, problem := range e {
+		unwrapped = append(unwrapped, problem)
+	}
+	return unwrapped
+}
+
 // AliasFunc returns the Aliases recorded in the node file at path. Its error is returned from
 // Load unchanged, so it should name the file itself.
 type AliasFunc func(path string) ([]string, error)
@@ -119,8 +141,13 @@ func ValidateAlias(alias string) error {
 // Load reads the tree stored in dir. A missing dir loads as an empty tree. Names starting with a
 // dot and files not ending in .md are skipped. aliases may be nil when the kind has none.
 //
-// Load fails, with an *Error naming the file, on an invalid id or alias, on an id or alias used
-// twice anywhere in the tree (naming both files), and on a child directory without its node file.
+// Load reports, as an *Error naming the file, an invalid id or alias, an id or alias used twice
+// anywhere in the tree (naming both files), and a child directory without its node file. It finds
+// every such problem in one pass and returns them all as Errors, together with the tree of what it
+// could place: a file with an invalid id, a directory without its node file (with its whole
+// subtree), a repeated id after its first file and an invalid or repeated alias are left out. A
+// directory that cannot be read and an AliasFunc error stop the load and return no tree; the
+// AliasFunc error comes back unchanged.
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	tree := &Tree{
 		dir:      dir,
@@ -132,7 +159,8 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 		return tree, nil
 	}
 
-	if err := tree.walk(dir, rootParentID); err != nil {
+	var problems Errors
+	if err := tree.walk(dir, rootParentID, &problems); err != nil {
 		return nil, err
 	}
 	sort.Slice(tree.nodes, func(i, j int) bool {
@@ -141,17 +169,20 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 		}
 		return tree.nodes[i].Path < tree.nodes[j].Path
 	})
-	if err := tree.indexIDs(); err != nil {
+	tree.indexIDs(&problems)
+	if err := tree.indexAliases(aliases, &problems); err != nil {
 		return nil, err
 	}
-	if err := tree.indexAliases(aliases); err != nil {
-		return nil, err
+	if len(problems) > 0 {
+		sort.SliceStable(problems, func(i, j int) bool { return problems[i].Path < problems[j].Path })
+		return tree, problems
 	}
 	return tree, nil
 }
 
-// walk collects the nodes of dir, all children of parentID, and recurses into child directories.
-func (t *Tree) walk(dir string, parentID string) error {
+// walk collects the nodes of dir, all children of parentID, and recurses into the child
+// directories that have their node file, adding every invalid id and orphan directory to problems.
+func (t *Tree) walk(dir string, parentID string, problems *Errors) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
@@ -174,7 +205,8 @@ func (t *Tree) walk(dir string, parentID string) error {
 		}
 		path := filepath.Join(dir, name)
 		if err := ValidateID(id); err != nil {
-			return &Error{Path: path, Err: err}
+			*problems = append(*problems, &Error{Path: path, Err: err})
+			continue
 		}
 		nodeIDs[id] = true
 		t.nodes = append(t.nodes, Node{ID: id, Path: path, ParentID: parentID})
@@ -183,36 +215,42 @@ func (t *Tree) walk(dir string, parentID string) error {
 	for _, name := range childDirs {
 		path := filepath.Join(dir, name)
 		if !nodeIDs[name] {
-			return &Error{
+			*problems = append(*problems, &Error{
 				Path: path,
 				Err:  fmt.Errorf("%w: no %s%s beside it", ErrOrphanDirectory, name, nodeExtension),
-			}
+			})
+			continue
 		}
-		if err := t.walk(path, name); err != nil {
+		if err := t.walk(path, name, problems); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// indexIDs maps every id to its node and every parent to its children, failing on a repeated id.
-func (t *Tree) indexIDs() error {
-	for i, node := range t.nodes {
+// indexIDs maps every id to its node and every parent to its children. A repeated id is added to
+// problems and its node dropped, so the first file of the id keeps it.
+func (t *Tree) indexIDs(problems *Errors) {
+	kept := t.nodes[:0]
+	for _, node := range t.nodes {
 		if first, taken := t.byID[node.ID]; taken {
-			return &Error{
+			*problems = append(*problems, &Error{
 				Path: node.Path,
-				Err:  fmt.Errorf("%w id %q, also at %s", ErrDuplicate, node.ID, t.nodes[first].Path),
-			}
+				Err:  fmt.Errorf("%w id %q, also at %s", ErrDuplicate, node.ID, kept[first].Path),
+			})
+			continue
 		}
-		t.byID[node.ID] = i
-		t.children[node.ParentID] = append(t.children[node.ParentID], i)
+		t.byID[node.ID] = len(kept)
+		t.children[node.ParentID] = append(t.children[node.ParentID], len(kept))
+		kept = append(kept, node)
 	}
-	return nil
+	t.nodes = kept
 }
 
-// indexAliases reads every node's Aliases and maps each to its node, failing on an invalid alias
-// or one that repeats an id or another alias.
-func (t *Tree) indexAliases(aliases AliasFunc) error {
+// indexAliases reads every node's Aliases and maps each to its node. An invalid alias, or one that
+// repeats an id or another alias, is added to problems and not mapped. It fails only when aliases
+// does.
+func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 	if aliases == nil {
 		return nil
 	}
@@ -225,7 +263,7 @@ func (t *Tree) indexAliases(aliases AliasFunc) error {
 		node.Aliases = names
 		for _, alias := range names {
 			if err := t.indexAlias(i, alias); err != nil {
-				return err
+				*problems = append(*problems, err)
 			}
 		}
 	}
@@ -233,7 +271,7 @@ func (t *Tree) indexAliases(aliases AliasFunc) error {
 }
 
 // indexAlias maps one alias of node i, after checking it is valid and unused.
-func (t *Tree) indexAlias(i int, alias string) error {
+func (t *Tree) indexAlias(i int, alias string) *Error {
 	path := t.nodes[i].Path
 	if err := ValidateAlias(alias); err != nil {
 		return &Error{Path: path, Err: err}

@@ -96,6 +96,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
 	root.PersistentFlags().BoolVar(&a.isKV, flagKV, false, "print KEY=VALUE lines ending in STATUS=")
+	root.AddCommand(a.newCheckCommand())
 	root.AddCommand(a.newCloseCommand())
 	root.AddCommand(a.newCreateCommand())
 	root.AddCommand(a.newDepCommand())

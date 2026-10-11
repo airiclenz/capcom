@@ -1,5 +1,10 @@
 package issue
 
+import (
+	"slices"
+	"strings"
+)
+
 // DepGraph is the Dependency edges between issues, each dependency resolved to the id of the issue
 // it names. Only the dependent's side of an edge is stored (an issue's deps), so the graph is how
 // the other side, an issue's dependents, is found. A dependency resolves as the ready rules resolve
@@ -55,6 +60,63 @@ func (g DepGraph) Dependents(id string) []string {
 // FindCycle reports the cycle an edge from from to to would close in this graph; see FindCycle.
 func (g DepGraph) FindCycle(from string, to string) []string {
 	return FindCycle(g.edges, from, to)
+}
+
+// Cycles returns the dependency cycles of this graph; see Cycles.
+func (g DepGraph) Cycles() [][]string {
+	return Cycles(g.edges)
+}
+
+// Cycles returns the cycles in edges, each once. edges maps each id to the ids it depends on. For
+// every edge that lies on a cycle it takes the cycle FindCycle reports for that edge, so every
+// such edge appears in at least one returned cycle. Each cycle comes back in its canonical
+// rotation: starting and ending with its smallest id (a, b, c, a), an edge from an id to itself
+// as a, a. The cycles are ordered by their ids. It returns nil when edges has no cycle.
+func Cycles(edges map[string][]string) [][]string {
+	froms := make([]string, 0, len(edges))
+	for from := range edges {
+		froms = append(froms, from)
+	}
+	slices.Sort(froms)
+
+	seen := map[string]bool{}
+	var cycles [][]string
+	for _, from := range froms {
+		for _, to := range edges[from] {
+			cycle := FindCycle(edges, from, to)
+			if cycle == nil {
+				continue
+			}
+			cycle = canonicalRotation(cycle)
+			key := strings.Join(cycle, cycleKeySeparator)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			cycles = append(cycles, cycle)
+		}
+	}
+	slices.SortFunc(cycles, slices.Compare[[]string])
+	return cycles
+}
+
+// cycleKeySeparator joins a cycle's ids into the key that tells cycles apart; no id contains it.
+const cycleKeySeparator = "\x00"
+
+// canonicalRotation rotates the closed cycle a, ..., a so that it starts and ends with its smallest
+// id. Two rotations of one cycle come out the same.
+func canonicalRotation(cycle []string) []string {
+	open := cycle[:len(cycle)-1]
+	start := 0
+	for index, id := range open {
+		if id < open[start] {
+			start = index
+		}
+	}
+	rotated := make([]string, 0, len(cycle))
+	rotated = append(rotated, open[start:]...)
+	rotated = append(rotated, open[:start]...)
+	return append(rotated, open[start])
 }
 
 // FindCycle reports whether adding the edge from -> to (from depends on to) to edges would close a
