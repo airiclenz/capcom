@@ -179,7 +179,12 @@ internal/tree/tree_test.go — TestLoad_DuplicateIDInTwoSubtrees_FailsNamingBoth
 **Closes:** tree-error-paths
 **Commit:** `fix(tree): name files relative to the worktree and cite the aliases line`
 
-## 4. `create` and `mv` warn about unrelated tree problems instead of failing
+## 4. `create` and `mv` warn about unrelated tree problems instead of failing — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): docs/format.md gains one sentence under "A command does not fail on a bad issue file" saying which tree problems still fail `create` and `mv` (user-facing behaviour change; the path is not in the item's Files list).
+
+NOTES (2026-10-11): "Creating under a parent whose directory is orphaned" is tested as a parent whose file sits inside an orphan directory (`lost-dir/parent-one.md`); that parent is left out of the tree, so `create --parent` fails on resolving it (not_found), as it did before.
+
 
 **What:** Depends on item 3. This fixes part of `write-verbs-bad-files`, which item 5 completes.
 `docs/format.md` says "A command does not fail on a bad issue file". `create` and `mv` still exit 1

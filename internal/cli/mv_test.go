@@ -131,3 +131,36 @@ func TestMv_SecondHolderOfDuplicateAlias_FailsNamingTheFirstRelative(t *testing.
 		t.Errorf("login-flow.md: %v", err)
 	}
 }
+
+func TestMv_UnrelatedBadFileName_MovesAndWarnsOnce(t *testing.T) {
+	root := newMoveStore(t)
+	writeIssueFiles(t, root, map[string]string{"Bad_Name.md": validIssue})
+
+	stdout, stderr, exitCode := runCLI(t, root, "mv", "login-flow", "auth-flow")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "auth-flow.md")
+	if count := strings.Count(stdout+stderr, ".capcom/issues/Bad_Name.md"); count != 1 {
+		t.Errorf("Bad_Name.md named %d times, want once\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+}
+
+func TestMv_DuplicateID_FailsNamingBothFiles(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"dup-issue.md":  readIssue("Duplicate", "open", "", ""),
+		"login-flow.md": readIssue("Login flow", "open", "", ""),
+	})
+	writeIssueFiles(t, root, map[string]string{"login-flow/dup-issue.md": readIssue("Duplicate too", "open", "", "")})
+
+	_, stderr, exitCode := runCLI(t, root, "mv", "dup-issue", "moved-issue")
+
+	want := `.capcom/issues/login-flow/dup-issue.md: duplicate id "dup-issue", also at .capcom/issues/dup-issue.md`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "dup-issue.md")); err != nil {
+		t.Errorf("dup-issue.md: %v", err)
+	}
+}

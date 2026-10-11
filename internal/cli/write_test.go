@@ -357,3 +357,47 @@ func TestLog_Author_FromEachSource(t *testing.T) {
 		})
 	}
 }
+
+func TestCreate_UnrelatedBadFileName_WritesAndWarnsOnce(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{"Bad_Name.md": validIssue})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "good-one.md")
+	if count := strings.Count(stdout+stderr, ".capcom/issues/Bad_Name.md"); count != 1 {
+		t.Errorf("Bad_Name.md named %d times, want once\nstdout = %q\nstderr = %q", count, stdout, stderr)
+	}
+}
+
+func TestCreate_UnderParentInOrphanDirectory_Fails(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{"lost-dir/parent-one.md": validIssue})
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "child-one", "--title", "Child", "--parent", "parent-one")
+
+	if exitCode == ExitOK {
+		t.Errorf("exit = %d stderr = %q, want a failure", exitCode, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "lost-dir", "parent-one", "child-one.md")); err == nil {
+		t.Error("child-one.md was written below the orphaned parent")
+	}
+}
+
+func TestCreate_BesideOrphanChildrenDirectory_Fails(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{"foo-bar/stray-child.md": validIssue})
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "foo-bar", "--title", "Foo bar")
+
+	want := ".capcom/issues/foo-bar: directory without its node file"
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "foo-bar.md")); err == nil {
+		t.Error("foo-bar.md was written beside its orphan directory")
+	}
+}

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -20,6 +21,10 @@ const (
 	CodeLocked         Code = "locked"
 	CodeNotInitialized Code = "not_initialized"
 )
+
+// nodeFileExtension ends every issue and Note file; a node's children directory is its path
+// without it.
+const nodeFileExtension = ".md"
 
 // Process exit codes.
 const (
@@ -122,4 +127,72 @@ func (a *app) worktreeRelative(path string) string {
 		return relative
 	}
 	return path
+}
+
+// treeProblems returns the problems of a tree.Load failure that still returned the tree of what it
+// could place, for a command that goes on with that tree; it returns nil for a nil err. Any other
+// failure, which returns no tree, comes back as treeLoadFailure types it.
+func (a *app) treeProblems(err error) (tree.Errors, error) {
+	if err == nil {
+		return nil, nil
+	}
+	var problems tree.Errors
+	if errors.As(err, &problems) {
+		return problems, nil
+	}
+	return nil, a.treeLoadFailure(err)
+}
+
+// triageTreeProblems splits the tree problems of a command that writes by the files it touches,
+// targets, given relative to the working tree root with forward slashes ("" entries are ignored).
+// A problem blocks the command when it names a target as its file or as the other file of a
+// duplicate, or is an orphan directory where a target's children go; the blocking problems come
+// back as the command's failure. Every other problem is returned as a warning, "path: message",
+// unless the index refresh already warned about its file, so no file is reported twice.
+func (a *app) triageTreeProblems(problems tree.Errors, targets ...string) ([]string, error) {
+	var blocking tree.Errors
+	var warnings []string
+	for _, problem := range problems {
+		relative := a.relativeTreeError(problem)
+		switch {
+		case isBlockingTreeProblem(relative, targets):
+			blocking = append(blocking, problem)
+		case !a.isIndexWarnedAbout(relative.Path):
+			warnings = append(warnings, relative.Error())
+		}
+	}
+	if len(blocking) > 0 {
+		return nil, a.treeLoadFailure(blocking)
+	}
+	return warnings, nil
+}
+
+// isBlockingTreeProblem reports whether problem, its paths relative like targets, concerns one of
+// targets: it is the target's file, the other file of the target's duplicate, or an orphan
+// directory at the target's children directory.
+func isBlockingTreeProblem(problem *tree.Error, targets []string) bool {
+	for _, target := range targets {
+		if target == "" {
+			continue
+		}
+		if problem.Path == target || problem.Other == target {
+			return true
+		}
+		childrenDir := strings.TrimSuffix(target, nodeFileExtension)
+		if errors.Is(problem, tree.ErrOrphanDirectory) && problem.Path == childrenDir {
+			return true
+		}
+	}
+	return false
+}
+
+// isIndexWarnedAbout reports whether this command's index refresh warned about the file at path,
+// relative to the working tree root with forward slashes.
+func (a *app) isIndexWarnedAbout(path string) bool {
+	for _, warning := range a.indexReport.Warnings {
+		if warning.Path == path {
+			return true
+		}
+	}
+	return false
 }

@@ -136,7 +136,9 @@ allow (an undeclared status or type, a priority out of range) cites its key's li
 
 A command does not fail on a bad issue file. The index (`<git-dir>/capcom/index.db`) leaves the file
 out and every command that reads it reports the file as a warning, after its result, until the file
-is fixed; the other issues stay usable. Two files that answer to the same id or alias are both left
+is fixed; the other issues stay usable. `create` and `mv` fail on a problem with the tree only when it
+concerns the issue they write or move, its new path or the parent they resolve; any other is a
+warning. Two files that answer to the same id or alias are both left
 out, each warning naming the other. The index refreshes itself on every command that reads it,
 re-reading only the files whose size or modification time changed; `capcom reindex` rebuilds it
 from scratch.

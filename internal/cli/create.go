@@ -74,13 +74,18 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error)
 		return Result{}, Errorf(CodeInvalid, "%s", err.Error())
 	}
 	issues, err := tree.Load(a.store.IssuesDir(), readAliases)
+	problems, err := a.treeProblems(err)
 	if err != nil {
-		return Result{}, a.treeLoadFailure(err)
+		return Result{}, err
 	}
 	if existing, found := issues.Lookup(options.id); found {
 		return Result{}, existsFailure(options.id, existing, a.store.WorktreeRoot)
 	}
-	path, err := a.newIssuePath(issues, options)
+	path, parentPath, err := a.newIssuePath(issues, options)
+	if err != nil {
+		return Result{}, err
+	}
+	warnings, err := a.triageTreeProblems(problems, path, parentPath)
 	if err != nil {
 		return Result{}, err
 	}
@@ -93,26 +98,29 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error)
 	if err != nil {
 		return Result{}, err
 	}
-	return writeResult(options.id, path, etag), nil
+	result := writeResult(options.id, path, etag)
+	result.Warnings = append(result.Warnings, warnings...)
+	return result, nil
 }
 
-// newIssuePath returns where the new issue goes, relative to the working tree root with forward
-// slashes: below its resolved --parent, or at the top of the tree.
-func (a *app) newIssuePath(issues *tree.Tree, options *createOptions) (string, error) {
-	parentID := ""
+// newIssuePath returns where the new issue goes, below its resolved --parent or at the top of the
+// tree, and the file of that parent, "" at the top; both relative to the working tree root with
+// forward slashes.
+func (a *app) newIssuePath(issues *tree.Tree, options *createOptions) (string, string, error) {
+	parent := tree.Node{}
 	if options.parent != "" {
-		parent, err := issues.Resolve(options.parent)
+		resolved, err := issues.Resolve(options.parent)
 		if err != nil {
 			failure, _ := resolveFailure(err) // either way the command stops here
-			return "", failure
+			return "", "", failure
 		}
-		parentID = parent.ID
+		parent = resolved
 	}
-	absolute, err := issues.PathFor(options.id, parentID)
+	absolute, err := issues.PathFor(options.id, parent.ID)
 	if err != nil {
-		return "", asError(err)
+		return "", "", asError(err)
 	}
-	return relativeSlashPath(a.store.WorktreeRoot, absolute), nil
+	return relativeSlashPath(a.store.WorktreeRoot, absolute), a.worktreeRelative(parent.Path), nil
 }
 
 // newIssue builds the issue the flags describe, created now.

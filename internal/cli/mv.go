@@ -42,11 +42,13 @@ func (a *app) newMvCommand() *cobra.Command {
 
 // move resolves the issue args[0] names and moves it to the new id args[1], when given, and below
 // parent, when isReparented. The result names the issue's new id, path and etag, with a warning
-// for every issue file whose deps could not be checked.
+// for every tree problem that concerns neither the issue, its new path nor the new parent, and for
+// every issue file whose deps could not be checked.
 func (a *app) move(args []string, parent string, isReparented bool) (Result, error) {
 	issues, err := tree.Load(a.store.IssuesDir(), readAliases)
+	problems, err := a.treeProblems(err)
 	if err != nil {
-		return Result{}, a.treeLoadFailure(err)
+		return Result{}, err
 	}
 	node, err := resolveNode(issues, args[0])
 	if err != nil {
@@ -66,11 +68,20 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	if err != nil {
 		return Result{}, a.moveFailure(err, node)
 	}
+	resolvedParentID := ""
+	if isReparented {
+		resolvedParentID = destination.ParentID
+	}
+	warnings, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID)
+	if err != nil {
+		return Result{}, err
+	}
 	if err := move.Apply(); err != nil {
 		return Result{}, asError(err)
 	}
 	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
 	result := writeResult(move.NewID, path, edit.ETag(move.Content))
+	result.Warnings = append(result.Warnings, warnings...)
 	for _, unread := range move.Unread {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
 			"%s: deps not checked for %s: the file does not parse",
@@ -79,6 +90,27 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 		))
 	}
 	return result, nil
+}
+
+// triageMoveProblems triages the tree problems of move as triageTreeProblems does, against the
+// moved issue's file, its new path and the file of newParentID, the parent the command resolved
+// ("" when it resolved none, or the top of the tree).
+func (a *app) triageMoveProblems(
+	issues *tree.Tree,
+	problems tree.Errors,
+	move *tree.Move,
+	newParentID string,
+) ([]string, error) {
+	parentPath := ""
+	if parent, isFound := issues.Lookup(newParentID); isFound {
+		parentPath = a.worktreeRelative(parent.Path)
+	}
+	return a.triageTreeProblems(
+		problems,
+		a.worktreeRelative(move.Node.Path),
+		a.worktreeRelative(move.NewPath),
+		parentPath,
+	)
 }
 
 // resolveNode resolves arg to its node in issues, typing the failure as resolveFailure does.
