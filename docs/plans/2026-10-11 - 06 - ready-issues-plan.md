@@ -153,7 +153,11 @@ children-directory file refused (Goal's wording); an issue whose own `deps` name
 **Closes:** issue-rm-verb
 **Commit:** `feat(cli): add capcom rm to remove an issue`
 
-## 5. Merge the Log sections of three versions of an issue file
+## 5. Merge the Log sections of three versions of an issue file — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): the entry point is `issue.MergeFile(base, ours, theirs []byte, textMerge issue.TextMerge) ([]byte, bool, error)`, where `TextMerge` is a named type for the plan's `func(base, ours, theirs []byte) ([]byte, bool, error)`. Item 6's adapter plugs into it.
+NOTES (2026-10-12): the placeholder replaces the Log heading through its last non-blank line. Trailing blank lines stay outside, so they go through the text merge with the rest of the file.
+NOTES (2026-10-12): extra fallbacks to a plain text merge of the original bytes: when any version already contains the placeholder, and when the text merge drops the placeholder while the entry merge keeps a Log (or the reverse). Example: one side deleted the whole Log while the other appended to it. Without this, entries would be lost silently.
+NOTES (2026-10-12): a blank line between two entries counts as a non-entry line and falls back to the text merge, as the item's text says. Blank lines before the first entry and after the last are allowed.
 
 **What:**
 **Goal:** a pure `internal/issue` function merges base, ours and theirs bytes of an issue file into
