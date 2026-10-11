@@ -153,7 +153,12 @@ Depends on item 5.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/` ; `GOMEMLIMIT=2GiB go test -count=1 -run 'List|Show|Search' ./internal/cli/`
 **Commit:** `feat(cli): list, show and search issues`
 
-## 7. Ready rules and `capcom ready`
+## 7. Ready rules and `capcom ready` — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by the new ready command, registered in the root command's AddCommand list.
+NOTES (2026-10-11): `issue.Ready(nodes []issue.Node, cfg)` takes an `issue.Node` (id, parent, category, labels, deps, aliases) rather than index rows, since internal/index imports internal/issue; the CLI builds the nodes from `index.List` with Closed issues included. cfg supplies only `ready.hide` (each Readiness carries `IsHidden`); categories come from the index (ADR 0003).
+NOTES (2026-10-11): ready lists most urgent first (priority, then tree order) without indentation, so `--limit` keeps the most urgent; a Blocker's reason is `missing` or the dep's category (`todo`/`doing`/`waiting`); "open children" are direct children not Closed, while the hold rule walks every ancestor; an alias two issues claim resolves to nothing (`missing`). `--all` adds only todo issues that are not ready (text lines end `  -- not ready: blocked by x (missing); open children: a; held by p`); a hidden issue stays hidden under `--all` and `--label` unless `--show-hidden`. ready offers no `--kv`; an empty result exits 0. The dropped-dep warning names the issue file: `<path>: dep "<dep>" is dropped; counted as satisfied`.
+NOTES (2026-10-11): a dep that names nothing is visible only under `--all`; plain `ready` silently leaves such an issue out (no warning) — a candidate for `check` in the follow-up plan.
 
 Depends on item 6.
 **What:**

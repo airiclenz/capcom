@@ -98,6 +98,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.PersistentFlags().BoolVar(&a.isKV, flagKV, false, "print KEY=VALUE lines ending in STATUS=")
 	root.AddCommand(a.newInitCommand())
 	root.AddCommand(a.newListCommand())
+	root.AddCommand(a.newReadyCommand())
 	root.AddCommand(a.newReindexCommand())
 	root.AddCommand(a.newSearchCommand())
 	root.AddCommand(a.newShowCommand())
