@@ -120,7 +120,11 @@ change leaves AGENTS.md byte-identical; tangled AGENTS.md markers → warning, N
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run KnowUpdate ./internal/cli/`
 **Commit:** `feat(know): add know update to change a Note's title, labels, refs and body`
 
-## 4. A type-agnostic mover in package tree
+## 4. A type-agnostic mover in package tree — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the mover is the method `(*tree.Tree).PlanMove(id, tree.Destination, kind)` returning `*tree.Move` (fields Node, NewID, NewPath; `AddRewrite(tree.Rewrite{Path, Original, Content})`, `Apply`); `issue.Move` embeds `*tree.Move` and adds Content and Unread, so `move.ID` in internal/cli/mv.go became `move.Node.ID`.
+NOTES (2026-10-11): `TakenError`, `Destination`, `ErrMoveIntoSubtree` and `ErrMoveTarget` now live only in package tree (no issue-side aliases, which would be dead code); `issue.PlanMove` errors still match `tree.ErrMoveIntoSubtree` under errors.Is, covered by `TestPlanMove_UnparseableIssueFile_DestinationCheckedFirst`.
+NOTES (2026-10-11): the own-subtree message uses the kind phrase verbatim ("cannot move an issue below ..."); the taken-id message keeps its article-free wording ("already taken by issue X") by stripping the article from the phrase, so issue error text stays byte-identical.
 
 **What:** Recast at the regression check (2026-10-11).
 **Goal:** the plan-and-apply machinery behind `capcom mv` (destination checks, file and directory

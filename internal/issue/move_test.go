@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -13,9 +12,6 @@ import (
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
-
-// errInjected is the failure an injected rename reports.
-var errInjected = errors.New("injected rename failure")
 
 // moveFile is the content of a canonical issue file with the given deps and aliases (flow lists
 // without brackets, "" for none) and body.
@@ -69,7 +65,7 @@ func loadMoveTree(t *testing.T, dir string) *tree.Tree {
 }
 
 // moveIssue plans and applies one move in dir, failing the test on any error.
-func moveIssue(t *testing.T, dir string, id string, to issue.Destination) *issue.Move {
+func moveIssue(t *testing.T, dir string, id string, to tree.Destination) *issue.Move {
 	t.Helper()
 	move, err := issue.PlanMove(loadMoveTree(t, dir), id, to)
 	if err != nil {
@@ -123,8 +119,8 @@ func snapshotTree(t *testing.T, dir string) map[string]string {
 func TestPlanMove_RenameTwice_KeepsAliasChain(t *testing.T) {
 	dir := newMoveTree(t, map[string]string{"first-name.md": moveFile("", "", "\nBody.\n")})
 
-	moveIssue(t, dir, "first-name", issue.Destination{ID: "second-name"})
-	moved := moveIssue(t, dir, "second-name", issue.Destination{ID: "third-name"})
+	moveIssue(t, dir, "first-name", tree.Destination{ID: "second-name"})
+	moved := moveIssue(t, dir, "second-name", tree.Destination{ID: "third-name"})
 
 	parsed := parseMoveFile(t, dir, "third-name.md")
 	if want := []string{"first-name", "second-name"}; !slices.Equal(parsed.Aliases, want) {
@@ -141,7 +137,7 @@ func TestPlanMove_RenameTwice_KeepsAliasChain(t *testing.T) {
 func TestPlanMove_RenameBackToOwnAlias_SwapsIt(t *testing.T) {
 	dir := newMoveTree(t, map[string]string{"new-name.md": moveFile("", "old-name, apogee-kk0.4", "")})
 
-	moveIssue(t, dir, "new-name", issue.Destination{ID: "old-name"})
+	moveIssue(t, dir, "new-name", tree.Destination{ID: "old-name"})
 
 	parsed := parseMoveFile(t, dir, "old-name.md")
 	if want := []string{"apogee-kk0.4", "new-name"}; !slices.Equal(parsed.Aliases, want) {
@@ -159,7 +155,7 @@ func TestPlanMove_Rename_RewritesDepsInOtherFiles(t *testing.T) {
 	})
 	untouched := snapshotTree(t, dir)["other-issue/untouched-child.md"]
 
-	moveIssue(t, dir, "login-flow", issue.Destination{ID: "auth-flow"})
+	moveIssue(t, dir, "login-flow", tree.Destination{ID: "auth-flow"})
 
 	session := parseMoveFile(t, dir, "session-work.md")
 	if want := []string{"other-issue", "auth-flow"}; !slices.Equal(session.Deps, want) {
@@ -176,124 +172,38 @@ func TestPlanMove_Rename_RewritesDepsInOtherFiles(t *testing.T) {
 	}
 }
 
-func TestPlanMove_ReparentWithChildren_MovesSubtree(t *testing.T) {
+func TestPlanMove_UnparseableIssueFile_DestinationCheckedFirst(t *testing.T) {
 	dir := newMoveTree(t, map[string]string{
-		"old-parent.md":                                   moveFile("", "", ""),
-		"old-parent/moved-issue.md":                       moveFile("", "", ""),
-		"old-parent/moved-issue/child-one.md":             moveFile("", "", ""),
-		"old-parent/moved-issue/child-one/grand-child.md": moveFile("", "", ""),
-		"new-parent.md":                                   moveFile("", "", ""),
+		"moved-issue.md":           "no front matter here\n",
+		"moved-issue/child-one.md": moveFile("", "", ""),
+		"taken-issue.md":           moveFile("", "", ""),
 	})
-
-	moveIssue(t, dir, "moved-issue", issue.Destination{ID: "moved-issue", ParentID: "new-parent"})
-
 	issues := loadMoveTree(t, dir)
-	for id, parentID := range map[string]string{"moved-issue": "new-parent", "child-one": "moved-issue", "grand-child": "child-one"} {
-		if node, isFound := issues.Lookup(id); !isFound || node.ParentID != parentID {
-			t.Errorf("%s: found = %t parent = %q, want %q", id, isFound, node.ParentID, parentID)
+	cases := []struct {
+		name    string
+		to      tree.Destination
+		wantErr error
+	}{
+		{name: "invalid id", to: tree.Destination{ID: "Bad_Name"}, wantErr: tree.ErrInvalidID},
+		{name: "taken id", to: tree.Destination{ID: "taken-issue"}, wantErr: tree.ErrDuplicate},
+		{name: "own subtree", to: tree.Destination{ID: "moved-issue", ParentID: "child-one"}, wantErr: tree.ErrMoveIntoSubtree},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := issue.PlanMove(issues, "moved-issue", tc.to)
+
+			var parseFailure *issue.Error
+			if !errors.Is(err, tc.wantErr) || errors.As(err, &parseFailure) {
+				t.Errorf("err = %v, want %v and no parse error", err, tc.wantErr)
+			}
+		})
+	}
+	t.Run("valid rename", func(t *testing.T) {
+		_, err := issue.PlanMove(issues, "moved-issue", tree.Destination{ID: "renamed-issue"})
+
+		var parseFailure *issue.Error
+		if !errors.As(err, &parseFailure) {
+			t.Errorf("err = %v, want the moved issue's parse error", err)
 		}
-	}
-	if _, err := os.Stat(filepath.Join(dir, "old-parent")); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("emptied old-parent directory: stat error = %v, want it removed", err)
-	}
-}
-
-func TestPlanMove_ToTopOfTree_MovesIt(t *testing.T) {
-	dir := newMoveTree(t, map[string]string{
-		"old-parent.md":               moveFile("", "", ""),
-		"old-parent/moved-issue.md":   moveFile("", "", ""),
-		"old-parent/staying-child.md": moveFile("", "", ""),
 	})
-
-	moved := moveIssue(t, dir, "moved-issue", issue.Destination{ID: "moved-issue", ParentID: ""})
-
-	if moved.NewPath != filepath.Join(dir, "moved-issue.md") {
-		t.Errorf("NewPath = %s", moved.NewPath)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "old-parent", "staying-child.md")); err != nil {
-		t.Errorf("staying-child: %v", err)
-	}
-}
-
-func TestPlanMove_UnderItselfOrDescendant_Refused(t *testing.T) {
-	dir := newMoveTree(t, map[string]string{
-		"moved-issue.md":                       moveFile("", "", ""),
-		"moved-issue/child-one.md":             moveFile("", "", ""),
-		"moved-issue/child-one/grand-child.md": moveFile("", "", ""),
-	})
-	before := snapshotTree(t, dir)
-
-	for _, parentID := range []string{"moved-issue", "child-one", "grand-child"} {
-		_, err := issue.PlanMove(loadMoveTree(t, dir), "moved-issue", issue.Destination{ID: "moved-issue", ParentID: parentID})
-
-		if !errors.Is(err, issue.ErrMoveIntoSubtree) {
-			t.Errorf("parent %s: err = %v, want ErrMoveIntoSubtree", parentID, err)
-		}
-	}
-	if after := snapshotTree(t, dir); !reflect.DeepEqual(after, before) {
-		t.Errorf("tree changed:\n%v\nwant\n%v", after, before)
-	}
-}
-
-func TestPlanMove_RenameOntoTakenIDOrAlias_Refused(t *testing.T) {
-	dir := newMoveTree(t, map[string]string{
-		"moved-issue.md": moveFile("", "", ""),
-		"taken-issue.md": moveFile("", "taken-alias", ""),
-	})
-
-	for _, newID := range []string{"taken-issue", "taken-alias"} {
-		_, err := issue.PlanMove(loadMoveTree(t, dir), "moved-issue", issue.Destination{ID: newID})
-
-		var taken *issue.TakenError
-		if !errors.As(err, &taken) || taken.Owner.ID != "taken-issue" || !errors.Is(err, tree.ErrDuplicate) {
-			t.Errorf("%s: err = %v, want a TakenError owned by taken-issue", newID, err)
-		}
-	}
-}
-
-func TestPlanMove_RenameInvalidOrUnknown_Refused(t *testing.T) {
-	dir := newMoveTree(t, map[string]string{"moved-issue.md": moveFile("", "", "")})
-	issues := loadMoveTree(t, dir)
-
-	if _, err := issue.PlanMove(issues, "moved-issue", issue.Destination{ID: "Bad_Name"}); !errors.Is(err, tree.ErrInvalidID) {
-		t.Errorf("invalid id: err = %v", err)
-	}
-	if _, err := issue.PlanMove(issues, "moved-issue", issue.Destination{ID: "moved-issue", ParentID: "no-such-issue"}); !errors.Is(err, tree.ErrNotFound) {
-		t.Errorf("unknown parent: err = %v", err)
-	}
-	if _, err := issue.PlanMove(issues, "no-such-issue", issue.Destination{ID: "other-name"}); !errors.Is(err, tree.ErrNotFound) {
-		t.Errorf("unknown issue: err = %v", err)
-	}
-}
-
-func TestMoveApply_SecondRenameFails_LeavesTreeUnchanged(t *testing.T) {
-	dir := newMoveTree(t, map[string]string{
-		"old-parent.md":                     moveFile("", "", ""),
-		"old-parent/moved-issue.md":         moveFile("", "former-name", "\nBody.\n"),
-		"old-parent/moved-issue/kid-one.md": moveFile("moved-issue", "", ""),
-		"dependent-issue.md":                moveFile("former-name", "", ""),
-		"new-parent.md":                     moveFile("", "", ""),
-	})
-	before := snapshotTree(t, dir)
-	move, err := issue.PlanMove(loadMoveTree(t, dir), "moved-issue", issue.Destination{ID: "renamed-issue", ParentID: "new-parent"})
-	if err != nil {
-		t.Fatalf("PlanMove: %v", err)
-	}
-	renames := 0
-	issue.SetMoveRename(move, func(oldPath string, newPath string) error {
-		renames++
-		if renames == 2 {
-			return errInjected
-		}
-		return os.Rename(oldPath, newPath)
-	})
-
-	err = move.Apply()
-
-	if !errors.Is(err, errInjected) {
-		t.Fatalf("Apply err = %v, want the injected failure", err)
-	}
-	if after := snapshotTree(t, dir); !reflect.DeepEqual(after, before) {
-		t.Errorf("tree changed:\n%v\nwant\n%v", after, before)
-	}
 }

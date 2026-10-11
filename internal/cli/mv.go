@@ -52,7 +52,7 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	if err != nil {
 		return Result{}, err
 	}
-	destination := issue.Destination{ID: node.ID, ParentID: node.ParentID}
+	destination := tree.Destination{ID: node.ID, ParentID: node.ParentID}
 	if len(args) == 2 {
 		destination.ID = args[1]
 	}
@@ -75,7 +75,7 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
 			"%s: deps not checked for %s: the file does not parse",
 			relativeSlashPath(a.store.WorktreeRoot, unread),
-			move.ID,
+			move.Node.ID,
 		))
 	}
 	return result, nil
@@ -107,7 +107,7 @@ func resolveParent(issues *tree.Tree, parent string) (string, error) {
 // an unknown issue is not_found; everything else, an invalid id and a parent inside the issue's
 // own subtree among them, is invalid at the issue's file.
 func (a *app) moveFailure(err error, node tree.Node) error {
-	var taken *issue.TakenError
+	var taken *tree.TakenError
 	if errors.As(err, &taken) {
 		return existsFailure(taken.ID, taken.Owner, a.store.WorktreeRoot)
 	}
