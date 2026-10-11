@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `config.yaml` accepts a `format:` key, the store format version (a missing key means 1). A store whose format is newer than the binary reads makes every command fail with `.capcom/config.yaml:<line>: store format <n> is newer than this capcom reads (up to <max>); upgrade capcom`; `capcom prime` reports it as one `warning: store:` line and still exits 0. `capcom init` writes the key only as a `# format: 1` comment.
+- `create` and `mv` no longer fail because some other file in the issue tree has a bad name, sits in a directory without its node file, or repeats an id or alias. They fail only when the problem concerns the issue being written or moved, its new path or the parent they resolve; every other problem is reported once as a warning after the result.
+- `know add`, `know mv` and `know rm` no longer fail because some other file in the Knowledge tree has a bad name, sits in a directory without its Note file, or repeats an id or alias. They fail only when the problem concerns the Note being written, moved or removed, its new path or its parent; every other problem is reported once as a warning after the result.
+- `capcom check` reports git conflict markers left in an issue or Note file by a merge (code `conflict`, at each marker's line), and `docs/format.md` describes how to resolve a conflict in an issue's Log.
+- `--kv` is now a flag of the commands that print `KEY=VALUE` records (`show`, `close`, `reopen`, every `lock` subcommand, `version`, `create`, `update`, `log`, `mv`, `dep add` and `dep rm`) and appears only in their help. It no longer shows in `capcom --help`, and any other command rejects it as an unknown flag (exit 2). `--kv` must now follow the command name: `capcom --kv version` is a usage error; write `capcom version --kv`.
+- Elsewhere (the report of unmerged issue changes in `ready`, `list`, `show` and `prime`) now scans remote-tracking branches (`refs/remotes/`) as well as local branches, and names them by their short name, e.g. `login-flow: done on origin/fix-login (unmerged)`. It skips the current branch's remote-tracking upstream and the `origin/HEAD` pointer. When a local branch and a remote-tracking branch with the same name hold the same work, it reports them once: as the local branch when the remote is level or behind it, and as the remote when the local branch is behind. capcom still never fetches, so a remote-tracking branch is only as fresh as the last `git fetch`; the `elsewhere.days` window applies to remote-tracking branches too.
+- `capcom fmt` rewrites every issue and Note file that is not in canonical form, so a hand-written file no longer churns on its first capcom edit. Files that do not parse or validate are left untouched and reported as warnings. `capcom fmt --check` writes nothing, lists the files that would change and exits 1 when any would.
+- `capcom init --codex-hooks` adds `capcom prime` hooks to `.codex/hooks.json` (SessionStart and PreCompact), creating the file when missing and keeping every existing hook, so Codex sessions start with a briefing. A re-run changes nothing; `--json` reports `codex_hooks` as `added` or `present`. Codex runs hooks only with `[features] hooks = true` in its `config.toml`.
+- The beads migration guide now covers `bd remember` memories, what does not migrate, dated `notes`, non-plan `spec_id`s, `parked` lowering ready counts, two-sided `related` links, dotted ids, replacing beads' Claude Code and Codex hooks, `capcom fmt`, `conflict` problems and `git config --local` for `core.hooksPath`.
+
+### Fixed
+
+- Tree problems printed by `check`, `create`, `mv`, `know add`, `know mv` and `know rm` (an invalid id or alias, a duplicate id or alias, a directory without its node file) now name every file relative to the worktree root, including the other file of a duplicate, instead of as an absolute path. `check` cites the line of the `aliases` key for a duplicate or invalid alias instead of line 0.
+
 ## [0.1.0] - 2026-10-11
 
 ### Added
