@@ -401,3 +401,44 @@ func TestCreate_BesideOrphanChildrenDirectory_Fails(t *testing.T) {
 		t.Error("foo-bar.md was written beside its orphan directory")
 	}
 }
+
+func TestCreate_IDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	cases := []struct {
+		name string
+		file string
+	}{
+		{name: "directly inside", file: "lost-dir/dup-id.md"},
+		{name: "deeper inside", file: "lost-dir/deeper-dir/dup-id.md"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newWriteStore(t)
+			writeIssueFiles(t, root, map[string]string{tc.file: validIssue})
+
+			_, stderr, exitCode := runCLI(t, root, "create", "--id", "dup-id", "--title", "Duplicate")
+
+			want := ".capcom/issues/" + tc.file + `: id "dup-id" is already taken by this file`
+			if exitCode != ExitError || !strings.Contains(stderr, want) {
+				t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+			}
+			if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "dup-id.md")); err == nil {
+				t.Error("dup-id.md was written beside the orphaned file of the same id")
+			}
+		})
+	}
+}
+
+func TestCreate_UnrelatedOrphanDirectory_WritesAndWarns(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{"lost-dir/other-id.md": validIssue})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "good-one.md")
+	if want := ".capcom/issues/lost-dir: directory without its node file"; !strings.Contains(stdout+stderr, want) {
+		t.Errorf("stdout = %q stderr = %q, want a warning containing %q", stdout, stderr, want)
+	}
+}

@@ -209,3 +209,18 @@ func TestKnowMv_BelowDuplicateParent_Fails(t *testing.T) {
 		t.Error("release-flow.md was moved below the duplicate parent")
 	}
 }
+
+func TestKnowMv_OntoIDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"lost-dir/dup-id.md": "---\ntitle: Lost note\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "mv", "release-flow", "dup-id")
+
+	want := `.capcom/knowledge/lost-dir/dup-id.md: id "dup-id" is already taken by this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if !noteFileExists(t, root, "release-flow.md") {
+		t.Error("release-flow.md was moved onto the orphaned id")
+	}
+}

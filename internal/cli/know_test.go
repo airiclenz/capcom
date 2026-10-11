@@ -368,3 +368,18 @@ func TestKnowAdd_BesideOrphanChildrenDirectory_Fails(t *testing.T) {
 		t.Error("foo-bar.md was written beside its orphan directory")
 	}
 }
+
+func TestKnowAdd_IDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"lost-dir/deeper-dir/dup-id.md": "---\ntitle: Lost note\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "dup-id", "--title", "Duplicate")
+
+	want := `.capcom/knowledge/lost-dir/deeper-dir/dup-id.md: id "dup-id" is already taken by this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if noteFileExists(t, root, "dup-id.md") {
+		t.Error("dup-id.md was written beside the orphaned file of the same id")
+	}
+}

@@ -94,13 +94,19 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 
 // triageMoveProblems triages the tree problems of move as triageTreeProblems does, against the
 // moved issue's file, its new path and the file of newParentID, the parent the command resolved
-// ("" when it resolved none, or the top of the tree).
+// ("" when it resolved none, or the top of the tree). A new id is first refused as
+// orphanedIDFailure does.
 func (a *app) triageMoveProblems(
 	issues *tree.Tree,
 	problems tree.Errors,
 	move *tree.Move,
 	newParentID string,
 ) ([]string, error) {
+	if move.NewID != move.Node.ID {
+		if err := a.orphanedIDFailure(problems, move.NewID); err != nil {
+			return nil, err
+		}
+	}
 	parentPath := ""
 	if parent, isFound := issues.Lookup(newParentID); isFound {
 		parentPath = a.worktreeRelative(parent.Path)

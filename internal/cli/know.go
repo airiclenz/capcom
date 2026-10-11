@@ -314,6 +314,9 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 	if existing, found := notes.Lookup(options.id); found {
 		return Result{}, noteExistsFailure(options.id, existing, a.store.WorktreeRoot)
 	}
+	if err := a.orphanedIDFailure(problems, options.id); err != nil {
+		return Result{}, err
+	}
 	path, parentPath, err := a.newNotePath(notes, options)
 	if err != nil {
 		return Result{}, err

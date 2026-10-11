@@ -164,3 +164,16 @@ func TestMv_DuplicateID_FailsNamingBothFiles(t *testing.T) {
 		t.Errorf("dup-issue.md: %v", err)
 	}
 }
+
+func TestMv_OntoIDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newMoveStore(t)
+	writeIssueFiles(t, root, map[string]string{"lost-dir/dup-id.md": validIssue})
+
+	_, stderr, exitCode := runCLI(t, root, "mv", "renamed-issue", "dup-id")
+
+	want := `.capcom/issues/lost-dir/dup-id.md: id "dup-id" is already taken by this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	readStoreFile(t, root, "renamed-issue.md")
+}

@@ -147,7 +147,8 @@ out and every command that reads it reports the file as a warning, after its res
 is fixed; the other issues stay usable. `create` and `mv` fail on a problem with the tree only when it
 concerns the issue they write or move, its new path or the parent they resolve; any other is a
 warning. `know add`, `know mv` and `know rm` treat the Knowledge tree the same way for the Note
-they write, move or remove. Two files that answer to the same id or alias are both left
+they write, move or remove. A new id is refused when a file of that id sits anywhere under a
+directory without its node file, since that file is outside the tree until the directory is fixed. Two files that answer to the same id or alias are both left
 out, each warning naming the other. The index refreshes itself on every command that reads it,
 re-reading only the files whose size or modification time changed; `capcom reindex` rebuilds it
 from scratch.
