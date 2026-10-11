@@ -1,0 +1,128 @@
+package gitx
+
+import (
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+)
+
+// commitFile writes content to the slash path name below root and commits it.
+func commitFile(t *testing.T, root, name, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "change "+name)
+}
+
+func TestBranches_ListsEveryLocalBranchAndMarksTheCurrentOne(t *testing.T) {
+	root := newRepo(t)
+	git(t, root, "branch", "feature/login")
+	git(t, root, "checkout", "-q", "-b", "work")
+
+	branches, err := Branches(root)
+
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	current := map[string]bool{}
+	for _, branch := range branches {
+		current[branch.Name] = branch.IsCurrent
+		if branch.Ref != "refs/heads/"+branch.Name || branch.Tip.IsZero() {
+			t.Errorf("branch %+v: want ref refs/heads/<name> and a tip time", branch)
+		}
+	}
+	if len(branches) != 3 || current["feature/login"] || !current["work"] {
+		t.Errorf("branches = %+v, want three with only work current", branches)
+	}
+}
+
+func TestBranches_UnbornRepository_ListsNone(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	setHermeticGitEnv(t, root)
+	git(t, root, "init", "-q")
+
+	branches, err := Branches(root)
+
+	if err != nil || len(branches) != 0 {
+		t.Errorf("Branches = %+v, %v; want none", branches, err)
+	}
+	if hasHead, err := HasCommit(root, "HEAD"); err != nil || hasHead {
+		t.Errorf("HasCommit(HEAD) = %v, %v; want false on an unborn branch", hasHead, err)
+	}
+}
+
+func TestIsAncestor_MergedAndDivergedBranches(t *testing.T) {
+	root := newRepo(t)
+	git(t, root, "branch", "merged")
+	git(t, root, "checkout", "-q", "-b", "diverged")
+	commitFile(t, root, "a.md", "a\n")
+	git(t, root, "checkout", "-q", "-")
+
+	isMerged, mergedErr := IsAncestor(root, "refs/heads/merged", "HEAD")
+	isDiverged, divergedErr := IsAncestor(root, "refs/heads/diverged", "HEAD")
+
+	if mergedErr != nil || divergedErr != nil || !isMerged || isDiverged {
+		t.Errorf("merged = %v (%v), diverged = %v (%v); want true and false",
+			isMerged, mergedErr, isDiverged, divergedErr)
+	}
+}
+
+func TestChangedFiles_RenameIsRemovedPlusAdded_PathspecLimits(t *testing.T) {
+	root := newRepo(t)
+	commitFile(t, root, "issues/old-name.md", "same\n")
+	commitFile(t, root, "issues/edited-one.md", "before\n")
+	git(t, root, "checkout", "-q", "-b", "topic")
+	git(t, root, "mv", "issues/old-name.md", "issues/new-name.md")
+	commitFile(t, root, "issues/edited-one.md", "after\n")
+	commitFile(t, root, "elsewhere.txt", "outside the pathspec\n")
+	git(t, root, "checkout", "-q", "-")
+
+	changes, err := ChangedFiles(root, "HEAD", "refs/heads/topic", []string{"issues"})
+
+	want := []FileChange{
+		{Path: "issues/edited-one.md", Kind: Modified},
+		{Path: "issues/new-name.md", Kind: Added},
+		{Path: "issues/old-name.md", Kind: Removed},
+	}
+	if err != nil || !reflect.DeepEqual(changes, want) {
+		t.Errorf("ChangedFiles = %+v, %v\nwant %+v", changes, err, want)
+	}
+}
+
+func TestChangedFiles_NoChange_ReturnsNone(t *testing.T) {
+	root := newRepo(t)
+	git(t, root, "branch", "same")
+
+	changes, err := ChangedFiles(root, "HEAD", "refs/heads/same", []string{"issues"})
+
+	if err != nil || len(changes) != 0 {
+		t.Errorf("ChangedFiles = %+v, %v; want none", changes, err)
+	}
+}
+
+func TestShowFile_ReadsTheBranchCopy(t *testing.T) {
+	root := newRepo(t)
+	commitFile(t, root, "issues/note.md", "main copy\n")
+	git(t, root, "checkout", "-q", "-b", "topic")
+	commitFile(t, root, "issues/note.md", "topic copy\n")
+	git(t, root, "checkout", "-q", "-")
+
+	content, err := ShowFile(root, "refs/heads/topic", "issues/note.md")
+
+	if err != nil || string(content) != "topic copy\n" {
+		t.Errorf("ShowFile = %q, %v; want the topic copy", content, err)
+	}
+	if _, err := ShowFile(root, "refs/heads/topic", "issues/absent.md"); err == nil {
+		t.Error("ShowFile of a missing file succeeded, want an error")
+	}
+}

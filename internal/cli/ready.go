@@ -17,13 +17,14 @@ const flagShowHidden = "show-hidden"
 
 // readyOptions holds the flags of one capcom ready.
 type readyOptions struct {
-	labels       []string
-	noLabels     []string
-	isPlanned    bool
-	isUnplanned  bool
-	isAll        bool
-	isShowHidden bool
-	limit        int
+	labels             []string
+	noLabels           []string
+	isPlanned          bool
+	isUnplanned        bool
+	isAll              bool
+	isShowHidden       bool
+	isElsewhereSkipped bool
+	limit              int
 }
 
 // readyEntry is one listed issue and the ready rules' verdict on it.
@@ -49,7 +50,8 @@ type readyData struct {
 }
 
 // newReadyCommand lists the Ready issues, most urgent first and in tree order within a priority.
-// A dependency counted as satisfied only because it was dropped is reported as a warning.
+// A dependency counted as satisfied only because it was dropped is reported as a warning. Issue
+// changes on other local branches are reported apart from the list (Elsewhere).
 func (a *app) newReadyCommand() *cobra.Command {
 	options := &readyOptions{}
 	cmd := &cobra.Command{
@@ -65,12 +67,13 @@ func (a *app) newReadyCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, Result{
+			result := Result{
 				Kind:     "ready",
 				Data:     readyListData(listed),
 				Text:     readyLines(listed),
 				Warnings: droppedDepWarnings(listed),
-			})
+			}
+			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.issuesPathspec()))
 		}),
 	}
 	flags := cmd.Flags()
@@ -81,6 +84,7 @@ func (a *app) newReadyCommand() *cobra.Command {
 	flags.BoolVar(&options.isAll, flagAll, false, "also list todo issues that are not ready, with what blocks them")
 	flags.BoolVar(&options.isShowHidden, flagShowHidden, false, "include issues carrying a ready.hide label")
 	flags.IntVar(&options.limit, flagLimit, 0, "list at most this many issues (0: all)")
+	flags.BoolVar(&options.isElsewhereSkipped, flagNoElsewhere, false, "skip the report of issue changes on other branches")
 	cmd.MarkFlagsMutuallyExclusive(flagPlanned, flagUnplanned)
 	return cmd
 }

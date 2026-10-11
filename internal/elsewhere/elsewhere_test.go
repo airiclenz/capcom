@@ -1,0 +1,250 @@
+package elsewhere
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+)
+
+const (
+	issuesPathspec = ".capcom/issues"
+	scanDays       = 30
+)
+
+// issueFile is the content of an issue file with the given status.
+func issueFile(status string) string {
+	return "---\ntitle: Some work\nstatus: " + status + "\ntype: task\ncreated: 2026-10-11T09:00:00Z\n---\n"
+}
+
+// git runs a (possibly writing) git command for test setup.
+func git(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	command := exec.Command("git", args...)
+	command.Dir = dir
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
+}
+
+// newRepo creates a hermetic git repository (ADR 0007) and returns its symlink-free root. Tests
+// using it set environment variables and so do not call t.Parallel.
+func newRepo(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	environment := map[string]string{
+		"GIT_CONFIG_GLOBAL":       os.DevNull,
+		"GIT_CONFIG_NOSYSTEM":     "1",
+		"GIT_CEILING_DIRECTORIES": filepath.Dir(root),
+		"GIT_AUTHOR_NAME":         "Test Author",
+		"GIT_AUTHOR_EMAIL":        "author@example.com",
+		"GIT_COMMITTER_NAME":      "Test Committer",
+		"GIT_COMMITTER_EMAIL":     "committer@example.com",
+	}
+	for key, value := range environment {
+		t.Setenv(key, value)
+	}
+	git(t, root, "init", "-q")
+	return root
+}
+
+// commitIssues writes the issue files, named by slash paths below .capcom/issues/ (an empty
+// content deletes the file), and commits them.
+func commitIssues(t *testing.T, root string, files map[string]string) {
+	t.Helper()
+	for name, content := range files {
+		path := filepath.Join(root, ".capcom", "issues", filepath.FromSlash(name))
+		if content == "" {
+			if err := os.Remove(path); err != nil {
+				t.Fatalf("Remove: %v", err)
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+	git(t, root, "add", "-A")
+	git(t, root, "commit", "-q", "-m", "issues")
+}
+
+// newIssueRepo creates a repository whose first commit holds two open issues.
+func newIssueRepo(t *testing.T) string {
+	t.Helper()
+	root := newRepo(t)
+	commitIssues(t, root, map[string]string{
+		"login-flow.md":                 issueFile("open"),
+		"login-flow/session-refresh.md": issueFile("open"),
+	})
+	return root
+}
+
+// onBranch creates branch from HEAD, commits files on it and checks the previous branch out again.
+func onBranch(t *testing.T, root, branch string, files map[string]string) {
+	t.Helper()
+	git(t, root, "checkout", "-q", "-b", branch)
+	commitIssues(t, root, files)
+	git(t, root, "checkout", "-q", "-")
+}
+
+// scan runs Scan over the issue tree of root at the current time.
+func scan(root string) Report {
+	return Scan(Options{
+		WorktreeRoot: root,
+		Pathspecs:    []string{issuesPathspec},
+		Days:         scanDays,
+		Now:          time.Now(),
+	})
+}
+
+func TestScan_BranchClosesAnIssue_ReportsItsStatus(t *testing.T) {
+	root := newIssueRepo(t)
+	onBranch(t, root, "fix-login", map[string]string{"login-flow/session-refresh.md": issueFile("done")})
+
+	report := scan(root)
+
+	want := []Entry{{
+		ID:     "session-refresh",
+		Branch: "fix-login",
+		Change: Modified,
+		Status: "done",
+		Path:   ".capcom/issues/login-flow/session-refresh.md",
+	}}
+	if !reflect.DeepEqual(report.Entries, want) || len(report.Warnings) != 0 {
+		t.Errorf("report = %+v\nwant entries %+v and no warnings", report, want)
+	}
+	if got := report.Entries[0].String(); got != "session-refresh: done on fix-login (unmerged)" {
+		t.Errorf("String = %q", got)
+	}
+}
+
+func TestScan_BranchRenamesAnIssue_ReportsRemovedPlusAdded(t *testing.T) {
+	root := newIssueRepo(t)
+	git(t, root, "checkout", "-q", "-b", "rename-work")
+	git(t, root, "mv", ".capcom/issues/login-flow.md", ".capcom/issues/sign-in-flow.md")
+	git(t, root, "mv", ".capcom/issues/login-flow", ".capcom/issues/sign-in-flow")
+	git(t, root, "commit", "-q", "-m", "rename")
+	git(t, root, "checkout", "-q", "-")
+
+	report := scan(root)
+
+	var lines []string
+	for _, entry := range report.Entries {
+		lines = append(lines, entry.String())
+	}
+	want := []string{
+		"login-flow: removed on rename-work (unmerged)",
+		"session-refresh: removed on rename-work (unmerged)",
+		"sign-in-flow: added on rename-work (unmerged)",
+		"session-refresh: added on rename-work (unmerged)",
+	}
+	if !reflect.DeepEqual(lines, want) {
+		t.Errorf("entries = %q\nwant %q", lines, want)
+	}
+}
+
+func TestScan_MergedOrCurrentOrOldBranch_ReportsNothing(t *testing.T) {
+	root := newIssueRepo(t)
+	onBranch(t, root, "merged", map[string]string{"login-flow.md": issueFile("done")})
+	git(t, root, "merge", "-q", "--ff-only", "merged")
+	commitIssues(t, root, map[string]string{"login-flow.md": issueFile("parked")})
+	onBranch(t, root, "old-work", map[string]string{"login-flow.md": issueFile("dropped")})
+
+	report := Scan(Options{
+		WorktreeRoot: root,
+		Pathspecs:    []string{issuesPathspec},
+		Days:         scanDays,
+		Now:          time.Now().Add((scanDays + 1) * 24 * time.Hour),
+	})
+	current := scan(root)
+
+	if len(report.Entries) != 0 || len(report.Warnings) != 0 {
+		t.Errorf("beyond the window: report = %+v, want nothing", report)
+	}
+	for _, entry := range current.Entries {
+		if entry.Branch != "old-work" {
+			t.Errorf("entry %v: only old-work holds unmerged changes", entry)
+		}
+	}
+}
+
+func TestScan_BranchInAnotherWorktree_IsReportedButNotAgainstItself(t *testing.T) {
+	root := newIssueRepo(t)
+	worktree := filepath.Join(t.TempDir(), "side")
+	git(t, root, "worktree", "add", "-q", "-b", "side", worktree)
+	commitIssues(t, worktree, map[string]string{"login-flow.md": issueFile("parked")})
+
+	fromMain := scan(root)
+	fromWorktree := scan(worktree)
+
+	want := []Entry{{ID: "login-flow", Branch: "side", Change: Modified, Status: "parked", Path: ".capcom/issues/login-flow.md"}}
+	if !reflect.DeepEqual(fromMain.Entries, want) {
+		t.Errorf("from main: entries = %+v, want %+v", fromMain.Entries, want)
+	}
+	if len(fromWorktree.Entries) != 0 || len(fromWorktree.Warnings) != 0 {
+		t.Errorf("from the worktree on side: report = %+v, want nothing", fromWorktree)
+	}
+}
+
+func TestScan_UnparsableCopy_ReportsModifiedWithAWarning(t *testing.T) {
+	root := newIssueRepo(t)
+	onBranch(t, root, "broken", map[string]string{"login-flow.md": "no frontmatter\n"})
+
+	report := scan(root)
+
+	if len(report.Entries) != 1 || report.Entries[0].String() != "login-flow: modified on broken (unmerged)" {
+		t.Errorf("entries = %+v, want login-flow modified", report.Entries)
+	}
+	if len(report.Warnings) != 1 || !strings.Contains(report.Warnings[0], "broken:.capcom/issues/login-flow.md") {
+		t.Errorf("warnings = %q, want one naming the branch copy", report.Warnings)
+	}
+}
+
+func TestScan_SingleFilePathspec_LimitsTheReport(t *testing.T) {
+	root := newIssueRepo(t)
+	onBranch(t, root, "both", map[string]string{
+		"login-flow.md":                 issueFile("done"),
+		"login-flow/session-refresh.md": issueFile("done"),
+	})
+
+	report := Scan(Options{
+		WorktreeRoot: root,
+		Pathspecs:    []string{".capcom/issues/login-flow.md"},
+		Days:         scanDays,
+		Now:          time.Now(),
+	})
+
+	if len(report.Entries) != 1 || report.Entries[0].ID != "login-flow" {
+		t.Errorf("entries = %+v, want login-flow only", report.Entries)
+	}
+}
+
+func TestScan_UnbornHead_WarnsOnce(t *testing.T) {
+	root := newIssueRepo(t)
+	git(t, root, "checkout", "-q", "--orphan", "fresh")
+
+	report := scan(root)
+
+	if len(report.Entries) != 0 || len(report.Warnings) != 1 || !strings.Contains(report.Warnings[0], "HEAD") {
+		t.Errorf("report = %+v, want one warning about HEAD", report)
+	}
+}
+
+func TestScan_FreshRepository_ReportsNothing(t *testing.T) {
+	root := newRepo(t)
+
+	report := scan(root)
+
+	if len(report.Entries) != 0 || len(report.Warnings) != 0 {
+		t.Errorf("report = %+v, want nothing in a repository without branches", report)
+	}
+}

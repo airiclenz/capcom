@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
+
+	"github.com/airiclenz/capcom/internal/elsewhere"
 )
 
 // SchemaVersion is the version of the --json envelope. It changes only when an existing field
@@ -18,6 +21,10 @@ const (
 	kvKeyMessage  = "MESSAGE"
 	kvStatusOK    = "ok"
 	textWarnLabel = "warning: "
+	// textElsewhereLabel starts each Elsewhere line in text mode.
+	textElsewhereLabel = "elsewhere: "
+	// flagNoElsewhere skips the Elsewhere scan of the commands that run one.
+	flagNoElsewhere = "no-elsewhere"
 )
 
 // Result is what a successful command hands to the output layer. Text is written verbatim in
@@ -25,14 +32,17 @@ const (
 // KV holds the --kv records, and a command that leaves KV nil does not support --kv. Failure,
 // when set, is a failure that goes with a partial result (a multi-id command missing one id): text
 // writes it to stderr after the result, --json sets it as the envelope's error next to its data,
-// and --kv leaves it to the records' own STATUS lines.
+// and --kv leaves it to the records' own STATUS lines. Elsewhere holds the issue changes on other
+// branches, reported apart from the result: text writes one line each after it, --json puts them
+// in the envelope's elsewhere member, and --kv leaves them out.
 type Result struct {
-	Kind     string
-	Data     any
-	Text     string
-	KV       []KVRecord
-	Warnings []string
-	Failure  *Error
+	Kind      string
+	Data      any
+	Text      string
+	KV        []KVRecord
+	Elsewhere []elsewhere.Entry
+	Warnings  []string
+	Failure   *Error
 }
 
 // KVRecord is one block of --kv output: its pairs in order, then a closing STATUS line
@@ -52,12 +62,12 @@ type KVPair struct {
 // Error on failure; Elsewhere and Warnings are always present, empty when there is nothing to
 // report.
 type Envelope struct {
-	Schema    int        `json:"schema"`
-	Kind      string     `json:"kind"`
-	Data      any        `json:"data,omitempty"`
-	Error     *ErrorBody `json:"error,omitempty"`
-	Elsewhere []any      `json:"elsewhere"`
-	Warnings  []string   `json:"warnings"`
+	Schema    int               `json:"schema"`
+	Kind      string            `json:"kind"`
+	Data      any               `json:"data,omitempty"`
+	Error     *ErrorBody        `json:"error,omitempty"`
+	Elsewhere []elsewhere.Entry `json:"elsewhere"`
+	Warnings  []string          `json:"warnings"`
 }
 
 // ErrorBody is the error member of a failure Envelope.
@@ -107,6 +117,9 @@ type textRenderer struct {
 func (r textRenderer) Render(result Result) error {
 	var out strings.Builder
 	out.WriteString(result.Text)
+	for _, entry := range result.Elsewhere {
+		out.WriteString(textElsewhereLabel + entry.String() + "\n")
+	}
 	for _, warning := range result.Warnings {
 		out.WriteString(textWarnLabel + warning + "\n")
 	}
@@ -131,7 +144,12 @@ type jsonRenderer struct {
 }
 
 func (r jsonRenderer) Render(result Result) error {
-	envelope := Envelope{Kind: result.Kind, Data: result.Data, Warnings: result.Warnings}
+	envelope := Envelope{
+		Kind:      result.Kind,
+		Data:      result.Data,
+		Elsewhere: result.Elsewhere,
+		Warnings:  result.Warnings,
+	}
 	if result.Failure != nil {
 		envelope.Error = errorBody(result.Failure)
 	}
@@ -155,7 +173,7 @@ func errorBody(failure *Error) *ErrorBody {
 func (r jsonRenderer) write(envelope Envelope) error {
 	envelope.Schema = SchemaVersion
 	if envelope.Elsewhere == nil {
-		envelope.Elsewhere = []any{}
+		envelope.Elsewhere = []elsewhere.Entry{}
 	}
 	if envelope.Warnings == nil {
 		envelope.Warnings = []string{}
@@ -203,4 +221,33 @@ var kvLineBreaks = strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ")
 
 func writeKVLine(out *strings.Builder, key, value string) {
 	out.WriteString(key + "=" + kvLineBreaks.Replace(value) + "\n")
+}
+
+// addElsewhere scans the other local branches for changes to the issue files below pathspecs
+// (relative to the worktree root, with forward slashes) and adds what it finds to result, its
+// failures as warnings. It scans nothing when isSkipped (--no-elsewhere), when there is no
+// pathspec, and in --kv mode, which leaves Elsewhere out.
+func (a *app) addElsewhere(result Result, isSkipped bool, pathspecs []string) Result {
+	if isSkipped || a.isKV || len(pathspecs) == 0 {
+		return result
+	}
+	report := elsewhere.Scan(elsewhere.Options{
+		WorktreeRoot: a.store.WorktreeRoot,
+		Pathspecs:    pathspecs,
+		Days:         a.store.Config.Elsewhere.Days,
+		Now:          time.Now(),
+	})
+	result.Elsewhere = report.Entries
+	result.Warnings = append(result.Warnings, report.Warnings...)
+	return result
+}
+
+// issuesPathspec is the pathspec of the whole issue tree, or none when the store lies outside the
+// worktree.
+func (a *app) issuesPathspec() []string {
+	relative := relativeSlashPath(a.store.WorktreeRoot, a.store.IssuesDir())
+	if relative == "" {
+		return nil
+	}
+	return []string{relative}
 }

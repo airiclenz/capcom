@@ -33,22 +33,24 @@ var statusCategories = []config.Category{
 
 // listOptions holds the flags of one capcom list.
 type listOptions struct {
-	statuses    []string
-	categories  []string
-	labels      []string
-	noLabels    []string
-	types       []string
-	priorities  []int
-	parent      string
-	plan        string
-	isPlanned   bool
-	isUnplanned bool
-	isAll       bool
-	limit       int
+	statuses           []string
+	categories         []string
+	labels             []string
+	noLabels           []string
+	types              []string
+	priorities         []int
+	parent             string
+	plan               string
+	isPlanned          bool
+	isUnplanned        bool
+	isAll              bool
+	isElsewhereSkipped bool
+	limit              int
 }
 
 // newListCommand lists issues in tree order, one line each. Without flags it lists every issue
-// that is not Closed.
+// that is not Closed. Issue changes on other local branches are reported apart from the list
+// (Elsewhere).
 func (a *app) newListCommand() *cobra.Command {
 	options := &listOptions{}
 	cmd := &cobra.Command{
@@ -65,11 +67,12 @@ func (a *app) newListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, Result{
+			result := Result{
 				Kind: "issue-list",
 				Data: issueListData(entries),
 				Text: issueLines(entries, relativeSlashPath(a.store.WorktreeRoot, a.store.IssuesDir())),
-			})
+			}
+			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.issuesPathspec()))
 		}),
 	}
 	flags := cmd.Flags()
@@ -85,6 +88,7 @@ func (a *app) newListCommand() *cobra.Command {
 	flags.BoolVar(&options.isUnplanned, flagUnplanned, false, "only issues without a plan")
 	flags.BoolVar(&options.isAll, flagAll, false, "include closed issues")
 	flags.IntVar(&options.limit, flagLimit, 0, "list at most this many issues (0: all)")
+	flags.BoolVar(&options.isElsewhereSkipped, flagNoElsewhere, false, "skip the report of issue changes on other branches")
 	cmd.MarkFlagsMutuallyExclusive(flagPlanned, flagUnplanned)
 	return cmd
 }

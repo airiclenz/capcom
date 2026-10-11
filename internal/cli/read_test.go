@@ -289,3 +289,97 @@ func TestSearch_NoMatch_IsNotFound(t *testing.T) {
 		t.Errorf("exit = %d stdout = %q stderr = %q, want not_found", exitCode, stdout, stderr)
 	}
 }
+
+// elsewhereLine is the text line reporting session-refresh closed on the fix-login branch.
+const elsewhereLine = "elsewhere: session-refresh: done on fix-login (unmerged)\n"
+
+// newDivergedStore commits the read store, then closes session-refresh on a fix-login branch that
+// the checked-out branch has not merged.
+func newDivergedStore(t *testing.T) string {
+	t.Helper()
+	root := newReadStore(t)
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "-q", "-m", "issues")
+	runGit(t, root, "checkout", "-q", "-b", "fix-login")
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow/session-refresh.md": readIssue(longTitle, "done", "labels: [auth]\n", "\nFixed.\n"),
+	})
+	runGit(t, root, "commit", "-q", "-a", "-m", "close session-refresh")
+	runGit(t, root, "checkout", "-q", "-")
+	return root
+}
+
+func TestReady_DivergedBranch_ReportsElsewhereAfterTheResult(t *testing.T) {
+	root := newDivergedStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "ready")
+
+	if exitCode != ExitOK || stderr != "" || !strings.HasPrefix(stdout, "release-checklist  open  P0") ||
+		!strings.HasSuffix(stdout, elsewhereLine) {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant the ready list, then %q", exitCode, stderr, stdout, elsewhereLine)
+	}
+}
+
+func TestList_DivergedBranchJSON_PutsElsewhereInTheEnvelope(t *testing.T) {
+	root := newDivergedStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "list", "--json")
+
+	reported, _ := decodeEnvelope(t, stdout)["elsewhere"].([]any)
+	want := map[string]any{
+		"id":     "session-refresh",
+		"branch": "fix-login",
+		"change": "modified",
+		"status": "done",
+		"path":   ".capcom/issues/login-flow/session-refresh.md",
+	}
+	if exitCode != ExitOK || len(reported) != 1 || fmt.Sprint(reported[0]) != fmt.Sprint(want) {
+		t.Errorf("exit = %d elsewhere = %v, want [%v]", exitCode, reported, want)
+	}
+}
+
+func TestList_NoElsewhere_SkipsTheScan(t *testing.T) {
+	root := newDivergedStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "list", "--no-elsewhere")
+
+	if exitCode != ExitOK || strings.Contains(stdout, "elsewhere") {
+		t.Errorf("exit = %d stdout = %q, want no elsewhere line", exitCode, stdout)
+	}
+}
+
+func TestShow_DivergedBranch_ReportsOnlyTheShownIssues(t *testing.T) {
+	root := newDivergedStore(t)
+
+	shown, _, shownExit := runCLI(t, root, "show", "session-refresh")
+	other, _, otherExit := runCLI(t, root, "show", "release-checklist")
+
+	if shownExit != ExitOK || !strings.HasSuffix(shown, elsewhereLine) {
+		t.Errorf("show session-refresh exit = %d stdout = %q, want it to end with %q", shownExit, shown, elsewhereLine)
+	}
+	if otherExit != ExitOK || strings.Contains(other, "elsewhere") {
+		t.Errorf("show release-checklist exit = %d stdout = %q, want no elsewhere line", otherExit, other)
+	}
+}
+
+func TestShow_KVWithDivergedBranch_KeepsStatusLast(t *testing.T) {
+	root := newDivergedStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "show", "--kv", "session-refresh")
+
+	if exitCode != ExitOK || lastLine(stdout) != "STATUS=ok" || strings.Contains(stdout, "elsewhere") {
+		t.Errorf("exit = %d stdout = %q, want no Elsewhere and STATUS=ok last", exitCode, stdout)
+	}
+}
+
+func TestReady_UnbornHead_WarnsAndPrintsTheResult(t *testing.T) {
+	root := newDivergedStore(t)
+	runGit(t, root, "checkout", "-q", "--orphan", "fresh")
+
+	stdout, _, exitCode := runCLI(t, root, "ready")
+
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, "release-checklist  open  P0") ||
+		!strings.Contains(stdout, "warning: elsewhere: HEAD has no commit yet") {
+		t.Errorf("exit = %d stdout = %q, want the ready list and a warning about HEAD", exitCode, stdout)
+	}
+}

@@ -84,7 +84,11 @@ Depends on item 0 (provides item 2).
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/` ; `GOMEMLIMIT=2GiB go test -count=1 -run Lock ./internal/cli/` ; `GOOS=windows go vet ./internal/lock/`
 **Commit:** `feat(lock): per-worktree tree lock with token and heartbeat`
 
-## 13. Elsewhere: changes on other branches
+## 13. Elsewhere: changes on other branches — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): gitx also gained `HasCommit` (unborn-HEAD check) and `IsAncestor` (`merge-base --is-ancestor`, for "has commits not in HEAD") beside the planned `Branches`/`ChangedFiles`/`ShowFile`; `ChangedFiles` takes the worktree root as its first argument, and `ShowFile` reads with `git cat-file blob` so no textconv applies.
+NOTES (2026-10-11): the scan is skipped (no git calls) under `--kv`, since the kv renderer omits Elsewhere; the unborn-HEAD warning is raised only when some other in-window branch exists, so a fresh repository with no commits stays silent; `elsewhere.days: 0` ignores every branch (literal reading of "tip newer than days"), matching docs/format.md's "older than this many days are not scanned".
+NOTES (2026-10-11): the `addElsewhere` helper and the `no-elsewhere` flag constant live in internal/cli/output.go; Envelope.Elsewhere changed from `[]any` to `[]elsewhere.Entry` (still always present, `[]` when empty).
 
 Depends on item 0 (provides item 7).
 **What:**

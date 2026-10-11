@@ -16,28 +16,34 @@ const failureSeparator = "; "
 
 // newShowCommand prints each named issue in full. Every argument is resolved on its own; the
 // issues found are printed even when another argument fails, and the command then exits with the
-// first failure's code.
+// first failure's code. Changes to the shown issues on other local branches are reported apart
+// from them (Elsewhere).
 func (a *app) newShowCommand() *cobra.Command {
-	return &cobra.Command{
+	var isElsewhereSkipped bool
+	cmd := &cobra.Command{
 		Use:         "show <id|alias|prefix>...",
 		Short:       "Show issues in full",
 		Args:        cobra.MinimumNArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			result, err := a.showResult(args)
+			result, shownPaths, err := a.showResult(args)
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, result)
+			return a.emit(cmd, a.addElsewhere(result, isElsewhereSkipped, shownPaths))
 		}),
 	}
+	cmd.Flags().BoolVar(&isElsewhereSkipped, flagNoElsewhere, false, "skip the report of changes to these issues on other branches")
+	return cmd
 }
 
 // showResult looks up every argument and builds the result: the issues found, a --kv record per
-// argument closed by its own STATUS, and the joined failure of the arguments that failed.
-func (a *app) showResult(args []string) (Result, error) {
+// argument closed by its own STATUS, and the joined failure of the arguments that failed. It also
+// returns the paths of the issues found, relative to the worktree root.
+func (a *app) showResult(args []string) (Result, []string, error) {
 	result := Result{Kind: "issue", KV: []KVRecord{}}
 	data := make([]issueData, 0, len(args))
+	var shownPaths []string
 	var text strings.Builder
 	var messages []string
 	for _, arg := range args {
@@ -45,7 +51,7 @@ func (a *app) showResult(args []string) (Result, error) {
 		if err != nil {
 			failure, isArgument := resolveFailure(err)
 			if !isArgument {
-				return Result{}, failure
+				return Result{}, nil, failure
 			}
 			if result.Failure == nil {
 				result.Failure = failure
@@ -60,11 +66,11 @@ func (a *app) showResult(args []string) (Result, error) {
 
 		body, err := a.issueIndex.Body(entry.Path)
 		if err != nil {
-			return Result{}, err
+			return Result{}, nil, err
 		}
 		file, err := a.readIssueFile(entry.Path)
 		if err != nil {
-			return Result{}, err
+			return Result{}, nil, err
 		}
 		etag := issue.ETag(file)
 		if text.Len() > 0 {
@@ -76,13 +82,14 @@ func (a *app) showResult(args []string) (Result, error) {
 		shown.Body = &body
 		data = append(data, shown)
 		result.KV = append(result.KV, issueKV(entry, etag))
+		shownPaths = append(shownPaths, entry.Path)
 	}
 	if result.Failure != nil {
 		result.Failure.Message = strings.Join(messages, failureSeparator)
 	}
 	result.Data = data
 	result.Text = text.String()
-	return result, nil
+	return result, shownPaths, nil
 }
 
 // resolveFailure types a failure to resolve an argument: no match is not_found, an ambiguous
