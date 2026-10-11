@@ -20,6 +20,9 @@ const kindNoteRemove = "note-remove"
 // noteFileExtension ends every Note file; the Note's children directory is its path without it.
 const noteFileExtension = ".md"
 
+// noteNoun names a Note in the messages know rm shares with rm.
+const noteNoun = "note"
+
 // knowRmOptions holds the flags of one capcom know rm.
 type knowRmOptions struct {
 	ifMatch string
@@ -75,11 +78,11 @@ func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 		return Result{}, &Error{
 			Code:    CodeInvalid,
 			Path:    path,
-			Message: fmt.Sprintf("note %s has %s; remove or move them first", node.ID, childNoteCount(len(children))),
+			Message: fmt.Sprintf("note %s has %s; remove or move them first", node.ID, childCount(len(children), noteNoun)),
 		}
 	}
 	childrenDir := strings.TrimSuffix(node.Path, noteFileExtension)
-	hasChildrenDir, err := a.checkChildrenDir(childrenDir)
+	hasChildrenDir, err := a.checkChildrenDir(childrenDir, noteNoun)
 	if err != nil {
 		return Result{}, err
 	}
@@ -115,10 +118,11 @@ func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 	return result, nil
 }
 
-// checkChildrenDir reports whether the Note's children directory dir exists. A directory that
-// holds anything, files the tree skips such as dotfiles and non-Note files among them, is refused
-// invalid naming it, so removing the Note never orphans it.
-func (a *app) checkChildrenDir(dir string) (bool, error) {
+// checkChildrenDir reports whether the children directory dir of a node exists; noun names the
+// kind of node ("note", "issue"). A directory that holds anything, files the tree skips such as
+// dotfiles and non-node files among them, is refused invalid naming it, so removing the node never
+// orphans it.
+func (a *app) checkChildrenDir(dir string, noun string) (bool, error) {
 	info, err := os.Stat(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
@@ -138,7 +142,7 @@ func (a *app) checkChildrenDir(dir string) (bool, error) {
 		return false, &Error{
 			Code:    CodeInvalid,
 			Path:    path,
-			Message: fmt.Sprintf("the note's children directory still holds %s; remove them first", entryCount(len(entries))),
+			Message: fmt.Sprintf("the %s's children directory still holds %s; remove them first", noun, entryCount(len(entries))),
 		}
 	}
 	return true, nil
@@ -169,12 +173,12 @@ func noteRemoveResult(id string, path string) Result {
 	}
 }
 
-// childNoteCount phrases count child Notes: "1 child note", "2 child notes".
-func childNoteCount(count int) string {
+// childCount phrases count children of the kind noun names: "1 child note", "2 child issues".
+func childCount(count int, noun string) string {
 	if count == 1 {
-		return "1 child note"
+		return "1 child " + noun
 	}
-	return fmt.Sprintf("%d child notes", count)
+	return fmt.Sprintf("%d child %ss", count, noun)
 }
 
 // entryCount phrases count directory entries: "1 entry", "2 entries".

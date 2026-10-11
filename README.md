@@ -36,7 +36,8 @@ and show up in code review like the code they describe.
   merging, and the issues travel with the branch they were changed on. Ids are readable slugs
   you choose (`login-timeout-race`); the directory tree is the hierarchy, so a child issue is a
   file in its parent's directory. Renaming one (`capcom mv`) is a plain file rename that keeps the
-  old id as an alias and rewrites the dependencies that named it.
+  old id as an alias and rewrites the dependencies that named it; `capcom rm` deletes one that has
+  no children and nothing depending on it (`--drop-deps` removes those dependencies instead).
 - **A fast index that can't drift.** A local SQLite index under the git directory is built from
   those files for quick queries ("what's ready to work on?") and refreshes itself on every
   command. It is a cache: delete it and capcom rebuilds it.
@@ -67,7 +68,7 @@ and show up in code review like the code they describe.
 
 Every command prints plain text by default and a versioned JSON envelope with `--json`. `show`,
 `close`, `reopen`, every `lock` subcommand, `version` and the commands that write an issue
-(`create`, `update`, `log`, `mv`, `dep add`, `dep rm`) also take `--kv`, after the command name,
+(`create`, `update`, `log`, `mv`, `rm`, `dep add`, `dep rm`) also take `--kv`, after the command name,
 and print `KEY=VALUE` lines ending in `STATUS=`; the other commands do not offer it.
 Exit codes: 0 ok, 1 error, 2 usage, 3 not found or locked. capcom runs on Linux, macOS and Windows.
 
@@ -148,6 +149,7 @@ capcom dep add login-timeout-race token-store-rework
 capcom mv login-timeout-race --parent login-flow
 capcom close login-timeout-race --reason "Fixed in 3f2a1c9"
 capcom reopen login-timeout-race --reason "Came back on Safari"
+capcom rm login-timeout-race --drop-deps   # refuses children; drops the deps that name it
 
 capcom lock acquire --purpose "implementing the release plan"   # prints the token to keep
 capcom lock touch --token <token>

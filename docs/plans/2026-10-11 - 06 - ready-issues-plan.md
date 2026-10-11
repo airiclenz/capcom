@@ -119,7 +119,10 @@ block reports `agents-block`, exit 1; after `capcom agents`, 0.
 **Closes:** agents-source-link
 **Commit:** `feat(agents): point the Managed block at capcom's source and install instructions`
 
-## 4. capcom rm removes an issue
+## 4. capcom rm removes an issue — ✅ DONE (2026-10-11)
+NOTES (2026-10-11): know_rm.go's childNoteCount became childCount(count, noun) (plus a noteNoun constant) so rm's "1 child issue" message shares it; know rm's text is unchanged.
+NOTES (2026-10-11): planned dep-drop rewrites are serialized without config validation, as mv's planRewrite does, so a dependent with an unrelated validation problem does not block rm.
+NOTES (2026-10-11): README's --kv command list also gains `rm`, since rm offers --kv.
 
 **What:**
 **Goal:** `capcom rm <id|alias|prefix> [--if-match <etag>] [--drop-deps]` deletes an issue file and

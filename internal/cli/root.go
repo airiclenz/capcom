@@ -109,6 +109,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newReadyCommand())
 	root.AddCommand(a.newReindexCommand())
 	root.AddCommand(a.newReopenCommand())
+	root.AddCommand(a.newRmCommand())
 	root.AddCommand(a.newSearchCommand())
 	root.AddCommand(a.newShowCommand())
 	root.AddCommand(a.newUpdateCommand())

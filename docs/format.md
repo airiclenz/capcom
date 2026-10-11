@@ -108,6 +108,13 @@ name) and `updated` (git and the index know when a file changed).
 The body is free markdown. By convention it holds an `## Acceptance` section and a `## Log`
 section, the dated, append-only record of progress and remarks.
 
+`capcom rm` deletes an issue file together with its aliases. It refuses, changing nothing, an
+issue with children, an issue whose children directory still holds any file, and an issue other
+issues depend on (their `deps` name its id or an alias), listing those issues; `--drop-deps`
+removes their `deps` entries for it instead. A `deps` entry of the issue on itself does not count.
+Like `update`, it takes `--if-match <etag>` and refuses with a conflict when the file's etag
+differs. capcom deletes the file itself and never runs git.
+
 ### Canonical form
 
 capcom writes every issue file in one canonical form, and reading a canonical file and writing it
@@ -144,9 +151,9 @@ allow (an undeclared status or type, a priority out of range) cites its key's li
 
 A command does not fail on a bad issue file. The index (`<git-dir>/capcom/index.db`) leaves the file
 out and every command that reads it reports the file as a warning, after its result, until the file
-is fixed; the other issues stay usable. `create` and `mv` fail on a problem with the tree only when it
-concerns the issue they write or move, its new path or the parent they resolve; any other is a
-warning. `know add`, `know mv` and `know rm` treat the Knowledge tree the same way for the Note
+is fixed; the other issues stay usable. `create`, `mv` and `rm` fail on a problem with the tree only
+when it concerns the issue they write, move or remove, its new path or the parent they resolve; any
+other is a warning. `know add`, `know mv` and `know rm` treat the Knowledge tree the same way for the Note
 they write, move or remove. A new id is refused when a file anywhere under a directory without its
 node file is named for that id or records it among its aliases, since that file is outside the tree
 until the directory is fixed. Two files that answer to the same id or alias are both left out, each
