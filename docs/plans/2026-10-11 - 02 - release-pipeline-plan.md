@@ -115,7 +115,12 @@ apogee cmd/release/dist_test.go — fakeToolchain; apogee cmd/release/main_test.
 **Acceptance:** `go vet ./cmd/release/` ; `GOMEMLIMIT=2GiB go test -count=1 ./cmd/release/` ; `GOMEMLIMIT=2GiB go run ./cmd/release dist --out "$(mktemp -d)"` lists six archives and SHA256SUMS
 **Commit:** `feat(release): add the cmd/release dev tool with the dist verb`
 
-## 4. Gate and prepare verbs
+## 4. Gate and prepare verbs — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the two CHANGELOG.md refusals whose line is known name it as `CHANGELOG.md:<line>:` ("already has a ## [X.Y.Z] heading", "no bullet under ## [Unreleased] to release") per AGENTS.md, where apogee named only the file; the VERSION-already-reads refusal names the bare version and says "an unpushed version bump" instead of apogee's "micro-bump".
+NOTES (2026-10-11): main.go's package doc and the root Long text now name prepare alongside dist; peelablePaths uses the changelogFile constant, and the apogee-specific commit references in the ported comments and fixtures are dropped.
+NOTES (2026-10-11): fakeRepo keeps apogee's `release`/`tags` fields and the `gh release view` / `git rev-list --count` answers for item 5's baseline; only `remote` is dropped, its fallthrough returning "unexpected command".
+NOTES (2026-10-11): added TestPrepareCutsTheFirstReleaseOfAKeepAChangelogFile (no `v*` tag, VERSION `0.0.0`, `### Added` under Unreleased, no prior release heading) and a refusal case for a VERSION written with its `v`.
 
 **What:**
 **Goal:** `go run ./cmd/release prepare vX.Y.Z` makes two local commits — `chore(release): cut vX.Y.Z` turning `## [Unreleased]` content into `## [X.Y.Z] - YYYY-MM-DD` under an empty `## [Unreleased]`, and `chore(version): bump version to vX.Y.Z` writing `X.Y.Z\n` (bare) to VERSION — and refuses, writing nothing, on every condition apogee's prepare refuses.
