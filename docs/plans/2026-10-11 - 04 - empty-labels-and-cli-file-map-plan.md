@@ -35,7 +35,7 @@ file map that a structural test keeps up to date.
 - Repairing existing files that already hold an empty label: `capcom check` already reports them.
 - Adding a file map to any package other than `internal/cli`.
 
-## 1. Drop empty entries when labels are merged
+## 1. Drop empty entries when labels are merged — ✅ DONE (2026-10-11)
 
 **What:** This fixes the bug `know-update-empty-label`. `capcom know update --add-label "x,,y"`
 writes `labels: [x, "", y]`, which the parser rejects, so the Note stops resolving. The same

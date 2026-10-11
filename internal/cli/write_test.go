@@ -144,6 +144,19 @@ func TestCreate_BodyFromStdin_WritesBody(t *testing.T) {
 	}
 }
 
+func TestCreate_LabelWithEmptyEntry_DropsIt(t *testing.T) {
+	root := newWriteStore(t)
+
+	mustRun(t, root, "create", "--id", "new-thing", "--title", "New thing", "--label", "x,,y")
+
+	content := readStoreFile(t, root, "new-thing.md")
+	if !strings.Contains(content, "\nlabels: [x, y]\n") {
+		t.Errorf("content = %q", content)
+	}
+	mustRun(t, root, "show", "new-thing")
+	mustRun(t, root, "check")
+}
+
 func TestUpdate_Fields_ChangeTheFile(t *testing.T) {
 	root := newWriteStore(t)
 
@@ -155,6 +168,19 @@ func TestUpdate_Fields_ChangeTheFile(t *testing.T) {
 	if !strings.HasPrefix(content, want) {
 		t.Errorf("content = %q\nwant prefix %q", content, want)
 	}
+}
+
+func TestUpdate_AddLabelWithEmptyEntry_DropsIt(t *testing.T) {
+	root := newWriteStore(t)
+
+	mustRun(t, root, "update", "login-flow", "--add-label", "x,,y")
+
+	content := readStoreFile(t, root, "login-flow.md")
+	if !strings.Contains(content, "\nlabels: [auth, x, y]\n") {
+		t.Errorf("content = %q", content)
+	}
+	mustRun(t, root, "show", "login-flow")
+	mustRun(t, root, "check")
 }
 
 func TestUpdate_NoChangeFlag_ExitsUsage(t *testing.T) {

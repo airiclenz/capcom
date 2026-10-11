@@ -46,6 +46,19 @@ func TestKnowUpdate_TitleLabelsAndRefs_RewriteTheFrontmatter(t *testing.T) {
 	}
 }
 
+func TestKnowUpdate_AddLabelWithEmptyEntry_DropsIt(t *testing.T) {
+	root := newKnowStore(t)
+
+	mustRun(t, root, "know", "update", "git-fixtures", "--add-label", "x,,y")
+
+	want := "---\ntitle: Git fixtures\nlabels: [x, y]\n---\n"
+	if got := readNoteFile(t, root, "testing-rules/git-fixtures.md"); got != want {
+		t.Errorf("note file = %q; want %q", got, want)
+	}
+	mustRun(t, root, "know", "show", "git-fixtures")
+	mustRun(t, root, "check")
+}
+
 func TestKnowUpdate_PrintsTheEtagOfTheWrittenFile(t *testing.T) {
 	root := newKnowStore(t)
 

@@ -20,9 +20,9 @@ const logContinuationIndent = "  "
 // is edit.ErrReplaceMatch, so errors.Is matches either name.
 var ErrReplaceMatch = edit.ErrReplaceMatch
 
-// WithLabels returns a copy of the issue with each label of add appended unless it is already
-// there, then each label of remove taken out. Labels keep their order; a label to remove that the
-// issue does not carry is ignored.
+// WithLabels returns a copy of the issue with each label of add appended unless it is empty or
+// already there, then each label of remove taken out. Labels keep their order; a label to remove
+// that the issue does not carry is ignored.
 func (i Issue) WithLabels(add []string, remove []string) Issue {
 	i.Labels = edit.Labels(i.Labels, add, remove)
 	return i

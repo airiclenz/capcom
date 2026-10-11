@@ -39,6 +39,16 @@ func TestLabels_AddsMissingThenRemoves(t *testing.T) {
 	}
 }
 
+func TestLabels_EmptyAdd_Dropped(t *testing.T) {
+	add := []string{"x", "", "y"}
+
+	merged := edit.Labels(nil, add, nil)
+
+	if want := []string{"x", "y"}; !slices.Equal(merged, want) {
+		t.Errorf("labels = %#v, want %#v", merged, want)
+	}
+}
+
 func TestAppendBody_AddsBlockAfterBlankLine(t *testing.T) {
 	cases := []struct {
 		name string

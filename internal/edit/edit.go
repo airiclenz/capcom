@@ -15,13 +15,14 @@ import (
 // ErrReplaceMatch reports body replacement text that does not occur exactly once in the body.
 var ErrReplaceMatch = errors.New("the text to replace must occur exactly once in the body")
 
-// Labels returns a new slice holding labels with each label of add appended unless it is already
-// there, then each label of remove taken out. Labels keep their order; a label to remove that is
-// not there is ignored. The result is nil when no label is left; labels itself is not modified.
+// Labels returns a new slice holding labels with each label of add appended unless it is empty or
+// already there, then each label of remove taken out. Labels keep their order; a label to remove
+// that is not there is ignored. The result is nil when no label is left; labels itself is not
+// modified.
 func Labels(labels []string, add []string, remove []string) []string {
 	merged := slices.Clone(labels)
 	for _, label := range add {
-		if !slices.Contains(merged, label) {
+		if label != "" && !slices.Contains(merged, label) {
 			merged = append(merged, label)
 		}
 	}

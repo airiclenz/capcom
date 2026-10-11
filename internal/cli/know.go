@@ -386,11 +386,10 @@ func (a *app) newNotePath(notes *tree.Tree, options *knowAddOptions) (string, er
 // newNote builds the Note the flags describe: labels without repeats or empty entries, and the
 // body file's text as noteBody shapes it.
 func newNote(cmd *cobra.Command, options *knowAddOptions) (knowledge.Note, error) {
-	note := knowledge.Note{Title: options.title, Refs: options.refs}
-	for _, label := range options.labels {
-		if label != "" && !slices.Contains(note.Labels, label) {
-			note.Labels = append(note.Labels, label)
-		}
+	note := knowledge.Note{
+		Title:  options.title,
+		Labels: edit.Labels(nil, options.labels, nil),
+		Refs:   options.refs,
 	}
 	if options.bodyFile == "" {
 		return note, nil
