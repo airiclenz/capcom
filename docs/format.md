@@ -44,6 +44,8 @@ An **Alias** is a former id that still resolves to its node, kept after a rename
 old citations stay valid. A node has any number of them, listed in its `aliases:` field. An alias
 uses only `a-z`, `0-9`, dots and hyphens, the wider set legacy ids need (`apogee-kk0.4`). No id and
 no alias may appear twice anywhere in one tree, and a new id may not reuse an existing id or alias.
+Renaming a node adds its old id to its aliases: `capcom mv` does so for an issue and
+`capcom know mv` for a Note.
 
 ### Naming a node
 
@@ -173,6 +175,22 @@ Any other key is an error, the id included. capcom writes a Note with the keys i
 table, empty fields left out, lists in flow style on one line, text unquoted wherever YAML reads it
 back unchanged and quoted otherwise, and the body byte for byte. The body is free markdown.
 
+Notes are changed through capcom, never by hand-editing `.capcom/knowledge/`:
+
+- `capcom know add` writes a new Note, at the top of the tree or below `--parent`.
+- `capcom know update` changes a Note's title, labels, refs or body; only the flags given change
+  anything. The body takes the same edit flags as `capcom update` for an issue, plus `--body-file`
+  to replace the whole body.
+- `capcom know mv` renames a Note, moves it below another (`--parent`, or `.` for the top of the
+  tree), or both. A rename keeps the old id as an alias, and the Note's children move with it.
+- `capcom know rm` deletes a Note file together with its aliases. A Note with children is refused;
+  move or remove them first.
+
+An **etag** is a hash of a Note file's bytes: `capcom know show` prints it, and `know add`,
+`know update` and `know mv` print the new one after a write. `know update`, `know mv` and
+`know rm` take `--if-match <etag>` and refuse with a conflict, changing nothing, when the file's
+etag differs, so an agent never overwrites a Note that changed since it last read it.
+
 ### Refs
 
 A **Ref** is either a path or `path#symbol`:
@@ -295,9 +313,11 @@ alone, so the same tree always yields the same block.
 - `capcom agents --check` fails when the block is out of date, and `capcom check` reports an
   out-of-date block as an `agents-block` problem at the begin marker's line. A file without the
   block is neither: the block is opt-in.
-- A top-level `capcom know add` refreshes the block when `AGENTS.md` already holds one and it went
-  out of date; it never adds a block to a file without one. Adding a Note below another changes
-  nothing, since the block lists only the top level.
+- A Note write that changes the top level of the Knowledge tree refreshes the block when
+  `AGENTS.md` already holds one and it went out of date: a top-level `capcom know add`, a
+  `capcom know update` of a top-level Note's title, a `capcom know mv` into, out of or within the
+  top level, and a `capcom know rm` of a top-level Note. It never adds a block to a file without
+  one. A write below the top level changes nothing, since the block lists only the top level.
 - A marker that appears twice, an end marker before the begin marker, or a begin marker that is
   never closed is an error at that marker's line, for `agents` and `check` alike.
 

@@ -71,11 +71,11 @@ type knowAddOptions struct {
 	bodyFile string
 }
 
-// newKnowCommand groups the commands that read, add and change Knowledge Notes.
+// newKnowCommand groups the commands that read, add, change, move and remove Knowledge Notes.
 func (a *app) newKnowCommand() *cobra.Command {
 	know := &cobra.Command{
 		Use:   "know",
-		Short: "Read, search, add, update and verify Knowledge Notes",
+		Short: "Read, search, add, update, move, remove and verify Knowledge Notes",
 		Args:  cobra.NoArgs,
 	}
 	know.AddCommand(a.newKnowAddCommand())

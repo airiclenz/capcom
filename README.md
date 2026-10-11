@@ -37,7 +37,9 @@ capcom keeps a single source of truth, and that truth is files under git.
 - **Project knowledge on demand.** The facts agents need about a repo (conventions, gotchas, why
   something is the way it is) live as small Notes under `.capcom/knowledge/`, so an agent pulls up
   just the part it needs instead of reading one huge instructions file. Each Note names the files
-  and symbols it talks about, and `capcom know verify` flags the ones that have gone.
+  and symbols it talks about, and `capcom know verify` flags the ones that have gone. Notes are
+  changed with `capcom know update`, renamed or moved with `capcom know mv` (the old id stays an
+  alias, as with `capcom mv`) and deleted with `capcom know rm`.
 - **Changes on other branches.** `ready`, `list`, `show` and `prime` warn when an issue was
   changed on another local branch that is not merged yet; capcom never merges them itself.
 - **A briefing at session start.** `capcom prime` prints the ready work, the issues in progress,
@@ -111,6 +113,9 @@ capcom lock release --token <token>
 capcom know add --id release-steps --title "How a release is cut" --ref docs/release.md
 capcom know tree
 capcom know search release
+capcom know update release-steps --add-label release --if-match <etag>   # etag from know show
+capcom know mv release-steps cutting-a-release   # the old id stays an alias
+capcom know rm cutting-a-release                 # refuses a Note with children
 capcom know verify              # Note refs that no longer resolve
 
 capcom agents                   # write or refresh the capcom block of AGENTS.md

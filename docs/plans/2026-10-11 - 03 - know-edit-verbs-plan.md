@@ -208,7 +208,9 @@ refreshes the block; tangled AGENTS.md markers → warning; unknown id → not_f
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run KnowRm ./internal/cli/`
 **Commit:** `feat(know): add know rm to remove a Note without children`
 
-## 7. Document the Note edit verbs
+## 7. Document the Note edit verbs — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): CONTEXT.md left unchanged — its Note and Managed block entries say nothing about how Notes change or which writes refresh the block, so nothing there was stale.
 
 **What:**
 **Goal:** the user docs describe `know update`, `know mv`, `know rm`, Note etags and which Note
