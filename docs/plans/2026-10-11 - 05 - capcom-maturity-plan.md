@@ -54,7 +54,9 @@ Elsewhere, `capcom fmt`, Codex hooks and a complete beads migration guide.
 - 10: guard folded
 - 11: guard folded
 
-## 1. ADR 0009: the store declares its format version
+## 1. ADR 0009: the store declares its format version — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the header's ratified "Format version" call already names the `capcom prime` exception at the base, so the regression guard's header correction needed no edit; the glossary term sits at the end of CONTEXT.md's Structure section
 
 **What:**
 **Goal:** `docs/adr/0009-the-store-declares-its-format-version.md` exists in the house ADR form and

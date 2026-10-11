@@ -33,6 +33,12 @@ The node directly above another in a **Tree**. An **Issue** with children is a *
 no separate epic kind.
 _Avoid_: epic, container
 
+**Format version**:
+The integer a repository's capcom files declare in the `format:` key of `config.yaml`, saying which
+file format they are written in; a missing key means 1. A binary refuses a store whose **Format
+version** is above the highest it reads, and adding any key to the files raises it.
+_Avoid_: schema version, store version, config version
+
 ### Work
 
 **Issue**:
