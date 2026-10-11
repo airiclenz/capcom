@@ -145,6 +145,7 @@ func TestParse_NonCanonical_SerializesCanonically(t *testing.T) {
 		"  - b",
 		"  - a",
 		"deps: []",
+		"related: []",
 		"plan: ~",
 		"title: \"Out of order\"",
 		"status: done",
@@ -173,6 +174,41 @@ func TestParse_NonCanonical_SerializesCanonically(t *testing.T) {
 
 	if string(serialized) != want {
 		t.Errorf("Serialize =\n%s\nwant\n%s", serialized, want)
+	}
+}
+
+func TestParse_Related_SerializesAfterDeps(t *testing.T) {
+	data := []byte(strings.Join([]string{
+		"---",
+		"related: [clock-skew-guard, token-store-rework]",
+		"plan: some-plan",
+		"deps: [session-store]",
+		"title: Linked",
+		"---",
+		"",
+	}, "\n"))
+	want := strings.Join([]string{
+		"---",
+		"title: Linked",
+		"priority: 2",
+		"deps: [session-store]",
+		"related: [clock-skew-guard, token-store-rework]",
+		"plan: some-plan",
+		"---",
+		"",
+	}, "\n")
+
+	parsed := mustParse(t, data)
+	serialized := parsed.Serialize()
+
+	if !slices.Equal(parsed.Related, []string{"clock-skew-guard", "token-store-rework"}) {
+		t.Errorf("Related = %q, want both linked ids in file order", parsed.Related)
+	}
+	if string(serialized) != want {
+		t.Errorf("Serialize =\n%s\nwant\n%s", serialized, want)
+	}
+	if again := mustParse(t, serialized).Serialize(); !bytes.Equal(again, serialized) {
+		t.Errorf("canonical file changed on a second round trip:\n%s", again)
 	}
 }
 
@@ -216,6 +252,11 @@ func TestParse_Failures_CiteFileLine(t *testing.T) {
 			name:    "empty list entry",
 			content: "---\ndeps: [a, '']\n---\n",
 			want:    testPath + ":2: deps: every entry must be non-empty text",
+		},
+		{
+			name:    "empty related entry",
+			content: "---\nrelated: ['']\n---\n",
+			want:    testPath + ":2: related: every entry must be non-empty text",
 		},
 		{
 			name:    "title not text",

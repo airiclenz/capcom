@@ -251,7 +251,10 @@ gaining a CRLF-ended line.
 **Closes:** log-merge-driver
 **Commit:** `feat(init): add --merge-driver to turn on the Log merge driver`
 
-## 8. Store format 2 and the related key in issue files
+## 8. Store format 2 and the related key in issue files — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): the new function is `config.RaiseFormat(data []byte, version int) ([]byte, bool)`. It works on bytes only: the caller reads and writes the file. The bool reports whether anything changed, so item 10 can warn only on a real raise. When content holds both a real and a commented `format:` line, the real line is replaced. A real `format:` value that is not a whole number counts as format 0 and is replaced. CRLF line endings are kept, and a missing final newline stays missing.
+NOTES (2026-10-12): `Default()` keeps `Format: FormatVersion` (2), so that `Parse(DefaultFile)` still equals `Default()`. `Parse` alone sets format 1 when the file has no key. As a result, a store with no `config.yaml` at all reads as format 2, because `store.loadConfig` uses `Default()` for a missing file. Item 10's raise has to treat a missing config file as format 1 if it should write the key there.
+NOTES (2026-10-12): `TestParse_EmptyDocument_ReturnsDefault` is renamed `TestParse_EmptyDocument_ReturnsDefaultAtFormatOne`, and `TestInit_WrittenConfig_CarriesFormatAsAComment` is renamed `TestInit_WrittenConfig_DeclaresCurrentFormat`, because their assertions changed with the item. docs/format.md, CONTEXT.md and the ADR 0009 wording about the comment-only key are left for item 12.
 
 **What:**
 **Goal:** `config.FormatVersion` is 2 (a keyless config still reads 1). Issue files may carry

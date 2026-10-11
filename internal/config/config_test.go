@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -23,14 +24,26 @@ func TestParse_DefaultFile_EqualsDefault(t *testing.T) {
 	}
 }
 
-func TestParse_EmptyDocument_ReturnsDefault(t *testing.T) {
+func TestParse_EmptyDocument_ReturnsDefaultAtFormatOne(t *testing.T) {
 	t.Parallel()
+	want := Default()
+	want.Format = 1
 	for _, content := range []string{"", "# only a comment\n", "~\n"} {
 		config, err := Parse(testPath, []byte(content))
 
-		if err != nil || !reflect.DeepEqual(config, Default()) {
-			t.Errorf("Parse(%q) = %+v, %v; want the default config", content, config, err)
+		if err != nil || !reflect.DeepEqual(config, want) {
+			t.Errorf("Parse(%q) = %+v, %v; want the default config at format 1", content, config, err)
 		}
+	}
+}
+
+func TestParse_DefaultFile_DeclaresCurrentFormat(t *testing.T) {
+	t.Parallel()
+
+	config, err := Parse(testPath, []byte(DefaultFile))
+
+	if err != nil || config.Format != 2 || !strings.Contains(DefaultFile, "\nformat: 2\n") {
+		t.Errorf("Parse(DefaultFile) = format %d, %v; want a real format: 2 line", config.Format, err)
 	}
 }
 
@@ -82,6 +95,16 @@ func TestParse_Format_MissingOrOneLoads(t *testing.T) {
 	}
 }
 
+func TestParse_FormatTwo_Loads(t *testing.T) {
+	t.Parallel()
+
+	config, err := Parse(testPath, []byte("format: 2\ntypes: [bug]\n"))
+
+	if err != nil || config.Format != 2 {
+		t.Errorf("Parse = format %d, %v; want format 2", config.Format, err)
+	}
+}
+
 func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -89,9 +112,9 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 		content  string
 		wantLine int
 	}{
-		{"format alone", "format: 2\n", 1},
-		{"after other keys", "types: [bug]\n\nformat: 2\n", 3},
-		{"unknown key above format", "colour: blue\nformat: 2\n", 2},
+		{"format alone", "format: 3\n", 1},
+		{"after other keys", "types: [bug]\n\nformat: 3\n", 3},
+		{"unknown key above format", "colour: blue\nformat: 3\n", 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -103,12 +126,88 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 			if !errors.As(err, &failure) {
 				t.Fatalf("err = %v, want *config.Error", err)
 			}
-			want := fmt.Sprintf("%s:%d: store format 2 is newer than this capcom reads (up to 1); upgrade capcom",
+			want := fmt.Sprintf("%s:%d: store format 3 is newer than this capcom reads (up to 2); upgrade capcom",
 				testPath, testCase.wantLine)
 			if err.Error() != want {
 				t.Errorf("err = %q, want %q", err.Error(), want)
 			}
 		})
+	}
+}
+
+// formatOneTemplate is the config.yaml `capcom init` wrote while the store format was 1: the
+// current template with the format key left as a comment under its own comment line.
+func formatOneTemplate(t *testing.T) string {
+	t.Helper()
+	current := formatComment + "\nformat: 2\n"
+	legacy := "# The store format version; left as a comment, since a missing key means format 1.\n# format: 1\n"
+	if !strings.Contains(DefaultFile, current) {
+		t.Fatalf("DefaultFile does not carry %q", current)
+	}
+	return strings.Replace(DefaultFile, current, legacy, 1)
+}
+
+func TestRaiseFormat_FormatOneTemplate_BecomesCurrentTemplate(t *testing.T) {
+	t.Parallel()
+
+	raised, isChanged := RaiseFormat([]byte(formatOneTemplate(t)), 2)
+
+	if !isChanged || string(raised) != DefaultFile {
+		t.Errorf("RaiseFormat = %v,\n%s\nwant the current template", isChanged, raised)
+	}
+}
+
+func TestRaiseFormat_RewritesOrInsertsOneFormatKey(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"no format key", "# mine\ntypes: [bug]\n", "format: 2\n# mine\ntypes: [bug]\n"},
+		{"empty file", "", "format: 2\n"},
+		{"commented key without the template comment", "# keep\n# format: 1\ntypes: [bug]\n",
+			"# keep\nformat: 2\ntypes: [bug]\n"},
+		{"format 1", "types: [bug]\nformat: 1 # old\nlock:\n  ttl: 1h\n", "types: [bug]\nformat: 2\nlock:\n  ttl: 1h\n"},
+		{"real key wins over a commented one", "# format: 1\nformat: 1\n", "# format: 1\nformat: 2\n"},
+		{"CRLF kept", "types: [bug]\r\nformat: 1\r\n", "types: [bug]\r\nformat: 2\r\n"},
+		{"CRLF on insert", "types: [bug]\r\n", "format: 2\r\ntypes: [bug]\r\n"},
+		{"no final newline", "types: [bug]\nformat: 1", "types: [bug]\nformat: 2"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			raised, isChanged := RaiseFormat([]byte(testCase.content), 2)
+
+			if !isChanged || string(raised) != testCase.want {
+				t.Fatalf("RaiseFormat(%q) = %q, %v; want %q, true", testCase.content, raised, isChanged, testCase.want)
+			}
+			config, err := Parse(testPath, raised)
+			if err != nil || config.Format != 2 {
+				t.Errorf("Parse(raised) = format %d, %v; want format 2", config.Format, err)
+			}
+		})
+	}
+}
+
+func TestRaiseFormat_AtOrAboveVersion_IsUnchanged(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		content string
+		version int
+	}{
+		{DefaultFile, 2},
+		{"format: 3\n", 2},
+		{"# format: 1\n", 1},
+	}
+	for _, testCase := range cases {
+		raised, isChanged := RaiseFormat([]byte(testCase.content), testCase.version)
+
+		if isChanged || string(raised) != testCase.content {
+			t.Errorf("RaiseFormat(%q, %d) = %q, %v; want it unchanged",
+				testCase.content, testCase.version, raised, isChanged)
+		}
 	}
 }
 

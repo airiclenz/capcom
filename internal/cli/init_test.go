@@ -56,7 +56,7 @@ func TestInit_NewRepository_CreatesStore(t *testing.T) {
 	}
 }
 
-func TestInit_WrittenConfig_CarriesFormatAsAComment(t *testing.T) {
+func TestInit_WrittenConfig_DeclaresCurrentFormat(t *testing.T) {
 	root := newGitRepo(t)
 	runCLI(t, root, "init")
 	configPath := filepath.Join(root, ".capcom", "config.yaml")
@@ -67,8 +67,8 @@ func TestInit_WrittenConfig_CarriesFormatAsAComment(t *testing.T) {
 	}
 	opened, openErr := store.Open(root)
 
-	if !strings.Contains(string(data), "\n# format: 1\n") || strings.Contains(string(data), "\nformat:") {
-		t.Errorf("config.yaml = %q, want format only as the comment line # format: 1", data)
+	if !strings.Contains(string(data), "\nformat: 2\n") || strings.Contains(string(data), "# format:") {
+		t.Errorf("config.yaml = %q, want a real format: 2 line and no commented one", data)
 	}
 	if openErr != nil || opened.Config.Format != config.FormatVersion {
 		t.Errorf("store.Open = %v, format %v; want format %d", openErr, opened, config.FormatVersion)

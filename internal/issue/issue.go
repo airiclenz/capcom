@@ -25,6 +25,7 @@ const (
 	keyPriority = "priority"
 	keyLabels   = "labels"
 	keyDeps     = "deps"
+	keyRelated  = "related"
 	keyPlan     = "plan"
 	keyAliases  = "aliases"
 	keyCreated  = "created"
@@ -44,6 +45,9 @@ type Issue struct {
 	Labels   []string
 	// Deps are the ids of the issues this one depends on.
 	Deps []string
+	// Related are the ids of the issues this one is linked to without depending on them. The
+	// link is stored on one issue only; the reverse is derived.
+	Related []string
 	// Plan is the basename of the Plan document, resolved against the configured plan
 	// directories.
 	Plan string

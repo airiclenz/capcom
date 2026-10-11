@@ -86,10 +86,10 @@ func splitFrontmatter(rest string) (front string, body string, isClosed bool) {
 }
 
 // Serialize writes the issue in the canonical form: the frontmatter keys in the fixed order title,
-// status, type, priority, labels, deps, plan, aliases, created, closed, reason; empty fields left
-// out except priority, which is always written; lists in flow style; timestamps in RFC3339 UTC;
-// text plain where YAML reads it back unchanged and double-quoted otherwise; then the body
-// verbatim.
+// status, type, priority, labels, deps, related, plan, aliases, created, closed, reason; empty
+// fields left out except priority, which is always written; lists in flow style; timestamps in
+// RFC3339 UTC; text plain where YAML reads it back unchanged and double-quoted otherwise; then the
+// body verbatim.
 func (i Issue) Serialize() []byte {
 	var out strings.Builder
 	out.WriteString(fenceLine)
@@ -99,6 +99,7 @@ func (i Issue) Serialize() []byte {
 	fmt.Fprintf(&out, "%s: %d\n", keyPriority, i.Priority)
 	writeList(&out, keyLabels, i.Labels)
 	writeList(&out, keyDeps, i.Deps)
+	writeList(&out, keyRelated, i.Related)
 	writeText(&out, keyPlan, i.Plan)
 	writeList(&out, keyAliases, i.Aliases)
 	writeTime(&out, keyCreated, i.Created)
@@ -186,6 +187,8 @@ func (p parser) field(key, value *yaml.Node, issue *Issue) error {
 		issue.Labels, err = p.list(key.Value, value)
 	case keyDeps:
 		issue.Deps, err = p.list(key.Value, value)
+	case keyRelated:
+		issue.Related, err = p.list(key.Value, value)
 	case keyPlan:
 		issue.Plan, err = p.text(key.Value, value)
 	case keyAliases:

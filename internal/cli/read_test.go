@@ -164,14 +164,14 @@ func TestList_BadFlags_ExitUsage(t *testing.T) {
 	}
 }
 
-// newerFormatMessage is the error every command but prime gives on a store of format 2, whose
+// newerFormatMessage is the error every command but prime gives on a store of format 3, whose
 // format key sits on line 2 of the config written by writeNewerFormatConfig.
-const newerFormatMessage = ".capcom/config.yaml:2: store format 2 is newer than this capcom reads (up to 1); upgrade capcom"
+const newerFormatMessage = ".capcom/config.yaml:2: store format 3 is newer than this capcom reads (up to 2); upgrade capcom"
 
-// writeNewerFormatConfig replaces the store's config.yaml with one declaring format 2.
+// writeNewerFormatConfig replaces the store's config.yaml with one declaring format 3.
 func writeNewerFormatConfig(t *testing.T, root string) {
 	t.Helper()
-	content := "# written by a newer capcom\nformat: 2\n"
+	content := "# written by a newer capcom\nformat: 3\n"
 	if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

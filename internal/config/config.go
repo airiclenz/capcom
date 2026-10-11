@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -30,9 +31,20 @@ const (
 // categories lists every category in its canonical order.
 var categories = []Category{CategoryTodo, CategoryDoing, CategoryWaiting, CategoryDone, CategoryDropped}
 
-// FormatVersion is the highest store format this capcom reads (ADR 0009). A config.yaml without a
-// format key is format 1.
-const FormatVersion = 1
+// FormatVersion is the highest store format this capcom reads, and the one `capcom init` writes
+// (ADR 0009). Format 2 adds the related key to issue files.
+const FormatVersion = 2
+
+// keylessFormat is the format of a config.yaml without a format key: every store written before
+// the key existed (ADR 0009).
+const keylessFormat = 1
+
+// formatComment is the template's comment line above its format key.
+const formatComment = "# The store format version. capcom refuses a store whose format is newer than it reads."
+
+// keylessFormatComment is the comment line the format-1 template carried above its commented-out
+// format key; RaiseFormat replaces it together with that key.
+const keylessFormatComment = "# The store format version; left as a comment, since a missing key means format 1."
 
 // Top-level and section keys of config.yaml.
 const (
@@ -57,8 +69,8 @@ const (
 // DefaultFile is the config.yaml `capcom init` writes. It parses to Default().
 const DefaultFile = `# capcom configuration. Every key is optional; a missing key takes the value shown here.
 
-# The store format version; left as a comment, since a missing key means format 1.
-# format: 1
+` + formatComment + `
+format: 2
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
@@ -96,7 +108,8 @@ type Status struct {
 
 // Config is a parsed, validated config.yaml.
 type Config struct {
-	// Format is the store format version, from 1 up to FormatVersion.
+	// Format is the store format version, from 1 up to FormatVersion; 1 when the file has no
+	// format key.
 	Format int
 	// Statuses in file order. Every name is unique, and at least one status is in the todo
 	// category and one in the done category.
@@ -142,7 +155,8 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Path, e.Message)
 }
 
-// Default returns the configuration used for every key a config file leaves out.
+// Default returns the configuration used for every key a config file leaves out, at the current
+// format: the configuration DefaultFile parses to.
 func Default() Config {
 	return Config{
 		Format: FormatVersion,
@@ -184,10 +198,12 @@ func (c Config) DefaultStatus(category Category) (string, bool) {
 }
 
 // Parse decodes and validates config.yaml content. path names the file in every error. Keys the
-// content leaves out take their Default value; an empty document is the default configuration.
+// content leaves out take their Default value, except a missing format key, which means format 1;
+// an empty document is the default configuration at format 1.
 func Parse(path string, data []byte) (Config, error) {
 	p := parser{path: path}
 	config := Default()
+	config.Format = keylessFormat
 
 	root, err := p.document(data)
 	if err != nil {
@@ -203,6 +219,77 @@ func Parse(path string, data []byte) (Config, error) {
 		return Config{}, err
 	}
 	return config, nil
+}
+
+// realFormatLine matches a top-level format key and captures its value; commentedFormatLine
+// matches a commented-out one such as the format-1 template's `# format: 1`.
+var (
+	realFormatLine      = regexp.MustCompile(`^format:[ \t]*([^#\s]*)`)
+	commentedFormatLine = regexp.MustCompile(`^#[ \t]*format:[ \t]*[0-9]+[ \t]*$`)
+)
+
+// RaiseFormat returns config.yaml content that declares at least the given store format, every
+// other byte kept, and whether it changed anything. A top-level format line is replaced by
+// `format: <version>`; failing that, a commented-out one is, and the format-1 template's comment
+// line directly above it becomes the current template's. Content with neither gains
+// `format: <version>` as its first line, so the key is never written twice. Content already at
+// version or above is returned unchanged.
+func RaiseFormat(data []byte, version int) ([]byte, bool) {
+	lines := bytes.SplitAfter(data, []byte("\n"))
+	index, declared := findFormatLine(lines)
+	if declared >= version {
+		return data, false
+	}
+
+	formatKey := fmt.Sprintf("%s: %d", keyFormat, version)
+	if index < 0 {
+		raised := append([]byte(formatKey+lineEnding(lines[0], "\n")), data...)
+		return raised, true
+	}
+	isCommented := commentedFormatLine.Match(trimLineEnding(lines[index]))
+	lines[index] = []byte(formatKey + lineEnding(lines[index], ""))
+	if isCommented && index > 0 && string(trimLineEnding(lines[index-1])) == keylessFormatComment {
+		lines[index-1] = []byte(formatComment + lineEnding(lines[index-1], ""))
+	}
+	return bytes.Join(lines, nil), true
+}
+
+// findFormatLine returns the index of the line holding the top-level format key and the format it
+// declares, or, without one, the first commented-out format line and keylessFormat. With neither
+// the index is -1. A value that is not a whole number declares format 0, below every version.
+func findFormatLine(lines [][]byte) (index int, declared int) {
+	commented := -1
+	for lineIndex, line := range lines {
+		content := trimLineEnding(line)
+		if match := realFormatLine.FindSubmatch(content); match != nil {
+			version, err := strconv.Atoi(string(match[1]))
+			if err != nil {
+				version = 0
+			}
+			return lineIndex, version
+		}
+		if commented < 0 && commentedFormatLine.Match(content) {
+			commented = lineIndex
+		}
+	}
+	return commented, keylessFormat
+}
+
+// trimLineEnding returns line without its trailing LF or CRLF.
+func trimLineEnding(line []byte) []byte {
+	return bytes.TrimSuffix(bytes.TrimSuffix(line, []byte("\n")), []byte("\r"))
+}
+
+// lineEnding returns the LF or CRLF line ends with, or fallback when it has none.
+func lineEnding(line []byte, fallback string) string {
+	switch {
+	case bytes.HasSuffix(line, []byte("\r\n")):
+		return "\r\n"
+	case bytes.HasSuffix(line, []byte("\n")):
+		return "\n"
+	default:
+		return fallback
+	}
 }
 
 // parser decodes one config file, attributing every failure to its path and line.
