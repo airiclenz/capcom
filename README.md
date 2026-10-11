@@ -1,6 +1,16 @@
-# capcom
+# capcom: a git-native issue tracker and knowledge base for AI coding agents
+
+[![CI](https://github.com/airiclenz/capcom/actions/workflows/ci.yml/badge.svg)](https://github.com/airiclenz/capcom/actions/workflows/ci.yml)
+[![Go version](https://img.shields.io/github/go-mod/go-version/airiclenz/capcom)](go.mod)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Mission control for a repository and the coding agents working in it.**
+
+capcom is a command-line issue tracker, task manager and project knowledge base built for AI
+coding agents such as Claude Code, OpenAI Codex, Cursor, Gemini CLI and Aider, and for the people
+working beside them. Issues and knowledge notes are plain markdown files under `.capcom/`,
+versioned in git with your code. There is no server, no account and no database to sync: one
+binary for Linux, macOS and Windows, written in Go.
 
 In spaceflight, CAPCOM is the one voice on the ground that talks to the crew. `capcom` plays that
 role for a code repository: it keeps the issue list, says who is currently working on the tree,
@@ -10,11 +20,16 @@ itself.
 > **Status: v1, pre-release.** Every command below works. Until the first release is published,
 > install it with `go install`; Homebrew, Scoop and winget packages follow from that release on.
 
+**Contents:** [Why](#why) · [Features](#what-it-does) · [Works with](#works-with-any-coding-agent) ·
+[Install](#install) · [Quick start](#quick-start) · [Commands](#usage) · [FAQ](#faq) ·
+[License](#license)
+
 ## Why
 
 Issue trackers built for agents tend to keep their data in two places: a database and a file
 exported from it for git. The two drift apart, and syncing them becomes a chore of its own.
-capcom keeps a single source of truth, and that truth is files under git.
+capcom keeps a single source of truth, and that truth is files under git: issues branch, merge
+and show up in code review like the code they describe.
 
 ## What it does
 
@@ -53,6 +68,19 @@ Every command prints plain text by default and a versioned JSON envelope with `-
 `close`, `lock` and the commands that write an issue also print `KEY=VALUE` lines with `--kv`.
 Exit codes: 0 ok, 1 error, 2 usage, 3 not found or locked. capcom runs on Linux, macOS and Windows.
 
+## Works with any coding agent
+
+capcom is a plain CLI, so any agent that can run a shell command can use it: Claude Code, OpenAI
+Codex, Cursor, Gemini CLI, Aider, GitHub Copilot's agent mode or your own scripts. Three things
+make that easy:
+
+- **`AGENTS.md`.** `capcom agents` writes a short block telling agents how to use capcom into
+  `AGENTS.md`, the instructions file most coding agents read on start-up.
+- **Claude Code hooks.** `capcom init --claude-hooks` runs `capcom prime` from Claude Code's
+  session hooks, so every session starts with a briefing.
+- **Machine-readable output.** `--json` and `--kv` give agents stable output to parse, and
+  `capcom check` gives them `path:line: message` errors to fix in a loop.
+
 ## Install
 
 capcom is a single binary and runs inside a git repository. The Homebrew, Scoop and winget
@@ -86,6 +114,17 @@ go install github.com/airiclenz/capcom/cmd/capcom@latest
 Prebuilt archives for Linux, macOS and Windows on amd64 and arm64 are attached to each
 [GitHub release](https://github.com/airiclenz/capcom/releases). How a release is cut is described
 in [docs/releasing.md](docs/releasing.md).
+
+## Quick start
+
+```sh
+cd your-repo
+capcom init                     # create .capcom/ in this git repository
+capcom agents                   # tell your agents about capcom in AGENTS.md
+capcom create --id first-task --title "Try capcom"
+capcom ready                    # what to work on next
+git add .capcom AGENTS.md && git commit -m "chore: track issues with capcom"
+```
 
 ## Usage
 
@@ -131,6 +170,29 @@ capcom reindex                  # rebuild the index from scratch
 The binary is `capcom`. If you want a shorter command, a **shell alias** such as
 `alias cc=capcom` works well. Don't install a binary or symlink named `cc`, though: that name
 belongs to the system C compiler, and build tools call it.
+
+## FAQ
+
+**Does capcom need a server, an account or a database?**
+No. The issues and Notes are files in your repository. The SQLite index is a local cache under
+the git directory, never committed, and rebuilt on demand.
+
+**How does a team or several agents share issues?**
+Through git, like the code: push, pull and merge. Each issue is its own file, so changes to
+different issues merge without conflicts, and `capcom check` validates the result after a merge.
+
+**Can two agents work in the same repository at once?**
+Yes. The Tree lock tells each agent session whether another one is editing the working tree, and
+every git worktree has a lock of its own, so agents can work in parallel worktrees.
+
+**How is it different from beads?**
+beads keeps a database and exports it to a file for git; capcom keeps only the files, so there is
+nothing to sync. [docs/migrating-from-beads.md](docs/migrating-from-beads.md) moves a repository
+over.
+
+**Is it only for AI agents?**
+No. The files are readable markdown and every command prints plain text, so people can use
+capcom on its own or alongside their agents.
 
 ## License
 
