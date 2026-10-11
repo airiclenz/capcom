@@ -215,3 +215,32 @@ func TestKnow_IssueSearchForAWordOnlyInANote_IsNotFound(t *testing.T) {
 		t.Errorf("search harness = %d\n%s", exitCode, stdout)
 	}
 }
+
+func TestKnowAdd_TopLevel_RefreshesAnExistingAgentsBlock(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "agents")
+
+	nested := mustRun(t, root, "know", "add", "--id", "seed-repos", "--title", "Seed repos", "--parent", "git-fixtures")
+	topLevel := mustRun(t, root, "know", "add", "--id", "api-design", "--title", "API design")
+
+	if strings.Contains(nested, "refreshed") || !strings.HasSuffix(topLevel, "refreshed: AGENTS.md\n") {
+		t.Errorf("know add output = %q then %q; want only the top-level add to refresh", nested, topLevel)
+	}
+	if !strings.Contains(readAgentsGuide(t, root), "- `api-design`: API design\n") {
+		t.Errorf("AGENTS.md =\n%s\nwant the new top-level Note listed", readAgentsGuide(t, root))
+	}
+	if stdout, _, exitCode := runCLI(t, root, "check"); exitCode != ExitOK {
+		t.Errorf("check after know add = %d\n%s", exitCode, stdout)
+	}
+}
+
+func TestKnowAdd_TopLevelWithoutAgentsBlock_LeavesAgentsAlone(t *testing.T) {
+	root := newKnowStore(t)
+	writeAgentsGuide(t, root, "# Guide\n")
+
+	stdout := mustRun(t, root, "know", "add", "--id", "api-design", "--title", "API design")
+
+	if strings.Contains(stdout, "refreshed") || readAgentsGuide(t, root) != "# Guide\n" {
+		t.Errorf("know add = %q, AGENTS.md = %q; want AGENTS.md untouched", stdout, readAgentsGuide(t, root))
+	}
+}

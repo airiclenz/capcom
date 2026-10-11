@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -312,11 +313,28 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(note.Serialize())); err != nil {
 		return Result{}, asError(err)
 	}
-	return Result{
-		Kind: "note-write",
-		Data: map[string]string{"id": options.id, "path": path},
-		Text: fmt.Sprintf("id: %s\npath: %s\n", options.id, path),
-	}, nil
+	data := map[string]string{"id": options.id, "path": path}
+	result := Result{Kind: "note-write", Data: data, Text: fmt.Sprintf("id: %s\npath: %s\n", options.id, path)}
+	if options.parent == "" {
+		a.refreshAgentsAfterAdd(&result, data)
+	}
+	return result, nil
+}
+
+// refreshAgentsAfterAdd refreshes the capcom block of AGENTS.md after a top-level Note joined the
+// Knowledge tree, so check stays green; an AGENTS.md without the block is left alone. The Note is
+// already written, so a failure here is a warning, not a failed command. A refresh is reported in
+// result's text and, as an agents key, in its --json data.
+func (a *app) refreshAgentsAfterAdd(result *Result, data map[string]string) {
+	status, err := refreshAgentsBlock(a.store, true)
+	if err != nil {
+		result.Warnings = append(result.Warnings, flatten(err.Error())+"; the capcom block was not refreshed")
+		return
+	}
+	if status.State == agents.StateStale {
+		data["agents"] = blockRefreshed
+		result.Text += "refreshed: " + agents.FileName + "\n"
+	}
 }
 
 // newNotePath returns where the new Note goes, relative to the working tree root with forward

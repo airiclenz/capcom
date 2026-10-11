@@ -2,7 +2,9 @@
 // and the Knowledge tree, read straight from the files and never from the index. It owns no rule
 // of its own beyond resolving deps and plans; it collects what the config parser, the tree loader,
 // the issue and Note parsers and validators, the dependency cycle search and the Ref verifier
-// report, each as a Problem citing the file and, when known, the line (ADR 0006).
+// report, each as a Problem citing the file and, when known, the line (ADR 0006). It also reports
+// an AGENTS.md whose capcom Managed block is out of date or whose markers are tangled; an AGENTS.md
+// without the block, or no AGENTS.md at all, is no problem.
 package check
 
 import (
@@ -14,6 +16,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
@@ -47,6 +50,8 @@ const (
 	CodeMissingPlan = "missing-plan"
 	// CodeBrokenRef is a Note Ref that does not resolve in the working tree.
 	CodeBrokenRef = "broken-ref"
+	// CodeAgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled.
+	CodeAgentsBlock = "agents-block"
 )
 
 // refSymbolSeparator splits a Note Ref into its path and symbol.
@@ -98,6 +103,9 @@ func Run(cwd string) ([]Problem, error) {
 		return nil, err
 	}
 	if err := run.notes(); err != nil {
+		return nil, err
+	}
+	if err := run.agentsBlock(); err != nil {
 		return nil, err
 	}
 	slices.SortStableFunc(run.problems, func(a, b Problem) int {
@@ -350,6 +358,28 @@ func (c *checker) checkNote(node tree.Node, note knowledge.Note) error {
 			continue // Validate already reported a Ref without a path
 		}
 		c.add(path, finding.Line, CodeBrokenRef, fmt.Sprintf("ref %q: %s", finding.Ref, finding.Message))
+	}
+	return nil
+}
+
+// agentsBlock checks the Managed block of AGENTS.md against the Knowledge tree's top level.
+func (c *checker) agentsBlock() error {
+	notes, err := agents.TopNotes(c.store.KnowledgeDir())
+	if err != nil {
+		return err
+	}
+	status, err := agents.Inspect(c.store.WorktreeRoot, notes)
+	var tangled *agents.Error
+	if errors.As(err, &tangled) {
+		c.add(tangled.Path, tangled.Line, CodeAgentsBlock, tangled.Message)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if status.State == agents.StateStale {
+		c.add(agents.FileName, status.Line, CodeAgentsBlock,
+			"the capcom block is out of date; run capcom agents to refresh it")
 	}
 	return nil
 }

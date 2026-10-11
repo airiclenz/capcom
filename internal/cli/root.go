@@ -23,7 +23,8 @@ const (
 
 // annotationIndex is the cobra annotation a command sets to have the index ready before its body
 // runs: indexRefresh brings it up to date, indexRebuild recreates it. Commands without it never
-// open the store or the index.
+// open the store or the index here; prime goes without it on purpose and opens both itself, so
+// that their failures become warnings instead of failing the session it briefs.
 const (
 	annotationIndex = "capcom-index"
 	indexRefresh    = "refresh"
@@ -96,6 +97,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	}
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
 	root.PersistentFlags().BoolVar(&a.isKV, flagKV, false, "print KEY=VALUE lines ending in STATUS=")
+	root.AddCommand(a.newAgentsCommand())
 	root.AddCommand(a.newCheckCommand())
 	root.AddCommand(a.newCloseCommand())
 	root.AddCommand(a.newCreateCommand())
@@ -106,6 +108,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newLockCommand())
 	root.AddCommand(a.newLogCommand())
 	root.AddCommand(a.newMvCommand())
+	root.AddCommand(a.newPrimeCommand())
 	root.AddCommand(a.newReadyCommand())
 	root.AddCommand(a.newReindexCommand())
 	root.AddCommand(a.newReopenCommand())

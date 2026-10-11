@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -73,5 +75,28 @@ func TestCheck_WithoutStore_FailsNotInitialized(t *testing.T) {
 
 	if exitCode != ExitError || !strings.Contains(stderr, "capcom init") {
 		t.Fatalf("check = %d, stderr %q; want 1 naming capcom init", exitCode, stderr)
+	}
+}
+
+func TestCheck_StaleAgentsBlock_ReportedAtTheMarkerLine(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "agents")
+	writeNoteFiles(t, root, map[string]string{"api-design.md": "---\ntitle: API design\n---\n"})
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	want := "AGENTS.md:1: the capcom block is out of date; run capcom agents to refresh it\n"
+	if exitCode != ExitError || stdout != want {
+		t.Errorf("check = %d, stdout %q; want 1 and %q", exitCode, stdout, want)
+	}
+}
+
+func TestCheck_WithoutAgentsGuide_ExitsZero(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	if _, err := os.Stat(filepath.Join(root, "AGENTS.md")); exitCode != ExitOK || stdout != "" || !os.IsNotExist(err) {
+		t.Errorf("check = %d, stdout %q, AGENTS.md stat %v; want 0, no output, no AGENTS.md", exitCode, stdout, err)
 	}
 }

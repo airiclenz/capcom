@@ -120,7 +120,13 @@ Depends on items 0 and 11.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/check/ ./internal/tree/` ; `GOMEMLIMIT=2GiB go test -count=1 -run Cycle ./internal/issue/` ; `GOMEMLIMIT=2GiB go test -count=1 -run Check ./internal/cli/`
 **Commit:** `feat(check): whole-store validation with path:line problems`
 
-## 15. Briefing and the Managed block: prime, agents, init --claude-hooks
+## 15. Briefing and the Managed block: prime, agents, init --claude-hooks — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the `.claude/settings.json` merge lives in `internal/cli/init.go` (the item's only settings-related file); it re-indents the whole document two spaces with `json.Indent`, so a settings file in another layout is re-laid out, while every value outside `hooks` keeps its bytes. An event already holding a hook whose command is `capcom prime` is left as it is (idempotence is judged by command, not matcher). The PreCompact group has no matcher, so it runs for manual and automatic compaction.
+NOTES (2026-10-11): `capcom agents` creates `AGENTS.md` holding only the block when the file is missing; `agents --check` exits 0 for a missing file or a file without markers (only a present-but-outdated block fails), and tangled markers (a second begin/end, an end first, a begin never closed) fail `invalid` at the marker's line — `check` reports them under the same `agents-block` code. AGENTS.md is replaced through its own temp-file rename (`tree.WriteFileAtomic` would turn CRLF into LF).
+NOTES (2026-10-11): the block's Knowledge list is read straight from the Note files (`agents.TopNotes`, top level only, id order, unparsable Notes left out) by `agents`, `check` and `know add` alike, so all three agree; `know add` refreshes only after a top-level add and only an already-present stale block, and a refresh failure there is a warning since the Note is already written.
+NOTES (2026-10-11): `prime` has no `annotationIndex`; it opens the store and the index itself and closes the index before returning, so neither `root.go`'s shared pre-run nor `Run`'s close can fail it. Index refresh warnings about unusable files are not repeated in the Briefing — the check problem count covers them. Broken Note refs and the problem count both come from one `check.Run`, so the Briefing reads the index only for Ready and doing issues and still shows locks, refs and the count when the index is unreadable. A panic in prime is recovered into a warning. `prime --kv` is a usage error (no KV records), like other commands without `--kv`.
+NOTES (2026-10-11): item 2's existing init tests needed no change (they assert substrings and `--json` only); the snippet is printed by every plain `init`, including a re-run. The docs/format.md wording of the Managed block and the know-add refresh is left to item 16 as planned.
 
 Depends on items 12, 13 and 14.
 **What:** Recast at the regression check (2026-10-11).
