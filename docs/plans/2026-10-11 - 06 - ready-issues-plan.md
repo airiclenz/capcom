@@ -338,7 +338,10 @@ it on both; raise and warning once (`newIssueStore`'s `init` writes `format: 2`:
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run 'Related|TestShow' ./internal/cli/`; `go vet ./internal/cli/`
 **Commit:** `feat(cli): add capcom related add and rm`
 
-## 11. mv rewrites related links and rm drops them
+## 11. mv rewrites related links and rm drops them — ✅ DONE (2026-10-12)
+NOTES (2026-10-12): rm also reports the dropped related holders in its text output (`related_dropped: [...]`, only when non-empty) and as a `RELATED_DROPPED` kv column, matching how `deps_dropped` is reported; the plan named only the `--json` key.
+NOTES (2026-10-12): the "deps not checked for <id>: the file does not parse" warning text of mv and rm is unchanged, though an unparseable file now also goes unchecked for related entries; the user-visible wording was left alone.
+NOTES (2026-10-12): README.md and docs/format.md do not yet describe related links in mv/rm; left to item 12 (Document related links and store format 2).
 
 **What:**
 **Goal:** a renaming `capcom mv` rewrites other issues' `related` entries naming the old id or an

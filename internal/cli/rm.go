@@ -29,15 +29,17 @@ type rmOptions struct {
 }
 
 // issueRemoveData is the --json data of rm: the removed issue's id and path, and the ids of the
-// issues whose deps on it were dropped.
+// issues whose deps on it and whose related entries naming it were dropped.
 type issueRemoveData struct {
-	ID          string   `json:"id"`
-	Path        string   `json:"path"`
-	DepsDropped []string `json:"deps_dropped"`
+	ID             string   `json:"id"`
+	Path           string   `json:"path"`
+	DepsDropped    []string `json:"deps_dropped"`
+	RelatedDropped []string `json:"related_dropped"`
 }
 
 // issueRemoval is one rm worked out before anything on disk changes: the issue file, its empty
-// children directory when it has one, and the dependents' files whose deps on it are dropped.
+// children directory when it has one, and the files whose deps on it or related entries naming it
+// are dropped, each rewritten once.
 type issueRemoval struct {
 	node tree.Node
 	// path is the issue file relative to the working tree root, with forward slashes.
@@ -47,13 +49,17 @@ type issueRemoval struct {
 	rewrites       []tree.Rewrite
 	// dropped are the ids of the issues whose deps are rewritten, in tree order.
 	dropped []string
-	// unread are the files of other issues that do not parse, so their deps were not checked.
+	// relatedDropped are the ids of the issues whose related entries are rewritten, in tree order.
+	relatedDropped []string
+	// unread are the files of other issues that do not parse, so their deps and related entries
+	// were not checked.
 	unread []string
 }
 
 // newRmCommand deletes one issue file. An issue with children, whose children directory holds
 // anything, or that other issues depend on is refused; --drop-deps removes those deps entries
-// instead. Its Aliases go with the file. capcom deletes the file itself and never runs git.
+// instead. Other issues' related entries naming it are always removed. Its Aliases go with the
+// file. capcom deletes the file itself and never runs git.
 func (a *app) newRmCommand() *cobra.Command {
 	options := &rmOptions{}
 	cmd := &cobra.Command{
@@ -82,7 +88,7 @@ func (a *app) newRmCommand() *cobra.Command {
 // removeIssue resolves arg and deletes its issue file together with the issue's own children
 // directory when that is empty, then the parent's children directory when the removal emptied it.
 // Every refusal comes before anything changes; see planIssueRemoval. The result names the removed
-// file and the dependents whose deps were dropped, with a warning for every tree problem that
+// file, the dependents whose deps were dropped and the issues whose related entries were dropped, with a warning for every tree problem that
 // concerns neither the issue nor its parent, and for every issue file whose deps were not checked.
 func (a *app) removeIssue(arg string, options *rmOptions) (Result, error) {
 	issues, err := tree.Load(a.store.IssuesDir(), readAliases)
@@ -110,7 +116,7 @@ func (a *app) removeIssue(arg string, options *rmOptions) (Result, error) {
 		return Result{}, err
 	}
 
-	result := issueRemoveResult(node.ID, removal.path, removal.dropped)
+	result := issueRemoveResult(node.ID, removal.path, removal.dropped, removal.relatedDropped)
 	result.Warnings = append(result.Warnings, warnings...)
 	for _, unread := range removal.unread {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
@@ -128,7 +134,8 @@ func (a *app) removeIssue(arg string, options *rmOptions) (Result, error) {
 // planIssueRemoval works out the removal of node, changing nothing. It refuses, invalid at the
 // file it names, an issue with children, a children directory holding anything and an issue other
 // issues depend on unless options drop those deps; an --if-match that is not the file's etag is a
-// conflict. A dependency of the issue on itself is no dependent.
+// conflict. A dependency of the issue on itself is no dependent. Related entries naming the issue
+// never refuse it: they are dropped.
 func (a *app) planIssueRemoval(issues *tree.Tree, node tree.Node, options *rmOptions) (*issueRemoval, error) {
 	removal := &issueRemoval{
 		node:        node,
@@ -182,8 +189,9 @@ func (a *app) planIssueRemoval(issues *tree.Tree, node tree.Node, options *rmOpt
 }
 
 // planDepDrops reads every other issue file of issues. A file that does not parse joins
-// removal.unread; the file of each issue in dependents is added as a rewrite without the deps
-// entries isDropped matches, and its id joins removal.dropped.
+// removal.unread. Each file is added as one rewrite without the deps entries isDropped matches,
+// when its issue is in dependents, and without the related entries isDropped matches; its id joins
+// removal.dropped for the first and removal.relatedDropped for the second.
 func (a *app) planDepDrops(
 	removal *issueRemoval,
 	issues *tree.Tree,
@@ -203,17 +211,32 @@ func (a *app) planDepDrops(
 			removal.unread = append(removal.unread, other.Path)
 			continue
 		}
-		if !slices.Contains(dependents, other.ID) {
-			continue
+		isDependent := slices.Contains(dependents, other.ID)
+		if isDependent {
+			parsed.Deps = dropEntries(parsed.Deps, isDropped)
+			removal.dropped = append(removal.dropped, other.ID)
 		}
-		parsed.Deps = slices.DeleteFunc(slices.Clone(parsed.Deps), isDropped)
-		if len(parsed.Deps) == 0 {
-			parsed.Deps = nil
+		related := dropEntries(parsed.Related, isDropped)
+		isRelatedDropped := len(related) != len(parsed.Related)
+		if isRelatedDropped {
+			parsed.Related = related
+			removal.relatedDropped = append(removal.relatedDropped, other.ID)
 		}
-		removal.rewrites = append(removal.rewrites, tree.Rewrite{Path: other.Path, Original: data, Content: parsed.Serialize()})
-		removal.dropped = append(removal.dropped, other.ID)
+		if isDependent || isRelatedDropped {
+			removal.rewrites = append(removal.rewrites, tree.Rewrite{Path: other.Path, Original: data, Content: parsed.Serialize()})
+		}
 	}
 	return nil
+}
+
+// dropEntries returns a copy of entries, a deps or related list, without the entries isDropped
+// matches, or nil when none is left.
+func dropEntries(entries []string, isDropped func(string) bool) []string {
+	kept := slices.DeleteFunc(slices.Clone(entries), isDropped)
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
 }
 
 // applyIssueRemoval writes every rewrite atomically, then removes the empty children directory
@@ -255,12 +278,20 @@ func (a *app) restoreRewrites(applied []tree.Rewrite, path string, cause error) 
 }
 
 // issueRemoveResult is the result of rm: the id and path of the removed issue file and the ids of
-// the issues whose deps on it were dropped.
-func issueRemoveResult(id string, path string, dropped []string) Result {
-	data := issueRemoveData{ID: id, Path: path, DepsDropped: append([]string{}, dropped...)}
+// the issues whose deps on it and whose related entries naming it were dropped.
+func issueRemoveResult(id string, path string, dropped []string, relatedDropped []string) Result {
+	data := issueRemoveData{
+		ID:             id,
+		Path:           path,
+		DepsDropped:    append([]string{}, dropped...),
+		RelatedDropped: append([]string{}, relatedDropped...),
+	}
 	text := fmt.Sprintf("id: %s\npath: %s\n", id, path)
 	if len(dropped) > 0 {
 		text += "deps_dropped: " + flowList(dropped) + "\n"
+	}
+	if len(relatedDropped) > 0 {
+		text += "related_dropped: " + flowList(relatedDropped) + "\n"
 	}
 	return Result{
 		Kind: kindIssueRemove,
@@ -270,6 +301,7 @@ func issueRemoveResult(id string, path string, dropped []string) Result {
 			{"ID", id},
 			{"PATH", path},
 			{"DEPS_DROPPED", flowList(dropped)},
+			{"RELATED_DROPPED", flowList(relatedDropped)},
 		}}},
 	}
 }

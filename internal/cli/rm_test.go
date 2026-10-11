@@ -220,3 +220,81 @@ func TestRm_DependsOnItself_IsRemoved(t *testing.T) {
 		t.Errorf("deps_dropped = %v, want none", dropped)
 	}
 }
+
+func TestRm_RelatedHolders_DropsTheirEntriesWithoutRefusing(t *testing.T) {
+	root := newRmStore(t)
+	mustRun(t, root, "related", "add", "login-flow", "renamed-issue")
+	writeIssueFiles(t, root, map[string]string{
+		"linked-work.md": readIssue("Linked", "open", "related: [former-name, session-work]\n", ""),
+	})
+
+	stdout := mustRun(t, root, "rm", "renamed-issue")
+
+	if !strings.HasSuffix(stdout, "related_dropped: [linked-work, login-flow]\n") {
+		t.Errorf("rm stdout = %q", stdout)
+	}
+	if login := readStoreFile(t, root, "login-flow.md"); strings.Contains(login, "related:") {
+		t.Errorf("login-flow.md = %q, want no related key", login)
+	}
+	if linked := readStoreFile(t, root, "linked-work.md"); !strings.Contains(linked, "related: [session-work]\n") {
+		t.Errorf("linked-work.md = %q", linked)
+	}
+	if related := showRelated(t, root, "login-flow"); len(related) != 0 {
+		t.Errorf("related of login-flow = %v, want none", related)
+	}
+	assertCheckPasses(t, root)
+}
+
+func TestRm_JSON_ReportsRelatedDropped(t *testing.T) {
+	root := newRmStore(t)
+	mustRun(t, root, "related", "add", "session-work", "renamed-issue")
+
+	envelope := decodeEnvelope(t, mustRun(t, root, "rm", "--json", "renamed-issue"))
+
+	data, _ := envelope["data"].(map[string]any)
+	related, _ := data["related_dropped"].([]any)
+	deps, isList := data["deps_dropped"].([]any)
+	if !slices.Equal(related, []any{"session-work"}) || !isList || len(deps) != 0 {
+		t.Errorf("rm --json = %v", envelope)
+	}
+}
+
+func TestRm_DependentAndRelatedHolder_RefusesAndKeepsTheHolder(t *testing.T) {
+	root := newRmStore(t)
+	mustRun(t, root, "rm", "child-issue")
+	mustRun(t, root, "related", "add", "renamed-issue", "login-flow")
+	holder := readStoreFile(t, root, "renamed-issue.md")
+
+	_, stderr, exitCode := runCLI(t, root, "rm", "login-flow")
+
+	wantPrefix := "capcom: .capcom/issues/login-flow.md: issue login-flow is a dependency of session-work"
+	if exitCode != ExitError || !strings.HasPrefix(stderr, wantPrefix) {
+		t.Errorf("rm = %d, stderr %q; want %q", exitCode, stderr, wantPrefix)
+	}
+	if got := readStoreFile(t, root, "renamed-issue.md"); got != holder {
+		t.Errorf("renamed-issue.md = %q, want it byte for byte as before: %q", got, holder)
+	}
+	if !issueFileExists(t, root, "login-flow.md") {
+		t.Errorf("login-flow.md was removed")
+	}
+}
+
+func TestRm_DropDeps_FileHoldingDepAndRelated_LosesBoth(t *testing.T) {
+	root := newRmStore(t)
+	mustRun(t, root, "rm", "child-issue")
+	mustRun(t, root, "related", "add", "session-work", "login-flow")
+	mustRun(t, root, "related", "add", "session-work", "renamed-issue")
+
+	envelope := decodeEnvelope(t, mustRun(t, root, "rm", "--json", "login-flow", "--drop-deps"))
+
+	data, _ := envelope["data"].(map[string]any)
+	deps, _ := data["deps_dropped"].([]any)
+	related, _ := data["related_dropped"].([]any)
+	if !slices.Equal(deps, []any{"session-work"}) || !slices.Equal(related, []any{"session-work"}) {
+		t.Errorf("rm --json = %v", envelope)
+	}
+	if session := readStoreFile(t, root, "session-work.md"); session != readIssue("Session work", "open", "related: [renamed-issue]\n", "") {
+		t.Errorf("session-work.md = %q", session)
+	}
+	assertCheckPasses(t, root)
+}

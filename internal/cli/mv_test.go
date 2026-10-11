@@ -210,3 +210,24 @@ func TestMv_OntoAliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 	}
 	readStoreFile(t, root, "renamed-issue.md")
 }
+
+func TestMv_Rename_RelatedLinksFollow(t *testing.T) {
+	root := newMoveStore(t)
+	mustRun(t, root, "related", "add", "session-work", "login-flow")
+	mustRun(t, root, "related", "add", "renamed-issue", "session-work")
+
+	mustRun(t, root, "mv", "login-flow", "auth-flow")
+	mustRun(t, root, "mv", "session-work", "session-tasks")
+
+	if session := readStoreFile(t, root, "session-tasks.md"); !strings.Contains(session, "related: [auth-flow]\n") {
+		t.Errorf("session-tasks.md = %q", session)
+	}
+	if renamed := readStoreFile(t, root, "renamed-issue.md"); !strings.Contains(renamed, "related: [session-tasks]\n") {
+		t.Errorf("renamed-issue.md = %q", renamed)
+	}
+	holder, other := showRelated(t, root, "session-tasks"), showRelated(t, root, "auth-flow")
+	if !slices.Equal(holder, []string{"auth-flow", "renamed-issue"}) || !slices.Equal(other, []string{"session-tasks"}) {
+		t.Errorf("related of session-tasks = %v, of auth-flow = %v", holder, other)
+	}
+	assertCheckPasses(t, root)
+}

@@ -16,16 +16,16 @@ type Move struct {
 	*tree.Move
 	// Content is the issue file's content after the move.
 	Content []byte
-	// Unread are the files of other issues that do not parse, so their deps could not be checked
-	// for the old id and were left as they are.
+	// Unread are the files of other issues that do not parse, so their deps and related entries
+	// could not be checked for the old id and were left as they are.
 	Unread []string
 }
 
 // PlanMove works out the move of the issue with exact id id in issues to the destination to,
 // reading the issue files but changing nothing. A rename adds the old id to the issue's Aliases
-// (or, when the new id is one of its own Aliases, swaps the two) and rewrites every deps entry in
-// the tree that names the old id or one of its Aliases to the new id; body text is never
-// rewritten. The issue's children directory, with its whole subtree, moves along with it.
+// (or, when the new id is one of its own Aliases, swaps the two) and rewrites every deps and
+// related entry in the tree that names the old id or one of its Aliases to the new id; body text is
+// never rewritten. The issue's children directory, with its whole subtree, moves along with it.
 //
 // PlanMove checks the destination before it reads any file, failing as tree.PlanMove does: with
 // ErrInvalidID (tree) for an invalid new id, a *TakenError (tree) for a new id another issue
@@ -76,8 +76,8 @@ func (m *Move) planRewrites(issues *tree.Tree) ([]tree.Rewrite, error) {
 }
 
 // planRewrite reads the issue file at path and returns its rewrite, or nil when the move leaves
-// it as it is: deps naming one of names become m.NewID and, for the moved issue (isMoved), the
-// Aliases record the old id. A file of another issue that does not parse joins m.Unread; the
+// it as it is: deps and related entries naming one of names become m.NewID and, for the moved
+// issue (isMoved), the Aliases record the old id. A file of another issue that does not parse joins m.Unread; the
 // moved issue's own content goes to m.Content.
 func (m *Move) planRewrite(path string, names []string, isMoved bool) (*tree.Rewrite, error) {
 	data, err := os.ReadFile(path)
@@ -95,11 +95,13 @@ func (m *Move) planRewrite(path string, names []string, isMoved bool) (*tree.Rew
 
 	edited := parsed
 	edited.Deps = renameDeps(parsed.Deps, names, m.NewID)
+	edited.Related = renameDeps(parsed.Related, names, m.NewID)
 	if isMoved {
 		edited.Aliases = tree.RenameAliases(parsed.Aliases, m.Node.ID, m.NewID)
 		m.Content = data
 	}
-	if slices.Equal(edited.Deps, parsed.Deps) && slices.Equal(edited.Aliases, parsed.Aliases) {
+	if slices.Equal(edited.Deps, parsed.Deps) && slices.Equal(edited.Related, parsed.Related) &&
+		slices.Equal(edited.Aliases, parsed.Aliases) {
 		return nil, nil
 	}
 	rewrite := &tree.Rewrite{Path: path, Original: data, Content: edited.Serialize()}
@@ -109,8 +111,9 @@ func (m *Move) planRewrite(path string, names []string, isMoved bool) (*tree.Rew
 	return rewrite, nil
 }
 
-// renameDeps returns deps with every entry that is one of names replaced by newID, keeping only
-// the first entry that ends up as newID. deps is returned unchanged when names and newID agree.
+// renameDeps returns deps, a deps or related list, with every entry that is one of names replaced
+// by newID, keeping only the first entry that ends up as newID. deps is returned unchanged when
+// names and newID agree.
 func renameDeps(deps []string, names []string, newID string) []string {
 	if names[0] == newID {
 		return deps

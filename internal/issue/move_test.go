@@ -207,3 +207,39 @@ func TestPlanMove_UnparseableIssueFile_DestinationCheckedFirst(t *testing.T) {
 		}
 	})
 }
+
+func TestPlanMove_Rename_RewritesRelatedInOtherFiles(t *testing.T) {
+	relatedFile := func(related string) string {
+		return strings.Replace(moveFile("", "", "\nSee login-flow.\n"), "created:", "related: ["+related+"]\ncreated:", 1)
+	}
+	dir := newMoveTree(t, map[string]string{
+		"login-flow.md":      moveFile("", "apogee-kk0.4", ""),
+		"by-id.md":           relatedFile("other-issue, login-flow"),
+		"by-alias.md":        relatedFile("apogee-kk0.4"),
+		"by-both.md":         relatedFile("login-flow, apogee-kk0.4"),
+		"other-issue.md":     moveFile("", "", ""),
+		"untouched-issue.md": relatedFile("other-issue"),
+	})
+	untouched := snapshotTree(t, dir)["untouched-issue.md"]
+
+	move := moveIssue(t, dir, "login-flow", tree.Destination{ID: "auth-flow"})
+
+	wants := map[string][]string{
+		"by-id.md":    {"other-issue", "auth-flow"},
+		"by-alias.md": {"auth-flow"},
+		"by-both.md":  {"auth-flow"},
+	}
+	for name, want := range wants {
+		parsed := parseMoveFile(t, dir, name)
+		if !slices.Equal(parsed.Related, want) || parsed.Deps != nil || parsed.Body != "\nSee login-flow.\n" {
+			t.Errorf("%s related = %v deps = %v body = %q, want related %v and the rest unchanged",
+				name, parsed.Related, parsed.Deps, parsed.Body, want)
+		}
+	}
+	if got := snapshotTree(t, dir)["untouched-issue.md"]; got != untouched {
+		t.Errorf("untouched-issue = %q, want it byte for byte as before", got)
+	}
+	if len(move.Unread) != 0 {
+		t.Errorf("unread = %v, want none", move.Unread)
+	}
+}
