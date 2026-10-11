@@ -80,6 +80,7 @@ func (a *app) newKnowCommand() *cobra.Command {
 	}
 	know.AddCommand(a.newKnowAddCommand())
 	know.AddCommand(a.newKnowMvCommand())
+	know.AddCommand(a.newKnowRmCommand())
 	know.AddCommand(a.newKnowSearchCommand())
 	know.AddCommand(a.newKnowShowCommand())
 	know.AddCommand(a.newKnowTreeCommand())

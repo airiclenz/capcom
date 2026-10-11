@@ -180,7 +180,11 @@ warning, move kept. `knowledge` package test for the alias rewrite.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/knowledge/` and `GOMEMLIMIT=2GiB go test -count=1 -run KnowMv ./internal/cli/`
 **Commit:** `feat(know): add know mv to rename a Note or move it in the tree`
 
-## 6. capcom know rm
+## 6. capcom know rm — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): know rm's --json kind is `note-remove` (data: `id`, `path`); the refusals (child Notes, a non-empty children directory) are code `invalid`.
+NOTES (2026-10-11): `tree.removeEmptyDirStep` is unexported, so know rm removes empty directories with `os.Remove` itself: the Note's own empty children directory goes before the file (a failed file removal then leaves the tree unchanged), and a failure to remove the parent's emptied directory after the file is gone is a warning, not a failed command.
+NOTES (2026-10-11): know rm refreshes a stale AGENTS.md block after every removal, as know update and know mv do; the `know` group's Short text ("Read, search, add, update and verify") is left to item 7's documentation pass.
 
 **What:**
 **Goal:** `capcom know rm <id> [--if-match <etag>]` deletes a Note with no children, removes its
