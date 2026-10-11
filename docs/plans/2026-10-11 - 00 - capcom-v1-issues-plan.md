@@ -52,7 +52,15 @@ NOTES (2026-10-11): output-contract choices the plan left open — a failure in 
 **Acceptance:** `GOMEMLIMIT=2GiB go build ./cmd/capcom && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/` ; `go vet ./...` ; `grep -q windows .github/workflows/ci.yml && grep -q macos .github/workflows/ci.yml`
 **Commit:** `feat(cli): scaffold capcom module, CLI harness and output contract`
 
-## 2. Config, store root and `capcom init`
+## 2. Config, store root and `capcom init` — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): `Config.Statuses` is an ordered `[]Status{Name, Category}` with `CategoryOf`/`DefaultStatus` lookups instead of the Approach's `map[string]Category`, as the item's regression guard requires (file order preserved; first status listed in a category is its default). The parser walks `yaml.Node` by hand (not `KnownFields`) so every error carries the offending key's or value's line.
+NOTES (2026-10-11): consequential edit — go.mod, go.sum: made necessary by internal/config importing the ratified YAML dependency gopkg.in/yaml.v3 (v3.0.1, added via `go mod tidy`), which the item's Files did not list.
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by the new `init` command, which must be registered on the root command (one `AddCommand` line).
+NOTES (2026-10-11): no store-reading command exists yet, so "store command without `.capcom/` → `not_initialized`" is covered by `store.Open` returning `store.ErrNotInitialized` plus `cli.storeFailure` mapping it to `not_initialized` (tested in `internal/cli/init_test.go`). Commands from item 6 on must open the store via `store.Open(os.Getwd())` and map failures with `storeFailure`. Store commands outside git map to `invalid` (`store.ErrNotGitRepository`), the same code as `init` outside git.
+NOTES (2026-10-11): choices the plan left open — the store is always `<worktree root>/.capcom` (found via `git rev-parse --show-toplevel`, not by probing each parent dir); a missing `config.yaml` inside an existing `.capcom/` means the default config; every key in `config.yaml` is optional; `elsewhere.days` may be 0, `lock.ttl` must be positive; `ready.hide` defaults to empty; `init` re-validates an existing config and fails on a bad one; `init` text lists `created <path>` lines, `--json` data is `{root, created}`; config errors name the path relative to the worktree root (`.capcom/config.yaml:3: ...`).
+NOTES (2026-10-11): `gitx.Discover` classifies any non-zero `git rev-parse` exit as `gitx.ErrNotWorkTree` (covers no repo, bare repo, inside `.git`) rather than matching git's localized message; git missing from PATH surfaces as a distinct error (`invalid`).
+NOTES (2026-10-11): the hermetic git-env test helper is duplicated in `gitx`, `store` and `cli` tests (small; a shared test package was outside the item's Files). Tests also set `GIT_CEILING_DIRECTORIES` so a temp dir inside some enclosing repo still counts as outside git. Empty `issues/` and `knowledge/` dirs are not tracked by git until they hold a file.
 
 Depends on item 1.
 **What:**
