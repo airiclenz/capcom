@@ -290,7 +290,12 @@ internal/cli/check_test.go — TestCheck_Problems_ListedOnePerLineAndExitOne, ne
 **Closes:** check-conflict-markers
 **Commit:** `feat(check): flag git conflict markers in issue and Note files`
 
-## 7. `--kv` is a flag of the commands that support it
+## 7. `--kv` is a flag of the commands that support it — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): the helper is `withKV(cmd) *cobra.Command`, called on each supporting constructor's return; the `lock` subcommands each register it (not a persistent flag on `lock`), so `capcom lock --help` itself does not list `--kv`.
+NOTES (2026-10-11): the supporting-commands table asserts the closing line starts with `STATUS=` (exit 0) rather than `STATUS=ok`, because `close` and `reopen` report their per-issue outcome there (`STATUS=closed`); `lock touch` is left out of the table since it needs a held lock, and is covered by the existing `--kv` tests in lock_test.go.
+NOTES (2026-10-11): root.go comments that called --json/--kv "global flags" now say "output flags"; the emit guard keeps its usage-error behaviour, now documented as reachable only through a command defect.
+
 
 **What:** This fixes `kv-flag-scope`. `--kv` is a persistent root flag shown in `capcom --help`,
 but `list`, `ready`, `search`, `check`, `prime`, `dep list`, `reindex`, `agents` and every `know`

@@ -13,7 +13,7 @@ import (
 // newLogCommand appends a dated, attributed entry to an issue's Log section, creating the section
 // when the issue has none.
 func (a *app) newLogCommand() *cobra.Command {
-	return &cobra.Command{
+	return a.withKV(&cobra.Command{
 		Use:         "log <id|alias|prefix> <text>",
 		Short:       "Append an entry to an issue's Log",
 		Args:        cobra.ExactArgs(2),
@@ -31,7 +31,7 @@ func (a *app) newLogCommand() *cobra.Command {
 			}
 			return a.emit(cmd, result)
 		}),
-	}
+	})
 }
 
 // appendLog adds a Log entry dated today and attributed to the author git would record (see

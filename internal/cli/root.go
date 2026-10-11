@@ -28,7 +28,7 @@ const (
 	indexRebuild    = "rebuild"
 )
 
-// app carries one invocation's output streams and the renderer its global flags select. Run builds a
+// app carries one invocation's output streams and the renderer its output flags select. Run builds a
 // fresh app per call so invocations share no state.
 type app struct {
 	stdout   io.Writer
@@ -73,7 +73,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	renderer := application.renderer
 	if renderer == nil {
-		// Parsing failed before the global flags were applied, so read them from args.
+		// Parsing failed before the output flags were applied, so read them from args.
 		renderer = newRenderer(scanFormat(args), stdout, stderr)
 	}
 	if renderErr := renderer.RenderError(failure); renderErr != nil {
@@ -93,7 +93,6 @@ func (a *app) newRootCommand() *cobra.Command {
 		PersistentPreRunE:  a.prepare,
 	}
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
-	root.PersistentFlags().BoolVar(&a.isKV, flagKV, false, "print KEY=VALUE lines ending in STATUS=")
 	root.AddCommand(a.newAgentsCommand())
 	root.AddCommand(a.newCheckCommand())
 	root.AddCommand(a.newCloseCommand())
@@ -167,7 +166,15 @@ func (a *app) closeIndex() error {
 	return a.issueIndex.Close()
 }
 
-// selectRenderer applies the global output flags once cobra has parsed them.
+// withKV registers --kv on cmd and returns it. Only the commands whose results carry KV records
+// call it, so --kv shows in the help of exactly the commands that honour it, and any other command
+// rejects it as an unknown flag.
+func (a *app) withKV(cmd *cobra.Command) *cobra.Command {
+	cmd.Flags().BoolVar(&a.isKV, flagKV, false, "print KEY=VALUE lines ending in STATUS=")
+	return cmd
+}
+
+// selectRenderer applies the output flags once cobra has parsed them.
 func (a *app) selectRenderer(_ *cobra.Command, _ []string) error {
 	if a.isJSON && a.isKV {
 		return UsageErrorf("--json and --kv cannot be combined")
@@ -195,7 +202,8 @@ func runE(body func(cmd *cobra.Command, args []string) error) func(*cobra.Comman
 }
 
 // emit renders a successful result in the selected format, the index's warnings ahead of the
-// command's own. A command that offers no --kv records rejects --kv as a usage error. A result
+// command's own. A command offers --kv only through withKV; a result without KV records under
+// --kv is therefore a command's own defect, still rejected as a usage error, not output. A result
 // carrying a Failure is rendered with it, and emit then returns that failure, marked rendered, so
 // the command still exits with its code.
 func (a *app) emit(cmd *cobra.Command, result Result) error {
@@ -220,7 +228,7 @@ func (a *app) emit(cmd *cobra.Command, result Result) error {
 
 // newVersionCommand reports the embedded release version.
 func (a *app) newVersionCommand() *cobra.Command {
-	return &cobra.Command{
+	return a.withKV(&cobra.Command{
 		Use:   "version",
 		Short: "Print the capcom version",
 		Args:  cobra.NoArgs,
@@ -233,11 +241,11 @@ func (a *app) newVersionCommand() *cobra.Command {
 				KV:   []KVRecord{{Pairs: []KVPair{{Key: "VERSION", Value: version}}}},
 			})
 		}),
-	}
+	})
 }
 
-// scanFormat reads the global output flags straight from args, for failures cobra reports before
-// it applies them. --json wins when both appear, so a JSON caller still gets an envelope.
+// scanFormat reads the output flags straight from args, for failures cobra reports before it
+// applies them, such as --kv on a command that does not offer it. --json wins when both appear, so a JSON caller still gets an envelope.
 func scanFormat(args []string) outputFormat {
 	format := formatText
 	for _, arg := range args {

@@ -95,7 +95,7 @@ func (a *app) newUpdateCommand() *cobra.Command {
 	flags.StringVar(&options.ifMatch, flagIfMatch, "", "only write when the file's etag is this one (see show)")
 	cmd.MarkFlagsMutuallyExclusive(flagBodyAppend, flagBodyAppendFile)
 	cmd.MarkFlagsRequiredTogether(flagBodyReplaceOld, flagBodyReplaceNew)
-	return cmd
+	return a.withKV(cmd)
 }
 
 // applyUpdate applies the changed flags to target: fields first, then labels, then the body

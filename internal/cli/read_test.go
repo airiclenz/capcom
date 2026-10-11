@@ -435,3 +435,83 @@ func TestReady_UnbornHead_WarnsAndPrintsTheResult(t *testing.T) {
 		t.Errorf("exit = %d stdout = %q, want the ready list and a warning about HEAD", exitCode, stdout)
 	}
 }
+
+func TestList_KV_FailsAsUnknownFlag(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "list", "--kv")
+
+	// scanFormat still routes the failure to stdout as KV lines.
+	if exitCode != ExitUsage || stderr != "" {
+		t.Fatalf("exit = %d stderr = %q, want %d and empty", exitCode, stderr, ExitUsage)
+	}
+	if !strings.Contains(stdout, "MESSAGE=unknown flag: --kv\n") || lastLine(stdout) != "STATUS=invalid" {
+		t.Errorf("stdout = %q, want MESSAGE=unknown flag: --kv and a closing STATUS=invalid", stdout)
+	}
+}
+
+func TestShow_KV_EndsWithStatus(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout := mustRun(t, root, "show", "login-flow", "--kv")
+
+	if !strings.HasPrefix(lastLine(stdout), "STATUS=") {
+		t.Errorf("stdout = %q, want a closing STATUS= line", stdout)
+	}
+}
+
+func TestHelp_CommandsWithoutKV_OmitKV(t *testing.T) {
+	invocations := [][]string{{"--help"}, {"list", "--help"}}
+
+	for _, args := range invocations {
+		stdout := mustRun(t, "", args...)
+
+		if strings.Contains(stdout, "--kv") {
+			t.Errorf("%v output mentions --kv:\n%s", args, stdout)
+		}
+	}
+}
+
+func TestKV_SupportingCommands_ListKVAndEndWithStatus(t *testing.T) {
+	cases := map[string]struct {
+		setup [][]string
+		args  []string
+	}{
+		"show":    {args: []string{"show", "login-flow"}},
+		"close":   {args: []string{"close", "login-flow", "--reason", "shipped"}},
+		"reopen":  {args: []string{"reopen", "old-idea", "--reason", "wanted again"}},
+		"version": {args: []string{"version"}},
+		"create":  {args: []string{"create", "--id", "new-issue", "--title", "New issue"}},
+		"update":  {args: []string{"update", "login-flow", "--title", "Login"}},
+		"log":     {args: []string{"log", "login-flow", "seen again"}},
+		"mv":      {args: []string{"mv", "release-checklist", "release-list"}},
+		"dep add": {args: []string{"dep", "add", "login-flow", "release-checklist"}},
+		"dep rm": {
+			setup: [][]string{{"dep", "add", "login-flow", "release-checklist"}},
+			args:  []string{"dep", "rm", "login-flow", "release-checklist"},
+		},
+		"lock acquire": {args: []string{"lock", "acquire", "--purpose", "kv"}},
+		"lock check":   {args: []string{"lock", "check"}},
+		"lock status":  {args: []string{"lock", "status"}},
+		"lock break":   {args: []string{"lock", "break"}},
+		"lock release": {args: []string{"lock", "release", "--token", "any"}},
+	}
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := newReadStore(t)
+			for _, step := range testCase.setup {
+				mustRun(t, root, step...)
+			}
+
+			help := mustRun(t, root, append(slices.Clone(testCase.args), "--help")...)
+			stdout := mustRun(t, root, append(slices.Clone(testCase.args), "--kv")...)
+
+			if !strings.Contains(help, "--kv") {
+				t.Errorf("help does not list --kv:\n%s", help)
+			}
+			if !strings.HasPrefix(lastLine(stdout), "STATUS=") {
+				t.Errorf("stdout = %q, want KV records closed by a STATUS= line", stdout)
+			}
+		})
+	}
+}

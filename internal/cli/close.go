@@ -76,7 +76,7 @@ func (a *app) newCloseCommand() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&options.reason, flagReason, "", "why the issues are closed (required)")
 	flags.StringVar(&options.status, flagStatus, "", "status in the done or dropped category (default: the first done status)")
-	return cmd
+	return a.withKV(cmd)
 }
 
 // closeResult closes every argument's issue and builds the result: a --json item, a text line and a
@@ -195,7 +195,7 @@ func (a *app) newReopenCommand() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&options.reason, flagReason, "", "why the issue is reopened (required)")
 	flags.StringVar(&options.status, flagStatus, "", "status that is not closed (default: the first todo status)")
-	return cmd
+	return a.withKV(cmd)
 }
 
 // reopen moves target out of its closed category to status and logs reason. An issue that is not

@@ -62,8 +62,10 @@ and show up in code review like the code they describe.
 - **One validator.** `capcom check` validates every config, issue and Note file and lists each
   problem as `path:line: message`, so an agent can fix files in a loop.
 
-Every command prints plain text by default and a versioned JSON envelope with `--json`; `show`,
-`close`, `lock` and the commands that write an issue also print `KEY=VALUE` lines with `--kv`.
+Every command prints plain text by default and a versioned JSON envelope with `--json`. `show`,
+`close`, `reopen`, every `lock` subcommand, `version` and the commands that write an issue
+(`create`, `update`, `log`, `mv`, `dep add`, `dep rm`) also take `--kv`, after the command name,
+and print `KEY=VALUE` lines ending in `STATUS=`; the other commands do not offer it.
 Exit codes: 0 ok, 1 error, 2 usage, 3 not found or locked. capcom runs on Linux, macOS and Windows.
 
 ## Works with any coding agent

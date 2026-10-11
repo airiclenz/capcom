@@ -110,13 +110,15 @@ func TestInit_FromSubdirectory_CreatesStoreAtWorktreeRoot(t *testing.T) {
 func TestInit_OutsideGit_FailsInvalid(t *testing.T) {
 	outside := outsideGitDir(t)
 
-	stdout, _, exitCode := runCLI(t, outside, "--kv", "init")
+	stdout, _, exitCode := runCLI(t, outside, "--json", "init")
 
-	if exitCode != ExitError || lastLine(stdout) != "STATUS="+string(CodeInvalid) {
-		t.Errorf("exit = %d stdout = %q, want %d and STATUS=invalid", exitCode, stdout, ExitError)
+	envelope := decodeEnvelope(t, stdout)
+	failure, _ := envelope["error"].(map[string]any)
+	if exitCode != ExitError || failure["code"] != string(CodeInvalid) {
+		t.Errorf("exit = %d envelope = %v, want %d and error.code invalid", exitCode, envelope, ExitError)
 	}
-	if !strings.Contains(stdout, "git repository") {
-		t.Errorf("stdout = %q, want a message naming the git requirement", stdout)
+	if message, _ := failure["message"].(string); !strings.Contains(message, "git repository") {
+		t.Errorf("error = %v, want a message naming the git requirement", failure)
 	}
 }
 

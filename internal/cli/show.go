@@ -34,7 +34,7 @@ func (a *app) newShowCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&isElsewhereSkipped, flagNoElsewhere, false, "skip the report of changes to these issues on other branches")
-	return cmd
+	return a.withKV(cmd)
 }
 
 // showResult looks up every argument and builds the result: the issues found, a --kv record per

@@ -65,7 +65,7 @@ func (a *app) newCreateCommand() *cobra.Command {
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
 	_ = cmd.MarkFlagRequired(flagID)    // fails only for an undefined flag
 	_ = cmd.MarkFlagRequired(flagTitle) // fails only for an undefined flag
-	return cmd
+	return a.withKV(cmd)
 }
 
 // create places the new issue in the tree and writes it.

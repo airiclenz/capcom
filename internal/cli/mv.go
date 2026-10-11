@@ -37,7 +37,7 @@ func (a *app) newMvCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&parent, flagParent, "", "move the issue below this one; . moves it to the top of the tree")
-	return cmd
+	return a.withKV(cmd)
 }
 
 // move resolves the issue args[0] names and moves it to the new id args[1], when given, and below

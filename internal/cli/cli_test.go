@@ -144,7 +144,7 @@ func TestVersion_JSON_WritesVersionEnvelope(t *testing.T) {
 }
 
 func TestVersion_KV_EndsWithStatusOK(t *testing.T) {
-	stdout, _, exitCode := runCLI(t, "", "--kv", "version")
+	stdout, _, exitCode := runCLI(t, "", "version", "--kv")
 
 	if exitCode != ExitOK {
 		t.Fatalf("exit = %d", exitCode)

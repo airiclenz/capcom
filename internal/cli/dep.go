@@ -54,7 +54,7 @@ func (a *app) newDepCommand() *cobra.Command {
 // newDepAddCommand makes one issue depend on another. A self-dependency and an edge that would
 // close a cycle are refused; an edge that is already there is left as it is.
 func (a *app) newDepAddCommand() *cobra.Command {
-	return &cobra.Command{
+	return a.withKV(&cobra.Command{
 		Use:         "add <id|alias|prefix> <dep-id|alias|prefix>",
 		Short:       "Make an issue depend on another",
 		Args:        cobra.ExactArgs(2),
@@ -99,13 +99,13 @@ func (a *app) newDepAddCommand() *cobra.Command {
 			}
 			return a.emit(cmd, result)
 		}),
-	}
+	})
 }
 
 // newDepRmCommand removes every dep of an issue that names the given one, whether the file writes
 // it as the id or as an Alias. A dep naming no issue at all is removed by its exact text.
 func (a *app) newDepRmCommand() *cobra.Command {
-	return &cobra.Command{
+	return a.withKV(&cobra.Command{
 		Use:         "rm <id|alias|prefix> <dep-id|alias|prefix>",
 		Short:       "Remove a dependency of an issue",
 		Args:        cobra.ExactArgs(2),
@@ -139,7 +139,7 @@ func (a *app) newDepRmCommand() *cobra.Command {
 			}
 			return a.emit(cmd, result)
 		}),
-	}
+	})
 }
 
 // depRemoval returns the test a dep of the dependent must pass to be removed by dep rm: it names

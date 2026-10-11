@@ -117,7 +117,7 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 	cmd.Flags().StringVar(&token, flagToken, "", "your token from an earlier acquire, to resume the lock")
 	cmd.Flags().BoolVar(&isTakeStale, flagTakeStale, false, "take the lock over when it is stale")
 	_ = cmd.MarkFlagRequired(flagPurpose) // fails only for an undefined flag
-	return cmd
+	return a.withKV(cmd)
 }
 
 func (a *app) newLockTouchCommand() *cobra.Command {
@@ -137,7 +137,7 @@ func (a *app) newLockTouchCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned")
 	_ = cmd.MarkFlagRequired(flagToken) // fails only for an undefined flag
-	return cmd
+	return a.withKV(cmd)
 }
 
 func (a *app) newLockReleaseCommand() *cobra.Command {
@@ -157,11 +157,11 @@ func (a *app) newLockReleaseCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned")
 	_ = cmd.MarkFlagRequired(flagToken) // fails only for an undefined flag
-	return cmd
+	return a.withKV(cmd)
 }
 
 func (a *app) newLockBreakCommand() *cobra.Command {
-	return &cobra.Command{
+	return a.withKV(&cobra.Command{
 		Use:   "break",
 		Short: "Free this worktree's lock whoever holds it",
 		Args:  cobra.NoArgs,
@@ -173,7 +173,7 @@ func (a *app) newLockBreakCommand() *cobra.Command {
 			status, err := target.locks.Break(target.key)
 			return a.emitLock(cmd, endedState(status), status, "", err)
 		}),
-	}
+	})
 }
 
 func (a *app) newLockCheckCommand() *cobra.Command {
@@ -196,7 +196,7 @@ func (a *app) newLockCheckCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&token, flagToken, "", "your token; the lock counts as free when you hold it")
-	return cmd
+	return a.withKV(cmd)
 }
 
 func (a *app) newLockStatusCommand() *cobra.Command {
@@ -222,7 +222,7 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&isAll, flagAll, false, "show the locks of every worktree")
-	return cmd
+	return a.withKV(cmd)
 }
 
 // openLockTarget opens the store of the current worktree and its lock directory.
