@@ -26,11 +26,13 @@ table row gets exactly one verdict:
 Every row but Emitted strings. Per row, `git diff <diff base> -- <paths>`
 covers the committed range and uncommitted edits in one diff; add new
 untracked files under those paths from `RUN_DIR/scratch/surface-before.txt`.
-Read the diff, not the stat — you need the value that moved: a command, flag,
-key binding, config key or shipped default; a tool in `KnownToolNames` or the
-default menu; an exported symbol; a manual page or documented behaviour; a
-Makefile target, workflow or packaging template. A changed count the README
-or manual states (tools, Floor guards, Moments) is its own entry.
+Read the diff, not the stat — you need the value that moved: a command or
+flag, an output mode or exit code, a config key or shipped default; a
+frontmatter field or file-format rule; a line of the Managed block, the
+Briefing or the Claude Code hooks; an exported symbol; a documented
+behaviour; a workflow or packaging template. A changed count the README or
+`docs/format.md` states (commands, exit codes, frontmatter fields) is its own
+entry.
 
 ## 2. Emitted strings — what capcom says to its user
 
@@ -41,7 +43,8 @@ evidence of a message); skip `_test.go` files.
 
 ## The scale rule
 
-`_shared.md` caps you at 80 tool calls; `internal/tui/` alone can exceed it.
+`_shared.md` caps you at 80 tool calls; `internal/cli/`, one file per command,
+can exceed it alone.
 
 1. **Structural rows first** — every one gets its verdict before you diff a
    single string. That half is never dropped.
