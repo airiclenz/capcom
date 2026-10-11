@@ -1,9 +1,11 @@
 ---
 title: AGENTS.md block links to the capcom repo and install instructions
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-11T20:16:25Z
+closed: 2026-10-11T22:37:09Z
+reason: "Resolved by ready-issues-plan, 544d2ee item 3: Managed block points at github.com/airiclenz/capcom#install"
 ---
 
 The Managed block that `capcom agents` writes into AGENTS.md (`blockIntro` in

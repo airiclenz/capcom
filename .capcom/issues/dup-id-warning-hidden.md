@@ -1,9 +1,11 @@
 ---
 title: Write verbs hide a duplicate-id warning when the file has another index warning
-status: open
+status: done
 type: bug
 priority: 3
 created: 2026-10-11T20:50:57Z
+closed: 2026-10-11T22:37:09Z
+reason: "Resolved by ready-issues-plan, 544d2ee item 1: write verbs report a different tree problem on an index-warned file once"
 ---
 
 `create`, `mv` and `know add/mv/rm` report non-blocking tree problems as warnings, but drop one

@@ -1,9 +1,11 @@
 ---
 title: mv warns about a moved child's bad file with its pre-move path
-status: open
+status: done
 type: bug
 priority: 3
 created: 2026-10-11T20:44:59Z
+closed: 2026-10-11T22:37:09Z
+reason: "Resolved by ready-issues-plan, 544d2ee item 2: mv and know mv warn with a moved child's post-move path"
 ---
 
 Deferred from the capcom-maturity plan, item 4: `mv` (and `know mv`) of a node whose children
