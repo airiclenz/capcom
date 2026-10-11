@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -98,5 +99,34 @@ func TestCheck_WithoutAgentsGuide_ExitsZero(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(root, "AGENTS.md")); exitCode != ExitOK || stdout != "" || !os.IsNotExist(err) {
 		t.Errorf("check = %d, stdout %q, AGENTS.md stat %v; want 0, no output, no AGENTS.md", exitCode, stdout, err)
+	}
+}
+
+func TestCheck_LogMergeConflict_ReportsEachMarkerAndExitsOne(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
+	runGit(t, root, "add", ".")
+	runGit(t, root, "commit", "-q", "-m", "base")
+	runGit(t, root, "checkout", "-q", "-b", "other-branch")
+	mustRun(t, root, "log", "valid-issue", "found the cause")
+	runGit(t, root, "commit", "-q", "-a", "-m", "log on other-branch")
+	runGit(t, root, "checkout", "-q", "-")
+	mustRun(t, root, "log", "valid-issue", "reproduced it")
+	runGit(t, root, "commit", "-q", "-a", "-m", "log on the base branch")
+	merge := exec.Command("git", "merge", "-q", "other-branch")
+	merge.Dir = root
+	if output, err := merge.CombinedOutput(); err == nil {
+		t.Fatalf("git merge succeeded, want a conflict:\n%s", output)
+	}
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	lines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")
+	if exitCode != ExitError || len(lines) != 3 {
+		t.Fatalf("check = %d, stdout:\n%s\nwant 1 and three conflict marker lines", exitCode, stdout)
+	}
+	for _, line := range lines {
+		if !strings.HasPrefix(line, ".capcom/issues/valid-issue.md:") || !strings.Contains(line, "git conflict marker") {
+			t.Errorf("line %q, want .capcom/issues/valid-issue.md:<line>: git conflict marker ...", line)
+		}
 	}
 }

@@ -144,6 +144,27 @@ out, each warning naming the other. The index refreshes itself on every command 
 re-reading only the files whose size or modification time changed; `capcom reindex` rebuilds it
 from scratch.
 
+### Merge conflicts in the Log
+
+Two branches that each log on the same issue append to the same place in its `## Log`, so merging
+them stops on a git conflict that leaves markers in the file. `capcom check` reports every git
+conflict marker in an issue or Note file as a problem with the code `conflict`, at the marker's
+line:
+
+- every line that starts with `<<<<<<< `, `||||||| ` or `>>>>>>> `;
+- a line that is exactly `=======`, but only between a `<<<<<<< ` line and its `>>>>>>> ` line,
+  since a bare `=======` is a setext heading underline.
+
+The frontmatter is always scanned, and markers there are reported beside the frontmatter problem
+they cause. Body lines inside a fenced code block (opened by three backticks or three tildes) are
+not scanned, so a Note may show a conflict as an example. CRLF files give the same problems.
+
+To resolve a Log conflict:
+
+1. Keep both sides' entries, in date order.
+2. Delete the marker lines.
+3. Run `capcom check` to confirm no `conflict` problem is left, then finish the merge as usual.
+
 ## Note files
 
 A **Note** is one fact about the repository that an agent pulls up on demand: a convention, a

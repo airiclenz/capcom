@@ -283,3 +283,101 @@ func TestRun_ManyProblems_AllReportedInOneRunInPathOrder(t *testing.T) {
 		t.Errorf("problems = %v\nwant %v", got, want)
 	}
 }
+
+// logConflict is a Log body as a merge of two concurrent `capcom log` calls leaves it, from line 8
+// on below an issueFile(""): its markers are at lines 13, 15 and 17.
+const logConflict = "\nThe body.\n\n## Log\n\n" +
+	"<<<<<<< HEAD\n- 2026-10-11 alice: reproduced it.\n=======\n" +
+	"- 2026-10-11 bob: found the cause.\n>>>>>>> other-branch\n"
+
+func TestRun_ConflictMarkers_ReportedAtEachMarkerLine(t *testing.T) {
+	conflictAt := func(path string, lines ...int) []string {
+		result := make([]string, 0, len(lines))
+		for _, line := range lines {
+			result = append(result, path+":"+strconv.Itoa(line)+":"+check.CodeConflict)
+		}
+		return result
+	}
+	cases := []struct {
+		name  string
+		files map[string]string
+		want  []string
+	}{
+		{
+			name:  "markers in the Log",
+			files: map[string]string{issues + "login-flow.md": issueFile("") + logConflict},
+			want:  conflictAt(issues+"login-flow.md", 13, 15, 17),
+		},
+		{
+			name: "markers in the Log with CRLF line endings",
+			files: map[string]string{issues + "login-flow.md": strings.ReplaceAll(
+				issueFile("")+logConflict, "\n", "\r\n",
+			)},
+			want: conflictAt(issues+"login-flow.md", 13, 15, 17),
+		},
+		{
+			name: "diff3 markers with the base section",
+			files: map[string]string{issues + "login-flow.md": issueFile("") +
+				"\n<<<<<<< HEAD\n- mine\n||||||| base\n=======\n- theirs\n>>>>>>> other-branch\n"},
+			want: conflictAt(issues+"login-flow.md", 9, 11, 12, 14),
+		},
+		{
+			name:  "markers in a Note body",
+			files: map[string]string{knowledge + "testing-rules.md": "---\ntitle: Testing rules\n---\n" + logConflict},
+			want:  conflictAt(knowledge+"testing-rules.md", 9, 11, 13),
+		},
+		{
+			name:  "a setext heading underline alone",
+			files: map[string]string{issues + "login-flow.md": issueFile("") + "\nA heading\n=======\n\nText.\n"},
+			want:  []string{},
+		},
+		{
+			name: "markers inside a backtick code fence",
+			files: map[string]string{issues + "login-flow.md": issueFile("") +
+				"\n```text\n<<<<<<< HEAD\n=======\n>>>>>>> other-branch\n```\n"},
+			want: []string{},
+		},
+		{
+			name: "markers inside a tilde code fence",
+			files: map[string]string{issues + "login-flow.md": issueFile("") +
+				"\n~~~~\n<<<<<<< HEAD\n```\n=======\n>>>>>>> other-branch\n~~~~\n"},
+			want: []string{},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newRepo(t)
+			writeFiles(t, root, testCase.files)
+
+			problems := runCheck(t, root)
+
+			if got := locations(t, problems); !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("problems = %v\nwant %v", problems, testCase.want)
+			}
+		})
+	}
+}
+
+func TestRun_ConflictMarkersInFrontmatter_ReportedBesideTheParseFailure(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		issues + "login-flow.md": "---\ntitle: Some issue\n<<<<<<< HEAD\nstatus: done\n=======\n" +
+			"status: active\n>>>>>>> other-branch\ntype: task\ncreated: 2026-10-11T09:00:00Z\n---\n",
+	})
+
+	problems := runCheck(t, root)
+
+	conflicts := []string{}
+	isFrontmatterReported := false
+	for _, problem := range problems {
+		switch problem.Code {
+		case check.CodeConflict:
+			conflicts = append(conflicts, strconv.Itoa(problem.Line))
+		case check.CodeFrontmatter:
+			isFrontmatterReported = true
+		}
+	}
+	if want := []string{"3", "5", "7"}; !reflect.DeepEqual(conflicts, want) || !isFrontmatterReported {
+		t.Errorf("problems = %v; want conflict at lines %v and a frontmatter problem", problems, want)
+	}
+}

@@ -251,7 +251,10 @@ internal/cli/know_test.go — writeNoteFiles, newKnowStore; internal/cli/know_rm
 **Closes:** write-verbs-bad-files
 **Commit:** `fix(cli): let the know write verbs warn about unrelated tree problems`
 
-## 6. `check` flags git conflict markers; format.md documents Log conflicts
+## 6. `check` flags git conflict markers; format.md documents Log conflicts — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): docs/format.md lists the new `conflict` code in a new "Merge conflicts in the Log" subsection under Issue files, since format.md had no list of check codes to append to; the package doc comment of internal/check/check.go now names the conflict-marker rule as one check owns itself.
+
 
 **What:** Depends on item 3, which also changes `internal/check/check.go`. This fixes
 `check-conflict-markers`: a merge of two concurrent `capcom log` calls leaves markers in `## Log`,
