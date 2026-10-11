@@ -20,7 +20,8 @@ capcom keeps a single source of truth, and that truth is files under git.
 
 - **Issues as files.** One markdown file per issue, with a short header for status, labels and
   dependencies. Git does the syncing, the history and the merging. Ids are readable slugs
-  (`login-timeout-race`), and renaming one is a `git mv`.
+  (`login-timeout-race`). Renaming one (`capcom mv`) is a plain file rename that keeps the old
+  id as an alias and updates the dependencies that named it.
 - **A fast index that can't drift.** A local SQLite index is built from those files for quick
   queries ("what's ready to work on?"). It is a cache: delete it and capcom rebuilds it.
 - **A repo lock.** One agent can claim the working tree while it edits ("implementing plan X"),

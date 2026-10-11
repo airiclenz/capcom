@@ -213,7 +213,13 @@ Depends on item 8.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run 'Cycle|Deps' ./internal/issue/` ; `GOMEMLIMIT=2GiB go test -count=1 -run 'Close|Reopen|Dep' ./internal/cli/`
 **Commit:** `feat(cli): close, reopen and dependency edges`
 
-## 10. Rename and move: `capcom mv`
+## 10. Rename and move: `capcom mv` — ✅ DONE (2026-10-11)
+
+NOTES (2026-10-11): consequential edit — internal/cli/root.go: made necessary by registering the new mv command
+NOTES (2026-10-11): internal/issue/export_test.go added (not in **Files:**) as the test seam that injects the failing second rename into a Move
+NOTES (2026-10-11): docs/adr/0001-the-directory-tree-is-the-hierarchy.md left unchanged — it already states the plain file-system rename and no `git mv`; README.md was the only remaining `git mv` site
+NOTES (2026-10-11): a new id and --parent may be given together in one mv; renaming back to one of the issue's own aliases is allowed (the two swap) — only an id or alias held by another issue is refused
+NOTES (2026-10-11): mv removes the old parent's children directory when the move empties it, and warns (without failing) about other issue files that do not parse, whose deps it cannot rewrite; rollback restores rewritten files with LF line endings, as every atomic write does
 
 Depends on item 9.
 **What:**
