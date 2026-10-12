@@ -102,7 +102,7 @@ func TestDiscover_OutsideRepository_FailsNotWorkTree(t *testing.T) {
 func TestRun_FailingCommand_ReturnsGitStderr(t *testing.T) {
 	root := newRepo(t)
 
-	_, err := Run(root, "rev-parse", "--verify", "no-such-ref")
+	_, err := run(root, "rev-parse", "--verify", "no-such-ref")
 
 	var failure *Error
 	if !errors.As(err, &failure) || failure.Stderr == "" {
@@ -113,10 +113,62 @@ func TestRun_FailingCommand_ReturnsGitStderr(t *testing.T) {
 func TestRun_DisablesOptionalLocks(t *testing.T) {
 	root := newRepo(t)
 
-	output, err := Run(root, "-c", "alias.lockmode=!echo $GIT_OPTIONAL_LOCKS", "lockmode")
+	output, err := run(root, "-c", "alias.lockmode=!echo $GIT_OPTIONAL_LOCKS", "lockmode")
 
 	if err != nil || strings.TrimSpace(output) != "0" {
 		t.Errorf("GIT_OPTIONAL_LOCKS = %q (%v), want 0", output, err)
+	}
+}
+
+func TestCurrentBranch_BranchUnbornAndDetached(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(t *testing.T) string
+		want  string
+	}{
+		{
+			name: "checked-out branch",
+			setup: func(t *testing.T) string {
+				root := newRepo(t)
+				git(t, root, "checkout", "-q", "-b", "feature/login")
+				return root
+			},
+			want: "feature/login",
+		},
+		{
+			name: "unborn branch",
+			setup: func(t *testing.T) string {
+				root, err := filepath.EvalSymlinks(t.TempDir())
+				if err != nil {
+					t.Fatalf("EvalSymlinks: %v", err)
+				}
+				setHermeticGitEnv(t, root)
+				git(t, root, "init", "-q")
+				git(t, root, "symbolic-ref", "HEAD", "refs/heads/trunk")
+				return root
+			},
+			want: "trunk",
+		},
+		{
+			name: "detached HEAD",
+			setup: func(t *testing.T) string {
+				root := newRepo(t)
+				git(t, root, "checkout", "-q", "--detach")
+				return root
+			},
+			want: "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := tc.setup(t)
+
+			branch, err := CurrentBranch(root)
+
+			if err != nil || branch != tc.want {
+				t.Errorf("CurrentBranch = %q (%v), want %q", branch, err, tc.want)
+			}
+		})
 	}
 }
 

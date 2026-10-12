@@ -79,7 +79,7 @@ type FileChange struct {
 // never fetches, so a remote-tracking branch is as fresh as the last fetch. The refs/remotes/
 // <remote>/HEAD pointers are left out.
 func Branches(dir string) ([]Branch, error) {
-	output, err := Run(dir, "for-each-ref", "--format="+branchFormat, branchRefPrefix, remoteRefPrefix)
+	output, err := run(dir, "for-each-ref", "--format="+branchFormat, branchRefPrefix, remoteRefPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -118,10 +118,21 @@ func Branches(dir string) ([]Branch, error) {
 	return branches, nil
 }
 
+// CurrentBranch returns the short name of the branch checked out in the worktree containing dir,
+// as `git branch --show-current` prints it: the unborn branch's name in a repository with no
+// commit yet, and "" with no error on a detached HEAD.
+func CurrentBranch(dir string) (string, error) {
+	output, err := run(dir, "branch", "--show-current")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
 // HasCommit reports whether revision names a commit in the repository containing dir; it is false
 // for HEAD on an unborn branch.
 func HasCommit(dir, revision string) (bool, error) {
-	_, err := Run(dir, "rev-parse", "--verify", "--quiet", revision+"^{commit}")
+	_, err := run(dir, "rev-parse", "--verify", "--quiet", revision+"^{commit}")
 	if err == nil {
 		return true, nil
 	}
@@ -135,7 +146,7 @@ func HasCommit(dir, revision string) (bool, error) {
 // IsAncestor reports whether ancestor is reachable from descendant: IsAncestor(dir, branch, "HEAD")
 // is true when the branch has no commit that HEAD lacks.
 func IsAncestor(dir, ancestor, descendant string) (bool, error) {
-	_, err := Run(dir, "merge-base", "--is-ancestor", ancestor, descendant)
+	_, err := run(dir, "merge-base", "--is-ancestor", ancestor, descendant)
 	if err == nil {
 		return true, nil
 	}
@@ -152,7 +163,7 @@ func IsAncestor(dir, ancestor, descendant string) (bool, error) {
 // since pathspecs and the returned paths are relative to it.
 func ChangedFiles(dir, base, branch string, pathspecs []string) ([]FileChange, error) {
 	args := []string{"diff", "--name-status", "--no-renames", "-z", base + "..." + branch, "--"}
-	output, err := Run(dir, append(args, pathspecs...)...)
+	output, err := run(dir, append(args, pathspecs...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +188,7 @@ func ChangedFiles(dir, base, branch string, pathspecs []string) ([]FileChange, e
 
 // ShowFile returns the content of the file at path, relative to the worktree root, in revision.
 func ShowFile(dir, revision, path string) ([]byte, error) {
-	output, err := Run(dir, "cat-file", "blob", revision+":"+path)
+	output, err := run(dir, "cat-file", "blob", revision+":"+path)
 	if err != nil {
 		return nil, err
 	}

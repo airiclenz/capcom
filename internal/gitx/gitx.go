@@ -68,7 +68,7 @@ type Paths struct {
 // Discover finds the working tree containing dir. It fails with an error wrapping ErrNotWorkTree
 // when dir is outside one; any other failure (git missing, dir unreadable) is returned as is.
 func Discover(dir string) (Paths, error) {
-	output, err := Run(
+	output, err := run(
 		dir,
 		"rev-parse", "--path-format=absolute", "--show-toplevel", "--git-dir", "--git-common-dir",
 	)
@@ -95,9 +95,9 @@ func Discover(dir string) (Paths, error) {
 	}, nil
 }
 
-// Run runs a read-only git command in dir and returns its stdout. A command that exits non-zero
+// run runs a read-only git command in dir and returns its stdout. A command that exits non-zero
 // fails with an *Error carrying git's stderr. Callers must pass read-only commands only.
-func Run(dir string, args ...string) (string, error) {
+func run(dir string, args ...string) (string, error) {
 	command := exec.Command(gitProgram, args...)
 	command.Dir = dir
 	command.Env = append(os.Environ(), optionalLocksOff)
@@ -123,7 +123,7 @@ func AuthorName(dir string) (string, error) {
 	if name := strings.TrimSpace(os.Getenv(authorNameVariable)); name != "" {
 		return name, nil
 	}
-	output, err := Run(dir, "config", userNameKey)
+	output, err := run(dir, "config", userNameKey)
 	var gitFailure *Error
 	if err != nil && !errors.As(err, &gitFailure) {
 		return "", err

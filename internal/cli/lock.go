@@ -249,7 +249,7 @@ func newClaim(opened *store.Store, purpose, holder string) (lock.Claim, error) {
 	if err != nil {
 		return lock.Claim{}, fmt.Errorf("reading host name: %w", err)
 	}
-	branchOutput, err := gitx.Run(opened.WorktreeRoot, "branch", "--show-current")
+	branch, err := gitx.CurrentBranch(opened.WorktreeRoot)
 	if err != nil {
 		return lock.Claim{}, err
 	}
@@ -266,7 +266,7 @@ func newClaim(opened *store.Store, purpose, holder string) (lock.Claim, error) {
 		Holder:  holder,
 		Host:    host,
 		User:    user,
-		Branch:  strings.TrimSpace(branchOutput),
+		Branch:  branch,
 	}, nil
 }
 

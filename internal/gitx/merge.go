@@ -46,7 +46,7 @@ func MergeFile(basePath, oursPath, theirsPath string, labels MergeLabels) ([]byt
 	if !errors.As(err, &exitFailure) {
 		return nil, false, fmt.Errorf("run git %s: %w", strings.Join(args, " "), err)
 	}
-	// Unlike Run, a non-zero exit here can be a result: merge-file exits with the number of
+	// Unlike run, a non-zero exit here can be a result: merge-file exits with the number of
 	// conflicts it left, and its stdout then holds the merge with their markers.
 	if code := exitFailure.ExitCode(); code > 0 && code <= maxConflictExit {
 		return stdout.Bytes(), true, nil

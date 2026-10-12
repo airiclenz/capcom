@@ -783,7 +783,9 @@ internal/edit/edit.go — Labels; internal/issue/mutate_test.go — TestIssue_Re
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/issue/ ./internal/edit/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Update|Create'`
 **Commit:** `refactor(issue): delete label and body pass-throughs`
 
-## 29. gitx.CurrentBranch
+## 29. gitx.CurrentBranch — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): consequential edit — internal/gitx/merge.go: made necessary by unexporting Run (the "Unlike Run" comment now reads "Unlike run")
 
 **What:**
 **Goal:** `gitx.CurrentBranch(dir)` returns the trimmed current branch; `gitx.Run` is unexported;
