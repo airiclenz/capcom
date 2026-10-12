@@ -83,6 +83,13 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	if move.NewID != move.Node.ID {
+		// PlanMove has parsed the moved Note's file, so the holder found is another Note's.
+		err := a.unparsedAliasFailure(notes, problems, move.NewID, noteNoun, recoverNoteAliases)
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	if current := edit.ETag(move.Original); options.ifMatch != "" && options.ifMatch != current {
 		return Result{}, &Error{
 			Code:    CodeConflict,

@@ -398,3 +398,44 @@ func TestKnowAdd_AliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 		t.Error("dup-id.md was written although an orphaned Note has it as an alias")
 	}
 }
+
+// breakNoteFile puts the title line of the Note file at a slash path below .capcom/knowledge/ inside
+// a git conflict hunk, so the file does not parse.
+func breakNoteFile(t *testing.T, root string, name string) {
+	t.Helper()
+	writeNoteFiles(t, root, map[string]string{name: withConflictAroundTitle(readNoteFile(t, root, name))})
+}
+
+func TestKnowAdd_AliasOfUnparseableNote_FailsExistsNamingTheFile(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "know", "mv", "release-flow", "release-steps")
+	breakNoteFile(t, root, "release-steps.md")
+
+	stdout, _, exitCode := runCLI(t, root, "know", "add", "--json", "--id", "release-flow", "--title", "Duplicate")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	wantMessage := `id "release-flow" may be an alias of note release-steps, whose file does not parse: fix it first`
+	if exitCode != ExitError || failure["code"] != string(CodeExists) ||
+		failure["path"] != ".capcom/knowledge/release-steps.md" || failure["message"] != wantMessage {
+		t.Errorf("exit = %d error = %v, want exists at release-steps.md with %q", exitCode, failure, wantMessage)
+	}
+	if noteFileExists(t, root, "release-flow.md") {
+		t.Error("release-flow.md was written although an unparseable Note lists it as an alias")
+	}
+}
+
+func TestKnowAdd_BesideUnparseableNoteWithOtherAlias_WritesAndWarnsOnce(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "know", "mv", "release-flow", "release-steps")
+	breakNoteFile(t, root, "release-steps.md")
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "good-note", "--title", "Good note")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	if !noteFileExists(t, root, "good-note.md") {
+		t.Error("good-note.md was not written")
+	}
+	assertWarnedOnce(t, stdout+stderr, "warning: .capcom/knowledge/release-steps.md:")
+}

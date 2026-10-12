@@ -97,6 +97,24 @@ func TestKnowMv_OntoTakenIDOrAlias_FailsExistsNamingTheNote(t *testing.T) {
 	}
 }
 
+func TestKnowMv_OntoAliasOfUnparseableNote_FailsExistsNamingTheFile(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "know", "mv", "release-flow", "release-steps")
+	breakNoteFile(t, root, "release-steps.md")
+
+	stdout, _, exitCode := runCLI(t, root, "know", "mv", "--json", "git-fixtures", "release-flow")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	wantMessage := `id "release-flow" may be an alias of note release-steps, whose file does not parse: fix it first`
+	if exitCode != ExitError || failure["code"] != string(CodeExists) ||
+		failure["path"] != ".capcom/knowledge/release-steps.md" || failure["message"] != wantMessage {
+		t.Errorf("exit = %d error = %v, want exists at release-steps.md with %q", exitCode, failure, wantMessage)
+	}
+	if !noteFileExists(t, root, "testing-rules/git-fixtures.md") {
+		t.Errorf("git-fixtures.md moved")
+	}
+}
+
 func TestKnowMv_BelowItsOwnChild_FailsInvalid(t *testing.T) {
 	root := newKnowStore(t)
 

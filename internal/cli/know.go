@@ -15,6 +15,7 @@ import (
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -317,6 +318,9 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 	if err := a.orphanedIDFailure(problems, options.id, readNoteAliases); err != nil {
 		return Result{}, err
 	}
+	if err := a.unparsedAliasFailure(notes, problems, options.id, noteNoun, recoverNoteAliases); err != nil {
+		return Result{}, err
+	}
 	path, parentPath, err := a.newNotePath(notes, options)
 	if err != nil {
 		return Result{}, err
@@ -436,6 +440,19 @@ func readNoteAliases(path string) ([]string, error) {
 		return nil, nil
 	}
 	return parsed.Aliases, nil
+}
+
+// recoverNoteAliases is the recovering lookup of the Knowledge tree: the aliases rawfm.Aliases still
+// reads from the raw frontmatter of a Note file that does not parse, and none for one that parses.
+func recoverNoteAliases(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, &tree.Error{Path: path, Err: err}
+	}
+	if _, err := knowledge.Parse(path, data); err == nil {
+		return nil, nil
+	}
+	return rawfm.Aliases(data), nil
 }
 
 // noteExistsFailure refuses id, which is the id or an Alias of the existing Note; it names that

@@ -149,7 +149,9 @@ inside a directory without its node file, beside
 **Commit:** `fix(cli): refuse an id an unparseable issue file holds as an alias`
 Depends on items 1 and 2.
 
-## 4. know add and know mv refuse an alias held by an unparseable Note
+## 4. know add and know mv refuse an alias held by an unparseable Note — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from the assumed `orphanedIDFailure` kind-noun argument: item 3 landed the kind-neutral `unparsedAliasFailure(nodes, problems, id, kind, recovered)` instead, so `addNote` and `moveNote` each call it with `noteNoun` and the new recovering lookup `recoverNoteAliases` (know.go, beside the unchanged `readNoteAliases`); `orphanedIDFailure` and `errors.go` are untouched. `know mv` checks after `triageMoveProblems` and before the etag check, mirroring item 3's `mv`.
 
 **What:** Recast at the regression check (2026-10-12).
 **Goal:** `know add` and `know mv` refuse a new id that an unparseable Note lists under `aliases:`,

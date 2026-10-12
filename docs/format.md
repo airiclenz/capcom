@@ -185,10 +185,11 @@ when it concerns the issue they write, move or remove, its new path or the paren
 other is a warning. `know add`, `know mv` and `know rm` treat the Knowledge tree the same way for the Note
 they write, move or remove. A new id is refused when a file anywhere under a directory without its
 node file is named for that id or records it among its aliases, since that file is outside the tree
-until the directory is fixed. A new id is also refused when an issue file that does not parse records
-it among its aliases, as far as its `aliases:` line can still be read (either list form, conflict
-markers passed over), with `id "<id>" may be an alias of issue <holder>, whose file does not parse:
-fix it first`; every other problem of that file stays a warning. Two files that answer to the same
+until the directory is fixed. A new id is also refused when an issue file or Note that does not parse
+records it among its aliases, as far as its `aliases:` line can still be read (either list form,
+conflict markers passed over), with `id "<id>" may be an alias of issue <holder>, whose file does not
+parse: fix it first` (`note` in place of `issue` for a Note); every other problem of that file stays
+a warning. Two files that answer to the same
 id or alias are both left out, each warning naming the other. The index refreshes itself on every command that reads it,
 re-reading only the files whose size or modification time changed; `capcom reindex` rebuilds it
 from scratch.
