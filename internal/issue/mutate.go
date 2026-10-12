@@ -16,39 +16,6 @@ const LogHeading = "## Log"
 // inside the entry's list item.
 const logContinuationIndent = "  "
 
-// ErrReplaceMatch reports body replacement text that does not occur exactly once in the body. It
-// is edit.ErrReplaceMatch, so errors.Is matches either name.
-var ErrReplaceMatch = edit.ErrReplaceMatch
-
-// WithLabels returns a copy of the issue with each label of add appended unless it is empty or
-// already there, then each label of remove taken out. Labels keep their order; a label to remove
-// that the issue does not carry is ignored.
-func (i Issue) WithLabels(add []string, remove []string) Issue {
-	i.Labels = edit.Labels(i.Labels, add, remove)
-	return i
-}
-
-// AppendBody returns a copy of the issue with text appended to its body as a new block, separated
-// from what is there by a blank line, and ending in a line break. text is taken literally; CRLF
-// line endings in it are read as LF. An empty body gets the leading blank line a new issue file
-// has after its frontmatter.
-func (i Issue) AppendBody(text string) Issue {
-	i.Body = edit.AppendBody(i.Body, text)
-	return i
-}
-
-// ReplaceBody returns a copy of the issue with the one occurrence of old in its body replaced by
-// replacement (CRLF line endings in either read as LF). It fails with an error wrapping
-// ErrReplaceMatch when old is empty or occurs in the body other than exactly once.
-func (i Issue) ReplaceBody(old string, replacement string) (Issue, error) {
-	body, err := edit.ReplaceBody(i.Body, old, replacement)
-	if err != nil {
-		return Issue{}, err
-	}
-	i.Body = body
-	return i, nil
-}
-
 // AppendLog returns a copy of the issue with the entry `- YYYY-MM-DD <author>: <text>` appended
 // as the last item of its Log section, the section that opens with a LogHeading line and runs to
 // the next level-one or level-two heading. A body without that section gets one at its end. date

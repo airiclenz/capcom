@@ -769,7 +769,7 @@ internal/cli/init.go — storeFailure; internal/elsewhere/elsewhere.go — Scan
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/briefing/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Prime`
 **Commit:** `refactor(briefing): compose the Briefing outside cli`
 
-## 28. Delete the issue label and body wrappers
+## 28. Delete the issue label and body wrappers — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** `issue.WithLabels`, `issue.AppendBody`, `issue.ReplaceBody` and `issue.ErrReplaceMatch`

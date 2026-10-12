@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -123,19 +124,19 @@ func (a *app) applyUpdate(
 	if flags.Changed(flagPlan) {
 		target.Plan = options.plan
 	}
-	target = target.WithLabels(options.addLabels, options.removeLabels)
+	target.Labels = edit.Labels(target.Labels, options.addLabels, options.removeLabels)
 	if flags.Changed(flagBodyReplaceOld) {
-		replaced, err := target.ReplaceBody(options.replaceOld, options.replaceNew)
+		replaced, err := edit.ReplaceBody(target.Body, options.replaceOld, options.replaceNew)
 		if err != nil {
 			return issue.Issue{}, Errorf(CodeInvalid, "%s", err.Error())
 		}
-		target = replaced
+		target.Body = replaced
 	}
 	if flags.Changed(flagBodyAppend) {
-		target = target.AppendBody(options.bodyAppend)
+		target.Body = edit.AppendBody(target.Body, options.bodyAppend)
 	}
 	if flags.Changed(flagBodyAppendFile) {
-		target = target.AppendBody(appendFile)
+		target.Body = edit.AppendBody(target.Body, appendFile)
 	}
 	return target, nil
 }

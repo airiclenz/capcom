@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
@@ -102,9 +103,10 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions) (issue.Issue,
 		Status:   status,
 		Type:     issueType,
 		Priority: options.priority,
+		Labels:   edit.Labels(nil, options.labels, nil),
 		Plan:     options.plan,
 		Created:  time.Now().UTC().Truncate(time.Second),
-	}.WithLabels(options.labels, nil)
+	}
 	if options.bodyFile == "" {
 		return created, nil
 	}
@@ -112,7 +114,8 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions) (issue.Issue,
 	if err != nil {
 		return issue.Issue{}, err
 	}
-	return created.AppendBody(body), nil
+	created.Body = edit.AppendBody(created.Body, body)
+	return created, nil
 }
 
 // defaultType is the type of an issue created without --type; config guarantees at least one

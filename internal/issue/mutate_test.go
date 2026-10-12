@@ -1,7 +1,6 @@
 package issue_test
 
 import (
-	"errors"
 	"testing"
 	"time"
 
@@ -10,16 +9,6 @@ import (
 
 // logDate is the date every Log entry in these tests is written on.
 var logDate = time.Date(2026, 10, 11, 15, 0, 0, 0, time.UTC)
-
-func TestIssue_ReplaceBody_NotExactlyOnce_FailsWithErrReplaceMatch(t *testing.T) {
-	original := issue.Issue{Body: "\nThe old text stays old.\n"}
-
-	_, err := original.ReplaceBody("old", "new")
-
-	if !errors.Is(err, issue.ErrReplaceMatch) {
-		t.Errorf("err = %v, want ErrReplaceMatch", err)
-	}
-}
 
 func TestIssue_AppendLog_AddsEntryToLogSection(t *testing.T) {
 	cases := []struct {
