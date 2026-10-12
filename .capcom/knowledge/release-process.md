@@ -1,5 +1,5 @@
 ---
-title: 'Before cutting a release: use release-capcom, never tag or bump by hand'
+title: "Before cutting a release: use release-capcom, never tag or bump by hand"
 labels: [release]
 refs: [docs/releasing.md, docs/adr/0008-the-repo-owns-its-release-pipeline.md, .agents/skills/release-capcom/SKILL.md, cmd/release]
 ---

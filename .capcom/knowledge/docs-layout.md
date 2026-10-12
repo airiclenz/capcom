@@ -1,5 +1,5 @@
 ---
-title: 'Before reading or changing a design: where the glossary, ADRs, plans and handoffs live'
+title: "Before reading or changing a design: where the glossary, ADRs, plans and handoffs live"
 labels: [docs]
 refs: [CONTEXT.md, docs/adr, docs/design, docs/plans, docs/handoffs, docs/format.md]
 ---

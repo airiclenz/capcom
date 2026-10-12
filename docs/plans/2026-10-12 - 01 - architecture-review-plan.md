@@ -269,7 +269,9 @@ internal/issue/file_test.go — TestParse_Failures_CiteFileLine, TestParseSerial
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/issue/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Fmt|Reindex'`
 **Commit:** `refactor(issue): parse and serialize through the frontmatter codec`
 
-## 9. Notes on the codec, double-quoted, and the store reformatted
+## 9. Notes on the codec, double-quoted, and the store reformatted — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the Note field table is a `fields` slice of {key, decode, encode} entries (title and refs spelled out inline, labels and aliases through `listField`); it drives Parse's Decode callback, Serialize's Encoder calls and the `noteKind` key list. `knowledge.Error` is `type Error = frontmatter.Error`; the yaml.v3 parser and Encoder path (`parser`, `splitFrontmatter`, `addText`, `addList`, `stringNode`, the fence and tag constants) is gone. Validate, AliasesLine and RefLine stay in note.go: moving them to another file is not this item's to do.
 
 **What:**
 **Goal:** `internal/knowledge/note.go` holds only the Note field table; `knowledge.Error` is an alias

@@ -1,5 +1,5 @@
 ---
-title: 'What capcom keeps where: files in .capcom, index and locks under the git dir'
+title: "What capcom keeps where: files in .capcom, index and locks under the git dir"
 labels: [architecture]
 refs: [docs/format.md, internal/index/index.go#index.db, internal/lock/lock.go#locksDir, internal/store/store.go#func Open]
 ---

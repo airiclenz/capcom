@@ -147,6 +147,29 @@ func TestSerialize_ThenParse_RoundTrips(t *testing.T) {
 	}
 }
 
+func TestSerialize_TitleWithColon_IsDoubleQuoted(t *testing.T) {
+	t.Parallel()
+	note := Note{Title: "Fix: parser", Labels: []string{"it's"}, Body: "\nBody.\n"}
+
+	data := note.Serialize()
+
+	want := "---\ntitle: \"Fix: parser\"\nlabels: [it's]\n---\n\nBody.\n"
+	if string(data) != want {
+		t.Errorf("Serialize =\n%s\nwant\n%s", data, want)
+	}
+}
+
+func TestParse_UnknownKey_NamesTheNoteKeys(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse(notePath, []byte("---\ntitle: x\nstatus: open\n---\n"))
+
+	want := notePath + `:3: unknown key "status"; a note has title, labels, refs and aliases`
+	if err == nil || err.Error() != want {
+		t.Errorf("Parse error = %v, want %s", err, want)
+	}
+}
+
 func TestVerify_Refs_FlagOnlyTheBrokenOnes(t *testing.T) {
 	t.Parallel()
 	root := newWorktree(t)

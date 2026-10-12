@@ -284,7 +284,8 @@ CLI tests drive every command in process through `runCLI`, in a real temp git re
 
 Any other key is an error, the id included. capcom writes a Note with the keys in the order of the
 table, empty fields left out, lists in flow style on one line, text unquoted wherever YAML reads it
-back unchanged and quoted otherwise, and the body byte for byte. The body is free markdown.
+back unchanged and in double quotes otherwise, always on one line, and the body byte for byte. The
+body is free markdown.
 
 Notes are changed through capcom, never by hand-editing `.capcom/knowledge/`:
 

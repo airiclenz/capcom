@@ -1,5 +1,5 @@
 ---
-title: 'Before writing code: house conventions, gofmt and capcom-specific rules'
+title: "Before writing code: house conventions, gofmt and capcom-specific rules"
 labels: [conventions]
 ---
 

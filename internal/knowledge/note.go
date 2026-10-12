@@ -1,21 +1,16 @@
 // Package knowledge reads and writes Note files and checks their Refs. A Note is markdown with a
 // YAML frontmatter between two `---` lines holding title, labels, refs and aliases; its id is the
 // file name and its place in the Knowledge Tree is its directory (ADR 0001). Parse turns a file
-// into a Note, Serialize writes one back, Validate checks it, and Verify reports the Refs that no
-// longer resolve in the working tree. Every error names the file, and the line when one is to
-// blame.
+// into a Note and Serialize writes one back, both through the shared frontmatter codec; Validate
+// checks a Note, and Verify reports the Refs that no longer resolve in the working tree. Every
+// error names the file, and the line when one is to blame.
 package knowledge
 
 import (
-	"bytes"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
-	"github.com/airiclenz/capcom/internal/rawfm"
+	"github.com/airiclenz/capcom/internal/frontmatter"
 )
 
 // Frontmatter keys, in the order Serialize writes them.
@@ -26,24 +21,61 @@ const (
 	keyAliases = "aliases"
 )
 
-// fence is the line that opens and closes the frontmatter.
-const fence = "---"
+// noteKind is the Note kind of frontmatter file: the noun its failures use and every key it knows,
+// in the order Serialize writes them.
+var noteKind = frontmatter.Kind{Noun: "a note", Keys: fieldKeys()}
 
-// fenceLine is a fence with its line ending.
-const fenceLine = fence + "\n"
+// field is one frontmatter key of a Note: how Parse reads it into a Note and how Serialize writes
+// it back.
+type field struct {
+	key    string
+	decode func(value frontmatter.Field, note *Note) error
+	encode func(note Note, out *frontmatter.Encoder)
+}
 
-// frontmatterLineOffset turns a line of the frontmatter YAML into a line of the file: the opening
-// fence is line 1.
-const frontmatterLineOffset = 1
+// fields is the Note field table: every frontmatter key, in the order Serialize writes them.
+var fields = []field{
+	{
+		key: keyTitle,
+		decode: func(value frontmatter.Field, note *Note) (err error) {
+			note.Title, err = value.Text()
+			return err
+		},
+		encode: func(note Note, out *frontmatter.Encoder) { out.Text(keyTitle, note.Title) },
+	},
+	listField(keyLabels, func(note *Note) *[]string { return &note.Labels }),
+	{
+		key: keyRefs,
+		decode: func(value frontmatter.Field, note *Note) (err error) {
+			note.Refs, note.refLines, err = value.List()
+			return err
+		},
+		encode: func(note Note, out *frontmatter.Encoder) { out.List(keyRefs, note.Refs) },
+	},
+	listField(keyAliases, func(note *Note) *[]string { return &note.Aliases }),
+}
 
-// YAML tags the parser resolves plain scalars to.
-const (
-	tagString = "!!str"
-	tagNull   = "!!null"
-)
+// listField is a list key held in the Note field at returns, whose entry lines the Note does not
+// keep.
+func listField(key string, at func(note *Note) *[]string) field {
+	return field{
+		key: key,
+		decode: func(value frontmatter.Field, note *Note) (err error) {
+			*at(note), _, err = value.List()
+			return err
+		},
+		encode: func(note Note, out *frontmatter.Encoder) { out.List(key, *at(&note)) },
+	}
+}
 
-// yamlLineError matches the line a yaml.v3 syntax error names, relative to the frontmatter.
-var yamlLineError = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
+// fieldKeys lists the keys of the field table, in its order.
+func fieldKeys() []string {
+	keys := make([]string, 0, len(fields))
+	for _, entry := range fields {
+		keys = append(keys, entry.key)
+	}
+	return keys
+}
 
 // Note is one parsed Note file. Its id is the file name and is never stored in the file. Empty
 // strings and nil lists are fields the file leaves out.
@@ -64,21 +96,10 @@ type Note struct {
 	refLines []int
 }
 
-// Error is a Note file that cannot be used. Line is the 1-based line of the offending key or
-// value, or 0 when no single line is to blame.
-type Error struct {
-	Path    string
-	Line    int
-	Message string
-}
-
-// Error renders "path:line: message", or "path: message" when the line is unknown.
-func (e *Error) Error() string {
-	if e.Line > 0 {
-		return fmt.Sprintf("%s:%d: %s", e.Path, e.Line, e.Message)
-	}
-	return fmt.Sprintf("%s: %s", e.Path, e.Message)
-}
+// Error is a Note file that cannot be used: the one frontmatter.Error both kinds report, with the
+// file, the 1-based line of the offending key or value (0 when no single line is to blame) and the
+// message.
+type Error = frontmatter.Error
 
 // AliasesLine returns the 1-based line of the aliases key in the file the Note was parsed from, or
 // 0 when the file has none or the Note was built in memory.
@@ -104,31 +125,20 @@ func (n Note) RefLine(i int) int {
 // When the frontmatter holds a git conflict marker, such a failure cites the first marker
 // instead, in the words `capcom check` reports it with.
 func Parse(path string, data []byte) (Note, error) {
-	text := string(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
-	if !strings.HasPrefix(text, fenceLine) {
-		return Note{}, &Error{Path: path, Line: 1, Message: "a note file must start with a --- line"}
-	}
-	front, body, isClosed := splitFrontmatter(text[len(fenceLine):])
-	if !isClosed {
-		return Note{}, &Error{
-			Path:    path,
-			Line:    1,
-			Message: "the frontmatter opened here is never closed by a --- line",
+	var note Note
+	document, err := frontmatter.Decode(path, data, noteKind, func(value frontmatter.Field) error {
+		for _, entry := range fields {
+			if entry.key == value.Key {
+				return entry.decode(value, &note)
+			}
 		}
-	}
-
-	p := parser{path: path}
-	root, err := p.document(front)
+		return nil // unreachable: Decode hands over only the keys of noteKind
+	})
 	if err != nil {
-		return Note{}, p.conflictError(data, front, err)
+		return Note{}, err
 	}
-	note := Note{Body: body, lines: map[string]int{}}
-	if root == nil {
-		return note, nil
-	}
-	if err := p.fields(root, &note); err != nil {
-		return Note{}, p.conflictError(data, front, err)
-	}
+	note.Body = document.Body
+	note.lines = document.Lines
 	return note, nil
 }
 
@@ -168,209 +178,13 @@ func Validate(path string, note Note) []*Error {
 	return problems
 }
 
-// Serialize writes the Note: the frontmatter keys in the fixed order title, labels, refs, aliases,
-// empty fields left out, lists in flow style, text plain where YAML reads it back unchanged and
-// quoted otherwise; then the body verbatim.
+// Serialize writes the Note in the canonical form: the frontmatter keys in the fixed order title,
+// labels, refs, aliases; empty fields left out; lists in flow style; text plain where YAML reads it
+// back unchanged and double-quoted otherwise; then the body verbatim.
 func (n Note) Serialize() []byte {
-	mapping := &yaml.Node{Kind: yaml.MappingNode}
-	addText(mapping, keyTitle, n.Title)
-	addList(mapping, keyLabels, n.Labels)
-	addList(mapping, keyRefs, n.Refs)
-	addList(mapping, keyAliases, n.Aliases)
-
-	var out strings.Builder
-	out.WriteString(fenceLine)
-	if len(mapping.Content) > 0 {
-		var encoded bytes.Buffer
-		encoder := yaml.NewEncoder(&encoded)
-		// Encoding a tree of string scalars cannot fail.
-		_ = encoder.Encode(mapping)
-		_ = encoder.Close()
-		out.Write(encoded.Bytes())
+	var out frontmatter.Encoder
+	for _, entry := range fields {
+		entry.encode(n, &out)
 	}
-	out.WriteString(fenceLine)
-	out.WriteString(n.Body)
-	return []byte(out.String())
-}
-
-// addText appends key: value to mapping, unless value is empty.
-func addText(mapping *yaml.Node, key string, value string) {
-	if value == "" {
-		return
-	}
-	mapping.Content = append(mapping.Content, stringNode(key), stringNode(value))
-}
-
-// addList appends key: [entries] in flow style to mapping, unless entries is empty.
-func addList(mapping *yaml.Node, key string, entries []string) {
-	if len(entries) == 0 {
-		return
-	}
-	list := &yaml.Node{Kind: yaml.SequenceNode, Style: yaml.FlowStyle}
-	for _, entry := range entries {
-		list.Content = append(list.Content, stringNode(entry))
-	}
-	mapping.Content = append(mapping.Content, stringNode(key), list)
-}
-
-// stringNode is a text scalar; the encoder quotes it whenever YAML would read it as anything else.
-func stringNode(value string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tagString, Value: value}
-}
-
-// splitFrontmatter splits rest, the content after the opening fence, at the first line that is
-// exactly a fence. isClosed is false when there is none.
-func splitFrontmatter(rest string) (front string, body string, isClosed bool) {
-	offset := 0
-	for {
-		end := strings.IndexByte(rest[offset:], '\n')
-		if end < 0 {
-			if rest[offset:] == fence {
-				return rest[:offset], "", true
-			}
-			return "", "", false
-		}
-		if rest[offset:offset+end] == fence {
-			return rest[:offset], rest[offset+end+1:], true
-		}
-		offset += end + 1
-	}
-}
-
-// parser decodes the frontmatter of one file, attributing every failure to its path and line.
-type parser struct {
-	path string
-}
-
-func (p parser) errorAt(node *yaml.Node, format string, args ...any) *Error {
-	return &Error{
-		Path:    p.path,
-		Line:    node.Line + frontmatterLineOffset,
-		Message: fmt.Sprintf(format, args...),
-	}
-}
-
-// document parses the frontmatter into its top-level mapping node, or nil when it holds no keys.
-func (p parser) document(front string) (*yaml.Node, error) {
-	var document yaml.Node
-	if err := yaml.Unmarshal([]byte(front), &document); err != nil {
-		return nil, p.yamlError(err)
-	}
-	if len(document.Content) == 0 {
-		return nil, nil
-	}
-	root := document.Content[0]
-	if isNull(root) {
-		return nil, nil
-	}
-	if root.Kind != yaml.MappingNode {
-		return nil, p.errorAt(root, "the frontmatter must be a mapping of keys")
-	}
-	return root, nil
-}
-
-// conflictError returns err, the failure to parse the frontmatter front of the file content data,
-// unless the frontmatter holds a git conflict marker: then an *Error at the first such marker, worded
-// as `capcom check` reports it, since the marker, not the YAML it breaks, is what to fix.
-func (p parser) conflictError(data []byte, front string, err error) error {
-	lastFrontmatterLine := strings.Count(front, "\n") + frontmatterLineOffset
-	markers := rawfm.ConflictMarkers(data)
-	if len(markers) == 0 || markers[0].Line > lastFrontmatterLine {
-		return err
-	}
-	return &Error{Path: p.path, Line: markers[0].Line, Message: rawfm.ConflictMessage(markers[0])}
-}
-
-// yamlError turns a yaml.v3 syntax error into an *Error citing the file line it names.
-func (p parser) yamlError(err error) *Error {
-	match := yamlLineError.FindStringSubmatch(err.Error())
-	if match == nil {
-		return &Error{Path: p.path, Message: fmt.Sprintf("invalid YAML frontmatter: %v", err)}
-	}
-	line, _ := strconv.Atoi(match[1]) // the pattern admits digits only
-	return &Error{
-		Path:    p.path,
-		Line:    line + frontmatterLineOffset,
-		Message: "invalid YAML frontmatter: " + match[2],
-	}
-}
-
-// fields applies every key of root onto note, rejecting unknown and repeated keys.
-func (p parser) fields(root *yaml.Node, note *Note) error {
-	for index := 0; index+1 < len(root.Content); index += 2 {
-		key, value := root.Content[index], root.Content[index+1]
-		if _, isSeen := note.lines[key.Value]; isSeen {
-			return p.errorAt(key, "duplicate key %q", key.Value)
-		}
-		if err := p.field(key, value, note); err != nil {
-			return err
-		}
-		note.lines[key.Value] = key.Line + frontmatterLineOffset
-	}
-	return nil
-}
-
-// field decodes one key's value into note.
-func (p parser) field(key, value *yaml.Node, note *Note) error {
-	var err error
-	switch key.Value {
-	case keyTitle:
-		note.Title, err = p.text(key.Value, value)
-	case keyLabels:
-		note.Labels, _, err = p.list(key.Value, value)
-	case keyRefs:
-		note.Refs, note.refLines, err = p.list(key.Value, value)
-	case keyAliases:
-		note.Aliases, _, err = p.list(key.Value, value)
-	default:
-		err = p.errorAt(
-			key,
-			"unknown key %q; a note has %s, %s, %s and %s",
-			key.Value,
-			keyTitle,
-			keyLabels,
-			keyRefs,
-			keyAliases,
-		)
-	}
-	return err
-}
-
-func isNull(node *yaml.Node) bool {
-	return node.Kind == yaml.ScalarNode && node.Tag == tagNull
-}
-
-// text reads a scalar as text; an empty value reads as "".
-func (p parser) text(key string, value *yaml.Node) (string, error) {
-	if isNull(value) {
-		return "", nil
-	}
-	if value.Kind != yaml.ScalarNode {
-		return "", p.errorAt(value, "%s: expected text", key)
-	}
-	return value.Value, nil
-}
-
-// list reads a flow- or block-style list of non-empty text entries, with the file line of each;
-// an empty list reads as nil.
-func (p parser) list(key string, value *yaml.Node) ([]string, []int, error) {
-	if isNull(value) {
-		return nil, nil, nil
-	}
-	if value.Kind != yaml.SequenceNode {
-		return nil, nil, p.errorAt(value, "%s: expected a list such as [a, b]", key)
-	}
-	if len(value.Content) == 0 {
-		return nil, nil, nil
-	}
-	entries := make([]string, 0, len(value.Content))
-	lines := make([]int, 0, len(value.Content))
-	for _, item := range value.Content {
-		if item.Kind != yaml.ScalarNode || isNull(item) || item.Value == "" {
-			return nil, nil, p.errorAt(item, "%s: every entry must be non-empty text", key)
-		}
-		entries = append(entries, item.Value)
-		lines = append(lines, item.Line+frontmatterLineOffset)
-	}
-	return entries, lines, nil
+	return out.File(n.Body)
 }
