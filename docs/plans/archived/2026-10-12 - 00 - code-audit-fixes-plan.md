@@ -5,7 +5,7 @@
 **Status:** unexecuted
 **sized for:** ~200k-context host
 **base:** a91fa31
-**Sources:** `docs/reviews/code-audit-2026-10-12.md`; `docs/skill-runs/code-audit/2026-10-12/summary.md`; `docs/format.md`; Notes `coding-conventions`, `error-messages`, `cli-test-harness`, `store-layout`.
+**Sources:** `docs/reviews/archived/code-audit-2026-10-12.md`; `docs/skill-runs/code-audit/2026-10-12/summary.md`; `docs/format.md`; Notes `coding-conventions`, `error-messages`, `cli-test-harness`, `store-layout`.
 **Ratified design calls** (user, 2026-10-12):
 - **Duplicates:** `tree.Load` keeps its first-file-wins rule; every mutating command (rm, mv, update, close, know rm, know mv, create/know add with --parent, and any other nodestore write) refuses an id or alias that a duplicate warning names — as target, new id, or parent — with exit 1 and an error naming both files relative to the repo, never wrapping ErrNotFound. (user, 2026-10-12; supersedes the earlier 'drop all' call)
 - **Prefix resolution:** a name whose exact id or alias exists only on an excluded node returns a not-found or duplicate error for every command; prefix matching otherwise stays as `docs/format.md` documents.
