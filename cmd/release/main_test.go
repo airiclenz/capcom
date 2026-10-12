@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -49,12 +50,20 @@ func (f *fakeRunner) recorded(name string) []recordedCall {
 	return matching
 }
 
-// execute runs the program's command tree over commands with args, returning the error main
-// would turn into an exit code and everything the command printed.
+// execute runs the program's command tree over commands with args, the checkout's repo the
+// execRepo over commands as in production, returning the error main would turn into an exit code
+// and everything the command printed.
 func execute(t *testing.T, commands runner, args ...string) (string, error) {
 	t.Helper()
+	return executeWith(t, commands, execRepos(commands), args...)
+}
+
+// executeWith runs the program's command tree as execute does, every verb opening its repo with
+// openRepo.
+func executeWith(t *testing.T, commands runner, openRepo repoOpener, args ...string) (string, error) {
+	t.Helper()
 	var output bytes.Buffer
-	root := newRootCommand(commands)
+	root := newRootCommand(commands, openRepo)
 	root.SetArgs(args)
 	root.SetOut(&output)
 	root.SetErr(&output)
@@ -98,5 +107,48 @@ func TestBadCommandLineIsAUsageError(t *testing.T) {
 				t.Errorf("runner was called %d times, want none", len(commands.calls))
 			}
 		})
+	}
+}
+
+// TestCommandTreeOpensTheInjectedRepo pins the repo factory's wiring: a verb run through the
+// command tree reads the checkout through the repo newRootCommand was handed, never through
+// argv of its own — here status's gate, judged from a memRepo whose tree is dirty while every
+// runner command fails.
+func TestCommandTreeOpensTheInjectedRepo(t *testing.T) {
+	t.Parallel()
+	checkout := memRepo{commits: linearHistory(), head: bumpCommit, originMain: bumpCommit,
+		isDirty: true, greenRuns: []string{featureCommit}}
+	var openedDir string
+	openRepo := func(dir string) repo {
+		openedDir = dir
+		return checkout
+	}
+	commands := &fakeRunner{respond: func(call recordedCall) (string, error) {
+		return "", errors.New(call.name + ": unavailable")
+	}}
+
+	output, err := executeWith(t, commands, openRepo, "status", "--json", "v0.1.0")
+
+	if err == nil {
+		t.Fatal("status succeeded over a dirty tree")
+	}
+	var report statusReport
+	if decodeErr := json.Unmarshal([]byte(output), &report); decodeErr != nil {
+		t.Fatalf("status --json printed no JSON report: %v\n%s", decodeErr, output)
+	}
+	want := gateReport{Commit: featureCommit, Failures: []string{"the working tree is not clean"}}
+	if report.Gate.IsOK || report.Gate.Commit != want.Commit || !slices.Equal(report.Gate.Failures, want.Failures) {
+		t.Errorf("gate = %+v, want %+v", report.Gate, want)
+	}
+	if openedDir != "." {
+		t.Errorf("repo opened at %q, want the checkout %q", openedDir, ".")
+	}
+	gateCommands := []string{"git fetch", "git status", "git rev-parse", "git rev-list --parents",
+		"git diff-tree", "git merge-base", "gh run list"}
+	for _, call := range commands.calls {
+		command := call.name + " " + strings.Join(call.args, " ")
+		if slices.ContainsFunc(gateCommands, func(gate string) bool { return strings.HasPrefix(command, gate) }) {
+			t.Errorf("status ran %q itself instead of asking the repo", command)
+		}
 	}
 }

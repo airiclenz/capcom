@@ -63,6 +63,8 @@ type smokeOptions struct {
 	goarch string
 	// readBuildInfo reads the build information embedded in the binary at path.
 	readBuildInfo func(path string) (*buildinfo.BuildInfo, error)
+	// openRepo opens the checkout's repo; nil opens the execRepo over the run's runner.
+	openRepo repoOpener
 }
 
 // defaultSmokeOptions checks the checkout at dir from this host, reading build stamps with
@@ -92,8 +94,9 @@ type smokeRun struct {
 }
 
 // newSmokeCommand builds the smoke verb.
-func newSmokeCommand(commands runner) *cobra.Command {
+func newSmokeCommand(commands runner, openRepo repoOpener) *cobra.Command {
 	options := defaultSmokeOptions(".")
+	options.openRepo = openRepo
 
 	cmd := &cobra.Command{
 		Use:   "smoke [vX.Y.Z] [--dist-dir D]",
@@ -316,7 +319,7 @@ func (r *smokeRun) checkBuildStamps(ctx context.Context) {
 		r.skip("the assets did not all download and verify")
 		return
 	}
-	want, err := revParse(ctx, r.commands, r.options.dir, r.version.String())
+	want, err := execRepo{commands: r.commands, dir: r.options.dir}.Resolve(ctx, r.version.String())
 	if err != nil {
 		r.skip("tag %s is not in the local clone — git fetch --tags: %v", r.version, err)
 		return

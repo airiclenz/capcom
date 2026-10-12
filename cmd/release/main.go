@@ -11,7 +11,8 @@
 //	go run ./cmd/release smoke [vX.Y.Z] [--dist-dir D]
 //
 // Every external command it runs goes through one runner seam (runner.go), so its tests never
-// reach the network, a real `git` or a real toolchain.
+// reach the network, a real `git` or a real toolchain. What it asks of the capcom checkout and its
+// GitHub repository goes through the repo seam (repo.go) above it.
 //
 // It is a dev tool, never a release asset: dist does not ship it, and it imports nothing from
 // capcom's internal packages.
@@ -34,18 +35,20 @@ const (
 )
 
 func main() {
-	if err := newRootCommand(execRunner{}).ExecuteContext(context.Background()); err != nil {
+	commands := execRunner{}
+	if err := newRootCommand(commands, execRepos(commands)).ExecuteContext(context.Background()); err != nil {
 		fmt.Fprintln(os.Stderr, "release:", err)
 		os.Exit(exitCodeFor(err))
 	}
 }
 
 // newRootCommand builds the command tree over commands, the runner every verb executes its
-// external commands through. Errors are printed by main, not by Cobra, so a failure reads the
+// external commands through, and openRepo, which every verb that reads the capcom checkout
+// opens its repo with. Errors are printed by main, not by Cobra, so a failure reads the
 // same whichever verb produced it; usage still prints for a bad command line, because that is the
 // one failure the usage text actually answers. The root declares no Args, so Cobra's own check
 // refuses an unknown verb instead of printing help and exiting 0.
-func newRootCommand(commands runner) *cobra.Command {
+func newRootCommand(commands runner, openRepo repoOpener) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "release",
 		Short: "Build and publish a capcom release",
@@ -57,10 +60,10 @@ func newRootCommand(commands runner) *cobra.Command {
 		SilenceErrors: true,
 	}
 	cmd.AddCommand(newDistCommand(commands))
-	cmd.AddCommand(newStatusCommand(commands))
-	cmd.AddCommand(newPrepareCommand(commands))
-	cmd.AddCommand(newPublishCommand(commands))
-	cmd.AddCommand(newSmokeCommand(commands))
+	cmd.AddCommand(newStatusCommand(commands, openRepo))
+	cmd.AddCommand(newPrepareCommand(commands, openRepo))
+	cmd.AddCommand(newPublishCommand(commands, openRepo))
+	cmd.AddCommand(newSmokeCommand(commands, openRepo))
 	return cmd
 }
 

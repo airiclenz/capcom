@@ -26,6 +26,8 @@ type statusOptions struct {
 	// version is the release asked about, "" for the checkout's VERSION.
 	version string
 	isJSON  bool
+	// openRepo opens the checkout's repo; nil opens the execRepo over the run's runner.
+	openRepo repoOpener
 }
 
 // statusReport is everything status prints. Its JSON keys are a contract: the release skills
@@ -53,8 +55,8 @@ type baselineReport struct {
 }
 
 // newStatusCommand builds the status verb.
-func newStatusCommand(commands runner) *cobra.Command {
-	options := statusOptions{dir: "."}
+func newStatusCommand(commands runner, openRepo repoOpener) *cobra.Command {
+	options := statusOptions{dir: ".", openRepo: openRepo}
 
 	cmd := &cobra.Command{
 		Use:   "status [vX.Y.Z]",
@@ -107,7 +109,7 @@ func runStatus(ctx context.Context, commands runner, output io.Writer, options s
 		}
 	}
 
-	report.Gate = checkGate(ctx, commands, options.dir)
+	report.Gate = checkGate(ctx, options.openRepo.open(commands, options.dir))
 
 	tags, err := commands.run(ctx, options.dir, nil, "git", "tag", "--list", "v*")
 	if err != nil {

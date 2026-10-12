@@ -864,7 +864,12 @@ internal/check/check.go — checker.agentsBlock; internal/agents/block.go — To
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/agents/ ./internal/check/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Agents|Know'`
 **Commit:** `refactor(agents): add Sync`
 
-## 33. release: repo seam, exec and in-memory adapters, gate migrated
+## 33. release: repo seam, exec and in-memory adapters, gate migrated — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): revParse and isAncestor are deleted, not re-typed to take repo: their bodies became execRepo.Resolve and execRepo.IsAncestor (exitCoder moved to repo.go with them), and the publish callers (convergeTag, verifyTag) call publishRun.repo directly; hasGreenRun's JSON parsing became execRepo.HasGreenRun.
+NOTES (2026-10-12): the factory is a repoOpener (func(dir string) repo) passed to newRootCommand and every verb constructor (status, prepare, publish, smoke) and stored on their run options as openRepo; a nil opener — run options built by hand in tests that call runStatus/runPublish directly — opens execRepo over the run's runner, so those tests keep driving the gate through fakeRepo argv. prepare's and smoke's openRepo are wired but unread until items 34 and 38; convergeSmoke forwards publish's opener into the smoke options.
+NOTES (2026-10-12): the gate's fetch and `gh run list` now run with nonInteractiveEnv (they ran with none before). `gh run list` gets no `--repo`: it is not a `gh release` call, and execRepo makes no gh release call yet.
+NOTES (2026-10-12): fakeCommit.changed is now a []string shared by fakeRepo (which joins it into diff-tree output) and memRepo; the diff-tree argv assertions that were in TestGatePeelsOnlyTrailingChangelogAndVersionCommits moved to repo_test.go, and memRepo refuses ChangedPaths for a merge, which keeps the "merge never asked about" pin.
 
 **What:** Recast at the regression check (2026-10-12).
 **Goal:** `cmd/release` has a `repo` interface for the capcom checkout and GitHub repo; `execRepo`

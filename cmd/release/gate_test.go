@@ -18,24 +18,25 @@ const (
 	mergeCommit   = "6000000000000000000000000000000000000000"
 )
 
-// The `git diff-tree -r --name-only <parent> <commit>` outputs the test commits answer with.
-// Each is in the shape `git diff-tree -r --name-only` prints: one path per line.
-const (
-	bumpPaths    = "VERSION\n"
-	rollupPaths  = "CHANGELOG.md\nVERSION\n"
-	featurePaths = "cmd/release/dist.go\ncmd/release/dist_test.go\n"
-	mixedPaths   = "CHANGELOG.md\nREADME.md\n"
+// The paths the test commits change against their first parent.
+var (
+	bumpPaths    = []string{"VERSION"}
+	rollupPaths  = []string{"CHANGELOG.md", "VERSION"}
+	featurePaths = []string{"cmd/release/dist.go", "cmd/release/dist_test.go"}
+	mixedPaths   = []string{"CHANGELOG.md", "README.md"}
 )
 
-// fakeCommit is one commit of a fakeRepo: its parents, and the paths it changes against its
+// fakeCommit is one commit of a test history: its parents, and the paths it changes against its
 // first parent.
 type fakeCommit struct {
 	parents []string
-	changed string
+	changed []string
 }
 
 // fakeRepo answers the gate's and the baseline's commands the way git and gh would over a
-// checkout whose history is commits, and hands the publish-step probes' commands to remote.
+// checkout whose history is commits, and hands the publish-step probes' commands to remote. It
+// stays in step with execRepo's argv for the status and publish tests, which still drive the
+// gate through the runner; the gate's own tests run over memRepo.
 type fakeRepo struct {
 	commits    map[string]fakeCommit
 	head       string
@@ -100,7 +101,12 @@ func (r fakeRepo) respond(call recordedCall) (string, error) {
 		if parents := r.commits[commit].parents; len(parents) == 0 || parents[0] != args[3] {
 			return "", fmt.Errorf("diff-tree asked for %s against %s, not its first parent", commit, args[3])
 		}
-		return r.commits[commit].changed, nil
+		// One path per line, as `git diff-tree -r --name-only` prints them.
+		var listed strings.Builder
+		for _, path := range r.commits[commit].changed {
+			listed.WriteString(path + "\n")
+		}
+		return listed.String(), nil
 	case call.name == "git" && len(args) == 4 && args[0] == "merge-base" && args[1] == "--is-ancestor":
 		if r.reaches(r.resolve(args[3]), r.resolve(args[2])) {
 			return "", nil
@@ -147,7 +153,8 @@ func (r fakeRepo) reaches(from, target string) bool {
 
 // TestGatePeelsOnlyTrailingChangelogAndVersionCommits pins how the gate commit is found: HEAD's
 // trailing first-parent commits that touch only CHANGELOG.md and/or VERSION are walked past, the
-// walk stops at the first commit touching anything else, and a merge is never walked past.
+// walk stops at the first commit touching anything else, and a merge is never walked past — nor
+// asked for its changed paths, which memRepo refuses.
 func TestGatePeelsOnlyTrailingChangelogAndVersionCommits(t *testing.T) {
 	t.Parallel()
 
@@ -176,27 +183,15 @@ func TestGatePeelsOnlyTrailingChangelogAndVersionCommits(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			repo := fakeRepo{commits: tc.commits, head: tc.head, originMain: tc.head, greenRuns: []string{tc.want}}
-			commands := repo.runner()
+			repo := memRepo{commits: tc.commits, head: tc.head, originMain: tc.head, greenRuns: []string{tc.want}}
 
-			report := checkGate(t.Context(), commands, ".")
+			report := checkGate(t.Context(), repo)
 
 			if report.Commit != tc.want {
 				t.Errorf("gate commit = %s, want %s", report.Commit, tc.want)
 			}
 			if !report.IsOK {
 				t.Errorf("gate blocked: %v", report.Failures)
-			}
-			for _, call := range commands.recorded("git") {
-				if call.args[0] != "diff-tree" {
-					continue
-				}
-				if call.args[1] != "-r" || call.args[2] != "--name-only" {
-					t.Errorf("diff-tree called as %v, want the two-tree -r --name-only form", call.args)
-				}
-				if call.args[4] == mergeCommit {
-					t.Errorf("diff-tree was asked about the merge commit: %v", call.args)
-				}
 			}
 		})
 	}
@@ -209,47 +204,47 @@ func TestGateNamesEachFailingCondition(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]struct {
-		repo         fakeRepo
+		repo         memRepo
 		wantCommit   string
 		wantFailures []string
 	}{
 		"green on the gate commit clears": {
-			repo:       fakeRepo{head: bumpCommit, originMain: bumpCommit, greenRuns: []string{featureCommit}},
+			repo:       memRepo{head: bumpCommit, originMain: bumpCommit, greenRuns: []string{featureCommit}},
 			wantCommit: featureCommit,
 		},
 		"green run on the peeled bump, none on G clears": {
-			repo:       fakeRepo{head: bumpCommit, originMain: bumpCommit, greenRuns: []string{bumpCommit}},
+			repo:       memRepo{head: bumpCommit, originMain: bumpCommit, greenRuns: []string{bumpCommit}},
 			wantCommit: featureCommit,
 		},
 		"green run on a peeled commit origin/main lacks does not clear": {
-			repo:         fakeRepo{head: rollupCommit, originMain: bumpCommit, greenRuns: []string{rollupCommit}},
+			repo:         memRepo{head: rollupCommit, originMain: bumpCommit, greenRuns: []string{rollupCommit}},
 			wantCommit:   featureCommit,
 			wantFailures: []string{"ci.yml has no successful run for 200000000000 or 300000000000"},
 		},
 		"dirty tree": {
-			repo:         fakeRepo{head: featureCommit, originMain: featureCommit, isDirty: true, greenRuns: []string{featureCommit}},
+			repo:         memRepo{head: featureCommit, originMain: featureCommit, isDirty: true, greenRuns: []string{featureCommit}},
 			wantCommit:   featureCommit,
 			wantFailures: []string{"the working tree is not clean"},
 		},
 		"gate commit not pushed": {
-			repo:       fakeRepo{head: bumpCommit, originMain: rootCommit, greenRuns: []string{featureCommit}},
+			repo:       memRepo{head: bumpCommit, originMain: rootCommit, greenRuns: []string{featureCommit}},
 			wantCommit: featureCommit,
 			wantFailures: []string{
 				"gate commit 200000000000 is not on origin/main: push it first",
 			},
 		},
 		"origin/main ahead of HEAD": {
-			repo:         fakeRepo{head: featureCommit, originMain: bumpCommit, greenRuns: []string{featureCommit}},
+			repo:         memRepo{head: featureCommit, originMain: bumpCommit, greenRuns: []string{featureCommit}},
 			wantCommit:   featureCommit,
 			wantFailures: []string{"origin/main has commits HEAD does not: pull first"},
 		},
 		"no green run": {
-			repo:         fakeRepo{head: featureCommit, originMain: featureCommit},
+			repo:         memRepo{head: featureCommit, originMain: featureCommit},
 			wantCommit:   featureCommit,
 			wantFailures: []string{"ci.yml has no successful run for 200000000000"},
 		},
 		"every condition at once": {
-			repo:       fakeRepo{head: featureCommit, originMain: rootCommit, isDirty: true},
+			repo:       memRepo{head: featureCommit, originMain: rootCommit, isDirty: true},
 			wantCommit: featureCommit,
 			wantFailures: []string{
 				"the working tree is not clean",
@@ -264,7 +259,7 @@ func TestGateNamesEachFailingCondition(t *testing.T) {
 			repo := tc.repo
 			repo.commits = linearHistory()
 
-			report := checkGate(t.Context(), repo.runner(), ".")
+			report := checkGate(t.Context(), repo)
 
 			if report.Commit != tc.wantCommit {
 				t.Errorf("gate commit = %s, want %s", report.Commit, tc.wantCommit)
@@ -292,20 +287,21 @@ func TestGateNamesACheckThatCannotRun(t *testing.T) {
 		failing string
 		want    string
 	}{
-		"fetch":        {failing: "git fetch", want: "could not fetch origin"},
-		"status":       {failing: "git status", want: "could not read the working tree's status"},
-		"head":         {failing: "git rev-parse", want: "could not resolve HEAD"},
-		"peel":         {failing: "git rev-list --parents", want: "could not find the gate commit"},
-		"ancestry":     {failing: "git merge-base", want: "could not check whether 200000000000 is on origin/main"},
-		"ci runs (gh)": {failing: "gh run list", want: "could not read the ci.yml runs for 200000000000"},
+		"fetch":         {failing: methodFetchMain, want: "could not fetch origin"},
+		"status":        {failing: methodIsClean, want: "could not read the working tree's status"},
+		"head":          {failing: methodResolve, want: "could not resolve HEAD"},
+		"peel":          {failing: methodParents, want: "could not find the gate commit"},
+		"changed paths": {failing: methodChangedPaths, want: "could not find the gate commit"},
+		"ancestry":      {failing: methodIsAncestor, want: "could not check whether 200000000000 is on origin/main"},
+		"ci runs":       {failing: methodHasGreenRun, want: "could not read the ci.yml runs for 200000000000"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			repo := fakeRepo{commits: linearHistory(), head: bumpCommit, originMain: bumpCommit,
+			repo := memRepo{commits: linearHistory(), head: bumpCommit, originMain: bumpCommit,
 				greenRuns: []string{featureCommit}, failing: tc.failing}
 
-			report := checkGate(t.Context(), repo.runner(), ".")
+			report := checkGate(t.Context(), repo)
 
 			if report.IsOK {
 				t.Fatal("gate cleared although a check could not run")

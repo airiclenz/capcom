@@ -33,11 +33,13 @@ type prepareOptions struct {
 	version string
 	// now is the clock the rollup heading's date is read from.
 	now func() time.Time
+	// openRepo opens the checkout's repo; nil opens the execRepo over the run's runner.
+	openRepo repoOpener
 }
 
 // newPrepareCommand builds the prepare verb.
-func newPrepareCommand(commands runner) *cobra.Command {
-	options := prepareOptions{dir: ".", now: time.Now}
+func newPrepareCommand(commands runner, openRepo repoOpener) *cobra.Command {
+	options := prepareOptions{dir: ".", now: time.Now, openRepo: openRepo}
 
 	cmd := &cobra.Command{
 		Use:   "prepare vX.Y.Z",

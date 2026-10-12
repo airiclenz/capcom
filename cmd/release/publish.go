@@ -42,6 +42,8 @@ type publishOptions struct {
 	getenv func(key string) string
 	// smoke runs the smoke verb over options: the last step, run whatever the probes say.
 	smoke func(ctx context.Context, output io.Writer, options smokeOptions) error
+	// openRepo opens the checkout's repo; nil opens the execRepo over the run's runner.
+	openRepo repoOpener
 }
 
 // publishRun is one publish run: what every step reads.
@@ -50,6 +52,8 @@ type publishRun struct {
 	output   io.Writer
 	options  publishOptions
 	version  releaseVersion
+	// repo is the checkout publish pushes from, opened from the options.
+	repo repo
 	// notesPath is the notes file as an absolute path, so it reads the same from any directory.
 	notesPath string
 	// buildDir is the temporary directory the release step builds in, removed when the run ends;
@@ -91,13 +95,14 @@ var publishActions = []publishAction{
 const smokePassedDetail = "passed by this run: no check failed"
 
 // newPublishCommand builds the publish verb.
-func newPublishCommand(commands runner) *cobra.Command {
+func newPublishCommand(commands runner, openRepo repoOpener) *cobra.Command {
 	options := publishOptions{
 		dir:          ".",
 		tagTimeout:   defaultTagTimeout,
 		pollInterval: tagPollInterval,
 		sleep:        sleepContext,
 		getenv:       os.Getenv,
+		openRepo:     openRepo,
 	}
 	options.smoke = func(ctx context.Context, output io.Writer, smoke smokeOptions) error {
 		return runSmoke(ctx, commands, output, smoke)
@@ -148,7 +153,13 @@ func runPublish(ctx context.Context, commands runner, output io.Writer, options 
 	if err != nil {
 		return err
 	}
-	run := &publishRun{commands: commands, output: output, options: options, version: version}
+	run := &publishRun{
+		commands: commands,
+		repo:     options.openRepo.open(commands, options.dir),
+		output:   output,
+		options:  options,
+		version:  version,
+	}
 
 	var refusals []error
 	run.notesPath, err = checkNotesFile(options.notesFile)
@@ -236,7 +247,7 @@ func (r *publishRun) probe(ctx context.Context) []stepReport {
 // version — the bump the CI workflow tags. It returns the gate's line for the table and refusals
 // with every blocking condition added.
 func (r *publishRun) checkPushable(ctx context.Context, refusals []error) (string, []error) {
-	report := checkGate(ctx, r.commands, r.options.dir)
+	report := checkGate(ctx, r.repo)
 	gate := "cleared"
 	if !report.IsOK {
 		gate = "BLOCKED"
@@ -314,7 +325,7 @@ func describeTag(run *publishRun) string {
 // VERSION. It never creates a tag: the workflow is the one tagger.
 func convergeTag(ctx context.Context, run *publishRun) error {
 	dir := run.options.dir
-	isPushed, err := isAncestor(ctx, run.commands, dir, "HEAD", remoteMain)
+	isPushed, err := run.repo.IsAncestor(ctx, "HEAD", remoteMain)
 	if err != nil {
 		return fmt.Errorf("check whether %s holds HEAD: %w", remoteMain, err)
 	}
@@ -368,7 +379,7 @@ func verifyTag(ctx context.Context, run *publishRun) error {
 		return fmt.Errorf("%s on %s is a lightweight tag; a release tag must be annotated", tag, remoteName)
 	}
 
-	tagged, err := revParse(ctx, run.commands, dir, tag)
+	tagged, err := run.repo.Resolve(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("resolve tag %s: %w", tag, err)
 	}
@@ -525,6 +536,7 @@ func describeSmoke(run *publishRun) string {
 // directory so the published SHA256SUMS is compared against what the run itself built.
 func convergeSmoke(ctx context.Context, run *publishRun) error {
 	options := defaultSmokeOptions(run.options.dir)
+	options.openRepo = run.options.openRepo
 	options.version = run.version.String()
 	options.distDir = run.distDir
 	return run.options.smoke(ctx, run.output, options)
