@@ -187,6 +187,49 @@ func TestCreate_MissingDep_FailsLikeDepAddAndWritesNothing(t *testing.T) {
 	}
 }
 
+func TestCreate_EmptyOrWhitespaceBody_WritesAndWarnsInTextAndJSON(t *testing.T) {
+	const want = `new-thing has no body: state what, why and a "## Acceptance" section with ` +
+		`capcom update new-thing --body-append-file <file>`
+	cases := []struct {
+		name  string
+		stdin string
+		args  []string
+	}{
+		{name: "no body"},
+		{name: "whitespace body", stdin: " \n\t\n", args: []string{"--body-file", "-"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			textRoot, jsonRoot := newWriteStore(t), newWriteStore(t)
+			args := append([]string{"create", "--id", "new-thing", "--title", "New thing"}, tc.args...)
+
+			textStdout, textStderr, textExit := runCLIWith(t, textRoot, tc.stdin, nil, args...)
+			jsonStdout, _, jsonExit := runCLIWith(t, jsonRoot, tc.stdin, nil, append(args, "--json")...)
+
+			if textExit != ExitOK || !strings.Contains(textStdout, "warning: "+want+"\n") {
+				t.Errorf("text: exit = %d stdout = %q stderr = %q, want warning %q", textExit, textStdout, textStderr, want)
+			}
+			warnings, _ := decodeEnvelope(t, jsonStdout)["warnings"].([]any)
+			if jsonExit != ExitOK || len(warnings) != 1 || warnings[0] != want {
+				t.Errorf("json: exit = %d warnings = %v, want [%q]", jsonExit, warnings, want)
+			}
+			readStoreFile(t, textRoot, "new-thing.md")
+		})
+	}
+}
+
+func TestCreate_WithBody_DoesNotWarn(t *testing.T) {
+	root := newWriteStore(t)
+
+	stdout, stderr, exitCode := runCLIWith(t, root, "## Acceptance\n\n- works\n", nil,
+		"create", "--json", "--id", "new-thing", "--title", "New thing", "--body-file", "-")
+
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	if exitCode != ExitOK || len(warnings) != 0 {
+		t.Errorf("exit = %d stderr = %q warnings = %v, want none", exitCode, stderr, warnings)
+	}
+}
+
 func TestUpdate_Fields_ChangeTheFile(t *testing.T) {
 	root := newWriteStore(t)
 
@@ -407,7 +450,8 @@ func TestCreate_KV_BesideUnparseableFile_PrintsWarningBeforeRecord(t *testing.T)
 	root := newWriteStore(t)
 	writeIssueFiles(t, root, map[string]string{"broken-one.md": brokenFrontmatter})
 
-	stdout, stderr, exitCode := runCLI(t, root, "create", "--kv", "--id", "good-one", "--title", "Good one")
+	stdout, stderr, exitCode := runCLIWith(t, root, "Body.\n", nil,
+		"create", "--kv", "--id", "good-one", "--title", "Good one", "--body-file", "-")
 
 	if exitCode != ExitOK {
 		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)

@@ -215,7 +215,9 @@ missing dep exits non-zero and leaves no file; `dep list` of the target then lis
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Create|Dep'`
 **Commit:** `feat(create): add --dep to file an issue with its dependencies`
 
-## 7. create warns about an empty body
+## 7. create warns about an empty body — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): internal/cli/read_test.go needed no change: assertKVWarningFirst is left alone as the guard says, and only the write_test.go caller gained a --body-file (fed from stdin with `-`)
 
 **What:**
 **Goal:** `capcom create` with no body, or only whitespace, still succeeds and adds the warning

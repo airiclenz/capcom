@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -23,6 +25,10 @@ const (
 // preferredDefaultType is the type a new issue gets without --type, when the config declares it;
 // otherwise it gets the first declared type.
 const preferredDefaultType = "task"
+
+// emptyBodyWarning is the warning of a create that leaves the new issue without a body; it takes
+// the new issue's id twice.
+const emptyBodyWarning = `%s has no body: state what, why and a "## Acceptance" section with capcom update %s --body-append-file <file>`
 
 // createOptions holds the flags of one capcom create.
 type createOptions struct {
@@ -72,22 +78,31 @@ func (a *app) newCreateCommand() *cobra.Command {
 
 // create places the new issue in the tree and writes it, with a warning for every tree problem
 // that concerns neither the issue's file nor its parent's, unless the index refresh already
-// warned about it. A --dep that resolves to no issue fails the create before anything is written.
+// warned about it, and a warning when the new issue has no body or only whitespace. A --dep that
+// resolves to no issue fails the create before anything is written.
 func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error) {
 	deps, err := a.resolveDeps(options.deps)
 	if err != nil {
 		return Result{}, err
 	}
+	var body string
 	written, problems, err := nodestore.Issues(a.store, nil).Create(
 		options.id,
 		options.parent,
-		func() (issue.Issue, error) { return a.newIssue(cmd, options, deps) },
+		func() (issue.Issue, error) {
+			created, err := a.newIssue(cmd, options, deps)
+			body = created.Body
+			return created, err
+		},
 	)
 	if err != nil {
 		return Result{}, kindFailure(err)
 	}
 	result := writeResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
+	if strings.TrimSpace(body) == "" {
+		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, written.ID, written.ID))
+	}
 	return result, nil
 }
 
