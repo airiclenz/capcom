@@ -194,6 +194,90 @@ func TestWrite_CRLFGuide_StaysCRLFAndIsThenCurrent(t *testing.T) {
 	}
 }
 
+func TestWrite_PrivateGuide_KeepsItsMode(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits are not kept on Windows")
+	}
+	root := writeGuide(t, "# Guide\n")
+	if err := os.Chmod(Path(root), 0o600); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+
+	_, err := Write(root, goldenNotes)
+
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if got := mustStat(t, root).Mode().Perm(); got != 0o600 {
+		t.Errorf("AGENTS.md mode = %o, want 600", got)
+	}
+}
+
+func TestWrite_SymlinkedGuide_StaysALinkAndItsTargetGetsTheBlock(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	root := t.TempDir()
+	target := filepath.Join(root, "CLAUDE.md")
+	if err := os.WriteFile(target, []byte("# Guide\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Symlink("CLAUDE.md", Path(root)); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	_, err := Write(root, goldenNotes)
+
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	info, err := os.Lstat(Path(root))
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("Lstat AGENTS.md = %v, %v; want a symlink", info, err)
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if got, want := string(content), "# Guide\n\n"+goldenBlock+"\n"; got != want {
+		t.Errorf("CLAUDE.md =\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestWrite_ReadOnlyDirectory_FailsNamingTheGuideAndLeavesItIntact(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("permission tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("permission tests do not run as root")
+	}
+	const original = "# Guide\n"
+	root := writeGuide(t, original)
+	if err := os.Chmod(root, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+
+	_, err := Write(root, goldenNotes)
+
+	if err == nil || !strings.HasPrefix(err.Error(), FileName+": ") {
+		t.Errorf("Write err = %v, want an error starting %q", err, FileName+": ")
+	}
+	if got := readGuideText(t, root); got != original {
+		t.Errorf("AGENTS.md = %q, want it intact as %q", got, original)
+	}
+	temps, globErr := filepath.Glob(filepath.Join(root, "."+FileName+".tmp-*"))
+	if globErr != nil || len(temps) != 0 {
+		t.Errorf("temp files = %v, %v; want none", temps, globErr)
+	}
+}
+
 func TestInspect_States(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

@@ -36,11 +36,8 @@ const (
 	crlf           = carriageReturn + lineFeed
 )
 
-// Permissions of a newly created AGENTS.md and of the temp file it is replaced through.
-const (
-	newFilePermissions = 0o644
-	tempPattern        = "." + FileName + ".tmp-*"
-)
+// newFilePermissions are the permissions of a newly created AGENTS.md.
+const newFilePermissions = 0o644
 
 // blockIntro is the fixed part of the block, between the begin marker and the Knowledge list.
 const blockIntro = `<!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->
@@ -218,7 +215,33 @@ func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 	if !mode.writes(status.State) {
 		return status, nil
 	}
-	return status, replaceFile(Path(worktreeRoot), splice(content, span, Render(notes)))
+	spliced := splice(content, span, Render(notes))
+	target, perm, err := resolveGuide(Path(worktreeRoot))
+	if err == nil {
+		err = tree.WriteFileAtomicVerbatim(target, bytes.NewReader(spliced), perm)
+	}
+	if err != nil {
+		return status, fmt.Errorf("%s: %w", FileName, err)
+	}
+	return status, nil
+}
+
+// resolveGuide returns the file a write of the AGENTS.md at path replaces and the permissions it
+// keeps: the target of a symlinked guide, so the link survives, and that file's mode. A missing
+// guide, or one whose link dangles, is path itself with newFilePermissions.
+func resolveGuide(path string) (string, fs.FileMode, error) {
+	target, err := filepath.EvalSymlinks(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return path, newFilePermissions, nil
+	}
+	if err != nil {
+		return "", 0, err
+	}
+	info, err := os.Stat(target)
+	if err != nil {
+		return "", 0, err
+	}
+	return target, info.Mode().Perm(), nil
 }
 
 // writes reports whether mode rewrites a block found in state.
@@ -332,30 +355,6 @@ func splice(content []byte, span blockSpan, block string) []byte {
 	}
 	appended.WriteString(block + lineEnding)
 	return appended.Bytes()
-}
-
-// replaceFile replaces path with content through a temp file renamed over it, keeping the old
-// file's permissions; readers see the old file or the whole new one. Unlike tree.WriteFileAtomic it
-// keeps CRLF line endings.
-func replaceFile(path string, content []byte) error {
-	mode := os.FileMode(newFilePermissions)
-	if info, err := os.Stat(path); err == nil {
-		mode = info.Mode().Perm()
-	}
-	temp, err := os.CreateTemp(filepath.Dir(path), tempPattern)
-	if err != nil {
-		return fmt.Errorf("%s: %w", FileName, err)
-	}
-	_, writeErr := temp.Write(content)
-	closeErr := temp.Close()
-	err = errors.Join(writeErr, closeErr, os.Chmod(temp.Name(), mode))
-	if err == nil {
-		err = os.Rename(temp.Name(), path)
-	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", FileName, errors.Join(err, os.Remove(temp.Name())))
-	}
-	return nil
 }
 
 // lineBreaks flattens a title onto one line.

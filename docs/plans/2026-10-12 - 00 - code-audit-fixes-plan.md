@@ -153,7 +153,9 @@ internal/index/schema.go — files table; internal/cli/show.go — resolveFailur
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Close|Update|DepRm|Show'`
 **Commit:** `fix(index): never prefix-resolve a name owned by an excluded node`
 
-## 7. The Managed-block rewrite of `AGENTS.md` is durable and keeps symlinks
+## 7. The Managed-block rewrite of `AGENTS.md` is durable and keeps symlinks — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): replaceFile and the now-unused tempPattern constant are gone; the target and mode are resolved by a new resolveGuide helper, and reconcile wraps any failure as `AGENTS.md: <err>` (the inner tree error also names the resolved path). A dangling `AGENTS.md` symlink resolves to ENOENT and is therefore replaced by a regular file, as the Goal's "path on ENOENT" rule says.
 
 **What:** `agents.replaceFile` duplicates the atomic write without fsync and severs a symlinked guide; delete it.
 **Regression guard.** A write failure keeps the `AGENTS.md: <err>` prefix: the caller wraps the error as `fmt.Errorf("%s: %w", FileName, err)`, so `capcom agents` and the `refreshAgentsAfterWrite` warning keep their wording.
