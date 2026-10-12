@@ -100,14 +100,7 @@ func (a *app) readyEntries(options *readyOptions) ([]readyEntry, error) {
 	nodes := make([]issue.Node, 0, len(entries))
 	byID := make(map[string]index.Entry, len(entries))
 	for _, entry := range entries {
-		nodes = append(nodes, issue.Node{
-			ID:       entry.ID,
-			ParentID: entry.ParentID,
-			Category: entry.Category,
-			Labels:   entry.Labels,
-			Deps:     entry.Deps,
-			Aliases:  entry.Aliases,
-		})
+		nodes = append(nodes, entry.Node())
 		byID[entry.ID] = entry
 	}
 

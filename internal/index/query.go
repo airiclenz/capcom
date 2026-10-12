@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -155,6 +156,18 @@ func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 		return candidates[0], nil
 	default:
 		return "", &tree.AmbiguousError{Arg: arg, Candidates: candidates}
+	}
+}
+
+// Node returns the issue as the ready rules and the Dependency graph see it.
+func (e Entry) Node() issue.Node {
+	return issue.Node{
+		ID:       e.ID,
+		ParentID: e.ParentID,
+		Category: e.Category,
+		Labels:   e.Labels,
+		Deps:     e.Deps,
+		Aliases:  e.Aliases,
 	}
 }
 

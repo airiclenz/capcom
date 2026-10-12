@@ -3,10 +3,12 @@ package index
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -87,6 +89,30 @@ func TestList_Entry_CarriesListsAndParent(t *testing.T) {
 
 	if err != nil || len(got) != 1 || got[0].ParentID != "login-flow" || !slices.Equal(got[0].Labels, []string{"auth"}) {
 		t.Errorf("List = %+v, %v; want session-refresh under login-flow labelled auth", got, err)
+	}
+}
+
+func TestEntryNode_IndexedIssue_CarriesWhatTheReadyRulesRead(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "login-flow.md", issueWith("Login flow", "open", ""))
+	writeIssue(t, s, "login-flow/session-refresh.md", issueWith("Session refresh", "parked",
+		"labels: [auth, ui]\ndeps: [token-store]\naliases: [apogee-kk0.2]\n"))
+	x := openIndex(t, s)
+	refresh(t, x)
+	entries, err := x.List(Filter{ParentID: "login-flow"})
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("List = %+v, %v; want session-refresh alone", entries, err)
+	}
+
+	got := entries[0].Node()
+
+	want := issue.Node{
+		ID: "session-refresh", ParentID: "login-flow", Category: config.CategoryWaiting,
+		Labels: []string{"auth", "ui"}, Deps: []string{"token-store"}, Aliases: []string{"apogee-kk0.2"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Node = %+v; want %+v", got, want)
 	}
 }
 

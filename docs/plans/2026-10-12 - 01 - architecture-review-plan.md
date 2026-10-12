@@ -704,7 +704,9 @@ internal/cli/errors.go — treeProblemKindOf, isIndexWarnedAbout; internal/check
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/ ./internal/index/ ./internal/check/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Create`
 **Commit:** `refactor(tree): share the per-file alias check with the index`
 
-## 25. index.Entry.Node
+## 25. index.Entry.Node — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): dep's Dependency graph nodes now carry Labels too; NewDepGraph never reads them, so dep's behaviour is unchanged.
 
 **What:**
 **Goal:** `index.Entry.Node()` is the one Entry→ready-rules Node conversion; `capcom ready` and

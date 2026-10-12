@@ -199,13 +199,7 @@ func (a *app) loadDepGraph() (depGraph, error) {
 	nodes := make([]issue.Node, 0, len(entries))
 	byID := make(map[string]index.Entry, len(entries))
 	for _, entry := range entries {
-		nodes = append(nodes, issue.Node{
-			ID:       entry.ID,
-			ParentID: entry.ParentID,
-			Category: entry.Category,
-			Deps:     entry.Deps,
-			Aliases:  entry.Aliases,
-		})
+		nodes = append(nodes, entry.Node())
 		byID[entry.ID] = entry
 	}
 	return depGraph{graph: issue.NewDepGraph(nodes), entries: byID}, nil
