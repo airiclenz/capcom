@@ -607,7 +607,9 @@ internal/index/walk.go — treeWalker.walk; internal/index/notes.go — parseNot
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`
 **Commit:** `refactor(index): type the warning kind`
 
-## 21. cli classifies index warnings by kind
+## 21. cli classifies index warnings by kind — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from the cli-local `problemKind` enum: it is deleted along with `indexWarningKindOf` and its prefix/suffix constants, and `treeProblemKindOf` now returns `(index.WarningKind, bool)`, which `isIndexWarnedAbout` compares with `Warning.Kind`.
 
 **What:**
 **Goal:** `isIndexWarnedAbout` decides by `WarningKind`, never by message text; a file with a

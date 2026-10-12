@@ -573,6 +573,28 @@ func TestCreate_IndexWarnedFileWithDuplicateID_WarnsAboutBoth(t *testing.T) {
 	)
 }
 
+func TestCreate_IndexWarnedFileWithDuplicateKeyAndID_WarnsAboutBoth(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"dup-id.md":           validIssue,
+		"zz-parent.md":        validIssue,
+		"zz-parent/dup-id.md": readIssue("Duplicate key", "open", "type: task\n", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "good-one.md")
+	assertWarnedOnce(
+		t,
+		stdout+stderr,
+		`.capcom/issues/zz-parent/dup-id.md:6: duplicate key "type"`,
+		`.capcom/issues/zz-parent/dup-id.md: duplicate id "dup-id"`,
+	)
+}
+
 func TestCreate_IndexWarnedFileDuplicatedElsewhere_WarnsOnce(t *testing.T) {
 	root := newWriteStore(t)
 	writeIssueFiles(t, root, map[string]string{

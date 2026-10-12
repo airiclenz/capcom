@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -156,83 +157,36 @@ func (a *app) unwarnedTreeProblems(problems tree.Errors) []string {
 }
 
 // isIndexWarnedAbout reports whether this command's index refresh warned about problem, its path
-// relative to the working tree root with forward slashes: a warning names the same file and the
-// same kind of problem. A different problem on a file the index warned about is not covered.
+// relative to the working tree root with forward slashes: a warning names the same file and has the
+// same kind. A different problem on a file the index warned about is not covered.
 func (a *app) isIndexWarnedAbout(problem *tree.Error) bool {
-	kind := treeProblemKindOf(problem)
-	if kind == problemKindOther {
+	kind, isIndexed := treeProblemKindOf(problem)
+	if !isIndexed {
 		return false
 	}
 	for _, warning := range a.indexReport.Warnings {
-		if warning.Path == problem.Path && indexWarningKindOf(warning.Message) == kind {
+		if warning.Path == problem.Path && warning.Kind == kind {
 			return true
 		}
 	}
 	return false
 }
 
-// problemKind is the class of a tree problem or an index warning, which is all
-// isIndexWarnedAbout compares: a tree problem and an index warning word the same problem
-// differently.
-type problemKind int
-
-// The problem kinds the tree and the index both report.
-const (
-	// problemKindOther is any problem the other side never reports, such as a bad status.
-	problemKindOther problemKind = iota
-	problemKindInvalidID
-	problemKindInvalidAlias
-	// problemKindDuplicate is an id or alias another file also has.
-	problemKindDuplicate
-	// problemKindRepeatedAlias is an alias that repeats its own node's id or is listed twice.
-	problemKindRepeatedAlias
-	problemKindOrphanDirectory
-)
-
-// The leading and trailing text of the index warnings that have no tree sentinel of their own:
-// the walk's directory beside an invalid node file, and aliasProblems' repeated aliases.
-const (
-	leftOutDirectoryWarningPrefix = "directory left out:"
-	aliasWarningPrefix            = "alias "
-	ownIDAliasWarningSuffix       = "'s own id"
-	listedTwiceAliasWarningSuffix = " is listed twice"
-)
-
-// treeProblemKindOf returns the kind of a tree.Load problem, by the sentinel it wraps. A duplicate
-// alias whose other file is its own is a repeated alias.
-func treeProblemKindOf(problem *tree.Error) problemKind {
+// treeProblemKindOf returns the index warning kind of a tree.Load problem, by the sentinel it
+// wraps, and false for a problem the index never reports. A duplicate alias whose other file is its
+// own is a repeated alias.
+func treeProblemKindOf(problem *tree.Error) (index.WarningKind, bool) {
 	switch {
 	case errors.Is(problem, tree.ErrInvalidID):
-		return problemKindInvalidID
+		return index.WarningInvalidID, true
 	case errors.Is(problem, tree.ErrInvalidAlias):
-		return problemKindInvalidAlias
+		return index.WarningInvalidAlias, true
 	case errors.Is(problem, tree.ErrDuplicate) && problem.Alias != "" && problem.Other == problem.Path:
-		return problemKindRepeatedAlias
+		return index.WarningRepeatedAlias, true
 	case errors.Is(problem, tree.ErrDuplicate):
-		return problemKindDuplicate
+		return index.WarningDuplicate, true
 	case errors.Is(problem, tree.ErrOrphanDirectory):
-		return problemKindOrphanDirectory
+		return index.WarningOrphanDirectory, true
 	}
-	return problemKindOther
-}
-
-// indexWarningKindOf returns the kind of an index warning, by its leading text: the text of the
-// tree sentinel it starts with, or one of the index's own wordings of the same problem.
-func indexWarningKindOf(message string) problemKind {
-	switch {
-	case strings.HasPrefix(message, tree.ErrInvalidID.Error()):
-		return problemKindInvalidID
-	case strings.HasPrefix(message, tree.ErrInvalidAlias.Error()):
-		return problemKindInvalidAlias
-	case strings.HasPrefix(message, tree.ErrDuplicate.Error()):
-		return problemKindDuplicate
-	case strings.HasPrefix(message, aliasWarningPrefix) &&
-		(strings.HasSuffix(message, ownIDAliasWarningSuffix) ||
-			strings.HasSuffix(message, listedTwiceAliasWarningSuffix)):
-		return problemKindRepeatedAlias
-	case strings.HasPrefix(message, tree.ErrOrphanDirectory.Error()),
-		strings.HasPrefix(message, leftOutDirectoryWarningPrefix):
-		return problemKindOrphanDirectory
-	}
-	return problemKindOther
+	return "", false
 }
