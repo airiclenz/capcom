@@ -331,7 +331,7 @@ line.
 
 ```yaml
 # The store format version. capcom refuses a store whose format is newer than it reads.
-format: 2
+format: 3
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
@@ -367,7 +367,8 @@ elsewhere:
   `.capcom/config.yaml:<line>: store format <n> is newer than this capcom reads (up to <max>); upgrade capcom`,
   except `capcom prime`, which reports it as one `warning: store:` line and exits 0. Unknown keys
   stay errors, and any new key in an issue, a Note or this file raises the format. Format 2 adds
-  the `related` key to issue files. `capcom init` writes `format: 2`. The first
+  the `related` key to issue files; format 3 adds the Note keys `retired` and `superseded-by`.
+  `capcom init` writes `format: 3`. The first
   `capcom related add` in a store below format 2 raises it: it replaces the `format:` line, or the
   format-1 template's commented `# format: 1` line, with `format: 2`, keeping every other byte, and
   creates `config.yaml` holding only that line when the store has none. It warns that capcom

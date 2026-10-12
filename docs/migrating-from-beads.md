@@ -141,7 +141,7 @@ beads keeps one `related` link that both issues show, and so does capcom: `capco
 stores it on the first issue only, and `capcom show` lists it on both. Run it once per beads
 `related` dependency after the files are written, or write the other issue's capcom id into the
 issue's `related` list by hand; never on both sides. Unlike a dependency, it blocks neither issue.
-The store `capcom init` writes is format 2, which the `related` key needs (see Config in
+The store `capcom init` writes is at the current format, at least 2, which the `related` key needs (see Config in
 [format.md](format.md#config)).
 
 ### Log entries

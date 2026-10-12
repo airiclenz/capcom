@@ -91,7 +91,7 @@ internal/frontmatter/decode_test.go — noteKind, decode (its hint pin rides wit
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/knowledge/` then `./internal/frontmatter/` then `./internal/nodestore/`
 **Commit:** `feat(knowledge): add retired and superseded-by note keys`
 
-## 4. Store format 3
+## 4. Store format 3 — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** the binary reads stores up to format 3; `capcom init` writes `format: 3`; the format bullet in `docs/format.md` says format 3 adds the Note keys `retired` and `superseded-by`; a store declaring 4 fails as too new with the existing message.

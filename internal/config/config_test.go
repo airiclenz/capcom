@@ -42,8 +42,9 @@ func TestParse_DefaultFile_DeclaresCurrentFormat(t *testing.T) {
 
 	config, err := Parse(testPath, []byte(DefaultFile))
 
-	if err != nil || config.Format != 2 || !strings.Contains(DefaultFile, "\nformat: 2\n") {
-		t.Errorf("Parse(DefaultFile) = format %d, %v; want a real format: 2 line", config.Format, err)
+	formatLine := fmt.Sprintf("\nformat: %d\n", FormatVersion)
+	if err != nil || config.Format != FormatVersion || !strings.Contains(DefaultFile, formatLine) {
+		t.Errorf("Parse(DefaultFile) = format %d, %v; want a real format: %d line", config.Format, err, FormatVersion)
 	}
 }
 
@@ -112,9 +113,9 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 		content  string
 		wantLine int
 	}{
-		{"format alone", "format: 3\n", 1},
-		{"after other keys", "types: [bug]\n\nformat: 3\n", 3},
-		{"unknown key above format", "colour: blue\nformat: 3\n", 2},
+		{"format alone", "format: 4\n", 1},
+		{"after other keys", "types: [bug]\n\nformat: 4\n", 3},
+		{"unknown key above format", "colour: blue\nformat: 4\n", 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -126,7 +127,7 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 			if !errors.As(err, &failure) {
 				t.Fatalf("err = %v, want *config.Error", err)
 			}
-			want := fmt.Sprintf("%s:%d: store format 3 is newer than this capcom reads (up to 2); upgrade capcom",
+			want := fmt.Sprintf("%s:%d: store format 4 is newer than this capcom reads (up to 3); upgrade capcom",
 				testPath, testCase.wantLine)
 			if err.Error() != want {
 				t.Errorf("err = %q, want %q", err.Error(), want)
@@ -139,7 +140,7 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 // current template with the format key left as a comment under its own comment line.
 func formatOneTemplate(t *testing.T) string {
 	t.Helper()
-	current := formatComment + "\nformat: 2\n"
+	current := formatComment + fmt.Sprintf("\nformat: %d\n", FormatVersion)
 	legacy := "# The store format version; left as a comment, since a missing key means format 1.\n# format: 1\n"
 	if !strings.Contains(DefaultFile, current) {
 		t.Fatalf("DefaultFile does not carry %q", current)
@@ -150,7 +151,7 @@ func formatOneTemplate(t *testing.T) string {
 func TestRaiseFormat_FormatOneTemplate_BecomesCurrentTemplate(t *testing.T) {
 	t.Parallel()
 
-	raised, isChanged := RaiseFormat([]byte(formatOneTemplate(t)), 2)
+	raised, isChanged := RaiseFormat([]byte(formatOneTemplate(t)), FormatVersion)
 
 	if !isChanged || string(raised) != DefaultFile {
 		t.Errorf("RaiseFormat = %v,\n%s\nwant the current template", isChanged, raised)

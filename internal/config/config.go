@@ -32,8 +32,9 @@ const (
 var categories = []Category{CategoryTodo, CategoryDoing, CategoryWaiting, CategoryDone, CategoryDropped}
 
 // FormatVersion is the highest store format this capcom reads, and the one `capcom init` writes
-// (ADR 0009). Format 2 adds the related key to issue files.
-const FormatVersion = 2
+// (ADR 0009). Format 2 adds the related key to issue files; format 3 adds the retired and
+// superseded-by keys to Notes.
+const FormatVersion = 3
 
 // keylessFormat is the format of a config.yaml without a format key: every store written before
 // the key existed (ADR 0009).
@@ -70,7 +71,7 @@ const (
 const DefaultFile = `# capcom configuration. Every key is optional; a missing key takes the value shown here.
 
 ` + formatComment + `
-format: 2
+format: 3
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
