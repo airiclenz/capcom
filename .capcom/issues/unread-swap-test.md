@@ -1,10 +1,12 @@
 ---
 title: No test for a node file refused unread after tree.Load in rm and mv
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-10-12 - 00 - code-audit-fixes-plan
 created: 2026-10-12T16:43:02Z
+closed: 2026-10-12T20:07:19Z
+reason: Resolved by plan 2026-10-12 - 05 - audit-leftovers-and-doc-tidy-plan (items 2-3), archived in 72afde6
 ---
 
 Deferred from the code-audit-fixes plan, item 4: no test pins the path where another node's file

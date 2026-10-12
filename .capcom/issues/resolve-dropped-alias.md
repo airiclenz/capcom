@@ -1,10 +1,12 @@
 ---
 title: Resolve misses a duplicate alias of a file dropped as a duplicate id
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-10-12 - 00 - code-audit-fixes-plan
 created: 2026-10-12T16:43:02Z
+closed: 2026-10-12T20:07:19Z
+reason: Resolved by plan 2026-10-12 - 05 - audit-leftovers-and-doc-tidy-plan (item 1), archived in 72afde6
 ---
 
 Deferred from the code-audit-fixes plan, item 5: a name aliased only by a file that `tree.Load`
