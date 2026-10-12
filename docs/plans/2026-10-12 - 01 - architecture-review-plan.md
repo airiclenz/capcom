@@ -341,7 +341,13 @@ rename still applies first.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/ ./internal/issue/ ./internal/knowledge/`; `go build ./...`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Mv|Move|Rm'`
 **Commit:** `refactor(tree): generalise Move into Plan`
 
-## 12. tree.PlanRemove; know rm uses it
+## 12. tree.PlanRemove; know rm uses it — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `tree.Removal` embeds `Plan` (as `Move` does) and exposes `Node` and `ChildrenDir`. The refusals are typed: `*tree.ChildrenError` (node path) and `*tree.ChildrenDirError` (the directory); a children directory that cannot be read returns its `*fs.PathError`. The cli maps all of them through one `removalFailure` with the same codes, paths and wording as before; `childCount`/`entryCount` moved into tree with `checkChildrenDir`. The emptied-parent cleanup fails as `*tree.CleanupError{Path, Err}`, and the cli renders it with `relativeSlashPath` and the same `; the empty directory was not removed` suffix.
+
+NOTES (2026-10-12): Until item 13, rm.go uses `issues.PlanRemove` only for its refusals and `ChildrenDir`. It keeps its own apply and the `removeFile` test seam, which `TestRm_IssueFileRemovalFails_RestoresRewriteBytesAndMode` swaps, and it calls the exported `tree.RemoveEmptyDir` for the parent cleanup. It also uses a cli `issueKind = "an issue"` constant. Item 13 can drop `RemoveEmptyDir`, `ChildrenDir` and that constant once rm applies the plan.
+
+NOTES (2026-10-12): The node file's undo reads its bytes and mode at apply time, just before the remove, and the children directory comes back with Mkdir+Chmod of its original permissions. `knowledge.PlanRemove` reuses `moveKind` as `removeKind` and never reads the Note file. Unused `noteFileExtension` was deleted from know_rm.go.
 
 **What:**
 **Goal:** `(*tree.Tree).PlanRemove` returns a Plan that refuses a node with children or a non-empty

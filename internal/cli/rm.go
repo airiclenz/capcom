@@ -21,6 +21,8 @@ const (
 	kindIssueRemove = "issue-remove"
 	flagDropDeps    = "drop-deps"
 	issueNoun       = "issue"
+	// issueKind names an issue, with its article, in the refusals of tree.PlanRemove.
+	issueKind = "an issue"
 )
 
 // rmOptions holds the flags of one capcom rm.
@@ -138,7 +140,9 @@ func (a *app) removeIssue(arg string, options *rmOptions) (Result, error) {
 		))
 	}
 	if node.ParentID != "" {
-		a.removeEmptyParentDir(filepath.Dir(node.Path), &result)
+		if err := tree.RemoveEmptyDir(filepath.Dir(node.Path)); err != nil {
+			result.Warnings = append(result.Warnings, a.cleanupWarning(err))
+		}
 	}
 	return result, nil
 }
@@ -149,21 +153,15 @@ func (a *app) removeIssue(arg string, options *rmOptions) (Result, error) {
 // conflict. A dependency of the issue on itself is no dependent. Related entries naming the issue
 // never refuse it: they are dropped.
 func (a *app) planIssueRemoval(issues *tree.Tree, node tree.Node, options *rmOptions) (*issueRemoval, error) {
+	planned, err := issues.PlanRemove(node.ID, issueKind)
+	if err != nil {
+		return nil, a.removalFailure(err, node)
+	}
 	removal := &issueRemoval{
-		node:        node,
-		path:        relativeSlashPath(a.store.WorktreeRoot, node.Path),
-		childrenDir: strings.TrimSuffix(node.Path, nodeFileExtension),
-	}
-	if children := issues.ChildrenOf(node.ID); len(children) > 0 {
-		return nil, &Error{
-			Code:    CodeInvalid,
-			Path:    removal.path,
-			Message: fmt.Sprintf("issue %s has %s; remove or move them first", node.ID, childCount(len(children), issueNoun)),
-		}
-	}
-	var err error
-	if removal.hasChildrenDir, err = a.checkChildrenDir(removal.childrenDir, issueNoun); err != nil {
-		return nil, err
+		node:           node,
+		path:           relativeSlashPath(a.store.WorktreeRoot, node.Path),
+		childrenDir:    planned.ChildrenDir,
+		hasChildrenDir: planned.ChildrenDir != "",
 	}
 	data, err := os.ReadFile(node.Path)
 	if err != nil {

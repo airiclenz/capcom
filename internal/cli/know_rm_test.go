@@ -194,3 +194,17 @@ func TestKnowRm_ChildOfDuplicateParent_Fails(t *testing.T) {
 		t.Error("git-fixtures.md was removed below the duplicate parent")
 	}
 }
+
+func TestKnowRm_UnparseableNote_RemovesItsFile(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"testing-rules/broken-note.md": "no frontmatter\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "rm", "broken-note")
+
+	if exitCode != ExitOK || noteFileExists(t, root, "testing-rules/broken-note.md") {
+		t.Errorf("know rm of an unparseable note = %d\n%s%s; want it removed", exitCode, stdout, stderr)
+	}
+	if !noteFileExists(t, root, "testing-rules/git-fixtures.md") {
+		t.Errorf("a sibling was removed")
+	}
+}
