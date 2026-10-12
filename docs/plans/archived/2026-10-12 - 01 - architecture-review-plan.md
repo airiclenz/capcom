@@ -10,7 +10,7 @@ warnings, Briefing and Ready-list modules, pass-throughs moved home, and a seman
 **base:** dc21c39
 
 **Sources:**
-- `docs/reviews/architecture-review-20261012-0847.html`
+- `docs/reviews/archived/architecture-review-20261012-0847.html`
 - `docs/adr/0001-*.md`, `0002-*.md`, `0007-*.md`, `0008-*.md`, `0009-*.md`
 - `docs/format.md`, `CONTEXT.md`; Knowledge Notes `cli-test-harness`, `coding-conventions`,
   `error-messages`, `release-process`
