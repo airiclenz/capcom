@@ -938,7 +938,12 @@ cmd/release/probes_test.go — fakeRemote.respond; cmd/release/gate_test.go — 
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./cmd/release/`
 **Commit:** `refactor(release): status and probes on the repo seam`
 
-## 36. release: publish readiness and tag steps on the repo seam
+## 36. release: publish readiness and tag steps on the repo seam — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): repo gains PushMain, FetchTag, IsAnnotated (bool: the tag ref's object is a tag object), ShowFile(revision, path) and LastCommitTouching(revision, path); checkPushable, convergeTag, waitForTag and verifyTag call them, with Resolve, IsAncestor and RemoteHasTag, and publish.go keeps no own-repo push/ls-remote/cat-file/show/log argv (the release step's fetch --tags and rev-parse --show-toplevel stay for item 37). Behaviour change from the seam's own rules: LastCommitTouching fails ("git log found no commit changing VERSION at HEAD") where verifyTag used to compare against an empty commit id.
+NOTES (2026-10-12): publishFake now holds a memRepo (repo) plus a fakeRemote (remote) for the channel repositories; fake.repo.remote.* became fake.remote.*, tagObject/release became memRepo remoteTags/releases (a tagged() helper), headVersion became memRepo files[VERSION]. memRepo gains files and a shared *memPublish: PushMain/FetchTag are appended to the fakeRunner's own call record as `repo PushMain` / `repo FetchTag <tag>` (memPublish locks the runner's mu directly, so main_test.go is untouched), and mutatingCommands lists both; a post-push hook (tagAfterPush, driven by tagAppearsAfter/tagKind/tagCommit) makes the tag on the Nth RemoteHasTag poll after the push; Resolve and IsAnnotated know a tag only once FetchTag fetched it; origin/main resolves to HEAD after the push.
+NOTES (2026-10-12): the first-run test's "fetched before resolved" line-order check was dropped: memRepo refuses to resolve an unfetched tag, so a run resolving first fails. The two "converges from remote state" tests no longer look for `git status`/`gh run list`/`git show HEAD:VERSION` lines (those are repo calls now); they keep `repo PushMain`/`git push` absence, and their dirty tree plus moved-on VERSION would refuse any run that consulted the gate or VERSION.
+NOTES (2026-10-12): consequential edit — cmd/release/gate_test.go: made necessary by publishFake moving to memRepo (fakeRepo's comment said the publish tests still drive it; it now serves no test and stays until item 39, as do releaseJSON and fakeRemote's tag/release branches).
 
 **What:** Recast at the regression check (2026-10-12).
 **Goal:** publish's readiness and tag steps (`Resolve`, `IsAncestor`, `PushMain`, `RemoteHasTag`,

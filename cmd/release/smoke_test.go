@@ -649,8 +649,8 @@ func TestPublishSmokeStepWithoutABuild(t *testing.T) {
 
 	finished := func() *publishFake {
 		fake := newPublishFake()
-		fake.repo.remote.tagObject = "tag"
-		fake.repo.remote.release = releaseJSON("uploaded", releaseAssetsV02411...)
+		fake.tagged()
+		fake.repo.releases[publishVersion] = releaseAssetsV02411
 		return fake
 	}
 

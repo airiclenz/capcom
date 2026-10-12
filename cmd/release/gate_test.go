@@ -35,8 +35,8 @@ type fakeCommit struct {
 
 // fakeRepo answers the gate's and the baseline's commands the way git and gh would over a
 // checkout whose history is commits, and hands the publish-step probes' commands to remote. It
-// stays in step with execRepo's argv for the publish tests, which still drive the gate and the
-// tag and release probes through the runner; the gate's and status's own tests run over memRepo.
+// stays in step with execRepo's argv until the own-repo argv fakes are retired, though no test
+// drives it any more: the gate's, status's and publish's tests all run over memRepo.
 type fakeRepo struct {
 	commits    map[string]fakeCommit
 	head       string

@@ -52,6 +52,17 @@ type repo interface {
 	// any other state is a failed or unfinished upload, not one the release carries — and false
 	// when there is no release for tag.
 	ReleaseAssets(ctx context.Context, tag string) ([]string, bool, error)
+	// PushMain pushes HEAD to origin's main branch.
+	PushMain(ctx context.Context) error
+	// FetchTag fetches origin's tag into the checkout's tag of the same name.
+	FetchTag(ctx context.Context, tag string) error
+	// IsAnnotated reports whether the checkout's tag is an annotated tag rather than a
+	// lightweight one.
+	IsAnnotated(ctx context.Context, tag string) (bool, error)
+	// ShowFile returns the content of the checkout's path as revision holds it.
+	ShowFile(ctx context.Context, revision, path string) (string, error)
+	// LastCommitTouching returns the last commit, at revision or before it, that changed path.
+	LastCommitTouching(ctx context.Context, revision, path string) (string, error)
 }
 
 // githubRelease is a published GitHub release: its tag and when it was published.
@@ -291,4 +302,45 @@ func (r execRepo) ReleaseAssets(ctx context.Context, tag string) ([]string, bool
 		}
 	}
 	return uploaded, true, nil
+}
+
+// PushMain pushes with `git push origin HEAD:main`.
+func (r execRepo) PushMain(ctx context.Context) error {
+	_, err := r.remote(ctx, "git", "push", remoteName, "HEAD:"+mainBranch)
+	return err
+}
+
+// FetchTag fetches the one tag ref onto itself with `git fetch`.
+func (r execRepo) FetchTag(ctx context.Context, tag string) error {
+	ref := "refs/tags/" + tag
+	_, err := r.remote(ctx, "git", "fetch", "--quiet", remoteName, ref+":"+ref)
+	return err
+}
+
+// IsAnnotated reads the tag ref's object type with `git cat-file -t`: an annotated tag is a tag
+// object, a lightweight one names its commit directly.
+func (r execRepo) IsAnnotated(ctx context.Context, tag string) (bool, error) {
+	kind, err := r.git(ctx, "cat-file", "-t", "refs/tags/"+tag)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(kind) == gitObjectTag, nil
+}
+
+// ShowFile reads the file with `git show <revision>:<path>`.
+func (r execRepo) ShowFile(ctx context.Context, revision, path string) (string, error) {
+	return r.git(ctx, "show", revision+":"+path)
+}
+
+// LastCommitTouching asks `git log -1` limited to path for the commit's full id.
+func (r execRepo) LastCommitTouching(ctx context.Context, revision, path string) (string, error) {
+	output, err := r.git(ctx, "log", "-1", "--format=%H", revision, "--", path)
+	if err != nil {
+		return "", err
+	}
+	commit := strings.TrimSpace(output)
+	if commit == "" {
+		return "", fmt.Errorf("git log found no commit changing %s at %s", path, revision)
+	}
+	return commit, nil
 }

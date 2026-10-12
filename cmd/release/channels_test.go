@@ -168,9 +168,9 @@ func testReleaseSums() string {
 // package but no manifest or pull request for the version — so every channel step is pending.
 func releasedFake() *publishFake {
 	fake := newPublishFake()
-	fake.repo.remote = fakeRemote{
-		tagObject:      "tag",
-		release:        releaseJSON("uploaded", releaseAssetsV02411...),
+	fake.tagged()
+	fake.repo.releases[publishVersion] = releaseAssetsV02411
+	fake.remote = fakeRemote{
 		hasTap:         true,
 		formula:        strings.Replace(testFormula, "0.24.11", "0.24.10", 1),
 		hasBucket:      true,
@@ -434,7 +434,7 @@ func TestPublishWritesTheRenderedFileIntoTheClone(t *testing.T) {
 func TestPublishPushesAnEmptyBucketToMain(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.repo.remote.bucketManifest = ""
+	fake.remote.bucketManifest = ""
 	fake.channels.bucket = fakeChannelRepo{isEmpty: true}
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
@@ -481,8 +481,8 @@ func TestPublishSkipsChannelsWhoseSetupIsPending(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			fake := releasedFake()
-			tc.change(&fake.repo.remote)
-			fake.repo.remote.wingetListing = ""
+			tc.change(&fake.remote)
+			fake.remote.wingetListing = ""
 
 			result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -516,7 +516,7 @@ func TestPublishSkipsChannelsWhoseSetupIsPending(t *testing.T) {
 func TestPublishWingetSubmitsTheFirstManifestsWhenThePackageIsAbsent(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.repo.remote.wingetListing = ""
+	fake.remote.wingetListing = ""
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -559,7 +559,7 @@ func TestPublishWingetSubmitsTheFirstManifestsWhenThePackageIsAbsent(t *testing.
 func TestPublishWingetSubmitFailureIsSetupPending(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.repo.remote.wingetListing = ""
+	fake.remote.wingetListing = ""
 	fake.channels.isKomacSubmitFailing = true
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
@@ -601,7 +601,7 @@ func TestPublishWingetSubmitFailureIsSetupPending(t *testing.T) {
 func TestPublishWingetDryRunForAnAbsentPackage(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.repo.remote.wingetListing = ""
+	fake.remote.wingetListing = ""
 
 	result := runChannelPublish(t, fake, true, sentinelToken)
 
@@ -627,7 +627,7 @@ func TestPublishWingetDryRunForAnAbsentPackage(t *testing.T) {
 func TestPublishLeavesASubmittedWingetReleaseAlone(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.repo.remote.wingetPulls = wingetPull(301234, "New version", "0.24.11")
+	fake.remote.wingetPulls = wingetPull(301234, "New version", "0.24.11")
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -670,15 +670,16 @@ func TestPublishDownloadsTheSumsOutsideTheCheckout(t *testing.T) {
 }
 
 // TestPublishWingetConvergesFromRemoteStateOnceTheTagExists pins item 6's resume for the channel
-// steps: days later, with VERSION moved on and a dirty tree, publish still submits the pending
-// winget manifest without consulting the gate or VERSION at HEAD.
+// steps: days later, with VERSION moved on and a dirty tree — either of which refuses a run that
+// consults them — publish still submits the pending winget manifest without consulting the gate
+// or VERSION at HEAD, and pushes nothing.
 func TestPublishWingetConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.repo.remote.formula = testFormula
-	fake.repo.remote.bucketManifest = `{"version": "0.24.11"}`
+	fake.remote.formula = testFormula
+	fake.remote.bucketManifest = `{"version": "0.24.11"}`
 	fake.repo.isDirty = true
-	fake.headVersion = "v0.24.12"
+	fake.repo.files[versionFile] = "v0.24.12\n"
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -686,7 +687,7 @@ func TestPublishWingetConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
 	}
 	lines := commandLines(result.commands)
-	for _, unwanted := range []string{"git status", "gh run list", "git show HEAD:VERSION", "git push", "gh repo clone"} {
+	for _, unwanted := range []string{"repo PushMain", "git push", "gh repo clone"} {
 		if index := lineIndex(lines, unwanted); index >= 0 {
 			t.Errorf("ran %q, want only the winget submission once the tag exists", lines[index])
 		}

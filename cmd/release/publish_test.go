@@ -23,11 +23,13 @@ const (
 )
 
 // mutatingCommands are the commands that change something — origin, a GitHub release, the
-// checkout's refs, or the disk a build writes — by their leading words. A run that may change
-// nothing issues none of them.
+// checkout's refs, or the disk a build writes — by their leading words: the runner's commands,
+// and the memRepo's changes it records into the same log. A run that may change nothing issues
+// none of them.
 var mutatingCommands = []string{
+	repoCallName + " " + methodPushMain,
+	repoCallName + " " + methodFetchTag,
 	"git push",
-	"git fetch --quiet origin refs/tags/",
 	"git fetch --quiet --tags",
 	"git clone",
 	"git checkout",
@@ -41,18 +43,18 @@ var mutatingCommands = []string{
 	"komac submit",
 }
 
-// publishFake answers publish's commands the way git, go and gh would: the gate's and the
-// probes' commands through repo, the rest — the push, the tag the CI workflow makes after it,
-// the clone, the build and the release writes — itself.
+// publishFake is what publish meets: capcom's checkout and GitHub repository held in repo, and
+// the commands the runner answers the way git, go and gh would — the clone, the build and the
+// release writes itself, the channel repositories' through remote.
 type publishFake struct {
-	repo fakeRepo
-	// headVersion is VERSION at HEAD.
-	headVersion string
+	repo memRepo
+	// remote is where the channel repositories stand.
+	remote fakeRemote
 	// tagAppearsAfter is how many polls after the push origin still lacks the tag; -1 for a
 	// workflow that never makes it.
 	tagAppearsAfter int
-	// tagKind is what `git cat-file -t` prints for the fetched tag; tagCommit is the commit it
-	// resolves to.
+	// tagKind is the type of the object the tag the workflow makes points at; tagCommit is the
+	// commit it is on.
 	tagKind   string
 	tagCommit string
 	// publishedSums is the release's SHA256SUMS, as `gh release download` prints it.
@@ -60,9 +62,7 @@ type publishFake struct {
 	// channels is the tap, the bucket and the komac and gh installs the channel steps meet.
 	channels fakeChannels
 
-	mu             sync.Mutex
-	isPushed       bool
-	pollsSincePush int
+	mu sync.Mutex
 }
 
 // newPublishFake is a first run of publishVersion: HEAD is the VERSION bump, one commit ahead of
@@ -71,58 +71,64 @@ type publishFake struct {
 // version, the Scoop bucket's repository is not there yet (setup pending) and an open winget-pkgs
 // pull request already submits the version, so the channel steps change nothing.
 func newPublishFake() *publishFake {
-	return &publishFake{
-		repo: fakeRepo{
+	fake := &publishFake{
+		repo: memRepo{
 			commits:    linearHistory(),
 			head:       bumpCommit,
 			originMain: featureCommit,
 			greenRuns:  []string{featureCommit},
-			remote: fakeRemote{
-				hasTap:      true,
-				formula:     testFormula,
-				wingetPulls: wingetPull(301234, "New version", strings.TrimPrefix(publishVersion, "v")),
-			},
+			remoteTags: map[string]string{},
+			releases:   map[string][]string{},
+			files:      map[string]string{versionFile: strings.TrimPrefix(publishVersion, "v") + "\n"},
+			publish:    &memPublish{},
 		},
-		headVersion:     strings.TrimPrefix(publishVersion, "v"),
+		remote: fakeRemote{
+			hasTap:      true,
+			formula:     testFormula,
+			wingetPulls: wingetPull(301234, "New version", strings.TrimPrefix(publishVersion, "v")),
+		},
 		tagAppearsAfter: 2,
 		tagKind:         gitObjectTag,
 		tagCommit:       bumpCommit,
 	}
+	fake.repo.publish.tagAfterPush = fake.tagAfterPush
+	return fake
 }
 
-// runner returns a recording runner over the fake.
+// tagAfterPush is the workflow: it makes the tag once origin has had tagAppearsAfter polls after
+// the push.
+func (f *publishFake) tagAfterPush(polls int) (memTag, bool) {
+	if f.tagAppearsAfter < 0 || polls <= f.tagAppearsAfter {
+		return memTag{}, false
+	}
+	return memTag{name: publishVersion, kind: f.tagKind, commit: f.tagCommit}, true
+}
+
+// tagged puts the annotated tag on origin from the start, as on a run resumed after the tag step.
+func (f *publishFake) tagged() {
+	f.repo.remoteTags[publishVersion] = gitObjectTag
+}
+
+// runner returns a recording runner over the fake, whose call record the repo's changes join.
 func (f *publishFake) runner() *fakeRunner {
-	return &fakeRunner{respond: f.respond}
+	commands := &fakeRunner{respond: f.respond}
+	f.repo.publish.log = commands
+	return commands
+}
+
+// opener opens the fake's repo whatever directory it is asked for.
+func (f *publishFake) opener() repoOpener {
+	return func(string) repo { return f.repo }
 }
 
 // respond answers one command.
 func (f *publishFake) respond(call recordedCall) (string, error) {
-	tagRef := "refs/tags/" + publishVersion
 	args := call.args
 	switch command := call.name + " " + strings.Join(args, " "); {
-	case command == "git show HEAD:VERSION":
-		return f.headVersion + "\n", nil
-	case command == "git push origin HEAD:main":
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		f.isPushed = true
-		return "", nil
-	case command == "git ls-remote --tags origin "+tagRef:
-		if f.hasRemoteTag() {
-			return "81eec1b3ac7d27f7ef38fe2368b59b89cbd8832b\t" + tagRef + "\n", nil
-		}
-		return "", nil
-	case command == "git fetch --quiet origin "+tagRef+":"+tagRef,
-		command == "git fetch --quiet --tags origin",
+	case command == "git fetch --quiet --tags origin",
 		command == "git checkout --quiet "+publishVersion,
 		call.name == "gh" && len(args) > 1 && args[0] == "release" && (args[1] == "create" || args[1] == "upload"):
 		return "", requireFiles(args)
-	case command == "git cat-file -t "+tagRef:
-		return f.tagKind + "\n", nil
-	case command == "git rev-parse --verify "+publishVersion+"^{commit}":
-		return f.tagCommit + "\n", nil
-	case command == "git log -1 --format=%H HEAD -- VERSION":
-		return bumpCommit + "\n", nil
 	case command == "git rev-parse --show-toplevel":
 		return publishToplevel + "\n", nil
 	case call.name == "git" && len(args) == 4 && args[0] == "clone" && args[2] == publishToplevel:
@@ -138,22 +144,7 @@ func (f *publishFake) respond(call recordedCall) (string, error) {
 	if output, isAnswered, err := f.respondChannel(call); isAnswered {
 		return output, err
 	}
-	return f.repo.respond(call)
-}
-
-// hasRemoteTag reports whether origin holds the tag: from the start when the remote says so,
-// otherwise once the workflow has had tagAppearsAfter polls after the push.
-func (f *publishFake) hasRemoteTag() bool {
-	if f.repo.remote.tagObject != "" {
-		return true
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if !f.isPushed {
-		return false
-	}
-	f.pollsSincePush++
-	return f.tagAppearsAfter >= 0 && f.pollsSincePush > f.tagAppearsAfter
+	return f.remote.respond(call)
 }
 
 // requireFiles fails when an absolute path among args names no file: gh would refuse to upload
@@ -209,6 +200,9 @@ func runTestPublish(t *testing.T, fake *publishFake, isDryRun bool) publishRunRe
 func runTestPublishWith(t *testing.T, fake *publishFake, options publishOptions) publishRunResult {
 	t.Helper()
 	result := publishRunResult{commands: fake.runner(), notesPath: options.notesFile}
+	if options.openRepo == nil {
+		options.openRepo = fake.opener()
+	}
 	if options.getenv == nil {
 		options.getenv = func(string) string { return "" }
 	}
@@ -275,8 +269,9 @@ func lineIndex(lines []string, prefix string) int {
 }
 
 // TestPublishFirstRunConvergesTheTagThenTheRelease pins a first run's order end to end: push
-// HEAD, wait for the CI-made tag, fetch it before resolving it, then fetch the tags, clone, check
-// the tag out, build every archive and create the release — and print every step done.
+// HEAD, wait for the CI-made tag, fetch it — the memRepo resolves no tag before it is fetched, so
+// a run that resolved it first would fail — then fetch the tags, clone, check the tag out, build
+// every archive and create the release, and print every step done.
 func TestPublishFirstRunConvergesTheTagThenTheRelease(t *testing.T) {
 	t.Parallel()
 
@@ -286,8 +281,8 @@ func TestPublishFirstRunConvergesTheTagThenTheRelease(t *testing.T) {
 		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
 	}
 	wantOrder := []string{
-		"git push origin HEAD:main",
-		"git fetch --quiet origin refs/tags/v0.24.11:refs/tags/v0.24.11",
+		"repo PushMain",
+		"repo FetchTag v0.24.11",
 		"git fetch --quiet --tags origin",
 		"git clone --quiet " + publishToplevel,
 		"git checkout --quiet v0.24.11",
@@ -302,12 +297,6 @@ func TestPublishFirstRunConvergesTheTagThenTheRelease(t *testing.T) {
 		if !strings.HasPrefix(mutating[index], prefix) {
 			t.Errorf("mutating command %d = %q, want one starting %q", index, mutating[index], prefix)
 		}
-	}
-	lines := commandLines(result.commands)
-	fetched := lineIndex(lines, "git fetch --quiet origin refs/tags/v0.24.11")
-	resolved := lineIndex(lines, "git rev-parse --verify v0.24.11^{commit}")
-	if fetched < 0 || resolved < fetched {
-		t.Errorf("the tag is fetched at command %d and resolved at %d: a first run must fetch it before resolving it", fetched, resolved)
 	}
 	if result.pauses != 2 {
 		t.Errorf("paused %d times, want 2: the tag appears on the third poll after the push", result.pauses)
@@ -360,8 +349,8 @@ func TestPublishChangesNothingWhenItHasNothingToDo(t *testing.T) {
 	t.Parallel()
 
 	finished := newPublishFake()
-	finished.repo.remote.tagObject = "tag"
-	finished.repo.remote.release = releaseJSON("uploaded", releaseAssetsV02411...)
+	finished.tagged()
+	finished.repo.releases[publishVersion] = releaseAssetsV02411
 	cases := map[string]struct {
 		fake       *publishFake
 		isDryRun   bool
@@ -409,13 +398,13 @@ func TestPublishRefusesBeforeChangingAnything(t *testing.T) {
 		wantError string
 	}{
 		"blocked gate":   {change: func(fake *publishFake) { fake.repo.isDirty = true }, wantError: "gate: the working tree is not clean"},
-		"VERSION behind": {change: func(fake *publishFake) { fake.headVersion = "0.24.10" }, wantError: `VERSION at HEAD reads "0.24.10", not 0.24.11: run prepare first`},
+		"VERSION behind": {change: func(fake *publishFake) { fake.repo.files[versionFile] = "0.24.10\n" }, wantError: `VERSION at HEAD reads "0.24.10", not 0.24.11: run prepare first`},
 		"lightweight tag on origin": {
-			change:    func(fake *publishFake) { fake.repo.remote.tagObject = "commit" },
+			change:    func(fake *publishFake) { fake.repo.remoteTags[publishVersion] = "commit" },
 			wantError: "could not tell where the tag step stands: v0.24.11 on origin is a lightweight tag",
 		},
 		"release unreadable": {
-			change:    func(fake *publishFake) { fake.repo.remote.failing = "gh release view" },
+			change:    func(fake *publishFake) { fake.repo.failing = methodReleaseAssets },
 			wantError: "could not tell where the release step stands",
 		},
 		"empty notes file":   {notesFile: "  \n", wantError: "is empty"},
@@ -460,7 +449,7 @@ func TestPublishRefusesBeforeChangingAnything(t *testing.T) {
 func TestPublishAcceptsAVersionFileWithALeadingV(t *testing.T) {
 	t.Parallel()
 	fake := newPublishFake()
-	fake.headVersion = publishVersion
+	fake.repo.files[versionFile] = publishVersion + "\n"
 
 	result := runTestPublish(t, fake, true)
 
@@ -499,13 +488,14 @@ func TestPublishDryRunWithABlockedGateFailsButPrintsThePlan(t *testing.T) {
 
 // TestPublishConvergesFromRemoteStateOnceTheTagExists pins the resume: once origin holds the
 // annotated tag, neither the gate nor VERSION at HEAD is consulted — a later VERSION bump and a
-// dirty tree do not stop the release being built from the tag and created.
+// dirty tree, either of which refuses a run that consults them, do not stop the release being
+// built from the tag and created — and nothing is pushed.
 func TestPublishConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 	t.Parallel()
 	fake := newPublishFake()
-	fake.repo.remote.tagObject = "tag"
+	fake.tagged()
 	fake.repo.isDirty = true
-	fake.headVersion = "0.24.12"
+	fake.repo.files[versionFile] = "0.24.12\n"
 
 	result := runTestPublish(t, fake, false)
 
@@ -513,9 +503,9 @@ func TestPublishConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
 	}
 	lines := commandLines(result.commands)
-	for _, unwanted := range []string{"git status", "gh run list", "git show HEAD:VERSION", "git push"} {
+	for _, unwanted := range []string{"repo PushMain", "git push"} {
 		if index := lineIndex(lines, unwanted); index >= 0 {
-			t.Errorf("ran %q, want no gate, VERSION check or push once the tag exists", lines[index])
+			t.Errorf("ran %q, want no push once the tag exists", lines[index])
 		}
 	}
 	if lineIndex(lines, "gh release create v0.24.11") < 0 {
@@ -599,8 +589,8 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			fake := newPublishFake()
-			fake.repo.remote.tagObject = "tag"
-			fake.repo.remote.release = releaseJSON("uploaded", tc.uploaded...)
+			fake.tagged()
+			fake.repo.releases[publishVersion] = tc.uploaded
 			fake.publishedSums = rebuiltSums(t)
 
 			result := runTestPublish(t, fake, false)
@@ -645,8 +635,8 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 func TestPublishRefusesARebuildThatDoesNotMatchThePublishedSums(t *testing.T) {
 	t.Parallel()
 	fake := newPublishFake()
-	fake.repo.remote.tagObject = "tag"
-	fake.repo.remote.release = releaseJSON("uploaded", slices.Delete(slices.Clone(releaseAssetsV02411), 4, 6)...)
+	fake.tagged()
+	fake.repo.releases[publishVersion] = slices.Delete(slices.Clone(releaseAssetsV02411), 4, 6)
 	sums := rebuiltSums(t)
 	linuxHash, err := checksumFor(sums, "capcom_0.24.11_linux_amd64.tar.gz")
 	if err != nil {

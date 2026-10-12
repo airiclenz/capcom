@@ -260,7 +260,7 @@ func (r *publishRun) checkPushable(ctx context.Context, refusals []error) (strin
 		refusals = append(refusals, fmt.Errorf("gate: %s", failure))
 	}
 
-	raw, err := r.commands.run(ctx, r.options.dir, nil, "git", "show", "HEAD:"+versionFile)
+	raw, err := r.repo.ShowFile(ctx, "HEAD", versionFile)
 	if err != nil {
 		return gate, append(refusals, fmt.Errorf("read %s at HEAD: %w", versionFile, err))
 	}
@@ -325,13 +325,12 @@ func describeTag(run *publishRun) string {
 // workflow to tag the bump, and then requires that tag annotated and on the commit that set
 // VERSION. It never creates a tag: the workflow is the one tagger.
 func convergeTag(ctx context.Context, run *publishRun) error {
-	dir := run.options.dir
 	isPushed, err := run.repo.IsAncestor(ctx, "HEAD", remoteMain)
 	if err != nil {
 		return fmt.Errorf("check whether %s holds HEAD: %w", remoteMain, err)
 	}
 	if !isPushed {
-		if _, err := run.commands.run(ctx, dir, nonInteractiveEnv, "git", "push", remoteName, "HEAD:"+mainBranch); err != nil {
+		if err := run.repo.PushMain(ctx); err != nil {
 			return fmt.Errorf("push HEAD to %s: %w", remoteMain, err)
 		}
 	}
@@ -343,13 +342,13 @@ func convergeTag(ctx context.Context, run *publishRun) error {
 
 // waitForTag polls origin for the version's tag until it appears or the timeout passes.
 func waitForTag(ctx context.Context, run *publishRun) error {
-	ref := "refs/tags/" + run.version.String()
+	tag := run.version.String()
 	for waited := time.Duration(0); ; waited += run.options.pollInterval {
-		listed, err := run.commands.run(ctx, run.options.dir, nonInteractiveEnv, "git", "ls-remote", "--tags", remoteName, ref)
+		hasTag, err := run.repo.RemoteHasTag(ctx, tag)
 		if err != nil {
 			return fmt.Errorf("list %s's tags: %w", remoteName, err)
 		}
-		if strings.TrimSpace(listed) != "" {
+		if hasTag {
 			return nil
 		}
 		if waited >= run.options.tagTimeout {
@@ -365,18 +364,16 @@ func waitForTag(ctx context.Context, run *publishRun) error {
 // verifyTag fetches the tag — on a first run the workflow made it after the gate's fetch, so it
 // is not local yet — and requires it annotated and on the last commit that changed VERSION.
 func verifyTag(ctx context.Context, run *publishRun) error {
-	dir := run.options.dir
 	tag := run.version.String()
-	ref := "refs/tags/" + tag
-	if _, err := run.commands.run(ctx, dir, nonInteractiveEnv, "git", "fetch", "--quiet", remoteName, ref+":"+ref); err != nil {
+	if err := run.repo.FetchTag(ctx, tag); err != nil {
 		return fmt.Errorf("fetch tag %s: %w", tag, err)
 	}
 
-	kind, err := run.commands.run(ctx, dir, nil, "git", "cat-file", "-t", ref)
+	isAnnotated, err := run.repo.IsAnnotated(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("read the type of tag %s: %w", tag, err)
 	}
-	if strings.TrimSpace(kind) != gitObjectTag {
+	if !isAnnotated {
 		return fmt.Errorf("%s on %s is a lightweight tag; a release tag must be annotated", tag, remoteName)
 	}
 
@@ -384,11 +381,11 @@ func verifyTag(ctx context.Context, run *publishRun) error {
 	if err != nil {
 		return fmt.Errorf("resolve tag %s: %w", tag, err)
 	}
-	bump, err := run.commands.run(ctx, dir, nil, "git", "log", "-1", "--format=%H", "HEAD", "--", versionFile)
+	bump, err := run.repo.LastCommitTouching(ctx, "HEAD", versionFile)
 	if err != nil {
 		return fmt.Errorf("find the %s bump commit: %w", versionFile, err)
 	}
-	if bump = strings.TrimSpace(bump); tagged != bump {
+	if tagged != bump {
 		return fmt.Errorf("tag %s is on %s, not on the %s bump %s", tag, short(tagged), versionFile, short(bump))
 	}
 	return nil

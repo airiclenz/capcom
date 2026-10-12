@@ -179,6 +179,51 @@ func TestExecRepoRunsEachMethodsArgv(t *testing.T) {
 			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh",
 				args: []string{"release", "view", "v0.24.11", "--repo", "airiclenz/capcom", "--json", "assets"}},
 		},
+		"PushMain": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return nil, checkout.PushMain(ctx)
+			},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "git", args: []string{"push", "origin", "HEAD:main"}},
+		},
+		"FetchTag": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return nil, checkout.FetchTag(ctx, "v0.24.11")
+			},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "git",
+				args: []string{"fetch", "--quiet", "origin", "refs/tags/v0.24.11:refs/tags/v0.24.11"}},
+		},
+		"IsAnnotated on an annotated tag": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.IsAnnotated(ctx, "v0.24.11")
+			},
+			output:   "tag\n",
+			want:     true,
+			wantCall: recordedCall{name: "git", args: []string{"cat-file", "-t", "refs/tags/v0.24.11"}},
+		},
+		"IsAnnotated on a lightweight tag": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.IsAnnotated(ctx, "v0.24.11")
+			},
+			output:   "commit\n",
+			want:     false,
+			wantCall: recordedCall{name: "git", args: []string{"cat-file", "-t", "refs/tags/v0.24.11"}},
+		},
+		"ShowFile": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.ShowFile(ctx, "HEAD", "VERSION")
+			},
+			output:   "0.24.11\n",
+			want:     "0.24.11\n",
+			wantCall: recordedCall{name: "git", args: []string{"show", "HEAD:VERSION"}},
+		},
+		"LastCommitTouching": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.LastCommitTouching(ctx, "HEAD", "VERSION")
+			},
+			output:   bumpCommit + "\n",
+			want:     bumpCommit,
+			wantCall: recordedCall{name: "git", args: []string{"log", "-1", "--format=%H", "HEAD", "--", "VERSION"}},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -318,6 +363,14 @@ func TestExecRepoTellsANoFromABrokenCommand(t *testing.T) {
 			},
 			output:    "not json",
 			wantError: "parse gh release view output",
+		},
+		"LastCommitTouching finding no commit": {
+			call: func(ctx context.Context, checkout execRepo) error {
+				_, err := checkout.LastCommitTouching(ctx, "HEAD", "VERSION")
+				return err
+			},
+			output:    "\n",
+			wantError: "git log found no commit changing VERSION at HEAD",
 		},
 		"IsClean when git fails": {
 			call: func(ctx context.Context, checkout execRepo) error {
