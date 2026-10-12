@@ -3,7 +3,6 @@ package nodestore
 import (
 	"errors"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -57,6 +56,9 @@ type plannedRemoval struct {
 	// the removed node the removal drops.
 	depsDropped    []string
 	relatedDropped []string
+	// supersededByDropped are the ids of the Notes whose superseded-by entries naming the removed
+	// Note the removal drops.
+	supersededByDropped []string
 	// unread are the files of other nodes that do not parse, so their entries could not be checked.
 	unread []string
 }
@@ -65,8 +67,8 @@ type plannedRemoval struct {
 // prefix) together with its own children directory when that is empty, then the parent's children
 // directory when the removal emptied it. The node's file is never parsed, so a node whose file
 // does not parse is removed like any other. The issue kind drops every other issue's related
-// entries naming the node, and its deps entries too when shouldDropDeps; the Knowledge tree has
-// neither. It returns the node removed and the tree problems that concern neither the node nor its
+// entries naming the node, and its deps entries too when shouldDropDeps; the Knowledge tree drops
+// every other Note's superseded-by entries naming it. It returns the node removed and the tree problems that concern neither the node nor its
 // parent, their paths relative to the working tree root with forward slashes, for the caller to
 // report as warnings.
 //
@@ -146,22 +148,23 @@ func planIssueRemove(nodes *tree.Tree, id string, ifMatch string, shouldDropDeps
 	}, nil
 }
 
-// planNoteRemove is the removal planner of the Knowledge tree: knowledge.PlanRemove, then the etag
-// check of the Note file, which it reads but never parses. Notes have no deps, so shouldDropDeps
-// changes nothing. A stale ifMatch comes back as planIssueRemove's does.
+// planNoteRemove is the removal planner of the Knowledge tree: knowledge.PlanRemove, which also
+// drops the superseded-by entries that name the removed Note, then the etag check of the Note file,
+// which it reads but never parses. A Note has no deps, so shouldDropDeps changes nothing. A stale
+// ifMatch comes back as planIssueRemove's does.
 func planNoteRemove(nodes *tree.Tree, id string, ifMatch string, _ bool) (*plannedRemoval, error) {
 	removal, err := knowledge.PlanRemove(nodes, id)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(removal.Node.Path)
-	if err != nil {
-		return nil, err
-	}
-	if current := edit.ETag(data); ifMatch != "" && ifMatch != current {
+	if current := edit.ETag(removal.Original); ifMatch != "" && ifMatch != current {
 		return nil, &ConflictError{Path: removal.Node.Path, IfMatch: ifMatch, ETag: current}
 	}
-	return &plannedRemoval{Removal: removal}, nil
+	return &plannedRemoval{
+		Removal:             removal.Removal,
+		supersededByDropped: removal.SupersededByDropped,
+		unread:              removal.Unread,
+	}, nil
 }
 
 // removalFailure types err, a refusal of the removal of node: a stale etag is a *ConflictError,
@@ -230,7 +233,7 @@ func (k *Kind[T]) removalApplyFailure(err error, nodes *tree.Tree, removal *plan
 // whose entries it drops, the children directory when the node has one, and the node file.
 func removalPaths(nodes *tree.Tree, removal *plannedRemoval) []string {
 	var paths []string
-	for _, id := range slices.Concat(removal.depsDropped, removal.relatedDropped) {
+	for _, id := range slices.Concat(removal.depsDropped, removal.relatedDropped, removal.supersededByDropped) {
 		if node, isFound := nodes.Lookup(id); isFound {
 			paths = append(paths, node.Path)
 		}

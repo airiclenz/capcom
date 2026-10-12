@@ -20,7 +20,8 @@ type knowRmOptions struct {
 }
 
 // newKnowRmCommand deletes one Note file. A Note with children, or whose children directory holds
-// anything, is refused, so removal never leaves an orphan directory. Its Aliases go with the file.
+// anything, is refused, so removal never leaves an orphan directory. Its Aliases go with the file,
+// and every other Note's superseded-by entries naming it are dropped.
 func (a *app) newKnowRmCommand() *cobra.Command {
 	options := &knowRmOptions{}
 	cmd := &cobra.Command{
@@ -42,11 +43,13 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 
 // removeNote removes the Note arg names through the Note node store, which deletes its file
 // together with the Note's own children directory when that is empty, then the parent's children
-// directory when the removal emptied it. Before anything is deleted it refuses a Note with
-// children, a children directory holding other files, and an --if-match that is not the file's
-// etag; it never parses the Note file. The result names the removed file, with a warning for every
-// tree problem that concerns neither the Note nor its parent and for an emptied parent directory
-// left in place; a stale capcom block of AGENTS.md is refreshed afterwards.
+// directory when the removal emptied it, and drops every other Note's superseded-by entries naming
+// it. Before anything is deleted it refuses a Note with children, a children directory holding
+// other files, and an --if-match that is not the file's etag; it never parses the Note file. The
+// result names the removed file, with a warning for every tree problem that concerns neither the
+// Note nor its parent, for every Note file whose superseded-by entries could not be checked and for
+// an emptied parent directory left in place; a stale capcom block of AGENTS.md is refreshed
+// afterwards.
 func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 	removed, problems, err := nodestore.Notes(a.store, nil).Remove(arg, options.ifMatch, false)
 	if err != nil {
@@ -55,6 +58,7 @@ func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 
 	result := noteRemoveResult(removed.ID, removed.Path)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
+	result.Warnings = append(result.Warnings, supersededByUnreadWarnings(removed.Unread, removed.ID)...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
@@ -66,6 +70,16 @@ func cleanupWarnings(leftInPlace []*nodestore.FileError) []string {
 	warnings := make([]string, 0, len(leftInPlace))
 	for _, failure := range leftInPlace {
 		warnings = append(warnings, failure.Path+": "+flatten(failure.Message)+"; the empty directory was not removed")
+	}
+	return warnings
+}
+
+// supersededByUnreadWarnings renders each of unread, a Note file that does not parse, as a warning
+// that its superseded-by entries were not checked for the Note id.
+func supersededByUnreadWarnings(unread []string, id string) []string {
+	warnings := make([]string, 0, len(unread))
+	for _, path := range unread {
+		warnings = append(warnings, fmt.Sprintf("%s: superseded-by not checked for %s: the file does not parse", path, id))
 	}
 	return warnings
 }

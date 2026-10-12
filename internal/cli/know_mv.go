@@ -14,7 +14,8 @@ type knowMvOptions struct {
 }
 
 // newKnowMvCommand renames a Note, moves it below another, or both. A rename keeps the old id as
-// an Alias; the Note's subtree moves with it. capcom moves files with a plain file-system rename
+// an Alias and rewrites every other Note's superseded-by entry naming it; the Note's subtree moves
+// with it. capcom moves files with a plain file-system rename
 // and never runs git.
 func (a *app) newKnowMvCommand() *cobra.Command {
 	options := &knowMvOptions{}
@@ -45,7 +46,8 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 // options.parent, when reparented. It refuses with conflict, before anything moves, when
 // --if-match is set and is not the Note file's etag. The result names the Note's new id, path and
 // etag, with a warning for every tree problem that concerns neither the Note, its new path nor the
-// new parent; a stale capcom block of AGENTS.md is refreshed afterwards.
+// new parent, and for every Note file whose superseded-by entries could not be checked; a stale
+// capcom block of AGENTS.md is refreshed afterwards.
 func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	moved, problems, err := nodestore.Notes(a.store, nil).Move(
 		args[0],
@@ -59,6 +61,7 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	indexWarnings, warnings := a.movedWarnings(moved, problems)
 	a.indexWarnings = indexWarnings
 	result.Warnings = append(result.Warnings, warnings...)
+	result.Warnings = append(result.Warnings, supersededByUnreadWarnings(moved.Unread, moved.OldID)...)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
 }

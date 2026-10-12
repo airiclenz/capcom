@@ -192,7 +192,11 @@ internal/cli/know_update_test.go — TestKnowUpdate_RefusedEdits_NameTheFileAndW
 **Commit:** `feat(know): write retired and superseded-by from know update`
 Depends on items 3 and 4.
 
-## 10. know mv and know rm keep supersession links whole
+## 10. know mv and know rm keep supersession links whole — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `renameSuccessors` (and the `isOneOf` predicate) live in `internal/knowledge/move.go` rather than sharing issue's `renameDeps`, since moving code between packages is out of scope; unlike `renameDeps` it drops every later entry that ends up as the new id, so `[x, y]` renamed x→y is `[y]` even when `y` names no Note. Issue's `renameDeps` still gives `[y, y]` for a dangling `y` (an older issue-side quirk, left as it is).
+NOTES (2026-10-12): `knowledge.PlanRemove` now reads the removed Note file (still never parsing it) for the rawfm alias fallback and returns it as `Removal.Original`; `planNoteRemove` runs its etag check on those bytes rather than reading the file again, so a different Note file that cannot be read is reported before a stale `--if-match`.
+NOTES (2026-10-12): `nodestore.Removed` is not extended: `know rm`'s output keeps its `id`/`path` shape, and the dropped Note ids only feed `removalPaths` (through `plannedRemoval.supersededByDropped`) so a failed dependent write names that Note's file. The nodestore `planNoteRemove` comment now reads "A Note has no deps" so the guard's `notes have no` grep comes back empty. The `docs/format.md` text on `know mv`/`rm` is left to item 11, which owns it.
 
 **What:**
 **Goal:** `capcom know mv <old> <new>` rewrites every other Note's `superseded-by` entry naming the old id; `capcom know rm <id>` removes the id from every `superseded-by` naming it; both stay atomic with the existing rollback.

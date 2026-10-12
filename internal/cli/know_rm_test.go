@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -206,5 +207,71 @@ func TestKnowRm_UnparseableNote_RemovesItsFile(t *testing.T) {
 	}
 	if !noteFileExists(t, root, "testing-rules/git-fixtures.md") {
 		t.Errorf("a sibling was removed")
+	}
+}
+
+func TestKnowRm_SupersededByTarget_DropsTheLinks(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\nsuperseded-by: [release-flow, cli-tests]\n---\n",
+		"testing-rules.md":              "---\ntitle: Testing rules\nsuperseded-by: [release-flow]\n---\n",
+	})
+
+	mustRun(t, root, "know", "rm", "release-flow")
+
+	want := map[string]string{
+		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\nsuperseded-by: [cli-tests]\n---\n",
+		"testing-rules.md":              "---\ntitle: Testing rules\n---\n",
+	}
+	for name, content := range want {
+		if got := readNoteFile(t, root, name); got != content {
+			t.Errorf("%s = %q; want %q", name, got, content)
+		}
+	}
+}
+
+func TestKnowRm_UnparseableBystander_WarnsAndRemoves(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"testing-rules/broken-note.md": "no frontmatter\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "rm", "release-flow")
+
+	warning := ".capcom/knowledge/testing-rules/broken-note.md: superseded-by not checked for release-flow: " +
+		"the file does not parse"
+	if exitCode != ExitOK || !strings.Contains(stdout+stderr, warning) {
+		t.Errorf("know rm = %d\n%s%s; want success warning %q", exitCode, stdout, stderr, warning)
+	}
+	if noteFileExists(t, root, "release-flow.md") {
+		t.Errorf("release-flow.md was not removed")
+	}
+}
+
+func TestKnowRm_DependentWriteFails_RollsBackNamingTheDependentFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory does not stop file creation on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only directory")
+	}
+	root := newKnowStore(t)
+	dependent := "---\ntitle: Git fixtures\nsuperseded-by: [release-flow]\n---\n"
+	writeNoteFiles(t, root, map[string]string{"testing-rules/git-fixtures.md": dependent})
+	readOnlyDir := knowledgePath(root, "testing-rules")
+	if err := os.Chmod(readOnlyDir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnlyDir, 0o755) })
+
+	stdout, _, exitCode := runCLI(t, root, "--json", "know", "rm", "release-flow")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	if exitCode == ExitOK || failure["path"] != ".capcom/knowledge/testing-rules/git-fixtures.md" {
+		t.Errorf("exit = %d error = %v; want a failure at testing-rules/git-fixtures.md", exitCode, failure)
+	}
+	if !noteFileExists(t, root, "release-flow.md") {
+		t.Errorf("release-flow.md was removed")
+	}
+	if got := readNoteFile(t, root, "testing-rules/git-fixtures.md"); got != dependent {
+		t.Errorf("git-fixtures.md = %q; want %q", got, dependent)
 	}
 }

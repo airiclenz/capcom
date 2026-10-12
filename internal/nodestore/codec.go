@@ -86,11 +86,12 @@ func planIssueMove(nodes *tree.Tree, id string, to tree.Destination) (*plannedMo
 	return &plannedMove{Move: move.Move, original: move.Original, content: move.Content, unread: move.Unread}, nil
 }
 
-// planNoteMove is the move planner of the Knowledge tree: knowledge.PlanMove.
+// planNoteMove is the move planner of the Knowledge tree: knowledge.PlanMove, which also rewrites
+// the superseded-by entries that name the moved Note.
 func planNoteMove(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error) {
 	move, err := knowledge.PlanMove(nodes, id, to)
 	if err != nil {
 		return nil, err
 	}
-	return &plannedMove{Move: move.Move, original: move.Original, content: move.Content}, nil
+	return &plannedMove{Move: move.Move, original: move.Original, content: move.Content, unread: move.Unread}, nil
 }
