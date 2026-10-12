@@ -59,7 +59,11 @@ local models.
 - Typed edges, stored reverse edges, critical path, weights, DOT export.
 - An issue assignee key, `lock acquire --issue`, any config or front-matter key (no format raise).
 
-## 1. Unblock query and bounded dependency walk
+## 1. Unblock query and bounded dependency walk — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the walk API is `DepGraph.Walk(id, WalkDeps|WalkDependents, maxDepth) []WalkStep` with `WalkStep{ID, Via, Depth, Cut, IsRepeat}` and `UnlimitedDepth = 0`; the start issue gets no step (its neighbours are depth 1), and an id first reached at the cap counts as reached, so a later sighting is a repeat step.
+NOTES (2026-10-12): `Dependents` now returns a copy of the reverse edges built in `NewDepGraph` (same order and dedupe as before); the `ids` field it alone used was removed as dead.
+NOTES (2026-10-12): package `internal/issue` now holds 10 non-test files and has no `doc.go` file map; the plan does not ask for one (pre-existing gap, not added here).
 
 **What:**
 **Goal:** package `issue` answers two questions. (a) Which todo issues become Ready when a given set

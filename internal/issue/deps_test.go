@@ -191,3 +191,113 @@ func TestDepsGraph_Cycles_FollowsEdgesWrittenAsAliases(t *testing.T) {
 		t.Errorf("Cycles = %v, want %v", got, want)
 	}
 }
+
+func TestDepsGraph_Walk_StepsToDepth(t *testing.T) {
+	t.Parallel()
+	diamond := []issue.Node{
+		withDeps(readyNode("app", config.CategoryTodo), "api", "ui"),
+		withDeps(readyNode("api", config.CategoryTodo), "schema"),
+		withDeps(readyNode("ui", config.CategoryTodo), "schema"),
+		readyNode("schema", config.CategoryTodo),
+	}
+	cycle := []issue.Node{
+		withDeps(readyNode("a", config.CategoryTodo), "b"),
+		withDeps(readyNode("b", config.CategoryTodo), "c"),
+		withDeps(readyNode("c", config.CategoryTodo), "a"),
+	}
+	chain := []issue.Node{
+		withDeps(readyNode("a", config.CategoryTodo), "b"),
+		withDeps(readyNode("b", config.CategoryTodo), "c", "d"),
+		withDeps(readyNode("c", config.CategoryTodo), "e"),
+		readyNode("d", config.CategoryTodo),
+		readyNode("e", config.CategoryTodo),
+	}
+	topOfDeps := append(depsNodes(), withDeps(readyNode("top", config.CategoryTodo), "by-id"))
+	cases := []struct {
+		name      string
+		nodes     []issue.Node
+		start     string
+		direction issue.WalkDirection
+		maxDepth  int
+		want      []issue.WalkStep
+	}{
+		{
+			name:  "diamond yields one repeat step",
+			nodes: diamond, start: "app", direction: issue.WalkDeps, maxDepth: issue.UnlimitedDepth,
+			want: []issue.WalkStep{
+				{ID: "api", Via: "app", Depth: 1},
+				{ID: "schema", Via: "api", Depth: 2},
+				{ID: "ui", Via: "app", Depth: 1},
+				{ID: "schema", Via: "ui", Depth: 2, IsRepeat: true},
+			},
+		},
+		{
+			name:  "diamond walked from the bottom",
+			nodes: diamond, start: "schema", direction: issue.WalkDependents, maxDepth: issue.UnlimitedDepth,
+			want: []issue.WalkStep{
+				{ID: "api", Via: "schema", Depth: 1},
+				{ID: "app", Via: "api", Depth: 2},
+				{ID: "ui", Via: "schema", Depth: 1},
+				{ID: "app", Via: "ui", Depth: 2, IsRepeat: true},
+			},
+		},
+		{
+			name:  "cycle ends on the start",
+			nodes: cycle, start: "a", direction: issue.WalkDeps, maxDepth: issue.UnlimitedDepth,
+			want: []issue.WalkStep{
+				{ID: "b", Via: "a", Depth: 1},
+				{ID: "c", Via: "b", Depth: 2},
+				{ID: "a", Via: "c", Depth: 3, IsRepeat: true},
+			},
+		},
+		{
+			name:  "depth cap counts the neighbours it leaves out",
+			nodes: chain, start: "a", direction: issue.WalkDeps, maxDepth: 2,
+			want: []issue.WalkStep{
+				{ID: "b", Via: "a", Depth: 1},
+				{ID: "c", Via: "b", Depth: 2, Cut: 1},
+				{ID: "d", Via: "b", Depth: 2},
+			},
+		},
+		{
+			name:  "depth cap at the first step",
+			nodes: chain, start: "a", direction: issue.WalkDeps, maxDepth: 1,
+			want: []issue.WalkStep{{ID: "b", Via: "a", Depth: 1, Cut: 2}},
+		},
+		{
+			name:  "dependency named by id and by alias is one step",
+			nodes: depsNodes(), start: "by-id", direction: issue.WalkDeps, maxDepth: issue.UnlimitedDepth,
+			want: []issue.WalkStep{{ID: "db-schema", Via: "by-id", Depth: 1}},
+		},
+		{
+			name:  "dependency named by id and by alias is cut once",
+			nodes: topOfDeps, start: "top", direction: issue.WalkDeps, maxDepth: 1,
+			want: []issue.WalkStep{{ID: "by-id", Via: "top", Depth: 1, Cut: 1}},
+		},
+		{
+			name:  "dependent naming by id and by alias is one step",
+			nodes: depsNodes(), start: "db-schema", direction: issue.WalkDependents, maxDepth: issue.UnlimitedDepth,
+			want: []issue.WalkStep{
+				{ID: "by-alias", Via: "db-schema", Depth: 1},
+				{ID: "by-id", Via: "db-schema", Depth: 1},
+			},
+		},
+		{
+			name:  "unknown start",
+			nodes: chain, start: "nothing-here", direction: issue.WalkDeps, maxDepth: issue.UnlimitedDepth,
+			want: nil,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			graph := issue.NewDepGraph(testCase.nodes)
+
+			got := graph.Walk(testCase.start, testCase.direction, testCase.maxDepth)
+
+			if !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("Walk(%s) = %+v, want %+v", testCase.start, got, testCase.want)
+			}
+		})
+	}
+}
