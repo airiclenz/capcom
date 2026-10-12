@@ -397,6 +397,27 @@ func TestTopNotes_RetiredTopLevelNote_IsLeftOut(t *testing.T) {
 	}
 }
 
+func TestTopNotes_BackgroundTopLevelNote_IsLeftOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	files := map[string]string{
+		"rejected-options.md": "---\ntitle: Rejected options\nlabels: [adr, background]\n---\n",
+		"release-flow.md":     "---\ntitle: Release flow\nlabels: [process]\n---\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+
+	notes, err := TopNotes(dir)
+
+	want := Note{ID: "release-flow", Title: "Release flow"}
+	if err != nil || len(notes) != 1 || notes[0] != want {
+		t.Errorf("TopNotes = %v, %v; want [%v]", notes, err, want)
+	}
+}
+
 func TestTopNotes_SymlinkedTopLevelNote_IsLeftOutWithoutError(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

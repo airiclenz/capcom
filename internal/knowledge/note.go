@@ -32,6 +32,11 @@ const (
 	retiredFalse = "false"
 )
 
+// LabelBackground marks a Note that records context rather than a rule to follow, such as an ADR's
+// rejected options: know tree and the Managed block in AGENTS.md leave it out, with its whole
+// subtree, unless asked for.
+const LabelBackground = "background"
+
 // noteExtension ends every Note file name; the rest of the name is the Note's id.
 const noteExtension = ".md"
 
@@ -147,6 +152,11 @@ type Note struct {
 	lines             map[string]int
 	refLines          []int
 	supersededByLines []int
+}
+
+// IsBackground reports whether labels, a Note's Labels, include LabelBackground.
+func IsBackground(labels []string) bool {
+	return slices.Contains(labels, LabelBackground)
 }
 
 // Error is a Note file that cannot be used: the one frontmatter.Error both kinds report, with the

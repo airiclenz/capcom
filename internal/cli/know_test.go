@@ -230,6 +230,73 @@ func TestKnowTree_RetiredSubtrees_LeftOutUnlessRetired(t *testing.T) {
 	}
 }
 
+// newBackgroundKnowStore extends newRetiredKnowStore with a background child of testing-rules
+// and a current Note below it.
+func newBackgroundKnowStore(t *testing.T) string {
+	t.Helper()
+	root := newRetiredKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"testing-rules/flaky-history.md":            "---\ntitle: Flaky history\nlabels: [background]\n---\n",
+		"testing-rules/flaky-history/quarantine.md": "---\ntitle: Quarantine\n---\n",
+	})
+	return root
+}
+
+func TestKnowTree_BackgroundSubtrees_LeftOutUnlessBackground(t *testing.T) {
+	root := newBackgroundKnowStore(t)
+	currentLines := "release-flow  Release flow\ntesting-rules  Testing rules\n  cli-tests  CLI tests\n" +
+		"    no-parallel  No parallel\n"
+	backgroundLines := "  flaky-history  Flaky history\n    quarantine  Quarantine\n"
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{nil, currentLines + "  git-fixtures  Git fixtures\n"},
+		{[]string{"--background"}, currentLines + backgroundLines + "  git-fixtures  Git fixtures\n"},
+		{[]string{"--retired"}, "old-harness  Old harness\n  old-fixtures  Old fixtures\n" + currentLines +
+			"  git-fixtures  Git fixtures\n  legacy-runner  Legacy runner\n"},
+		{[]string{"--retired", "--background"}, "old-harness  Old harness\n  old-fixtures  Old fixtures\n" +
+			currentLines + backgroundLines + "  git-fixtures  Git fixtures\n  legacy-runner  Legacy runner\n"},
+		{[]string{"flaky-history"}, "flaky-history  Flaky history\n  quarantine  Quarantine\n"},
+		{[]string{"--depth", "1"}, "release-flow  Release flow\ntesting-rules  Testing rules\n  ... 2 more (--depth 2)\n"},
+		{[]string{"--depth", "1", "--background"}, "release-flow  Release flow\ntesting-rules  Testing rules\n" +
+			"  ... 3 more (--depth 2)\n"},
+	}
+
+	for _, current := range cases {
+		stdout, stderr, exitCode := runCLI(t, root, append([]string{"know", "tree"}, current.args...)...)
+
+		if exitCode != ExitOK || stdout != current.want {
+			t.Errorf("know tree %v = %d\n%s%s\nwant\n%s", current.args, exitCode, stdout, stderr, current.want)
+		}
+	}
+}
+
+func TestKnowTree_JSON_LeavesOutBackgroundUnlessBackground(t *testing.T) {
+	root := newBackgroundKnowStore(t)
+
+	current := envelopeIDs(t, mustRun(t, root, "know", "tree", "--json"))
+	withBackground := envelopeIDs(t, mustRun(t, root, "know", "tree", "--background", "--json"))
+
+	if got := strings.Join(current, ","); got != "release-flow,testing-rules,cli-tests,no-parallel,git-fixtures" {
+		t.Errorf("know tree --json ids = %s; want no flaky-history or quarantine", got)
+	}
+	want := "release-flow,testing-rules,cli-tests,no-parallel,flaky-history,quarantine,git-fixtures"
+	if got := strings.Join(withBackground, ","); got != want {
+		t.Errorf("know tree --background --json ids = %s; want %s", got, want)
+	}
+}
+
+func TestKnowShow_WithChildren_ShowsBackgroundChildren(t *testing.T) {
+	root := newBackgroundKnowStore(t)
+
+	stdout := mustRun(t, root, "know", "show", "testing-rules", "--with-children", "--json")
+
+	if got := strings.Join(envelopeIDs(t, stdout), ","); got != "testing-rules,cli-tests,flaky-history,git-fixtures" {
+		t.Errorf("know show --with-children ids = %s; want testing-rules,cli-tests,flaky-history,git-fixtures", got)
+	}
+}
+
 func TestKnowSearch_RetiredSubtrees_LeftOutUnlessRetired(t *testing.T) {
 	root := newRetiredKnowStore(t)
 

@@ -22,11 +22,15 @@ const (
 	flagWithChildren = "with-children"
 	flagRef          = "ref"
 	flagRetired      = "retired"
+	flagBackground   = "background"
 	kindNoteWrite    = "note-write"
 )
 
 // retiredFlagUsage is the help of the --retired flag shared by know tree, know show and know search.
 const retiredFlagUsage = "include retired notes and everything below them"
+
+// backgroundFlagUsage is the help of the --background flag of know tree.
+const backgroundFlagUsage = "include notes labelled background and everything below them"
 
 // unlimitedDepth is the --depth of know tree that prints every level.
 const unlimitedDepth = 0
@@ -97,10 +101,12 @@ func (a *app) newKnowCommand() *cobra.Command {
 // newKnowTreeCommand prints the outline of the Knowledge tree, or of the subtree of one Note: one
 // line per Note, `id  title`, indented two spaces per level, and a `... <n> more (--depth <d>)`
 // line under each Note whose children --depth cut. Retired subtrees are left out unless --retired
-// is given, and never counted as cut; a Note named as the start is printed even when retired.
+// is given, and background subtrees unless --background is given; neither is counted as cut. A
+// Note named as the start is printed even when retired or background.
 func (a *app) newKnowTreeCommand() *cobra.Command {
 	depth := unlimitedDepth
 	isRetiredIncluded := false
+	isBackgroundIncluded := false
 	cmd := &cobra.Command{
 		Use:         "tree [id|alias|prefix]",
 		Short:       "Print the outline of Note ids and titles",
@@ -110,7 +116,7 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 			if depth < unlimitedDepth {
 				return UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
 			}
-			lines, err := a.outline(args, depth, isRetiredIncluded)
+			lines, err := a.outline(args, depth, isRetiredIncluded, isBackgroundIncluded)
 			if err != nil {
 				return err
 			}
@@ -128,6 +134,7 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 	cmd.Flags().IntVar(&depth, flagDepth, unlimitedDepth,
 		"levels below the top (or below the named note) to print; 0 prints every level")
 	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
+	cmd.Flags().BoolVar(&isBackgroundIncluded, flagBackground, false, backgroundFlagUsage)
 	return cmd
 }
 
@@ -146,12 +153,26 @@ func noteOutlineLine(entry index.NoteEntry, depth int) outlineLine {
 // outline lists the Notes know tree prints: the whole tree, or the Note args names followed by its
 // subtree, each Note followed by its children in id order, at most maxDepth levels below the
 // start (unlimitedDepth for all). A Note on the last level counts the direct children it cut.
-// Unless isRetiredIncluded, retired subtrees are left out below the start, and so never counted;
-// the named start itself always resolves.
-func (a *app) outline(args []string, maxDepth int, isRetiredIncluded bool) ([]outlineLine, error) {
+// Unless isRetiredIncluded, retired subtrees are left out below the start, and unless
+// isBackgroundIncluded, so are background subtrees; neither is ever counted. The named start
+// itself always resolves.
+func (a *app) outline(
+	args []string,
+	maxDepth int,
+	isRetiredIncluded bool,
+	isBackgroundIncluded bool,
+) ([]outlineLine, error) {
 	notes, err := a.issueIndex.Notes(isRetiredIncluded)
 	if err != nil {
 		return nil, err
+	}
+	if !isBackgroundIncluded {
+		// Dropping a background Note drops its subtree too: visit reaches a Note only through its
+		// parent's group. The filter stays here, not in childrenByParent, which know show
+		// --with-children also uses.
+		notes = slices.DeleteFunc(notes, func(note index.NoteEntry) bool {
+			return knowledge.IsBackground(note.Labels)
+		})
 	}
 	children := childrenByParent(notes)
 	var lines []outlineLine

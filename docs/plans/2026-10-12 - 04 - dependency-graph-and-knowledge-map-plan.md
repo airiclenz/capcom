@@ -349,7 +349,10 @@ dep appears only with `--all`; JSON nodes and edges.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Dep|DocFileMap'`
 **Commit:** `feat(dep): add dep graph, a Mermaid flowchart of the dependencies`
 
-## 12. know tree hides background Notes
+## 12. know tree hides background Notes — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): added `knowledge.IsBackground(labels)` beside `knowledge.LabelBackground`, shared by `app.outline` and `agents.TopNotes`; the filter runs on the notes list in `app.outline`, never in `childrenByParent`.
+NOTES (2026-10-12): README.md and docs/format.md left untouched for `--background`; per the plan header, item 13 owns the format.md left-out sentences and item 17 the README and format reference.
 
 **What:**
 **Goal:** a Note labelled `background` is left out of `capcom know tree`, together with its subtree, in
