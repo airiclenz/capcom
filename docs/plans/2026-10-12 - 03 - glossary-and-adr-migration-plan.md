@@ -45,7 +45,9 @@ every live reference.
 - Rewriting `ADR NNNN` citations in Go code, and anything under `docs/plans/`, `docs/handoffs/`, `docs/reviews/`, `docs/skill-runs/` or `CHANGELOG.md`.
 - Any change to capcom's code, tests or release.
 
-## 1. Glossary as a Note tree
+## 1. Glossary as a Note tree — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): hand-written titles and section summaries live in the throwaway script's tables (docs/skill-runs/migrate-knowledge/split_glossary.py, gitignored) rather than being edited into the files after a first pass; the script writes them double-quoted and capcom fmt normalised the five section titles that need no quoting
 
 **What:**
 **Goal:** `.capcom/knowledge/glossary.md` exists with six section children `glossary-structure`, `glossary-work`, `glossary-coordination`, `glossary-knowledge`, `glossary-agent-interface`, `glossary-ambiguities`; every `**Term**:` entry of `CONTEXT.md` is a grandchild Note under its section; the AGENTS.md managed block lists `glossary`; `CONTEXT.md` is unchanged.
