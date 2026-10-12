@@ -566,7 +566,13 @@ internal/cli/rm_test.go — TestRm_StaleIfMatch_ConflictsAndKeepsTheFile; intern
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Rm`
 **Commit:** `refactor(cli): rm and know rm through nodestore`
 
-## 19. Kind.Format for fmt
+## 19. Kind.Format for fmt — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): Kind.Format(isCheck) returns a Formatted{Paths, Warnings []error} (tree problems as relative *tree.Error, file problems as *FileError); cli renders them as before. canonicalForm, canonicalizer, formatTree, canonicalIssue and canonicalNote are removed from internal/cli/fmt.go; formatRun.emit and errorStrings stay.
+
+NOTES (2026-10-12): writes now go through the node store's write, so a rewritten Note is written with LF line endings like issues (and like know update since item 16); a node file that cannot be read now fails with its message naming the file relative to the worktree instead of absolute. Listed paths and warnings are unchanged.
+
+NOTES (2026-10-12): deviation, deleting dead code (coding-standards [must]) — internal/cli/update.go, internal/cli/know_update.go, internal/cli/errors.go: with fmt on the node store, writeIssueFile, writeNoteFile, treeLoadFailure, treeProblems and problemSeparator had no callers left and are removed with the imports this left unused; relativeTreeError, called only by treeLoadFailure, goes with it.
 
 **What:**
 **Goal:** `Kind.Format(check)` canonicalizes every node file of a kind and returns written paths and

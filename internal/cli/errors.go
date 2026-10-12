@@ -118,34 +118,6 @@ func kindFailure(err error) *Error {
 	return asError(err)
 }
 
-// treeLoadFailure returns a tree.Load failure as an *Error, naming every file of its tree
-// problems, the file at fault and the other file of a duplicate alike, relative to the working
-// tree root with forward slashes. Any other failure goes through asError.
-func (a *app) treeLoadFailure(err error) *Error {
-	var problems tree.Errors
-	if errors.As(err, &problems) {
-		relative := make(tree.Errors, 0, len(problems))
-		for _, problem := range problems {
-			relative = append(relative, a.relativeTreeError(problem))
-		}
-		return &Error{Code: CodeInvalid, Message: relative.Error()}
-	}
-	var problem *tree.Error
-	if errors.As(err, &problem) {
-		return &Error{Code: CodeInvalid, Message: a.relativeTreeError(problem).Error()}
-	}
-	return asError(err)
-}
-
-// relativeTreeError returns a copy of problem whose Path and Other are relative to the working
-// tree root with forward slashes; a path outside it is kept as it is.
-func (a *app) relativeTreeError(problem *tree.Error) *tree.Error {
-	relative := *problem
-	relative.Path = a.worktreeRelative(problem.Path)
-	relative.Other = a.worktreeRelative(problem.Other)
-	return &relative
-}
-
 // worktreeRelative names path relative to the working tree root with forward slashes, or returns
 // it unchanged when it is empty or outside the working tree.
 func (a *app) worktreeRelative(path string) string {
@@ -159,20 +131,6 @@ func (a *app) worktreeRelative(path string) string {
 // root, so a message built from an OS error never carries the worktree's absolute path.
 func (a *app) worktreeRelativeText(text string) string {
 	return strings.ReplaceAll(text, a.store.WorktreeRoot+string(filepath.Separator), "")
-}
-
-// treeProblems returns the problems of a tree.Load failure that still returned the tree of what it
-// could place, for a command that goes on with that tree; it returns nil for a nil err. Any other
-// failure, which returns no tree, comes back as treeLoadFailure types it.
-func (a *app) treeProblems(err error) (tree.Errors, error) {
-	if err == nil {
-		return nil, nil
-	}
-	var problems tree.Errors
-	if errors.As(err, &problems) {
-		return problems, nil
-	}
-	return nil, a.treeLoadFailure(err)
 }
 
 // treeProblemWarnings renders each problem as a warning, "path: message".

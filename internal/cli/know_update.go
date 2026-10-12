@@ -1,16 +1,12 @@
 package cli
 
 import (
-	"bytes"
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags of know update beyond those it shares with capcom update.
@@ -179,27 +175,4 @@ func applyNoteUpdate(
 		note.Body = edit.AppendBody(note.Body, inputs.appendFile)
 	}
 	return note, nil
-}
-
-// writeNoteFile validates note and writes it atomically to path, relative to the working tree
-// root with forward slashes, returning the new etag. A Note that does not validate fails invalid,
-// citing its first problem's line, and is not written.
-func (a *app) writeNoteFile(path string, note knowledge.Note) (string, error) {
-	if problems := knowledge.Validate(path, note); len(problems) > 0 {
-		messages := make([]string, 0, len(problems))
-		for _, problem := range problems {
-			messages = append(messages, problem.Message)
-		}
-		return "", &Error{
-			Code:    CodeInvalid,
-			Path:    path,
-			Line:    problems[0].Line,
-			Message: strings.Join(messages, problemSeparator),
-		}
-	}
-	content := note.Serialize()
-	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(content)); err != nil {
-		return "", asError(err)
-	}
-	return edit.ETag(content), nil
 }

@@ -1,23 +1,19 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/config"
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags of capcom update; --status, --type, --priority and --plan are shared with list.
@@ -32,7 +28,6 @@ const (
 	flagIfMatch        = "if-match"
 	stdinPath          = "-"
 	kindIssueWrite     = "issue-write"
-	problemSeparator   = "; "
 )
 
 // updateOptions holds the flags of one capcom update.
@@ -255,29 +250,6 @@ func (a *app) readIssueFile(path string) ([]byte, error) {
 		return nil, &Error{Code: CodeInvalid, Path: path, Message: err.Error()}
 	}
 	return data, nil
-}
-
-// writeIssueFile validates target against the config and writes it atomically to path, relative
-// to the working tree root with forward slashes, returning the new etag. A target that does not
-// validate fails invalid, citing its first problem's line, and is not written.
-func (a *app) writeIssueFile(path string, target issue.Issue) (string, error) {
-	if problems := issue.Validate(path, target, a.store.Config); len(problems) > 0 {
-		messages := make([]string, 0, len(problems))
-		for _, problem := range problems {
-			messages = append(messages, problem.Message)
-		}
-		return "", &Error{
-			Code:    CodeInvalid,
-			Path:    path,
-			Line:    problems[0].Line,
-			Message: strings.Join(messages, problemSeparator),
-		}
-	}
-	data := bytes.ReplaceAll(target.Serialize(), []byte("\r\n"), []byte("\n"))
-	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(data)); err != nil {
-		return "", asError(err)
-	}
-	return edit.ETag(data), nil
 }
 
 // absoluteIssuePath turns path, relative to the working tree root with forward slashes, into a
