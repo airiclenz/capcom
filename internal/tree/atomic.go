@@ -18,6 +18,10 @@ const (
 // tempPattern names a temp file `.<file name>.tmp-<random>`, which Load skips as a dotfile.
 const tempPattern = hiddenPrefix + "%s.tmp-*"
 
+// link is the hard link placeExclusive names the written file with; a test swaps it to force the
+// copy fallback.
+var link = os.Link
+
 // WriteFileAtomic replaces the file at path with everything read from content, converting CRLF
 // line endings to LF, and gives it mode 0644. It creates path's directory when missing, streams
 // into a temp file in that directory, fsyncs it and renames it over path, then fsyncs the
@@ -127,7 +131,7 @@ func writeTemp(
 // a hard link, or, when the file system refuses one for any other reason than an existing path,
 // a copy through copyExclusive. An existing path fails with fs.ErrExist itself. temp stays behind.
 func placeExclusive(temp string, path string, perm fs.FileMode) error {
-	err := os.Link(temp, path)
+	err := link(temp, path)
 	if err == nil {
 		return nil
 	}

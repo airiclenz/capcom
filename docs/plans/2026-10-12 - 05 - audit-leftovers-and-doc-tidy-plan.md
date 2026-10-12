@@ -98,7 +98,9 @@ internal/tree/tree_test.go — makeSymlink
 - `go vet ./internal/knowledge/`
 **Commit:** `test(knowledge): cover a node file swapped after Load in rm and mv`
 
-## 4. WriteFileExclusive: test the copy fallback
+## 4. WriteFileExclusive: test the copy fallback — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the injected link also counts its calls, and each new test asserts exactly one refused link, so a pass proves the copy path ran; the free-path content (about 68 KiB of CRLF lines) spans more than one 32 KiB copy buffer, so "whole content" is checked across buffer boundaries. Mutation check: replacing the copyExclusive fallback with `return err` fails both new tests.
 
 **What:** Closes the gap in `exclusive-copy-test`.
 **Goal:** `internal/tree/atomic_test.go` forces the hard link to fail and covers the copy fallback. A free path ends up holding the whole content with LF endings and no temp file left behind. An existing path fails with `fs.ErrExist` and keeps its old bytes.
