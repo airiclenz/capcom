@@ -170,8 +170,8 @@ func (r *Removal) removeDirStep(dir string) step {
 	}
 }
 
-// removeFileStep removes the file at path, and writes its bytes back with its permissions to undo
-// that.
+// removeFileStep removes the file at path, read through ReadNodeFile, and writes its bytes back
+// with its permissions to undo that.
 func (r *Removal) removeFileStep(path string) step {
 	var original []byte
 	var mode fs.FileMode
@@ -181,7 +181,7 @@ func (r *Removal) removeFileStep(path string) step {
 			if err != nil {
 				return err
 			}
-			data, err := os.ReadFile(path)
+			data, err := ReadNodeFile(path)
 			if err != nil {
 				return err
 			}

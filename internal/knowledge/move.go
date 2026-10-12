@@ -1,7 +1,6 @@
 package knowledge
 
 import (
-	"os"
 	"slices"
 
 	"github.com/airiclenz/capcom/internal/tree"
@@ -19,8 +18,9 @@ type Move struct {
 	Original []byte
 	// Content is the Note file's content after the move.
 	Content []byte
-	// Unread are the files of other Notes that do not parse, so their superseded-by entries could
-	// not be checked for the old id and were left as they are.
+	// Unread are the files of other Notes that do not parse, or that tree.ReadNodeFile refuses
+	// unread, so their superseded-by entries could not be checked for the old id and were left as
+	// they are.
 	Unread []string
 }
 
@@ -41,7 +41,7 @@ func PlanMove(notes *tree.Tree, id string, to tree.Destination) (*Move, error) {
 		return nil, err
 	}
 	path := planned.Node.Path
-	data, err := os.ReadFile(path)
+	data, err := tree.ReadNodeFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,8 @@ func PlanMove(notes *tree.Tree, id string, to tree.Destination) (*Move, error) {
 
 // planSuccessorRewrites reads every other Note file of notes and returns, in tree order, the files
 // whose superseded-by entries name the renamed Note, by its id or one of its Aliases, rewritten to
-// name its new id. A file that does not parse joins m.Unread.
+// name its new id. A file that does not parse, or that tree.ReadNodeFile refuses unread, joins
+// m.Unread.
 func (m *Move) planSuccessorRewrites(notes *tree.Tree) ([]tree.Rewrite, error) {
 	names := append([]string{m.Node.ID}, m.Node.Aliases...)
 	var rewrites []tree.Rewrite
@@ -77,7 +78,11 @@ func (m *Move) planSuccessorRewrites(notes *tree.Tree) ([]tree.Rewrite, error) {
 		if other.ID == m.Node.ID {
 			continue
 		}
-		data, err := os.ReadFile(other.Path)
+		data, err := tree.ReadNodeFile(other.Path)
+		if isRefusedRead(err) {
+			m.Unread = append(m.Unread, other.Path)
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}

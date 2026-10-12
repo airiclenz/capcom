@@ -1,7 +1,6 @@
 package issue
 
 import (
-	"os"
 	"slices"
 
 	"github.com/airiclenz/capcom/internal/tree"
@@ -18,8 +17,9 @@ type Move struct {
 	Original []byte
 	// Content is the issue file's content after the move.
 	Content []byte
-	// Unread are the files of other issues that do not parse, so their deps and related entries
-	// could not be checked for the old id and were left as they are.
+	// Unread are the files of other issues that do not parse, or that tree.ReadNodeFile refuses
+	// unread, so their deps and related entries could not be checked for the old id and were left
+	// as they are.
 	Unread []string
 }
 
@@ -77,12 +77,17 @@ func (m *Move) planRewrites(issues *tree.Tree) ([]tree.Rewrite, error) {
 	return rewrites, nil
 }
 
-// planRewrite reads the issue file at path and returns its rewrite, or nil when the move leaves
-// it as it is: deps and related entries naming one of names become m.NewID and, for the moved
-// issue (isMoved), the Aliases record the old id. A file of another issue that does not parse joins m.Unread; the
-// moved issue's own content goes to m.Original and m.Content.
+// planRewrite reads the issue file at path through tree.ReadNodeFile and returns its rewrite, or
+// nil when the move leaves it as it is: deps and related entries naming one of names become
+// m.NewID and, for the moved issue (isMoved), the Aliases record the old id. A file of another
+// issue that does not parse, or that tree.ReadNodeFile refuses unread, joins m.Unread; the moved
+// issue's own content goes to m.Original and m.Content.
 func (m *Move) planRewrite(path string, names []string, isMoved bool) (*tree.Rewrite, error) {
-	data, err := os.ReadFile(path)
+	data, err := tree.ReadNodeFile(path)
+	if isRefusedRead(err) && !isMoved {
+		m.Unread = append(m.Unread, path)
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

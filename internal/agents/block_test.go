@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -309,6 +310,31 @@ func TestTopNotes_RetiredTopLevelNote_IsLeftOut(t *testing.T) {
 	want := Note{ID: "release-flow", Title: "Release flow"}
 	if err != nil || len(notes) != 1 || notes[0] != want {
 		t.Errorf("TopNotes = %v, %v; want [%v]", notes, err, want)
+	}
+}
+
+func TestTopNotes_SymlinkedTopLevelNote_IsLeftOutWithoutError(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	dir, want := writeKnowledge(t)
+	target := filepath.Join(t.TempDir(), "linked-flow.md")
+	if err := os.WriteFile(target, []byte("---\ntitle: Linked flow\n---\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	link := filepath.Join(dir, "linked-flow.md")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("Symlink(%s): %v", link, err)
+	}
+
+	notes, err := TopNotes(dir)
+
+	if err != nil || len(notes) != 1 || notes[0] != want[0] {
+		t.Errorf("TopNotes = %v, %v; want %v", notes, err, want)
 	}
 }
 

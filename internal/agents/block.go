@@ -124,7 +124,8 @@ func Path(worktreeRoot string) string {
 
 // TopNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
 // the files. A retired Note is left out, and with it its whole subtree. A Note file that does not
-// parse is left out; `capcom check` reports it. It fails only when the tree cannot be read.
+// parse, or that tree.ReadNodeFile refuses unread, is left out; `capcom check` reports it. It fails
+// only when the tree or a Note file cannot be read.
 func TopNotes(knowledgeDir string) ([]Note, error) {
 	noAliases := func(string) ([]string, error) { return nil, nil }
 	loaded, err := tree.Load(knowledgeDir, noAliases)
@@ -138,7 +139,10 @@ func TopNotes(knowledgeDir string) ([]Note, error) {
 		if node.ParentID != "" {
 			continue
 		}
-		data, err := os.ReadFile(node.Path)
+		data, err := tree.ReadNodeFile(node.Path)
+		if errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge) {
+			continue
+		}
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", node.Path, err)
 		}

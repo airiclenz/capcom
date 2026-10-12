@@ -94,7 +94,11 @@ internal/nodestore/edit.go — Kind.Edit; internal/nodestore/errors.go — FileE
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Update'`
 **Commit:** `fix(store): read store files through the regular-file guard`
 
-## 4. `issue`, `knowledge`, `agents` and `tree` removal read through the guarded reader
+## 4. `issue`, `knowledge`, `agents` and `tree` removal read through the guarded reader — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `isRefusedRead` is a private helper in `internal/issue/remove.go` and `internal/knowledge/remove.go` (the same one item 3 added to nodestore), because `internal/tree/read.go` is outside this item's files; `TopNotes` tests the two sentinels inline.
+NOTES (2026-10-12): a refused file of another node joins `Unread`, so the existing CLI warnings for it still say "the file does not parse" (`internal/cli/rm.go`, `mv.go`, `know_rm.go`); the case only arises when a file is swapped after `tree.Load`, which already skips non-regular entries.
+NOTES (2026-10-12): the new `TestTopNotes_SymlinkedTopLevelNote_IsLeftOutWithoutError` is a non-biting guard test, as the item says: `tree.Load` already skips the symlink before `TopNotes` reads it.
 
 **What:** Same finding, reader half two. Depends on item 1.
 **Regression guard.** Another node's sentinel error in issue/knowledge `planDrops`, `planRewrite`, `planSuccessorRewrites` joins Unread; `TopNotes` skips it like an unparsable Note. Leave the `AGENTS.md` (guide) read in `agents/block.go`. The block_test case is a non-biting guard test.
