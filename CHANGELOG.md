@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-12
+
 - `config.yaml` accepts a `format:` key, the store format version (a missing key means 1). A store whose format is newer than the binary reads makes every command fail with `.capcom/config.yaml:<line>: store format <n> is newer than this capcom reads (up to <max>); upgrade capcom`; `capcom prime` reports it as one `warning: store:` line and still exits 0.
 - `create` and `mv` no longer fail because some other file in the issue tree has a bad name, sits in a directory without its node file, or repeats an id or alias. They fail only when the problem concerns the issue being written or moved, its new path or the parent they resolve; every other problem is reported once as a warning after the result.
 - `know add`, `know mv` and `know rm` no longer fail because some other file in the Knowledge tree has a bad name, sits in a directory without its Note file, or repeats an id or alias. They fail only when the problem concerns the Note being written, moved or removed, its new path or its parent; every other problem is reported once as a warning after the result.
