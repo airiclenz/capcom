@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -166,4 +167,99 @@ func TestClose_DuplicatedID_FailsNamingBothFilesAndLeavesThePrefixMatchOpen(t *t
 
 	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
 	assertIssueFilesUnchanged(t, root, files)
+}
+
+func TestClose_LastDepThroughAlias_EndsWithNowReady(t *testing.T) {
+	root := newDepStore(t)
+
+	stdout := mustRun(t, root, "close", "db-schema", "--reason", "migrated")
+
+	if want := "db-schema  closed\nnow ready: build-pipeline\n"; stdout != want {
+		t.Errorf("stdout = %q, want %q", stdout, want)
+	}
+}
+
+func TestClose_AsDropped_AlsoReadiesTheDependent(t *testing.T) {
+	root := newDepStore(t)
+
+	stdout := mustRun(t, root, "close", "db-schema", "--status", "dropped", "--reason", "not needed")
+
+	if got := lastLine(stdout); got != "now ready: build-pipeline" {
+		t.Errorf("last line = %q, want the now ready line", got)
+	}
+}
+
+func TestClose_NothingReadied_PrintsNoNowReadyLine(t *testing.T) {
+	root := newDepStore(t)
+
+	stdout := mustRun(t, root, "close", "login-flow", "--reason", "done")
+
+	if want := "login-flow  closed\n"; stdout != want {
+		t.Errorf("stdout = %q, want %q", stdout, want)
+	}
+}
+
+// newShipStore extends newDepStore with ship-it, which needs both db-schema and login-flow.
+func newShipStore(t *testing.T) string {
+	t.Helper()
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"ship-it.md": readIssue("Ship it", "open", "deps: [db-schema, login-flow]\n", ""),
+	})
+	return root
+}
+
+func TestClose_SeveralIDs_ReportsEachReadiedIDOnce(t *testing.T) {
+	root := newShipStore(t)
+
+	stdout := mustRun(t, root, "close", "db-schema", "login-flow", "--reason", "shipped")
+
+	want := "db-schema  closed\nlogin-flow  closed\nnow ready: build-pipeline, ship-it\n"
+	if stdout != want {
+		t.Errorf("stdout = %q, want %q", stdout, want)
+	}
+}
+
+func TestClose_JSON_CarriesNowReadyPerArgument(t *testing.T) {
+	root := newShipStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "close", "--json", "db-schema", "no-such-issue", "login-flow",
+		"release-notes", "--reason", "shipped")
+
+	data, _ := decodeEnvelope(t, stdout)["data"].([]any)
+	want := map[string][]any{
+		"db-schema":     {"build-pipeline"},
+		"no-such-issue": {},
+		"login-flow":    {"ship-it"},
+		"release-notes": {},
+	}
+	if exitCode != ExitNotFound || len(data) != len(want) {
+		t.Fatalf("exit = %d data = %v", exitCode, data)
+	}
+	for _, item := range data {
+		record, _ := item.(map[string]any)
+		id, _ := record["id"].(string)
+		nowReady, isList := record["now_ready"].([]any)
+		if !isList || !reflect.DeepEqual(nowReady, want[id]) {
+			t.Errorf("%s now_ready = %#v, want %v", id, record["now_ready"], want[id])
+		}
+	}
+}
+
+func TestClose_HiddenDependent_IsNotReported(t *testing.T) {
+	root := newIssueStore(t, nil)
+	if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(readyConfig), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	writeIssueFiles(t, root, map[string]string{
+		"db-schema.md":      readIssue("Schema", "open", "", ""),
+		"build-pipeline.md": readIssue("Build pipeline", "open", "deps: [db-schema]\n", ""),
+		"deploy-prod.md":    readIssue("Deploy", "open", "labels: [owner-run]\ndeps: [db-schema]\n", ""),
+	})
+
+	stdout := mustRun(t, root, "close", "db-schema", "--reason", "migrated")
+
+	if got := lastLine(stdout); got != "now ready: build-pipeline" {
+		t.Errorf("last line = %q, want deploy-prod left out", got)
+	}
 }

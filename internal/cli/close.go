@@ -10,6 +10,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 )
 
@@ -33,12 +34,14 @@ type statusOptions struct {
 
 // closeData is one argument of close in the --json data: the issue it resolved to (the argument
 // itself when it resolved to none) and what closing it did. Path and ETag are set when the issue
-// was found; ETag is the file's etag after the command.
+// was found; ETag is the file's etag after the command. NowReady names the todo issues this
+// argument's close made Ready, given the closes of the arguments before it; it is never null.
 type closeData struct {
-	ID      string `json:"id"`
-	Outcome string `json:"outcome"`
-	Path    string `json:"path,omitempty"`
-	ETag    string `json:"etag,omitempty"`
+	ID       string   `json:"id"`
+	Outcome  string   `json:"outcome"`
+	Path     string   `json:"path,omitempty"`
+	ETag     string   `json:"etag,omitempty"`
+	NowReady []string `json:"now_ready"`
 }
 
 // newCloseCommand closes each named issue: it moves the issue to a status in the done or dropped
@@ -80,8 +83,19 @@ func (a *app) newCloseCommand() *cobra.Command {
 }
 
 // closeResult closes every argument's issue and builds the result: a --json item, a text line and a
-// --kv record per argument, and the joined failure of the arguments that name no issue.
+// --kv record per argument, and the joined failure of the arguments that name no issue. The text
+// ends with a "now ready:" line naming the todo issues the closes made Ready, when there are any.
 func (a *app) closeResult(args []string, status string, reason string) (Result, error) {
+	// The index is not refreshed after the writes, so the issues are read once, before them.
+	nodes, err := a.issueNodes()
+	if err != nil {
+		return Result{}, err
+	}
+	closedCategory, _ := a.store.Config.CategoryOf(status)
+	closing := map[string]config.Category{}
+	isReported := map[string]bool{}
+	var nowReady []string
+
 	result := Result{Kind: "close", KV: []KVRecord{}}
 	data := make([]closeData, 0, len(args))
 	var text strings.Builder
@@ -99,13 +113,27 @@ func (a *app) closeResult(args []string, status string, reason string) (Result, 
 				result.Failure = failure
 			}
 			messages = append(messages, failure.Error())
-			data = append(data, closeData{ID: arg, Outcome: string(failure.Code)})
+			data = append(data, closeData{ID: arg, Outcome: string(failure.Code), NowReady: []string{}})
 			result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{"ID", arg}}, Status: string(failure.Code)})
 			continue
+		}
+		outcome.NowReady = []string{}
+		if outcome.Outcome == outcomeClosed {
+			closing[outcome.ID] = closedCategory
+			for _, id := range issue.NewlyReady(nodes, a.store.Config, closing) {
+				if !isReported[id] {
+					isReported[id] = true
+					outcome.NowReady = append(outcome.NowReady, id)
+				}
+			}
+			nowReady = append(nowReady, outcome.NowReady...)
 		}
 		data = append(data, outcome)
 		fmt.Fprintf(&text, "%s  %s\n", outcome.ID, outcome.Outcome)
 		result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{"ID", outcome.ID}}, Status: outcome.Outcome})
+	}
+	if len(nowReady) > 0 {
+		fmt.Fprintf(&text, "now ready: %s\n", strings.Join(nowReady, ", "))
 	}
 	if result.Failure != nil {
 		result.Failure = Errorf(result.Failure.Code, "%s", strings.Join(messages, failureSeparator))
@@ -113,6 +141,19 @@ func (a *app) closeResult(args []string, status string, reason string) (Result, 
 	result.Data = data
 	result.Text = text.String()
 	return result, nil
+}
+
+// issueNodes returns the Node of every usable issue in the index, Closed ones included.
+func (a *app) issueNodes() ([]issue.Node, error) {
+	entries, err := a.issueIndex.List(index.Filter{IsClosedIncluded: true})
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]issue.Node, 0, len(entries))
+	for _, entry := range entries {
+		nodes = append(nodes, entry.Node())
+	}
+	return nodes, nil
 }
 
 // closeOne closes the issue arg names. failure is set when arg names no usable issue or its file

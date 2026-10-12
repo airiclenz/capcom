@@ -92,7 +92,7 @@ a cap that cuts it); a diamond yields one repeat step.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/issue/`
 **Commit:** `feat(issue): tell which issues a close makes ready and walk deps to a depth`
 
-## 2. close names the issues it made ready
+## 2. close names the issues it made ready — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** after closing, `capcom close` text output ends with one line `now ready: <id>, <id>` listing
