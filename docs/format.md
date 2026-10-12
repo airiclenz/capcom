@@ -50,7 +50,10 @@ Renaming a node adds its old id to its aliases: `capcom mv` does so for an issue
 ### Naming a node
 
 A command argument resolves to a node by, in order: an exact id, an exact alias, then the one id
-the argument is a prefix of. A prefix matching several ids is an error that lists them.
+the argument is a prefix of. A prefix matching several ids is an error that lists them. Before any
+of these, the argument is trimmed, lowercased and each run of whitespace becomes one hyphen, so a
+citation spelling resolves as typed (`"ADR 0076"` names `adr-0076`); dots and hyphens are kept, and
+errors quote the argument as typed.
 
 ## Issue files
 

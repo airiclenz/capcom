@@ -121,8 +121,9 @@ func (f Filter) sql() (string, []any) {
 	return query, args
 }
 
-// Resolve finds the usable issue an argument names (ADR 0002): an exact id first, then an Alias,
-// then the one id the argument is a prefix of. It fails with an error matching tree.ErrNotFound
+// Resolve finds the usable issue an argument names (ADR 0002), once tree.NormalizeArg has turned a
+// citation spelling into a name: an exact id first, then an Alias, then the one id the name is a
+// prefix of. It fails with an error matching tree.ErrNotFound
 // when nothing matches, and with a *tree.AmbiguousError when the prefix matches several ids.
 func (x *Index) Resolve(arg string) (Entry, error) {
 	id, err := x.resolveID(issueNodes, arg)
@@ -132,25 +133,27 @@ func (x *Index) Resolve(arg string) (Entry, error) {
 	return x.resolved(arg, id)
 }
 
-// resolveID finds the id of the usable node of one kind that arg names, the way Resolve does.
+// resolveID finds the id of the usable node of one kind that arg names, the way Resolve does. Its
+// errors quote arg as given, not its normalised name.
 func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 	ctx := context.Background()
-	exact, err := x.strings(ctx, `SELECT id FROM `+nodes.table+` WHERE id = ? AND excluded = 0`, arg)
+	name := tree.NormalizeArg(arg)
+	exact, err := x.strings(ctx, `SELECT id FROM `+nodes.table+` WHERE id = ? AND excluded = 0`, name)
 	if err != nil || len(exact) == 1 {
 		return firstOf(exact), err
 	}
 
 	owners, err := x.strings(ctx, `SELECT `+nodes.table+`.id FROM aliases
 		JOIN `+nodes.table+` ON `+nodes.table+`.path = aliases.path
-		WHERE aliases.kind = ? AND aliases.alias = ? AND `+nodes.table+`.excluded = 0`, nodes.kind, arg)
+		WHERE aliases.kind = ? AND aliases.alias = ? AND `+nodes.table+`.excluded = 0`, nodes.kind, name)
 	if err != nil || len(owners) == 1 {
 		return firstOf(owners), err
 	}
 
 	var candidates []string
-	if arg != "" {
+	if name != "" {
 		candidates, err = x.strings(ctx, `SELECT id FROM `+nodes.table+`
-			WHERE excluded = 0 AND substr(id, 1, length(?1)) = ?1 ORDER BY id`, arg)
+			WHERE excluded = 0 AND substr(id, 1, length(?1)) = ?1 ORDER BY id`, name)
 		if err != nil {
 			return "", err
 		}

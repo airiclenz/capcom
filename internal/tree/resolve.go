@@ -35,18 +35,27 @@ func (t *Tree) Lookup(name string) (Node, bool) {
 	return Node{}, false
 }
 
-// Resolve finds the node an argument names: an exact id first, then an Alias, then the one id the
-// argument is a prefix of. It fails with an *AmbiguousError when the prefix matches several ids,
-// and with ErrNotFound when it matches none.
+// NormalizeArg returns the name a citation spelling of an argument stands for: trimmed,
+// lowercased, and with each run of whitespace turned into one hyphen, so "ADR 0076" names
+// adr-0076. Dots and hyphens stay as they are, which keeps legacy aliases (apogee-kk0.4) intact.
+func NormalizeArg(arg string) string {
+	return strings.Join(strings.Fields(strings.ToLower(arg)), "-")
+}
+
+// Resolve finds the node an argument names, once NormalizeArg has turned a citation spelling into
+// a name: an exact id first, then an Alias, then the one id the name is a prefix of. It fails with
+// an *AmbiguousError when the prefix matches several ids, and with ErrNotFound when it matches
+// none; both quote the argument as given.
 func (t *Tree) Resolve(arg string) (Node, error) {
-	if node, found := t.Lookup(arg); found {
+	name := NormalizeArg(arg)
+	if node, found := t.Lookup(name); found {
 		return node, nil
 	}
 
 	var candidates []string
-	if arg != "" {
+	if name != "" {
 		for _, node := range t.nodes {
-			if strings.HasPrefix(node.ID, arg) {
+			if strings.HasPrefix(node.ID, name) {
 				candidates = append(candidates, node.ID)
 			}
 		}

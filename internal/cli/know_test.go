@@ -123,6 +123,27 @@ func TestKnowShow_Text_PrintsFrontmatterThenBody(t *testing.T) {
 	}
 }
 
+func TestKnowShow_CitationSpelling_Resolves(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"adr-0076.md": "---\ntitle: ADR 0076\n---\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "show", "ADR 0076")
+
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, "id: adr-0076\n") {
+		t.Errorf("know show \"ADR 0076\" = %d\n%s%s", exitCode, stdout, stderr)
+	}
+}
+
+func TestKnowShow_CitationSpellingNotFound_QuotesTheArgumentAsTyped(t *testing.T) {
+	root := newKnowStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "know", "show", "ADR 9999")
+
+	if exitCode != ExitNotFound || stderr != "capcom: id \"ADR 9999\" not found\n" {
+		t.Errorf("know show \"ADR 9999\" = %d, stderr %q", exitCode, stderr)
+	}
+}
+
 func TestKnowShow_PrintsEtag_MatchingTheFile(t *testing.T) {
 	root := newKnowStore(t)
 	want := noteFileETag(t, root, "testing-rules.md")

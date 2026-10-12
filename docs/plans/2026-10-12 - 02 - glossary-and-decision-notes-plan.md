@@ -60,7 +60,7 @@ internal/cli/check_test.go; internal/check/check_test.go; internal/cli/create.go
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/` then `./internal/check/` then `./internal/cli/`; `grep -rn '2 to 4 words\|2-4 word\|two to four' --include='*.go' --include='*.md' . | grep -v 'docs/adr/\|docs/plans/'` prints nothing.
 **Commit:** `feat(tree): allow one-word ids`
 
-## 2. Citations resolve as typed
+## 2. Citations resolve as typed — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** `capcom know show "ADR 0076"` resolves Note `adr-0076`, `capcom know show "Floor guard"` resolves `floor-guard`, and `capcom show "Login Timeout Race"` resolves an issue `login-timeout-race`; normalisation trims leading and trailing whitespace, then lowercases and turns each whitespace run into one hyphen, applied before exact-id, alias and prefix matching; ambiguity and not-found messages quote the argument as typed.

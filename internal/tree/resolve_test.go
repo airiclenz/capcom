@@ -93,6 +93,70 @@ func TestResolve_NoMatch_NotFound(t *testing.T) {
 	}
 }
 
+func TestNormalizeArg_CitationSpellings(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		arg  string
+		want string
+	}{
+		{"ADR 0076", "adr-0076"},
+		{"  Floor   guard ", "floor-guard"},
+		{"apogee-kk0.4", "apogee-kk0.4"},
+		{"Login\tFlow", "login-flow"},
+		{" \t ", ""},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.arg, func(t *testing.T) {
+			if got := tree.NormalizeArg(testCase.arg); got != testCase.want {
+				t.Fatalf("NormalizeArg(%q) = %q, want %q", testCase.arg, got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestResolve_CitationSpelling_Matches(t *testing.T) {
+	t.Parallel()
+	loaded := resolveFixture(t)
+	cases := []struct {
+		arg  string
+		want string
+	}{
+		{"Login Timeout Race", "login-timeout-race"},
+		{"  login   flow ", "login-flow"},
+		{"APOGEE-KK0.4", "login-timeout-race"},
+		{"Export", "export-csv"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.arg, func(t *testing.T) {
+			node, err := loaded.Resolve(testCase.arg)
+
+			if err != nil || node.ID != testCase.want {
+				t.Fatalf("Resolve(%q) = %q, %v; want %q", testCase.arg, node.ID, err, testCase.want)
+			}
+		})
+	}
+}
+
+func TestResolve_CitationSpelling_ErrorsQuoteTheArgumentAsTyped(t *testing.T) {
+	t.Parallel()
+	loaded := resolveFixture(t)
+
+	_, notFound := loaded.Resolve("ADR 9999")
+	_, ambiguous := loaded.Resolve("Login")
+	_, blank := loaded.Resolve("   ")
+
+	if !errors.Is(notFound, tree.ErrNotFound) || notFound.Error() != `id "ADR 9999" not found` {
+		t.Errorf("Resolve(ADR 9999) = %v", notFound)
+	}
+	var ambiguousErr *tree.AmbiguousError
+	if !errors.As(ambiguous, &ambiguousErr) || ambiguousErr.Arg != "Login" {
+		t.Errorf("Resolve(Login) = %v, want an *AmbiguousError quoting Login", ambiguous)
+	}
+	if !errors.Is(blank, tree.ErrNotFound) || blank.Error() != `id "   " not found` {
+		t.Errorf("Resolve(blank) = %v", blank)
+	}
+}
+
 func TestLookup_IgnoresPrefixes(t *testing.T) {
 	t.Parallel()
 	loaded := resolveFixture(t)

@@ -256,6 +256,19 @@ func TestShow_AliasAndPrefix_ResolveTheIssue(t *testing.T) {
 	}
 }
 
+func TestShow_CitationSpelling_ResolvesTheIssue(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-timeout-race.md": readIssue("Login timeout race", "open", "", "\nThe race.\n"),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "--json", "Login Timeout Race")
+
+	if got := envelopeIDs(t, stdout); exitCode != ExitOK || !slices.Equal(got, []string{"login-timeout-race"}) {
+		t.Errorf("show \"Login Timeout Race\" exit = %d ids = %v\n%s", exitCode, got, stderr)
+	}
+}
+
 func TestShow_OneOfSeveralMissing_PrintsFoundAndExitsNotFound(t *testing.T) {
 	root := newReadStore(t)
 

@@ -102,6 +102,34 @@ func TestNotes_ResolveNote_IDAliasAndPrefix(t *testing.T) {
 	}
 }
 
+func TestNotes_ResolveNote_CitationSpelling(t *testing.T) {
+	t.Parallel()
+	_, x := noteFixture(t)
+	cases := map[string]string{"No Parallel CLI": "no-parallel-cli", " OLD-CLI-RULE ": "no-parallel-cli", "Testing": "testing-rules"}
+
+	for arg, want := range cases {
+		entry, err := x.ResolveNote(arg)
+
+		if err != nil || entry.ID != want {
+			t.Errorf("ResolveNote(%q) = %q, %v; want %q", arg, entry.ID, err, want)
+		}
+	}
+	if _, err := x.ResolveNote("ADR 9999"); err == nil || err.Error() != `id "ADR 9999" not found` {
+		t.Errorf("ResolveNote(ADR 9999) = %v, want not found quoting the argument as typed", err)
+	}
+}
+
+func TestResolve_CitationSpelling_FindsTheIssue(t *testing.T) {
+	t.Parallel()
+	_, x := noteFixture(t)
+
+	entry, err := x.Resolve("Release Flow")
+
+	if err != nil || entry.Title != "Release flow issue" {
+		t.Errorf("Resolve(Release Flow) = %+v, %v; want the issue", entry, err)
+	}
+}
+
 func TestNotes_SearchNotes_MatchesWordsAndLabelsButIssueSearchIgnoresNotes(t *testing.T) {
 	t.Parallel()
 	_, x := noteFixture(t)
