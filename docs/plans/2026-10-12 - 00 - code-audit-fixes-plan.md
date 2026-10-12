@@ -197,7 +197,10 @@ docs/format.md — elsewhere.days bullet; internal/elsewhere/elsewhere.go — ot
 - `grep -n '36500' docs/format.md`
 **Commit:** `fix(config): bound elsewhere.days to keep the scan cutoff in range`
 
-## 10. An unresolvable Ref is a Finding, not a command failure
+## 10. An unresolvable Ref is a Finding, not a command failure — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the message drops the absolute path an `*fs.PathError` carries (`cannot be resolved: permission denied`, not `cannot be resolved: open /abs/secret.txt: permission denied`), since the Finding already names the Ref; checkRef and checkSymbol lost their always-nil error return.
+NOTES (2026-10-12): added a third test for a too-long name (the Goal names it; the plan's Tests line lists only the loop and permission cases).
 
 **What:** A symlink loop, ENAMETOOLONG or EACCES in one Note's `refs` aborts `check` and `know verify`.
 **Regression guard.** A loop is `too many links`, not `syscall.ELOOP`, so every non-missing `EvalSymlinks` error on a Ref is the message; the worktree-root `EvalSymlinks` in `Verify` keeps its error return. `checkSymbol`'s `os.Stat`/`os.ReadFile` errors are messages too. Supersedes and rewrites the `Verify` and `checkRef` doc comments ("fails only when a file cannot be read…", "err is set only when the disk cannot be read").

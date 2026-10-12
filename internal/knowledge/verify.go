@@ -58,8 +58,9 @@ func ValidateRef(ref string) error {
 // Verify checks every Ref of note, the Note with id noteID stored at notePath (relative to
 // worktreeRoot with forward slashes), and returns a Finding for each one that does not resolve: a
 // malformed Ref, one escaping the working tree (symbolic links included), a missing path (one
-// below a file included), and a `path#symbol` whose file does not contain the symbol text. A Note without Refs has no Findings.
-// It fails only when a file cannot be read for another reason than being missing.
+// below a file included), a `path#symbol` whose file does not contain the symbol text, and a
+// Ref the disk cannot resolve (a symbolic-link loop, a name too long, a permission refused). A Note
+// without Refs has no Findings. It fails only when worktreeRoot itself cannot be resolved.
 func Verify(worktreeRoot string, notePath string, noteID string, note Note) ([]Finding, error) {
 	root, err := filepath.EvalSymlinks(worktreeRoot)
 	if err != nil {
@@ -67,10 +68,7 @@ func Verify(worktreeRoot string, notePath string, noteID string, note Note) ([]F
 	}
 	var findings []Finding
 	for i, ref := range note.Refs {
-		message, err := checkRef(root, ref)
-		if err != nil {
-			return nil, fmt.Errorf("%s:%d: ref %q: %w", notePath, note.RefLine(i), ref, err)
-		}
+		message := checkRef(root, ref)
 		if message == "" {
 			continue
 		}
@@ -109,27 +107,38 @@ func isOutside(relative string) bool {
 }
 
 // checkRef resolves one Ref below root and returns why it does not resolve, or "" when it does.
-// err is set only when the disk cannot be read.
-func checkRef(root string, ref string) (message string, err error) {
+// Every reason is a message, the disk's own errors included: one unreadable Ref never stops the
+// check of the others.
+func checkRef(root string, ref string) string {
 	refPath, symbol, formErr := splitRef(ref)
 	if formErr != nil {
-		return formErr.Error(), nil
+		return formErr.Error()
 	}
 	target := filepath.Join(root, filepath.FromSlash(refPath))
 	resolved, err := filepath.EvalSymlinks(target)
 	if isMissing(err) {
-		return "no such file or directory", nil
+		return "no such file or directory"
 	}
 	if err != nil {
-		return "", err
+		return unresolvable(err)
 	}
 	if relative, relErr := filepath.Rel(root, resolved); relErr != nil || isOutside(relative) {
-		return ErrEscapes.Error() + " through a symbolic link", nil
+		return ErrEscapes.Error() + " through a symbolic link"
 	}
 	if symbol == "" {
-		return "", nil
+		return ""
 	}
 	return checkSymbol(resolved, symbol)
+}
+
+// unresolvable renders a disk error on a Ref as "cannot be resolved: <reason>". The reason drops
+// the absolute path a path error carries, since the Finding already names the Ref.
+func unresolvable(err error) string {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		err = pathErr.Err
+	}
+	return "cannot be resolved: " + err.Error()
 }
 
 // isMissing reports whether err says a path does not exist. A path below a file (`file.go/sub`)
@@ -139,20 +148,20 @@ func isMissing(err error) bool {
 }
 
 // checkSymbol returns why the file at path does not hold symbol, or "" when it does.
-func checkSymbol(path string, symbol string) (string, error) {
+func checkSymbol(path string, symbol string) string {
 	info, err := os.Stat(path)
 	if err != nil {
-		return "", err
+		return unresolvable(err)
 	}
 	if info.IsDir() {
-		return fmt.Sprintf("is a directory; symbol %q needs a file", symbol), nil
+		return fmt.Sprintf("is a directory; symbol %q needs a file", symbol)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", err
+		return unresolvable(err)
 	}
 	if !strings.Contains(string(data), symbol) {
-		return fmt.Sprintf("symbol %q is not in the file", symbol), nil
+		return fmt.Sprintf("symbol %q is not in the file", symbol)
 	}
-	return "", nil
+	return ""
 }

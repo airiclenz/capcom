@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -313,6 +314,59 @@ func TestVerify_SymlinkOutOfTheTree_IsFlagged(t *testing.T) {
 
 	if err != nil || len(findings) != 1 || !strings.Contains(findings[0].Message, "symbolic link") {
 		t.Errorf("Verify = %v, %v; want the link flagged", findings, err)
+	}
+}
+
+func TestVerify_SymlinkLoop_IsAFindingNotAnError(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	root := newWorktree(t)
+	if err := os.Symlink("loop", filepath.Join(root, "loop")); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+	note := parseNote(t, "---\ntitle: Loop\nrefs: [loop/x, internal/cli/missing.go]\n---\n")
+
+	findings, err := Verify(root, notePath, "some-note", note)
+
+	if err != nil || len(findings) != 2 || !strings.Contains(findings[0].Message, "cannot be resolved") {
+		t.Errorf("Verify = %v, %v; want the loop reported and the next Ref still checked", findings, err)
+	}
+}
+
+func TestVerify_NameTooLong_IsAFindingNotAnError(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("name-length errors differ on Windows")
+	}
+	note := parseNote(t, "---\ntitle: Long\nrefs: ["+strings.Repeat("a", 300)+"]\n---\n")
+
+	findings, err := Verify(newWorktree(t), notePath, "some-note", note)
+
+	if err != nil || len(findings) != 1 || !strings.Contains(findings[0].Message, "cannot be resolved") {
+		t.Errorf("Verify = %v, %v; want the too-long name reported", findings, err)
+	}
+}
+
+func TestVerify_UnreadableSymbolFile_IsAFindingNotAnError(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits are not kept on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a mode-000 file")
+	}
+	root := newWorktree(t)
+	if err := os.WriteFile(filepath.Join(root, "secret.txt"), []byte("sym\n"), 0o000); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	note := parseNote(t, "---\ntitle: Secret\nrefs: [secret.txt#sym]\n---\n")
+
+	findings, err := Verify(root, notePath, "some-note", note)
+
+	if err != nil || len(findings) != 1 || findings[0].Message != "cannot be resolved: permission denied" {
+		t.Errorf("Verify = %v, %v; want the unreadable file reported", findings, err)
 	}
 }
 
