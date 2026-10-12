@@ -3,6 +3,7 @@ package index
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -731,5 +732,36 @@ func TestRefresh_IndexFromBeforeRelatedLinks_RebuildsWithThem(t *testing.T) {
 	}
 	if holders := mustRelatedBy(t, x, "target-issue"); !slices.Equal(holders, []string{"holder-issue"}) {
 		t.Errorf("RelatedBy(target-issue) = %v, want [holder-issue]", holders)
+	}
+}
+
+// TestRefresh_CommitFails_ReportsOnlyTheCommitError swaps the package's commitTx seam, so it
+// never runs in parallel.
+func TestRefresh_CommitFails_ReportsOnlyTheCommitError(t *testing.T) {
+	s := newStore(t)
+	writeIssue(t, s, "an-issue.md", issueText("An issue", "open", ""))
+	x := openIndex(t, s)
+	errCommit := errors.New("disk I/O error")
+	original := commitTx
+	t.Cleanup(func() { commitTx = original })
+	// The fake ends the transaction as a failed commit does, so the deferred rollback meets
+	// sql.ErrTxDone for real.
+	commitTx = func(tx *sql.Tx) error {
+		if err := tx.Rollback(); err != nil {
+			t.Fatalf("Rollback: %v", err)
+		}
+		return errCommit
+	}
+
+	_, err := x.Refresh()
+
+	if !errors.Is(err, errCommit) {
+		t.Fatalf("Refresh error = %v, want it to wrap the commit failure", err)
+	}
+	if errors.Is(err, sql.ErrTxDone) {
+		t.Errorf("Refresh error = %v, want no rollback error after the failed commit", err)
+	}
+	if !strings.Contains(err.Error(), "commit refresh: disk I/O error") {
+		t.Errorf("Refresh error = %q, want it to name the commit failure", err)
 	}
 }

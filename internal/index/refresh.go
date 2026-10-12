@@ -22,6 +22,9 @@ import (
 // since a same-size edit in that second could leave its mtime unchanged.
 const racyGranularity = time.Second
 
+// commitTx commits a refresh transaction. It is a variable so a test can make the commit fail.
+var commitTx = (*sql.Tx).Commit
+
 // Refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
 // IMMEDIATE transaction, and records its report as the one Report returns. Open has already
 // refreshed or rebuilt the index; Refresh is for a caller that changed the tree since.
@@ -48,8 +51,13 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 		return Report{}, fmt.Errorf("%s: begin refresh: %w", Path(x.store), err)
 	}
 	defer func() {
-		if err != nil {
-			err = errors.Join(err, tx.Rollback())
+		if err == nil {
+			return
+		}
+		// A failed commit has already ended the transaction, so its rollback reports ErrTxDone:
+		// that says nothing about the failure and is left out.
+		if rollbackErr := tx.Rollback(); !errors.Is(rollbackErr, sql.ErrTxDone) {
+			err = errors.Join(err, rollbackErr)
 		}
 	}()
 
@@ -71,7 +79,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM issues WHERE excluded = 0`).Scan(&report.Indexed); err != nil {
 		return Report{}, x.databaseError(fmt.Errorf("count indexed issues: %w", err))
 	}
-	if err := tx.Commit(); err != nil {
+	if err := commitTx(tx); err != nil {
 		return Report{}, fmt.Errorf("%s: commit refresh: %w", Path(x.store), err)
 	}
 

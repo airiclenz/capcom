@@ -228,7 +228,7 @@ cmd/release/prepare_test.go — preparedTags, bumpRefusingRepo; docs/releasing.m
 - `GOMEMLIMIT=2GiB go test ./cmd/release/`
 **Commit:** `fix(release): fetch tags before checking the prepared version`
 
-## 12. A failed index commit reports only the commit error
+## 12. A failed index commit reports only the commit error — ✅ DONE (2026-10-12)
 
 **What:** The deferred rollback joins `sql: transaction has already been committed or rolled back` onto a commit failure.
 **Regression guard.** IMMEDIATE transactions make a lock fail `BeginTx`, never `Commit`: add a seam `commitTx = (*sql.Tx).Commit` in `refresh.go`, swapped in `index_test.go`; the fake rolls back then fails, so `sql.ErrTxDone` really arises in the deferred rollback.
