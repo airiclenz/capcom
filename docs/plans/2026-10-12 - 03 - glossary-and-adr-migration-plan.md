@@ -89,7 +89,10 @@ internal/cli/check.go — newCheckCommand
 - the script's `--verify` mode confirms every rejected and amend body appears verbatim (after the citation rewrite) in its ADR file, and every decision body paragraph by paragraph (Regression guard)
 **Commit:** `docs(knowledge): move ADRs 0001 to 0005 into Knowledge`
 
-## 3. Decision records 0006–0010 and ADR 0002's supersession
+## 3. Decision records 0006–0010 and ADR 0002's supersession — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the format and superseded-by keys were written only by `capcom know update adr-0002 --add-superseded-by adr-0010` (capcom 0.3.0), which put `format: 3` as the first line of .capcom/config.yaml, above the header comment; neither key was hand-edited
+NOTES (2026-10-12): the throwaway split_adr.py (gitignored) gained the 0008–0010 summaries and child titles, and its --verify now requires a childless record's body to be exactly "Status: Accepted." plus the ADR text below the H1, with no child directory; --verify --parent over all ten ADRs reports 10 records, 19 children, 0 failures
 
 Depends on item 2.
 
