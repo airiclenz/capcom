@@ -74,7 +74,11 @@ internal/cli/dep.go — depRemoval; internal/cli/related.go — relatedRemoval; 
 **Commit:** `feat(resolve): resolve citation spellings of ids`
 Depends on item 1.
 
-## 3. Notes carry `retired` and `superseded-by`
+## 3. Notes carry `retired` and `superseded-by` — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the Note field is `IsRetired bool`, not the plan's `Retired bool`, per the coding-standards rule that booleans take an affirmative `is`/`has` prefix (the repo's own `IsReady` field follows it).
+NOTES (2026-10-12): `retired` is read in `internal/knowledge/note.go` (a `retired` helper using `Field.Scalar`/`Field.Errorf`, like issue `priority`), so no bool helper was added to `internal/frontmatter/decode.go`; an empty `retired:` reads as false, as every other helper reads an empty value as its zero value.
+NOTES (2026-10-12): `Note.SupersededByLine(i)` exposes each entry's line (kept like `refLines`) for later check citations; `canonicalNote` in `internal/nodestore/kind_test.go` now carries `retired: true` and `superseded-by: [new-rule]`.
 
 **What:**
 **Goal:** a Note's frontmatter may carry `retired: true` and `superseded-by: [ids]`; both optional; `retired` accepts only `true` or `false` and is serialized only when true; `superseded-by` entries pass `ValidateAlias` syntax, carry no duplicates and never name the Note's own id; canonical key order is title, labels, refs, retired, superseded-by, aliases; the unknown-key hint lists all six keys.

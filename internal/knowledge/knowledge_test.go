@@ -127,23 +127,102 @@ func TestValidate_EmptyLabel_Reported(t *testing.T) {
 func TestSerialize_ThenParse_RoundTrips(t *testing.T) {
 	t.Parallel()
 	original := Note{
-		Title:   "Quoting: \"yes\" " + strings.Repeat("long title ", 12),
-		Labels:  []string{"true", "cli"},
-		Refs:    []string{"internal/cli/harness.go#func runCLI()", "docs/adr"},
-		Aliases: []string{"old-rule"},
-		Body:    "\nBody.\n",
+		Title:        "Quoting: \"yes\" " + strings.Repeat("long title ", 12),
+		Labels:       []string{"true", "cli"},
+		Refs:         []string{"internal/cli/harness.go#func runCLI()", "docs/adr"},
+		IsRetired:    true,
+		SupersededBy: []string{"new-rule", "other-rule"},
+		Aliases:      []string{"old-rule"},
+		Body:         "\nBody.\n",
 	}
 
 	data := original.Serialize()
 	parsed := parseNote(t, string(data))
 
 	if parsed.Title != original.Title || !slices.Equal(parsed.Labels, original.Labels) ||
-		!slices.Equal(parsed.Refs, original.Refs) || !slices.Equal(parsed.Aliases, original.Aliases) ||
-		parsed.Body != original.Body {
+		!slices.Equal(parsed.Refs, original.Refs) || !parsed.IsRetired ||
+		!slices.Equal(parsed.SupersededBy, original.SupersededBy) ||
+		!slices.Equal(parsed.Aliases, original.Aliases) || parsed.Body != original.Body {
 		t.Errorf("round trip of\n%s\n= %+v", data, parsed)
 	}
-	if strings.Count(string(data), "\n") != 8 {
+	if strings.Count(string(data), "\n") != 10 {
 		t.Errorf("serialised note is not one line per key:\n%s", data)
+	}
+}
+
+func TestSerialize_KeyOrder_RetiredAndSupersededByBeforeAliases(t *testing.T) {
+	t.Parallel()
+	note := Note{
+		Title:        "Old rule",
+		Refs:         []string{"docs/adr"},
+		IsRetired:    true,
+		SupersededBy: []string{"new-rule"},
+		Aliases:      []string{"older-rule"},
+	}
+
+	data := note.Serialize()
+
+	want := "---\ntitle: Old rule\nrefs: [docs/adr]\nretired: true\nsuperseded-by: [new-rule]\n" +
+		"aliases: [older-rule]\n---\n"
+	if string(data) != want {
+		t.Errorf("Serialize =\n%s\nwant\n%s", data, want)
+	}
+}
+
+func TestParse_RetiredFalse_IsDroppedOnSerialize(t *testing.T) {
+	t.Parallel()
+	note := parseNote(t, "---\ntitle: Kept rule\nretired: false\n---\n")
+
+	data := note.Serialize()
+
+	if note.IsRetired || string(data) != "---\ntitle: Kept rule\n---\n" {
+		t.Errorf("IsRetired = %v, Serialize =\n%s", note.IsRetired, data)
+	}
+}
+
+func TestParse_RetiredNotABoolean_FailsCitingTheLine(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"yes", "True", "[true]", "1"} {
+		_, err := Parse(notePath, []byte("---\ntitle: x\nretired: "+value+"\n---\n"))
+
+		want := notePath + ":3: retired: expected true or false"
+		if err == nil || err.Error() != want {
+			t.Errorf("retired: %s: Parse error = %v, want %s", value, err, want)
+		}
+	}
+}
+
+func TestValidate_SupersededBy_ReportsBadEntriesAtTheirLines(t *testing.T) {
+	t.Parallel()
+	note := parseNote(t, "---\ntitle: x\nsuperseded-by:\n"+
+		"  - new-rule\n"+
+		"  - some-note\n"+
+		"  - New_Rule\n"+
+		"  - new-rule\n"+
+		"---\n")
+
+	problems := Validate(notePath, note)
+
+	want := []string{
+		notePath + `:5: superseded-by "some-note" names the note itself`,
+		notePath + `:6: superseded-by "New_Rule" is not an id: use only a-z, 0-9, dots and hyphens`,
+		notePath + `:7: superseded-by "new-rule" is listed more than once`,
+	}
+	got := make([]string, 0, len(problems))
+	for _, problem := range problems {
+		got = append(got, problem.Error())
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("problems =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestValidate_DistinctSuccessors_HaveNoProblems(t *testing.T) {
+	t.Parallel()
+	note := parseNote(t, "---\ntitle: x\nretired: true\nsuperseded-by: [new-rule, v2.rule]\n---\n")
+
+	if problems := Validate(notePath, note); problems != nil {
+		t.Errorf("problems = %v, want none", problems)
 	}
 }
 
@@ -164,7 +243,7 @@ func TestParse_UnknownKey_NamesTheNoteKeys(t *testing.T) {
 
 	_, err := Parse(notePath, []byte("---\ntitle: x\nstatus: open\n---\n"))
 
-	want := notePath + `:3: unknown key "status"; a note has title, labels, refs and aliases`
+	want := notePath + `:3: unknown key "status"; a note has title, labels, refs, retired, superseded-by and aliases`
 	if err == nil || err.Error() != want {
 		t.Errorf("Parse error = %v, want %s", err, want)
 	}

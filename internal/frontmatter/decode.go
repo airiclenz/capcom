@@ -56,10 +56,10 @@ type Field struct {
 //
 // Decode fails, with an *Error citing the file line, wherever Split does, on invalid YAML, on a
 // frontmatter that is not a mapping, on a repeated key, on a key outside kind.Keys (its message
-// ends with a hint generated from them: `; a note has title, labels, refs and aliases`), and with
-// the first error apply returns. When the frontmatter holds a git conflict marker, a failure past
-// Split cites the first marker instead, in the words `capcom check` reports it with, since the
-// marker, not the YAML it breaks, is what to fix.
+// ends with a hint generated from them: `; a note has title, labels, refs, retired, superseded-by
+// and aliases`), and with the first error apply returns. When the frontmatter holds a git conflict
+// marker, a failure past Split cites the first marker instead, in the words `capcom check` reports
+// it with, since the marker, not the YAML it breaks, is what to fix.
 func Decode(path string, data []byte, kind Kind, apply func(Field) error) (Document, error) {
 	front, body, err := Split(path, data, kind.Noun)
 	if err != nil {
@@ -128,8 +128,8 @@ func (d decoder) document(front string) (*yaml.Node, error) {
 	return root, nil
 }
 
-// keysHint is the unknown-key hint naming the kind's keys, "; a note has title, labels, refs and
-// aliases", or "" for a kind that names none.
+// keysHint is the unknown-key hint naming the kind's keys, "; a note has title, labels, refs,
+// retired, superseded-by and aliases", or "" for a kind that names none.
 func (d decoder) keysHint() string {
 	keys := d.kind.Keys
 	switch len(keys) {

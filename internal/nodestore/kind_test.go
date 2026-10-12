@@ -27,11 +27,13 @@ created: 2026-10-11T09:30:00Z
 Body.
 `
 
-// canonicalNote is a Note file in the canonical form, recording one alias.
+// canonicalNote is a Note file in the canonical form with every key, recording one alias.
 const canonicalNote = `---
 title: "Quoting: the one policy"
 labels: [conventions]
 refs: [internal/cli/errors.go]
+retired: true
+superseded-by: [new-rule]
 aliases: [old-rule]
 ---
 

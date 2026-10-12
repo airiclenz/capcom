@@ -22,7 +22,7 @@ var (
 	}
 	noteKind = frontmatter.Kind{
 		Noun: "a note",
-		Keys: []string{"title", "labels", "refs", "aliases"},
+		Keys: []string{"title", "labels", "refs", "retired", "superseded-by", "aliases"},
 	}
 )
 
@@ -112,7 +112,7 @@ func TestDecode_Failures_CiteFileLine(t *testing.T) {
 			name:    "unknown key, note",
 			kind:    noteKind,
 			content: "---\ntitle: T\nstatus: open\n---\n",
-			want:    testPath + `:3: unknown key "status"; a note has title, labels, refs and aliases`,
+			want:    testPath + `:3: unknown key "status"; a note has title, labels, refs, retired, superseded-by and aliases`,
 		},
 		{
 			name:    "duplicate key",
