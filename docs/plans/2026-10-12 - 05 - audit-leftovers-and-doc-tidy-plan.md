@@ -63,7 +63,9 @@ internal/check/check_test.go — TestRun_DuplicateIDAndAlias_NameBothFilesRelati
 - `go vet ./internal/tree/ ./internal/check/`
 **Commit:** `fix(tree): refuse an alias a dropped duplicate-id file shares`
 
-## 2. Issue rm and mv: test a node file swapped after Load
+## 2. Issue rm and mv: test a node file swapped after Load — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): each case also calls Apply after the plan, so "left exactly as swapped" (os.Lstat mode and size) is checked after the write, not only after the read-only plan; the swapped file depends on the removed or renamed id, so following or reading it would fail the case (DependentsError, or a blocked FIFO open).
 
 **What:** Covers the issue half of `unread-swap-test`.
 **Regression guard.** The mv cases are a rename (the new id differs from the old), so `planRewrites` reads the swapped file; a re-parent skips every other issue file. Each symlink or FIFO swap first `os.Remove`s the issue file, then creates the symlink or FIFO at its path (`Mkfifo` and `os.Symlink` fail with EEXIST otherwise); the >1 MiB case overwrites the file in place.

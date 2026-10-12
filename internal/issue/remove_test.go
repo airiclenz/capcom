@@ -185,3 +185,35 @@ func TestPlanRemove_ApplyFails_RestoresRewritesChildrenDirAndFile(t *testing.T) 
 		t.Errorf("the children directory was not restored: %v", err)
 	}
 }
+
+func TestPlanRemove_NodeFileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt(t *testing.T) {
+	for _, tc := range unreadSwaps() {
+		t.Run(tc.name, func(t *testing.T) {
+			dependent := removeFile("gone-issue", "", "")
+			dir := newMoveTree(t, map[string]string{
+				"gone-issue.md":   removeFile("", "", ""),
+				"swapped-work.md": dependent,
+			})
+			issues := loadMoveTree(t, dir)
+			swappedPath := filepath.Join(dir, "swapped-work.md")
+			tc.swap(t, swappedPath, dependent)
+			swapped := lstatSwapped(t, swappedPath)
+
+			removal, err := issue.PlanRemove(issues, "gone-issue", issue.RemoveOptions{})
+			if err != nil {
+				t.Fatalf("PlanRemove: %v", err)
+			}
+			if _, err := removal.Apply(); err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+
+			if want := []string{swappedPath}; !slices.Equal(removal.Unread, want) {
+				t.Errorf("Unread = %v, want %v", removal.Unread, want)
+			}
+			if got := lstatSwapped(t, swappedPath); got.Mode() != swapped.Mode() || got.Size() != swapped.Size() {
+				t.Errorf("swapped file = %v %d bytes, want it as swapped: %v %d bytes",
+					got.Mode(), got.Size(), swapped.Mode(), swapped.Size())
+			}
+		})
+	}
+}

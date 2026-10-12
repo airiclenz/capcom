@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -114,6 +115,71 @@ func snapshotTree(t *testing.T, dir string) map[string]string {
 		t.Fatalf("WalkDir: %v", err)
 	}
 	return snapshot
+}
+
+// makeSymlink creates a symbolic link at link pointing to target, skipping the test on Windows and
+// as root.
+func makeSymlink(t *testing.T, target string, link string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("Symlink(%s): %v", link, err)
+	}
+}
+
+// unreadSwap is one way of swapping an issue file after Load for one tree.ReadNodeFile refuses
+// unread: swap replaces the regular issue file at path, whose content is content.
+type unreadSwap struct {
+	name string
+	swap func(t *testing.T, path string, content string)
+}
+
+// unreadSwaps are the swaps tree.ReadNodeFile refuses: a symlink to a regular file holding the
+// same content, a named pipe, and a regular file over 1 MiB written in place.
+func unreadSwaps() []unreadSwap {
+	return []unreadSwap{
+		{name: "symlink", swap: func(t *testing.T, path string, content string) {
+			target := filepath.Join(t.TempDir(), filepath.Base(path))
+			if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+			removeSwapped(t, path)
+			makeSymlink(t, target, path)
+		}},
+		{name: "fifo", swap: func(t *testing.T, path string, _ string) {
+			removeSwapped(t, path)
+			makeFIFO(t, path)
+		}},
+		{name: "over 1 MiB", swap: func(t *testing.T, path string, content string) {
+			oversized := content + strings.Repeat("x", 1<<20)
+			if err := os.WriteFile(path, []byte(oversized), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+		}},
+	}
+}
+
+// removeSwapped removes the issue file at path, so a symlink or named pipe can take its place.
+func removeSwapped(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+}
+
+// lstatSwapped returns the os.Lstat of the swapped file at path.
+func lstatSwapped(t *testing.T, path string) fs.FileInfo {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("Lstat: %v", err)
+	}
+	return info
 }
 
 func TestPlanMove_RenameTwice_KeepsAliasChain(t *testing.T) {
@@ -241,5 +307,37 @@ func TestPlanMove_Rename_RewritesRelatedInOtherFiles(t *testing.T) {
 	}
 	if len(move.Unread) != 0 {
 		t.Errorf("unread = %v, want none", move.Unread)
+	}
+}
+
+func TestPlanMove_Rename_NodeFileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt(t *testing.T) {
+	for _, tc := range unreadSwaps() {
+		t.Run(tc.name, func(t *testing.T) {
+			dependent := moveFile("old-name", "", "")
+			dir := newMoveTree(t, map[string]string{
+				"old-name.md":     moveFile("", "", ""),
+				"swapped-work.md": dependent,
+			})
+			issues := loadMoveTree(t, dir)
+			swappedPath := filepath.Join(dir, "swapped-work.md")
+			tc.swap(t, swappedPath, dependent)
+			swapped := lstatSwapped(t, swappedPath)
+
+			move, err := issue.PlanMove(issues, "old-name", tree.Destination{ID: "new-name"})
+			if err != nil {
+				t.Fatalf("PlanMove: %v", err)
+			}
+			if err := move.Apply(); err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+
+			if want := []string{swappedPath}; !slices.Equal(move.Unread, want) {
+				t.Errorf("Unread = %v, want %v", move.Unread, want)
+			}
+			if got := lstatSwapped(t, swappedPath); got.Mode() != swapped.Mode() || got.Size() != swapped.Size() {
+				t.Errorf("swapped file = %v %d bytes, want it as swapped: %v %d bytes",
+					got.Mode(), got.Size(), swapped.Mode(), swapped.Size())
+			}
+		})
 	}
 }
