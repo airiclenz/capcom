@@ -58,6 +58,25 @@ func TestKnowMv_Parent_MovesBelowThenToTop(t *testing.T) {
 	}
 }
 
+func TestKnowMv_EmptyParent_FailsUsageChangingNothing(t *testing.T) {
+	for _, parent := range []string{"", " "} {
+		root := newKnowStore(t)
+		before := readNoteFile(t, root, "testing-rules/git-fixtures.md")
+
+		_, stderr, exitCode := runCLI(t, root, "know", "mv", "git-fixtures", "--parent", parent)
+
+		if exitCode != ExitUsage || !strings.Contains(stderr, `--parent needs an id or "."`) {
+			t.Errorf("--parent %q: exit = %d stderr = %q", parent, exitCode, stderr)
+		}
+		if !noteFileExists(t, root, "testing-rules/git-fixtures.md") || noteFileExists(t, root, "git-fixtures.md") {
+			t.Errorf("--parent %q: git-fixtures.md moved", parent)
+		}
+		if after := readNoteFile(t, root, "testing-rules/git-fixtures.md"); after != before {
+			t.Errorf("--parent %q: git-fixtures.md = %q, want %q", parent, after, before)
+		}
+	}
+}
+
 func TestKnowMv_RenameWithChildren_CarriesTheSubtree(t *testing.T) {
 	root := newKnowStore(t)
 

@@ -49,11 +49,11 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 // new parent, and for every Note file whose superseded-by entries could not be checked; a stale
 // capcom block of AGENTS.md is refreshed afterwards.
 func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
-	moved, problems, err := nodestore.Notes(a.store, nil).Move(
-		args[0],
-		moveDestination(args, options.parent, options.isReparented),
-		options.ifMatch,
-	)
+	destination, err := moveDestination(args, options.parent, options.isReparented)
+	if err != nil {
+		return Result{}, err
+	}
+	moved, problems, err := nodestore.Notes(a.store, nil).Move(args[0], destination, options.ifMatch)
 	if err != nil {
 		return Result{}, kindFailure(err)
 	}

@@ -169,7 +169,7 @@ internal/agents/block_test.go — writeGuide, TestWrite_CRLFGuide_StaysCRLFAndIs
 - `grep -n 'func replaceFile' internal/agents/block.go` prints nothing
 **Commit:** `fix(agents): write the guide atomically through its symlink target`
 
-## 8. `mv --parent ""` is a usage error
+## 8. `mv --parent ""` is a usage error — ✅ DONE (2026-10-12)
 
 **What:** An empty `--parent` moves a subtree to the top level.
 **Regression guard.** `moveDestination` is shared with `know mv` (`know_mv.go`), so the check covers both; `know mv` tests live in `know_mv_test.go`.

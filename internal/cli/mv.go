@@ -55,11 +55,11 @@ func (a *app) newMvCommand() *cobra.Command {
 // for every tree problem that concerns neither the issue, its new path nor the new parent, and for
 // every issue file whose deps could not be checked.
 func (a *app) move(args []string, options *mvOptions) (Result, error) {
-	moved, problems, err := nodestore.Issues(a.store, nil).Move(
-		args[0],
-		moveDestination(args, options.parent, options.isReparented),
-		options.ifMatch,
-	)
+	destination, err := moveDestination(args, options.parent, options.isReparented)
+	if err != nil {
+		return Result{}, err
+	}
+	moved, problems, err := nodestore.Issues(a.store, nil).Move(args[0], destination, options.ifMatch)
 	if err != nil {
 		return Result{}, kindFailure(err)
 	}
@@ -78,8 +78,12 @@ func (a *app) move(args []string, options *mvOptions) (Result, error) {
 }
 
 // moveDestination is the nodestore.Destination of mv and know mv: the new id args[1], when given,
-// and parent, when isReparented, rootParentArg naming the top of the tree.
-func moveDestination(args []string, parent string, isReparented bool) nodestore.Destination {
+// and parent, when isReparented, rootParentArg naming the top of the tree. An empty or
+// whitespace-only parent, when isReparented, is a usage error: only rootParentArg moves to the top.
+func moveDestination(args []string, parent string, isReparented bool) (nodestore.Destination, error) {
+	if isReparented && strings.TrimSpace(parent) == "" {
+		return nodestore.Destination{}, UsageErrorf("--parent needs an id or %q", rootParentArg)
+	}
 	destination := nodestore.Destination{Parent: parent, IsReparented: isReparented}
 	if len(args) == 2 {
 		destination.ID = args[1]
@@ -87,7 +91,7 @@ func moveDestination(args []string, parent string, isReparented bool) nodestore.
 	if parent == rootParentArg {
 		destination.Parent = ""
 	}
-	return destination
+	return destination, nil
 }
 
 // movedWarnings renders problems, the tree problems a move returned, as warnings once the move has

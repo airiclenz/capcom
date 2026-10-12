@@ -63,6 +63,37 @@ func TestMv_Parent_MovesBelowThenToTop(t *testing.T) {
 	}
 }
 
+func TestMv_EmptyParent_FailsUsageChangingNothing(t *testing.T) {
+	for _, parent := range []string{"", " \t"} {
+		root := newMoveStore(t)
+		childPath := filepath.Join(root, ".capcom", "issues", "login-flow", "child-issue.md")
+		before, err := os.ReadFile(childPath)
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+
+		_, stderr, exitCode := runCLI(t, root, "mv", "child-issue", "--parent", parent)
+
+		after, err := os.ReadFile(childPath)
+		if exitCode != ExitUsage || !strings.Contains(stderr, `--parent needs an id or "."`) {
+			t.Errorf("--parent %q: exit = %d stderr = %q", parent, exitCode, stderr)
+		}
+		if err != nil || string(after) != string(before) {
+			t.Errorf("--parent %q: child-issue.md changed or moved: %v", parent, err)
+		}
+	}
+}
+
+func TestMv_ParentDot_MovesChildToTop(t *testing.T) {
+	root := newMoveStore(t)
+
+	mustRun(t, root, "mv", "child-issue", "--parent", ".")
+
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "child-issue.md")); err != nil {
+		t.Errorf("child-issue.md at the top: %v", err)
+	}
+}
+
 func TestMv_UnderOwnChild_FailsInvalid(t *testing.T) {
 	root := newMoveStore(t)
 
