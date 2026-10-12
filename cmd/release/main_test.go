@@ -5,11 +5,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 )
+
+// TestMain turns the test binary into the child process runner_test.go drives through
+// execRunner when runnerHelperVariable is set in its environment; otherwise it runs the tests.
+func TestMain(m *testing.M) {
+	if mode, ok := os.LookupEnv(runnerHelperVariable); ok {
+		os.Exit(runRunnerHelper(mode))
+	}
+	os.Exit(m.Run())
+}
 
 // recordedCall is one external command a verb asked the runner for.
 type recordedCall struct {

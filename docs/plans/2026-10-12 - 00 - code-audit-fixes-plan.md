@@ -306,7 +306,7 @@ cmd/release/runner.go — runner doc comment; .capcom/knowledge/decisions/adr-00
 - `GOMEMLIMIT=2GiB go test ./cmd/release/ -run 'VersionBump'`
 **Commit:** `test(release): run version-bump.sh against a temp repo`
 
-## 17. Test the production process runner
+## 17. Test the production process runner — ✅ DONE (2026-10-12)
 
 **What:** Test-only: `execRunner.run` has 0% coverage.
 **Regression guard.** The child is the test binary via a `TestMain` helper switch in `main_test.go` that exits only when its own env var is set, else runs `m.Run()`; test names contain "Runner". Compare the child's cwd to `dir` with `os.SameFile`, never as strings (macOS `/private/var/…`).
