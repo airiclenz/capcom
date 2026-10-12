@@ -104,7 +104,10 @@ internal/cli/read_test.go — newerFormatMessage, writeNewerFormatConfig; intern
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/config/` then `./internal/cli/`
 **Commit:** `feat(config): raise the store format to 3`
 
-## 5. The index knows retired Notes and their successors
+## 5. The index knows retired Notes and their successors — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the Tests line's `Retired` field is named `IsRetired` on NoteEntry, matching knowledge.Note.IsRetired and the house affirmative-boolean rule; the include-retired switch is the parameter `isRetiredIncluded bool` on Notes and SearchNotes.
+NOTES (2026-10-12): ancestor hiding is a recursive CTE over notes.parent among usable (non-excluded) Notes only, so a parent kept out as a duplicate passes no hiding to its children; schemaVersion 4 -> 5.
 
 **What:**
 **Goal:** the index records each Note's own `retired` flag and its `superseded-by` ids; `Index.Note` returns them; `Notes` and `SearchNotes` take an include-retired switch and, when off, leave out every Note that is retired or has a retired ancestor; `ResolveNote` resolves retired Notes always.

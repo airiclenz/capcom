@@ -53,7 +53,7 @@ func TestNotes_KnowledgeTree_IndexedInTreeOrderWithParentsAndLists(t *testing.T)
 	t.Parallel()
 	_, x := noteFixture(t)
 
-	notes, err := x.Notes()
+	notes, err := x.Notes(false)
 
 	if err != nil {
 		t.Fatalf("Notes: %v", err)
@@ -134,9 +134,9 @@ func TestNotes_SearchNotes_MatchesWordsAndLabelsButIssueSearchIgnoresNotes(t *te
 	t.Parallel()
 	_, x := noteFixture(t)
 
-	byWord, wordErr := x.SearchNotes("harness", nil)
-	byLabel, labelErr := x.SearchNotes("temp", []string{"invariant"})
-	wrongLabel, wrongErr := x.SearchNotes("harness", []string{"absent"})
+	byWord, wordErr := x.SearchNotes("harness", nil, false)
+	byLabel, labelErr := x.SearchNotes("temp", []string{"invariant"}, false)
+	wrongLabel, wrongErr := x.SearchNotes("harness", []string{"absent"}, false)
 	issues, issueErr := x.Search("harness")
 
 	if wordErr != nil || !slices.Equal(noteIDs(byWord), []string{"no-parallel-cli"}) {
@@ -163,7 +163,7 @@ func TestNotes_InvalidAndDuplicateNotes_WarnAndStayOut(t *testing.T) {
 	x := openIndex(t, s)
 
 	report := refresh(t, x)
-	notes, err := x.Notes()
+	notes, err := x.Notes(false)
 
 	if err != nil || len(notes) != 0 {
 		t.Errorf("Notes = %v, %v; want none usable", noteIDs(notes), err)
@@ -234,5 +234,102 @@ func TestNotes_OldSchemaIndex_RebuildsWithTheNotes(t *testing.T) {
 
 	if !report.Rebuilt || err != nil || !found {
 		t.Errorf("report = %+v, note found %v, %v; want a rebuild indexing the note", report, found, err)
+	}
+}
+
+// retiredFixture indexes a retired parent with a current child, a retired leaf naming its
+// successor, and the successor itself.
+func retiredFixture(t *testing.T) (*store.Store, *Index) {
+	t.Helper()
+	s := newStore(t)
+	writeNote(t, s, "old-rules.md", "---\ntitle: Old rules\nretired: true\n---\nRules of the old harness.\n")
+	writeNote(t, s, "old-rules/kept-rule.md", "---\ntitle: Kept rule\n---\nThe harness rule still read.\n")
+	writeNote(t, s, "first-design.md",
+		"---\ntitle: First design\nretired: true\nsuperseded-by: [second-design, third-design]\n---\nThe harness design.\n")
+	writeNote(t, s, "second-design.md", "---\ntitle: Second design\n---\nThe harness design, again.\n")
+	writeNote(t, s, "third-design.md", "---\ntitle: Third design\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+	return s, x
+}
+
+func TestNotes_RetiredSubtree_LeftOutUnlessIncluded(t *testing.T) {
+	t.Parallel()
+	_, x := retiredFixture(t)
+
+	current, currentErr := x.Notes(false)
+	all, allErr := x.Notes(true)
+
+	if want := []string{"second-design", "third-design"}; currentErr != nil || !slices.Equal(noteIDs(current), want) {
+		t.Errorf("Notes(false) = %v, %v; want %v", noteIDs(current), currentErr, want)
+	}
+	want := []string{"first-design", "old-rules", "kept-rule", "second-design", "third-design"}
+	if allErr != nil || !slices.Equal(noteIDs(all), want) {
+		t.Errorf("Notes(true) = %v, %v; want %v", noteIDs(all), allErr, want)
+	}
+}
+
+func TestNotes_SearchNotes_HitUnderRetiredAncestorLeftOutUnlessIncluded(t *testing.T) {
+	t.Parallel()
+	_, x := retiredFixture(t)
+
+	current, currentErr := x.SearchNotes("harness", nil, false)
+	all, allErr := x.SearchNotes("harness", nil, true)
+
+	if currentErr != nil || !slices.Equal(noteIDs(current), []string{"second-design"}) {
+		t.Errorf("SearchNotes(harness, false) = %v, %v; want only the current note", noteIDs(current), currentErr)
+	}
+	if allErr != nil || len(all) != 4 {
+		t.Errorf("SearchNotes(harness, true) = %v, %v; want all four hits", noteIDs(all), allErr)
+	}
+}
+
+func TestNotes_Note_ReturnsRetiredAndSupersededBy(t *testing.T) {
+	t.Parallel()
+	_, x := retiredFixture(t)
+
+	retired, retiredFound, retiredErr := x.Note("first-design")
+	child, childFound, childErr := x.Note("kept-rule")
+
+	if retiredErr != nil || !retiredFound || !retired.IsRetired ||
+		!slices.Equal(retired.SupersededBy, []string{"second-design", "third-design"}) {
+		t.Errorf("Note(first-design) = %+v, %v, %v; want retired, superseded by two", retired, retiredFound, retiredErr)
+	}
+	if childErr != nil || !childFound || child.IsRetired || len(child.SupersededBy) != 0 {
+		t.Errorf("Note(kept-rule) = %+v, %v, %v; want its own flag false and no successors", child, childFound, childErr)
+	}
+}
+
+func TestNotes_ResolveNote_FindsRetiredNotes(t *testing.T) {
+	t.Parallel()
+	_, x := retiredFixture(t)
+
+	for _, arg := range []string{"old-rules", "kept-rule", "First Design"} {
+		if _, err := x.ResolveNote(arg); err != nil {
+			t.Errorf("ResolveNote(%q) = %v, want it resolved", arg, err)
+		}
+	}
+}
+
+func TestNotes_OnlyParentFileChanges_ChildHiddenAndShownAgain(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "parent-note.md", "---\ntitle: Parent\n---\n")
+	writeNote(t, s, "parent-note/child-note.md", "---\ntitle: Child\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	writeNote(t, s, "parent-note.md", "---\ntitle: Parent\nretired: true\n---\n")
+	refresh(t, x)
+	hidden, hiddenErr := x.Notes(false)
+	writeNote(t, s, "parent-note.md", "---\ntitle: Parent, current again\n---\n")
+	refresh(t, x)
+	shown, shownErr := x.Notes(false)
+
+	if hiddenErr != nil || len(hidden) != 0 {
+		t.Errorf("Notes after retiring the parent = %v, %v; want none", noteIDs(hidden), hiddenErr)
+	}
+	if want := []string{"parent-note", "child-note"}; shownErr != nil || !slices.Equal(noteIDs(shown), want) {
+		t.Errorf("Notes after unretiring the parent = %v, %v; want %v", noteIDs(shown), shownErr, want)
 	}
 }

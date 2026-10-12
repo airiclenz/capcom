@@ -127,7 +127,7 @@ type outlineLine struct {
 // subtree, each Note followed by its children in id order, at most maxDepth levels below the
 // start (unlimitedDepth for all).
 func (a *app) outline(args []string, maxDepth int) ([]outlineLine, error) {
-	notes, err := a.issueIndex.Notes()
+	notes, err := a.issueIndex.Notes(true)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 			}
 			shown := []index.NoteEntry{entry}
 			if isWithChildren {
-				notes, err := a.issueIndex.Notes()
+				notes, err := a.issueIndex.Notes(true)
 				if err != nil {
 					return err
 				}
@@ -243,7 +243,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			text := strings.Join(args, " ")
-			entries, err := a.issueIndex.SearchNotes(text, labels)
+			entries, err := a.issueIndex.SearchNotes(text, labels, true)
 			if err != nil {
 				return err
 			}
@@ -407,7 +407,7 @@ func (a *app) newKnowVerifyCommand() *cobra.Command {
 
 // verifyNotes reads every usable Note file and checks its Refs, in tree order.
 func (a *app) verifyNotes() ([]knowledge.Finding, error) {
-	notes, err := a.issueIndex.Notes()
+	notes, err := a.issueIndex.Notes(true)
 	if err != nil {
 		return nil, err
 	}
