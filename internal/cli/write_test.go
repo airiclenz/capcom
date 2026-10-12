@@ -373,6 +373,18 @@ func TestCreate_UnrelatedBadFileName_WritesAndWarnsOnce(t *testing.T) {
 	}
 }
 
+func TestCreate_KV_BesideUnparseableFile_PrintsWarningBeforeRecord(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{"broken-one.md": brokenFrontmatter})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--kv", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	assertKVWarningFirst(t, stdout, "broken-one.md", "good-one")
+}
+
 func TestCreate_BesideConflictedFrontmatter_WarnsNamingTheMarker(t *testing.T) {
 	root := newWriteStore(t)
 	writeIssueFiles(t, root, map[string]string{

@@ -74,7 +74,8 @@ Every command prints plain text by default and a versioned JSON envelope with `-
 `close`, `reopen`, every `lock` subcommand, `version` and the commands that write an issue
 (`create`, `update`, `log`, `mv`, `rm`, `dep add`, `dep rm`, `related add`, `related rm`) also
 take `--kv`, after the command name, and print `KEY=VALUE` lines ending in `STATUS=`; the other
-commands do not offer it.
+commands do not offer it. `--kv` puts every `WARNING=` line before the first record, so that
+`STATUS=` is always the last line, while plain text prints its `warning:` lines after the result.
 Exit codes: 0 ok, 1 error, 2 usage, 3 not found or locked. capcom runs on Linux, macOS and Windows.
 
 ## Works with any coding agent

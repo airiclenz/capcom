@@ -293,6 +293,32 @@ func TestShow_KV_ClosesEachIDWithItsStatus(t *testing.T) {
 	}
 }
 
+func TestShow_KV_BesideUnparseableFile_PrintsWarningBeforeRecord(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{"broken-one.md": brokenFrontmatter})
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "--kv", "release-checklist")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	assertKVWarningFirst(t, stdout, "broken-one.md", "release-checklist")
+}
+
+// brokenFrontmatter is the content of an issue file whose frontmatter is not valid YAML.
+const brokenFrontmatter = "---\ntitle: [unclosed\nstatus: open\ntype: task\n---\n"
+
+// assertKVWarningFirst checks that --kv output opens with one WARNING= line naming the issue file
+// at the slash path below .capcom/issues/, follows it with the record for id and ends in STATUS=ok.
+func assertKVWarningFirst(t *testing.T, stdout, name, id string) {
+	t.Helper()
+	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
+	isWarningFirst := len(lines) > 2 && strings.HasPrefix(lines[0], "WARNING=.capcom/issues/"+name+":")
+	if !isWarningFirst || lines[1] != "ID="+id || lastLine(stdout) != "STATUS=ok" {
+		t.Errorf("stdout = %q\nwant a WARNING= line naming %s, then ID=%s, last line STATUS=ok", stdout, name, id)
+	}
+}
+
 func TestShow_AmbiguousPrefix_NamesCandidates(t *testing.T) {
 	root := newReadStore(t)
 	writeIssueFiles(t, root, map[string]string{"login-bug.md": readIssue("Login bug", "open", "", "")})

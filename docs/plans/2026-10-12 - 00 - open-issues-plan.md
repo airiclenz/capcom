@@ -177,7 +177,7 @@ broken Note still lets `know add` write.
 **Commit:** `fix(know): refuse an id an unparseable Note holds as an alias`
 Depends on item 3.
 
-## 5. Document and pin the --kv warning order
+## 5. Document and pin the --kv warning order — ✅ DONE (2026-10-12)
 
 **What:** bug `.capcom/issues/kv-warning-order.md`: `docs/format.md` says warnings come "after its
 result", which `--kv` output contradicts.
