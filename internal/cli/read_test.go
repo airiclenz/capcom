@@ -343,6 +343,94 @@ func TestShow_AmbiguousPrefix_NamesCandidates(t *testing.T) {
 	}
 }
 
+// newShowDepStore creates a store where api-client depends on db-schema, and the done
+// write-docs depends on api-client.
+func newShowDepStore(t *testing.T) string {
+	t.Helper()
+	return newIssueStore(t, map[string]string{
+		"db-schema.md":  readIssue("Schema", "open", "", ""),
+		"api-client.md": readIssue("API client", "open", "deps: [db-schema]\n", ""),
+		"write-docs.md": readIssue("Write docs", "done", "deps: [api-client]\n", ""),
+	})
+}
+
+func TestShow_Text_PrintsReadinessAndDependents(t *testing.T) {
+	root := newShowDepStore(t)
+
+	tests := []struct {
+		id      string
+		want    []string
+		notWant []string
+	}{
+		{
+			id:   "api-client",
+			want: []string{"\ncategory: todo\nready: no (blocked by db-schema (todo))\ntype: task\n", "\ndeps: [db-schema]\ndependents: [write-docs]\n"},
+		},
+		{
+			id:   "db-schema",
+			want: []string{"\ncategory: todo\nready: yes\ntype: task\n", "\npriority: 2\ndependents: [api-client]\ncreated: "},
+		},
+		{
+			id:      "write-docs",
+			want:    []string{"\ncategory: done\ntype: task\n", "\ndeps: [api-client]\ncreated: "},
+			notWant: []string{"ready:", "dependents:"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
+			text := mustRun(t, root, "show", tt.id)
+
+			for _, want := range tt.want {
+				if !strings.Contains(text, want) {
+					t.Errorf("show %s = %q, want it to contain %q", tt.id, text, want)
+				}
+			}
+			for _, notWant := range tt.notWant {
+				if strings.Contains(text, notWant) {
+					t.Errorf("show %s = %q, want no %q", tt.id, text, notWant)
+				}
+			}
+		})
+	}
+}
+
+func TestShow_Text_OpenChildren_WordedAsReadyAll(t *testing.T) {
+	root := newReadStore(t)
+
+	text := mustRun(t, root, "show", "login-flow")
+	readyAll := mustRun(t, root, "ready", "--all")
+
+	if !strings.Contains(text, "\ncategory: todo\nready: no (open children: session-refresh)\n") ||
+		!strings.Contains(readyAll, "-- not ready: open children: session-refresh\n") {
+		t.Errorf("show = %q\nready --all = %q", text, readyAll)
+	}
+}
+
+func TestShow_JSON_CarriesReadyBlockingAndDependents(t *testing.T) {
+	root := newShowDepStore(t)
+
+	stdout := mustRun(t, root, "show", "--json", "api-client", "db-schema", "write-docs")
+
+	shown := map[string]map[string]any{}
+	for _, item := range decodeEnvelope(t, stdout)["data"].([]any) {
+		issue := item.(map[string]any)
+		shown[issue["id"].(string)] = issue
+	}
+	api, schema, docs := shown["api-client"], shown["db-schema"], shown["write-docs"]
+	blocking := fmt.Sprint(api["blocking"])
+	if api["ready"] != false || blocking != "[map[dep:db-schema reason:todo]]" ||
+		fmt.Sprint(api["dependents"]) != "[write-docs]" {
+		t.Errorf("api-client = %v, want ready false, blocked by db-schema, write-docs dependent", api)
+	}
+	if _, hasBlocking := schema["blocking"]; schema["ready"] != true || hasBlocking ||
+		fmt.Sprint(schema["dependents"]) != "[api-client]" {
+		t.Errorf("db-schema = %v, want ready true, no blocking, api-client dependent", schema)
+	}
+	if _, hasReady := docs["ready"]; hasReady || docs["dependents"] == nil || len(docs["dependents"].([]any)) != 0 {
+		t.Errorf("write-docs = %v, want no ready and an empty dependents list", docs)
+	}
+}
+
 func TestSearch_Words_RankTheBestMatchFirst(t *testing.T) {
 	root := newReadStore(t)
 	writeIssueFiles(t, root, map[string]string{

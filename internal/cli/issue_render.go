@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/issue"
 )
 
 // textIndent is the indentation per tree depth in issue lines.
@@ -80,16 +81,43 @@ func issueLines(entries []index.Entry, issuesPrefix string) string {
 }
 
 // showData is one issue in the --json data of show: the shared form, plus its Related links as
-// showLinks lists them, always present.
+// showLinks lists them, whether it is Ready (todo category only) and what blocks it, and the ids of
+// the issues that depend on it. Related and Dependents are always present.
 type showData struct {
 	issueData
-	Related []string `json:"related"`
+	Related    []string      `json:"related"`
+	Ready      *bool         `json:"ready,omitempty"`
+	Blocking   []blockerData `json:"blocking,omitempty"`
+	Dependents []string      `json:"dependents"`
+}
+
+// showFacts is what show tells about an issue beyond its file: its Related links as showLinks
+// lists them, the ready rules' verdict when the issue is in the todo category (nil otherwise), and
+// the ids of the issues that depend on it, in tree order.
+type showFacts struct {
+	related    []string
+	readiness  *issue.Readiness
+	dependents []string
+}
+
+// newShowData converts an indexed issue and what show tells about it to show's --json form.
+func newShowData(entry index.Entry, facts showFacts) showData {
+	shown := showData{issueData: newIssueData(entry), Related: facts.related, Dependents: facts.dependents}
+	if facts.readiness != nil {
+		shown.Ready = &facts.readiness.IsReady
+		for _, blocker := range facts.readiness.Blocking {
+			shown.Blocking = append(shown.Blocking, blockerData{Dep: blocker.Dep, Reason: blocker.Reason})
+		}
+	}
+	return shown
 }
 
 // issueText renders one issue in full: its id, location, etag and frontmatter as `key: value`
-// lines in the file's key order, a blank line, then the body byte for byte. related is the issue's
-// links as showLinks lists them. Empty fields are left out, except priority.
-func issueText(entry index.Entry, etag string, related []string, body string) string {
+// lines in the file's key order, a blank line, then the body byte for byte. After category comes
+// ready, for an issue in the todo category: `yes`, or `no (<reasons>)` worded as ready --all words
+// them; after deps come the issue's dependents and its Related links as facts carries them. Empty
+// fields are left out, except priority.
+func issueText(entry index.Entry, etag string, facts showFacts, body string) string {
 	fields := []KVPair{
 		{"id", entry.ID},
 		{"path", entry.Path},
@@ -98,11 +126,13 @@ func issueText(entry index.Entry, etag string, related []string, body string) st
 		{"title", entry.Title},
 		{"status", entry.Status},
 		{"category", string(entry.Category)},
+		{"ready", readyText(facts.readiness)},
 		{"type", entry.Type},
 		{"priority", fmt.Sprint(entry.Priority)},
 		{"labels", flowList(entry.Labels)},
 		{"deps", flowList(entry.Deps)},
-		{"related", flowList(related)},
+		{"dependents", flowList(facts.dependents)},
+		{"related", flowList(facts.related)},
 		{"plan", entry.Plan},
 		{"aliases", flowList(entry.Aliases)},
 		{"created", formatTimestamp(entry.Created)},
@@ -126,6 +156,19 @@ func issueText(entry index.Entry, etag string, related []string, body string) st
 		text.WriteString("\n")
 	}
 	return text.String()
+}
+
+// readyText is the ready line's value for a verdict: "" without one, `yes` when the issue is Ready,
+// and otherwise `no (<reasons>)`.
+func readyText(verdict *issue.Readiness) string {
+	switch {
+	case verdict == nil:
+		return ""
+	case verdict.IsReady:
+		return "yes"
+	default:
+		return "no (" + notReadyReasons(*verdict) + ")"
+	}
 }
 
 // issueKV is the --kv record of one issue. STATUS is the outcome of looking it up; the issue's own

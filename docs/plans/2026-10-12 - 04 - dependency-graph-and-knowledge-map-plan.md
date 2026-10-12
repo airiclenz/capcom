@@ -147,7 +147,9 @@ moves to second, after `api-tokens`.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/briefing/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Ready|Prime'`
 **Commit:** `feat(ready): rank priority ties by the issues each one unblocks`
 
-## 4. show prints readiness and dependents
+## 4. show prints readiness and dependents — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the tree is judged once per `show` run, lazily on the first argument that resolves (`loadShowGraph` in internal/cli/show.go, built on `issueNodes` from close.go), so a run whose arguments all fail never lists the index; README/format reference text is left to item 17.
 
 **What:**
 **Goal:** `capcom show` prints, for a todo-category issue, `ready: yes` or `ready: no (<reasons>)` right

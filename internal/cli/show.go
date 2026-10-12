@@ -9,6 +9,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -44,6 +45,7 @@ func (a *app) newShowCommand() *cobra.Command {
 func (a *app) showResult(args []string) (Result, []string, error) {
 	result := Result{Kind: "issue", KV: []KVRecord{}}
 	data := make([]showData, 0, len(args))
+	var graph *showGraph
 	var shownPaths []string
 	var text strings.Builder
 	var messages []string
@@ -77,12 +79,18 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 		if err != nil {
 			return Result{}, nil, err
 		}
+		if graph == nil {
+			if graph, err = a.loadShowGraph(); err != nil {
+				return Result{}, nil, err
+			}
+		}
+		facts := graph.facts(entry.ID, related)
 		etag := edit.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}
-		text.WriteString(issueText(entry, etag, related, body))
-		shown := showData{issueData: newIssueData(entry), Related: related}
+		text.WriteString(issueText(entry, etag, facts, body))
+		shown := newShowData(entry, facts)
 		shown.ETag = etag
 		shown.Body = &body
 		data = append(data, shown)
@@ -95,6 +103,41 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 	result.Data = data
 	result.Text = text.String()
 	return result, shownPaths, nil
+}
+
+// showGraph is what show needs from the whole issue tree: the ready rules' verdict on each issue in
+// the todo category, by id, and the Dependency edges.
+type showGraph struct {
+	verdicts map[string]issue.Readiness
+	deps     issue.DepGraph
+}
+
+// loadShowGraph judges every issue in the index, Closed ones included, once for all of show's
+// arguments.
+func (a *app) loadShowGraph() (*showGraph, error) {
+	nodes, err := a.issueNodes()
+	if err != nil {
+		return nil, err
+	}
+	verdicts := issue.Ready(nodes, a.store.Config)
+	graph := &showGraph{
+		verdicts: make(map[string]issue.Readiness, len(verdicts)),
+		deps:     issue.NewDepGraph(nodes),
+	}
+	for _, verdict := range verdicts {
+		graph.verdicts[verdict.ID] = verdict
+	}
+	return graph, nil
+}
+
+// facts gathers what show tells about the issue with id beyond its file; related is its links as
+// showLinks lists them.
+func (g *showGraph) facts(id string, related []string) showFacts {
+	facts := showFacts{related: related, dependents: nonNil(g.deps.Dependents(id))}
+	if verdict, isJudged := g.verdicts[id]; isJudged {
+		facts.readiness = &verdict
+	}
+	return facts
 }
 
 // showLinks lists an issue's Related links for show: its own related entries in the file's order,
