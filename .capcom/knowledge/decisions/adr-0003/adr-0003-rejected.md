@@ -1,5 +1,6 @@
 ---
 title: "ADR 0003 rejected options: a fixed status set and free-form statuses with no category"
+labels: [background]
 ---
 
 - **A fixed status set.** Simple, but it blocks review queues, triage, in-progress tracking and

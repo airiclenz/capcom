@@ -1,5 +1,6 @@
 ---
 title: "ADR 0008 rejected options: a hidden subcommand, publishing from CI, a Makefile, granular publish verbs and one agent host"
+labels: [background]
 ---
 
 - **A hidden `capcom release` subcommand.** Puts maintainer-only code into every user's binary for

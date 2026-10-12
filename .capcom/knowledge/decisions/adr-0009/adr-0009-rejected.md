@@ -1,5 +1,6 @@
 ---
 title: "ADR 0009 rejected options: strict parsing alone, ignored unknown keys, a version per file, format 1 from init and a failing prime"
+labels: [background]
 ---
 
 - **No format version; rely on strict parsing.** An older binary reports every file that uses a

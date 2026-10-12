@@ -1,5 +1,6 @@
 ---
 title: "ADR 0004 rejected options: a store outside git branches and merging issue state across branches"
+labels: [background]
 ---
 
 - **bd's model, a store outside git branches.** Instant global visibility, but a second sync path

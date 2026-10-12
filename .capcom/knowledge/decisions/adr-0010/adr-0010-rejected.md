@@ -1,5 +1,6 @@
 ---
 title: "ADR 0010 rejected options: indexing in place, plain split files, summary Notes, status labels, a lifecycle list, an order key and a split verb"
+labels: [background]
 ---
 
 - **Index the documents in place.** Files stay canonical; capcom parses headings and terms into
@@ -14,8 +15,9 @@ title: "ADR 0010 rejected options: indexing in place, plain split files, summary
 - **One summary Note per ADR, files canonical.** Cheaper to migrate, but the summary sits in a
   different store from the text it summarises and drifts silently: capcom notices a missing ref,
   not a changed file. A record whose summary is the parent of its sections keeps both together.
-- **Status as labels.** Free-form and unvalidated, and nothing hides a labelled **Note** by
-  default, so every agent must remember to filter.
+- **Status as labels.** Free-form and unvalidated, and capcom hides a labelled **Note** by
+  default only for the one label it knows, `background`, so every agent must remember to filter
+  any other status label.
 - **A configurable lifecycle list with categories**, mirroring issue statuses (ADR 0003). capcom
   acts only on whether a **Note** is current, so the value names inform without driving
   behaviour; partial supersession is prose under any scheme. A boolean and a link carry the same

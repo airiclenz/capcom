@@ -317,6 +317,14 @@ Config). capcom writes a Note with the keys in the order of the table, empty fie
 unchanged and in double quotes otherwise, always on one line, and the body byte for byte. The body
 is free markdown.
 
+One Label means something to capcom: `background` marks a **Background** Note, one that still
+holds but is rarely the answer, such as a decision record's rejected options. `capcom know tree`
+leaves out a background Note and every Note below it unless `--background` is given, and starts
+from a background Note named directly; `--background` and `--retired` are independent.
+`capcom know show`, `capcom know show --with-children` and `capcom know search` treat it like any
+other Note. The Managed block in AGENTS.md leaves out a background top-level Note. Every other
+Label is free-form and changes nothing capcom does.
+
 Notes may be edited by hand, in any editor, or changed through capcom's write verbs (ADR 0010).
 `capcom check` and `capcom fmt --check` are the validators of a hand edit: `check` reports a file
 that does not parse or validate, or a link that names no Note, as `path:line: message`, and
@@ -350,11 +358,12 @@ still holds. Neither key implies the other.
 
 - `capcom know tree`, `capcom know search` and `capcom know show --with-children` leave out a
   retired Note and every Note below it, whatever their own `retired` key says; `--retired` brings
-  them back. `capcom know show <id>` always prints the Note it names, retired or not, with its
-  `retired` and `superseded-by` lines, and `capcom know tree <id>` starts from a retired Note
-  named directly.
-- The Managed block in AGENTS.md leaves out a retired top-level Note (see The Managed block in
-  AGENTS.md), and the Ref checks of `capcom know verify`, `capcom check` and `capcom prime` leave
+  them back. `capcom know tree` also leaves out a background Note and every Note below it unless
+  `--background` is given (see Note files). `capcom know show <id>` always prints the Note it
+  names, retired or not, with its `retired` and `superseded-by` lines, and `capcom know tree <id>`
+  starts from a retired Note named directly.
+- The Managed block in AGENTS.md leaves out a retired or background top-level Note (see The
+  Managed block in AGENTS.md), and the Ref checks of `capcom know verify`, `capcom check` and `capcom prime` leave
   out the Refs of a retired Note and of every Note below it (see Refs).
 - `capcom know update --retire` sets `retired: true` and `--unretire` removes it.
   `--add-superseded-by <note>` takes an id, an alias or a prefix and writes the id it resolves to;
@@ -512,8 +521,9 @@ line of its own. The block holds a short paragraph naming capcom as the issue re
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
 install instructions, https://github.com/airiclenz/capcom#install), the handful of commands an
 agent needs, and the top level of the Knowledge tree, one
-`` - `<id>`: <title> `` line per top-level Note in id order, a retired one left out. It is rendered
-from the Note files alone, so the same tree always yields the same block.
+`` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
+`background` left out. It is rendered from the Note files alone, so the same tree always yields
+the same block.
 
 - `capcom agents` writes the block: it replaces the lines between the markers, or appends the
   block to the end of the file when it has none, and creates `AGENTS.md` when there is none. Every
@@ -523,8 +533,8 @@ from the Note files alone, so the same tree always yields the same block.
   block is neither: the block is opt-in.
 - A Note write that changes the top level of the Knowledge tree refreshes the block when
   `AGENTS.md` already holds one and it went out of date: a top-level `capcom know add`, a
-  `capcom know update` of a top-level Note's title or retired flag, a `capcom know mv` into, out
-  of or within the top level, and a `capcom know rm` of a top-level Note. It never adds a block to
+  `capcom know update` of a top-level Note's title, retired flag or `background` label, a
+  `capcom know mv` into, out of or within the top level, and a `capcom know rm` of a top-level Note. It never adds a block to
   a file without one. A write below the top level changes nothing, since the block lists only the
   top level. A hand edit refreshes nothing: `capcom check` reports the stale block, and
   `capcom agents` rewrites it.

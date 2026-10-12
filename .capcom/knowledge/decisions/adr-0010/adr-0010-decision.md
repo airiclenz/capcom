@@ -44,7 +44,10 @@ whose content no longer holds, and `superseded-by:` lists the **Ids** of the **N
 it, checked to exist. A record replaced in whole is retired and names its successor; one replaced
 in part stays current, names the successor, and says in its body what still holds; a retired
 glossary term stays in its section. `know tree` and `know search` leave retired **Notes** out
-unless asked for them. The two keys raise the **Format version** to 3 (ADR 0009).
+unless asked for them. The two keys raise the **Format version** to 3 (ADR 0009). A record's
+rejected-options **Note** still holds but is rarely the answer, so it carries the **Label**
+`background`, and `know tree` leaves a background **Note** out unless asked for it; `know show`
+and `know search` still find it.
 
 **Migration is a script plus agent-written prose, checked by capcom.** Cutting a file at its terms
 and headings is mechanical and runs once, so it is a throwaway script in the migrating

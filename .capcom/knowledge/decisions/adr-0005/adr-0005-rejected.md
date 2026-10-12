@@ -1,5 +1,6 @@
 ---
 title: "ADR 0005 rejected options: one lock per clone, pid liveness or a held flock, and an enforcing pre-commit guard"
+labels: [background]
 ---
 
 - **One lock per clone (git common dir).** Simpler, but it serialises agents that work in separate

@@ -377,7 +377,9 @@ the hint counts exclude it; `TopNotes` skips a background top-level Note; `know 
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Know`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/agents/ ./internal/knowledge/`
 **Commit:** `feat(know): hide background Notes from tree unless asked`
 
-## 13. Mark rejected ADR options as background
+## 13. Mark rejected ADR options as background — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): docs/format.md: besides the new `background` paragraph in `## Note files` and the left-out sentences at Supersession and the Managed block, the Managed-block refresh list now names a top-level `know update` of the `background` label, since item 12 made that label change the block (`refreshAgentsAfterWrite` runs after every update).
 
 **What:**
 **Goal:** every `adr-NNNN-rejected` Note carries the label `background`. `adr-0010-decision` states that

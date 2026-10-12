@@ -1,5 +1,6 @@
 ---
 title: "ADR 0002 rejected options: generated ids and keeping the legacy bd ids"
+labels: [background]
 ---
 
 - **Generated ids (hash or sequence), as bd, Beans and Backlog.md do.** Rejected: they say
