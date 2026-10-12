@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -49,37 +50,29 @@ const (
 
 // The tags and VERSION of the fixture checkout: v0.24.11 is the highest release tag, and VERSION
 // holds it bare.
-const (
-	preparedTags    = "v0.24.10\nv0.24.11\n"
-	preparedVersion = "0.24.11\n"
-)
+var preparedTags = []string{"v0.24.10", "v0.24.11"}
 
-// prepareRepo answers prepare's git commands over a checkout in dir and records, at each
-// commit, what CHANGELOG.md and VERSION held — what that commit would have recorded.
-type prepareRepo struct {
+const preparedVersion = "0.24.11\n"
+
+// prepareCheckout is a checkout prepare runs over: CHANGELOG.md and VERSION on disk in dir, where
+// prepare reads them, and the repo's state in a memRepo that records every commit it is asked to
+// make into commits.
+type prepareCheckout struct {
 	dir     string
-	isDirty bool
-	tags    string
-	// failing names a command — "git commit" — that fails outright.
-	failing string
-
-	commits []committedFiles
+	repo    memRepo
+	commits []memCommit
 }
 
-// committedFiles is the subject of one commit and the two files as they stood when it was made.
-type committedFiles struct {
-	subject   string
-	changelog string
-	version   string
-}
-
-// newPrepareRepo writes a checkout with the given CHANGELOG.md and VERSION and answers over it.
-func newPrepareRepo(t *testing.T, changelog, version string) *prepareRepo {
+// newPrepareCheckout writes a checkout with the given CHANGELOG.md and VERSION, its tree clean and
+// its tags preparedTags.
+func newPrepareCheckout(t *testing.T, changelog, version string) *prepareCheckout {
 	t.Helper()
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, changelogFile), changelog)
 	writeTestFile(t, filepath.Join(dir, versionFile), version)
-	return &prepareRepo{dir: dir, tags: preparedTags}
+	checkout := &prepareCheckout{dir: dir}
+	checkout.repo = memRepo{tags: preparedTags, madeCommits: &checkout.commits}
+	return checkout
 }
 
 // writeTestFile writes content to path, failing the test when it cannot.
@@ -100,95 +93,56 @@ func readTestFile(t *testing.T, path string) string {
 	return string(raw)
 }
 
-// runner returns a recording runner over the repo.
-func (r *prepareRepo) runner() *fakeRunner {
-	return &fakeRunner{respond: r.respond}
+// opener opens the checkout's memRepo whatever directory it is asked for.
+func (c *prepareCheckout) opener() repoOpener {
+	return func(string) repo { return c.repo }
 }
 
-// respond answers one command.
-func (r *prepareRepo) respond(call recordedCall) (string, error) {
-	command := call.name + " " + strings.Join(call.args, " ")
-	if r.failing != "" && strings.HasPrefix(command, r.failing) {
-		return "", errors.New(r.failing + ": cannot run")
-	}
-	switch {
-	case command == "git status --porcelain":
-		if r.isDirty {
-			return "?? notes.txt\n", nil
-		}
-		return "", nil
-	case command == "git tag --list v*":
-		return r.tags, nil
-	case call.name == "git" && len(call.args) == 2 && call.args[0] == "add":
-		return "", nil
-	case call.name == "git" && len(call.args) == 4 && call.args[0] == "commit":
-		changelog, changelogErr := os.ReadFile(filepath.Join(r.dir, changelogFile))
-		version, versionErr := os.ReadFile(filepath.Join(r.dir, versionFile))
-		if err := errors.Join(changelogErr, versionErr); err != nil {
-			return "", err
-		}
-		r.commits = append(r.commits, committedFiles{
-			subject: call.args[3], changelog: string(changelog), version: string(version),
-		})
-		return "", nil
-	}
-	return "", errors.New("unexpected command: " + command)
+// prepare runs the prepare verb's body over the checkout, as `release prepare <version>` would.
+func (c *prepareCheckout) prepare(t *testing.T, version string) (string, error) {
+	t.Helper()
+	return c.prepareWith(t, c.opener(), version)
 }
 
-// prepare runs the prepare verb's body over the repo, as `release prepare <version>` would.
-func (r *prepareRepo) prepare(t *testing.T, commands runner, version string) (string, error) {
+// prepareWith runs the prepare verb's body over the checkout's files, its repo opened with
+// openRepo, over a runner that refuses every command: prepare asks the repo, never the runner.
+func (c *prepareCheckout) prepareWith(t *testing.T, openRepo repoOpener, version string) (string, error) {
 	t.Helper()
 	var output bytes.Buffer
-	options := prepareOptions{dir: r.dir, version: version, now: func() time.Time { return preparedOn }}
-	err := runPrepare(t.Context(), commands, &output, options)
+	options := prepareOptions{dir: c.dir, version: version, now: func() time.Time { return preparedOn }, openRepo: openRepo}
+	err := runPrepare(t.Context(), refusingRunner(), &output, options)
 	return output.String(), err
 }
 
-// gitCommands returns every git command the runner was asked for, in order, as one line each.
-func gitCommands(commands *fakeRunner) []string {
-	calls := commands.recorded("git")
-	lines := make([]string, 0, len(calls))
-	for _, call := range calls {
-		lines = append(lines, strings.Join(call.args, " "))
-	}
-	return lines
+// refusingRunner is a recording runner whose every command fails.
+func refusingRunner() *fakeRunner {
+	return &fakeRunner{respond: func(call recordedCall) (string, error) {
+		return "", errors.New(call.name + ": unavailable")
+	}}
 }
 
 // TestPrepareMakesTheRollupThenTheBumpCommit pins the verb's whole effect: two commits with the
-// exact subjects, each staging its one path by name, the rollup recording the new heading while
-// VERSION still holds the old version, and the bump writing a fresh bare `X.Y.Z\n` — with nothing
-// pushed. A bare version reads as its `v` form.
+// exact subjects, each of its one path — the rollup recording the new heading, the bump a fresh
+// bare `X.Y.Z\n` in VERSION — with nothing pushed. A bare version reads as its `v` form.
 func TestPrepareMakesTheRollupThenTheBumpCommit(t *testing.T) {
 	t.Parallel()
 
 	for _, typed := range []string{"v0.25.0", "0.25.0"} {
 		t.Run(typed, func(t *testing.T) {
 			t.Parallel()
-			repo := newPrepareRepo(t, unreleasedChangelog, preparedVersion)
-			commands := repo.runner()
+			checkout := newPrepareCheckout(t, unreleasedChangelog, preparedVersion)
 
-			output, err := repo.prepare(t, commands, typed)
+			output, err := checkout.prepare(t, typed)
 
 			if err != nil {
 				t.Fatalf("prepare %s: %v", typed, err)
 			}
-			wantCommands := []string{
-				"status --porcelain",
-				"tag --list v*",
-				"add CHANGELOG.md",
-				"commit --quiet -m chore(release): cut v0.25.0",
-				"add VERSION",
-				"commit --quiet -m chore(version): bump version to v0.25.0",
+			wantCommits := []memCommit{
+				{subject: "chore(release): cut v0.25.0", path: changelogFile, content: rolledUpChangelog},
+				{subject: "chore(version): bump version to v0.25.0", path: versionFile, content: "0.25.0\n"},
 			}
-			if got := gitCommands(commands); !slices.Equal(got, wantCommands) {
-				t.Errorf("git commands =\n%q\nwant\n%q", got, wantCommands)
-			}
-			wantCommits := []committedFiles{
-				{subject: "chore(release): cut v0.25.0", changelog: rolledUpChangelog, version: preparedVersion},
-				{subject: "chore(version): bump version to v0.25.0", changelog: rolledUpChangelog, version: "0.25.0\n"},
-			}
-			if !slices.Equal(repo.commits, wantCommits) {
-				t.Errorf("commits =\n%+v\nwant\n%+v", repo.commits, wantCommits)
+			if !slices.Equal(checkout.commits, wantCommits) {
+				t.Errorf("commits =\n%+v\nwant\n%+v", checkout.commits, wantCommits)
 			}
 			if !strings.Contains(output, "nothing was pushed") {
 				t.Errorf("output does not say nothing was pushed:\n%s", output)
@@ -235,21 +189,20 @@ const (
 // the `### Added` group moves under the new release heading with Unreleased left empty above it.
 func TestPrepareCutsTheFirstReleaseOfAKeepAChangelogFile(t *testing.T) {
 	t.Parallel()
-	repo := newPrepareRepo(t, firstReleaseChangelog, "0.0.0\n")
-	repo.tags = ""
-	commands := repo.runner()
+	checkout := newPrepareCheckout(t, firstReleaseChangelog, "0.0.0\n")
+	checkout.repo.tags = nil
 
-	_, err := repo.prepare(t, commands, "v0.1.0")
+	_, err := checkout.prepare(t, "v0.1.0")
 
 	if err != nil {
 		t.Fatalf("prepare v0.1.0: %v", err)
 	}
-	wantCommits := []committedFiles{
-		{subject: "chore(release): cut v0.1.0", changelog: firstReleaseRolledUp, version: "0.0.0\n"},
-		{subject: "chore(version): bump version to v0.1.0", changelog: firstReleaseRolledUp, version: "0.1.0\n"},
+	wantCommits := []memCommit{
+		{subject: "chore(release): cut v0.1.0", path: changelogFile, content: firstReleaseRolledUp},
+		{subject: "chore(version): bump version to v0.1.0", path: versionFile, content: "0.1.0\n"},
 	}
-	if !slices.Equal(repo.commits, wantCommits) {
-		t.Errorf("commits =\n%+v\nwant\n%+v", repo.commits, wantCommits)
+	if !slices.Equal(checkout.commits, wantCommits) {
+		t.Errorf("commits =\n%+v\nwant\n%+v", checkout.commits, wantCommits)
 	}
 }
 
@@ -322,7 +275,10 @@ func TestPrepareRefuses(t *testing.T) {
 		},
 		"a dirty working tree": {isDirty: true, wantError: "the working tree is not clean"},
 		"the tags cannot be listed": {
-			failing: "git tag", wantError: "list the release tags",
+			failing: methodReleaseTags, wantError: "list the release tags",
+		},
+		"the tree's status cannot be read": {
+			failing: methodIsClean, wantError: "read the working tree's status",
 		},
 		"VERSION already reads the version": {
 			versionIn: "0.25.0\n",
@@ -364,12 +320,11 @@ func TestPrepareRefuses(t *testing.T) {
 			if version == "" {
 				version = "v0.25.0"
 			}
-			repo := newPrepareRepo(t, changelog, versionIn)
-			repo.isDirty = tc.isDirty
-			repo.failing = tc.failing
-			commands := repo.runner()
+			checkout := newPrepareCheckout(t, changelog, versionIn)
+			checkout.repo.isDirty = tc.isDirty
+			checkout.repo.failing = tc.failing
 
-			_, err := repo.prepare(t, commands, version)
+			_, err := checkout.prepare(t, version)
 
 			if err == nil {
 				t.Fatalf("prepare %s succeeded", version)
@@ -377,15 +332,13 @@ func TestPrepareRefuses(t *testing.T) {
 			if !strings.Contains(err.Error(), tc.wantError) {
 				t.Errorf("error = %v, want it to contain %q", err, tc.wantError)
 			}
-			for _, command := range gitCommands(commands) {
-				if strings.HasPrefix(command, "add") || strings.HasPrefix(command, "commit") {
-					t.Errorf("prepare ran git %s, want nothing staged or committed", command)
-				}
+			if len(checkout.commits) != 0 {
+				t.Errorf("commits = %+v, want nothing committed", checkout.commits)
 			}
-			if got := readTestFile(t, filepath.Join(repo.dir, changelogFile)); got != changelog {
+			if got := readTestFile(t, filepath.Join(checkout.dir, changelogFile)); got != changelog {
 				t.Errorf("CHANGELOG.md was rewritten:\n%s", got)
 			}
-			if got := readTestFile(t, filepath.Join(repo.dir, versionFile)); got != versionIn {
+			if got := readTestFile(t, filepath.Join(checkout.dir, versionFile)); got != versionIn {
 				t.Errorf("VERSION was rewritten: %q", got)
 			}
 		})
@@ -396,10 +349,10 @@ func TestPrepareRefuses(t *testing.T) {
 // first, so the owner fixes them in one pass.
 func TestPrepareNamesEveryRefusal(t *testing.T) {
 	t.Parallel()
-	repo := newPrepareRepo(t, "# Changelog\n", "0.24.9\n")
-	repo.isDirty = true
+	checkout := newPrepareCheckout(t, "# Changelog\n", "0.24.9\n")
+	checkout.repo.isDirty = true
 
-	_, err := repo.prepare(t, repo.runner(), "v0.24.9")
+	_, err := checkout.prepare(t, "v0.24.9")
 
 	for _, want := range []string{
 		"the working tree is not clean",
@@ -413,35 +366,57 @@ func TestPrepareNamesEveryRefusal(t *testing.T) {
 	}
 }
 
+// bumpRefusingRepo is a memRepo whose bump commit fails, as a commit hook that refuses it would.
+type bumpRefusingRepo struct {
+	memRepo
+}
+
+// CommitFile refuses the bump commit and makes any other.
+func (r bumpRefusingRepo) CommitFile(ctx context.Context, path string, content []byte, subject string) error {
+	if strings.HasPrefix(subject, "chore(version)") {
+		return errors.New("the commit hook refused it")
+	}
+	return r.memRepo.CommitFile(ctx, path, content, subject)
+}
+
 // TestPrepareReportsAFailedBumpCommit pins that a bump commit that fails is a run failure naming
 // the rollup commit already made, so the owner knows the checkout holds one of the two.
 func TestPrepareReportsAFailedBumpCommit(t *testing.T) {
 	t.Parallel()
-	repo := newPrepareRepo(t, unreleasedChangelog, preparedVersion)
-	repo.failing = "git commit --quiet -m chore(version)"
+	checkout := newPrepareCheckout(t, unreleasedChangelog, preparedVersion)
+	openRepo := func(string) repo { return bumpRefusingRepo{memRepo: checkout.repo} }
 
-	_, err := repo.prepare(t, repo.runner(), "v0.25.0")
+	_, err := checkout.prepareWith(t, openRepo, "v0.25.0")
 
 	if err == nil || !strings.Contains(err.Error(), `the rollup commit "chore(release): cut v0.25.0" was made`) {
 		t.Errorf("error = %v, want it to name the rollup commit already made", err)
+	}
+	if len(checkout.commits) != 1 || checkout.commits[0].path != changelogFile {
+		t.Errorf("commits = %+v, want only the rollup commit", checkout.commits)
 	}
 }
 
 // TestPrepareRefusalIsARunFailure pins the exit status through the command tree: a refused
 // version — malformed included — exits 1, while a missing version is a usage error (exit 2).
-// It changes the working directory, so it cannot run in parallel.
+// The repo is the one the command tree was handed and the runner refuses every command, so a
+// run that reached git other than through the repo would show. It changes the working
+// directory, so it cannot run in parallel.
 func TestPrepareRefusalIsARunFailure(t *testing.T) {
-	repo := newPrepareRepo(t, unreleasedChangelog, preparedVersion)
-	t.Chdir(repo.dir)
+	checkout := newPrepareCheckout(t, unreleasedChangelog, preparedVersion)
+	t.Chdir(checkout.dir)
 
 	for _, version := range []string{"v0.25", "v0.24.11"} {
-		_, err := execute(t, repo.runner(), "prepare", version)
+		commands := refusingRunner()
+		_, err := executeWith(t, commands, checkout.opener(), "prepare", version)
 		if code := exitCodeFor(err); err == nil || code != exitRunFailed {
 			t.Errorf("prepare %s = %v (exit %d), want exit %d", version, err, code, exitRunFailed)
 		}
+		if len(commands.calls) != 0 {
+			t.Errorf("prepare %s ran %+v, want every git call through the repo", version, commands.calls)
+		}
 	}
 
-	_, err := execute(t, repo.runner(), "prepare")
+	_, err := executeWith(t, refusingRunner(), checkout.opener(), "prepare")
 	if code := exitCodeFor(err); err == nil || code != exitBadUsage {
 		t.Errorf("prepare with no version = %v (exit %d), want exit %d", err, code, exitBadUsage)
 	}

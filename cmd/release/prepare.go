@@ -69,18 +69,19 @@ func runPrepare(ctx context.Context, commands runner, output io.Writer, options 
 		return err
 	}
 
-	rollup, err := checkPrepare(ctx, commands, options.dir, version, options.now())
+	checkout := options.openRepo.open(commands, options.dir)
+	rollup, err := checkPrepare(ctx, checkout, options.dir, version, options.now())
 	if err != nil {
 		return err
 	}
 
 	rollupSubject := "chore(release): cut " + version.String()
-	if err := commitFile(ctx, commands, options.dir, changelogFile, rollup, rollupSubject); err != nil {
+	if err := checkout.CommitFile(ctx, changelogFile, rollup, rollupSubject); err != nil {
 		return err
 	}
 	bumpSubject := "chore(version): bump version to " + version.String()
 	bare := strings.TrimPrefix(version.String(), "v")
-	if err := commitFile(ctx, commands, options.dir, versionFile, []byte(bare+"\n"), bumpSubject); err != nil {
+	if err := checkout.CommitFile(ctx, versionFile, []byte(bare+"\n"), bumpSubject); err != nil {
 		return fmt.Errorf("%w (the rollup commit %q was made)", err, rollupSubject)
 	}
 
@@ -90,21 +91,23 @@ func runPrepare(ctx context.Context, commands runner, output io.Writer, options 
 
 // checkPrepare runs every refusal check and, when none refuses, returns CHANGELOG.md as the
 // rollup commit will write it. Every refusal is reported together, so one run names them all.
-func checkPrepare(ctx context.Context, commands runner, dir string, version releaseVersion, today time.Time) ([]byte, error) {
+// It asks checkout for the tree's state and the tags, and reads CHANGELOG.md and VERSION from
+// dir.
+func checkPrepare(ctx context.Context, checkout repo, dir string, version releaseVersion, today time.Time) ([]byte, error) {
 	var refusals []error
 
-	status, err := commands.run(ctx, dir, nil, "git", "status", "--porcelain")
+	isClean, err := checkout.IsClean(ctx)
 	switch {
 	case err != nil:
 		refusals = append(refusals, fmt.Errorf("read the working tree's status: %w", err))
-	case strings.TrimSpace(status) != "":
+	case !isClean:
 		refusals = append(refusals, errors.New("the working tree is not clean"))
 	}
 
-	tags, err := commands.run(ctx, dir, nil, "git", "tag", "--list", "v*")
+	tags, err := checkout.ReleaseTags(ctx)
 	if err != nil {
 		refusals = append(refusals, fmt.Errorf("list the release tags: %w", err))
-	} else if highest := highestReleaseTag(tags); highest != "" {
+	} else if highest := highestReleaseTag(strings.Join(tags, "\n")); highest != "" {
 		if refusal := checkAboveTag(version, highest); refusal != nil {
 			refusals = append(refusals, refusal)
 		}
@@ -218,24 +221,4 @@ func rollUpChangelog(changelog []byte, version releaseVersion, today time.Time) 
 		rollup.WriteString(line)
 	}
 	return []byte(rollup.String()), nil
-}
-
-// commitFile writes content to the checkout's path, stages that one path by name — never every
-// change — and commits it with subject.
-func commitFile(ctx context.Context, commands runner, dir, path string, content []byte, subject string) error {
-	target := filepath.Join(dir, path)
-	mode := os.FileMode(documentMode)
-	if info, err := os.Stat(target); err == nil {
-		mode = info.Mode().Perm()
-	}
-	if err := os.WriteFile(target, content, mode); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	if _, err := commands.run(ctx, dir, nil, "git", "add", path); err != nil {
-		return fmt.Errorf("stage %s: %w", path, err)
-	}
-	if _, err := commands.run(ctx, dir, nil, "git", "commit", "--quiet", "-m", subject); err != nil {
-		return fmt.Errorf("commit %q: %w", subject, err)
-	}
-	return nil
 }

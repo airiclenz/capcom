@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 // The repo methods a memRepo can be told to fail, as one whose command cannot run.
@@ -15,12 +17,14 @@ const (
 	methodChangedPaths = "ChangedPaths"
 	methodIsAncestor   = "IsAncestor"
 	methodHasGreenRun  = "HasGreenRun"
+	methodReleaseTags  = "ReleaseTags"
+	methodCommitFile   = "CommitFile"
 )
 
 // memRepo is the in-memory repo: the checkout and its GitHub repository held as plain state —
-// a commit history, where HEAD and origin/main stand, whether the tree is dirty, and which
-// commits ci.yml ran green for — so a test states what the repo holds instead of what git and
-// gh print.
+// a commit history, where HEAD and origin/main stand, whether the tree is dirty, the tags, and
+// which commits ci.yml ran green for — so a test states what the repo holds instead of what git
+// and gh print.
 type memRepo struct {
 	commits    map[string]fakeCommit
 	head       string
@@ -28,8 +32,21 @@ type memRepo struct {
 	isDirty    bool
 	// greenRuns are the commits ci.yml has a successful run for.
 	greenRuns []string
+	// tags are the checkout's tags, release tags or not.
+	tags []string
+	// madeCommits collects every commit CommitFile makes, in order; a memRepo without one refuses
+	// CommitFile. It is a pointer so a memRepo handed out by value still records into the
+	// test's log.
+	madeCommits *[]memCommit
 	// failing names a method — methodParents — that fails outright, as one that cannot run.
 	failing string
+}
+
+// memCommit is one commit memRepo.CommitFile made: its subject and the one file it wrote.
+type memCommit struct {
+	subject string
+	path    string
+	content string
 }
 
 // failure returns the error of a method the repo was told to fail, nil for any other.
@@ -105,6 +122,32 @@ func (r memRepo) HasGreenRun(_ context.Context, commit string) (bool, error) {
 		return false, err
 	}
 	return slices.Contains(r.greenRuns, commit), nil
+}
+
+// ReleaseTags returns the tags whose name starts with v.
+func (r memRepo) ReleaseTags(context.Context) ([]string, error) {
+	if err := r.failure(methodReleaseTags); err != nil {
+		return nil, err
+	}
+	releases := []string{}
+	for _, tag := range r.tags {
+		if strings.HasPrefix(tag, "v") {
+			releases = append(releases, tag)
+		}
+	}
+	return releases, nil
+}
+
+// CommitFile records the commit in madeCommits.
+func (r memRepo) CommitFile(_ context.Context, path string, content []byte, subject string) error {
+	if err := r.failure(methodCommitFile); err != nil {
+		return err
+	}
+	if r.madeCommits == nil {
+		return errors.New("this memRepo records no commits")
+	}
+	*r.madeCommits = append(*r.madeCommits, memCommit{subject: subject, path: path, content: string(content)})
+	return nil
 }
 
 // resolve turns the symbolic names into commits.

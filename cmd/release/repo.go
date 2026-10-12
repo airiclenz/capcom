@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -28,6 +30,12 @@ type repo interface {
 	IsAncestor(ctx context.Context, ancestor, descendant string) (bool, error)
 	// HasGreenRun reports whether ci.yml has at least one successful run for commit.
 	HasGreenRun(ctx context.Context, commit string) (bool, error)
+	// ReleaseTags returns the checkout's release tags — every tag whose name starts with v — in
+	// no particular order.
+	ReleaseTags(ctx context.Context) ([]string, error)
+	// CommitFile writes content to the checkout's path, keeping the file's mode when it exists,
+	// stages that one path by name — never every change — and commits it with subject.
+	CommitFile(ctx context.Context, path string, content []byte, subject string) error
 }
 
 // repoOpener opens the repo for the checkout at dir. newRootCommand hands one to every verb's run
@@ -155,4 +163,32 @@ func (r execRepo) HasGreenRun(ctx context.Context, commit string) (bool, error) 
 		return false, fmt.Errorf("parse gh run list output: %w", err)
 	}
 	return len(runs) > 0, nil
+}
+
+// ReleaseTags lists the tags with `git tag --list v*`, one per line.
+func (r execRepo) ReleaseTags(ctx context.Context) ([]string, error) {
+	output, err := r.git(ctx, "tag", "--list", "v*")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(output), nil
+}
+
+// CommitFile writes the file, then runs `git add <path>` and `git commit --quiet -m <subject>`.
+func (r execRepo) CommitFile(ctx context.Context, path string, content []byte, subject string) error {
+	target := filepath.Join(r.dir, path)
+	mode := os.FileMode(documentMode)
+	if info, err := os.Stat(target); err == nil {
+		mode = info.Mode().Perm()
+	}
+	if err := os.WriteFile(target, content, mode); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if _, err := r.git(ctx, "add", path); err != nil {
+		return fmt.Errorf("stage %s: %w", path, err)
+	}
+	if _, err := r.git(ctx, "commit", "--quiet", "-m", subject); err != nil {
+		return fmt.Errorf("commit %q: %w", subject, err)
+	}
+	return nil
 }

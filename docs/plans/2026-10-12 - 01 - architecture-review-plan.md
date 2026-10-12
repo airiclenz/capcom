@@ -897,7 +897,11 @@ an execute-path test through the injected repo factory.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./cmd/release/`; `go vet ./cmd/release/`
 **Commit:** `refactor(release): repo seam for the gate`
 
-## 34. release: prepare on the repo seam
+## 34. release: prepare on the repo seam — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): CommitFile owns the whole write-stage-commit step: prepare.go's commitFile helper is deleted and its body (mode-keeping write, `git add <path>`, `git commit --quiet -m`, same error wording) became execRepo.CommitFile. prepare opens the repo with options.openRepo.open(commands, options.dir) and still reads CHANGELOG.md and VERSION from disk itself.
+NOTES (2026-10-12): ReleaseTags returns []string; highestReleaseTag keeps its string signature (status.go and version_test.go still call it, item 35's scope), so prepare passes it strings.Join(tags, "\n").
+NOTES (2026-10-12): memRepo keeps value receivers, so gate_test.go and main_test.go are untouched: it gains tags and a madeCommits *[]memCommit log that CommitFile appends {subject, path, content} to (a memRepo without a log refuses CommitFile). Since memRepo writes nothing to disk, the prepare tests pin each commit's one path and content rather than both files as they stood at the commit; the failed-bump test wraps memRepo (bumpRefusingRepo) to fail only the bump. The argv for ReleaseTags and CommitFile, and CommitFile's write/stage/commit failures, are pinned in repo_test.go; TestPrepareRefusalIsARunFailure runs through executeWith with the memRepo opener and a runner that refuses every command, and asserts it is never called. A new refusal case covers an IsClean failure.
 
 **What:** Recast at the regression check (2026-10-12).
 **Goal:** prepare's git calls (`ReleaseTags`, `IsClean`, `CommitFile`) go through `repo`; its tests
