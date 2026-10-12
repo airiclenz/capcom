@@ -1,8 +1,8 @@
 // Package check validates a whole store at once, for `capcom check`: the config, the issue tree
 // and the Knowledge tree, read straight from the files and never from the index. It owns no rule
-// of its own beyond resolving deps, related links and plans and finding the git conflict markers a
-// merge leaves in an issue or Note file; it collects what the config parser, the tree loader, the issue and Note
-// parsers and validators, the dependency cycle search and the Ref verifier report, each as a
+// of its own beyond resolving deps, related links and plans; it collects what the config parser,
+// the tree loader, the issue and Note parsers and validators, the git conflict-marker scan of
+// package rawfm, the dependency cycle search and the Ref verifier report, each as a
 // Problem citing the file and, when known, the line (ADR 0006). It also reports an AGENTS.md whose
 // capcom Managed block is out of date or whose markers are tangled; an AGENTS.md without the block,
 // or no AGENTS.md at all, is no problem.
@@ -21,6 +21,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -61,22 +62,6 @@ const (
 
 // refSymbolSeparator splits a Note Ref into its path and symbol.
 const refSymbolSeparator = "#"
-
-// The git conflict markers. A merge writes the first three at the start of a line, followed by a
-// label; the separator is a line of its own.
-const (
-	conflictOpen      = "<<<<<<< "
-	conflictClose     = ">>>>>>> "
-	conflictBase      = "||||||| "
-	conflictSeparator = "======="
-)
-
-// Markdown code fences, which open a block whose lines are not scanned for conflict markers.
-const (
-	backtickFence  = "```"
-	tildeFence     = "~~~"
-	maxFenceIndent = 3
-)
 
 // planExtension is the extension a plan basename is looked up with, besides the bare name.
 const planExtension = ".md"
@@ -258,111 +243,11 @@ func (c *checker) issues() error {
 	return nil
 }
 
-// conflictMarker is one git conflict marker line of a file: its 1-based line and its text.
-type conflictMarker struct {
-	line int
-	text string
-}
-
 // checkConflictMarkers records every git conflict marker in the issue or Note file at path.
 func (c *checker) checkConflictMarkers(path string, data []byte) {
-	for _, marker := range conflictMarkers(data) {
-		c.add(path, marker.line, CodeConflict, fmt.Sprintf(
-			"git conflict marker %q; resolve the conflict and delete the markers", marker.text,
-		))
+	for _, marker := range rawfm.ConflictMarkers(data) {
+		c.add(path, marker.Line, CodeConflict, rawfm.ConflictMessage(marker))
 	}
-}
-
-// conflictMarkers returns the git conflict markers in the content of an issue or Note file, in
-// line order: every line that starts with "<<<<<<< ", ">>>>>>> " or "||||||| ", and a "=======" line
-// only between a "<<<<<<< " line and the ">>>>>>> " line that ends it, since a bare one is a setext
-// heading underline. The frontmatter is always scanned; body lines inside a fenced code block are
-// skipped. One trailing "\r" is trimmed from each line, so CRLF content gives the same markers.
-func conflictMarkers(data []byte) []conflictMarker {
-	lines := strings.Split(string(data), "\n")
-	bodyStart := bodyStartIndex(lines)
-	var markers []conflictMarker
-	var separators []conflictMarker
-	isConflictOpen := false
-	openFence := ""
-	for index, line := range lines {
-		text := strings.TrimSuffix(line, "\r")
-		if index >= bodyStart {
-			if openFence != "" {
-				if closesCodeFence(text, openFence) {
-					openFence = ""
-				}
-				continue
-			}
-			if openFence = codeFenceOpener(text); openFence != "" {
-				continue
-			}
-		}
-		marker := conflictMarker{line: index + 1, text: text}
-		switch {
-		case strings.HasPrefix(text, conflictOpen):
-			markers = append(markers, marker)
-			isConflictOpen = true
-			separators = nil
-		case strings.HasPrefix(text, conflictClose):
-			markers = append(markers, marker)
-			if isConflictOpen {
-				markers = append(markers, separators...)
-			}
-			isConflictOpen = false
-			separators = nil
-		case strings.HasPrefix(text, conflictBase):
-			markers = append(markers, marker)
-		case isConflictOpen && text == conflictSeparator:
-			separators = append(separators, marker)
-		}
-	}
-	slices.SortFunc(markers, func(a, b conflictMarker) int { return cmp.Compare(a.line, b.line) })
-	return markers
-}
-
-// bodyStartIndex returns the index of the first body line of a file split into lines: the line
-// after the "---" line that closes the frontmatter, 0 for a file that opens with no frontmatter,
-// and len(lines) for one whose frontmatter is never closed, which is then all frontmatter.
-func bodyStartIndex(lines []string) int {
-	isFence := func(line string) bool { return strings.TrimSuffix(line, "\r") == "---" }
-	if len(lines) == 0 || !isFence(lines[0]) {
-		return 0
-	}
-	for index := 1; index < len(lines); index++ {
-		if isFence(lines[index]) {
-			return index + 1
-		}
-	}
-	return len(lines)
-}
-
-// codeFenceOpener returns the run of backticks or tildes that opens a fenced code block on line,
-// or "" when line opens none.
-func codeFenceOpener(line string) string {
-	trimmed := trimFenceIndent(line)
-	for _, fence := range []string{backtickFence, tildeFence} {
-		if strings.HasPrefix(trimmed, fence) {
-			return trimmed[:len(trimmed)-len(strings.TrimLeft(trimmed, fence[:1]))]
-		}
-	}
-	return ""
-}
-
-// closesCodeFence reports whether line closes the fenced code block opened by fence: a run of the
-// same character at least as long, followed by nothing but whitespace.
-func closesCodeFence(line string, fence string) bool {
-	trimmed := trimFenceIndent(line)
-	rest := strings.TrimLeft(trimmed, fence[:1])
-	return len(trimmed)-len(rest) >= len(fence) && strings.TrimSpace(rest) == ""
-}
-
-// trimFenceIndent removes the up to three leading spaces a code fence may be indented by.
-func trimFenceIndent(line string) string {
-	for range maxFenceIndent {
-		line = strings.TrimPrefix(line, " ")
-	}
-	return line
 }
 
 // addParseFailure records a file that does not parse, at the line its parser blamed.

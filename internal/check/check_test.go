@@ -387,6 +387,23 @@ func TestRun_ConflictMarkers_ReportedAtEachMarkerLine(t *testing.T) {
 	}
 }
 
+func TestRun_ConflictMarker_MessageQuotesTheMarkerAndSaysHowToResolve(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{issues + "login-flow.md": issueFile("") + logConflict})
+
+	problems := runCheck(t, root)
+
+	want := check.Problem{
+		Path:    issues + "login-flow.md",
+		Line:    13,
+		Code:    check.CodeConflict,
+		Message: `git conflict marker "<<<<<<< HEAD"; resolve the conflict and delete the markers`,
+	}
+	if len(problems) == 0 || !reflect.DeepEqual(problems[0], want) {
+		t.Errorf("problems = %+v; want the first to be %+v", problems, want)
+	}
+}
+
 func TestRun_ConflictMarkersInFrontmatter_ReportedBesideTheParseFailure(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{

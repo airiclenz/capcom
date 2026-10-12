@@ -44,7 +44,10 @@ open cases.
 - 3 (re-check): Approach recast to state the side-map design (decision: matches its guard; `orphanedIDFailure` takes the kind noun); yields to `CHANGELOG.md:13` (0.2.0)
 - 4 (re-check): Approach recast to state the side-map design (decision: `readNoteAliases` unchanged, `"note"` passed to `orphanedIDFailure`, no `errors.go` edit, no Closes: line)
 
-## 1. Shared raw-frontmatter package with the conflict-marker scan
+## 1. Shared raw-frontmatter package with the conflict-marker scan — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): consequential edit — internal/check/check.go package doc: no longer claims check finds the conflict markers itself; it now names the rawfm scan among what it collects (made necessary by moving the scan into internal/rawfm).
+NOTES (2026-10-12): rawfm API is `ConflictMarker{Line, Text}`, `ConflictMarkers([]byte)` and `ConflictMessage(ConflictMarker) string`; the rawfm unit tests also cover a closed fence followed by markers, an unclosed frontmatter (fences not honoured there) and a file without frontmatter.
 
 **What:**
 **Goal:** a leaf package `internal/rawfm` (importing no capcom package) exports the conflict-marker
