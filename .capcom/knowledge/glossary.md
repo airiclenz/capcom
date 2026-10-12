@@ -14,3 +14,5 @@ The glossary's sections:
 - Knowledge: `glossary-knowledge`
 - Agent interface: `glossary-agent-interface`
 - Flagged ambiguities: `glossary-ambiguities`
+
+A flagged ambiguity is a word that means something else here than it does elsewhere.

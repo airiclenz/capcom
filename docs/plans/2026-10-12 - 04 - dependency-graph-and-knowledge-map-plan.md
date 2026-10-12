@@ -436,7 +436,9 @@ internal/cli/agents_test.go — TestCheck_AgentsBlockWithoutInstallLine_IsStaleU
 `go run ./cmd/capcom agents --check`; `go run ./cmd/capcom check`
 **Commit:** `feat(agents): map the store and the dependency commands in the block`
 
-## 15. Knowledge and docs tidy-ups from the review
+## 15. Knowledge and docs tidy-ups from the review — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): docs-layout and glossary were hand-edited rather than through `know update`; store-config was created with `go run ./cmd/capcom know add --parent store-layout` (label `architecture`, matching its parent). No CHANGELOG entry: content-only change.
 
 **What:**
 **Goal:**

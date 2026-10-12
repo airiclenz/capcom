@@ -35,6 +35,14 @@ The directory tree is the hierarchy (ADR 0001). The same rules hold in `issues/`
   release-checklist.md
 ```
 
+This repository's own Knowledge tree goes one level deeper. The Note
+`glossary/glossary-knowledge.md` has its children, one Note per term, in
+`glossary/glossary-knowledge/` (`note.md`, `ref.md`, ...), and
+`decisions/adr-0001/adr-0001-rejected.md` is a child of the Note `adr-0001`, which is itself a
+child of `decisions`. A child id that repeats
+its parent's id, as `adr-0001-rejected` does, is a naming habit, not a rule: it keeps ids unique
+across the tree and tells a reader where the Note belongs, but capcom never requires it.
+
 ### Ids
 
 An id is a kebab-case slug of one to four words of `a-z` and `0-9`, joined by single hyphens, at
