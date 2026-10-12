@@ -58,7 +58,11 @@ internal/cli/errors.go — treeProblemKindOf; internal/nodestore/remove.go — r
 - `go vet ./internal/tree/ ./internal/check/ ./internal/index/ ./internal/cli/`
 **Commit:** `fix(tree): skip non-regular node files and cap store reads`
 
-## 2. Index walk and refresh skip non-regular files instead of reading through them
+## 2. Index walk and refresh skip non-regular files instead of reading through them — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): internal/index/walk.go needed no change — item 1 already routed both skips through tree.Walk/walkWarningKind, so walkIssues gets one warning per path with no second Lstat filter; only refresher.indexFile changed (tree.ReadNodeFile, its ErrNotRegular/ErrTooLarge become a stored WarningNotRegular problem, never a refresh failure)
+NOTES (2026-10-12): the symlink-to-/dev/zero and FIFO cases went into a new TestRefresh_NonRegularNodeFiles_WarnOnceEachAndIndexTheRest (with the 1 MiB+1 file, a directory z.md and a regular sibling) rather than into TestRefresh_EachProducer_…, because their helpers skip on Windows and as root and would skip the whole producer test there; EachProducer gained the portable oversize file and directory z.md cases instead
+NOTES (2026-10-12): added TestIndexFile_FileGrownPastTheLimitSinceTheWalk_WarnsAndKeepsItOut, an in-package test of indexFile's guarded-read refusal path, which the walk otherwise shields from every refresh-level test
 
 **What:** Same finding, index half. Depends on item 1.
 **Regression guard.** The index walk gets both skips from `tree.Walk`/`walkWarningKind` (item 1), one warning per path; no second Lstat filter in `walkIssues`. `indexFile` reads with `tree.ReadNodeFile`; its sentinels become warnings, never a refresh failure. A directory `z.md` keeps its `orphan-directory` warning.

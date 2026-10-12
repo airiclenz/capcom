@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"slices"
 	"time"
 
@@ -224,26 +223,31 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 }
 
 // indexFile reads and parses one file and replaces its rows. A file with problems keeps only its
-// files row, which carries the problems so the next refresh reports them again.
+// files row, which carries the problems so the next refresh reports them again. The file is read
+// through tree.ReadNodeFile: one that is no longer a regular file, or has grown past 1 MiB, since
+// the walk kept it is left out unread with a WarningNotRegular, never failing the refresh.
 func (r *refresher) indexFile(file foundFile) error {
 	if err := r.forget(file.path); err != nil {
 		return err
 	}
-	data, err := os.ReadFile(file.absolute)
+	data, err := tree.ReadNodeFile(file.absolute)
 	if errors.Is(err, fs.ErrNotExist) {
 		// Removed since the walk saw it; the next refresh no longer finds it.
 		return nil
 	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", file.path, err)
-	}
 
 	var problems []Warning
 	var insert func() error
-	if file.kind == kindNote {
+	refusal := readRefusal(err)
+	switch {
+	case refusal != nil:
+		problems = []Warning{{Kind: WarningNotRegular, Path: file.path, Message: refusal.Error()}}
+	case err != nil:
+		return fmt.Errorf("%s: %w", file.path, err)
+	case file.kind == kindNote:
 		note, noteProblems := parseNote(file, data)
 		problems, insert = noteProblems, func() error { return r.insertNote(file, note) }
-	} else {
+	default:
 		parsed, issueProblems := parseIssue(file, data, r.config)
 		problems, insert = issueProblems, func() error { return r.insertIssue(file, parsed) }
 	}
@@ -268,6 +272,17 @@ func (r *refresher) indexFile(file foundFile) error {
 		return nil
 	}
 	return insert()
+}
+
+// readRefusal returns the tree sentinel err wraps when tree.ReadNodeFile refused the file unread
+// (tree.ErrNotRegular or tree.ErrTooLarge), worded as the walk words the same problem, or nil.
+func readRefusal(err error) error {
+	for _, sentinel := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
+		if errors.Is(err, sentinel) {
+			return sentinel
+		}
+	}
+	return nil
 }
 
 // parseIssue parses and validates one issue file and returns every problem that keeps it out of

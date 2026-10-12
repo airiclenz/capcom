@@ -1,11 +1,13 @@
 package index
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -447,6 +449,95 @@ func TestReport_CallerChangesIt_IndexKeepsItsOwn(t *testing.T) {
 	}
 }
 
+// nodeFileLimit is the largest node file the store reads, in bytes: 1 MiB.
+const nodeFileLimit = 1 << 20
+
+// oversizeIssueText is a valid issue one byte larger than nodeFileLimit, padded in its body.
+func oversizeIssueText(title string) string {
+	text := issueText(title, "open", "")
+	return text + strings.Repeat("x", nodeFileLimit+1-len(text))
+}
+
+// makeSymlink creates link pointing at target, skipping the test on Windows and as root.
+func makeSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("Symlink(%s): %v", link, err)
+	}
+}
+
+func TestRefresh_NonRegularNodeFiles_WarnOnceEachAndIndexTheRest(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	makeSymlink(t, "/dev/zero", filepath.Join(s.IssuesDir(), "zero-issue.md"))
+	makeFIFO(t, filepath.Join(s.IssuesDir(), "pipe-issue.md"))
+	writeIssue(t, s, "huge-issue.md", oversizeIssueText("Huge"))
+	writeIssue(t, s, "z.md/child-issue.md", issueText("Child", "open", ""))
+	writeIssue(t, s, "good-issue.md", issueText("Good", "open", ""))
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	want := []string{
+		".capcom/issues/huge-issue.md " + string(WarningNotRegular),
+		".capcom/issues/pipe-issue.md " + string(WarningNotRegular),
+		".capcom/issues/z.md " + string(WarningOrphanDirectory),
+		".capcom/issues/zero-issue.md " + string(WarningNotRegular),
+	}
+	if got := warningKinds(report); !slices.Equal(got, want) {
+		t.Errorf("warning kinds = %q\nwant %q", got, want)
+	}
+	if report.Indexed != 1 || !isIndexed(t, x, "good-issue") {
+		t.Errorf("report = %+v, want only good-issue indexed", report)
+	}
+	for _, id := range []string{"zero-issue", "pipe-issue", "huge-issue", "child-issue"} {
+		if isIndexed(t, x, id) {
+			t.Errorf("%s is indexed, want it left out", id)
+		}
+	}
+}
+
+func TestIndexFile_FileGrownPastTheLimitSinceTheWalk_WarnsAndKeepsItOut(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	path := writeIssue(t, s, "huge-issue.md", oversizeIssueText("Huge"))
+	x := openIndex(t, s)
+	ctx := context.Background()
+	tx, err := x.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback() })
+	r := &refresher{ctx: ctx, tx: tx, config: s.Config, refreshed: time.Now().UnixNano()}
+	file := foundFile{
+		path:     ".capcom/issues/huge-issue.md",
+		absolute: path,
+		kind:     kindIssue,
+		id:       "huge-issue",
+		size:     10,
+	}
+
+	err = r.indexFile(file)
+
+	if err != nil {
+		t.Fatalf("indexFile: %v, want a warning instead", err)
+	}
+	want := []string{".capcom/issues/huge-issue.md: file is larger than 1 MiB"}
+	if got := warningStrings(Report{Warnings: r.warnings}); !slices.Equal(got, want) {
+		t.Errorf("warnings = %q, want %q", got, want)
+	}
+	wantKinds := []string{".capcom/issues/huge-issue.md " + string(WarningNotRegular)}
+	if got := warningKinds(Report{Warnings: r.warnings}); !slices.Equal(got, wantKinds) {
+		t.Errorf("warning kinds = %q, want %q", got, wantKinds)
+	}
+}
+
 func TestRefresh_BadNames_WarnAndSkip(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
@@ -502,6 +593,8 @@ func TestRefresh_EachProducer_SetsTheWarningKindAndReplaysIt(t *testing.T) {
 	writeIssue(t, s, "top-issue.md", issueText("Top", "open", ""))
 	writeIssue(t, s, "top-issue/dup-issue.md", issueText("Nested dup", "open", ""))
 	writeIssue(t, s, "dup-issue.md", issueText("Top dup", "open", ""))
+	writeIssue(t, s, "huge-issue.md", oversizeIssueText("Huge"))
+	writeIssue(t, s, "z.md/child-issue.md", issueText("Child", "open", ""))
 	x := openIndex(t, s, laterClock())
 
 	first := refresh(t, x)
@@ -518,6 +611,8 @@ func TestRefresh_EachProducer_SetsTheWarningKindAndReplaysIt(t *testing.T) {
 		".capcom/issues/own-alias.md " + string(WarningRepeatedAlias),
 		".capcom/issues/top-issue/dup-issue.md " + string(WarningDuplicate),
 		".capcom/issues/twice-alias.md " + string(WarningRepeatedAlias),
+		".capcom/issues/huge-issue.md " + string(WarningNotRegular),
+		".capcom/issues/z.md " + string(WarningOrphanDirectory),
 	}
 	slices.Sort(want)
 	for name, report := range map[string]Report{"first": first, "second": second} {
