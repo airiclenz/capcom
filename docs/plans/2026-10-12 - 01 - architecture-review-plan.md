@@ -232,7 +232,11 @@ and the unknown-key hint for both kind nouns.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/frontmatter/`; `go vet ./internal/frontmatter/`
 **Commit:** `refactor(frontmatter): extract the shared frontmatter decoder`
 
-## 7. frontmatter encode with the one quoting policy
+## 7. frontmatter encode with the one quoting policy — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the encoder is a zero-value-ready `frontmatter.Encoder` with `Text(key, value)`, `List(key, entries)`, `Raw(key, value)` (written verbatim, for a priority or an RFC3339 time) and `File(body) []byte`; every write leaves out an empty value, so issue priority passes its number and a zero time passes "".
+NOTES (2026-10-12): the quoting helpers (`scalar`, `isPlainSafe`, `needsEscape`, `doubleQuoted`) are copied, not moved, from `internal/issue/file.go`: that file is outside this item's Files and still serializes with them until item 8 routes issues through the codec, which deletes the issue copies.
+NOTES (2026-10-12): consequential edit — internal/frontmatter/frontmatter.go: made necessary by encode.go (the package doc said the package only reads files; it now names Encoder and the quoting policy)
 
 **What:**
 **Goal:** `internal/frontmatter` exports an encoder writing text, lists and raw values under the

@@ -1,9 +1,11 @@
-// Package frontmatter reads the files capcom keeps under .capcom: markdown with a YAML frontmatter
-// between two `---` lines, an issue or a Note alike. Split separates the frontmatter from the body,
-// Decode drives a per-kind callback over the frontmatter keys, and Error is the one failure both
-// report, naming the file and the line when one is to blame. The package knows no kind's keys: a
-// Kind names them, so issues and Notes share every rule of the format (fences, CRLF, duplicate and
-// unknown keys, YAML-error lines, the conflict-marker override) and differ only in their keys.
+// Package frontmatter reads and writes the files capcom keeps under .capcom: markdown with a YAML
+// frontmatter between two `---` lines, an issue or a Note alike. Split separates the frontmatter
+// from the body, Decode drives a per-kind callback over the frontmatter keys, and Error is the one
+// failure both report, naming the file and the line when one is to blame. Encoder writes a file
+// back in the canonical form, under the one quoting policy of docs/format.md. The package knows no
+// kind's keys: a Kind names them, so issues and Notes share every rule of the format (fences, CRLF,
+// duplicate and unknown keys, YAML-error lines, the conflict-marker override) and differ only in
+// their keys.
 package frontmatter
 
 import (
