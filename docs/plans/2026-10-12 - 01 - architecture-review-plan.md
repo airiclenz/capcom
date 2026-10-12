@@ -680,7 +680,11 @@ that directory.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/ ./internal/index/ ./internal/check/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Mv|Check'`
 **Commit:** `refactor(tree): one directory walk for tree and index`
 
-## 24. One per-file alias check
+## 24. One per-file alias check — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the signature is `tree.CheckAliases(path, kind, id string, aliases []string) ([]string, tree.Errors)`, not `CheckAliases(id, aliases)`: path so each problem is a ready *tree.Error with Path and Alias set (check cites the aliases line from Alias), kind per the regression guard, and the kept aliases returned so tree.Load maps the first of an alias listed twice and drops only the offending one.
+NOTES (2026-10-12): tree.Load gets no kind and no tree.Load caller is touched; it passes the kind "node", so check reads `alias "x" repeats the node's own id`, while the index passes its file kind and keeps `the issue's own id` / `the note's own id` unchanged.
+NOTES (2026-10-12): a repeated alias wraps a new sentinel tree.ErrRepeatedAlias as well as ErrDuplicate, with Other left empty; cli treeProblemKindOf matches ErrRepeatedAlias before ErrDuplicate. internal/check/check.go is unchanged: treeCode's default still gives CodeDuplicate.
 
 **What:**
 **Goal:** `tree.CheckAliases(id, aliases)` reports invalid aliases, `alias "x" repeats the

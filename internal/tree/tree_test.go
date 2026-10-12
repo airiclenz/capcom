@@ -314,7 +314,12 @@ func TestLoad_AliasConflicts_Fail(t *testing.T) {
 		{
 			name:    "alias repeats its own id",
 			aliases: map[string][]string{"login-flow.md": {"login-flow"}},
-			want:    tree.ErrDuplicate,
+			want:    tree.ErrRepeatedAlias,
+		},
+		{
+			name:    "alias listed twice",
+			aliases: map[string][]string{"login-flow.md": {"apogee-qi3", "apogee-qi3"}},
+			want:    tree.ErrRepeatedAlias,
 		},
 		{
 			name: "alias on two nodes",
@@ -382,6 +387,103 @@ func TestLoad_DuplicateAlias_NamesTheOtherFileApart(t *testing.T) {
 	}
 	if message := `duplicate alias "apogee-qi3": also an alias of ` + want.Other; problem.Message() != message {
 		t.Fatalf("Message = %q, want %q", problem.Message(), message)
+	}
+}
+
+func TestCheckAliases_EachProblem_ReportedWithItsMessage(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		aliases  []string
+		wantKept []string
+		want     []string
+		sentinel error
+	}{
+		{
+			name:     "invalid alias",
+			aliases:  []string{"Apogee QI3"},
+			want:     []string{`invalid alias "Apogee QI3": must use only a-z, 0-9, dots and hyphens`},
+			sentinel: tree.ErrInvalidAlias,
+		},
+		{
+			name:     "alias repeats its own id",
+			aliases:  []string{"login-flow"},
+			want:     []string{`alias "login-flow" repeats the issue's own id`},
+			sentinel: tree.ErrRepeatedAlias,
+		},
+		{
+			name:     "alias listed twice",
+			aliases:  []string{"apogee-qi3", "old-name", "apogee-qi3"},
+			wantKept: []string{"apogee-qi3", "old-name"},
+			want:     []string{`alias "apogee-qi3" is listed twice`},
+			sentinel: tree.ErrRepeatedAlias,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			kept, problems := tree.CheckAliases("login-flow.md", "issue", "login-flow", testCase.aliases)
+
+			if !reflect.DeepEqual(kept, testCase.wantKept) {
+				t.Errorf("kept = %q, want %q", kept, testCase.wantKept)
+			}
+			var got []string
+			for _, problem := range problems {
+				got = append(got, problem.Message())
+				if problem.Path != "login-flow.md" || problem.Other != "" || problem.Alias == "" {
+					t.Errorf("problem = %+v, want Path login-flow.md, no Other and the Alias", problem)
+				}
+				if !errors.Is(problem, testCase.sentinel) {
+					t.Errorf("problem %v does not wrap %v", problem, testCase.sentinel)
+				}
+			}
+			if !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("messages = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestCheckAliases_RepeatedAlias_IsADuplicate(t *testing.T) {
+	t.Parallel()
+
+	_, problems := tree.CheckAliases("login-flow.md", "note", "login-flow", []string{"login-flow"})
+
+	if len(problems) != 1 || !errors.Is(problems[0], tree.ErrDuplicate) {
+		t.Fatalf("problems = %v, want one wrapping ErrDuplicate", problems)
+	}
+	if want := `alias "login-flow" repeats the note's own id`; problems[0].Message() != want {
+		t.Errorf("Message = %q, want %q", problems[0].Message(), want)
+	}
+}
+
+func TestLoad_RepeatedAliases_DropOnlyTheOffendingAlias(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "login-flow.md")
+
+	loaded, err := tree.Load(dir, aliasesByFile(map[string][]string{
+		"login-flow.md": {"login-flow", "apogee-qi3", "apogee-qi3"},
+	}))
+
+	var problems tree.Errors
+	if !errors.As(err, &problems) {
+		t.Fatalf("Load = %v, want tree.Errors", err)
+	}
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.Message())
+	}
+	want := []string{
+		`alias "login-flow" repeats the node's own id`,
+		`alias "apogee-qi3" is listed twice`,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("messages = %q, want %q", got, want)
+	}
+	if node, found := loaded.Lookup("apogee-qi3"); !found || node.ID != "login-flow" {
+		t.Errorf("Lookup(apogee-qi3) = %v, %v; want login-flow", node, found)
 	}
 }
 

@@ -42,6 +42,9 @@ var (
 	ErrInvalidAlias = errors.New("invalid alias")
 	// ErrDuplicate reports an id or alias used twice anywhere in one tree.
 	ErrDuplicate = errors.New("duplicate")
+	// ErrRepeatedAlias reports an alias that repeats its own node's id or is listed twice in its
+	// own file. Every error that wraps it also wraps ErrDuplicate.
+	ErrRepeatedAlias = errors.New("repeated alias")
 	// ErrOrphanDirectory reports a child directory without the node file of the same name, or
 	// whose node file has an invalid id.
 	ErrOrphanDirectory = errors.New("directory without its node file")
@@ -155,9 +158,9 @@ func ValidateAlias(alias string) error {
 // Load reads the tree stored in dir. A missing dir loads as an empty tree. Names starting with a
 // dot and files not ending in .md are skipped. aliases may be nil when the kind has none.
 //
-// Load reports, as an *Error naming the file, an invalid id or alias, an id or alias used twice
-// anywhere in the tree (naming the other file in Other), and a child directory without its node
-// file, as Walk words it. It finds every such problem in one pass and returns them all as Errors,
+// Load reports, as an *Error naming the file, an invalid id, an alias CheckAliases rejects (its
+// message naming the "node"), an id or alias two files share (naming the other file in Other), and
+// a child directory without its node file, as Walk words it. It finds every such problem in one pass and returns them all as Errors,
 // together with the tree of what it could place: a file with an invalid id, a directory without its
 // node file (with its whole subtree), a repeated id after its first file and an invalid or repeated
 // alias are left out. A
@@ -309,9 +312,61 @@ func (t *Tree) indexIDs(problems *Errors) {
 	t.nodes = kept
 }
 
-// indexAliases reads every node's Aliases and maps each to its node. An invalid alias, or one that
-// repeats an id or another alias, is added to problems and not mapped. It fails only when aliases
-// does.
+// CheckAliases checks the aliases of the one node file at path on their own: each must be a valid
+// alias, must not repeat the node's own id and must not be listed twice. kind names the node in a
+// message: alias "x" repeats the <kind>'s own id. It returns the aliases that pass, in order, and
+// an *Error naming path and the alias for each one that does not; an invalid alias wraps
+// ErrInvalidAlias, a repeated one ErrRepeatedAlias and ErrDuplicate. The first of an alias listed
+// twice passes.
+func CheckAliases(path, kind, id string, aliases []string) ([]string, Errors) {
+	var kept []string
+	var problems Errors
+	seen := map[string]bool{}
+	for _, alias := range aliases {
+		err := checkAlias(kind, id, alias, seen[alias])
+		seen[alias] = true
+		if err != nil {
+			problems = append(problems, &Error{Path: path, Alias: alias, Err: err})
+			continue
+		}
+		kept = append(kept, alias)
+	}
+	return kept, problems
+}
+
+// checkAlias checks one alias of a node file, isSeen telling whether the file lists it earlier.
+func checkAlias(kind, id, alias string, isSeen bool) error {
+	if err := ValidateAlias(alias); err != nil {
+		return err
+	}
+	if alias == id {
+		return &repeatedAliasError{message: fmt.Sprintf("alias %q repeats the %s's own id", alias, kind)}
+	}
+	if isSeen {
+		return &repeatedAliasError{message: fmt.Sprintf("alias %q is listed twice", alias)}
+	}
+	return nil
+}
+
+// repeatedAliasError is an alias that repeats its own node's id or is listed twice. It renders as
+// its message alone and wraps both ErrRepeatedAlias and ErrDuplicate.
+type repeatedAliasError struct {
+	message string
+}
+
+// Error returns the message.
+func (e *repeatedAliasError) Error() string {
+	return e.message
+}
+
+// Unwrap returns the sentinels, so errors.Is matches ErrRepeatedAlias and ErrDuplicate.
+func (e *repeatedAliasError) Unwrap() []error {
+	return []error{ErrRepeatedAlias, ErrDuplicate}
+}
+
+// indexAliases reads every node's Aliases and maps each to its node. An alias CheckAliases rejects,
+// or one that repeats another node's id or alias, is added to problems and not mapped. Load has no
+// kind, so a message names the node. It fails only when aliases does.
 func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 	if aliases == nil {
 		return nil
@@ -323,7 +378,9 @@ func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 			return err
 		}
 		node.Aliases = names
-		for _, alias := range names {
+		kept, rejected := CheckAliases(node.Path, "node", node.ID, names)
+		*problems = append(*problems, rejected...)
+		for _, alias := range kept {
 			if err := t.indexAlias(i, alias); err != nil {
 				*problems = append(*problems, err)
 			}
@@ -332,12 +389,10 @@ func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 	return nil
 }
 
-// indexAlias maps one alias of node i, after checking it is valid and unused.
+// indexAlias maps one alias of node i, which CheckAliases passed, after checking no other node has
+// it as its id or an alias.
 func (t *Tree) indexAlias(i int, alias string) *Error {
 	path := t.nodes[i].Path
-	if err := ValidateAlias(alias); err != nil {
-		return &Error{Path: path, Alias: alias, Err: err}
-	}
 	if owner, taken := t.byID[alias]; taken {
 		return &Error{
 			Path:  path,

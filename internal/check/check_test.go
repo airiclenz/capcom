@@ -291,6 +291,27 @@ func TestRun_DirectoryProblems_WordedAsTheIndexWarnsThem(t *testing.T) {
 	}
 }
 
+func TestRun_RepeatedAliases_WordedByTheSharedAliasCheck(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		issues + "login-flow.md": issueFile("aliases: [login-flow, old-name, old-name]\n"),
+	})
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.Code+" "+problem.String())
+	}
+	want := []string{
+		check.CodeDuplicate + " " + issues + `login-flow.md:7: alias "login-flow" repeats the node's own id`,
+		check.CodeDuplicate + " " + issues + `login-flow.md:7: alias "old-name" is listed twice`,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
 func TestRun_ThreeCycle_ReportedExactlyOnce(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{

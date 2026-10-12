@@ -173,15 +173,15 @@ func (a *app) isIndexWarnedAbout(problem *tree.Error) bool {
 }
 
 // treeProblemKindOf returns the index warning kind of a tree.Load problem, by the sentinel it
-// wraps, and false for a problem the index never reports. A duplicate alias whose other file is its
-// own is a repeated alias.
+// wraps, and false for a problem the index never reports. A repeated alias also wraps ErrDuplicate,
+// so it is matched first.
 func treeProblemKindOf(problem *tree.Error) (index.WarningKind, bool) {
 	switch {
 	case errors.Is(problem, tree.ErrInvalidID):
 		return index.WarningInvalidID, true
 	case errors.Is(problem, tree.ErrInvalidAlias):
 		return index.WarningInvalidAlias, true
-	case errors.Is(problem, tree.ErrDuplicate) && problem.Alias != "" && problem.Other == problem.Path:
+	case errors.Is(problem, tree.ErrRepeatedAlias):
 		return index.WarningRepeatedAlias, true
 	case errors.Is(problem, tree.ErrDuplicate):
 		return index.WarningDuplicate, true

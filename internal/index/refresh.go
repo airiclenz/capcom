@@ -289,22 +289,17 @@ func parseIssue(file foundFile, data []byte, cfg config.Config) (issue.Issue, []
 	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
 }
 
-// aliasProblems returns a problem for every alias of the node file that is invalid, repeats the
-// node's own id or is listed twice.
+// aliasProblems returns a problem for every alias of the node file that tree.CheckAliases rejects:
+// one that is invalid, repeats the node's own id or is listed twice.
 func aliasProblems(file foundFile, aliases []string) []Warning {
+	_, rejected := tree.CheckAliases(file.path, file.kind, file.id, aliases)
 	var problems []Warning
-	seen := map[string]bool{}
-	for _, alias := range aliases {
-		aliasErr := tree.ValidateAlias(alias)
-		switch {
-		case aliasErr != nil:
-			problems = append(problems, Warning{Kind: WarningInvalidAlias, Path: file.path, Message: aliasErr.Error()})
-		case alias == file.id:
-			problems = append(problems, Warning{Kind: WarningRepeatedAlias, Path: file.path, Message: fmt.Sprintf("alias %q repeats the %s's own id", alias, file.kind)})
-		case seen[alias]:
-			problems = append(problems, Warning{Kind: WarningRepeatedAlias, Path: file.path, Message: fmt.Sprintf("alias %q is listed twice", alias)})
+	for _, problem := range rejected {
+		kind := WarningRepeatedAlias
+		if errors.Is(problem, tree.ErrInvalidAlias) {
+			kind = WarningInvalidAlias
 		}
-		seen[alias] = true
+		problems = append(problems, Warning{Kind: kind, Path: problem.Path, Message: problem.Message()})
 	}
 	return problems
 }
