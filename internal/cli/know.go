@@ -47,12 +47,14 @@ type noteData struct {
 	Body         *string  `json:"body,omitempty"`
 }
 
-// outlineData is one line of know tree in --json: a Note and its indentation depth in the outline.
+// outlineData is one line of know tree in --json: a Note, its indentation depth in the outline and
+// how many of its direct children --depth cut (more, left out when none).
 type outlineData struct {
 	ID     string `json:"id"`
 	Title  string `json:"title"`
 	Parent string `json:"parent,omitempty"`
 	Depth  int    `json:"depth"`
+	More   int    `json:"more,omitempty"`
 }
 
 // findingData is one broken Ref in the --json data of know verify.
@@ -93,8 +95,9 @@ func (a *app) newKnowCommand() *cobra.Command {
 }
 
 // newKnowTreeCommand prints the outline of the Knowledge tree, or of the subtree of one Note: one
-// line per Note, `id  title`, indented two spaces per level. Retired subtrees are left out unless
-// --retired is given; a Note named as the start is printed even when retired.
+// line per Note, `id  title`, indented two spaces per level, and a `... <n> more (--depth <d>)`
+// line under each Note whose children --depth cut. Retired subtrees are left out unless --retired
+// is given, and never counted as cut; a Note named as the start is printed even when retired.
 func (a *app) newKnowTreeCommand() *cobra.Command {
 	depth := unlimitedDepth
 	isRetiredIncluded := false
@@ -112,12 +115,14 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 				return err
 			}
 			data := make([]outlineData, 0, len(lines))
-			var text strings.Builder
+			rows := make([]outlineRow, 0, len(lines))
 			for _, line := range lines {
-				data = append(data, outlineData{line.entry.ID, line.entry.Title, line.entry.ParentID, line.depth})
-				text.WriteString(strings.Repeat(textIndent, line.depth) + line.entry.ID + "  " + flatten(line.entry.Title) + "\n")
+				data = append(data, outlineData{
+					line.entry.ID, line.entry.Title, line.entry.ParentID, line.depth, line.more,
+				})
+				rows = append(rows, line.outlineRow)
 			}
-			return a.emit(cmd, Result{Kind: "know-tree", Data: data, Text: text.String()})
+			return a.emit(cmd, Result{Kind: "know-tree", Data: data, Text: renderOutline(rows)})
 		}),
 	}
 	cmd.Flags().IntVar(&depth, flagDepth, unlimitedDepth,
@@ -126,16 +131,23 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 	return cmd
 }
 
-// outlineLine is one Note of an outline at its indentation depth.
+// outlineLine is one Note of an outline and its row: `id  title` at its indentation depth, with
+// the count of direct children maxDepth cut.
 type outlineLine struct {
 	entry index.NoteEntry
-	depth int
+	outlineRow
+}
+
+// noteOutlineLine returns the outline line of a Note at an indentation depth, cutting nothing.
+func noteOutlineLine(entry index.NoteEntry, depth int) outlineLine {
+	return outlineLine{entry, outlineRow{depth: depth, text: entry.ID + "  " + flatten(entry.Title)}}
 }
 
 // outline lists the Notes know tree prints: the whole tree, or the Note args names followed by its
 // subtree, each Note followed by its children in id order, at most maxDepth levels below the
-// start (unlimitedDepth for all). Unless isRetiredIncluded, retired subtrees are left out below
-// the start; the named start itself always resolves.
+// start (unlimitedDepth for all). A Note on the last level counts the direct children it cut.
+// Unless isRetiredIncluded, retired subtrees are left out below the start, and so never counted;
+// the named start itself always resolves.
 func (a *app) outline(args []string, maxDepth int, isRetiredIncluded bool) ([]outlineLine, error) {
 	notes, err := a.issueIndex.Notes(isRetiredIncluded)
 	if err != nil {
@@ -145,12 +157,16 @@ func (a *app) outline(args []string, maxDepth int, isRetiredIncluded bool) ([]ou
 	var lines []outlineLine
 	var visit func(parentID string, level int, indent int)
 	visit = func(parentID string, level int, indent int) {
-		if maxDepth != unlimitedDepth && level > maxDepth {
-			return
-		}
+		isLastLevel := maxDepth != unlimitedDepth && level >= maxDepth
 		for _, child := range children[parentID] {
-			lines = append(lines, outlineLine{entry: child, depth: indent})
-			visit(child.ID, level+1, indent+1)
+			line := noteOutlineLine(child, indent)
+			if isLastLevel {
+				line.more, line.moreDepth = len(children[child.ID]), level+1
+			}
+			lines = append(lines, line)
+			if !isLastLevel {
+				visit(child.ID, level+1, indent+1)
+			}
 		}
 	}
 	if len(args) == 0 {
@@ -161,7 +177,7 @@ func (a *app) outline(args []string, maxDepth int, isRetiredIncluded bool) ([]ou
 	if err != nil {
 		return nil, err
 	}
-	lines = append(lines, outlineLine{entry: start, depth: 0})
+	lines = append(lines, noteOutlineLine(start, 0))
 	visit(start.ID, 1, 1)
 	return lines, nil
 }

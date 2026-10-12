@@ -74,8 +74,13 @@ func TestKnowTree_DepthAndStart_LimitTheOutline(t *testing.T) {
 	}{
 		{nil, "release-flow  Release flow\ntesting-rules  Testing rules\n  cli-tests  CLI tests\n" +
 			"    no-parallel  No parallel\n  git-fixtures  Git fixtures\n"},
-		{[]string{"--depth", "1"}, "release-flow  Release flow\ntesting-rules  Testing rules\n"},
-		{[]string{"testing", "--depth", "1"}, "testing-rules  Testing rules\n  cli-tests  CLI tests\n  git-fixtures  Git fixtures\n"},
+		{[]string{"--depth", "1"}, "release-flow  Release flow\ntesting-rules  Testing rules\n  ... 2 more (--depth 2)\n"},
+		{[]string{"testing", "--depth", "1"}, "testing-rules  Testing rules\n  cli-tests  CLI tests\n" +
+			"    ... 1 more (--depth 2)\n  git-fixtures  Git fixtures\n"},
+		{[]string{"--depth", "2"}, "release-flow  Release flow\ntesting-rules  Testing rules\n  cli-tests  CLI tests\n" +
+			"    ... 1 more (--depth 3)\n  git-fixtures  Git fixtures\n"},
+		{[]string{"--depth", "3"}, "release-flow  Release flow\ntesting-rules  Testing rules\n  cli-tests  CLI tests\n" +
+			"    no-parallel  No parallel\n  git-fixtures  Git fixtures\n"},
 		{[]string{"cli-tests"}, "cli-tests  CLI tests\n  no-parallel  No parallel\n"},
 	}
 
@@ -85,6 +90,21 @@ func TestKnowTree_DepthAndStart_LimitTheOutline(t *testing.T) {
 		if exitCode != ExitOK || stdout != current.want {
 			t.Errorf("know tree %v = %d\n%s%s\nwant\n%s", current.args, exitCode, stdout, stderr, current.want)
 		}
+	}
+}
+
+func TestKnowTree_DepthCutJSON_CarriesMoreOnTheCutNote(t *testing.T) {
+	root := newKnowStore(t)
+
+	data, _ := decodeEnvelope(t, mustRun(t, root, "know", "tree", "--depth", "1", "--json"))["data"].([]any)
+
+	more := map[string]any{}
+	for _, item := range data {
+		line, _ := item.(map[string]any)
+		more[line["id"].(string)] = line["more"]
+	}
+	if more["testing-rules"] != float64(2) || more["release-flow"] != nil {
+		t.Errorf("know tree --depth 1 --json more = %v; want testing-rules 2, release-flow absent", more)
 	}
 }
 
@@ -196,6 +216,9 @@ func TestKnowTree_RetiredSubtrees_LeftOutUnlessRetired(t *testing.T) {
 			"    no-parallel  No parallel\n  git-fixtures  Git fixtures\n  legacy-runner  Legacy runner\n"},
 		{[]string{"old-harness"}, "old-harness  Old harness\n"},
 		{[]string{"old-harness", "--retired"}, "old-harness  Old harness\n  old-fixtures  Old fixtures\n"},
+		{[]string{"--depth", "1"}, "release-flow  Release flow\ntesting-rules  Testing rules\n  ... 2 more (--depth 2)\n"},
+		{[]string{"--depth", "1", "--retired"}, "old-harness  Old harness\n  ... 1 more (--depth 2)\n" +
+			"release-flow  Release flow\ntesting-rules  Testing rules\n  ... 3 more (--depth 2)\n"},
 	}
 
 	for _, current := range cases {

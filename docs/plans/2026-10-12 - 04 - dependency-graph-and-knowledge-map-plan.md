@@ -238,7 +238,9 @@ internal/cli/write_test.go — TestCreate_KV_BesideUnparseableFile_PrintsWarning
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Create`
 **Commit:** `feat(create): warn when a new issue has no body`
 
-## 8. Shared outline renderer; know tree shows where depth cut
+## 8. Shared outline renderer; know tree shows where depth cut — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): added `--depth 2` (hint `    ... 1 more (--depth 3)`) and `--depth 3` (full outline, no hint) cases to TestKnowTree_DepthAndStart_LimitTheOutline, and a `--depth 1 --retired` case (hints `1 more` under old-harness and `3 more` under testing-rules) beside the plan's `--depth 1` retired case; docs/format.md and README are left to item 17.
 
 **What:**
 **Goal:** under each Note whose children `--depth` cut, `capcom know tree` prints one line, indented

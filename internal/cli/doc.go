@@ -26,6 +26,7 @@
 //   - `log.go` — capcom log: appends an entry to an issue's Log
 //   - `merge_driver.go` — capcom merge-driver: the git merge driver for issue files, Log by entry
 //   - `mv.go` — capcom mv: renames an issue or moves it below another
+//   - `outline.go` — the indented outline rows and their text, with the hint where --depth cut
 //   - `output.go` — the output contract: Result, the --json Envelope, --kv records and Renderers
 //   - `prime.go` — capcom prime: the session Briefing
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first
