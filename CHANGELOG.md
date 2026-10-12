@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-12
+
 - The README now has a Non-goals section naming what capcom will not add (a server, multi-writer mode, hosting, a daemon, background sync, notifications) and why, and a FAQ entry with a minimal GitHub Actions workflow that runs `capcom check` and `capcom fmt --check`.
 - `docs/format.md` describes an optional `post-merge` git hook that runs `capcom check` after every merge, and when git does not run it.
 - New `CONTRIBUTING.md` (build, tests, conventions, changelog and release rules) and `SECURITY.md` (supported versions; report vulnerabilities through GitHub's private vulnerability reporting).
