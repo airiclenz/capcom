@@ -117,7 +117,10 @@ carries `now_ready: []`.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Close|Reopen'`
 **Commit:** `feat(close): name the issues a close made ready`
 
-## 3. ready ranks priority ties by what an issue unblocks
+## 3. ready ranks priority ties by what an issue unblocks — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): unblocks are derived from the one `issue.Ready` pass's before-verdicts (`unblocksByCloser`/`soleCloser` in internal/briefing/ready.go: a non-hidden, unheld todo issue becomes Ready exactly when every blocking dep, resolved through `issue.DepGraph.Resolve`, and every open child is one single issue) instead of calling `issue.NewlyReady` per item, per the regression guard; `TestReadyList_Unblocks_MatchNewlyReady` cross-checks the result against `issue.NewlyReady` on both briefing fixtures.
+NOTES (2026-10-12): the `--show-hidden` want of `TestReady_Flags_SelectReadyIssuesMostUrgentFirst` changes too (`session-refresh` now precedes `deploy-prod`), a direct consequence of the new order; the README/format reference text is left to item 17.
 
 **What:**
 **Goal:** `capcom ready` orders by priority, then by the number of issues each Ready issue unblocks

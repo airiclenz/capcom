@@ -33,13 +33,17 @@ type ReadyOptions struct {
 type ReadyItem struct {
 	Entry     index.Entry
 	Readiness issue.Readiness
+	// Unblocks are the ids of the todo issues that become Ready when this issue alone is closed as
+	// done, in tree order; a ready.hide label leaves an issue out. Only a Ready item carries them.
+	Unblocks []string
 }
 
 // ReadyList judges the todo issues of x against the ready rules and returns the ones options
-// select, most urgent first and in tree order within a priority, at most options.Limit of them.
-// The rules judge every issue, Closed ones and those the filter leaves out included, so a filter
-// never changes a verdict; the label and plan filter is the index's own. It fails only when the
-// index cannot be read.
+// select, most urgent first, then the item that unblocks more issues first, then in tree order,
+// at most options.Limit of them; an item that is not Ready unblocks none. The rules judge every
+// issue, Closed ones and those the filter leaves out included, so a filter never changes a
+// verdict; the label and plan filter is the index's own. It fails only when the index cannot be
+// read.
 func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, error) {
 	entries, err := x.List(index.Filter{IsClosedIncluded: true})
 	if err != nil {
@@ -60,20 +64,74 @@ func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]Ready
 		nodes = append(nodes, entry.Node())
 		byID[entry.ID] = entry
 	}
+	verdicts := issue.Ready(nodes, cfg)
+	unblocks := unblocksByCloser(verdicts, issue.NewDepGraph(nodes))
 	var listed []ReadyItem
-	for _, verdict := range issue.Ready(nodes, cfg) {
-		if selected[verdict.ID] && options.keeps(verdict) {
-			listed = append(listed, ReadyItem{Entry: byID[verdict.ID], Readiness: verdict})
+	for _, verdict := range verdicts {
+		if !selected[verdict.ID] || !options.keeps(verdict) {
+			continue
 		}
+		item := ReadyItem{Entry: byID[verdict.ID], Readiness: verdict}
+		if verdict.IsReady {
+			item.Unblocks = unblocks[verdict.ID]
+		}
+		listed = append(listed, item)
 	}
 
 	slices.SortStableFunc(listed, func(first, second ReadyItem) int {
-		return cmp.Compare(first.Entry.Priority, second.Entry.Priority)
+		return cmp.Or(
+			cmp.Compare(first.Entry.Priority, second.Entry.Priority),
+			cmp.Compare(len(second.Unblocks), len(first.Unblocks)),
+		)
 	})
 	if options.Limit > 0 && len(listed) > options.Limit {
 		listed = listed[:options.Limit]
 	}
 	return listed, nil
+}
+
+// unblocksByCloser maps the id of each issue to the ids of the todo issues that become Ready when
+// it alone is closed as done, in the order of verdicts. It re-judges from the verdicts alone: a
+// close as done can only satisfy dependencies on the closed issue and remove it from its parent's
+// open children, never lift a hold, so a todo issue that is not Ready becomes Ready exactly when
+// no ancestor holds it and every dependency that blocks it and every open child is that one
+// issue. A ready.hide label leaves an issue out, as issue.NewlyReady does.
+func unblocksByCloser(verdicts []issue.Readiness, graph issue.DepGraph) map[string][]string {
+	unblocks := map[string][]string{}
+	for _, verdict := range verdicts {
+		if verdict.IsReady || verdict.IsHidden || verdict.HeldBy != "" {
+			continue
+		}
+		if closer, isSole := soleCloser(verdict, graph); isSole {
+			unblocks[closer] = append(unblocks[closer], verdict.ID)
+		}
+	}
+	return unblocks
+}
+
+// soleCloser returns the one issue whose close as done would make the issue verdict judges Ready,
+// and false when there is no such single issue: it is blocked by a dependency that names no issue,
+// or by more than one issue.
+func soleCloser(verdict issue.Readiness, graph issue.DepGraph) (string, bool) {
+	closer := ""
+	isSole := func(id string) bool {
+		if closer == "" {
+			closer = id
+		}
+		return closer == id
+	}
+	for _, blocker := range verdict.Blocking {
+		id, isFound := graph.Resolve(blocker.Dep)
+		if !isFound || !isSole(id) {
+			return "", false
+		}
+	}
+	for _, child := range verdict.OpenChildren {
+		if !isSole(child) {
+			return "", false
+		}
+	}
+	return closer, closer != ""
 }
 
 // filter is the index filter for the label and plan options. It includes Closed issues so that

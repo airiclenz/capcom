@@ -35,6 +35,46 @@ func readyIssue(status string, priority int, extra string) string {
 // ui), later (Ready, priority 0, hidden) and schema (done, priority 1).
 func readyFixture(t *testing.T) (*index.Index, config.Config) {
 	t.Helper()
+	return indexIssueFiles(t, map[string]string{
+		"alpha-task.md":  readyIssue("open", 2, "labels: [auth]\ndeps: [schema-task]\nplan: 2026-10-12 - 00 - alpha-plan\n"),
+		"beta-task.md":   readyIssue("open", 1, "labels: [ui]\n"),
+		"delta-task.md":  readyIssue("open", 1, "deps: [beta-task]\n"),
+		"gamma-task.md":  readyIssue("open", 2, "labels: [auth, ui]\n"),
+		"later-task.md":  readyIssue("open", 0, "labels: ["+hiddenLabel+"]\n"),
+		"schema-task.md": readyIssue("done", 1, ""),
+	})
+}
+
+// unblockFixture indexes a tree in a temp dir whose config hides hiddenLabel. In tree order, each
+// id ending in -task: alpha (Ready, P2; its one dependent, kilo, is hidden), bravo (Ready, P2,
+// unblocks echo), charlie (Ready, P1), delta (Ready, P3, unblocks foxtrot and golf), echo, foxtrot
+// and golf (todo, P2, each blocked by bravo or delta alone), hotel (todo, P2, blocked by bravo and
+// delta), india (todo, P2) with its open child juliet (Ready, P2, unblocks india), kilo (todo, P2,
+// hidden, blocked by alpha), lima (todo, P2, blocked by mike through mike's alias) and mike (Ready,
+// P2, unblocks lima).
+func unblockFixture(t *testing.T) (*index.Index, config.Config) {
+	t.Helper()
+	return indexIssueFiles(t, map[string]string{
+		"alpha-task.md":             readyIssue("open", 2, ""),
+		"bravo-task.md":             readyIssue("open", 2, ""),
+		"charlie-task.md":           readyIssue("open", 1, ""),
+		"delta-task.md":             readyIssue("open", 3, ""),
+		"echo-task.md":              readyIssue("open", 2, "deps: [bravo-task]\n"),
+		"foxtrot-task.md":           readyIssue("open", 2, "deps: [delta-task]\n"),
+		"golf-task.md":              readyIssue("open", 2, "deps: [delta-task]\n"),
+		"hotel-task.md":             readyIssue("open", 2, "deps: [bravo-task, delta-task]\n"),
+		"india-task.md":             readyIssue("open", 2, ""),
+		"india-task/juliet-task.md": readyIssue("open", 2, ""),
+		"kilo-task.md":              readyIssue("open", 2, "labels: ["+hiddenLabel+"]\ndeps: [alpha-task]\n"),
+		"lima-task.md":              readyIssue("open", 2, "deps: [mike-old]\n"),
+		"mike-task.md":              readyIssue("open", 2, "aliases: [mike-old]\n"),
+	})
+}
+
+// indexIssueFiles writes files, issue file paths relative to the issues directory, into a temp dir
+// whose config hides hiddenLabel, and indexes them.
+func indexIssueFiles(t *testing.T, files map[string]string) (*index.Index, config.Config) {
+	t.Helper()
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.Ready.Hide = []string{hiddenLabel}
@@ -45,19 +85,12 @@ func readyFixture(t *testing.T) (*index.Index, config.Config) {
 		GitCommonDir: filepath.Join(root, ".git"),
 		Config:       cfg,
 	}
-	files := map[string]string{
-		"alpha-task.md":  readyIssue("open", 2, "labels: [auth]\ndeps: [schema-task]\nplan: 2026-10-12 - 00 - alpha-plan\n"),
-		"beta-task.md":   readyIssue("open", 1, "labels: [ui]\n"),
-		"delta-task.md":  readyIssue("open", 1, "deps: [beta-task]\n"),
-		"gamma-task.md":  readyIssue("open", 2, "labels: [auth, ui]\n"),
-		"later-task.md":  readyIssue("open", 0, "labels: ["+hiddenLabel+"]\n"),
-		"schema-task.md": readyIssue("done", 1, ""),
-	}
-	if err := os.MkdirAll(s.IssuesDir(), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
 	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(s.IssuesDir(), name), []byte(content), 0o644); err != nil {
+		path := filepath.Join(s.IssuesDir(), filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
 	}
@@ -135,5 +168,83 @@ func TestReadyList_IndexClosed_Fails(t *testing.T) {
 
 	if err == nil || got != nil {
 		t.Errorf("ReadyList = %v, %v; want an error", itemIDs(got), err)
+	}
+}
+
+func TestReadyList_PriorityTie_UnblockerFirst(t *testing.T) {
+	t.Parallel()
+	x, cfg := unblockFixture(t)
+	cases := []struct {
+		name    string
+		options ReadyOptions
+		want    []string
+	}{
+		{"default: priority, then unblocks, then tree order", ReadyOptions{},
+			[]string{"charlie-task", "bravo-task", "juliet-task", "mike-task", "alpha-task", "delta-task"}},
+		{"not ready included: each counts 0", ReadyOptions{IsNotReadyIncluded: true}, []string{
+			"charlie-task", "bravo-task", "juliet-task", "mike-task", "alpha-task", "echo-task",
+			"foxtrot-task", "golf-task", "hotel-task", "india-task", "lima-task", "delta-task",
+		}},
+		{"limit after the sort", ReadyOptions{Limit: 2}, []string{"charlie-task", "bravo-task"}},
+	}
+
+	for _, current := range cases {
+		got, err := ReadyList(x, cfg, current.options)
+
+		if err != nil || !slices.Equal(itemIDs(got), current.want) {
+			t.Errorf("%s: ReadyList = %v, %v; want %v", current.name, itemIDs(got), err, current.want)
+		}
+	}
+}
+
+func TestReadyList_ReadyItem_CarriesWhatItUnblocks(t *testing.T) {
+	t.Parallel()
+	x, cfg := unblockFixture(t)
+
+	got, err := ReadyList(x, cfg, ReadyOptions{IsNotReadyIncluded: true, IsHiddenIncluded: true})
+
+	if err != nil {
+		t.Fatalf("ReadyList: %v", err)
+	}
+	want := map[string][]string{
+		"bravo-task":  {"echo-task"},
+		"delta-task":  {"foxtrot-task", "golf-task"},
+		"juliet-task": {"india-task"},
+		"mike-task":   {"lima-task"},
+	}
+	for _, item := range got {
+		if !slices.Equal(item.Unblocks, want[item.Entry.ID]) {
+			t.Errorf("%s: Unblocks = %v, want %v", item.Entry.ID, item.Unblocks, want[item.Entry.ID])
+		}
+	}
+}
+
+func TestReadyList_Unblocks_MatchNewlyReady(t *testing.T) {
+	t.Parallel()
+	for name, fixture := range map[string]func(*testing.T) (*index.Index, config.Config){
+		"ready fixture":   readyFixture,
+		"unblock fixture": unblockFixture,
+	} {
+		x, cfg := fixture(t)
+		entries, err := x.List(index.Filter{IsClosedIncluded: true})
+		if err != nil {
+			t.Fatalf("%s: List: %v", name, err)
+		}
+		nodes := make([]issue.Node, 0, len(entries))
+		for _, entry := range entries {
+			nodes = append(nodes, entry.Node())
+		}
+
+		got, err := ReadyList(x, cfg, ReadyOptions{IsHiddenIncluded: true})
+
+		if err != nil {
+			t.Fatalf("%s: ReadyList: %v", name, err)
+		}
+		for _, item := range got {
+			closed := map[string]config.Category{item.Entry.ID: config.CategoryDone}
+			if want := issue.NewlyReady(nodes, cfg, closed); !slices.Equal(item.Unblocks, want) {
+				t.Errorf("%s: %s Unblocks = %v, want %v", name, item.Entry.ID, item.Unblocks, want)
+			}
+		}
 	}
 }

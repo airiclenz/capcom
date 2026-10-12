@@ -32,17 +32,20 @@ type blockerData struct {
 	Reason string `json:"reason"`
 }
 
-// readyData is one issue in the --json data of ready: its fields, whether it is Ready, and, for a
-// todo issue --all lists although it is not Ready, what keeps it back.
+// readyData is one issue in the --json data of ready: its fields, whether it is Ready, the issues
+// it unblocks when it is, and, for a todo issue --all lists although it is not Ready, what keeps it
+// back.
 type readyData struct {
 	issueData
 	Ready        bool          `json:"ready"`
+	Unblocks     []string      `json:"unblocks,omitempty"`
 	Blocking     []blockerData `json:"blocking,omitempty"`
 	OpenChildren []string      `json:"open_children,omitempty"`
 	HeldBy       string        `json:"held_by,omitempty"`
 }
 
-// newReadyCommand lists the Ready issues, most urgent first and in tree order within a priority.
+// newReadyCommand lists the Ready issues, most urgent first, then the one that unblocks more
+// issues first, then in tree order.
 // A dependency counted as satisfied only because it was dropped is reported as a warning. Issue
 // changes on other local and remote-tracking branches are reported apart from the list
 // (Elsewhere).
@@ -109,6 +112,7 @@ func readyListData(listed []readylist.ReadyItem) []readyData {
 		item := readyData{
 			issueData:    newIssueData(current.Entry),
 			Ready:        current.Readiness.IsReady,
+			Unblocks:     current.Unblocks,
 			OpenChildren: current.Readiness.OpenChildren,
 			HeldBy:       current.Readiness.HeldBy,
 		}
@@ -120,13 +124,17 @@ func readyListData(listed []readylist.ReadyItem) []readyData {
 	return data
 }
 
-// readyLines renders one issue line per listed issue, as list does but without indentation; an
-// issue that is not Ready ends with what keeps it back.
+// readyLines renders one issue line per listed issue, as list does but without indentation; a
+// Ready issue that unblocks others ends with how many, and an issue that is not Ready ends with
+// what keeps it back.
 func readyLines(listed []readylist.ReadyItem) string {
 	var text strings.Builder
 	for _, current := range listed {
 		line := strings.TrimSuffix(issueLines([]index.Entry{current.Entry}, ""), "\n")
 		text.WriteString(line)
+		if len(current.Unblocks) > 0 {
+			fmt.Fprintf(&text, "  -- unblocks %d", len(current.Unblocks))
+		}
 		if !current.Readiness.IsReady {
 			text.WriteString("  -- not ready: " + notReadyReasons(current.Readiness))
 		}

@@ -76,14 +76,14 @@ func TestReady_Flags_SelectReadyIssuesMostUrgentFirst(t *testing.T) {
 		want []string
 	}{
 		{nil, []string{"api-tokens", "session-refresh", "triage-me", "uses-alias"}},
-		{[]string{"--show-hidden"}, []string{"api-tokens", "deploy-prod", "session-refresh", "triage-me", "uses-alias"}},
+		{[]string{"--show-hidden"}, []string{"api-tokens", "session-refresh", "deploy-prod", "triage-me", "uses-alias"}},
 		{[]string{"--planned"}, []string{"uses-alias"}},
 		{[]string{"--unplanned"}, []string{"api-tokens", "session-refresh", "triage-me"}},
 		{[]string{"--label", "auth"}, []string{"session-refresh"}},
 		{[]string{"--no-label", "auth"}, []string{"api-tokens", "triage-me", "uses-alias"}},
 		{[]string{"--limit", "2"}, []string{"api-tokens", "session-refresh"}},
 		{[]string{"--all"}, []string{
-			"api-tokens", "invoice-run", "invoice-pdf", "login-flow", "session-refresh", "needs-gone", "triage-me", "uses-alias",
+			"api-tokens", "session-refresh", "invoice-run", "invoice-pdf", "login-flow", "needs-gone", "triage-me", "uses-alias",
 		}},
 	}
 
@@ -159,6 +159,37 @@ func TestReady_Text_ListsReadyLinesAndReasonsUnderAll(t *testing.T) {
 		"warning: .capcom/issues/api-tokens.md: dep \"old-api\" is dropped; counted as satisfied\n"
 	if exitCode != ExitOK || stderr != "" || stdout != want {
 		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+}
+
+func TestReady_Text_ReadyLineEndsWithWhatItUnblocks(t *testing.T) {
+	root := newReadyStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "ready", "--show-hidden")
+
+	want := "api-tokens  open  P0  API tokens\n" +
+		"session-refresh  open  P2  Session refresh  -- unblocks 1\n" +
+		"deploy-prod  open  P2  Deploy\n" +
+		"triage-me  triage  P2  Triage me\n" +
+		"uses-alias  open  P2  Uses alias\n" +
+		"warning: .capcom/issues/api-tokens.md: dep \"old-api\" is dropped; counted as satisfied\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+}
+
+func TestReady_All_JSONCarriesWhatAReadyIssueUnblocks(t *testing.T) {
+	root := newReadyStore(t)
+
+	envelope := readyEnvelope(t, root, "--all")
+
+	want := map[string]any{"session-refresh": []any{"login-flow"}}
+	for _, item := range envelope["data"].([]any) {
+		entry := item.(map[string]any)
+		id := entry["id"].(string)
+		if got := entry["unblocks"]; !reflect.DeepEqual(got, want[id]) {
+			t.Errorf("%s.unblocks = %#v, want %#v", id, got, want[id])
+		}
 	}
 }
 
