@@ -52,6 +52,11 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrAmbiguous reports an id prefix that matches more than one node; see AmbiguousError.
 	ErrAmbiguous = errors.New("ambiguous id prefix")
+	// ErrNotRegular reports an entry of a store directory that is neither a regular file nor a
+	// directory: a symlink, a named pipe, a socket or a device. It is never read.
+	ErrNotRegular = errors.New("not a regular file")
+	// ErrTooLarge reports a node file larger than maxNodeFileSize. It is never read.
+	ErrTooLarge = errors.New("file is larger than 1 MiB")
 )
 
 // Error is a problem with one file or directory of a tree. Err wraps one of the sentinel errors.
@@ -160,7 +165,8 @@ func ValidateAlias(alias string) error {
 //
 // Load reports, as an *Error naming the file, an invalid id, an alias CheckAliases rejects (its
 // message naming the "node"), an id or alias two files share (naming the other file in Other), and
-// a child directory without its node file, as Walk words it. It finds every such problem in one pass and returns them all as Errors,
+// every entry Walk leaves out (an entry that is not a regular file, a node file over 1 MiB, a child
+// directory without its node file), as Walk words it. It finds every such problem in one pass and returns them all as Errors,
 // together with the tree of what it could place: a file with an invalid id, a directory without its
 // node file (with its whole subtree), a repeated id after its first file and an invalid or repeated
 // alias are left out. A
@@ -201,10 +207,13 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 // nil; the nodes come in walk order, each directory's files by name before its child directories.
 //
 // Walk reports, as an *Error naming the file or directory, a node file whose name is not a valid id
-// (wrapping ErrInvalidID) and a child directory that has no node file with a valid id beside it
+// (wrapping ErrInvalidID), an entry that is neither a regular file nor a directory, a symlink
+// included, whatever its name (wrapping ErrNotRegular), a node file larger than 1 MiB by its Lstat
+// (wrapping ErrTooLarge) and a child directory that has no node file beside it that the walk kept
 // (wrapping ErrOrphanDirectory), in walk order. Such a file, and such a directory with its whole
-// subtree, are left out. A directory that cannot be read stops the walk: its os.ReadDir error comes
-// back unchanged, with no nodes and no problems.
+// subtree, are left out; no file is opened, so a named pipe never blocks the walk. A directory that
+// cannot be read stops the walk, and so does a node file whose Lstat fails other than by being
+// gone: its os error comes back unchanged, with no nodes and no problems.
 func Walk(dir string) ([]Node, Errors, error) {
 	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
 		return nil, nil, nil
@@ -216,16 +225,25 @@ func Walk(dir string) ([]Node, Errors, error) {
 	return walker.nodes, walker.problems, nil
 }
 
-// invalidIDDirectoryError is the problem of a child directory whose node file is there but named by
-// an invalid id. It wraps ErrOrphanDirectory, since the directory is left out like one without its
-// node file, while its text names the invalid node file instead.
+// The reasons a node file is left out, as the problem of the directory beside it words them.
+const (
+	invalidIDReason  = "has an invalid id"
+	notRegularReason = "is not a regular file"
+	tooLargeReason   = "is larger than 1 MiB"
+)
+
+// invalidIDDirectoryError is the problem of a child directory whose node file is there but left
+// out: named by an invalid id, not a regular file, or larger than 1 MiB. It wraps
+// ErrOrphanDirectory, since the directory is left out like one without its node file, while its
+// text names the node file and why it was left out.
 type invalidIDDirectoryError struct {
-	name string
+	name   string
+	reason string
 }
 
 // Error renders the problem without its path.
 func (e *invalidIDDirectoryError) Error() string {
-	return fmt.Sprintf("directory left out: its node file %s%s has an invalid id", e.name, nodeExtension)
+	return fmt.Sprintf("directory left out: its node file %s%s %s", e.name, nodeExtension, e.reason)
 }
 
 // Unwrap returns ErrOrphanDirectory.
@@ -240,7 +258,8 @@ type treeWalker struct {
 }
 
 // walk collects the nodes of dir, all children of parentID, and recurses into the child
-// directories that have their node file, adding every invalid id and orphan directory to problems.
+// directories that have their node file, adding every entry left out — an invalid id, an entry
+// that is not a regular file, a node file over 1 MiB, an orphan directory — to problems.
 func (w *treeWalker) walk(dir string, parentID string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -248,7 +267,7 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 	}
 
 	validIDs := map[string]bool{}
-	invalidIDs := map[string]bool{}
+	leftOutIDs := map[string]string{}
 	var childDirs []string
 	for _, entry := range entries {
 		name := entry.Name()
@@ -260,13 +279,19 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 			continue
 		}
 		id, isNode := strings.CutSuffix(name, nodeExtension)
-		if !isNode {
+		if !isNode && !isNotRegular(entry.Type()) {
 			continue
 		}
 		path := filepath.Join(dir, name)
-		if err := ValidateID(id); err != nil {
-			invalidIDs[id] = true
-			w.problems = append(w.problems, &Error{Path: path, Err: err})
+		leftOut, err := leftOutFileOf(entry, id)
+		if err != nil {
+			return err
+		}
+		if leftOut != nil {
+			w.problems = append(w.problems, &Error{Path: path, Err: leftOut.problem})
+			if isNode {
+				leftOutIDs[id] = leftOut.reason
+			}
 			continue
 		}
 		validIDs[id] = true
@@ -280,8 +305,11 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 			if err := w.walk(path, name); err != nil {
 				return err
 			}
-		case invalidIDs[name]:
-			w.problems = append(w.problems, &Error{Path: path, Err: &invalidIDDirectoryError{name: name}})
+		case leftOutIDs[name] != "":
+			w.problems = append(w.problems, &Error{
+				Path: path,
+				Err:  &invalidIDDirectoryError{name: name, reason: leftOutIDs[name]},
+			})
 		default:
 			w.problems = append(w.problems, &Error{
 				Path: path,
@@ -290,6 +318,37 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 		}
 	}
 	return nil
+}
+
+// leftOutFile is why a walk leaves a file out: the problem reported at the file, and the reason
+// the directory beside it is left out too.
+type leftOutFile struct {
+	problem error
+	reason  string
+}
+
+// leftOutFileOf returns why the walk leaves out entry, a file that is a node file by its name (id
+// is its name without .md) or is not a regular file: ErrNotRegular, an invalid id, or ErrTooLarge
+// by its Lstat size. It returns nil for a node file the walk keeps, and for one gone since its
+// directory was read. A failed Lstat is returned unchanged.
+func leftOutFileOf(entry fs.DirEntry, id string) (*leftOutFile, error) {
+	if isNotRegular(entry.Type()) {
+		return &leftOutFile{problem: ErrNotRegular, reason: notRegularReason}, nil
+	}
+	if err := ValidateID(id); err != nil {
+		return &leftOutFile{problem: err, reason: invalidIDReason}, nil
+	}
+	info, err := entry.Info()
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > maxNodeFileSize {
+		return &leftOutFile{problem: ErrTooLarge, reason: tooLargeReason}, nil
+	}
+	return nil, nil
 }
 
 // indexIDs maps every id to its node and every parent to its children. A repeated id is added to

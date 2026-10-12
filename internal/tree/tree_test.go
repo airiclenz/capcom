@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -23,6 +24,28 @@ func writeNodes(t *testing.T, dir string, paths ...string) {
 		if err := os.WriteFile(path, []byte("x\n"), 0o644); err != nil {
 			t.Fatalf("WriteFile: %v", err)
 		}
+	}
+}
+
+// makeSymlink creates link pointing at target, skipping the test on Windows and as root.
+func makeSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("Symlink(%s): %v", link, err)
+	}
+}
+
+// writeSizedFile writes size bytes to path.
+func writeSizedFile(t *testing.T, path string, size int) {
+	t.Helper()
+	if err := os.WriteFile(path, make([]byte, size), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
 	}
 }
 
@@ -555,6 +578,56 @@ func TestLoad_SkipsDotfilesTempFilesAndOtherFiles(t *testing.T) {
 
 	if got := ids(loaded.Nodes()); !reflect.DeepEqual(got, []string{"login-flow"}) {
 		t.Fatalf("Nodes = %v, want [login-flow]", got)
+	}
+}
+
+func TestLoad_NonRegularAndOversizeFiles_LeftOutAndWarnedOnce(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "good-node.md", "x/child-node.md")
+	makeSymlink(t, os.DevNull, filepath.Join(dir, "x.md"))
+	makeSymlink(t, filepath.Join(dir, "good-node.md"), filepath.Join(dir, "notes-link"))
+	makeFIFO(t, filepath.Join(dir, "y.md"))
+	writeSizedFile(t, filepath.Join(dir, "z.md"), 1<<20+1)
+
+	loaded, err := tree.Load(dir, nil)
+
+	if got := ids(loaded.Nodes()); !reflect.DeepEqual(got, []string{"good-node"}) {
+		t.Errorf("Nodes = %v, want [good-node]", got)
+	}
+	var problems tree.Errors
+	if !errors.As(err, &problems) {
+		t.Fatalf("Load = %v, want its problems", err)
+	}
+	want := map[string]string{
+		filepath.Join(dir, "notes-link"): "not a regular file",
+		filepath.Join(dir, "x"):          "directory left out: its node file x.md is not a regular file",
+		filepath.Join(dir, "x.md"):       "not a regular file",
+		filepath.Join(dir, "y.md"):       "not a regular file",
+		filepath.Join(dir, "z.md"):       "file is larger than 1 MiB",
+	}
+	got := map[string]string{}
+	for _, problem := range problems {
+		got[problem.Path] += problem.Message()
+	}
+	if !reflect.DeepEqual(got, want) || len(problems) != len(want) {
+		t.Errorf("problems = %q\nwant each once: %q", got, want)
+	}
+}
+
+func TestWalk_NonRegularFile_WrapsErrNotRegularAndItsDirectoryErrOrphanDirectory(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "x/child-node.md")
+	makeSymlink(t, os.DevNull, filepath.Join(dir, "x.md"))
+
+	_, problems, err := tree.Walk(dir)
+
+	if err != nil || len(problems) != 2 {
+		t.Fatalf("Walk = %v, %v; want the symlink and its directory", problems, err)
+	}
+	if !errors.Is(problems[0], tree.ErrNotRegular) || !errors.Is(problems[1], tree.ErrOrphanDirectory) {
+		t.Errorf("problems = %v, want ErrNotRegular then ErrOrphanDirectory", problems)
 	}
 }
 

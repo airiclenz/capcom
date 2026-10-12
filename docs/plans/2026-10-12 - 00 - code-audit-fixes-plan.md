@@ -38,7 +38,11 @@
 - skills: coding-standards
 - Single packages with `GOMEMLIMIT=2GiB`; no `-race` on `./...`; one test command at a time; symlink, FIFO and permission tests skip on Windows and as root; errors and warnings name the file; deviations go on dated NOTES lines.
 
-## 1. Store reads reject non-regular files and cap size; `tree.Walk` skips them
+## 1. Store reads reject non-regular files and cap size; `tree.Walk` skips them — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): consequential edit — docs/format.md: made necessary by tree.Walk now leaving out non-regular entries and node files over 1 MiB (the tree rules listed only dotfiles and non-.md files as skipped)
+NOTES (2026-10-12): a child directory beside a node file over 1 MiB is also left out as an orphan directory, worded `its node file x.md is larger than 1 MiB` — the plan spelled out only the non-regular case; the local `invalidIDs` set became `leftOutIDs` (id to reason) and `invalidIDDirectoryError` gained a `reason` field (name kept)
+NOTES (2026-10-12): per the ratified "every non-regular entry" call, a non-regular entry is warned whatever its name (a symlink `notes-link` warns too), while a regular non-.md file is still skipped silently; new kind/code value is `not-regular` for both sentinels
 
 **What:** Audit finding: non-regular node files are stat'd as links but read through (tree half).
 **Regression guard.** `tree.walk` skips, warning at the path, every non-regular entry and every `.md` over 1 MiB by Lstat (`file is larger than 1 MiB`); `ReadNodeFile` keeps its own checks. Add `index.WarningNotRegular`, `check.CodeNotRegular`; map both sentinels in `check.treeCode`, `index.walkWarningKind`, `cli.treeProblemKindOf` (fix walk.go's "only two problems" comment). Track non-regular names like `invalidIDs`: `x/` beside a non-regular `x.md` warns "its node file x.md is not a regular file" (`ErrOrphanDirectory`). Errors are `*fs.PathError`s.

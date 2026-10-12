@@ -84,6 +84,9 @@ const (
 	WarningRepeatedAlias WarningKind = "repeated-alias"
 	// WarningOrphanDirectory is a directory left out because it has no valid node file beside it.
 	WarningOrphanDirectory WarningKind = "orphan-directory"
+	// WarningNotRegular is an entry left out unread because it is not a regular file (a symlink, a
+	// named pipe, a device) or is a node file larger than 1 MiB.
+	WarningNotRegular WarningKind = "not-regular"
 	// WarningFrontmatter is a file whose frontmatter cannot be read.
 	WarningFrontmatter WarningKind = "frontmatter"
 	// WarningField is a field value the file's kind does not accept.

@@ -41,6 +41,9 @@ const (
 	CodeDuplicate = "duplicate"
 	// CodeOrphanDirectory is a directory without the node file of the same name.
 	CodeOrphanDirectory = "orphan-directory"
+	// CodeNotRegular is an entry left out unread because it is not a regular file (a symlink, a
+	// named pipe, a device) or is a node file larger than 1 MiB.
+	CodeNotRegular = "not-regular"
 	// CodeFrontmatter is an issue or Note file that does not parse: a malformed frontmatter, an
 	// unknown or repeated key, a value of the wrong shape.
 	CodeFrontmatter = "frontmatter"
@@ -208,6 +211,8 @@ func treeCode(err error) string {
 		return CodeInvalidAlias
 	case errors.Is(err, tree.ErrOrphanDirectory):
 		return CodeOrphanDirectory
+	case errors.Is(err, tree.ErrNotRegular), errors.Is(err, tree.ErrTooLarge):
+		return CodeNotRegular
 	default:
 		return CodeDuplicate
 	}

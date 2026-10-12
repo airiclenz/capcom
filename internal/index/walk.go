@@ -15,8 +15,8 @@ import (
 // walkIssues lists the node files of the tree in issuesDir (the issue tree, or the Knowledge
 // tree), in path order, with paths relative to worktreeRoot. It adapts tree.Walk, the one directory
 // walk: each node file is stat'ed for the refresh to compare, and each walk problem — a file whose
-// name is not a valid id, a directory without a valid node file, left out with its whole subtree —
-// is warned about through r. A missing issuesDir is an empty tree. A file gone before its stat is
+// name is not a valid id, an entry that is not a regular file, a node file over 1 MiB, a directory
+// without a valid node file, left out with its whole subtree — is warned about through r. A missing issuesDir is an empty tree. A file gone before its stat is
 // skipped. A walk or stat failure names its path relative to worktreeRoot.
 func walkIssues(worktreeRoot, issuesDir string, r *refresher) ([]foundFile, error) {
 	nodes, problems, err := tree.Walk(issuesDir)
@@ -55,11 +55,15 @@ func walkIssues(worktreeRoot, issuesDir string, r *refresher) ([]foundFile, erro
 	return found, nil
 }
 
-// walkWarningKind is the warning kind of a tree.Walk problem: an invalid id, or else an orphan
-// directory, the only two problems a walk reports.
+// walkWarningKind is the warning kind of a tree.Walk problem: an invalid id, an entry left out
+// unread (not a regular file, or a node file over 1 MiB), or else an orphan directory, the only
+// problems a walk reports.
 func walkWarningKind(problem *tree.Error) WarningKind {
-	if errors.Is(problem, tree.ErrInvalidID) {
+	switch {
+	case errors.Is(problem, tree.ErrInvalidID):
 		return WarningInvalidID
+	case errors.Is(problem, tree.ErrNotRegular), errors.Is(problem, tree.ErrTooLarge):
+		return WarningNotRegular
 	}
 	return WarningOrphanDirectory
 }

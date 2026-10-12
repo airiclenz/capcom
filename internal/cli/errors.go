@@ -187,6 +187,8 @@ func treeProblemKindOf(problem *tree.Error) (index.WarningKind, bool) {
 		return index.WarningDuplicate, true
 	case errors.Is(problem, tree.ErrOrphanDirectory):
 		return index.WarningOrphanDirectory, true
+	case errors.Is(problem, tree.ErrNotRegular), errors.Is(problem, tree.ErrTooLarge):
+		return index.WarningNotRegular, true
 	}
 	return "", false
 }

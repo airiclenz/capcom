@@ -21,6 +21,10 @@ The directory tree is the hierarchy (ADR 0001). The same rules hold in `issues/`
 - A node's children live in the sibling directory `<id>/`, next to `<id>.md`. A directory without
   the node file of the same name is an error.
 - Names starting with a dot are ignored, and so are files that do not end in `.md`.
+- An entry that is neither a regular file nor a directory (a symlink, a named pipe, a device) is
+  never read: it is left out with a `not a regular file` warning, whatever its name. A node file
+  larger than 1 MiB is left out with a `file is larger than 1 MiB` warning. Both are `not-regular`
+  problems in `capcom check`, and a directory beside such a node file is left out with it.
 
 ```text
 .capcom/issues/
