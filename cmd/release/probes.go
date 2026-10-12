@@ -59,9 +59,17 @@ type stepReport struct {
 	Detail string    `json:"detail"`
 }
 
-// stepProbe asks the remote, read-only, where one publish step stands for version. dir is the
-// checkout whose origin is capcom's repository.
-type stepProbe func(ctx context.Context, commands runner, dir string, version releaseVersion) stepReport
+// stepProbe asks the remote, read-only, where one publish step stands for version.
+type stepProbe func(ctx context.Context, env probeEnv, version releaseVersion) stepReport
+
+// probeEnv is what the probes read the remotes through: capcom's own checkout and GitHub
+// repository through repo, and every other repository — the tap, the bucket, winget-pkgs —
+// through commands, run in dir.
+type probeEnv struct {
+	repo     repo
+	commands runner
+	dir      string
+}
 
 // publishStep is one step publish runs, in order, with the probe that tells whether it is done.
 type publishStep struct {
@@ -84,10 +92,10 @@ var publishSteps = []publishStep{
 var formulaVersionPattern = regexp.MustCompile(`(?m)^\s*version\s+"([^"]*)"`)
 
 // probeSteps probes every publish step for version, in publish order.
-func probeSteps(ctx context.Context, commands runner, dir string, version releaseVersion) []stepReport {
+func probeSteps(ctx context.Context, env probeEnv, version releaseVersion) []stepReport {
 	steps := make([]stepReport, 0, len(publishSteps))
 	for _, step := range publishSteps {
-		steps = append(steps, step.probe(ctx, commands, dir, version))
+		steps = append(steps, step.probe(ctx, env, version))
 	}
 	return steps
 }
@@ -95,35 +103,35 @@ func probeSteps(ctx context.Context, commands runner, dir string, version releas
 // probeTag reports the tag done only when origin holds an annotated tag for the version: a
 // lightweight tag carries no message and is not what a release is cut from, so it is unknown,
 // never done.
-func probeTag(ctx context.Context, commands runner, dir string, version releaseVersion) stepReport {
+func probeTag(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	tag := version.String()
-	listed, err := commands.run(ctx, dir, nil, "git", "ls-remote", "--tags", remoteName, "refs/tags/"+tag)
+	hasTag, err := env.repo.RemoteHasTag(ctx, tag)
 	if err != nil {
 		return unknownStep(stepTag, "could not list %s's tags: %v", remoteName, err)
 	}
-	if strings.TrimSpace(listed) == "" {
+	if !hasTag {
 		return stepReport{Name: stepTag, State: statePending, Detail: fmt.Sprintf("%s has no tag %s", remoteName, tag)}
 	}
 
-	kind, err := commands.run(ctx, dir, nil, "gh", "api", "repos/"+capcomRepo+"/git/ref/tags/"+tag, "--jq", ".object.type")
+	kind, err := env.repo.RemoteTagType(ctx, tag)
 	if err != nil {
 		return unknownStep(stepTag, "could not read the type of tag %s: %v", tag, err)
 	}
-	switch strings.TrimSpace(kind) {
+	switch kind {
 	case "tag":
 		return stepReport{Name: stepTag, State: stateDone, Detail: fmt.Sprintf("annotated tag %s on %s", tag, remoteName)}
 	case "commit":
 		return unknownStep(stepTag, "%s on %s is a lightweight tag; a release tag must be annotated", tag, remoteName)
 	default:
-		return unknownStep(stepTag, "tag %s points at a %q object, not an annotated tag", tag, strings.TrimSpace(kind))
+		return unknownStep(stepTag, "tag %s points at a %q object, not an annotated tag", tag, kind)
 	}
 }
 
 // probeRelease reports the GitHub release done only when it carries every asset a release ships:
 // the six archives and SHA256SUMS, each fully uploaded.
-func probeRelease(ctx context.Context, commands runner, dir string, version releaseVersion) stepReport {
+func probeRelease(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	tag := version.String()
-	uploaded, isFound, err := readReleaseAssets(ctx, commands, dir, version)
+	uploaded, isFound, err := env.repo.ReleaseAssets(ctx, tag)
 	if err != nil {
 		return unknownStep(stepRelease, "could not read GitHub release %s: %v", tag, err)
 	}
@@ -138,36 +146,6 @@ func probeRelease(ctx context.Context, commands runner, dir string, version rele
 			"release %s lacks %d of its %d assets: %s", tag, len(missing), len(want), strings.Join(missing, ", "))}
 	}
 	return stepReport{Name: stepRelease, State: stateDone, Detail: fmt.Sprintf("release %s with all %d assets", tag, len(want))}
-}
-
-// readReleaseAssets reads the GitHub release of version: whether it exists and, when it does, the
-// names of its fully uploaded assets — an asset in any other state is a failed or unfinished
-// upload, not one the release carries.
-func readReleaseAssets(ctx context.Context, commands runner, dir string, version releaseVersion) ([]string, bool, error) {
-	output, err := commands.run(ctx, dir, nil, "gh", "release", "view", version.String(), "--json", "assets")
-	if err != nil {
-		if isReleaseNotFound(err) {
-			return nil, false, nil
-		}
-		return nil, false, err
-	}
-	var release struct {
-		Assets []struct {
-			Name  string `json:"name"`
-			State string `json:"state"`
-		} `json:"assets"`
-	}
-	if err := json.Unmarshal([]byte(output), &release); err != nil {
-		return nil, false, fmt.Errorf("parse gh release view output: %w", err)
-	}
-
-	uploaded := make([]string, 0, len(release.Assets))
-	for _, asset := range release.Assets {
-		if asset.State == "uploaded" {
-			uploaded = append(uploaded, asset.Name)
-		}
-	}
-	return uploaded, true, nil
 }
 
 // missingAssets returns the names in want that uploaded lacks, in want's order.
@@ -195,15 +173,15 @@ func releaseAssetNames(version releaseVersion) []string {
 // probeHomebrew reports the tap setup-pending while its repository does not exist, and done when
 // its formula pins the version. A tap without the formula is pending: the repository is the
 // one-time setup, the formula is what publish writes.
-func probeHomebrew(ctx context.Context, commands runner, dir string, version releaseVersion) stepReport {
-	if _, err := commands.run(ctx, dir, nil, "gh", "api", "repos/"+tapRepo, "--jq", ".full_name"); err != nil {
+func probeHomebrew(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
+	if _, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+tapRepo, "--jq", ".full_name"); err != nil {
 		if isNotFound(err) {
 			return stepReport{Name: stepHomebrew, State: stateSetupPending, Detail: fmt.Sprintf("no %s repository yet", tapRepo)}
 		}
 		return unknownStep(stepHomebrew, "could not read the %s repository: %v", tapRepo, err)
 	}
 
-	formula, err := readRepoFile(ctx, commands, dir, tapRepo, formulaPath)
+	formula, err := readRepoFile(ctx, env.commands, env.dir, tapRepo, formulaPath)
 	if err != nil {
 		if isNotFound(err) {
 			return stepReport{Name: stepHomebrew, State: statePending, Detail: fmt.Sprintf("%s has no %s", tapRepo, formulaPath)}
@@ -221,15 +199,15 @@ func probeHomebrew(ctx context.Context, commands runner, dir string, version rel
 // probeScoop reports the bucket setup-pending while its repository does not exist, and done when
 // its manifest describes the version. An empty bucket repository is pending, not setup-pending:
 // the repository is the one-time setup, the manifest is what publish writes.
-func probeScoop(ctx context.Context, commands runner, dir string, version releaseVersion) stepReport {
-	if _, err := commands.run(ctx, dir, nil, "gh", "api", "repos/"+bucketRepo, "--jq", ".full_name"); err != nil {
+func probeScoop(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
+	if _, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+bucketRepo, "--jq", ".full_name"); err != nil {
 		if isNotFound(err) {
 			return stepReport{Name: stepScoop, State: stateSetupPending, Detail: fmt.Sprintf("no %s repository yet", bucketRepo)}
 		}
 		return unknownStep(stepScoop, "could not read the %s repository: %v", bucketRepo, err)
 	}
 
-	raw, err := readRepoFile(ctx, commands, dir, bucketRepo, bucketPath)
+	raw, err := readRepoFile(ctx, env.commands, env.dir, bucketRepo, bucketPath)
 	if err != nil {
 		if isNotFound(err) {
 			return stepReport{Name: stepScoop, State: statePending, Detail: fmt.Sprintf("%s has no %s", bucketRepo, bucketPath)}
@@ -249,10 +227,10 @@ func probeScoop(ctx context.Context, commands runner, dir string, version releas
 // open pull request submits it, and pending otherwise — including while the package is not in
 // winget-pkgs at all: winget needs no one-time setup, since publish submits the first manifests
 // itself with `komac submit`.
-func probeWinget(ctx context.Context, commands runner, dir string, version releaseVersion) stepReport {
+func probeWinget(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	bare := bareRelease(version)
 	isListed := true
-	listing, err := commands.run(ctx, dir, nil, "gh", "api", "repos/"+wingetRepo+"/contents/"+wingetManifestDir)
+	listing, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+wingetRepo+"/contents/"+wingetManifestDir)
 	if err != nil {
 		if !isNotFound(err) {
 			return unknownStep(stepWinget, "could not read %s from %s: %v", wingetManifestDir, wingetRepo, err)
@@ -275,7 +253,7 @@ func probeWinget(ctx context.Context, commands runner, dir string, version relea
 		}
 	}
 
-	output, err := commands.run(ctx, dir, nil, "gh", "pr", "list", "--repo", wingetRepo, "--state", "open",
+	output, err := env.commands.run(ctx, env.dir, nil, "gh", "pr", "list", "--repo", wingetRepo, "--state", "open",
 		"--search", wingetPackageID+" "+bare+" in:title", "--json", "number,title,url")
 	if err != nil {
 		return unknownStep(stepWinget, "could not list the open %s pull requests: %v", wingetRepo, err)
@@ -305,7 +283,7 @@ func probeWinget(ctx context.Context, commands runner, dir string, version relea
 
 // probeSmoke reports the smoke test pending always: it is an action publish takes last, not a
 // state any remote holds.
-func probeSmoke(context.Context, runner, string, releaseVersion) stepReport {
+func probeSmoke(context.Context, probeEnv, releaseVersion) stepReport {
 	return stepReport{Name: stepSmoke, State: statePending, Detail: "an action, not a remote state: publish runs it last"}
 }
 

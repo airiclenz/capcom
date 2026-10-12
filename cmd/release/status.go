@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -109,23 +108,24 @@ func runStatus(ctx context.Context, commands runner, output io.Writer, options s
 		}
 	}
 
-	report.Gate = checkGate(ctx, options.openRepo.open(commands, options.dir))
+	checkout := options.openRepo.open(commands, options.dir)
+	report.Gate = checkGate(ctx, checkout)
 
-	tags, err := commands.run(ctx, options.dir, nil, "git", "tag", "--list", "v*")
+	tags, err := checkout.ReleaseTags(ctx)
 	if err != nil {
 		problems = append(problems, fmt.Errorf("list the release tags: %w", err))
 	} else {
-		report.HighestTag = highestReleaseTag(tags)
+		report.HighestTag = highestReleaseTag(strings.Join(tags, "\n"))
 	}
 
-	baseline, err := readBaseline(ctx, commands, options.dir)
+	baseline, err := readBaseline(ctx, checkout)
 	if err != nil {
 		problems = append(problems, err)
 	}
 	report.Baseline = baseline
 
 	if version, isProbed := stepsVersion(report, isFromCheckout); isProbed {
-		report.Steps = probeSteps(ctx, commands, options.dir, version)
+		report.Steps = probeSteps(ctx, probeEnv{repo: checkout, commands: commands, dir: options.dir}, version)
 		for _, step := range report.Steps {
 			if step.State == stateUnknown {
 				problems = append(problems, fmt.Errorf("could not probe the %s step: %s", step.Name, step.Detail))
@@ -187,42 +187,28 @@ func readCheckoutVersion(dir string) (string, error) {
 // readBaseline finds the latest published release and counts the commits made since it; with no
 // release published yet it counts the whole history. What it found before a failure is returned
 // with the error, so the report still shows it.
-func readBaseline(ctx context.Context, commands runner, dir string) (baselineReport, error) {
-	output, err := commands.run(ctx, dir, nil, "gh", "release", "view", "--json", "tagName,publishedAt")
-	if isReleaseNotFound(err) {
-		return countBaseline(ctx, commands, dir, baselineReport{Range: "HEAD"})
-	}
+func readBaseline(ctx context.Context, checkout repo) (baselineReport, error) {
+	release, isPublished, err := checkout.LatestRelease(ctx)
 	if err != nil {
 		return baselineReport{}, fmt.Errorf("find the latest published release: %w", err)
 	}
-	var release struct {
-		TagName     string `json:"tagName"`
-		PublishedAt string `json:"publishedAt"`
+	if !isPublished {
+		return countBaseline(ctx, checkout, baselineReport{Range: "HEAD"})
 	}
-	if err := json.Unmarshal([]byte(output), &release); err != nil {
-		return baselineReport{}, fmt.Errorf("parse gh release view output: %w", err)
-	}
-	if release.TagName == "" {
-		return baselineReport{}, errors.New("gh release view named no latest release")
-	}
-
-	return countBaseline(ctx, commands, dir, baselineReport{
-		Tag:       release.TagName,
-		Published: release.PublishedAt,
-		Range:     release.TagName + "..HEAD",
+	return countBaseline(ctx, checkout, baselineReport{
+		Tag:       release.Tag,
+		Published: release.Published,
+		Range:     release.Tag + "..HEAD",
 	})
 }
 
 // countBaseline fills in the number of commits in the baseline's range.
-func countBaseline(ctx context.Context, commands runner, dir string, baseline baselineReport) (baselineReport, error) {
-	count, err := commands.run(ctx, dir, nil, "git", "rev-list", "--count", baseline.Range)
+func countBaseline(ctx context.Context, checkout repo, baseline baselineReport) (baselineReport, error) {
+	count, err := checkout.CountCommits(ctx, baseline.Range)
 	if err != nil {
 		return baseline, fmt.Errorf("count the commits in %s: %w", baseline.Range, err)
 	}
-	baseline.Commits, err = strconv.Atoi(strings.TrimSpace(count))
-	if err != nil {
-		return baseline, fmt.Errorf("count the commits in %s: %w", baseline.Range, err)
-	}
+	baseline.Commits = count
 	return baseline, nil
 }
 

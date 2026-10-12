@@ -12,28 +12,50 @@ import (
 	"testing"
 )
 
-// The latest published release the status tests' gh answers with.
-const testLatestRelease = `{"publishedAt":"2026-10-08T19:24:24Z","tagName":"v0.24.11"}` + "\n"
-
-// clearedRepo is a checkout whose gate clears: HEAD is a VERSION bump over a feature commit, both
-// pushed, with CI green on the bump. Bare tags newer than the latest release exist, as every
-// pushed VERSION bump tags one.
-func clearedRepo() fakeRepo {
-	return fakeRepo{
-		commits:    linearHistory(),
-		head:       bumpCommit,
-		originMain: bumpCommit,
-		greenRuns:  []string{bumpCommit},
-		release:    testLatestRelease,
-		tags:       "v0.24.10\nv0.24.11\nv0.24.12\nv0.24.13\n",
-	}
+// statusCheckout is a checkout status reports on: capcom's own repository held in repo, the
+// channel repositories the probes read through the runner in remote.
+type statusCheckout struct {
+	repo   memRepo
+	remote fakeRemote
 }
 
-// statusJSON runs status over repo with args and decodes its JSON report, returning the error
-// main would turn into an exit code.
-func statusJSON(t *testing.T, repo fakeRepo, args ...string) (statusReport, error) {
+// clearedCheckout is a checkout whose gate clears: HEAD is a VERSION bump over a feature commit,
+// both pushed, with CI green on the bump. Bare tags newer than the latest release exist, as every
+// pushed VERSION bump tags one. The latest release is seven commits back, the whole history
+// twelve; nothing is published for any newer version, and no channel's one-time setup has landed.
+func clearedCheckout() statusCheckout {
+	return statusCheckout{repo: memRepo{
+		commits:       linearHistory(),
+		head:          bumpCommit,
+		originMain:    bumpCommit,
+		greenRuns:     []string{bumpCommit},
+		tags:          []string{"v0.24.10", "v0.24.11", "v0.24.12", "v0.24.13"},
+		latestRelease: githubRelease{Tag: "v0.24.11", Published: "2026-10-08T19:24:24Z"},
+		commitCounts:  map[string]int{"v0.24.11..HEAD": 7, "HEAD": 12},
+	}}
+}
+
+// opener opens the checkout's memRepo whatever directory it is asked for.
+func (c statusCheckout) opener() repoOpener {
+	return func(string) repo { return c.repo }
+}
+
+// runner returns a recording runner over the channel repositories.
+func (c statusCheckout) runner() *fakeRunner {
+	return c.remote.runner()
+}
+
+// run runs the program's command tree over the checkout with args.
+func (c statusCheckout) run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	output, err := execute(t, repo.runner(), append([]string{"status", "--json"}, args...)...)
+	return executeWith(t, c.runner(), c.opener(), args...)
+}
+
+// statusJSON runs status over checkout with args and decodes its JSON report, returning the error
+// main would turn into an exit code.
+func statusJSON(t *testing.T, checkout statusCheckout, args ...string) (statusReport, error) {
+	t.Helper()
+	output, err := checkout.run(t, append([]string{"status", "--json"}, args...)...)
 	var report statusReport
 	if decodeErr := json.Unmarshal([]byte(output), &report); decodeErr != nil {
 		t.Fatalf("status --json printed no JSON report: %v\n%s", decodeErr, output)
@@ -47,7 +69,7 @@ func statusJSON(t *testing.T, repo fakeRepo, args ...string) (statusReport, erro
 func TestStatusReportsTheGateBaselineAndHighestTag(t *testing.T) {
 	t.Parallel()
 
-	report, err := statusJSON(t, clearedRepo(), "v0.24.14")
+	report, err := statusJSON(t, clearedCheckout(), "v0.24.14")
 
 	if err != nil {
 		t.Fatalf("status failed over a cleared gate: %v", err)
@@ -88,7 +110,7 @@ func TestStatusReportsTheGateBaselineAndHighestTag(t *testing.T) {
 func TestStatusJSONKeysArePinned(t *testing.T) {
 	t.Parallel()
 
-	output, err := execute(t, clearedRepo().runner(), "status", "--json", "v0.24.14")
+	output, err := clearedCheckout().run(t, "status", "--json", "v0.24.14")
 	if err != nil {
 		t.Fatalf("status failed: %v\n%s", err, output)
 	}
@@ -133,8 +155,8 @@ func TestStatusJSONKeysArePinned(t *testing.T) {
 
 // TestStatusProbesTheVersionFileOnlyAboveTheBaseline pins when status probes the publish steps
 // for the checkout's VERSION: above the baseline a release is in progress and every step is
-// probed; at the baseline none is, and no probe command runs; with no published release, and so
-// no baseline tag, the first release is in progress and every step is probed.
+// probed; at the baseline none is, and no probe command reaches the runner; with no published
+// release, and so no baseline tag, the first release is in progress and every step is probed.
 func TestStatusProbesTheVersionFileOnlyAboveTheBaseline(t *testing.T) {
 	t.Parallel()
 
@@ -154,14 +176,14 @@ func TestStatusProbesTheVersionFileOnlyAboveTheBaseline(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(dir, versionFile), []byte(tc.version+"\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			repo := clearedRepo()
+			checkout := clearedCheckout()
 			if tc.noReleaseYet {
-				repo.release = ""
+				checkout.repo.latestRelease = githubRelease{}
 			}
-			commands := repo.runner()
+			commands := checkout.runner()
 			var output bytes.Buffer
 
-			err := runStatus(t.Context(), commands, &output, statusOptions{dir: dir, isJSON: true})
+			err := runStatus(t.Context(), commands, &output, statusOptions{dir: dir, isJSON: true, openRepo: checkout.opener()})
 
 			if err != nil {
 				t.Fatalf("status failed: %v\n%s", err, output.String())
@@ -173,24 +195,24 @@ func TestStatusProbesTheVersionFileOnlyAboveTheBaseline(t *testing.T) {
 			if len(report.Steps) != tc.wantSteps {
 				t.Errorf("steps = %d, want %d", len(report.Steps), tc.wantSteps)
 			}
-			if tc.wantSteps == 0 && len(commands.recorded("gh")) != 3 {
-				t.Errorf("gh ran %d times, want 3 (the gate's two run lists and the baseline): no probe", len(commands.recorded("gh")))
+			if tc.wantSteps == 0 && len(commands.calls) != 0 {
+				t.Errorf("runner was called %d times, want none: no probe", len(commands.calls))
 			}
 		})
 	}
 }
 
 // TestStatusBaselineWithNoPublishedRelease pins the baseline before the first release is
-// published: no tag, no publish date, and the whole history as the range.
+// published: no tag, no publish date, and the whole history as the range — counted as HEAD.
 func TestStatusBaselineWithNoPublishedRelease(t *testing.T) {
 	t.Parallel()
-	repo := clearedRepo()
-	repo.release = ""
-	repo.tags = ""
-	commands := repo.runner()
+	checkout := clearedCheckout()
+	checkout.repo.latestRelease = githubRelease{}
+	checkout.repo.tags = nil
 	var output bytes.Buffer
 
-	err := runStatus(t.Context(), commands, &output, statusOptions{dir: ".", version: "v0.1.0", isJSON: true})
+	err := runStatus(t.Context(), checkout.runner(), &output,
+		statusOptions{dir: ".", version: "v0.1.0", isJSON: true, openRepo: checkout.opener()})
 
 	if err != nil {
 		t.Fatalf("status failed with no published release: %v\n%s", err, output.String())
@@ -199,26 +221,19 @@ func TestStatusBaselineWithNoPublishedRelease(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &report); err != nil {
 		t.Fatalf("status --json printed no JSON report: %v", err)
 	}
-	want := baselineReport{Tag: "", Published: "", Range: "HEAD", Commits: 7}
+	want := baselineReport{Tag: "", Published: "", Range: "HEAD", Commits: 12}
 	if report.Baseline != want {
 		t.Errorf("baseline = %+v, want %+v", report.Baseline, want)
 	}
 	if report.HighestTag != "" {
 		t.Errorf("highest tag = %q, want none", report.HighestTag)
 	}
-	counted := false
-	for _, call := range commands.recorded("git") {
-		counted = counted || strings.Join(call.args, " ") == "rev-list --count HEAD"
-	}
-	if !counted {
-		t.Errorf("git rev-list --count HEAD never ran: the whole history was not counted")
-	}
 
-	text, err := execute(t, repo.runner(), "status", "v0.1.0")
+	text, err := checkout.run(t, "status", "v0.1.0")
 	if err != nil {
 		t.Fatalf("status failed with no published release: %v\n%s", err, text)
 	}
-	if want := "baseline     no published release, HEAD: 7 commits\n"; !strings.Contains(text, want) {
+	if want := "baseline     no published release, HEAD: 12 commits\n"; !strings.Contains(text, want) {
 		t.Errorf("output lacks %q:\n%s", want, text)
 	}
 }
@@ -227,10 +242,10 @@ func TestStatusBaselineWithNoPublishedRelease(t *testing.T) {
 // when the gate clears, and that the report naming it is still printed.
 func TestStatusFailsOnAStepItCouldNotProbe(t *testing.T) {
 	t.Parallel()
-	repo := clearedRepo()
-	repo.remote.failing = "gh api repos/" + tapRepo
+	checkout := clearedCheckout()
+	checkout.remote.failing = "gh api repos/" + tapRepo
 
-	report, err := statusJSON(t, repo, "v0.24.14")
+	report, err := statusJSON(t, checkout, "v0.24.14")
 
 	if err == nil || exitCodeFor(err) != exitRunFailed {
 		t.Fatalf("status = %v, want a run failure", err)
@@ -255,7 +270,7 @@ func TestStatusVersionArgument(t *testing.T) {
 	t.Run("bare X.Y.Z reads as vX.Y.Z", func(t *testing.T) {
 		t.Parallel()
 
-		report, err := statusJSON(t, clearedRepo(), "0.24.14")
+		report, err := statusJSON(t, clearedCheckout(), "0.24.14")
 
 		if err != nil {
 			t.Fatalf("status failed: %v", err)
@@ -284,7 +299,7 @@ func TestStatusVersionArgument(t *testing.T) {
 	t.Run("two versions are a usage error", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := execute(t, clearedRepo().runner(), "status", "v0.24.14", "v0.24.15")
+		_, err := clearedCheckout().run(t, "status", "v0.24.14", "v0.24.15")
 
 		if err == nil || exitCodeFor(err) != exitBadUsage {
 			t.Errorf("status with two versions = %v, want a usage error", err)
@@ -300,9 +315,10 @@ func TestStatusDefaultsToTheVersionFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, versionFile), []byte("v0.24.14\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	checkout := clearedCheckout()
 	var output bytes.Buffer
 
-	err := runStatus(t.Context(), clearedRepo().runner(), &output, statusOptions{dir: dir, isJSON: true})
+	err := runStatus(t.Context(), checkout.runner(), &output, statusOptions{dir: dir, isJSON: true, openRepo: checkout.opener()})
 
 	if err != nil {
 		t.Fatalf("status failed: %v\n%s", err, output.String())
@@ -322,27 +338,23 @@ func TestStatusDefaultsToTheVersionFile(t *testing.T) {
 func TestStatusFailsAfterPrintingTheReport(t *testing.T) {
 	t.Parallel()
 
-	blocked := clearedRepo()
-	blocked.isDirty = true
-	noGitHub := clearedRepo()
-	noGitHub.failing = "gh"
-	noCount := clearedRepo()
-	noCount.failing = "git rev-list --count"
-
 	cases := map[string]struct {
-		repo     fakeRepo
+		change   func(checkout *memRepo)
 		wantGate bool
 		wantTag  string
 	}{
-		"a blocked gate":            {repo: blocked, wantTag: "v0.24.11"},
-		"gh cannot run":             {repo: noGitHub},
-		"the baseline cannot count": {repo: noCount, wantGate: true, wantTag: "v0.24.11"},
+		"a blocked gate":                    {change: func(checkout *memRepo) { checkout.isDirty = true }, wantTag: "v0.24.11"},
+		"the latest release cannot be read": {change: func(checkout *memRepo) { checkout.failing = methodLatestRelease }, wantGate: true},
+		"the tags cannot be listed":         {change: func(checkout *memRepo) { checkout.failing = methodReleaseTags }, wantGate: true, wantTag: "v0.24.11"},
+		"the baseline cannot count":         {change: func(checkout *memRepo) { checkout.failing = methodCountCommits }, wantGate: true, wantTag: "v0.24.11"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			checkout := clearedCheckout()
+			tc.change(&checkout.repo)
 
-			report, err := statusJSON(t, tc.repo, "v0.24.14")
+			report, err := statusJSON(t, checkout, "v0.24.14")
 
 			if err == nil || exitCodeFor(err) != exitRunFailed {
 				t.Fatalf("status = %v, want a run failure", err)
@@ -361,10 +373,10 @@ func TestStatusFailsAfterPrintingTheReport(t *testing.T) {
 // and each failure appear in the plain-text report.
 func TestStatusTextNamesTheBlockingConditions(t *testing.T) {
 	t.Parallel()
-	repo := clearedRepo()
-	repo.isDirty = true
+	checkout := clearedCheckout()
+	checkout.repo.isDirty = true
 
-	output, err := execute(t, repo.runner(), "status", "v0.24.14")
+	output, err := checkout.run(t, "status", "v0.24.14")
 
 	if !errors.Is(err, errGateBlocked) {
 		t.Errorf("status = %v, want %v", err, errGateBlocked)

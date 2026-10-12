@@ -10,21 +10,26 @@ import (
 
 // The repo methods a memRepo can be told to fail, as one whose command cannot run.
 const (
-	methodFetchMain    = "FetchMain"
-	methodIsClean      = "IsClean"
-	methodResolve      = "Resolve"
-	methodParents      = "Parents"
-	methodChangedPaths = "ChangedPaths"
-	methodIsAncestor   = "IsAncestor"
-	methodHasGreenRun  = "HasGreenRun"
-	methodReleaseTags  = "ReleaseTags"
-	methodCommitFile   = "CommitFile"
+	methodFetchMain     = "FetchMain"
+	methodIsClean       = "IsClean"
+	methodResolve       = "Resolve"
+	methodParents       = "Parents"
+	methodChangedPaths  = "ChangedPaths"
+	methodIsAncestor    = "IsAncestor"
+	methodHasGreenRun   = "HasGreenRun"
+	methodReleaseTags   = "ReleaseTags"
+	methodCommitFile    = "CommitFile"
+	methodCountCommits  = "CountCommits"
+	methodLatestRelease = "LatestRelease"
+	methodRemoteHasTag  = "RemoteHasTag"
+	methodRemoteTagType = "RemoteTagType"
+	methodReleaseAssets = "ReleaseAssets"
 )
 
 // memRepo is the in-memory repo: the checkout and its GitHub repository held as plain state —
-// a commit history, where HEAD and origin/main stand, whether the tree is dirty, the tags, and
-// which commits ci.yml ran green for — so a test states what the repo holds instead of what git
-// and gh print.
+// a commit history, where HEAD and origin/main stand, whether the tree is dirty, the tags, which
+// commits ci.yml ran green for, origin's tags and the GitHub releases — so a test states what the
+// repo holds instead of what git and gh print.
 type memRepo struct {
 	commits    map[string]fakeCommit
 	head       string
@@ -38,6 +43,15 @@ type memRepo struct {
 	// CommitFile. It is a pointer so a memRepo handed out by value still records into the
 	// test's log.
 	madeCommits *[]memCommit
+	// commitCounts is how many commits each revision range holds; a range it lacks is unknown.
+	commitCounts map[string]int
+	// latestRelease is the latest published GitHub release, its zero value while none is.
+	latestRelease githubRelease
+	// remoteTags are origin's tags, each with the type of the object GitHub's ref points at:
+	// "tag" for an annotated tag, "commit" for a lightweight one.
+	remoteTags map[string]string
+	// releases are the GitHub releases by tag, each with its fully uploaded assets.
+	releases map[string][]string
 	// failing names a method — methodParents — that fails outright, as one that cannot run.
 	failing string
 }
@@ -148,6 +162,56 @@ func (r memRepo) CommitFile(_ context.Context, path string, content []byte, subj
 	}
 	*r.madeCommits = append(*r.madeCommits, memCommit{subject: subject, path: path, content: string(content)})
 	return nil
+}
+
+// CountCommits returns the range's count from commitCounts.
+func (r memRepo) CountCommits(_ context.Context, revisionRange string) (int, error) {
+	if err := r.failure(methodCountCommits); err != nil {
+		return 0, err
+	}
+	count, isKnown := r.commitCounts[revisionRange]
+	if !isKnown {
+		return 0, fmt.Errorf("unknown revision range %s", revisionRange)
+	}
+	return count, nil
+}
+
+// LatestRelease returns latestRelease, and false while its tag is empty.
+func (r memRepo) LatestRelease(context.Context) (githubRelease, bool, error) {
+	if err := r.failure(methodLatestRelease); err != nil {
+		return githubRelease{}, false, err
+	}
+	return r.latestRelease, r.latestRelease.Tag != "", nil
+}
+
+// RemoteHasTag reports whether the tag is among remoteTags.
+func (r memRepo) RemoteHasTag(_ context.Context, tag string) (bool, error) {
+	if err := r.failure(methodRemoteHasTag); err != nil {
+		return false, err
+	}
+	_, hasTag := r.remoteTags[tag]
+	return hasTag, nil
+}
+
+// RemoteTagType returns the tag's object type from remoteTags.
+func (r memRepo) RemoteTagType(_ context.Context, tag string) (string, error) {
+	if err := r.failure(methodRemoteTagType); err != nil {
+		return "", err
+	}
+	kind, hasTag := r.remoteTags[tag]
+	if !hasTag {
+		return "", fmt.Errorf("origin has no tag %s", tag)
+	}
+	return kind, nil
+}
+
+// ReleaseAssets returns the release's assets from releases.
+func (r memRepo) ReleaseAssets(_ context.Context, tag string) ([]string, bool, error) {
+	if err := r.failure(methodReleaseAssets); err != nil {
+		return nil, false, err
+	}
+	assets, isFound := r.releases[tag]
+	return slices.Clone(assets), isFound, nil
 }
 
 // resolve turns the symbolic names into commits.

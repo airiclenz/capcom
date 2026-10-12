@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -36,6 +37,27 @@ type repo interface {
 	// CommitFile writes content to the checkout's path, keeping the file's mode when it exists,
 	// stages that one path by name — never every change — and commits it with subject.
 	CommitFile(ctx context.Context, path string, content []byte, subject string) error
+	// CountCommits returns how many commits revisionRange holds: `<tag>..HEAD`, or HEAD for the
+	// whole history.
+	CountCommits(ctx context.Context, revisionRange string) (int, error)
+	// LatestRelease returns the latest published GitHub release, and false while none is
+	// published.
+	LatestRelease(ctx context.Context) (githubRelease, bool, error)
+	// RemoteHasTag reports whether origin holds tag.
+	RemoteHasTag(ctx context.Context, tag string) (bool, error)
+	// RemoteTagType returns the type of the object GitHub's tag ref points at: "tag" for an
+	// annotated tag, "commit" for a lightweight one.
+	RemoteTagType(ctx context.Context, tag string) (string, error)
+	// ReleaseAssets returns the names of the GitHub release's fully uploaded assets — an asset in
+	// any other state is a failed or unfinished upload, not one the release carries — and false
+	// when there is no release for tag.
+	ReleaseAssets(ctx context.Context, tag string) ([]string, bool, error)
+}
+
+// githubRelease is a published GitHub release: its tag and when it was published.
+type githubRelease struct {
+	Tag       string
+	Published string
 }
 
 // repoOpener opens the repo for the checkout at dir. newRootCommand hands one to every verb's run
@@ -191,4 +213,82 @@ func (r execRepo) CommitFile(ctx context.Context, path string, content []byte, s
 		return fmt.Errorf("commit %q: %w", subject, err)
 	}
 	return nil
+}
+
+// CountCommits counts with `git rev-list --count`.
+func (r execRepo) CountCommits(ctx context.Context, revisionRange string) (int, error) {
+	output, err := r.git(ctx, "rev-list", "--count", revisionRange)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(output))
+}
+
+// LatestRelease asks `gh release view` with no tag, which answers with the latest published
+// release, or fails with "release not found" while none is.
+func (r execRepo) LatestRelease(ctx context.Context) (githubRelease, bool, error) {
+	output, err := r.remote(ctx, "gh", "release", "view", "--repo", capcomRepo, "--json", "tagName,publishedAt")
+	if isReleaseNotFound(err) {
+		return githubRelease{}, false, nil
+	}
+	if err != nil {
+		return githubRelease{}, false, err
+	}
+	var release struct {
+		TagName     string `json:"tagName"`
+		PublishedAt string `json:"publishedAt"`
+	}
+	if err := json.Unmarshal([]byte(output), &release); err != nil {
+		return githubRelease{}, false, fmt.Errorf("parse gh release view output: %w", err)
+	}
+	if release.TagName == "" {
+		return githubRelease{}, false, errors.New("gh release view named no latest release")
+	}
+	return githubRelease{Tag: release.TagName, Published: release.PublishedAt}, true, nil
+}
+
+// RemoteHasTag asks `git ls-remote --tags` for the one tag ref: a missing tag prints nothing.
+func (r execRepo) RemoteHasTag(ctx context.Context, tag string) (bool, error) {
+	listed, err := r.remote(ctx, "git", "ls-remote", "--tags", remoteName, "refs/tags/"+tag)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(listed) != "", nil
+}
+
+// RemoteTagType reads the tag ref's object type from the GitHub API.
+func (r execRepo) RemoteTagType(ctx context.Context, tag string) (string, error) {
+	kind, err := r.remote(ctx, "gh", "api", "repos/"+capcomRepo+"/git/ref/tags/"+tag, "--jq", ".object.type")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(kind), nil
+}
+
+// ReleaseAssets reads the release's assets and their states with `gh release view <tag>`.
+func (r execRepo) ReleaseAssets(ctx context.Context, tag string) ([]string, bool, error) {
+	output, err := r.remote(ctx, "gh", "release", "view", tag, "--repo", capcomRepo, "--json", "assets")
+	if isReleaseNotFound(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	var release struct {
+		Assets []struct {
+			Name  string `json:"name"`
+			State string `json:"state"`
+		} `json:"assets"`
+	}
+	if err := json.Unmarshal([]byte(output), &release); err != nil {
+		return nil, false, fmt.Errorf("parse gh release view output: %w", err)
+	}
+
+	uploaded := make([]string, 0, len(release.Assets))
+	for _, asset := range release.Assets {
+		if asset.State == "uploaded" {
+			uploaded = append(uploaded, asset.Name)
+		}
+	}
+	return uploaded, true, nil
 }

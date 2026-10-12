@@ -917,7 +917,10 @@ cmd/release/main.go — newRootCommand; cmd/release/main_test.go — execute
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./cmd/release/`
 **Commit:** `refactor(release): prepare on the repo seam`
 
-## 35. release: status and own-repo probes on the repo seam
+## 35. release: status and own-repo probes on the repo seam — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): repo gains CountCommits, LatestRelease (returns a new githubRelease{Tag, Published} plus an isPublished bool; named githubRelease because smoke_test.go already declares a publishedRelease helper), RemoteHasTag, RemoteTagType and ReleaseAssets. readReleaseAssets is deleted, not re-typed: its body became execRepo.ReleaseAssets, and probeRelease and publish.go's convergeRelease call the repo directly. readBaseline/countBaseline take the repo; the gh-output parsing and the "named no latest release" check moved into execRepo.LatestRelease. highestReleaseTag keeps its string signature (version.go is not in Files), so status passes it strings.Join(tags, "\n") the way prepare does.
+NOTES (2026-10-12): stepProbe is now func(ctx, probeEnv, version), and probeEnv is {repo, commands, dir}: tag and release read through repo, while homebrew, scoop and winget stay on commands/dir (the tap/bucket/winget seam is out of scope). Behaviour change from the seam's own rules: the probes' ls-remote, tag-type `gh api` and `gh release view`, and status's `gh release view`, now run with nonInteractiveEnv (before, none), and both `gh release view` calls name `--repo airiclenz/capcom`. fakeRepo's latest-release match and fakeRemote's assets match learned the `--repo` argv; fakeRepo's release/tags/count cases now serve no test but stay until item 39. Status tests run over memRepo (count map, latest release, tags) plus fakeRemote for the channel probes; the "gh cannot run" case became separate LatestRelease / ReleaseTags / CountCommits failures, and the no-probe case now asserts the runner is never called. The half-uploaded-asset case moved from the probe table to execRepo's ReleaseAssets argv test; a probe case for a tag of another object type was added.
 
 **What:**
 **Goal:** status (`ReleaseTags`, `CountCommits`, `LatestRelease`) and the own-repo probes

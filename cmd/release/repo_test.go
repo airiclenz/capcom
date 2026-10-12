@@ -124,6 +124,61 @@ func TestExecRepoRunsEachMethodsArgv(t *testing.T) {
 			want:     []string{},
 			wantCall: recordedCall{name: "git", args: []string{"tag", "--list", "v*"}},
 		},
+		"CountCommits": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.CountCommits(ctx, "v0.24.11..HEAD")
+			},
+			output:   "7\n",
+			want:     7,
+			wantCall: recordedCall{name: "git", args: []string{"rev-list", "--count", "v0.24.11..HEAD"}},
+		},
+		"LatestRelease": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				release, isPublished, err := checkout.LatestRelease(ctx)
+				return []any{release, isPublished}, err
+			},
+			output: `{"publishedAt":"2026-10-08T19:24:24Z","tagName":"v0.24.11"}` + "\n",
+			want:   []any{githubRelease{Tag: "v0.24.11", Published: "2026-10-08T19:24:24Z"}, true},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh",
+				args: []string{"release", "view", "--repo", "airiclenz/capcom", "--json", "tagName,publishedAt"}},
+		},
+		"RemoteHasTag with the tag": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.RemoteHasTag(ctx, "v0.24.11")
+			},
+			output: "81eec1b3ac7d27f7ef38fe2368b59b89cbd8832b\trefs/tags/v0.24.11\n",
+			want:   true,
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "git",
+				args: []string{"ls-remote", "--tags", "origin", "refs/tags/v0.24.11"}},
+		},
+		"RemoteHasTag without it": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.RemoteHasTag(ctx, "v0.24.11")
+			},
+			want: false,
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "git",
+				args: []string{"ls-remote", "--tags", "origin", "refs/tags/v0.24.11"}},
+		},
+		"RemoteTagType": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.RemoteTagType(ctx, "v0.24.11")
+			},
+			output: "tag\n",
+			want:   "tag",
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh",
+				args: []string{"api", "repos/airiclenz/capcom/git/ref/tags/v0.24.11", "--jq", ".object.type"}},
+		},
+		"ReleaseAssets keeps only the uploaded ones": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				assets, isFound, err := checkout.ReleaseAssets(ctx, "v0.24.11")
+				return []any{assets, isFound}, err
+			},
+			output: `{"assets":[{"name":"capcom_0.24.11_linux_amd64.tar.gz","state":"uploaded"},` +
+				`{"name":"SHA256SUMS","state":"starter"}]}` + "\n",
+			want: []any{[]string{"capcom_0.24.11_linux_amd64.tar.gz"}, true},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh",
+				args: []string{"release", "view", "v0.24.11", "--repo", "airiclenz/capcom", "--json", "assets"}},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -165,6 +220,28 @@ func TestExecRepoTellsANoFromABrokenCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("LatestRelease release not found is none published", func(t *testing.T) {
+		t.Parallel()
+		checkout := execRepo{commands: answering("", errors.New(ghNoRelease)), dir: "."}
+
+		release, isPublished, err := checkout.LatestRelease(t.Context())
+
+		if err != nil || isPublished || release != (githubRelease{}) {
+			t.Errorf("LatestRelease = %+v, %t, %v; want none, false, nil", release, isPublished, err)
+		}
+	})
+
+	t.Run("ReleaseAssets release not found is no release", func(t *testing.T) {
+		t.Parallel()
+		checkout := execRepo{commands: answering("", errors.New(ghNoRelease)), dir: "."}
+
+		assets, isFound, err := checkout.ReleaseAssets(t.Context(), "v0.24.11")
+
+		if err != nil || isFound || assets != nil {
+			t.Errorf("ReleaseAssets = %q, %t, %v; want nil, false, nil", assets, isFound, err)
+		}
+	})
+
 	cases := map[string]struct {
 		call      func(ctx context.Context, checkout execRepo) error
 		output    string
@@ -201,6 +278,46 @@ func TestExecRepoTellsANoFromABrokenCommand(t *testing.T) {
 			},
 			output:    "not json",
 			wantError: "parse gh run list output",
+		},
+		"CountCommits printing no number": {
+			call: func(ctx context.Context, checkout execRepo) error {
+				_, err := checkout.CountCommits(ctx, "HEAD")
+				return err
+			},
+			output:    "\n",
+			wantError: "invalid syntax",
+		},
+		"LatestRelease when gh fails otherwise": {
+			call: func(ctx context.Context, checkout execRepo) error {
+				_, _, err := checkout.LatestRelease(ctx)
+				return err
+			},
+			err:       errors.New(ghNotFound),
+			wantError: "(HTTP 404)",
+		},
+		"LatestRelease with output that is not JSON": {
+			call: func(ctx context.Context, checkout execRepo) error {
+				_, _, err := checkout.LatestRelease(ctx)
+				return err
+			},
+			output:    "not json",
+			wantError: "parse gh release view output",
+		},
+		"LatestRelease naming no tag": {
+			call: func(ctx context.Context, checkout execRepo) error {
+				_, _, err := checkout.LatestRelease(ctx)
+				return err
+			},
+			output:    "{}\n",
+			wantError: "gh release view named no latest release",
+		},
+		"ReleaseAssets with output that is not JSON": {
+			call: func(ctx context.Context, checkout execRepo) error {
+				_, _, err := checkout.ReleaseAssets(ctx, "v0.24.11")
+				return err
+			},
+			output:    "not json",
+			wantError: "parse gh release view output",
 		},
 		"IsClean when git fails": {
 			call: func(ctx context.Context, checkout execRepo) error {

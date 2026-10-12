@@ -45,7 +45,8 @@ type fakeRemote struct {
 	// tagObject is the type of the version's tag on origin: "" for no tag, "tag" for an
 	// annotated one, "commit" for a lightweight one.
 	tagObject string
-	// release is what `gh release view <tag> --json assets` prints, "" for no release.
+	// release is what `gh release view <tag> --repo airiclenz/capcom --json assets` prints, ""
+	// for no release.
 	release string
 	// hasTap is whether the tap repository exists; formula is its formula, "" for none.
 	hasTap  bool
@@ -83,7 +84,8 @@ func (r fakeRemote) respond(call recordedCall) (string, error) {
 			return fail(ghNotFound)
 		}
 		return r.tagObject + "\n", nil
-	case call.name == "gh" && len(args) == 5 && args[0] == "release" && args[1] == "view" && args[4] == "assets":
+	case call.name == "gh" && len(args) == 7 && args[0] == "release" && args[1] == "view" &&
+		args[3] == "--repo" && args[4] == capcomRepo && args[6] == "assets":
 		if r.release == "" {
 			return fail(ghNoRelease)
 		}
@@ -191,33 +193,36 @@ func TestReleaseAssetNamesMatchAPublishedRelease(t *testing.T) {
 	}
 }
 
-// TestProbesReportEachState pins every probe's done, pending, setup-pending and unknown branches
-// over canned remote answers.
+// TestProbesReportEachState pins every probe's done, pending, setup-pending and unknown branches:
+// the tag and release probes over the state a memRepo holds, the channel probes over canned
+// remote answers.
 func TestProbesReportEachState(t *testing.T) {
 	t.Parallel()
 
-	sixAssets := releaseJSON("uploaded", releaseAssetsV02411[:6]...)
-	allAssets := releaseJSON("uploaded", releaseAssetsV02411...)
-	halfUploaded := strings.Replace(allAssets, `"name":"SHA256SUMS","state":"uploaded"`, `"name":"SHA256SUMS","state":"starter"`, 1)
+	annotated := map[string]string{"v0.24.11": gitObjectTag}
+	lightweight := map[string]string{"v0.24.11": "commit"}
+	sixAssets := map[string][]string{"v0.24.11": releaseAssetsV02411[:6]}
+	allAssets := map[string][]string{"v0.24.11": releaseAssetsV02411}
 	olderFormula := strings.Replace(testFormula, `version "0.24.11"`, `version "0.24.10"`, 1)
 
 	cases := map[string]struct {
 		probe      stepProbe
+		repo       memRepo
 		remote     fakeRemote
 		version    string
 		wantState  stepState
 		wantDetail string
 	}{
 		"tag absent":            {probe: probeTag, wantState: statePending, wantDetail: "origin has no tag v0.24.11"},
-		"tag annotated":         {probe: probeTag, remote: fakeRemote{tagObject: "tag"}, wantState: stateDone, wantDetail: "annotated tag v0.24.11"},
-		"tag lightweight":       {probe: probeTag, remote: fakeRemote{tagObject: "commit"}, wantState: stateUnknown, wantDetail: "lightweight tag"},
-		"tag ls-remote fails":   {probe: probeTag, remote: fakeRemote{tagObject: "tag", failing: "git ls-remote"}, wantState: stateUnknown, wantDetail: "could not list origin's tags"},
-		"tag type unreadable":   {probe: probeTag, remote: fakeRemote{tagObject: "tag", failing: "gh api"}, wantState: stateUnknown, wantDetail: "could not read the type of tag v0.24.11"},
+		"tag annotated":         {probe: probeTag, repo: memRepo{remoteTags: annotated}, wantState: stateDone, wantDetail: "annotated tag v0.24.11"},
+		"tag lightweight":       {probe: probeTag, repo: memRepo{remoteTags: lightweight}, wantState: stateUnknown, wantDetail: "lightweight tag"},
+		"tag listing fails":     {probe: probeTag, repo: memRepo{remoteTags: annotated, failing: methodRemoteHasTag}, wantState: stateUnknown, wantDetail: "could not list origin's tags"},
+		"tag type unreadable":   {probe: probeTag, repo: memRepo{remoteTags: annotated, failing: methodRemoteTagType}, wantState: stateUnknown, wantDetail: "could not read the type of tag v0.24.11"},
+		"tag of another object": {probe: probeTag, repo: memRepo{remoteTags: map[string]string{"v0.24.11": "tree"}}, wantState: stateUnknown, wantDetail: `points at a "tree" object`},
 		"release absent":        {probe: probeRelease, wantState: statePending, wantDetail: "no GitHub release v0.24.11"},
-		"release 6 of 7 assets": {probe: probeRelease, remote: fakeRemote{release: sixAssets}, wantState: statePending, wantDetail: "lacks 1 of its 7 assets: SHA256SUMS"},
-		"release half-uploaded": {probe: probeRelease, remote: fakeRemote{release: halfUploaded}, wantState: statePending, wantDetail: "lacks 1 of its 7 assets: SHA256SUMS"},
-		"release complete":      {probe: probeRelease, remote: fakeRemote{release: allAssets}, wantState: stateDone, wantDetail: "all 7 assets"},
-		"release unreadable":    {probe: probeRelease, remote: fakeRemote{release: allAssets, failing: "gh release"}, wantState: stateUnknown, wantDetail: "could not read GitHub release v0.24.11"},
+		"release 6 of 7 assets": {probe: probeRelease, repo: memRepo{releases: sixAssets}, wantState: statePending, wantDetail: "lacks 1 of its 7 assets: SHA256SUMS"},
+		"release complete":      {probe: probeRelease, repo: memRepo{releases: allAssets}, wantState: stateDone, wantDetail: "all 7 assets"},
+		"release unreadable":    {probe: probeRelease, repo: memRepo{releases: allAssets, failing: methodReleaseAssets}, wantState: stateUnknown, wantDetail: "could not read GitHub release v0.24.11"},
 		"tap repo absent":       {probe: probeHomebrew, wantState: stateSetupPending, wantDetail: "no airiclenz/homebrew-tap repository yet"},
 		"formula absent":        {probe: probeHomebrew, remote: fakeRemote{hasTap: true}, wantState: statePending, wantDetail: "has no Formula/capcom.rb"},
 		"formula older":         {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: olderFormula}, wantState: statePending, wantDetail: `formula pins "0.24.10", not 0.24.11`},
@@ -245,7 +250,7 @@ func TestProbesReportEachState(t *testing.T) {
 			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.1 manifest"},
 		"winget pull requests unreadable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), failing: "gh pr list"},
 			wantState: stateUnknown, wantDetail: "could not list the open microsoft/winget-pkgs pull requests"},
-		"smoke": {probe: probeSmoke, remote: fakeRemote{tagObject: "tag", release: allAssets}, wantState: statePending, wantDetail: "publish runs it last"},
+		"smoke": {probe: probeSmoke, repo: memRepo{remoteTags: annotated, releases: allAssets}, wantState: statePending, wantDetail: "publish runs it last"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -255,7 +260,9 @@ func TestProbesReportEachState(t *testing.T) {
 				version = "v0.24.11"
 			}
 
-			step := tc.probe(t.Context(), tc.remote.runner(), ".", mustVersion(t, version))
+			env := probeEnv{repo: tc.repo, commands: tc.remote.runner(), dir: "."}
+
+			step := tc.probe(t.Context(), env, mustVersion(t, version))
 
 			if step.State != tc.wantState || !strings.Contains(step.Detail, tc.wantDetail) {
 				t.Errorf("step = %s %q, want %s containing %q", step.State, step.Detail, tc.wantState, tc.wantDetail)
@@ -268,7 +275,9 @@ func TestProbesReportEachState(t *testing.T) {
 func TestProbeStepsRunsEveryStepInPublishOrder(t *testing.T) {
 	t.Parallel()
 
-	steps := probeSteps(t.Context(), fakeRemote{}.runner(), ".", mustVersion(t, "v0.24.14"))
+	env := probeEnv{repo: memRepo{}, commands: fakeRemote{}.runner(), dir: "."}
+
+	steps := probeSteps(t.Context(), env, mustVersion(t, "v0.24.14"))
 
 	var names []string
 	for _, step := range steps {
@@ -281,14 +290,17 @@ func TestProbeStepsRunsEveryStepInPublishOrder(t *testing.T) {
 }
 
 // TestProbesNeverReadAFailedCallAsDone pins that a probe whose every command cannot run — gh
-// missing, git unauthenticated — reports unknown, never done (smoke, which runs nothing, aside).
+// missing, git unauthenticated — reports unknown, never done (smoke, which runs nothing, aside):
+// capcom's own repository is the production execRepo over the same failing runner.
 func TestProbesNeverReadAFailedCallAsDone(t *testing.T) {
 	t.Parallel()
 	commands := &fakeRunner{respond: func(recordedCall) (string, error) {
 		return "", errors.New(`exec: "gh": executable file not found in $PATH`)
 	}}
 
-	for _, step := range probeSteps(t.Context(), commands, ".", mustVersion(t, "v0.24.11")) {
+	env := probeEnv{repo: execRepo{commands: commands, dir: "."}, commands: commands, dir: "."}
+
+	for _, step := range probeSteps(t.Context(), env, mustVersion(t, "v0.24.11")) {
 		if step.Name == stepSmoke {
 			continue
 		}

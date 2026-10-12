@@ -35,8 +35,8 @@ type fakeCommit struct {
 
 // fakeRepo answers the gate's and the baseline's commands the way git and gh would over a
 // checkout whose history is commits, and hands the publish-step probes' commands to remote. It
-// stays in step with execRepo's argv for the status and publish tests, which still drive the
-// gate through the runner; the gate's own tests run over memRepo.
+// stays in step with execRepo's argv for the publish tests, which still drive the gate and the
+// tag and release probes through the runner; the gate's and status's own tests run over memRepo.
 type fakeRepo struct {
 	commits    map[string]fakeCommit
 	head       string
@@ -117,7 +117,7 @@ func (r fakeRepo) respond(call recordedCall) (string, error) {
 			return `[{"databaseId":38131086119}]` + "\n", nil
 		}
 		return "[]\n", nil
-	case command == "gh release view --json tagName,publishedAt":
+	case command == "gh release view --repo "+capcomRepo+" --json tagName,publishedAt":
 		if r.release == "" {
 			return "", fmt.Errorf("%s: %s", command, ghNoRelease)
 		}

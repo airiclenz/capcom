@@ -235,10 +235,11 @@ func (r *publishRun) converge(ctx context.Context, gate string, steps []stepRepo
 
 // probe asks the remote where each of publish's steps stands, in publish order.
 func (r *publishRun) probe(ctx context.Context) []stepReport {
+	env := probeEnv{repo: r.repo, commands: r.commands, dir: r.options.dir}
 	steps := make([]stepReport, 0, len(publishActions))
 	for _, action := range publishActions {
 		index := slices.IndexFunc(publishSteps, func(step publishStep) bool { return step.name == action.name })
-		steps = append(steps, publishSteps[index].probe(ctx, r.commands, r.options.dir, r.version))
+		steps = append(steps, publishSteps[index].probe(ctx, env, r.version))
 	}
 	return steps
 }
@@ -407,7 +408,7 @@ func describeRelease(run *publishRun) string {
 func convergeRelease(ctx context.Context, run *publishRun) error {
 	dir := run.options.dir
 	tag := run.version.String()
-	uploaded, isFound, err := readReleaseAssets(ctx, run.commands, dir, run.version)
+	uploaded, isFound, err := run.repo.ReleaseAssets(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("read GitHub release %s: %w", tag, err)
 	}
