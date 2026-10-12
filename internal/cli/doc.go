@@ -11,7 +11,7 @@
 //   - `check.go` — capcom check: validates every config, issue and Note file of the store
 //   - `close.go` — capcom close and capcom reopen, each recording why
 //   - `create.go` — capcom create: writes a new issue file under the caller's id
-//   - `dep.go` — capcom dep add, rm and list: the dependencies between issues
+//   - `dep.go` — capcom dep add, rm, list and graph: the dependencies between issues
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — the typed Error, its Codes and their exit codes
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form

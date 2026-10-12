@@ -327,3 +327,97 @@ func TestDepRm_DuplicatedDep_FailsNamingBothFilesAndWritesNothing(t *testing.T) 
 	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
 	assertIssueFilesUnchanged(t, root, files)
 }
+
+func TestDepGraph_NoID_PrintsTheFlowchartOfTheIssuesNotClosed(t *testing.T) {
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "deps: [gone-issue]\n", ""),
+	})
+
+	stdout := mustRun(t, root, "dep", "graph")
+
+	want := "flowchart LR\n" +
+		"    n1[\"build-pipeline (open)\"]\n" +
+		"    n2[\"db-schema (open)\"]\n" +
+		"    n3[\"login-flow (open)\"]\n" +
+		"    n2 --> n1\n"
+	if stdout != want {
+		t.Errorf("stdout = %q\nwant     %q", stdout, want)
+	}
+}
+
+func TestDepGraph_IDAndAll_LimitTheNodes(t *testing.T) {
+	root := newDepStore(t)
+	mustRun(t, root, "dep", "add", "db-schema", "release-notes")
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "an id keeps the issues it reaches, closed ones left out",
+			args: []string{"apogee-kk0.4"},
+			want: "flowchart LR\n" +
+				"    n1[\"build-pipeline (open)\"]\n" +
+				"    n2[\"db-schema (open)\"]\n" +
+				"    n2 --> n1\n",
+		},
+		{
+			name: "all adds the closed dependency",
+			args: []string{"db-schema", "--all"},
+			want: "flowchart LR\n" +
+				"    n1[\"build-pipeline (open)\"]\n" +
+				"    n2[\"db-schema (open)\"]\n" +
+				"    n3[\"release-notes (done)\"]\n" +
+				"    n2 --> n1\n" +
+				"    n3 --> n2\n",
+		},
+		{
+			name: "a closed issue named by id is a node",
+			args: []string{"release-notes"},
+			want: "flowchart LR\n" +
+				"    n1[\"build-pipeline (open)\"]\n" +
+				"    n2[\"db-schema (open)\"]\n" +
+				"    n3[\"release-notes (done)\"]\n" +
+				"    n2 --> n1\n" +
+				"    n3 --> n2\n",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			stdout := mustRun(t, root, append([]string{"dep", "graph"}, testCase.args...)...)
+
+			if stdout != testCase.want {
+				t.Errorf("stdout = %q\nwant     %q", stdout, testCase.want)
+			}
+		})
+	}
+}
+
+func TestDepGraph_JSON_ListsNodesAndEdges(t *testing.T) {
+	root := newDepStore(t)
+
+	stdout := mustRun(t, root, "dep", "graph", "--json", "build-pipeline")
+
+	envelope := decodeEnvelope(t, stdout)
+	data, _ := envelope["data"].(map[string]any)
+	nodes, _ := data["nodes"].([]any)
+	var gotNodes []string
+	for _, item := range nodes {
+		fields := item.(map[string]any)
+		gotNodes = append(gotNodes,
+			fmt.Sprintf("%v/%v/%v/%v", fields["id"], fields["status"], fields["category"], fields["title"]))
+	}
+	edges, _ := data["edges"].([]any)
+	var gotEdges []string
+	for _, item := range edges {
+		fields := item.(map[string]any)
+		gotEdges = append(gotEdges, fmt.Sprintf("%v->%v", fields["dependent"], fields["dependency"]))
+	}
+	wantNodes := []string{"build-pipeline/open/todo/Build pipeline", "db-schema/open/todo/Schema"}
+	wantEdges := []string{"build-pipeline->db-schema"}
+	if envelope["kind"] != "dep-graph" || !slices.Equal(gotNodes, wantNodes) || !slices.Equal(gotEdges, wantEdges) {
+		t.Errorf("kind = %v nodes = %v edges = %v, want dep-graph %v %v",
+			envelope["kind"], gotNodes, gotEdges, wantNodes, wantEdges)
+	}
+}

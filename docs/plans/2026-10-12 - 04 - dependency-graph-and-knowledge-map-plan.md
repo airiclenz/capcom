@@ -323,7 +323,11 @@ internal/cli/read_test.go — newReadStore, TestList_NoArgs_ListsOpenIssuesInden
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run List`
 **Commit:** `feat(list): add --tree for the issue outline`
 
-## 11. dep graph prints a Mermaid flowchart
+## 11. dep graph prints a Mermaid flowchart — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): with an id, the walk runs through closed issues (unlimited `Walk` both ways) and closed issues are then dropped unless `--all`; the named issue itself is always a node, even when closed, so `dep graph <closed-id>` is never an empty chart.
+NOTES (2026-10-12): edges are ordered by dependent in tree order, then by the file's order of its deps, each edge once; node numbering starts at n1.
+NOTES (2026-10-12): internal/cli/dep.go is now 452 lines, past the ~400-line guideline; kept in one file as the plan's Files line names it.
 
 **What:**
 **Goal:** `capcom dep graph [<id>]` prints a Mermaid flowchart: `flowchart LR`, one node per issue
