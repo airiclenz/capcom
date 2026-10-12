@@ -188,7 +188,7 @@ internal/lock/lock_test.go — TestTouch_FreeLock_FailsNotHeld; internal/cli/loc
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Lock`
 **Commit:** `fix(lock): touch on a free lock names its worktree`
 
-## 5. Pin that prime leaves index warnings to the check count
+## 5. Pin that prime leaves index warnings to the check count — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** a test pins that `capcom prime` prints no `warning:` line for a broken issue file while

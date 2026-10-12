@@ -194,6 +194,23 @@ func TestPrime_GarbageIndex_ExitsZeroWithOneWarningLine(t *testing.T) {
 	}
 }
 
+func TestPrime_UnparseableIssue_CountsItInCheckWithoutAWarningLine(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"valid-issue.md":  validIssue,
+		"broken-issue.md": "no frontmatter here\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+	warnings := regexp.MustCompile(`(?m)^warning: `).FindAllString(stdout, -1)
+	if exitCode != ExitOK || stderr != "" || len(warnings) != 0 {
+		t.Errorf("prime = %d, stderr %q, stdout:\n%s\nwant 0 and no warning line", exitCode, stderr, stdout)
+	}
+	if !strings.Contains(stdout, "check: 1 problem; run capcom check\n") {
+		t.Errorf("stdout:\n%s\nwant the broken issue counted in the check line", stdout)
+	}
+}
+
 func TestPrime_WithoutStore_ExitsZeroWithAWarning(t *testing.T) {
 	root := newGitRepo(t)
 

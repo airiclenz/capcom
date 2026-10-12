@@ -108,6 +108,9 @@ func (a *app) briefIssues(b *briefing) {
 			b.warn("index", err)
 		}
 	}()
+	// The Refresh report is discarded on purpose: its warnings name files the index left out,
+	// and briefCheck already counts each of them in "check: N problems". Repeating them here
+	// would flood the session start with one line per broken file.
 	if _, err := opened.Refresh(); err != nil {
 		b.warn("index", fmt.Errorf("%w; run capcom reindex", err))
 		return
