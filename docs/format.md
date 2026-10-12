@@ -33,7 +33,7 @@ The directory tree is the hierarchy (ADR 0001). The same rules hold in `issues/`
 
 ### Ids
 
-An id is a kebab-case slug of two to four words of `a-z` and `0-9`, joined by single hyphens, at
+An id is a kebab-case slug of one to four words of `a-z` and `0-9`, joined by single hyphens, at
 most 40 characters long (`login-timeout-race`). The author always chooses it; capcom never
 generates one, and there is no project prefix (ADR 0002). An id is unique across the whole tree,
 whatever directory it sits in.

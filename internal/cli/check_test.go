@@ -28,7 +28,7 @@ func TestCheck_Problems_ListedOnePerLineAndExitOne(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "check")
 
-	want := ".capcom/issues/Bad_Name.md: invalid id \"Bad_Name\": must be 2 to 4 words of a-z and 0-9 joined by single hyphens\n" +
+	want := ".capcom/issues/Bad_Name.md: invalid id \"Bad_Name\": must be 1 to 4 words of a-z and 0-9 joined by single hyphens\n" +
 		".capcom/issues/other-issue.md:6: dependency \"no-such-issue\" names no issue by id or by an alias only one issue has\n" +
 		".capcom/issues/valid-issue.md:4: type \"epic\" is not declared in config; use one of [bug feature task chore]\n"
 	if exitCode != ExitError || stdout != want || stderr != "" {

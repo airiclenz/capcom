@@ -190,6 +190,20 @@ func TestKnowAdd_Nested_WritesTheNoteBelowItsParent(t *testing.T) {
 	}
 }
 
+func TestKnowAdd_OneWordID_Writes(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "turn", "--title", "Turn")
+
+	if exitCode != ExitOK {
+		t.Fatalf("know add exit = %d\n%s%s", exitCode, stdout, stderr)
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".capcom", "knowledge", "turn.md"))
+	if want := "---\ntitle: Turn\n---\n"; err != nil || string(data) != want {
+		t.Errorf("turn.md = %q, %v; want %q", data, err, want)
+	}
+}
+
 func TestKnowAdd_RefusedInputs_FailWithoutWriting(t *testing.T) {
 	root := newKnowStore(t)
 	cases := []struct {
@@ -199,7 +213,7 @@ func TestKnowAdd_RefusedInputs_FailWithoutWriting(t *testing.T) {
 		{[]string{"--id", "cli-tests", "--title", "Again"}, ExitError},
 		{[]string{"--id", "release-flow", "--title", "Clashes with the note, not the issue"}, ExitError},
 		{[]string{"--id", "escaping-ref", "--title", "Out", "--ref", "../outside.go"}, ExitError},
-		{[]string{"--id", "bad", "--title", "Short id"}, ExitError},
+		{[]string{"--id", "fix-the-login-timeout-race", "--title", "Five-word id"}, ExitError},
 		{[]string{"--id", "orphan-note", "--title", "Orphan", "--parent", "absent-note"}, ExitNotFound},
 	}
 

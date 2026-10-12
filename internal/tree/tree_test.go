@@ -65,7 +65,7 @@ func TestValidateID(t *testing.T) {
 		{"2026-plan", true},
 		{strings.Repeat("a", 19) + "-" + strings.Repeat("b", 20), true},
 		{strings.Repeat("a", 20) + "-" + strings.Repeat("b", 20), false},
-		{"login", false},
+		{"login", true},
 		{"fix-the-login-timeout-race", false},
 		{"Login-flow", false},
 		{"login--flow", false},
@@ -219,7 +219,7 @@ func TestWalk_DirectoryProblems_WordedAndLeftOut(t *testing.T) {
 	want := map[string]string{
 		filepath.Join(dir, "Bad_Name"): "directory left out: its node file Bad_Name.md has an invalid id",
 		filepath.Join(dir, "Bad_Name.md"): `invalid id "Bad_Name": ` +
-			"must be 2 to 4 words of a-z and 0-9 joined by single hyphens",
+			"must be 1 to 4 words of a-z and 0-9 joined by single hyphens",
 		filepath.Join(dir, "orphan-dir"): "directory without its node file: no orphan-dir.md beside it; left out",
 	}
 	got := map[string]string{}

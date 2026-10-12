@@ -53,7 +53,7 @@ func (a *app) newCreateCommand() *cobra.Command {
 		}),
 	}
 	flags := cmd.Flags()
-	flags.StringVar(&options.id, flagID, "", "the new issue's id: a kebab slug of 2 to 4 words (required)")
+	flags.StringVar(&options.id, flagID, "", "the new issue's id: a kebab slug of 1 to 4 words (required)")
 	flags.StringVar(&options.title, flagTitle, "", "the issue's title (required)")
 	flags.StringVar(&options.parent, flagParent, "", "create the issue below this one")
 	flags.StringVar(&options.issueType, flagType, "", "the issue's type (default task, or the first configured type)")

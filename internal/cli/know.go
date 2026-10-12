@@ -280,7 +280,7 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 		}),
 	}
 	flags := cmd.Flags()
-	flags.StringVar(&options.id, flagID, "", "the new note's id: a kebab slug of 2 to 4 words (required)")
+	flags.StringVar(&options.id, flagID, "", "the new note's id: a kebab slug of 1 to 4 words (required)")
 	flags.StringVar(&options.title, flagTitle, "", "the note's title (required)")
 	flags.StringVar(&options.parent, flagParent, "", "add the note below this one")
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "labels; repeat or separate with commas")

@@ -282,7 +282,7 @@ func TestRun_DirectoryProblems_WordedAsTheIndexWarnsThem(t *testing.T) {
 		check.CodeOrphanDirectory + " " + issues +
 			"Bad_Name: directory left out: its node file Bad_Name.md has an invalid id",
 		check.CodeInvalidID + " " + issues + `Bad_Name.md: invalid id "Bad_Name": ` +
-			"must be 2 to 4 words of a-z and 0-9 joined by single hyphens",
+			"must be 1 to 4 words of a-z and 0-9 joined by single hyphens",
 		check.CodeOrphanDirectory + " " + issues +
 			"orphan-dir: directory without its node file: no orphan-dir.md beside it; left out",
 	}

@@ -30,13 +30,13 @@ const hiddenPrefix = "."
 const rootParentID = ""
 
 var (
-	idPattern    = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+){1,3}$`)
+	idPattern    = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+){0,3}$`)
 	aliasPattern = regexp.MustCompile(`^[a-z0-9.-]+$`)
 )
 
 // Sentinel errors, reachable through errors.Is on every error this package returns.
 var (
-	// ErrInvalidID reports an id that is not a 2-4 word kebab slug of at most 40 characters.
+	// ErrInvalidID reports an id that is not a 1-4 word kebab slug of at most 40 characters.
 	ErrInvalidID = errors.New("invalid id")
 	// ErrInvalidAlias reports an alias outside [a-z0-9.-]+.
 	ErrInvalidAlias = errors.New("invalid alias")
@@ -130,7 +130,7 @@ type Tree struct {
 	children map[string][]int
 }
 
-// ValidateID checks that id is a kebab slug of two to four lowercase words or numbers, at most 40
+// ValidateID checks that id is a kebab slug of one to four lowercase words or numbers, at most 40
 // characters long. The error wraps ErrInvalidID.
 func ValidateID(id string) error {
 	if len(id) > maxIDLength {
@@ -138,7 +138,7 @@ func ValidateID(id string) error {
 	}
 	if !idPattern.MatchString(id) {
 		return fmt.Errorf(
-			"%w %q: must be 2 to 4 words of a-z and 0-9 joined by single hyphens",
+			"%w %q: must be 1 to 4 words of a-z and 0-9 joined by single hyphens",
 			ErrInvalidID,
 			id,
 		)

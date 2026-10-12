@@ -47,7 +47,7 @@ left out of browsing, search, the Managed block and ref checks.
 - 11: guard folded
 - 11: rejected — add `grep -n 'capcom fmt --check' docs/format.md` (finding a line) to Acceptance to check the validator sentence; it already matches `docs/format.md:168` at 45d376a, so it cannot fail
 
-## 1. Ids may be one word
+## 1. Ids may be one word — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** a one-word kebab slug (`turn`, `driver`) is a valid Id for issues and Notes; five words or more, or over 40 characters, stays invalid; every message, flag help and doc states "1 to 4 words".

@@ -18,7 +18,7 @@ The file formats are in [format.md](format.md). Read it first.
 2. **Create the store.** Run `capcom init`. If the export uses statuses or types the default
    `.capcom/config.yaml` lacks (see the mapping below), declare them there now.
 3. **Choose the ids.** Build the table of beads id to capcom id first, for every issue in the
-   export, closed ones included. A capcom id is a kebab slug of two to four words of `a-z` and
+   export, closed ones included. A capcom id is a kebab slug of one to four words of `a-z` and
    `0-9`, at most 40 characters, unique in the tree, chosen from what the issue is about
    (`login-timeout-race`), never derived mechanically from the hash. The beads id becomes the
    issue's alias. A dotted beads id (`apogee-kk0.4`) is refused as an id, since a slug has no dots,

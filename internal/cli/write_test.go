@@ -112,7 +112,7 @@ func TestCreate_TakenIDOrAlias_FailsExists(t *testing.T) {
 func TestCreate_BadSlug_FailsInvalid(t *testing.T) {
 	root := newWriteStore(t)
 
-	for _, id := range []string{"single", "Upper-Case", "a-b-c-d-e", "under_score-x"} {
+	for _, id := range []string{"Upper-Case", "a-b-c-d-e", "under_score-x"} {
 		_, stderr, exitCode := runCLI(t, root, "create", "--id", id, "--title", "Bad")
 
 		if exitCode != ExitError || !strings.Contains(stderr, "invalid id") {
