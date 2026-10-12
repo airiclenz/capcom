@@ -121,6 +121,28 @@ func TestCheck_AgentsBlockWithoutInstallLine_IsStaleUntilAgentsRefreshesIt(t *te
 	}
 }
 
+func TestCheck_AgentsBlockWithoutStoreMap_IsStaleUntilAgentsRefreshesIt(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "agents")
+	storeMapParagraph := "Where things are: an issue is `.capcom/issues/<id>.md`, and its children sit in the directory\n" +
+		"`.capcom/issues/<id>/` beside it; Notes follow the same shape under `.capcom/knowledge/`.\n" +
+		"Prefer capcom commands; after a hand edit run `capcom check`.\n\n"
+	current := readAgentsGuide(t, root)
+	if !strings.Contains(current, storeMapParagraph) {
+		t.Fatalf("agents wrote a block without the store map:\n%s", current)
+	}
+	writeAgentsGuide(t, root, strings.Replace(current, storeMapParagraph, "", 1))
+
+	_, _, checkExit := runCLI(t, root, "check")
+	_, _, refreshExit := runCLI(t, root, "agents")
+	_, _, afterExit := runCLI(t, root, "check")
+
+	if checkExit != ExitError || refreshExit != ExitOK || afterExit != ExitOK || readAgentsGuide(t, root) != current {
+		t.Errorf("check = %d, agents = %d, then check = %d; want 1, 0, 0 and the block with the store map back",
+			checkExit, refreshExit, afterExit)
+	}
+}
+
 func TestAgentsCheck_NoGuideOrNoBlock_ExitsZero(t *testing.T) {
 	root := newKnowStore(t)
 

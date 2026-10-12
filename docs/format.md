@@ -520,7 +520,12 @@ write, and the record is replaced atomically.
 line of its own. The block holds a short paragraph naming capcom as the issue register of record,
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
 install instructions, https://github.com/airiclenz/capcom#install), the handful of commands an
-agent needs, and the top level of the Knowledge tree, one
+agent needs (`ready`, `show`, `create` with `--dep`, `dep add` and `dep list`, `close`,
+`list --tree --depth 2` and `know tree`), a paragraph on what an issue's body holds (what is wrong
+or wanted, why, and an `## Acceptance` section, readable on its own; the how and the order belong
+in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its children in the
+directory `.capcom/issues/<id>/` beside it, Notes the same under `.capcom/knowledge/`; prefer capcom
+commands, and run `capcom check` after a hand edit), and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
 `background` left out. It is rendered from the Note files alone, so the same tree always yields
 the same block.

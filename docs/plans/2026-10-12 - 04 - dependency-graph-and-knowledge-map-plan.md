@@ -403,7 +403,10 @@ docs/format.md`: :351-352, :515). Amend `adr-0010-rejected.md`'s "Status as labe
 `grep -n background docs/format.md` prints lines; `go run ./cmd/capcom know show background` exits 0
 **Commit:** `docs(knowledge): mark rejected ADR options as background`
 
-## 14. AGENTS block: store map, dependency commands, issue-body rule
+## 14. AGENTS block: store map, dependency commands, issue-body rule — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the issue-body paragraph is wrapped after `(## Acceptance),` to keep the block's lines near 100 columns; the rendered text is otherwise the Goal's wording verbatim.
+NOTES (2026-10-12): block_test.go also gains `preStoreMapBlock` (the block as rendered before this item) as a stale TestInspect_States case, and the tangled-marker line numbers move from 22/21 to 31/30 with the longer block; agents_test.go gains TestCheck_AgentsBlockWithoutStoreMap_IsStaleUntilAgentsRefreshesIt.
 
 **What:**
 **Goal:** the command list of the block `capcom agents` writes reads exactly:

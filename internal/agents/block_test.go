@@ -26,10 +26,19 @@ markdown files under ` + "`.capcom/`" + `, versioned with the code; track work t
 Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclenz/capcom#install.
 
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
-- ` + "`capcom show <id>`" + `: one issue in full
-- ` + "`capcom create --id <slug> --title <title>`" + `: file a new issue
-- ` + "`capcom close <id> --reason <text>`" + `: close an issue
+- ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
+- ` + "`capcom create --id <slug> --title <title> [--dep <id>]`" + `: file a new issue
+- ` + "`capcom dep add <id> <dep-id>`" + `: make an issue wait for another; ` + "`capcom dep list <id>`" + ` shows both sides
+- ` + "`capcom close <id> --reason <text>`" + `: close an issue; it names the issues this made ready
+- ` + "`capcom list --tree --depth 2`" + `: the outline of the issues
 - ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+
+An issue's body says what is wrong or wanted, why, and how to tell it is done (` + "`## Acceptance`" + `),
+readable on its own; a plan says how and in what order.
+
+Where things are: an issue is ` + "`.capcom/issues/<id>.md`" + `, and its children sit in the directory
+` + "`.capcom/issues/<id>/`" + ` beside it; Notes follow the same shape under ` + "`.capcom/knowledge/`" + `.
+Prefer capcom commands; after a hand edit run ` + "`capcom check`" + `.
 
 Knowledge tree, top level:
 
@@ -47,6 +56,29 @@ const preInstallLineBlock = `<!-- BEGIN CAPCOM -->
 
 capcom is the issue register of record for this repository. Issues and Knowledge Notes are
 markdown files under ` + "`.capcom/`" + `, versioned with the code; track work there and nowhere else.
+
+- ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
+- ` + "`capcom show <id>`" + `: one issue in full
+- ` + "`capcom create --id <slug> --title <title>`" + `: file a new issue
+- ` + "`capcom close <id> --reason <text>`" + `: close an issue
+- ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+
+Knowledge tree, top level:
+
+- ` + "`release-flow`" + `: Release flow
+- ` + "`testing-rules`" + `: Testing rules and fixtures
+<!-- END CAPCOM -->`
+
+// preStoreMapBlock is goldenBlock as capcom rendered it before the block gained the dependency
+// commands, the issue-body rule and the store map.
+const preStoreMapBlock = `<!-- BEGIN CAPCOM -->
+<!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->
+## Issues and knowledge: capcom
+
+capcom is the issue register of record for this repository. Issues and Knowledge Notes are
+markdown files under ` + "`.capcom/`" + `, versioned with the code; track work there and nowhere else.
+
+Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclenz/capcom#install.
 
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
 - ` + "`capcom show <id>`" + `: one issue in full
@@ -291,6 +323,7 @@ func TestInspect_States(t *testing.T) {
 		{"stale", Render(nil) + "\n", StateStale},
 		{"hand-edited inside", strings.Replace(goldenBlock, "most urgent", "least urgent", 1), StateStale},
 		{"without the install line", "# Guide\n\n" + preInstallLineBlock + "\n", StateStale},
+		{"before the store map", "# Guide\n\n" + preStoreMapBlock + "\n", StateStale},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -325,8 +358,8 @@ func TestInspect_TangledMarkers_FailAtTheMarkerLine(t *testing.T) {
 	}{
 		{"never closed", "# Guide\n" + BeginMarker + "\ntext\n", 2},
 		{"end first", EndMarker + "\n" + BeginMarker + "\n", 1},
-		{"second begin", goldenBlock + "\n\n" + BeginMarker + "\n", 22},
-		{"second end", goldenBlock + "\n" + EndMarker + "\n", 21},
+		{"second begin", goldenBlock + "\n\n" + BeginMarker + "\n", 31},
+		{"second end", goldenBlock + "\n" + EndMarker + "\n", 30},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
