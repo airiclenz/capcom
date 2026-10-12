@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -231,6 +232,45 @@ func TestMoveApply_SecondRenameFails_LeavesTreeUnchanged(t *testing.T) {
 	}
 	if after := snapshotDir(t, dir); !reflect.DeepEqual(after, before) {
 		t.Errorf("tree changed:\n%v\nwant\n%v", after, before)
+	}
+}
+
+func TestMoveApply_RenameFails_RestoresRewriteBytesAndMode(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "moved-node.md", "dependent-node.md")
+	dependent := filepath.Join(dir, "dependent-node.md")
+	original := []byte("a\r\nb\r\n")
+	if err := os.WriteFile(dependent, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dependent, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(dependent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	move, err := mustLoad(t, dir, nil).PlanMove("moved-node", tree.Destination{ID: "renamed-node"}, issueKind)
+	if err != nil {
+		t.Fatalf("PlanMove: %v", err)
+	}
+	move.AddRewrite(tree.Rewrite{Path: dependent, Original: original, Content: []byte("rewritten\n")})
+	tree.SetMoveRename(move, func(string, string) error { return errInjected })
+
+	err = move.Apply()
+
+	if !errors.Is(err, errInjected) {
+		t.Fatalf("Apply err = %v, want the injected failure", err)
+	}
+	if content, err := os.ReadFile(dependent); err != nil || string(content) != string(original) {
+		t.Errorf("dependent-node.md = %q %v, want %q", content, err, original)
+	}
+	after, err := os.Stat(dependent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && after.Mode().Perm() != before.Mode().Perm() {
+		t.Errorf("dependent-node.md mode = %v, want %v kept", after.Mode().Perm(), before.Mode().Perm())
 	}
 }
 

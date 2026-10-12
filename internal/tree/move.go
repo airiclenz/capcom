@@ -177,15 +177,22 @@ func RenameAliases(aliases []string, oldID string, newID string) []string {
 }
 
 // AddRewrite adds a file whose content the move replaces. Apply writes every rewrite atomically at
-// the file's current path, in the order added, before it makes any rename.
+// the file's current path, in the order added, before it makes any rename. Taking a rewrite back
+// writes Original byte for byte, CRLF included, with the permissions the file had just before
+// Apply overwrote it.
 func (m *Move) AddRewrite(rewrite Rewrite) {
+	var mode fs.FileMode
 	m.rewrites = append(m.rewrites, moveStep{
 		apply: func() error {
+			info, err := os.Stat(rewrite.Path)
+			if err != nil {
+				return err
+			}
+			mode = info.Mode()
 			return WriteFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Content))
 		},
-		// The undo writes the original bytes with LF line endings, as every atomic write does.
 		undo: func() error {
-			return WriteFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Original))
+			return WriteFileAtomicVerbatim(rewrite.Path, bytes.NewReader(rewrite.Original), mode)
 		},
 	})
 }

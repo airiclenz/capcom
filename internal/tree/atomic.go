@@ -3,6 +3,7 @@ package tree
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -17,11 +18,24 @@ const (
 const tempPattern = hiddenPrefix + "%s.tmp-*"
 
 // WriteFileAtomic replaces the file at path with everything read from content, converting CRLF
-// line endings to LF. It creates path's directory when missing, streams into a temp file in that
-// directory, fsyncs it and renames it over path, then fsyncs the directory (off Windows). Readers
-// see either the old file or the whole new one; on any failure the temp file is removed and the
-// old file is left intact. Errors name path.
+// line endings to LF, and gives it mode 0644. It creates path's directory when missing, streams
+// into a temp file in that directory, fsyncs it and renames it over path, then fsyncs the
+// directory (off Windows). Readers see either the old file or the whole new one; on any failure
+// the temp file is removed and the old file is left intact. Errors name path.
 func WriteFileAtomic(path string, content io.Reader) error {
+	return writeFileAtomic(path, content, true, filePermissions)
+}
+
+// WriteFileAtomicVerbatim replaces the file at path with everything read from content, byte for
+// byte, and gives it the permission bits of mode. It writes as atomically as WriteFileAtomic and
+// fails the same way; it is the write that puts a file back exactly as it was read.
+func WriteFileAtomicVerbatim(path string, content io.Reader, mode fs.FileMode) error {
+	return writeFileAtomic(path, content, false, mode.Perm())
+}
+
+// writeFileAtomic is the atomic write of WriteFileAtomic and WriteFileAtomicVerbatim: it converts
+// CRLF to LF when isConvertingCRLF and gives the file permissions perm.
+func writeFileAtomic(path string, content io.Reader, isConvertingCRLF bool, perm fs.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, dirPermissions); err != nil {
 		return fmt.Errorf("%s: %w", path, err)
@@ -31,7 +45,7 @@ func WriteFileAtomic(path string, content io.Reader) error {
 		return fmt.Errorf("%s: %w", path, err)
 	}
 
-	if err := fillTemp(temp, content); err != nil {
+	if err := fillTemp(temp, content, isConvertingCRLF, perm); err != nil {
 		closeErr := temp.Close()
 		removeErr := os.Remove(temp.Name())
 		return fmt.Errorf("%s: %w", path, joinNonNil(err, closeErr, removeErr))
@@ -50,19 +64,29 @@ func WriteFileAtomic(path string, content io.Reader) error {
 	return nil
 }
 
-// fillTemp copies content into temp with LF line endings, sets the final permissions and fsyncs.
-func fillTemp(temp *os.File, content io.Reader) error {
-	writer := &lfWriter{target: temp}
-	if _, err := io.Copy(writer, content); err != nil {
+// fillTemp copies content into temp, with LF line endings when isConvertingCRLF, sets the
+// permissions perm and fsyncs.
+func fillTemp(temp *os.File, content io.Reader, isConvertingCRLF bool, perm fs.FileMode) error {
+	if err := copyContent(temp, content, isConvertingCRLF); err != nil {
 		return err
 	}
-	if err := writer.flush(); err != nil {
-		return err
-	}
-	if err := temp.Chmod(filePermissions); err != nil {
+	if err := temp.Chmod(perm); err != nil {
 		return err
 	}
 	return temp.Sync()
+}
+
+// copyContent copies content into target, with LF line endings when isConvertingCRLF.
+func copyContent(target io.Writer, content io.Reader, isConvertingCRLF bool) error {
+	if !isConvertingCRLF {
+		_, err := io.Copy(target, content)
+		return err
+	}
+	writer := &lfWriter{target: target}
+	if _, err := io.Copy(writer, content); err != nil {
+		return err
+	}
+	return writer.flush()
 }
 
 // joinNonNil returns the first error wrapped, with any later cleanup errors appended to its text.

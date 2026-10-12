@@ -114,7 +114,12 @@ seam names its file relative to the worktree and its message holds no absolute w
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Mv|Move'`; `go vet ./internal/cli/`
 **Commit:** `fix(cli): mv reports worktree-relative paths`
 
-## 2. Byte-exact rollback for Move and rm
+## 2. Byte-exact rollback for Move and rm — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the raw atomic writer is exported as `tree.WriteFileAtomicVerbatim(path, content io.Reader, mode)`, since `internal/cli/rm.go` needs it; `fillTemp` takes a convert flag and the permissions, and `WriteFileAtomic` keeps its signature and behaviour
+NOTES (2026-10-12): the rewrite step and rm read the mode with `os.Stat`, not the `Lstat` the plan names: a node file may be a symlink (tree.Load accepts one), and Lstat would report the link's 0777 rather than the permissions of the content being restored
+NOTES (2026-10-12): rm captures each rewritten file's mode at plan time in `planDepDrops`, kept beside its `tree.Rewrite` in a new unexported `depRewrite`; the remove seam is the package var `removeFile`, used for both the children directory and the issue file
+NOTES (2026-10-12): the archived `docs/plans/archived/2026-10-11 - 00 - capcom-v1-issues-plan.md` NOTES line on LF rollback is left as the dated record it is; the superseded `internal/tree/move.go` comment is replaced by the AddRewrite doc comment
 
 **What:**
 **Goal:** when a Move or rm fails part-way, every rewritten file is restored to its original bytes

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,6 +38,10 @@ type issueRemoveData struct {
 	RelatedDropped []string `json:"related_dropped"`
 }
 
+// removeFile removes the issue file and its empty children directory; tests swap it to inject a
+// failure.
+var removeFile = os.Remove
+
 // issueRemoval is one rm worked out before anything on disk changes: the issue file, its empty
 // children directory when it has one, and the files whose deps on it or related entries naming it
 // are dropped, each rewritten once.
@@ -46,7 +51,7 @@ type issueRemoval struct {
 	path           string
 	childrenDir    string
 	hasChildrenDir bool
-	rewrites       []tree.Rewrite
+	rewrites       []depRewrite
 	// dropped are the ids of the issues whose deps are rewritten, in tree order.
 	dropped []string
 	// relatedDropped are the ids of the issues whose related entries are rewritten, in tree order.
@@ -54,6 +59,13 @@ type issueRemoval struct {
 	// unread are the files of other issues that do not parse, so their deps and related entries
 	// were not checked.
 	unread []string
+}
+
+// depRewrite is one file rm rewrites to drop deps or related entries, with the permissions the
+// file had when rm read it: taking the rewrite back writes Original with them.
+type depRewrite struct {
+	tree.Rewrite
+	mode fs.FileMode
 }
 
 // newRmCommand deletes one issue file. An issue with children, whose children directory holds
@@ -191,7 +203,8 @@ func (a *app) planIssueRemoval(issues *tree.Tree, node tree.Node, options *rmOpt
 // planDepDrops reads every other issue file of issues. A file that does not parse joins
 // removal.unread. Each file is added as one rewrite without the deps entries isDropped matches,
 // when its issue is in dependents, and without the related entries isDropped matches; its id joins
-// removal.dropped for the first and removal.relatedDropped for the second.
+// removal.dropped for the first and removal.relatedDropped for the second, and its permissions are
+// kept for a rollback.
 func (a *app) planDepDrops(
 	removal *issueRemoval,
 	issues *tree.Tree,
@@ -222,9 +235,17 @@ func (a *app) planDepDrops(
 			parsed.Related = related
 			removal.relatedDropped = append(removal.relatedDropped, other.ID)
 		}
-		if isDependent || isRelatedDropped {
-			removal.rewrites = append(removal.rewrites, tree.Rewrite{Path: other.Path, Original: data, Content: parsed.Serialize()})
+		if !isDependent && !isRelatedDropped {
+			continue
 		}
+		info, err := os.Stat(other.Path)
+		if err != nil {
+			return &Error{Code: CodeInvalid, Path: relativeSlashPath(a.store.WorktreeRoot, other.Path), Message: err.Error()}
+		}
+		removal.rewrites = append(removal.rewrites, depRewrite{
+			Rewrite: tree.Rewrite{Path: other.Path, Original: data, Content: parsed.Serialize()},
+			mode:    info.Mode(),
+		})
 	}
 	return nil
 }
@@ -241,7 +262,7 @@ func dropEntries(entries []string, isDropped func(string) bool) []string {
 
 // applyIssueRemoval writes every rewrite atomically, then removes the empty children directory
 // and last the issue file. When any step fails the rewrites already written get their original
-// content back, so no dependent loses a dep on an issue that is still there.
+// bytes and permissions back, so no dependent loses a dep on an issue that is still there.
 func (a *app) applyIssueRemoval(removal *issueRemoval) error {
 	for written, rewrite := range removal.rewrites {
 		if err := tree.WriteFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Content)); err != nil {
@@ -251,22 +272,24 @@ func (a *app) applyIssueRemoval(removal *issueRemoval) error {
 	// The empty children directory goes before the file: should the file then fail to go, no
 	// directory is ever left without its issue file.
 	if removal.hasChildrenDir {
-		if err := os.Remove(removal.childrenDir); err != nil {
+		if err := removeFile(removal.childrenDir); err != nil {
 			return a.restoreRewrites(removal.rewrites, removal.childrenDir, err)
 		}
 	}
-	if err := os.Remove(removal.node.Path); err != nil {
+	if err := removeFile(removal.node.Path); err != nil {
 		return a.restoreRewrites(removal.rewrites, removal.node.Path, err)
 	}
 	return nil
 }
 
-// restoreRewrites writes the original content of the applied rewrites back, newest first, and
-// returns cause as invalid at path, with every rewrite that could not be restored appended.
-func (a *app) restoreRewrites(applied []tree.Rewrite, path string, cause error) error {
+// restoreRewrites writes the original bytes of the applied rewrites back with their original
+// permissions, newest first, and returns cause as invalid at path, with every rewrite that could
+// not be restored appended.
+func (a *app) restoreRewrites(applied []depRewrite, path string, cause error) error {
 	failures := []string{flatten(cause.Error())}
 	for index := len(applied) - 1; index >= 0; index-- {
-		if err := tree.WriteFileAtomic(applied[index].Path, bytes.NewReader(applied[index].Original)); err != nil {
+		rewrite := applied[index]
+		if err := tree.WriteFileAtomicVerbatim(rewrite.Path, bytes.NewReader(rewrite.Original), rewrite.mode); err != nil {
 			failures = append(failures, "rolling back: "+flatten(err.Error()))
 		}
 	}
