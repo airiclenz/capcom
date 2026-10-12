@@ -55,6 +55,7 @@ Knowledge tree, top level:
 - `decisions`: Decision records: why capcom works the way it does, one Note per record with its sections as children
 - `docs-layout`: Before reading or changing a design: where the glossary, ADRs, plans and handoffs live
 - `glossary`: Domain glossary: the terms to use in code, docs and messages, one Note per term
+- `issue-workflow`: Before filing, starting or closing an issue: its body, claiming it, dependencies
 - `release-process`: Before cutting a release: use release-capcom, never tag or bump by hand
 - `store-layout`: What capcom keeps where: files in .capcom, index and locks under the git dir
 <!-- END CAPCOM -->

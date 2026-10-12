@@ -467,7 +467,7 @@ internal/cli/know.go — newKnowAddCommand, addNote; internal/config/config.go �
 `grep -c 'naming habit' docs/format.md` and `grep -c research-notes .capcom/knowledge/docs-layout.md` print non-zero; `go run ./cmd/capcom know show store-config` exits 0
 **Commit:** `docs(knowledge): document naming, legacy docs and config semantics`
 
-## 16. Note issue-workflow
+## 16. Note issue-workflow — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** a top-level Note `issue-workflow`, titled "Before filing, starting or closing an issue: its
