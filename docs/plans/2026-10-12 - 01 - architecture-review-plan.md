@@ -146,7 +146,9 @@ rollback twin through `rm.go`'s remove seam.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Rm`
 **Commit:** `fix(tree): restore original bytes and mode on rollback`
 
-## 3. know add reports every validation problem with its line
+## 3. know add reports every validation problem with its line — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): no CHANGELOG entry — per the regression guard the routing through writeNoteFile changes nothing a user can observe at base (a second problem and a non-zero line are unreachable for a flag-built Note); the new test TestKnowAdd_BlankTitle_FailsInvalidWithoutWriting is a pin.
 
 **What:**
 **Goal:** `capcom know add` reports all validation problems of the new Note, joined as

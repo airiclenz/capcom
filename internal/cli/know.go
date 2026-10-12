@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"cmp"
 	"errors"
 	"fmt"
@@ -334,14 +333,11 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 	if err != nil {
 		return Result{}, err
 	}
-	if problems := knowledge.Validate(path, note); len(problems) > 0 {
-		return Result{}, &Error{Code: CodeInvalid, Path: path, Message: problems[0].Message}
+	etag, err := a.writeNoteFile(path, note)
+	if err != nil {
+		return Result{}, err
 	}
-	content := note.Serialize()
-	if err := tree.WriteFileAtomic(a.absoluteIssuePath(path), bytes.NewReader(content)); err != nil {
-		return Result{}, asError(err)
-	}
-	result := noteWriteResult(options.id, path, edit.ETag(content))
+	result := noteWriteResult(options.id, path, etag)
 	result.Warnings = append(result.Warnings, warnings...)
 	if options.parent == "" {
 		a.refreshAgentsAfterWrite(&result)

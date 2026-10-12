@@ -215,6 +215,21 @@ func TestKnowAdd_RefusedInputs_FailWithoutWriting(t *testing.T) {
 	}
 }
 
+func TestKnowAdd_BlankTitle_FailsInvalidWithoutWriting(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "add", "--json", "--id", "blank-title", "--title", " ")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	if exitCode != ExitError || failure["code"] != string(CodeInvalid) ||
+		failure["path"] != ".capcom/knowledge/blank-title.md" || failure["message"] != "title is required" {
+		t.Errorf("exit = %d error = %v, want invalid at blank-title.md with %q", exitCode, failure, "title is required")
+	}
+	if noteFileExists(t, root, "blank-title.md") {
+		t.Error("blank-title.md was written although its title is blank")
+	}
+}
+
 func TestKnowVerify_BrokenRefs_ListsEachWithItsLineAndFails(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{
