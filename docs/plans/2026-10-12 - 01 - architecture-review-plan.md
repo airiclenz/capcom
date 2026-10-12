@@ -207,7 +207,10 @@ internal/cli/prime_test.go — TestPrime_GarbageIndex_ExitsZeroWithOneWarningLin
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Prime`
 **Commit:** `test(cli): pin that prime leaves index warnings to check`
 
-## 6. frontmatter package: split, decode and one Error
+## 6. frontmatter package: split, decode and one Error — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the per-kind noun is one article-led string on `Kind.Noun` ("an issue" / "a note"); the no-fence message appends " file must start with a --- line" and the hint reads "; <noun> has <keys>". `Split(path, data, noun)` takes the noun too, so it reports the fence failures itself; `Decode` rejects keys outside `Kind.Keys` before calling the callback, so a kind's callback never sees an unknown key.
+NOTES (2026-10-12): scalar helpers are `Field.Scalar` (raw text, false for a list or mapping), `Field.IsEmpty` and `Field.Errorf` (an *Error at the value line), enough for issue priority and timestamps; `Field.List` always returns entry lines, which issue callers discard.
 
 **What:**
 **Goal:** a leaf package `internal/frontmatter` exports `Error{Path, Line, Message}`, `Split`, and a
