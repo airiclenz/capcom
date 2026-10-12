@@ -21,24 +21,30 @@ const (
 	flagDepth        = "depth"
 	flagWithChildren = "with-children"
 	flagRef          = "ref"
+	flagRetired      = "retired"
 	kindNoteWrite    = "note-write"
 )
+
+// retiredFlagUsage is the help of the --retired flag shared by know tree, know show and know search.
+const retiredFlagUsage = "include retired notes and everything below them"
 
 // unlimitedDepth is the --depth of know tree that prints every level.
 const unlimitedDepth = 0
 
 // noteData is one Note in the --json data of the know commands. Lists are always present, empty
-// when the file has none; ETag and Body are set by know show only.
+// when the file has none; retired is left out when false; ETag and Body are set by know show only.
 type noteData struct {
-	ID      string   `json:"id"`
-	Path    string   `json:"path"`
-	ETag    string   `json:"etag,omitempty"`
-	Parent  string   `json:"parent,omitempty"`
-	Title   string   `json:"title"`
-	Labels  []string `json:"labels"`
-	Refs    []string `json:"refs"`
-	Aliases []string `json:"aliases"`
-	Body    *string  `json:"body,omitempty"`
+	ID           string   `json:"id"`
+	Path         string   `json:"path"`
+	ETag         string   `json:"etag,omitempty"`
+	Parent       string   `json:"parent,omitempty"`
+	Title        string   `json:"title"`
+	Labels       []string `json:"labels"`
+	Refs         []string `json:"refs"`
+	IsRetired    bool     `json:"retired,omitempty"`
+	SupersededBy []string `json:"superseded_by"`
+	Aliases      []string `json:"aliases"`
+	Body         *string  `json:"body,omitempty"`
 }
 
 // outlineData is one line of know tree in --json: a Note and its indentation depth in the outline.
@@ -87,9 +93,11 @@ func (a *app) newKnowCommand() *cobra.Command {
 }
 
 // newKnowTreeCommand prints the outline of the Knowledge tree, or of the subtree of one Note: one
-// line per Note, `id  title`, indented two spaces per level.
+// line per Note, `id  title`, indented two spaces per level. Retired subtrees are left out unless
+// --retired is given; a Note named as the start is printed even when retired.
 func (a *app) newKnowTreeCommand() *cobra.Command {
 	depth := unlimitedDepth
+	isRetiredIncluded := false
 	cmd := &cobra.Command{
 		Use:         "tree [id|alias|prefix]",
 		Short:       "Print the outline of Note ids and titles",
@@ -99,7 +107,7 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 			if depth < unlimitedDepth {
 				return UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
 			}
-			lines, err := a.outline(args, depth)
+			lines, err := a.outline(args, depth, isRetiredIncluded)
 			if err != nil {
 				return err
 			}
@@ -114,6 +122,7 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&depth, flagDepth, unlimitedDepth,
 		"levels below the top (or below the named note) to print; 0 prints every level")
+	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
 	return cmd
 }
 
@@ -125,9 +134,10 @@ type outlineLine struct {
 
 // outline lists the Notes know tree prints: the whole tree, or the Note args names followed by its
 // subtree, each Note followed by its children in id order, at most maxDepth levels below the
-// start (unlimitedDepth for all).
-func (a *app) outline(args []string, maxDepth int) ([]outlineLine, error) {
-	notes, err := a.issueIndex.Notes(true)
+// start (unlimitedDepth for all). Unless isRetiredIncluded, retired subtrees are left out below
+// the start; the named start itself always resolves.
+func (a *app) outline(args []string, maxDepth int, isRetiredIncluded bool) ([]outlineLine, error) {
+	notes, err := a.issueIndex.Notes(isRetiredIncluded)
 	if err != nil {
 		return nil, err
 	}
@@ -172,9 +182,11 @@ func childrenByParent(notes []index.NoteEntry) map[string][]index.NoteEntry {
 }
 
 // newKnowShowCommand prints one Note in full, and with --with-children the Notes directly below
-// it after it.
+// it after it. The named Note resolves even when retired; its retired children, and every child of
+// a retired Note, are shown only with --retired.
 func (a *app) newKnowShowCommand() *cobra.Command {
 	isWithChildren := false
+	isRetiredIncluded := false
 	cmd := &cobra.Command{
 		Use:         "show <id|alias|prefix>",
 		Short:       "Show a Note in full",
@@ -187,7 +199,7 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 			}
 			shown := []index.NoteEntry{entry}
 			if isWithChildren {
-				notes, err := a.issueIndex.Notes(true)
+				notes, err := a.issueIndex.Notes(isRetiredIncluded)
 				if err != nil {
 					return err
 				}
@@ -201,6 +213,7 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&isWithChildren, flagWithChildren, false, "also show the notes directly below it")
+	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
 	return cmd
 }
 
@@ -233,9 +246,10 @@ func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
 
 // newKnowSearchCommand finds Notes by full text, every word as a whole word in the title or body,
 // optionally only those carrying every --label. Hits are listed best match first; no hit is
-// not_found.
+// not_found. Retired subtrees are left out unless --retired is given.
 func (a *app) newKnowSearchCommand() *cobra.Command {
 	var labels []string
+	isRetiredIncluded := false
 	cmd := &cobra.Command{
 		Use:         "search <word>...",
 		Short:       "Find Notes whose title or body contains every word",
@@ -243,7 +257,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			text := strings.Join(args, " ")
-			entries, err := a.issueIndex.SearchNotes(text, labels, true)
+			entries, err := a.issueIndex.SearchNotes(text, labels, isRetiredIncluded)
 			if err != nil {
 				return err
 			}
@@ -260,6 +274,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringSliceVar(&labels, flagLabel, nil, "only notes with every one of these labels; repeat or separate with commas")
+	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
 	return cmd
 }
 
@@ -443,13 +458,15 @@ func (a *app) resolveNote(arg string) (index.NoteEntry, error) {
 // newNoteData converts an indexed Note to its --json form.
 func newNoteData(entry index.NoteEntry) noteData {
 	return noteData{
-		ID:      entry.ID,
-		Path:    entry.Path,
-		Parent:  entry.ParentID,
-		Title:   entry.Title,
-		Labels:  nonNil(entry.Labels),
-		Refs:    nonNil(entry.Refs),
-		Aliases: nonNil(entry.Aliases),
+		ID:           entry.ID,
+		Path:         entry.Path,
+		Parent:       entry.ParentID,
+		Title:        entry.Title,
+		Labels:       nonNil(entry.Labels),
+		Refs:         nonNil(entry.Refs),
+		IsRetired:    entry.IsRetired,
+		SupersededBy: nonNil(entry.SupersededBy),
+		Aliases:      nonNil(entry.Aliases),
 	}
 }
 
@@ -464,6 +481,8 @@ func noteText(entry index.NoteEntry, etag string, body string) string {
 		{"title", entry.Title},
 		{"labels", flowList(entry.Labels)},
 		{"refs", flowList(entry.Refs)},
+		{"retired", retiredText(entry.IsRetired)},
+		{"superseded-by", flowList(entry.SupersededBy)},
 		{"aliases", flowList(entry.Aliases)},
 	}
 	var text strings.Builder
@@ -483,4 +502,13 @@ func noteText(entry index.NoteEntry, etag string, body string) string {
 		text.WriteString("\n")
 	}
 	return text.String()
+}
+
+// retiredText renders a Note's retired flag as noteText prints it: "true", or "" when false so the
+// line is left out.
+func retiredText(isRetired bool) string {
+	if !isRetired {
+		return ""
+	}
+	return "true"
 }

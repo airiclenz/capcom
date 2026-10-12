@@ -121,7 +121,10 @@ internal/index/notes_test.go — writeNote, noteFixture, noteIDs, TestNotes_Know
 **Commit:** `feat(index): index retired notes and their successors`
 Depends on item 3.
 
-## 6. Browsing hides retired subtrees
+## 6. Browsing hides retired subtrees — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `know tree <id>` naming a retired Note (or one under a retired ancestor) prints that start line, as `know show <id>` always resolves, but leaves its subtree out unless `--retired` is given; `know show --with-children` treats the named Note the same way.
+NOTES (2026-10-12): the text `superseded-by:` line renders its ids as a flow list (`[a, b]`), like `refs:`; the JSON field `retired` is named `IsRetired` on noteData (affirmative-boolean rule); `know verify` still passes include-retired true (item 7 switches it).
 
 **What:**
 **Goal:** `capcom know tree`, `capcom know search` and `capcom know show --with-children` leave retired subtrees out unless `--retired` is given; `capcom know show <id>` of a retired Note works and prints `retired: true` and `superseded-by: <ids>` lines (text) and `retired` / `superseded_by` fields (JSON; `retired` omitted when false, `superseded_by` always present); the envelope `SchemaVersion` is unchanged.

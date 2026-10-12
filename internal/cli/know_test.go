@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -164,6 +166,114 @@ func TestKnowSearch_JSON_CarriesNoEtag(t *testing.T) {
 
 	if _, hasEtag := jsonData[0].(map[string]any)["etag"]; hasEtag {
 		t.Errorf("know search --json data = %v; want no etag", jsonData[0])
+	}
+}
+
+// newRetiredKnowStore extends newKnowStore with a retired top-level Note superseded by
+// testing-rules, its current child, and a retired leaf under testing-rules.
+func newRetiredKnowStore(t *testing.T) string {
+	t.Helper()
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"old-harness.md": "---\ntitle: Old harness\nretired: true\nsuperseded-by: [testing-rules]\n---\n\n" +
+			"The harness of old.\n",
+		"old-harness/old-fixtures.md":    "---\ntitle: Old fixtures\n---\n\nFixtures of the harness.\n",
+		"testing-rules/legacy-runner.md": "---\ntitle: Legacy runner\nretired: true\n---\n",
+	})
+	return root
+}
+
+func TestKnowTree_RetiredSubtrees_LeftOutUnlessRetired(t *testing.T) {
+	root := newRetiredKnowStore(t)
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{nil, "release-flow  Release flow\ntesting-rules  Testing rules\n  cli-tests  CLI tests\n" +
+			"    no-parallel  No parallel\n  git-fixtures  Git fixtures\n"},
+		{[]string{"--retired"}, "old-harness  Old harness\n  old-fixtures  Old fixtures\n" +
+			"release-flow  Release flow\ntesting-rules  Testing rules\n  cli-tests  CLI tests\n" +
+			"    no-parallel  No parallel\n  git-fixtures  Git fixtures\n  legacy-runner  Legacy runner\n"},
+		{[]string{"old-harness"}, "old-harness  Old harness\n"},
+		{[]string{"old-harness", "--retired"}, "old-harness  Old harness\n  old-fixtures  Old fixtures\n"},
+	}
+
+	for _, current := range cases {
+		stdout, stderr, exitCode := runCLI(t, root, append([]string{"know", "tree"}, current.args...)...)
+
+		if exitCode != ExitOK || stdout != current.want {
+			t.Errorf("know tree %v = %d\n%s%s\nwant\n%s", current.args, exitCode, stdout, stderr, current.want)
+		}
+	}
+}
+
+func TestKnowSearch_RetiredSubtrees_LeftOutUnlessRetired(t *testing.T) {
+	root := newRetiredKnowStore(t)
+
+	current := envelopeIDs(t, mustRun(t, root, "know", "search", "harness", "--json"))
+	withRetired := envelopeIDs(t, mustRun(t, root, "know", "search", "harness", "--retired", "--json"))
+
+	slices.Sort(withRetired)
+	if got := strings.Join(current, ","); got != "no-parallel" {
+		t.Errorf("know search harness ids = %s; want no-parallel", got)
+	}
+	if got := strings.Join(withRetired, ","); got != "no-parallel,old-fixtures,old-harness" {
+		t.Errorf("know search harness --retired ids = %s; want no-parallel,old-fixtures,old-harness", got)
+	}
+}
+
+func TestKnowShow_WithChildren_RetiredChildrenLeftOutUnlessRetired(t *testing.T) {
+	root := newRetiredKnowStore(t)
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"testing-rules"}, "testing-rules,cli-tests,git-fixtures"},
+		{[]string{"testing-rules", "--retired"}, "testing-rules,cli-tests,git-fixtures,legacy-runner"},
+		{[]string{"old-harness"}, "old-harness"},
+		{[]string{"old-harness", "--retired"}, "old-harness,old-fixtures"},
+	}
+
+	for _, current := range cases {
+		args := append([]string{"know", "show", "--with-children", "--json"}, current.args...)
+		stdout, stderr, exitCode := runCLI(t, root, args...)
+
+		if exitCode != ExitOK {
+			t.Fatalf("know show %v exit = %d\n%s%s", current.args, exitCode, stdout, stderr)
+		}
+		if got := strings.Join(envelopeIDs(t, stdout), ","); got != current.want {
+			t.Errorf("know show %v ids = %s; want %s", current.args, got, current.want)
+		}
+	}
+}
+
+func TestKnowShow_RetiredNote_PrintsRetiredAndSupersededBy(t *testing.T) {
+	root := newRetiredKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "show", "old-harness")
+
+	want := "id: old-harness\npath: .capcom/knowledge/old-harness.md\n" +
+		"etag: " + noteFileETag(t, root, "old-harness.md") + "\ntitle: Old harness\n" +
+		"retired: true\nsuperseded-by: [testing-rules]\n\nThe harness of old.\n"
+	if exitCode != ExitOK || stdout != want {
+		t.Errorf("know show = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
+	}
+}
+
+func TestKnowShow_JSON_CarriesRetiredAndSupersededBy(t *testing.T) {
+	root := newRetiredKnowStore(t)
+
+	retiredData, _ := decodeEnvelope(t, mustRun(t, root, "know", "show", "old-harness", "--json"))["data"].([]any)
+	currentData, _ := decodeEnvelope(t, mustRun(t, root, "know", "show", "testing-rules", "--json"))["data"].([]any)
+
+	retired := retiredData[0].(map[string]any)
+	current := currentData[0].(map[string]any)
+	if retired["retired"] != true || fmt.Sprint(retired["superseded_by"]) != "[testing-rules]" {
+		t.Errorf("retired note data = %v; want retired true, superseded_by [testing-rules]", retired)
+	}
+	supersededBy, isList := current["superseded_by"].([]any)
+	if _, hasRetired := current["retired"]; hasRetired || !isList || len(supersededBy) != 0 {
+		t.Errorf("current note data = %v; want no retired, superseded_by []", current)
 	}
 }
 
