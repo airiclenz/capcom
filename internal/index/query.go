@@ -50,12 +50,18 @@ type Filter struct {
 // List returns the usable issues filter selects, in tree order: by path, so every issue comes
 // right before its children.
 func (x *Index) List(filter Filter) ([]Entry, error) {
-	query, args := filter.sql()
-	ids, err := x.strings(context.Background(), query, args...)
+	ids, err := x.ListIDs(filter)
 	if err != nil {
 		return nil, err
 	}
 	return x.issues(ids)
+}
+
+// ListIDs returns the ids of the issues List returns for filter, in the same order, without
+// reading the issues themselves.
+func (x *Index) ListIDs(filter Filter) ([]string, error) {
+	query, args := filter.sql()
+	return x.strings(context.Background(), query, args...)
 }
 
 // sql builds the query selecting the ids filter keeps, and its arguments.

@@ -1,13 +1,12 @@
 package cli
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	readylist "github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -25,12 +24,6 @@ type readyOptions struct {
 	isShowHidden       bool
 	isElsewhereSkipped bool
 	limit              int
-}
-
-// readyEntry is one listed issue and the ready rules' verdict on it.
-type readyEntry struct {
-	entry   index.Entry
-	verdict issue.Readiness
 }
 
 // blockerData is one unsatisfied dependency in the --json data of ready.
@@ -64,7 +57,7 @@ func (a *app) newReadyCommand() *cobra.Command {
 			if options.limit < 0 {
 				return UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
 			}
-			listed, err := a.readyEntries(options)
+			listed, err := readylist.ReadyList(a.issueIndex, a.store.Config, options.listOptions())
 			if err != nil {
 				return err
 			}
@@ -90,69 +83,36 @@ func (a *app) newReadyCommand() *cobra.Command {
 	return cmd
 }
 
-// readyEntries judges every issue against the ready rules and returns the ones options select,
-// most urgent first, in tree order within a priority, at most options.limit of them.
-func (a *app) readyEntries(options *readyOptions) ([]readyEntry, error) {
-	entries, err := a.issueIndex.List(index.Filter{IsClosedIncluded: true})
-	if err != nil {
-		return nil, err
-	}
-	nodes := make([]issue.Node, 0, len(entries))
-	byID := make(map[string]index.Entry, len(entries))
-	for _, entry := range entries {
-		nodes = append(nodes, entry.Node())
-		byID[entry.ID] = entry
-	}
-
-	var listed []readyEntry
-	for _, verdict := range issue.Ready(nodes, a.store.Config) {
-		entry := byID[verdict.ID]
-		if options.selects(entry, verdict) {
-			listed = append(listed, readyEntry{entry: entry, verdict: verdict})
-		}
-	}
-	slices.SortStableFunc(listed, func(first, second readyEntry) int {
-		return cmp.Compare(first.entry.Priority, second.entry.Priority)
-	})
-	if options.limit > 0 && len(listed) > options.limit {
-		listed = listed[:options.limit]
-	}
-	return listed, nil
-}
-
-// selects reports whether the flags keep entry, given the ready rules' verdict on it.
-func (o *readyOptions) selects(entry index.Entry, verdict issue.Readiness) bool {
+// listOptions converts the flags to the options of the Ready-list.
+func (o *readyOptions) listOptions() readylist.ReadyOptions {
+	plan := index.PlanAny
 	switch {
-	case !verdict.IsReady && !o.isAll,
-		verdict.IsHidden && !o.isShowHidden,
-		o.isPlanned && entry.Plan == "",
-		o.isUnplanned && entry.Plan != "":
-		return false
+	case o.isPlanned:
+		plan = index.PlanSet
+	case o.isUnplanned:
+		plan = index.PlanUnset
 	}
-	for _, label := range o.labels {
-		if !slices.Contains(entry.Labels, label) {
-			return false
-		}
+	return readylist.ReadyOptions{
+		Labels:             o.labels,
+		NoLabels:           o.noLabels,
+		Plan:               plan,
+		IsNotReadyIncluded: o.isAll,
+		IsHiddenIncluded:   o.isShowHidden,
+		Limit:              o.limit,
 	}
-	for _, label := range o.noLabels {
-		if slices.Contains(entry.Labels, label) {
-			return false
-		}
-	}
-	return true
 }
 
 // readyListData converts the listed issues to their --json form, an empty list when there are none.
-func readyListData(listed []readyEntry) []readyData {
+func readyListData(listed []readylist.ReadyItem) []readyData {
 	data := make([]readyData, 0, len(listed))
 	for _, current := range listed {
 		item := readyData{
-			issueData:    newIssueData(current.entry),
-			Ready:        current.verdict.IsReady,
-			OpenChildren: current.verdict.OpenChildren,
-			HeldBy:       current.verdict.HeldBy,
+			issueData:    newIssueData(current.Entry),
+			Ready:        current.Readiness.IsReady,
+			OpenChildren: current.Readiness.OpenChildren,
+			HeldBy:       current.Readiness.HeldBy,
 		}
-		for _, blocker := range current.verdict.Blocking {
+		for _, blocker := range current.Readiness.Blocking {
 			item.Blocking = append(item.Blocking, blockerData{Dep: blocker.Dep, Reason: blocker.Reason})
 		}
 		data = append(data, item)
@@ -162,13 +122,13 @@ func readyListData(listed []readyEntry) []readyData {
 
 // readyLines renders one issue line per listed issue, as list does but without indentation; an
 // issue that is not Ready ends with what keeps it back.
-func readyLines(listed []readyEntry) string {
+func readyLines(listed []readylist.ReadyItem) string {
 	var text strings.Builder
 	for _, current := range listed {
-		line := strings.TrimSuffix(issueLines([]index.Entry{current.entry}, ""), "\n")
+		line := strings.TrimSuffix(issueLines([]index.Entry{current.Entry}, ""), "\n")
 		text.WriteString(line)
-		if !current.verdict.IsReady {
-			text.WriteString("  -- not ready: " + notReadyReasons(current.verdict))
+		if !current.Readiness.IsReady {
+			text.WriteString("  -- not ready: " + notReadyReasons(current.Readiness))
 		}
 		text.WriteString("\n")
 	}
@@ -197,12 +157,12 @@ func notReadyReasons(verdict issue.Readiness) string {
 
 // droppedDepWarnings warns, for every listed issue, about each dependency counted as satisfied
 // only because it was dropped.
-func droppedDepWarnings(listed []readyEntry) []string {
+func droppedDepWarnings(listed []readylist.ReadyItem) []string {
 	var warnings []string
 	for _, current := range listed {
-		for _, dep := range current.verdict.DroppedDeps {
+		for _, dep := range current.Readiness.DroppedDeps {
 			warnings = append(warnings, fmt.Sprintf(
-				"%s: dep %q is dropped; counted as satisfied", current.entry.Path, dep,
+				"%s: dep %q is dropped; counted as satisfied", current.Entry.Path, dep,
 			))
 		}
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	readylist "github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/check"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
@@ -112,7 +113,7 @@ func (a *app) briefIssues(b *briefing) {
 		}
 	}()
 
-	ready, err := a.readyEntries(&readyOptions{})
+	ready, err := readylist.ReadyList(opened, a.store.Config, readylist.ReadyOptions{})
 	if err != nil {
 		b.warn("ready", err)
 		return
@@ -124,10 +125,10 @@ func (a *app) briefIssues(b *briefing) {
 	}
 	var planned, unplanned []index.Entry
 	for _, current := range ready {
-		if current.entry.Plan != "" {
-			planned = append(planned, current.entry)
+		if current.Entry.Plan != "" {
+			planned = append(planned, current.Entry)
 		} else {
-			unplanned = append(unplanned, current.entry)
+			unplanned = append(unplanned, current.Entry)
 		}
 	}
 	b.data.ReadyPlanned = b.addCappedList("ready, planned", planned)

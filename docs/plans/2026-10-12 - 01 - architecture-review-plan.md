@@ -721,7 +721,10 @@ internal/index/index.go — Entry; internal/index/query_test.go — listFixture,
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Ready|Dep'`
 **Commit:** `refactor(index): one Entry to Node conversion`
 
-## 26. Ready-list module
+## 26. Ready-list module — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the label / no-label / plan filter now runs in the index: `briefing.ReadyList` judges over `List(IsClosedIncluded)` and keeps the ids of a second, filtered query through the new `index.Index.ListIDs` (List now builds on it), so readiness is still judged over every issue; `--all`, show-hidden and limit stay in memory after the stable priority sort.
+NOTES (2026-10-12): cli imports the package as `readylist`, because the package-level `briefing` type in internal/cli/prime.go already holds that name and renaming it is out of this item's scope.
 
 **What:**
 **Goal:** `briefing.ReadyList(index, config, options)` returns ready items judged over all issues,
