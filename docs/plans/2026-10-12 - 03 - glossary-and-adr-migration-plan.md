@@ -134,7 +134,11 @@ docs/releasing.md — ADR 0008 link; .agents/skills/release-capcom/SKILL.md — 
 - every link target this item wrote exists: `ls .capcom/knowledge/decisions/adr-0008.md .capcom/knowledge/decisions/adr-0009.md`
 **Commit:** `docs: cite decision records by their Notes`
 
-## 5. Pointer stubs, docs-layout and ADR 0010's amendment
+## 5. Pointer stubs, docs-layout and ADR 0010's amendment — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): docs/adr/README.md did not exist at the start of the item, so it is a new file rather than a rewrite; the ten ADR files are staged as deletions (git rm).
+NOTES (2026-10-12): adr-0010's summary now also names `adr-0010-amend-1012` in its reading order, alongside the amended Status line.
+NOTES (2026-10-12): the reused reference grep prints nothing at all: neither stub names `CONTEXT.md`, `docs/adr` or `adr/00` in its own text.
 
 Depends on item 4.
 

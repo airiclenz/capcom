@@ -6,9 +6,10 @@ SQLite index lives under the git directory and is never committed. The binary is
 `cmd/capcom`; everything else is in `internal/`, and `cli.Run` drives every command in process.
 `cmd/release` is the release dev tool and is never shipped.
 
-Project knowledge lives in capcom's Knowledge tree (listed at the end of this file). Run
-`capcom know tree` before starting work and `capcom know show <id>` on every Note whose title
-matches the task.
+Project knowledge lives in capcom's Knowledge tree (listed at the end of this file). Before
+starting work, run `capcom know tree --depth 2`, then `capcom know tree <id>` to open a branch,
+and `capcom know show <id>` on every Note whose title matches the task. `--depth 2` prints the
+top level and its direct children only.
 
 ## Working rules
 

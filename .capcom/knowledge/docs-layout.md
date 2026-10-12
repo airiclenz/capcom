@@ -6,9 +6,10 @@ refs: [CONTEXT.md, docs/adr, docs/design, docs/plans, docs/handoffs, docs/format
 
 Read the relevant source before changing what it covers:
 
-- `CONTEXT.md`: the domain glossary (Issue, Tree, Alias, Ready, Lock, ...). Use its terms in code,
-  docs and messages.
-- `docs/adr/`: architectural decisions. Read the relevant ADR before changing what it covers.
+- Note `glossary`: the domain glossary, one Note per term (Issue, Tree, Alias, Ready, Lock, ...).
+  Use its terms in code, docs and messages; edit a term's file in place.
+- Note `decisions`: the architectural decision records, one `adr-NNNN` Note each. Read the
+  relevant record before changing what it covers; edit records in place.
 - `docs/design/`: research and design notes.
 - `docs/plans/`: implementation plans. Finished ones move to `docs/plans/archived/`.
 - `docs/handoffs/`: handoff documents between sessions.
