@@ -10,6 +10,7 @@ import (
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -51,7 +52,8 @@ func (a *app) newMvCommand() *cobra.Command {
 // for every tree problem that concerns neither the issue, its new path nor the new parent, and for
 // every issue file whose deps could not be checked.
 func (a *app) move(args []string, parent string, isReparented bool) (Result, error) {
-	issues, err := tree.Load(a.store.IssuesDir(), readAliases)
+	issueStore := nodestore.Issues(a.store, nil)
+	issues, err := tree.Load(a.store.IssuesDir(), issueStore.ReadAliases)
 	problems, err := a.treeProblems(err)
 	if err != nil {
 		return Result{}, err
@@ -78,13 +80,13 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	if isReparented {
 		resolvedParentID = destination.ParentID
 	}
-	warned, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID, readAliases)
+	warned, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID, issueStore.ReadAliases)
 	if err != nil {
 		return Result{}, err
 	}
 	if move.NewID != move.Node.ID {
 		// PlanMove has parsed the moved issue's file, so the holder found is another issue's.
-		err := a.unparsedAliasFailure(issues, problems, move.NewID, issueNoun, recoverAliases)
+		err := a.unparsedAliasFailure(issues, problems, move.NewID, issueNoun, issueStore.RecoverAliases)
 		if err != nil {
 			return Result{}, err
 		}

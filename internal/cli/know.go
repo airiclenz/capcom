@@ -3,7 +3,6 @@ package cli
 import (
 	"cmp"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -13,7 +12,7 @@ import (
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
-	"github.com/airiclenz/capcom/internal/rawfm"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -295,49 +294,24 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 
 // addNote places the new Note in the Knowledge tree and writes it, reporting the etag of the
 // bytes written, with a warning for every tree problem that concerns neither the Note's path nor
-// its parent.
+// its parent, unless the index refresh already warned about it. A malformed --ref is refused
+// before the Note's id is weighed against the tree.
 func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, error) {
-	if err := tree.ValidateID(options.id); err != nil {
-		return Result{}, Errorf(CodeInvalid, "%s", err.Error())
-	}
 	for _, ref := range options.refs {
 		if err := knowledge.ValidateRef(ref); err != nil {
 			return Result{}, Errorf(CodeInvalid, "%s", err.Error())
 		}
 	}
-	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
-	problems, err := a.treeProblems(err)
+	written, problems, err := nodestore.Notes(a.store, nil).Create(
+		options.id,
+		options.parent,
+		func() (knowledge.Note, error) { return newNote(cmd, options) },
+	)
 	if err != nil {
-		return Result{}, err
+		return Result{}, kindFailure(err)
 	}
-	if existing, found := notes.Lookup(options.id); found {
-		return Result{}, noteExistsFailure(options.id, existing, a.store.WorktreeRoot)
-	}
-	if err := a.orphanedIDFailure(problems, options.id, readNoteAliases); err != nil {
-		return Result{}, err
-	}
-	if err := a.unparsedAliasFailure(notes, problems, options.id, noteNoun, recoverNoteAliases); err != nil {
-		return Result{}, err
-	}
-	path, parentPath, err := a.newNotePath(notes, options)
-	if err != nil {
-		return Result{}, err
-	}
-	warnings, err := a.triageTreeProblems(problems, path, parentPath)
-	if err != nil {
-		return Result{}, err
-	}
-
-	note, err := newNote(cmd, options)
-	if err != nil {
-		return Result{}, err
-	}
-	etag, err := a.writeNoteFile(path, note)
-	if err != nil {
-		return Result{}, err
-	}
-	result := noteWriteResult(options.id, path, etag)
-	result.Warnings = append(result.Warnings, warnings...)
+	result := noteWriteResult(written.ID, written.Path, written.ETag)
+	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	if options.parent == "" {
 		a.refreshAgentsAfterWrite(&result)
 	}
@@ -373,26 +347,6 @@ func (a *app) refreshAgentsAfterWrite(result *Result) {
 	result.Text += "refreshed: " + agents.FileName + "\n"
 }
 
-// newNotePath returns where the new Note goes, below its resolved --parent or at the top of the
-// Knowledge tree, and the file of that parent, "" at the top; both relative to the working tree
-// root with forward slashes.
-func (a *app) newNotePath(notes *tree.Tree, options *knowAddOptions) (string, string, error) {
-	parent := tree.Node{}
-	if options.parent != "" {
-		resolved, err := notes.Resolve(options.parent)
-		if err != nil {
-			failure, _ := resolveFailure(err) // either way the command stops here
-			return "", "", failure
-		}
-		parent = resolved
-	}
-	absolute, err := notes.PathFor(options.id, parent.ID)
-	if err != nil {
-		return "", "", asError(err)
-	}
-	return relativeSlashPath(a.store.WorktreeRoot, absolute), a.worktreeRelative(parent.Path), nil
-}
-
 // newNote builds the Note the flags describe: labels without repeats or empty entries, and the
 // body file's text as noteBody shapes it.
 func newNote(cmd *cobra.Command, options *knowAddOptions) (knowledge.Note, error) {
@@ -420,34 +374,6 @@ func noteBody(text string) string {
 		return ""
 	}
 	return "\n" + edit.WithFinalNewline(text)
-}
-
-// readNoteAliases is the tree.AliasFunc of the Knowledge tree: the Aliases a Note file records. A
-// file that does not parse contributes none; the index reports it.
-func readNoteAliases(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, &tree.Error{Path: path, Err: err}
-	}
-	parsed, err := knowledge.Parse(path, data)
-	if err != nil {
-		// The index refresh before every command already warned about this file.
-		return nil, nil
-	}
-	return parsed.Aliases, nil
-}
-
-// recoverNoteAliases is the recovering lookup of the Knowledge tree: the aliases rawfm.Aliases still
-// reads from the raw frontmatter of a Note file that does not parse, and none for one that parses.
-func recoverNoteAliases(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, &tree.Error{Path: path, Err: err}
-	}
-	if _, err := knowledge.Parse(path, data); err == nil {
-		return nil, nil
-	}
-	return rawfm.Aliases(data), nil
 }
 
 // noteExistsFailure refuses id, which is the id or an Alias of the existing Note; it names that

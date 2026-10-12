@@ -429,7 +429,17 @@ internal/cli/errors.go — asError, worktreeRelative
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `go vet ./internal/nodestore/ ./internal/cli/`
 **Commit:** `refactor(nodestore): add the per-kind node store`
 
-## 15. Kind.Create for create and know add
+## 15. Kind.Create for create and know add — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): Create returns the non-blocking tree problems (paths worktree-relative) beside the Written, `Create(id, parent, build) (Written, tree.Errors, error)`; cli filters them against the index report with a new `unwarnedTreeProblems` (errors.go) and renders the warnings, so nodestore never sees the index.
+
+NOTES (2026-10-12): know add now validates its --ref values before calling Create, so they still precede the claim refusals, but now also precede id validation: a call with both a bad id and a bad ref reports the ref first (both invalid, exit 1).
+
+NOTES (2026-10-12): Create writes LF line endings for both kinds (the CRLF fold writeIssueFile applied to issues only); a serialized Note carries no CRLF in practice, so the bytes are unchanged.
+
+NOTES (2026-10-12): nodestore holds its own copies of the claim walk (findNodeFile, unparsed-alias holder) and the blocking-problem test; the cli originals (orphanedIDFailure, unparsedAliasFailure, findNodeFile, isBlockingTreeProblem, triageTreeProblems, existsFailure, noteExistsFailure) stay for mv, know mv, rm and know rm until items 17-18 move those verbs.
+
+NOTES (2026-10-12): newIssuePath and newNotePath were deleted with the inline sequences they served; the ordering comment lives on Create, and errors.go's comment on unparsedAliasFailure stays since mv still runs that order.
 
 **What:**
 **Goal:** `Kind.Create(id, parent, build)` runs id validation, Tree load, the claim refusals in the

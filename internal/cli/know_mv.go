@@ -9,6 +9,7 @@ import (
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -53,7 +54,8 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 // etag, with a warning for every tree problem that concerns neither the Note, its new path nor the
 // new parent; a stale capcom block of AGENTS.md is refreshed afterwards.
 func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
-	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
+	noteStore := nodestore.Notes(a.store, nil)
+	notes, err := tree.Load(a.store.KnowledgeDir(), noteStore.ReadAliases)
 	problems, err := a.treeProblems(err)
 	if err != nil {
 		return Result{}, err
@@ -80,13 +82,13 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	if options.isReparented {
 		resolvedParentID = destination.ParentID
 	}
-	warned, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID, readNoteAliases)
+	warned, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID, noteStore.ReadAliases)
 	if err != nil {
 		return Result{}, err
 	}
 	if move.NewID != move.Node.ID {
 		// PlanMove has parsed the moved Note's file, so the holder found is another Note's.
-		err := a.unparsedAliasFailure(notes, problems, move.NewID, noteNoun, recoverNoteAliases)
+		err := a.unparsedAliasFailure(notes, problems, move.NewID, noteNoun, noteStore.RecoverAliases)
 		if err != nil {
 			return Result{}, err
 		}

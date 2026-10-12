@@ -10,6 +10,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -64,10 +65,18 @@ func (a *app) newFmtCommand() *cobra.Command {
 			}
 			a.store = opened
 			run := formatRun{app: a, isCheck: isCheck}
-			if err := run.formatTree(opened.IssuesDir(), readAliases, a.canonicalIssue); err != nil {
+			if err := run.formatTree(
+				opened.IssuesDir(),
+				nodestore.Issues(opened, nil).ReadAliases,
+				a.canonicalIssue,
+			); err != nil {
 				return err
 			}
-			if err := run.formatTree(opened.KnowledgeDir(), readNoteAliases, a.canonicalNote); err != nil {
+			if err := run.formatTree(
+				opened.KnowledgeDir(),
+				nodestore.Notes(opened, nil).ReadAliases,
+				a.canonicalNote,
+			); err != nil {
 				return err
 			}
 			return run.emit(cmd)

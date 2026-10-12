@@ -101,8 +101,8 @@ func asError(err error) *Error {
 
 // kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a
 // stale --if-match a conflict and an id another node answers to exists, each at the file the
-// failure names, relative to the working tree root, and its line when known. Any other failure goes
-// through asError.
+// failure names, relative to the working tree root, and its line when known. An argument that
+// resolves to no node or to several goes through resolveFailure; any other failure through asError.
 func kindFailure(err error) *Error {
 	var file *nodestore.FileError
 	if errors.As(err, &file) {
@@ -115,6 +115,10 @@ func kindFailure(err error) *Error {
 	var exists *nodestore.ExistsError
 	if errors.As(err, &exists) {
 		return &Error{Code: CodeExists, Path: exists.Path, Message: exists.Message}
+	}
+	if errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrAmbiguous) {
+		failure, _ := resolveFailure(err) // an argument failure: the command stops here
+		return failure
 	}
 	return asError(err)
 }
@@ -218,6 +222,19 @@ func treeProblemWarnings(problems tree.Errors) []string {
 		warnings = append(warnings, problem.Error())
 	}
 	return warnings
+}
+
+// unwarnedTreeProblems renders each of problems, their paths relative to the working tree root
+// with forward slashes, as a warning, "path: message", leaving out every problem the index refresh
+// already warned about, so no problem is reported twice.
+func (a *app) unwarnedTreeProblems(problems tree.Errors) []string {
+	var unwarned tree.Errors
+	for _, problem := range problems {
+		if !a.isIndexWarnedAbout(problem) {
+			unwarned = append(unwarned, problem)
+		}
+	}
+	return treeProblemWarnings(unwarned)
 }
 
 // orphanedIDFailure refuses id, the new id of a node being written or moved, when a node file

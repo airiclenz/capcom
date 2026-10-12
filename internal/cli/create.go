@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"time"
 
@@ -10,7 +9,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/rawfm"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -69,65 +68,21 @@ func (a *app) newCreateCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// create places the new issue in the tree and writes it.
+// create places the new issue in the tree and writes it, with a warning for every tree problem
+// that concerns neither the issue's file nor its parent's, unless the index refresh already
+// warned about it.
 func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error) {
-	if err := tree.ValidateID(options.id); err != nil {
-		return Result{}, Errorf(CodeInvalid, "%s", err.Error())
-	}
-	issues, err := tree.Load(a.store.IssuesDir(), readAliases)
-	problems, err := a.treeProblems(err)
+	written, problems, err := nodestore.Issues(a.store, nil).Create(
+		options.id,
+		options.parent,
+		func() (issue.Issue, error) { return a.newIssue(cmd, options) },
+	)
 	if err != nil {
-		return Result{}, err
+		return Result{}, kindFailure(err)
 	}
-	if existing, found := issues.Lookup(options.id); found {
-		return Result{}, existsFailure(options.id, existing, a.store.WorktreeRoot)
-	}
-	if err := a.orphanedIDFailure(problems, options.id, readAliases); err != nil {
-		return Result{}, err
-	}
-	if err := a.unparsedAliasFailure(issues, problems, options.id, issueNoun, recoverAliases); err != nil {
-		return Result{}, err
-	}
-	path, parentPath, err := a.newIssuePath(issues, options)
-	if err != nil {
-		return Result{}, err
-	}
-	warnings, err := a.triageTreeProblems(problems, path, parentPath)
-	if err != nil {
-		return Result{}, err
-	}
-
-	created, err := a.newIssue(cmd, options)
-	if err != nil {
-		return Result{}, err
-	}
-	etag, err := a.writeIssueFile(path, created)
-	if err != nil {
-		return Result{}, err
-	}
-	result := writeResult(options.id, path, etag)
-	result.Warnings = append(result.Warnings, warnings...)
+	result := writeResult(written.ID, written.Path, written.ETag)
+	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	return result, nil
-}
-
-// newIssuePath returns where the new issue goes, below its resolved --parent or at the top of the
-// tree, and the file of that parent, "" at the top; both relative to the working tree root with
-// forward slashes.
-func (a *app) newIssuePath(issues *tree.Tree, options *createOptions) (string, string, error) {
-	parent := tree.Node{}
-	if options.parent != "" {
-		resolved, err := issues.Resolve(options.parent)
-		if err != nil {
-			failure, _ := resolveFailure(err) // either way the command stops here
-			return "", "", failure
-		}
-		parent = resolved
-	}
-	absolute, err := issues.PathFor(options.id, parent.ID)
-	if err != nil {
-		return "", "", asError(err)
-	}
-	return relativeSlashPath(a.store.WorktreeRoot, absolute), a.worktreeRelative(parent.Path), nil
 }
 
 // newIssue builds the issue the flags describe, created now.
@@ -169,34 +124,6 @@ func defaultType(cfg config.Config) string {
 		return preferredDefaultType
 	}
 	return cfg.Types[0]
-}
-
-// readAliases is the tree.AliasFunc of the issue tree: the Aliases an issue file records. A file
-// that does not parse contributes none; the index reports it.
-func readAliases(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, &tree.Error{Path: path, Err: err}
-	}
-	parsed, err := issue.Parse(path, data)
-	if err != nil {
-		// The index refresh before every command already warned about this file.
-		return nil, nil
-	}
-	return parsed.Aliases, nil
-}
-
-// recoverAliases is the recovering lookup of the issue tree: the aliases rawfm.Aliases still reads
-// from the raw frontmatter of an issue file that does not parse, and none for one that parses.
-func recoverAliases(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, &tree.Error{Path: path, Err: err}
-	}
-	if _, err := issue.Parse(path, data); err == nil {
-		return nil, nil
-	}
-	return rawfm.Aliases(data), nil
 }
 
 // existsFailure refuses id, which is the id or an Alias of the existing issue; it names that

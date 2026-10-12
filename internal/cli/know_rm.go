@@ -10,6 +10,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -53,7 +54,7 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 // its parent and for an emptied parent directory left in place; a stale capcom block of AGENTS.md
 // is refreshed afterwards.
 func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
-	notes, err := tree.Load(a.store.KnowledgeDir(), readNoteAliases)
+	notes, err := tree.Load(a.store.KnowledgeDir(), nodestore.Notes(a.store, nil).ReadAliases)
 	problems, err := a.treeProblems(err)
 	if err != nil {
 		return Result{}, err
