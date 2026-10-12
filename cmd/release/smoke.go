@@ -51,7 +51,7 @@ var scoopArchitectures = []struct {
 
 // smokeOptions is what the smoke verb was asked to check.
 type smokeOptions struct {
-	// dir is the checkout whose origin and tags the tag and build-stamp checks read.
+	// dir is the checkout whose repo the tag, asset, build-stamp and bucket checks read.
 	dir string
 	// version is the release to check, as vX.Y.Z; empty reads the checkout's VERSION file.
 	version string
@@ -73,9 +73,11 @@ func defaultSmokeOptions(dir string) smokeOptions {
 	return smokeOptions{dir: dir, goos: runtime.GOOS, goarch: runtime.GOARCH, readBuildInfo: buildinfo.ReadFile}
 }
 
-// smokeRun is one smoke run: what every check reads, and the tally the summary reports.
+// smokeRun is one smoke run: what every check reads — the tag, the release's assets and the
+// latest release through repo — and the tally the summary reports.
 type smokeRun struct {
 	commands runner
+	repo     repo
 	output   io.Writer
 	options  smokeOptions
 	version  releaseVersion
@@ -143,7 +145,14 @@ func runSmoke(ctx context.Context, commands runner, output io.Writer, options sm
 	}
 	defer func() { _ = os.RemoveAll(workDir) }()
 
-	run := &smokeRun{commands: commands, output: output, options: options, version: version, workDir: workDir}
+	run := &smokeRun{
+		commands: commands,
+		repo:     options.openRepo.open(commands, options.dir),
+		output:   output,
+		options:  options,
+		version:  version,
+		workDir:  workDir,
+	}
 	_, _ = fmt.Fprintf(output, "smoke: %s %s\n", capcomRepo, version)
 	run.checkTag(ctx)
 	run.checkDistSums(ctx)
@@ -209,21 +218,21 @@ func (r *smokeRun) report(label, format string, args ...any) {
 func (r *smokeRun) checkTag(ctx context.Context) {
 	tag := r.version.String()
 	r.step("the tag %s is remote and annotated", tag)
-	listed, err := r.commands.run(ctx, r.options.dir, nonInteractiveEnv, "git", "ls-remote", "--tags", remoteName, "refs/tags/"+tag)
+	hasTag, err := r.repo.RemoteHasTag(ctx, tag)
 	if err != nil {
 		r.skip("could not list %s's tags: %v", remoteName, err)
 		return
 	}
-	if strings.TrimSpace(listed) == "" {
+	if !hasTag {
 		r.fail("%s has no tag %s: the release was published without its tag", remoteName, tag)
 		return
 	}
-	kind, err := r.commands.run(ctx, r.options.dir, nonInteractiveEnv, "gh", "api", "repos/"+capcomRepo+"/git/ref/tags/"+tag, "--jq", ".object.type")
+	kind, err := r.repo.RemoteTagType(ctx, tag)
 	if err != nil {
 		r.skip("tag %s is on %s, but gh could not read its type: %v", tag, remoteName, err)
 		return
 	}
-	switch kind = strings.TrimSpace(kind); kind {
+	switch kind {
 	case gitObjectTag:
 		r.pass("annotated tag %s on %s", tag, remoteName)
 	case "commit":
@@ -288,8 +297,7 @@ func (r *smokeRun) checkAssets(ctx context.Context) {
 			isComplete = false
 			continue
 		}
-		if _, err := r.commands.run(ctx, r.options.dir, nonInteractiveEnv, "gh", "release", "download", r.version.String(),
-			"--repo", capcomRepo, "--pattern", name, "--dir", r.workDir); err != nil {
+		if err := r.repo.DownloadAsset(ctx, r.version.String(), name, r.workDir); err != nil {
 			r.fail("asset %s is listed but does not download: %v", name, err)
 			isComplete = false
 			continue
@@ -319,7 +327,7 @@ func (r *smokeRun) checkBuildStamps(ctx context.Context) {
 		r.skip("the assets did not all download and verify")
 		return
 	}
-	want, err := execRepo{commands: r.commands, dir: r.options.dir}.Resolve(ctx, r.version.String())
+	want, err := r.repo.Resolve(ctx, r.version.String())
 	if err != nil {
 		r.skip("tag %s is not in the local clone — git fetch --tags: %v", r.version, err)
 		return
@@ -457,17 +465,19 @@ func (r *smokeRun) checkScoop(ctx context.Context) {
 }
 
 // checkStaleBucket judges a bucket manifest at another version: a failure when the version is
-// the latest release, a skip otherwise or when the latest release cannot be read.
+// the latest release, a skip otherwise, when no release is published or when the latest release
+// cannot be read.
 func (r *smokeRun) checkStaleBucket(ctx context.Context, bucketVersion string) {
-	latest, err := r.commands.run(ctx, r.options.dir, nonInteractiveEnv, "gh", "release", "view", "--repo", capcomRepo, "--json", "tagName", "--jq", ".tagName")
-	latest = strings.TrimSpace(latest)
+	latest, isPublished, err := r.repo.LatestRelease(ctx)
 	switch {
-	case err != nil || latest == "":
+	case err != nil:
 		r.skip("the bucket is at %q, not %s, and the latest release could not be read: %v", bucketVersion, bareRelease(r.version), err)
-	case latest == r.version.String():
+	case !isPublished:
+		r.skip("the bucket is at %q, not %s, and %s has no published release", bucketVersion, bareRelease(r.version), capcomRepo)
+	case latest.Tag == r.version.String():
 		r.fail("the bucket is at %q, not the latest release %s — run publish %s", bucketVersion, bareRelease(r.version), r.version)
 	default:
-		r.skip("the bucket is at %q; %s is not the latest release (%s)", bucketVersion, r.version, latest)
+		r.skip("the bucket is at %q; %s is not the latest release (%s)", bucketVersion, r.version, latest.Tag)
 	}
 }
 
@@ -488,13 +498,12 @@ func (r *smokeRun) checkReportsVersion(ctx context.Context, binary, label string
 	r.pass("%s reports %q", label, reported)
 }
 
-// publishedSums downloads the release's SHA256SUMS to stdout once, so nothing lands in the
-// checkout, and returns it — or why it could not.
+// publishedSums reads the release's SHA256SUMS once, writing nothing into the checkout, and
+// returns it — or why it could not.
 func (r *smokeRun) publishedSums(ctx context.Context) (string, error) {
 	if !r.isSumsRead {
 		r.isSumsRead = true
-		r.sums, r.sumsErr = r.commands.run(ctx, r.options.dir, nonInteractiveEnv, "gh", "release", "download", r.version.String(),
-			"--repo", capcomRepo, "--pattern", checksumsFile, "--output", "-")
+		r.sums, r.sumsErr = r.repo.ReadAsset(ctx, r.version.String(), checksumsFile)
 	}
 	return r.sums, r.sumsErr
 }

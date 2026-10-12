@@ -25,26 +25,16 @@ const (
 	smokeBrewPrefix = "/opt/homebrew"
 )
 
-// The commands smoke runs whose answers the tests vary, keyed as smokeFake.failing reads them.
-const (
-	smokeListTag     = "git ls-remote --tags origin refs/tags/v0.24.11"
-	smokeTagType     = "gh api repos/airiclenz/capcom/git/ref/tags/v0.24.11 --jq .object.type"
-	smokeDownloadSum = "gh release download v0.24.11 --repo airiclenz/capcom --pattern SHA256SUMS --output -"
-	smokeReadBucket  = "gh api repos/airiclenz/scoop-bucket/contents/bucket/capcom.json --jq .content"
-	smokeLatest      = "gh release view --repo airiclenz/capcom --json tagName --jq .tagName"
-	smokeRevParse    = "git rev-parse --verify v0.24.11^{commit}"
-)
+// smokeReadBucket is the one channel command whose answer the smoke tests vary, keyed as
+// smokeFake.failing reads it.
+const smokeReadBucket = "gh api repos/airiclenz/scoop-bucket/contents/bucket/capcom.json --jq .content"
 
-// smokeFake answers smoke's commands the way git, gh, brew and the released binaries would over
-// a published publishVersion whose assets sit in releaseDir.
+// smokeFake is a published publishVersion whose assets sit in releaseDir: repo holds the
+// checkout and its GitHub repository, and respond answers the channel and binary commands the
+// way gh, brew and the released binaries would.
 type smokeFake struct {
 	releaseDir string
-	// tagKind is the remote tag's object type, "" for no tag on origin.
-	tagKind string
-	// isTagLocal is whether the tag resolves in the local clone.
-	isTagLocal bool
-	// corrupt names an asset that downloads with the wrong bytes.
-	corrupt string
+	repo       memRepo
 	// revision and modified are the build stamp every binary carries; isUnstamped makes the
 	// build information unreadable.
 	revision    string
@@ -56,10 +46,8 @@ type smokeFake struct {
 	// "installed"; brewReports is what its capcom prints for `capcom version`.
 	brew        string
 	brewReports string
-	// manifest is the bucket's manifest, "" for none (GitHub answers 404); latest is the latest
-	// release's tag.
+	// manifest is the bucket's manifest, "" for none (GitHub answers 404).
 	manifest string
-	latest   string
 	// failing makes a command line fail with the error.
 	failing map[string]error
 }
@@ -76,17 +64,46 @@ func newSmokeFake(t *testing.T) *smokeFake {
 	}
 	return &smokeFake{
 		releaseDir:    releaseDir,
-		tagKind:       gitObjectTag,
-		isTagLocal:    true,
+		repo:          publishedRepo(t, releaseDir),
 		revision:      smokeTagCommit,
 		modified:      "false",
 		binaryVersion: strings.TrimPrefix(publishVersion, "v"),
 		brew:          "installed",
 		brewReports:   "capcom " + strings.TrimPrefix(publishVersion, "v"),
 		manifest:      manifest,
-		latest:        publishVersion,
 		failing:       map[string]error{},
 	}
+}
+
+// publishedRepo is the repo of a fully published publishVersion: the annotated tag on origin and
+// fetched into the checkout at smokeTagCommit, the latest release, carrying every asset in
+// releaseDir with that asset's content.
+func publishedRepo(t *testing.T, releaseDir string) memRepo {
+	t.Helper()
+	entries, err := os.ReadDir(releaseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets := make([]string, 0, len(entries))
+	content := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		assets = append(assets, entry.Name())
+		content[entry.Name()] = readTestFile(t, filepath.Join(releaseDir, entry.Name()))
+	}
+	return memRepo{
+		commits:       map[string]fakeCommit{smokeTagCommit: {}},
+		tagCommits:    map[string]string{publishVersion: smokeTagCommit},
+		remoteTags:    map[string]string{publishVersion: gitObjectTag},
+		latestRelease: githubRelease{Tag: publishVersion},
+		releases:      map[string][]string{publishVersion: assets},
+		assetContent:  content,
+		failures:      map[string]error{},
+	}
+}
+
+// openRepo opens the fake's repo whatever the directory, as it stands when the run opens it.
+func (f *smokeFake) openRepo(string) repo {
+	return f.repo
 }
 
 // publishedRelease builds publishVersion's six archives and SHA256SUMS with the fake toolchain
@@ -127,23 +144,6 @@ func (f *smokeFake) respond(call recordedCall) (string, error) {
 	}
 	args := call.args
 	switch {
-	case line == smokeListTag:
-		if f.tagKind == "" {
-			return "", nil
-		}
-		return smokeTagCommit + "\trefs/tags/" + publishVersion + "\n", nil
-	case line == smokeTagType:
-		return f.tagKind + "\n", nil
-	case line == smokeDownloadSum:
-		raw, err := os.ReadFile(filepath.Join(f.releaseDir, checksumsFile))
-		return string(raw), err
-	case call.name == "gh" && len(args) == 9 && args[0] == "release" && args[1] == "download" && args[7] == "--dir":
-		return "", f.download(args[6], args[8])
-	case line == smokeRevParse:
-		if !f.isTagLocal {
-			return "", fmt.Errorf("%s: fatal: needed a single revision", line)
-		}
-		return smokeTagCommit + "\n", nil
 	case line == "brew list --formula capcom":
 		switch f.brew {
 		case "missing":
@@ -171,22 +171,8 @@ func (f *smokeFake) respond(call recordedCall) (string, error) {
 			return "", fmt.Errorf("gh: Not Found (HTTP 404)")
 		}
 		return base64.StdEncoding.EncodeToString([]byte(f.manifest)) + "\n", nil
-	case line == smokeLatest:
-		return f.latest + "\n", nil
 	}
 	return "", fmt.Errorf("unexpected command %q", line)
-}
-
-// download copies the release's asset name into dir, as `gh release download --dir` would.
-func (f *smokeFake) download(name, dir string) error {
-	raw, err := os.ReadFile(filepath.Join(f.releaseDir, name))
-	if err != nil {
-		return fmt.Errorf("no assets match the file pattern: %w", err)
-	}
-	if name == f.corrupt {
-		raw = []byte("corrupted in transit\n")
-	}
-	return os.WriteFile(filepath.Join(dir, name), raw, 0o644)
 }
 
 // readBuildInfo is the fake build-stamp reader: every binary carries the fake's stamp.
@@ -225,6 +211,7 @@ func runTestSmoke(t *testing.T, fake *smokeFake, adjust func(options *smokeOptio
 		goos:          "linux",
 		goarch:        "amd64",
 		readBuildInfo: fake.readBuildInfo,
+		openRepo:      fake.openRepo,
 	}
 	if adjust != nil {
 		adjust(&options)
@@ -271,25 +258,25 @@ func TestSmokeChecks(t *testing.T) {
 			wantTally: "7 passed, 0 failed, 0 skipped",
 		},
 		"no tag on origin": {
-			adjust:      func(fake *smokeFake, _ *smokeOptions) { fake.tagKind = "" },
+			adjust:      func(fake *smokeFake, _ *smokeOptions) { fake.repo.remoteTags = map[string]string{} },
 			wantResults: [][2]string{{"FAIL", "origin has no tag v0.24.11"}},
 			wantTally:   "6 passed, 1 failed, 0 skipped",
 		},
 		"lightweight tag": {
-			adjust:      func(fake *smokeFake, _ *smokeOptions) { fake.tagKind = "commit" },
+			adjust:      func(fake *smokeFake, _ *smokeOptions) { fake.repo.remoteTags[publishVersion] = "commit" },
 			wantResults: [][2]string{{"FAIL", "v0.24.11 on origin is a lightweight tag"}},
 			wantTally:   "6 passed, 1 failed, 0 skipped",
 		},
 		"origin's tags cannot be listed": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
-				fake.failing[smokeListTag] = errors.New("not a git repository")
+				fake.repo.failures[methodRemoteHasTag] = errors.New("not a git repository")
 			},
 			wantResults: [][2]string{{"SKIP", "could not list origin's tags"}},
 			wantTally:   "6 passed, 0 failed, 1 skipped",
 		},
 		"tag type unreadable": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
-				fake.failing[smokeTagType] = errors.New("gh: authentication required")
+				fake.repo.failures[methodRemoteTagType] = errors.New("gh: authentication required")
 			},
 			wantResults: [][2]string{{"SKIP", "gh could not read its type"}},
 			wantTally:   "6 passed, 0 failed, 1 skipped",
@@ -307,7 +294,9 @@ func TestSmokeChecks(t *testing.T) {
 			wantTally:   "6 passed, 1 failed, 0 skipped",
 		},
 		"an asset does not match SHA256SUMS": {
-			adjust: func(fake *smokeFake, _ *smokeOptions) { fake.corrupt = "capcom_0.24.11_darwin_arm64.tar.gz" },
+			adjust: func(fake *smokeFake, _ *smokeOptions) {
+				fake.repo.assetContent["capcom_0.24.11_darwin_arm64.tar.gz"] = "corrupted in transit\n"
+			},
 			wantResults: [][2]string{
 				{"FAIL", "asset capcom_0.24.11_darwin_arm64.tar.gz hashes to"},
 				{"SKIP", "the assets did not all download and verify"},
@@ -317,7 +306,7 @@ func TestSmokeChecks(t *testing.T) {
 		},
 		"the release has no SHA256SUMS": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
-				fake.failing[smokeDownloadSum] = errors.New("no assets match the file pattern")
+				fake.repo.releases[publishVersion] = releaseAssetsV02411[:len(distTargets)]
 			},
 			wantResults: [][2]string{
 				{"SKIP", "the release's SHA256SUMS did not download"},
@@ -328,15 +317,15 @@ func TestSmokeChecks(t *testing.T) {
 		},
 		"gh is not installed": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
-				fake.failing[smokeTagType] = notFound
-				fake.failing[smokeDownloadSum] = notFound
+				fake.repo.failures[methodRemoteTagType] = notFound
+				fake.repo.failures[methodReadAsset] = notFound
 				fake.failing[smokeReadBucket] = notFound
 			},
 			wantResults: [][2]string{{"SKIP", "gh is not installed"}},
 			wantTally:   "1 passed, 0 failed, 6 skipped",
 		},
 		"tag not fetched into the local clone": {
-			adjust:      func(fake *smokeFake, _ *smokeOptions) { fake.isTagLocal = false },
+			adjust:      func(fake *smokeFake, _ *smokeOptions) { delete(fake.repo.tagCommits, publishVersion) },
 			wantResults: [][2]string{{"SKIP", "tag v0.24.11 is not in the local clone"}},
 			wantTally:   "6 passed, 0 failed, 1 skipped",
 		},
@@ -427,7 +416,7 @@ func TestSmokeChecks(t *testing.T) {
 		"the bucket has moved past an older release": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
 				fake.manifest = `{"version": "0.24.12"}`
-				fake.latest = "v0.24.12"
+				fake.repo.latestRelease = githubRelease{Tag: "v0.24.12"}
 			},
 			wantResults: [][2]string{{"SKIP", "v0.24.11 is not the latest release (v0.24.12)"}},
 			wantTally:   "6 passed, 0 failed, 1 skipped",
@@ -435,9 +424,17 @@ func TestSmokeChecks(t *testing.T) {
 		"the latest release cannot be read": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
 				fake.manifest = `{"version": "0.24.10"}`
-				fake.failing[smokeLatest] = errors.New("gh: HTTP 502")
+				fake.repo.failures[methodLatestRelease] = errors.New("gh: HTTP 502")
 			},
-			wantResults: [][2]string{{"SKIP", "the latest release could not be read"}},
+			wantResults: [][2]string{{"SKIP", "the latest release could not be read: gh: HTTP 502"}},
+			wantTally:   "6 passed, 0 failed, 1 skipped",
+		},
+		"no release is published": {
+			adjust: func(fake *smokeFake, _ *smokeOptions) {
+				fake.manifest = `{"version": "0.24.10"}`
+				fake.repo.latestRelease = githubRelease{}
+			},
+			wantResults: [][2]string{{"SKIP", "the bucket is at \"0.24.10\", not 0.24.11, and airiclenz/capcom has no published release"}},
 			wantTally:   "6 passed, 0 failed, 1 skipped",
 		},
 	}
@@ -459,6 +456,9 @@ func TestSmokeChecks(t *testing.T) {
 			}
 			if want := "smoke: v0.24.11: " + tc.wantTally; !strings.Contains(result.output, want) {
 				t.Errorf("output lacks the tally %q:\n%s", want, result.output)
+			}
+			if strings.Contains(result.output, "<nil>") {
+				t.Errorf("output reports a nil error as a reason:\n%s", result.output)
 			}
 			isFailing := !strings.Contains(tc.wantTally, " 0 failed")
 			if (result.err != nil) != isFailing {
@@ -526,7 +526,8 @@ func TestSmokeRunsTheHostsZipArchive(t *testing.T) {
 }
 
 // TestSmokeVersion pins which version smoke checks: the one asked for, a bare X.Y.Z read as
-// vX.Y.Z, and with none, the checkout's VERSION file; a malformed one is a usage error.
+// vX.Y.Z, and with none, the checkout's VERSION file; a malformed one is a usage error. The
+// command line runs through the command tree, the repo it is handed holding only v0.24.11's tag.
 func TestSmokeVersion(t *testing.T) {
 	t.Parallel()
 
@@ -544,9 +545,10 @@ func TestSmokeVersion(t *testing.T) {
 		for name, tc := range cases {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
-				commands := &fakeRunner{respond: newSmokeFake(t).respond}
+				fake := newSmokeFake(t)
+				commands := &fakeRunner{respond: fake.respond}
 
-				output, err := execute(t, commands, tc.args...)
+				output, err := executeWith(t, commands, fake.openRepo, tc.args...)
 
 				if tc.wantError != "" {
 					var failed runError
@@ -558,8 +560,8 @@ func TestSmokeVersion(t *testing.T) {
 				if !strings.Contains(output, "smoke: airiclenz/capcom v0.24.11\n") {
 					t.Errorf("output does not check v0.24.11:\n%s", output)
 				}
-				if len(commands.recorded("git")) == 0 || commands.recorded("git")[0].args[3] != "refs/tags/v0.24.11" {
-					t.Errorf("the first git command = %v, want the v0.24.11 tag listed", commands.recorded("git"))
+				if !hasResult(output, "PASS", "annotated tag v0.24.11 on origin") {
+					t.Errorf("the repo was not asked for the v0.24.11 tag:\n%s", output)
 				}
 			})
 		}
@@ -584,16 +586,20 @@ func TestSmokeVersion(t *testing.T) {
 	})
 }
 
-// TestSmokeFailureIsARunFailure pins the exit code: a failed check exits 1, not with usage.
+// TestSmokeFailureIsARunFailure pins the exit code: a failed check — here the tag missing from
+// the origin of the repo the command tree is handed — exits 1, not with usage.
 func TestSmokeFailureIsARunFailure(t *testing.T) {
 	t.Parallel()
 	fake := newSmokeFake(t)
-	fake.tagKind = ""
+	fake.repo.remoteTags = map[string]string{}
 
-	_, err := execute(t, &fakeRunner{respond: fake.respond}, "smoke", publishVersion)
+	output, err := executeWith(t, &fakeRunner{respond: fake.respond}, fake.openRepo, "smoke", publishVersion)
 
 	if err == nil || exitCodeFor(err) != exitRunFailed {
 		t.Errorf("smoke error = %v (exit %d), want a run failure (exit %d)", err, exitCodeFor(err), exitRunFailed)
+	}
+	if !hasResult(output, "FAIL", "origin has no tag v0.24.11") {
+		t.Errorf("output lacks the missing tag's failure:\n%s", output)
 	}
 }
 

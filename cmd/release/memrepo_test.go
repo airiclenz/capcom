@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -35,6 +36,7 @@ const (
 	methodCreateRelease      = "CreateRelease"
 	methodUploadAssets       = "UploadAssets"
 	methodReadAsset          = "ReadAsset"
+	methodDownloadAsset      = "DownloadAsset"
 )
 
 // repoCallName is the name a memRepo's changes are recorded under in a runner's call record.
@@ -54,6 +56,9 @@ type memRepo struct {
 	greenRuns []string
 	// tags are the checkout's tags, release tags or not.
 	tags []string
+	// tagCommits are the commits the checkout's tags stand at, by tag, for Resolve; a tag it
+	// lacks is not in the checkout.
+	tagCommits map[string]string
 	// madeCommits collects every commit CommitFile makes, in order; a memRepo without one refuses
 	// CommitFile. It is a pointer so a memRepo handed out by value still records into the
 	// test's log.
@@ -68,7 +73,8 @@ type memRepo struct {
 	// releases are the GitHub releases by tag, each with its fully uploaded assets; CreateRelease
 	// and UploadAssets add to it.
 	releases map[string][]string
-	// assetContent is what ReadAsset reads of a release asset, by name, whatever the release.
+	// assetContent is what ReadAsset reads, and DownloadAsset writes, of a release asset, by
+	// name, whatever the release.
 	assetContent map[string]string
 	// files are the checkout's files at HEAD by path, for ShowFile.
 	files map[string]string
@@ -78,13 +84,17 @@ type memRepo struct {
 	publish *memPublish
 	// failing names a method — methodParents — that fails outright, as one that cannot run.
 	failing string
+	// failures are the errors methods fail with, by method name, so a test can hand a method an
+	// error of its own kind — one wrapping exec.ErrNotFound, as a missing gh gives.
+	failures map[string]error
 }
 
 // memPublish is the part of a memRepo a publish run changes: whether HEAD was pushed, the tags
 // the CI workflow made after the push, and the tags fetched into the checkout.
 type memPublish struct {
 	// log is the runner whose ordered call record PushMain, FetchTag and the release step's
-	// CloneAt, CreateRelease, UploadAssets and ReadAsset join, as calls named repoCallName, so a
+	// CloneAt, CreateRelease, UploadAssets, ReadAsset and DownloadAsset join, as calls named
+	// repoCallName, so a
 	// test reads the repo's calls and the commands the runner ran in one order; nil records
 	// nothing.
 	log *fakeRunner
@@ -122,7 +132,7 @@ func (r memRepo) failure(method string) error {
 	if r.failing == method {
 		return fmt.Errorf("%s: cannot run", method)
 	}
-	return nil
+	return r.failures[method]
 }
 
 // FetchMain fetches nothing: the state already holds origin/main.
@@ -445,6 +455,23 @@ func (r memRepo) ReadAsset(_ context.Context, tag, name string) (string, error) 
 	return content, nil
 }
 
+// DownloadAsset records the download in publish's log, when there is one, and writes the asset's
+// content from assetContent to dir/name; the release must carry the asset.
+func (r memRepo) DownloadAsset(_ context.Context, tag, name, dir string) error {
+	if err := r.failure(methodDownloadAsset); err != nil {
+		return err
+	}
+	r.publish.note(methodDownloadAsset, tag, name, dir)
+	if !slices.Contains(r.releases[tag], name) {
+		return fmt.Errorf("release %s has no asset %s", tag, name)
+	}
+	content, hasContent := r.assetContent[name]
+	if !hasContent {
+		return fmt.Errorf("this memRepo holds no content for %s", name)
+	}
+	return os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644)
+}
+
 // assetNames returns each asset path's file name.
 func assetNames(assets []string) []string {
 	names := make([]string, 0, len(assets))
@@ -463,7 +490,8 @@ func (r memRepo) remoteTag(tag string) (memTag, bool) {
 	return r.publish.madeTag(tag)
 }
 
-// resolve turns the symbolic names into commits: origin/main is HEAD once HEAD is pushed.
+// resolve turns the symbolic names into commits: origin/main is HEAD once HEAD is pushed, and a
+// tag of tagCommits is its commit.
 func (r memRepo) resolve(revision string) string {
 	switch revision {
 	case "HEAD":
@@ -473,6 +501,9 @@ func (r memRepo) resolve(revision string) string {
 			return r.head
 		}
 		return r.originMain
+	}
+	if commit, isTag := r.tagCommits[revision]; isTag {
+		return commit
 	}
 	return revision
 }

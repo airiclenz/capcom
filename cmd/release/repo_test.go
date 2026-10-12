@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -253,6 +255,14 @@ func TestExecRepoRunsEachMethodsArgv(t *testing.T) {
 			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh", args: []string{"release", "download", "v0.24.11",
 				"--repo", "airiclenz/capcom", "--pattern", "SHA256SUMS", "--output", "-"}},
 		},
+		// DownloadAsset writes the one asset into the directory it is given, outside the checkout.
+		"DownloadAsset": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return nil, checkout.DownloadAsset(ctx, "v0.24.11", "capcom_0.24.11_linux_amd64.tar.gz", "/downloads")
+			},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh", args: []string{"release", "download", "v0.24.11",
+				"--repo", "airiclenz/capcom", "--pattern", "capcom_0.24.11_linux_amd64.tar.gz", "--dir", "/downloads"}},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -419,6 +429,52 @@ func TestExecRepoTellsANoFromABrokenCommand(t *testing.T) {
 
 			if err == nil || !strings.Contains(err.Error(), tc.wantError) {
 				t.Errorf("error = %v, want one containing %q", err, tc.wantError)
+			}
+		})
+	}
+}
+
+// TestExecRepoKeepsAMissingToolDetectable pins that the methods smoke reads through hand back a
+// runner error wrapped, never flattened, so isMissingTool still tells a gh that is not installed
+// from one that ran and failed.
+func TestExecRepoKeepsAMissingToolDetectable(t *testing.T) {
+	t.Parallel()
+	notFound := fmt.Errorf("gh: %w", &exec.Error{Name: "gh", Err: exec.ErrNotFound})
+
+	cases := map[string]func(ctx context.Context, checkout execRepo) error{
+		"RemoteHasTag": func(ctx context.Context, checkout execRepo) error {
+			_, err := checkout.RemoteHasTag(ctx, "v0.24.11")
+			return err
+		},
+		"RemoteTagType": func(ctx context.Context, checkout execRepo) error {
+			_, err := checkout.RemoteTagType(ctx, "v0.24.11")
+			return err
+		},
+		"Resolve": func(ctx context.Context, checkout execRepo) error {
+			_, err := checkout.Resolve(ctx, "v0.24.11")
+			return err
+		},
+		"LatestRelease": func(ctx context.Context, checkout execRepo) error {
+			_, _, err := checkout.LatestRelease(ctx)
+			return err
+		},
+		"ReadAsset": func(ctx context.Context, checkout execRepo) error {
+			_, err := checkout.ReadAsset(ctx, "v0.24.11", checksumsFile)
+			return err
+		},
+		"DownloadAsset": func(ctx context.Context, checkout execRepo) error {
+			return checkout.DownloadAsset(ctx, "v0.24.11", checksumsFile, t.TempDir())
+		},
+	}
+	for name, call := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			checkout := execRepo{commands: answering("", notFound), dir: "."}
+
+			err := call(t.Context(), checkout)
+
+			if !isMissingTool(err) {
+				t.Errorf("%s error = %v, want one a missing tool is told by", name, err)
 			}
 		})
 	}

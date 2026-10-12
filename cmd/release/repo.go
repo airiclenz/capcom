@@ -74,6 +74,9 @@ type repo interface {
 	UploadAssets(ctx context.Context, tag string, assets []string) error
 	// ReadAsset returns the content of tag's GitHub release asset name, writing nothing to disk.
 	ReadAsset(ctx context.Context, tag, name string) (string, error)
+	// DownloadAsset downloads tag's GitHub release asset name into the directory dir, as
+	// dir/name.
+	DownloadAsset(ctx context.Context, tag, name, dir string) error
 }
 
 // githubRelease is a published GitHub release: its tag and when it was published.
@@ -395,4 +398,11 @@ func (r execRepo) UploadAssets(ctx context.Context, tag string, assets []string)
 // is written into the checkout, whose clean tree the next status or publish gate checks.
 func (r execRepo) ReadAsset(ctx context.Context, tag, name string) (string, error) {
 	return r.remote(ctx, "gh", "release", "download", tag, "--repo", capcomRepo, "--pattern", name, "--output", "-")
+}
+
+// DownloadAsset runs `gh release download --dir`, which writes the asset into dir under its own
+// name.
+func (r execRepo) DownloadAsset(ctx context.Context, tag, name, dir string) error {
+	_, err := r.remote(ctx, "gh", "release", "download", tag, "--repo", capcomRepo, "--pattern", name, "--dir", dir)
+	return err
 }
