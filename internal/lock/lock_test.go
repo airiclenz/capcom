@@ -233,10 +233,10 @@ func TestList_TwoWorktrees_HoldIndependentLocks(t *testing.T) {
 	mustAcquire(t, locks, MainWorktreeKey)
 	mustAcquire(t, locks, "wt-feature")
 
-	held, err := locks.List()
+	held, warnings, err := locks.List()
 
-	if err != nil || len(held) != 2 {
-		t.Fatalf("List = %+v, err %v", held, err)
+	if err != nil || len(held) != 2 || len(warnings) != 0 {
+		t.Fatalf("List = %+v, warnings %v, err %v", held, warnings, err)
 	}
 	if held[0].Key != MainWorktreeKey || held[1].Key != "wt-feature" {
 		t.Errorf("keys = %s, %s", held[0].Key, held[1].Key)
@@ -247,10 +247,10 @@ func TestList_NoLockDirectory_IsEmpty(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)
 
-	held, err := locks.List()
+	held, warnings, err := locks.List()
 
-	if err != nil || len(held) != 0 {
-		t.Fatalf("List = %+v, err %v", held, err)
+	if err != nil || len(held) != 0 || len(warnings) != 0 {
+		t.Fatalf("List = %+v, warnings %v, err %v", held, warnings, err)
 	}
 }
 
@@ -264,7 +264,7 @@ func TestList_FileWhereTheLockDirectoryBelongs_Fails(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	held, err := locks.List()
+	held, _, err := locks.List()
 
 	if err == nil || !strings.Contains(err.Error(), locks.dir) {
 		t.Fatalf("List = %+v, err %v; want an error naming %s", held, err, locks.dir)
@@ -283,6 +283,78 @@ func TestRead_CorruptRecord_FailsNamingTheFile(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "_main.json: invalid lock record") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// writeRecord replaces key's record file with data and fails the test on error.
+func writeRecord(t *testing.T, locks *Locks, key string, data string) {
+	t.Helper()
+	if err := os.MkdirAll(locks.dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(locks.RecordPath(key), []byte(data), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+func TestBreak_CorruptRecord_DiscardsIt(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		record string
+	}{
+		{"zero-length", ""},
+		{"truncated JSON", "{"},
+		{"no token", "{}"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			locks, _ := openTest(t)
+			writeRecord(t, locks, MainWorktreeKey, tc.record)
+
+			broken, err := locks.Break(MainWorktreeKey)
+
+			if err != nil || !broken.IsCorrupt || broken.IsHeld || broken.Key != MainWorktreeKey {
+				t.Fatalf("Break = %+v, err %v; want a corrupt, free status", broken, err)
+			}
+			if _, statErr := os.Stat(locks.RecordPath(MainWorktreeKey)); !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("record still there: stat err %v", statErr)
+			}
+		})
+	}
+}
+
+func TestBreak_UnreadableRecord_FailsAndKeepsIt(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	if err := os.MkdirAll(locks.RecordPath(MainWorktreeKey), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	_, err := locks.Break(MainWorktreeKey)
+
+	if err == nil || errors.Is(err, errCorruptRecord) {
+		t.Fatalf("err = %v; want a read error that is not a corrupt record", err)
+	}
+	if _, statErr := os.Stat(locks.RecordPath(MainWorktreeKey)); statErr != nil {
+		t.Errorf("record removed: stat err %v", statErr)
+	}
+}
+
+func TestList_OneCorruptRecord_ReturnsTheValidLockAndOneWarning(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	mustAcquire(t, locks, "wt-feature")
+	writeRecord(t, locks, MainWorktreeKey, "{")
+
+	held, warnings, err := locks.List()
+
+	if err != nil || len(held) != 1 || held[0].Key != "wt-feature" {
+		t.Fatalf("List = %+v, err %v; want the wt-feature lock alone", held, err)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0].Error(), "_main.json: invalid lock record") {
+		t.Errorf("warnings = %v; want one naming _main.json", warnings)
 	}
 }
 

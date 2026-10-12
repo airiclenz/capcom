@@ -47,6 +47,11 @@ const (
 // ErrNotHeld reports a touch of a worktree whose lock nobody holds.
 var ErrNotHeld = errors.New("no lock is held on this worktree")
 
+// errCorruptRecord marks a record file that was read but holds no lock: it does not parse, or it
+// carries no token. Break discards such a record and List skips it with a warning; an I/O error
+// reading a record never matches it.
+var errCorruptRecord = errors.New("invalid lock record")
+
 // Record is one worktree's lock as stored on disk.
 type Record struct {
 	// Token is the secret the holder presents to touch, release and re-acquire.
@@ -83,6 +88,9 @@ type Status struct {
 	IsHeld bool
 	// IsStale reports a held lock whose heartbeat is older than the TTL.
 	IsStale bool
+	// IsCorrupt reports a record that held no valid lock and was discarded; only Break sets it,
+	// and IsHeld is then false.
+	IsCorrupt bool
 }
 
 // NotHeldError reports a touch of a free lock; it matches ErrNotHeld under errors.Is.
@@ -254,11 +262,17 @@ func (l *Locks) Release(key, token string) (Status, error) {
 	return released, err
 }
 
-// Break frees key's lock whoever holds it, and returns the lock as it was.
+// Break frees key's lock whoever holds it, and returns the lock as it was. A record that holds no
+// valid lock is discarded too, and the free Status returned says so with IsCorrupt; a record that
+// cannot be read at all fails and is left in place.
 func (l *Locks) Break(key string) (Status, error) {
 	var broken Status
 	err := l.withGuard(key, func(now time.Time) error {
 		current, err := l.read(key, now)
+		if errors.Is(err, errCorruptRecord) {
+			broken = Status{Key: key, IsCorrupt: true}
+			return l.remove(key)
+		}
 		if err != nil || !current.IsHeld {
 			broken = current
 			return err
@@ -298,18 +312,20 @@ func (l *Locks) Check(key, token string) (Status, error) {
 	return checked, err
 }
 
-// List returns every held lock of the repository, ordered by key.
-func (l *Locks) List() ([]Status, error) {
+// List returns every held lock of the repository, ordered by key, and one warning per record that
+// holds no valid lock, which it skips. It fails only when the lock directory or a record cannot be
+// read.
+func (l *Locks) List() ([]Status, []error, error) {
 	entries, err := os.ReadDir(l.dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		// Windows reports a file in the directory's place as not found too.
 		if _, statErr := os.Lstat(l.dir); errors.Is(statErr, fs.ErrNotExist) {
-			return []Status{}, nil
+			return []Status{}, nil, nil
 		}
 		err = errors.New("not a directory")
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", l.dir, err)
+		return nil, nil, fmt.Errorf("%s: %w", l.dir, err)
 	}
 
 	keys := make([]string, 0, len(entries))
@@ -323,16 +339,21 @@ func (l *Locks) List() ([]Status, error) {
 	sort.Strings(keys)
 
 	held := make([]Status, 0, len(keys))
+	var warnings []error
 	for _, key := range keys {
 		status, err := l.Read(key)
+		if errors.Is(err, errCorruptRecord) {
+			warnings = append(warnings, err)
+			continue
+		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if status.IsHeld {
 			held = append(held, status)
 		}
 	}
-	return held, nil
+	return held, warnings, nil
 }
 
 // withGuard runs body while holding the OS file lock on key's guard file, passing it the current
@@ -363,7 +384,8 @@ func (l *Locks) withGuard(key string, body func(now time.Time) error) error {
 	return nil
 }
 
-// read loads key's record, if any, and judges its staleness at now. The caller holds the guard.
+// read loads key's record, if any, and judges its staleness at now. A record that does not parse or
+// carries no token fails wrapping errCorruptRecord. The caller holds the guard.
 func (l *Locks) read(key string, now time.Time) (Status, error) {
 	path := l.RecordPath(key)
 	data, err := os.ReadFile(path)
@@ -376,10 +398,10 @@ func (l *Locks) read(key string, now time.Time) (Status, error) {
 
 	var record Record
 	if err := json.Unmarshal(data, &record); err != nil {
-		return Status{}, fmt.Errorf("%s: invalid lock record: %w", path, err)
+		return Status{}, fmt.Errorf("%s: %w: %w", path, errCorruptRecord, err)
 	}
 	if record.Token == "" {
-		return Status{}, fmt.Errorf("%s: invalid lock record: no token", path)
+		return Status{}, fmt.Errorf("%s: %w: no token", path, errCorruptRecord)
 	}
 	return Status{
 		Key:     key,

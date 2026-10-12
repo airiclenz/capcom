@@ -50,8 +50,9 @@ type Briefing struct {
 	Health *Health
 	// Elsewhere is the issue changes on other branches, nil when there are none.
 	Elsewhere []elsewhere.Entry
-	// Failures are in the order Compose reads the sources: store, index, ready, doing, locks,
-	// check, then one per Elsewhere scan warning, worded as the scan wrote it.
+	// Failures are in the order Compose reads the sources: store, index, ready, doing, locks (one
+	// per invalid lock record when the rest were listed), check, then one per Elsewhere scan
+	// warning, worded as the scan wrote it.
 	Failures []Failure
 }
 
@@ -142,14 +143,18 @@ func (b *Briefing) readWork(s *store.Store) {
 	b.Work = work
 }
 
-// readLocks sets Locks to the Tree lock of every worktree that has one.
+// readLocks sets Locks to the Tree lock of every worktree that has one; each lock record that
+// holds no valid lock becomes one Failure of SectionLocks.
 func (b *Briefing) readLocks(s *store.Store) {
-	held, err := lock.Open(s.GitCommonDir, s.Config.Lock.TTL).List()
+	held, warnings, err := lock.Open(s.GitCommonDir, s.Config.Lock.TTL).List()
 	if err != nil {
 		b.fail(SectionLocks, err)
 		return
 	}
 	b.Locks = append([]lock.Status{}, held...)
+	for _, warning := range warnings {
+		b.fail(SectionLocks, warning)
+	}
 }
 
 // readHealth sets Health from a check of the store cwd belongs to.

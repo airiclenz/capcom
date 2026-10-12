@@ -240,7 +240,10 @@ cmd/release/prepare_test.go — preparedTags, bumpRefusingRepo; docs/releasing.m
 - `GOMEMLIMIT=2GiB go test ./internal/index/`
 **Commit:** `fix(index): stop reporting a spurious rollback error after a failed commit`
 
-## 13. A corrupt lock record can be broken and does not hide other locks
+## 13. A corrupt lock record can be broken and does not hide other locks — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `lock.List` now returns `([]Status, []error, error)` (warnings as the middle value) and `lock.Status` gained `IsCorrupt`, set only by `Break`; the CLI renders a discarding break as `LOCK=free` plus the warning `<record path>: invalid lock record; discarded` rather than a new LOCK= value.
+NOTES (2026-10-12): docs/format.md (Tree lock section) gained one sentence on corrupt records, since `lock break` and `lock status --all` changed user-visible behaviour.
 
 **What:** `Break`, `Release`, `Acquire --take-stale` and `List` fail on an unparsable record.
 **Regression guard.** `l.read` wraps every parse failure, `{}` included, in one sentinel (e.g. `errCorruptRecord`) that `Break` and `List` test; an I/O error (EACCES, EISDIR) still fails, so `Break` never deletes an unread record. Keep the `invalid lock record` wording. `briefing.readLocks` routes `List` warnings to `b.fail(SectionLocks, …)` like `scanElsewhere`. `Release`/`Acquire` unchanged.

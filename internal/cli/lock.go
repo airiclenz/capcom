@@ -167,6 +167,9 @@ func (a *app) newLockBreakCommand() *cobra.Command {
 				return err
 			}
 			status, err := target.locks.Break(target.key)
+			if err == nil && status.IsCorrupt {
+				return a.emitDiscardedLock(cmd, status, target.locks.RecordPath(target.key))
+			}
 			return a.emitLock(cmd, endedState(status), status, "", err)
 		}),
 	})
@@ -207,11 +210,13 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 				return err
 			}
 			if isAll {
-				held, err := target.locks.List()
+				held, warnings, err := target.locks.List()
 				if err != nil {
 					return err
 				}
-				return a.emit(cmd, allLocksResult(held))
+				result := allLocksResult(held)
+				result.Warnings = errorStrings(warnings)
+				return a.emit(cmd, result)
 			}
 			status, err := target.locks.Read(target.key)
 			return a.emitLock(cmd, foundState(status), status, "", err)
@@ -260,6 +265,19 @@ func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, tok
 		Data: data,
 		Text: lockText(data),
 		KV:   []KVRecord{{Pairs: lockPairs(data)}},
+	})
+}
+
+// emitDiscardedLock renders a break that discarded status's corrupt record at path: the lock is
+// now free, and a warning says the record was invalid and has been discarded.
+func (a *app) emitDiscardedLock(cmd *cobra.Command, status lock.Status, path string) error {
+	data := newLockData(lockFree, status, "")
+	return a.emit(cmd, Result{
+		Kind:     kindLock,
+		Data:     data,
+		Text:     lockText(data),
+		KV:       []KVRecord{{Pairs: lockPairs(data)}},
+		Warnings: []string{path + ": invalid lock record; discarded"},
 	})
 }
 

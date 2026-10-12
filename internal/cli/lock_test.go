@@ -177,6 +177,52 @@ func TestLockBreak_HeldLock_FreesIt(t *testing.T) {
 	}
 }
 
+// writeLockRecord replaces root's lock record of key with data.
+func writeLockRecord(t *testing.T, root, key, data string) {
+	t.Helper()
+	dir := filepath.Join(root, ".git", "capcom", "locks")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, key+".json"), []byte(data), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+func TestLockBreak_CorruptRecord_DiscardsItWithANotice(t *testing.T) {
+	root := newLockStore(t)
+	writeLockRecord(t, root, "_main", "{")
+
+	stdout, stderr, exitCode := runCLI(t, root, "lock", "break")
+	status := mustRun(t, root, "lock", "status", "--kv")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d, want 0\nstdout = %s\nstderr = %s", exitCode, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "_main: free\n") || !strings.Contains(stdout, "_main.json: invalid lock record; discarded") {
+		t.Errorf("stdout = %q, want the free lock and the discard notice", stdout)
+	}
+	if kvValue(t, status, "LOCK") != "free" {
+		t.Errorf("status = %q", status)
+	}
+}
+
+func TestLockStatusAll_CorruptRecord_ListsTheRestWithAWarning(t *testing.T) {
+	root := newLockStore(t)
+	worktree := addWorktree(t, root, "feature")
+	acquireToken(t, worktree, "agent-b")
+	writeLockRecord(t, root, "_main", "{}")
+
+	stdout := mustRun(t, root, "lock", "status", "--all", "--kv")
+
+	if !strings.Contains(stdout, "_main.json: invalid lock record: no token") {
+		t.Errorf("stdout = %q, want a warning naming the corrupt record", stdout)
+	}
+	if strings.Count(stdout, "WORKTREE=") != 1 || !strings.Contains(stdout, "WORKTREE=wt-feature\nLOCK=held\nHOLDER=agent-b\n") {
+		t.Errorf("stdout = %q, want the wt-feature lock alone", stdout)
+	}
+}
+
 func TestLockCheck_ExitCodes(t *testing.T) {
 	root := newLockStore(t)
 	_, _, freeExit := runCLI(t, root, "lock", "check")
