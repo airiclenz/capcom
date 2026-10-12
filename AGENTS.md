@@ -1,4 +1,4 @@
-# capcom — agent guide
+# **capcom** - agent guide
 
 capcom is a git-native issue tracker and knowledge store for coding agents, written in Go. Issues
 and knowledge notes are markdown files under `.capcom/`, versioned with the code; a disposable

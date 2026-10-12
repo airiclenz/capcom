@@ -1,4 +1,4 @@
-# capcom: a git-native issue tracker and knowledge base for AI coding agents
+# **capcom** - a git-native issue tracker and knowledge base for AI coding agents
 
 [![Release](https://img.shields.io/github/v/release/airiclenz/capcom)](https://github.com/airiclenz/capcom/releases/latest)
 [![CI](https://github.com/airiclenz/capcom/actions/workflows/ci.yml/badge.svg)](https://github.com/airiclenz/capcom/actions/workflows/ci.yml)
