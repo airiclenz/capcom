@@ -277,3 +277,30 @@ func TestKnowMv_OntoAliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) 
 		t.Error("release-flow.md was moved onto an orphaned Note's alias")
 	}
 }
+
+func TestKnowMv_UnparseableNote_FailsInvalidAtItsRelativeFileAndLine(t *testing.T) {
+	root := newKnowStore(t)
+	breakNoteFile(t, root, "release-flow.md")
+
+	stdout, _, exitCode := runCLI(t, root, "know", "mv", "--json", "release-flow", "release-steps")
+
+	if exitCode != ExitError {
+		t.Errorf("exit = %d, want %d", exitCode, ExitError)
+	}
+	assertWorktreeRelativeFailure(t, root, stdout, ".capcom/knowledge/release-flow.md", true)
+}
+
+func TestKnowMv_ApplyFails_NamesTheFilesRelativeToTheWorktree(t *testing.T) {
+	root := newKnowStore(t)
+	failMoveApply(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "mv", "--json", "release-flow", "release-steps")
+
+	if exitCode != ExitError {
+		t.Errorf("exit = %d, want %d", exitCode, ExitError)
+	}
+	assertWorktreeRelativeFailure(t, root, stdout, ".capcom/knowledge/release-flow.md", false)
+	if !noteFileExists(t, root, "release-flow.md") {
+		t.Errorf("release-flow.md moved although the move failed")
+	}
+}

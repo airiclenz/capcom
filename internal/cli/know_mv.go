@@ -97,8 +97,8 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 			Message: fmt.Sprintf("etag %s does not match the file's etag %s; show the note again", options.ifMatch, current),
 		}
 	}
-	if err := move.Apply(); err != nil {
-		return Result{}, asError(err)
+	if err := applyMove(move.Move); err != nil {
+		return Result{}, a.moveApplyFailure(err, move.Node)
 	}
 	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
 	result := noteWriteResult(move.NewID, path, edit.ETag(move.Content))
@@ -118,12 +118,7 @@ func (a *app) noteMoveFailure(err error, node tree.Node) error {
 	}
 	var parseFailure *knowledge.Error
 	if errors.As(err, &parseFailure) {
-		return &Error{
-			Code:    CodeInvalid,
-			Path:    relativeSlashPath(a.store.WorktreeRoot, parseFailure.Path),
-			Line:    parseFailure.Line,
-			Message: parseFailure.Message,
-		}
+		return a.noteFailure(err)
 	}
 	return &Error{
 		Code:    CodeInvalid,

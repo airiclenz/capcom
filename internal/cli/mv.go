@@ -15,6 +15,10 @@ import (
 // rootParentArg is the --parent value of capcom mv that moves an issue to the top of the tree.
 const rootParentArg = "."
 
+// applyMove carries out a planned move for mv and know mv; a test swaps it to inject a failure of
+// the renames and rewrites Apply makes.
+var applyMove = (*tree.Move).Apply
+
 // newMvCommand renames an issue, moves it below another, or both. A rename keeps the old id as an
 // Alias and rewrites every deps entry that named the issue; the issue's subtree moves with it.
 // capcom moves files with a plain file-system rename and never runs git.
@@ -84,8 +88,8 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 			return Result{}, err
 		}
 	}
-	if err := move.Apply(); err != nil {
-		return Result{}, asError(err)
+	if err := applyMove(move.Move); err != nil {
+		return Result{}, a.moveApplyFailure(err, move.Node)
 	}
 	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
 	result := writeResult(move.NewID, path, edit.ETag(move.Content))
@@ -191,11 +195,22 @@ func (a *app) moveFailure(err error, node tree.Node) error {
 	}
 	var parseFailure *issue.Error
 	if errors.As(err, &parseFailure) {
-		return issueFailure(err)
+		return a.issueFailure(err)
 	}
 	return &Error{
 		Code:    CodeInvalid,
 		Path:    relativeSlashPath(a.store.WorktreeRoot, node.Path),
 		Message: err.Error(),
+	}
+}
+
+// moveApplyFailure types a move of node whose Apply failed: invalid at the node's file, with every
+// path the failure names, the step that failed and any it could not take back, relative to the
+// working tree root.
+func (a *app) moveApplyFailure(err error, node tree.Node) error {
+	return &Error{
+		Code:    CodeInvalid,
+		Path:    a.worktreeRelative(node.Path),
+		Message: a.worktreeRelativeText(err.Error()),
 	}
 }

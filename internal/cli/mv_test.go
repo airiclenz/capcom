@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // newMoveStore creates a store with login-flow, a child below it, and an issue depending on
@@ -263,4 +266,57 @@ func TestMv_Rename_RelatedLinksFollow(t *testing.T) {
 		t.Errorf("related of session-tasks = %v, of auth-flow = %v", holder, other)
 	}
 	assertCheckPasses(t, root)
+}
+
+// failMoveApply makes every move fail its first rename the way os.Rename does, naming both paths
+// absolutely, until the test ends.
+func failMoveApply(t *testing.T) {
+	t.Helper()
+	previous := applyMove
+	applyMove = func(move *tree.Move) error {
+		return &os.LinkError{Op: "rename", Old: move.Node.Path, New: move.NewPath, Err: fs.ErrPermission}
+	}
+	t.Cleanup(func() { applyMove = previous })
+}
+
+// assertWorktreeRelativeFailure checks that the --json failure in stdout is invalid at wantPath,
+// with a line when hasLine, and that its message names no path by the worktree's absolute root.
+func assertWorktreeRelativeFailure(t *testing.T, root string, stdout string, wantPath string, hasLine bool) {
+	t.Helper()
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	message, _ := failure["message"].(string)
+	line, _ := failure["line"].(float64)
+	if failure["code"] != string(CodeInvalid) || failure["path"] != wantPath || (line > 0) != hasLine ||
+		strings.Contains(message, root) {
+		t.Errorf("error = %v, want invalid at %s (line: %t) naming no path under %s", failure, wantPath, hasLine, root)
+	}
+}
+
+func TestMv_UnparseableIssue_FailsInvalidAtItsRelativeFileAndLine(t *testing.T) {
+	root := newMoveStore(t)
+	breakIssueFile(t, root, "renamed-issue.md")
+
+	stdout, _, exitCode := runCLI(t, root, "mv", "--json", "renamed-issue", "other-name")
+
+	if exitCode != ExitError {
+		t.Errorf("exit = %d, want %d", exitCode, ExitError)
+	}
+	assertWorktreeRelativeFailure(t, root, stdout, ".capcom/issues/renamed-issue.md", true)
+}
+
+func TestMv_ApplyFails_NamesTheFilesRelativeToTheWorktree(t *testing.T) {
+	root := newMoveStore(t)
+	failMoveApply(t)
+
+	stdout, _, exitCode := runCLI(t, root, "mv", "--json", "renamed-issue", "other-name")
+
+	if exitCode != ExitError {
+		t.Errorf("exit = %d, want %d", exitCode, ExitError)
+	}
+	assertWorktreeRelativeFailure(t, root, stdout, ".capcom/issues/renamed-issue.md", false)
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	wantNewPath := filepath.Join(".capcom", "issues", "other-name.md")
+	if message, _ := failure["message"].(string); !strings.Contains(message, wantNewPath) {
+		t.Errorf("message = %q, want it to name %s", message, wantNewPath)
+	}
 }

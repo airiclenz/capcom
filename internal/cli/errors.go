@@ -135,6 +135,12 @@ func (a *app) worktreeRelative(path string) string {
 	return path
 }
 
+// worktreeRelativeText returns text with every path inside the working tree named relative to its
+// root, so a message built from an OS error never carries the worktree's absolute path.
+func (a *app) worktreeRelativeText(text string) string {
+	return strings.ReplaceAll(text, a.store.WorktreeRoot+string(filepath.Separator), "")
+}
+
 // treeProblems returns the problems of a tree.Load failure that still returned the tree of what it
 // could place, for a command that goes on with that tree; it returns nil for a nil err. Any other
 // failure, which returns no tree, comes back as treeLoadFailure types it.

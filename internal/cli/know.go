@@ -512,7 +512,7 @@ func (a *app) verifyNotes() ([]knowledge.Finding, error) {
 		}
 		note, err := knowledge.Parse(entry.Path, data)
 		if err != nil {
-			return nil, noteFailure(err)
+			return nil, a.noteFailure(err)
 		}
 		found, err := knowledge.Verify(a.store.WorktreeRoot, entry.Path, entry.ID, note)
 		if err != nil {
@@ -523,11 +523,17 @@ func (a *app) verifyNotes() ([]knowledge.Finding, error) {
 	return findings, nil
 }
 
-// noteFailure types a Note file that cannot be parsed: invalid, at its file and line.
-func noteFailure(err error) error {
+// noteFailure types a Note file that cannot be parsed: invalid, at its file and line, both the
+// path and the message naming the file relative to the working tree root.
+func (a *app) noteFailure(err error) error {
 	var failure *knowledge.Error
 	if errors.As(err, &failure) {
-		return &Error{Code: CodeInvalid, Path: failure.Path, Line: failure.Line, Message: failure.Message}
+		return &Error{
+			Code:    CodeInvalid,
+			Path:    a.worktreeRelative(failure.Path),
+			Line:    failure.Line,
+			Message: a.worktreeRelativeText(failure.Message),
+		}
 	}
 	return asError(err)
 }

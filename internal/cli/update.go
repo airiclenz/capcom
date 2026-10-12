@@ -219,7 +219,7 @@ func (a *app) editIssue(
 	}
 	parsed, err := issue.Parse(entry.Path, data)
 	if err != nil {
-		return Result{}, issueFailure(err)
+		return Result{}, a.issueFailure(err)
 	}
 	edited, err := change(parsed)
 	if err != nil {
@@ -275,11 +275,17 @@ func (a *app) absoluteIssuePath(path string) string {
 	return filepath.Join(a.store.WorktreeRoot, filepath.FromSlash(path))
 }
 
-// issueFailure types an issue file that cannot be parsed: invalid, at its file and line.
-func issueFailure(err error) error {
+// issueFailure types an issue file that cannot be parsed: invalid, at its file and line, both
+// the path and the message naming the file relative to the working tree root.
+func (a *app) issueFailure(err error) error {
 	var failure *issue.Error
 	if errors.As(err, &failure) {
-		return &Error{Code: CodeInvalid, Path: failure.Path, Line: failure.Line, Message: failure.Message}
+		return &Error{
+			Code:    CodeInvalid,
+			Path:    a.worktreeRelative(failure.Path),
+			Line:    failure.Line,
+			Message: a.worktreeRelativeText(failure.Message),
+		}
 	}
 	return asError(err)
 }

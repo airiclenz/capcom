@@ -129,7 +129,7 @@ func (a *app) updateNote(
 	}
 	note, err := knowledge.Parse(entry.Path, data)
 	if err != nil {
-		return Result{}, noteFailure(err)
+		return Result{}, a.noteFailure(err)
 	}
 	note, err = applyNoteUpdate(cmd, options, inputs, note)
 	if err != nil {

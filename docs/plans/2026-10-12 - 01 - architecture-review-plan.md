@@ -85,7 +85,11 @@ warnings, Briefing and Ready-list modules, pass-throughs moved home, and a seman
 - 36: recast (re-check decision: Goal lists ShowFile and LastCommitTouching)
 - 37: guard folded (decision: Acceptance adds `! grep -nE '"git", "(push|ls-remote|fetch|cat-file|show|log)"' cmd/release/publish.go`; replaces the rejected item-36 grep)
 
-## 1. mv and know mv report worktree-relative paths
+## 1. mv and know mv report worktree-relative paths — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the cli-reachable seam is a package var `applyMove` (`(*tree.Move).Apply`) in internal/cli/mv.go, used by mv and know mv, not a rename-level seam: Move's rename field can only be set from tree's export_test, and internal/tree is outside this item's Files; the test fake returns the os.LinkError a failed rename gives.
+NOTES (2026-10-12): an Apply failure is invalid with `path` set to the moved node's file; the failing step's path, and any rollback failures, stay in the message, with the worktree root prefix (root + OS separator) stripped by the new `app.worktreeRelativeText`. On Windows the relative paths left in OS error text keep backslashes.
+NOTES (2026-10-12): noteMoveFailure's parse branch now delegates to the `noteFailure` app method, which also relativizes `knowledge.Error.Message`; issue and Note parse failures in update, know update and know verify go through the same methods (their paths were already relative, so they are unchanged).
 
 **What:**
 **Goal:** every failure `capcom mv` and `capcom know mv` emit — a parse failure of the moved file and
