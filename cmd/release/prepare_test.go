@@ -277,6 +277,9 @@ func TestPrepareRefuses(t *testing.T) {
 		"the tags cannot be listed": {
 			failing: methodReleaseTags, wantError: "list the release tags",
 		},
+		"origin cannot be fetched": {
+			failing: methodFetchMain, wantError: "fetch origin's main and its tags: FetchMain: cannot run",
+		},
 		"the tree's status cannot be read": {
 			failing: methodIsClean, wantError: "read the working tree's status",
 		},
@@ -377,6 +380,53 @@ func (r bumpRefusingRepo) CommitFile(ctx context.Context, path string, content [
 		return errors.New("the commit hook refused it")
 	}
 	return r.memRepo.CommitFile(ctx, path, content, subject)
+}
+
+// tagFetchingRepo is a memRepo whose origin holds release tags the checkout lacks: ReleaseTags
+// lists them only once FetchMain has fetched them, as git lists a tag only once it is fetched.
+type tagFetchingRepo struct {
+	memRepo
+	originTags []string
+	// isFetched is a pointer so every copy of the repo shares whether FetchMain ran.
+	isFetched *bool
+}
+
+// FetchMain fetches origin's tags into the checkout.
+func (r tagFetchingRepo) FetchMain(ctx context.Context) error {
+	if err := r.memRepo.FetchMain(ctx); err != nil {
+		return err
+	}
+	*r.isFetched = true
+	return nil
+}
+
+// ReleaseTags lists the checkout's release tags, origin's among them once they are fetched.
+func (r tagFetchingRepo) ReleaseTags(ctx context.Context) ([]string, error) {
+	tags, err := r.memRepo.ReleaseTags(ctx)
+	if err != nil || !*r.isFetched {
+		return tags, err
+	}
+	return append(tags, r.originTags...), nil
+}
+
+// TestPrepareJudgesTheVersionAgainstOriginsTags pins that prepare fetches before it reads the
+// tags: a version origin already released refuses even while the checkout lacks its tag.
+func TestPrepareJudgesTheVersionAgainstOriginsTags(t *testing.T) {
+	t.Parallel()
+	checkout := newPrepareCheckout(t, unreleasedChangelog, preparedVersion)
+	var isFetched bool
+	openRepo := func(string) repo {
+		return tagFetchingRepo{memRepo: checkout.repo, originTags: []string{"v0.25.0"}, isFetched: &isFetched}
+	}
+
+	_, err := checkout.prepareWith(t, openRepo, "v0.25.0")
+
+	if err == nil || !strings.Contains(err.Error(), "v0.25.0 is not above the highest release tag v0.25.0") {
+		t.Errorf("error = %v, want it to judge v0.25.0 against origin's tag v0.25.0", err)
+	}
+	if len(checkout.commits) != 0 {
+		t.Errorf("commits = %+v, want nothing committed", checkout.commits)
+	}
 }
 
 // TestPrepareReportsAFailedBumpCommit pins that a bump commit that fails is a run failure naming

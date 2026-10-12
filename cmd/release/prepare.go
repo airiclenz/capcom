@@ -51,7 +51,9 @@ func newPrepareCommand(commands runner, openRepo repoOpener) *cobra.Command {
 			"VERSION. It refuses, writing nothing, when the version is malformed or not above the\n" +
 			"highest vX.Y.Z tag (with no such tag, any version is above it), VERSION already reads\n" +
 			"it, the working tree is not clean, ## [Unreleased] is missing or holds no bullet, or\n" +
-			"CHANGELOG.md already has a heading for the version. A bare X.Y.Z reads as vX.Y.Z.",
+			"CHANGELOG.md already has a heading for the version. It fetches origin's main and its\n" +
+			"tags first, so the version is judged against the published tags, and refuses when that\n" +
+			"fetch fails. A bare X.Y.Z reads as vX.Y.Z.",
 		Args: cobra.ExactArgs(1),
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			options.version = args[0]
@@ -91,10 +93,15 @@ func runPrepare(ctx context.Context, commands runner, output io.Writer, options 
 
 // checkPrepare runs every refusal check and, when none refuses, returns CHANGELOG.md as the
 // rollup commit will write it. Every refusal is reported together, so one run names them all.
-// It asks checkout for the tree's state and the tags, and reads CHANGELOG.md and VERSION from
-// dir.
+// It fetches origin's main and its tags first, so the version is judged against the published
+// tags rather than stale local ones, then asks checkout for the tree's state and the tags, and
+// reads CHANGELOG.md and VERSION from dir.
 func checkPrepare(ctx context.Context, checkout repo, dir string, version releaseVersion, today time.Time) ([]byte, error) {
 	var refusals []error
+
+	if err := checkout.FetchMain(ctx); err != nil {
+		refusals = append(refusals, fmt.Errorf("fetch %s's %s and its tags: %w", remoteName, mainBranch, err))
+	}
 
 	isClean, err := checkout.IsClean(ctx)
 	switch {

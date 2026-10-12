@@ -213,7 +213,9 @@ internal/check/check.go — checker.checkNote
 - `GOMEMLIMIT=2GiB go test ./internal/knowledge/`
 **Commit:** `fix(knowledge): report an unresolvable ref as a finding`
 
-## 11. `release prepare` fetches before judging the version against tags
+## 11. `release prepare` fetches before judging the version against tags — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the origin-tag wrapper (`tagFetchingRepo`) lives in prepare_test.go next to `bumpRefusingRepo`, so cmd/release/repo.go and cmd/release/memrepo_test.go (both on the Files line) needed no change; a failed fetch still lets the other checks run against the local tags, so one run names every refusal.
 
 **What:** `checkPrepare` compares against stale local tags.
 **Regression guard.** `execRepo.FetchMain` already fetches `--tags`: no interface change. `memRepo.FetchMain` is a no-op, so the test wraps it like `bumpRefusingRepo`, exposing origin's tags to `ReleaseTags` only after `FetchMain`; the bite tag tops `preparedTags`. `prepare`'s `--help` Long text and `docs/releasing.md` bullet say it fetches origin's main and tags first and refuses when that fails, worded as the `status` bullet.
