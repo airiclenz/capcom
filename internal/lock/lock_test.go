@@ -254,6 +254,23 @@ func TestList_NoLockDirectory_IsEmpty(t *testing.T) {
 	}
 }
 
+func TestList_FileWhereTheLockDirectoryBelongs_Fails(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	if err := os.MkdirAll(filepath.Dir(locks.dir), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(locks.dir, []byte("not a directory\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	held, err := locks.List()
+
+	if err == nil || !strings.Contains(err.Error(), locks.dir) {
+		t.Fatalf("List = %+v, err %v; want an error naming %s", held, err, locks.dir)
+	}
+}
+
 func TestRead_CorruptRecord_FailsNamingTheFile(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)

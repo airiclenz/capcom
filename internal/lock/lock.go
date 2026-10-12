@@ -302,7 +302,11 @@ func (l *Locks) Check(key, token string) (Status, error) {
 func (l *Locks) List() ([]Status, error) {
 	entries, err := os.ReadDir(l.dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return []Status{}, nil
+		// Windows reports a file in the directory's place as not found too.
+		if _, statErr := os.Lstat(l.dir); errors.Is(statErr, fs.ErrNotExist) {
+			return []Status{}, nil
+		}
+		err = errors.New("not a directory")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", l.dir, err)
