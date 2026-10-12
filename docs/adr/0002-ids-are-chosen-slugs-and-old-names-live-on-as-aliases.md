@@ -9,6 +9,10 @@ text keeps working without being rewritten. The bd import uses the same mechanis
 issue gets a new slug and keeps its bd id (`apogee-qi3`) as an alias. A new id may not reuse an
 existing id or alias.
 
+Amended 2026-10-12: the floor is one word, not two, so a one-word glossary term is its own **Id**
+([ADR 0010](0010-knowledge-holds-a-glossary-and-decision-records-as-note-trees.md)). The ceiling
+of four words and 40 characters stays.
+
 ## Considered Options
 
 - **Generated ids (hash or sequence), as bd, Beans and Backlog.md do.** Rejected: they say
