@@ -11,6 +11,10 @@ import (
 // errNoResolver is the failure of Edit on a Kind built without a Resolver.
 var errNoResolver = errors.New("nodestore: the kind has no resolver")
 
+// beforeRecheck runs between Edit's validation of the changed node and its re-read of the node
+// file. It does nothing in production; tests set it to change the file at that moment.
+var beforeRecheck = func(path string) {}
+
 // Edit changes the existing node ref names (its id, one of its Aliases or a unique id prefix) and
 // writes it back, returning the node written. Once ref has resolved, the Written names the node's
 // id and file even when Edit fails, its ETag empty, so the caller can locate a failure of change.
@@ -24,7 +28,11 @@ var errNoResolver = errors.New("nodestore: the kind has no resolver")
 //  5. change, applied to the parsed node, whose failure is returned unwrapped.
 //  6. validation: a node that does not validate fails with a *FileError at the file, listing every
 //     problem and citing the first problem's line.
-//  7. the atomic write, whose failure is returned as it is.
+//  7. the re-check, whether or not ifMatch is set: the node file is read again, a read failure
+//     being a *FileError at it as in step 2, and when its etag is no longer the one step 2 read,
+//     a *ConflictError naming that first-read etag as stale; the newer file is left as it is.
+//  8. the atomic write, whose failure is returned as it is. An edit landing between the re-check
+//     and this write is still overwritten: the store takes no lock.
 func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (Written, error) {
 	if k.resolver == nil {
 		return Written{}, errNoResolver
@@ -40,8 +48,9 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err != nil {
 		return located, k.fileError(path, err)
 	}
-	if current := edit.ETag(data); ifMatch != "" && ifMatch != current {
-		return located, k.conflictError(path, ifMatch, current)
+	firstETag := edit.ETag(data)
+	if ifMatch != "" && ifMatch != firstETag {
+		return located, k.conflictError(path, ifMatch, firstETag)
 	}
 	node, err := k.codec.Parse(target.Path, data)
 	if err != nil {
@@ -51,9 +60,30 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err != nil {
 		return located, err
 	}
-	written, err := k.write(path, target.ID, edited, replaceFile)
+	encoded, err := k.encode(path, edited)
+	if err != nil {
+		return located, err
+	}
+	if err := k.recheck(path, firstETag); err != nil {
+		return located, err
+	}
+	written, err := k.place(path, target.ID, encoded, replaceFile)
 	if err != nil {
 		return located, err
 	}
 	return written, nil
+}
+
+// recheck reads the node file at path again, failing as Edit's step 7 documents when it cannot be
+// read or its etag is no longer firstETag, the etag Edit first read.
+func (k *Kind[T]) recheck(path string, firstETag string) error {
+	beforeRecheck(path)
+	data, err := tree.ReadNodeFile(path)
+	if err != nil {
+		return k.fileError(path, err)
+	}
+	if current := edit.ETag(data); current != firstETag {
+		return k.conflictError(path, firstETag, current)
+	}
+	return nil
 }

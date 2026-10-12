@@ -350,11 +350,26 @@ func (k *Kind[T]) relativeTreeError(problem *tree.Error) *tree.Error {
 // fails with a *FileError listing every problem, citing the first problem's line, and is not
 // written.
 func (k *Kind[T]) write(path string, id string, node T, mode writeMode) (Written, error) {
+	data, err := k.encode(path, node)
+	if err != nil {
+		return Written{}, err
+	}
+	return k.place(path, id, data, mode)
+}
+
+// encode validates node, to be written to path, the absolute file of the node, and returns its
+// serialized bytes with LF line endings; a node that does not validate fails as write documents.
+func (k *Kind[T]) encode(path string, node T) ([]byte, error) {
 	relative := k.relative(path)
 	if problems := k.codec.Validate(relative, node); len(problems) > 0 {
-		return Written{}, validationError(relative, problems)
+		return nil, validationError(relative, problems)
 	}
-	data := bytes.ReplaceAll(k.codec.Serialize(node), []byte("\r\n"), []byte("\n"))
+	return bytes.ReplaceAll(k.codec.Serialize(node), []byte("\r\n"), []byte("\n")), nil
+}
+
+// place writes data, the bytes encode returned, to path, the absolute file of the node id, under
+// mode as write documents, and returns the node written.
+func (k *Kind[T]) place(path string, id string, data []byte, mode writeMode) (Written, error) {
 	writeFile := tree.WriteFileAtomic
 	if mode == createFile {
 		writeFile = tree.WriteFileExclusive
@@ -362,7 +377,7 @@ func (k *Kind[T]) write(path string, id string, node T, mode writeMode) (Written
 	if err := writeFile(path, bytes.NewReader(data)); err != nil {
 		return Written{}, err
 	}
-	return Written{ID: id, Path: relative, ETag: edit.ETag(data)}, nil
+	return Written{ID: id, Path: k.relative(path), ETag: edit.ETag(data)}, nil
 }
 
 // validationError is the *FileError of a node at path, relative to the working tree root, that

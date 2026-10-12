@@ -192,6 +192,54 @@ func TestEdit_InvalidNote_FailsAtTheNoteFileWithEveryProblem(t *testing.T) {
 	}
 }
 
+// TestEdit_FileChangedBeforeTheWrite_FailsWithAConflictAndKeepsTheNewerBytes is not parallel: it
+// sets the package-level beforeRecheck hook, which the parallel tests only run after it restores.
+func TestEdit_FileChangedBeforeTheWrite_FailsWithAConflictAndKeepsTheNewerBytes(t *testing.T) {
+	newer := strings.Replace(canonicalIssue, "title: Fix the parser", "title: Fix the tokenizer", 1)
+	tests := []struct {
+		name    string
+		ifMatch string
+	}{
+		{name: "without an etag", ifMatch: ""},
+		{name: "with the matching etag", ifMatch: edit.ETag([]byte(canonicalIssue))},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			issues, path := newEditedIssue(t)
+			setBeforeRecheck(t, func(string) {
+				writeNodeFile(t, issues.dir, editedIssueID+".md", newer)
+			})
+			calls := 0
+
+			written, err := issues.Edit(editedIssueID, test.ifMatch, retitle("Fix the lexer", &calls))
+
+			var conflict *ConflictError
+			if !errors.As(err, &conflict) || conflict.Path != editedIssuePath ||
+				conflict.IfMatch != edit.ETag([]byte(canonicalIssue)) ||
+				conflict.ETag != edit.ETag([]byte(newer)) {
+				t.Errorf("err = %v, want a *ConflictError naming the first-read etag as stale", err)
+			}
+			if content := readFile(t, path); content != newer {
+				t.Errorf("file =\n%s\nwant the newer bytes kept", content)
+			}
+			if calls != 1 {
+				t.Errorf("change ran %d times, want once", calls)
+			}
+			if want := (Written{ID: editedIssueID, Path: editedIssuePath}); written != want {
+				t.Errorf("Written = %+v, want %+v", written, want)
+			}
+		})
+	}
+}
+
+// setBeforeRecheck installs hook as beforeRecheck for the rest of the test.
+func setBeforeRecheck(t *testing.T, hook func(path string)) {
+	t.Helper()
+	previous := beforeRecheck
+	beforeRecheck = hook
+	t.Cleanup(func() { beforeRecheck = previous })
+}
+
 func TestEdit_NoResolver_Fails(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

@@ -274,7 +274,9 @@ internal/tree/atomic.go — writeFileAtomic, fillTemp
 - `GOMEMLIMIT=2GiB go test ./internal/tree/ ./internal/nodestore/`
 **Commit:** `fix(nodestore): create node files exclusively`
 
-## 15. `Edit` re-checks the etag immediately before replacing the file
+## 15. `Edit` re-checks the etag immediately before replacing the file — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `Kind.write` keeps its signature (Create and Format unchanged); it is split into `encode` (validate + serialize) and `place` (the file write) in create.go, and `Edit` runs `encode`, the new `recheck`, then `place`, so the re-read sits after all computation and right before the atomic write. The test hook is the package-level `beforeRecheck` in edit.go; the hook test is not parallel and restores it with t.Cleanup.
 
 **What:** An edit landing between the `--if-match` check and the rename is overwritten. Depends on item 14.
 **Regression guard.** Format keeps its plain atomic overwrite. A re-check mismatch passes the first-read etag as stale (`conflictError(path, firstETag, current)`), never the possibly empty `ifMatch`; rewrite `Edit`'s doc step list for the unconditional re-check.
