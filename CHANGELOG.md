@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-12
+
 - `capcom close` now ends its text output with a `now ready: <id>, <id>` line naming the todo issues the close made Ready (no line when there are none; issues hidden by `ready.hide` are left out). Each `--json` item carries `now_ready`, the ids that argument's close readied given the arguments closed before it, each id reported once across the command and `[]` when there are none. `--kv` output is unchanged.
 - `capcom ready` now breaks a priority tie in favour of the issue that unblocks more, before tree order: a Ready issue whose close alone (as done) would make other todo issues Ready ends its line with `  -- unblocks N`, and its `--json` item carries `unblocks`, those issues' ids (left out when there are none; issues hidden by `ready.hide` are not counted). Not-ready lines under `--all` keep their order and gain no suffix. `capcom prime` lists its Ready issues in the same order, with its line format unchanged.
 - `capcom show` now tells whether an issue is ready and who waits on it: an issue in the todo category gets a `ready: yes` or `ready: no (<reasons>)` line right after `category:`, the reasons worded as `ready --all` words them, and an issue others depend on gets a `dependents: [<id>, ...]` line right after `deps:`. Its `--json` items gain `ready` (left out outside the todo category), `blocking` (as `ready` reports it) and `dependents` (always present, empty when none); `--kv` output is unchanged.
