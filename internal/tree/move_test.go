@@ -274,6 +274,58 @@ func TestMoveApply_RenameFails_RestoresRewriteBytesAndMode(t *testing.T) {
 	}
 }
 
+func TestMoveApply_FileAtTarget_RefusedLeavingBothInPlace(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "moved-node.md")
+	move, err := mustLoad(t, dir, nil).PlanMove("moved-node", tree.Destination{ID: "renamed-node"}, issueKind)
+	if err != nil {
+		t.Fatalf("PlanMove: %v", err)
+	}
+	target := filepath.Join(dir, "renamed-node.md")
+	if err := os.WriteFile(target, []byte("untracked\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshotDir(t, dir)
+
+	err = move.Apply()
+
+	if !errors.Is(err, tree.ErrMoveTarget) {
+		t.Fatalf("Apply err = %v, want tree.ErrMoveTarget", err)
+	}
+	if !strings.Contains(err.Error(), target) {
+		t.Errorf("Apply err = %v, want it to name %s", err, target)
+	}
+	if after := snapshotDir(t, dir); !reflect.DeepEqual(after, before) {
+		t.Errorf("tree changed:\n%v\nwant\n%v", after, before)
+	}
+}
+
+func TestMoveApply_ChildrenDirAtTarget_RefusedRenamingNodeFileBack(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "moved-node.md", "moved-node/kid-one.md")
+	move, err := mustLoad(t, dir, nil).PlanMove("moved-node", tree.Destination{ID: "renamed-node"}, issueKind)
+	if err != nil {
+		t.Fatalf("PlanMove: %v", err)
+	}
+	targetDir := filepath.Join(dir, "renamed-node")
+	if err := os.Mkdir(targetDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshotDir(t, dir)
+
+	err = move.Apply()
+
+	if !errors.Is(err, tree.ErrMoveTarget) {
+		t.Fatalf("Apply err = %v, want tree.ErrMoveTarget", err)
+	}
+	if !strings.Contains(err.Error(), targetDir) {
+		t.Errorf("Apply err = %v, want it to name %s", err, targetDir)
+	}
+	if after := snapshotDir(t, dir); !reflect.DeepEqual(after, before) {
+		t.Errorf("tree changed:\n%v\nwant\n%v", after, before)
+	}
+}
+
 func TestRenameAliases(t *testing.T) {
 	cases := []struct {
 		name    string

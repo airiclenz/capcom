@@ -317,7 +317,7 @@ cmd/release/runner.go — runner doc comment; .capcom/knowledge/decisions/adr-00
 - `GOMEMLIMIT=2GiB go test ./cmd/release/ -run 'Runner'`
 **Commit:** `test(release): cover execRunner's env, dir, output and failure contract`
 
-## 18. Test the `mv` guard against overwriting a move target
+## 18. Test the `mv` guard against overwriting a move target — ✅ DONE (2026-10-12)
 
 **What:** Test-only: `ErrMoveTarget` in `renameStep` is never exercised.
 **Regression guard.** Create each obstacle after `PlanMove`, before `Apply` (one present at `tree.Load` fails `PlanMove` with `*TakenError`). The children-dir case moves a node with a child (only then is a children directory renamed) and asserts the rollback renames the node file back.
