@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-12
+
 - `capcom mv` now names a moved issue file that does not parse relative to the worktree root, as every other error does, and a failed rename in `capcom mv` or `capcom know mv` names the moved file and every path in its message relative to the worktree root.
 - When `mv`, `know mv` or `rm` fails part-way and takes back the files it had already rewritten, each file now gets back its exact original bytes, CRLF line endings included, and its original file permissions. Before, a rolled-back file came back with LF line endings and mode 0644.
 - `capcom lock touch` on a lock nobody holds now names the worktree in its result (`worktree: _main` or `wt-<name>`, with `lock: free`) instead of an empty one, and its `not_found` failure gives the lock record's file in the error's `path` field, with the message `no lock is held on this worktree`, the shape a `locked` failure already uses.
