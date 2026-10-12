@@ -1,9 +1,11 @@
 ---
 title: show --kv prints warnings before the result
-status: open
+status: done
 type: bug
 priority: 3
 created: 2026-10-12T05:39:56Z
+closed: 2026-10-12T06:30:58Z
+reason: Resolved by plan 2026-10-12 - 00 - open-issues-plan (item 5, archived in 70b91be)
 ---
 
 `docs/format.md` says a command reports a bad file "as a warning, after its result". Plain-text

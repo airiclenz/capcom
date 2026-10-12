@@ -1,9 +1,11 @@
 ---
 title: create reuses an alias held by an unparseable issue file
-status: open
+status: done
 type: bug
 priority: 2
 created: 2026-10-12T05:39:56Z
+closed: 2026-10-12T06:30:58Z
+reason: Resolved by plan 2026-10-12 - 00 - open-issues-plan (items 2-3, archived in 70b91be)
 ---
 
 `capcom create` refuses an id that is already a healthy issue's alias, but accepts it when the

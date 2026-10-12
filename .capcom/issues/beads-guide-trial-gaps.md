@@ -1,9 +1,11 @@
 ---
 title: Migration guide leaves notes dating and spec_id cases open
-status: open
+status: done
 type: task
 priority: 3
 created: 2026-10-12T05:39:56Z
+closed: 2026-10-12T06:30:58Z
+reason: Resolved by plan 2026-10-12 - 00 - open-issues-plan (item 6, archived in 70b91be)
 ---
 
 The apogee trial migration (2026-10-12, 312 issues, clean `check` on the first run) hit cases
