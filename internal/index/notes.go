@@ -30,14 +30,14 @@ func parseNote(file foundFile, data []byte) (knowledge.Note, []Warning) {
 	if err != nil {
 		var failure *knowledge.Error
 		if errors.As(err, &failure) {
-			return knowledge.Note{}, []Warning{{Path: failure.Path, Line: failure.Line, Message: failure.Message}}
+			return knowledge.Note{}, []Warning{{Kind: WarningFrontmatter, Path: failure.Path, Line: failure.Line, Message: failure.Message}}
 		}
-		return knowledge.Note{}, []Warning{{Path: file.path, Message: err.Error()}}
+		return knowledge.Note{}, []Warning{{Kind: WarningFrontmatter, Path: file.path, Message: err.Error()}}
 	}
 
 	var problems []Warning
 	for _, failure := range knowledge.Validate(file.path, parsed) {
-		problems = append(problems, Warning{Path: failure.Path, Line: failure.Line, Message: failure.Message})
+		problems = append(problems, Warning{Kind: WarningField, Path: failure.Path, Line: failure.Line, Message: failure.Message})
 	}
 	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
 }

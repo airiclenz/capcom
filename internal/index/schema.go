@@ -14,7 +14,7 @@ import (
 
 // schemaVersion identifies the table layout below. Bump it whenever the layout or the meaning of a
 // column changes: an index recorded under another version is dropped and rebuilt.
-const schemaVersion = 3
+const schemaVersion = 4
 
 // Keys of the meta table.
 const (

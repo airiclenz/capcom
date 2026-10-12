@@ -71,7 +71,7 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 		absolute := filepath.Join(dir, name)
 		if err := tree.ValidateID(id); err != nil {
 			invalidIDs[id] = true
-			w.refresher.warn(w.relative(absolute), 0, err.Error())
+			w.refresher.warn(WarningInvalidID, w.relative(absolute), 0, err.Error())
 			continue
 		}
 		info, err := entry.Info()
@@ -100,11 +100,11 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 				return err
 			}
 		case invalidIDs[name]:
-			w.refresher.warn(w.relative(path), 0, fmt.Sprintf(
+			w.refresher.warn(WarningOrphanDirectory, w.relative(path), 0, fmt.Sprintf(
 				"directory left out: its node file %s%s has an invalid id", name, nodeExtension,
 			))
 		default:
-			w.refresher.warn(w.relative(path), 0, fmt.Sprintf(
+			w.refresher.warn(WarningOrphanDirectory, w.relative(path), 0, fmt.Sprintf(
 				"%v: no %s%s beside it; left out", tree.ErrOrphanDirectory, name, nodeExtension,
 			))
 		}

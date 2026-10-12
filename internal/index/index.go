@@ -55,12 +55,35 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
+// WarningKind classifies a Warning by the problem it reports, so a caller tells problems apart
+// without reading the message.
+type WarningKind string
+
+// The kinds of Warning, one per problem the index reports.
+const (
+	// WarningInvalidID is a node file whose name is not a valid id.
+	WarningInvalidID WarningKind = "invalid-id"
+	// WarningInvalidAlias is an alias that is not a valid name.
+	WarningInvalidAlias WarningKind = "invalid-alias"
+	// WarningDuplicate is an id or alias another file of the same tree also has.
+	WarningDuplicate WarningKind = "duplicate"
+	// WarningRepeatedAlias is an alias that repeats its own node's id or is listed twice.
+	WarningRepeatedAlias WarningKind = "repeated-alias"
+	// WarningOrphanDirectory is a directory left out because it has no valid node file beside it.
+	WarningOrphanDirectory WarningKind = "orphan-directory"
+	// WarningFrontmatter is a file whose frontmatter cannot be read.
+	WarningFrontmatter WarningKind = "frontmatter"
+	// WarningField is a field value the file's kind does not accept.
+	WarningField WarningKind = "field"
+)
+
 // Warning is a file the index left out, or a problem it found in one. Path is relative to the
 // working tree root with forward slashes; Line is 1-based, or 0 when no single line is to blame.
 type Warning struct {
-	Path    string `json:"path"`
-	Line    int    `json:"line,omitempty"`
-	Message string `json:"message"`
+	Kind    WarningKind `json:"kind"`
+	Path    string      `json:"path"`
+	Line    int         `json:"line,omitempty"`
+	Message string      `json:"message"`
 }
 
 // String renders "path:line: message", or "path: message" when the line is unknown.

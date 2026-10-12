@@ -587,7 +587,7 @@ internal/cli/fmt_test.go — TestFmt_BrokenFile_WarnsAndLeavesItUntouched, TestF
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Fmt`
 **Commit:** `refactor(cli): fmt through nodestore`
 
-## 20. Typed index warning kind
+## 20. Typed index warning kind — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** every index warning carries a `WarningKind` (invalid-id, invalid-alias, duplicate,

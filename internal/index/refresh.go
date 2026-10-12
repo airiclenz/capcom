@@ -124,9 +124,9 @@ type refresher struct {
 	warnings  []Warning
 }
 
-// warn records a warning about one file.
-func (r *refresher) warn(path string, line int, message string) {
-	r.warnings = append(r.warnings, Warning{Path: path, Line: line, Message: message})
+// warn records a warning of kind about one file.
+func (r *refresher) warn(kind WarningKind, path string, line int, message string) {
+	r.warnings = append(r.warnings, Warning{Kind: kind, Path: path, Line: line, Message: message})
 }
 
 // foundFile is a node file the walk found, with the stat the refresh compares.
@@ -275,14 +275,14 @@ func parseIssue(file foundFile, data []byte, cfg config.Config) (issue.Issue, []
 	if err != nil {
 		var failure *issue.Error
 		if errors.As(err, &failure) {
-			return issue.Issue{}, []Warning{{Path: failure.Path, Line: failure.Line, Message: failure.Message}}
+			return issue.Issue{}, []Warning{{Kind: WarningFrontmatter, Path: failure.Path, Line: failure.Line, Message: failure.Message}}
 		}
-		return issue.Issue{}, []Warning{{Path: file.path, Message: err.Error()}}
+		return issue.Issue{}, []Warning{{Kind: WarningFrontmatter, Path: file.path, Message: err.Error()}}
 	}
 
 	var problems []Warning
 	for _, failure := range issue.Validate(file.path, parsed, cfg) {
-		problems = append(problems, Warning{Path: failure.Path, Line: failure.Line, Message: failure.Message})
+		problems = append(problems, Warning{Kind: WarningField, Path: failure.Path, Line: failure.Line, Message: failure.Message})
 	}
 	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
 }
@@ -296,11 +296,11 @@ func aliasProblems(file foundFile, aliases []string) []Warning {
 		aliasErr := tree.ValidateAlias(alias)
 		switch {
 		case aliasErr != nil:
-			problems = append(problems, Warning{Path: file.path, Message: aliasErr.Error()})
+			problems = append(problems, Warning{Kind: WarningInvalidAlias, Path: file.path, Message: aliasErr.Error()})
 		case alias == file.id:
-			problems = append(problems, Warning{Path: file.path, Message: fmt.Sprintf("alias %q repeats the %s's own id", alias, file.kind)})
+			problems = append(problems, Warning{Kind: WarningRepeatedAlias, Path: file.path, Message: fmt.Sprintf("alias %q repeats the %s's own id", alias, file.kind)})
 		case seen[alias]:
-			problems = append(problems, Warning{Path: file.path, Message: fmt.Sprintf("alias %q is listed twice", alias)})
+			problems = append(problems, Warning{Kind: WarningRepeatedAlias, Path: file.path, Message: fmt.Sprintf("alias %q is listed twice", alias)})
 		}
 		seen[alias] = true
 	}
@@ -443,7 +443,7 @@ func (r *refresher) excludeClaims(nodes nodeTable, claims []claim) error {
 			if other == current {
 				continue
 			}
-			r.warn(current.path, 0, fmt.Sprintf(
+			r.warn(WarningDuplicate, current.path, 0, fmt.Sprintf(
 				"%v %s %q: also the %s of %s; both are left out",
 				tree.ErrDuplicate, current.kind, current.name, other.kind, other.path,
 			))

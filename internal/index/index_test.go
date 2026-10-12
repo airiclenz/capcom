@@ -107,6 +107,16 @@ func warningStrings(report Report) []string {
 	return lines
 }
 
+// warningKinds returns "path kind" for each warning of report, sorted.
+func warningKinds(report Report) []string {
+	lines := make([]string, 0, len(report.Warnings))
+	for _, warning := range report.Warnings {
+		lines = append(lines, warning.Path+" "+string(warning.Kind))
+	}
+	slices.Sort(lines)
+	return lines
+}
+
 func TestRefresh_NewTree_IndexesEveryIssue(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
@@ -382,6 +392,49 @@ func TestRefresh_BadNames_WarnAndSkip(t *testing.T) {
 
 	if report.Indexed != 1 || len(report.Warnings) != 3 {
 		t.Errorf("report = %+v, want 1 indexed and 3 warnings", report)
+	}
+}
+
+func TestRefresh_EachProducer_SetsTheWarningKindAndReplaysIt(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "Bad_Name.md", issueText("Bad", "open", ""))
+	writeIssue(t, s, "Bad_Name/child-issue.md", issueText("Child", "open", ""))
+	writeIssue(t, s, "orphan-dir/lost-issue.md", issueText("Lost", "open", ""))
+	writeIssue(t, s, "broken-issue.md", "---\ntitle: Broken\nstatus: open\nno closing fence\n")
+	writeIssue(t, s, "bad-status.md", issueText("Bad status", "nonsense", ""))
+	writeIssue(t, s, "bad-alias.md", relatedIssueText("Bad alias", "aliases: [Bad_Alias]\n"))
+	writeIssue(t, s, "own-alias.md", relatedIssueText("Own alias", "aliases: [own-alias]\n"))
+	writeIssue(t, s, "twice-alias.md", relatedIssueText("Twice alias", "aliases: [twin-name, twin-name]\n"))
+	writeIssue(t, s, "top-issue.md", issueText("Top", "open", ""))
+	writeIssue(t, s, "top-issue/dup-issue.md", issueText("Nested dup", "open", ""))
+	writeIssue(t, s, "dup-issue.md", issueText("Top dup", "open", ""))
+	x := openIndex(t, s, laterClock())
+
+	first := refresh(t, x)
+	second := refresh(t, x)
+
+	want := []string{
+		".capcom/issues/Bad_Name " + string(WarningOrphanDirectory),
+		".capcom/issues/Bad_Name.md " + string(WarningInvalidID),
+		".capcom/issues/bad-alias.md " + string(WarningInvalidAlias),
+		".capcom/issues/bad-status.md " + string(WarningField),
+		".capcom/issues/broken-issue.md " + string(WarningFrontmatter),
+		".capcom/issues/dup-issue.md " + string(WarningDuplicate),
+		".capcom/issues/orphan-dir " + string(WarningOrphanDirectory),
+		".capcom/issues/own-alias.md " + string(WarningRepeatedAlias),
+		".capcom/issues/top-issue/dup-issue.md " + string(WarningDuplicate),
+		".capcom/issues/twice-alias.md " + string(WarningRepeatedAlias),
+	}
+	slices.Sort(want)
+	for name, report := range map[string]Report{"first": first, "second": second} {
+		if got := warningKinds(report); !slices.Equal(got, want) {
+			t.Errorf("%s refresh: warning kinds = %q\nwant %q", name, got, want)
+		}
+	}
+	// The second refresh parses nothing: its parse problems are the stored ones, replayed.
+	if len(second.Parsed) != 0 {
+		t.Errorf("second refresh parsed %v, want nothing", second.Parsed)
 	}
 }
 

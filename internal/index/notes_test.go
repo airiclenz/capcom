@@ -151,6 +151,28 @@ func TestNotes_InvalidAndDuplicateNotes_WarnAndStayOut(t *testing.T) {
 	}
 }
 
+func TestNotes_EachProducer_SetsTheWarningKind(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "no-title.md", "---\nlabels: [x]\n---\n")
+	writeNote(t, s, "broken-note.md", "---\ntitle: Broken\nno closing fence\n")
+	writeNote(t, s, "first-note.md", "---\ntitle: First\naliases: [second-note]\n---\n")
+	writeNote(t, s, "second-note.md", "---\ntitle: Second\n---\n")
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	want := []string{
+		".capcom/knowledge/broken-note.md " + string(WarningFrontmatter),
+		".capcom/knowledge/first-note.md " + string(WarningDuplicate),
+		".capcom/knowledge/no-title.md " + string(WarningField),
+		".capcom/knowledge/second-note.md " + string(WarningDuplicate),
+	}
+	if got := warningKinds(report); !slices.Equal(got, want) {
+		t.Errorf("warning kinds = %q\nwant %q", got, want)
+	}
+}
+
 func TestNotes_OldSchemaIndex_RebuildsWithTheNotes(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
