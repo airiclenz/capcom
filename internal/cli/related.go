@@ -71,7 +71,7 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 			isLinked := slices.ContainsFunc(holder.Related, graph.names(other.ID)) ||
 				slices.ContainsFunc(other.Related, graph.names(holder.ID))
 			warning := ""
-			result, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
+			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				if isLinked {
 					return target, nil
 				}
@@ -88,6 +88,7 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			result := writeResult(written.ID, written.Path, written.ETag)
 			if warning != "" {
 				result.Warnings = append(result.Warnings, warning)
 			}
@@ -117,7 +118,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
+			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				kept := slices.DeleteFunc(slices.Clone(target.Related), isRemoved)
 				if len(kept) == len(target.Related) {
 					return issue.Issue{}, Errorf(CodeNotFound, "%s is not related to %s", first.ID, args[1])
@@ -131,7 +132,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, result)
+			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	}
 	cmd.Flags().StringVar(&ifMatch, flagIfMatch, "", "only write when the etag of the issue holding the link is this one (see show)")

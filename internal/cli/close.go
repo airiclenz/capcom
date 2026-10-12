@@ -143,7 +143,7 @@ func (a *app) closeOne(
 		outcome.ETag = edit.ETag(file)
 		return outcome, nil, nil
 	}
-	writeData, err := a.editIssue(entry.ID, "", func(target issue.Issue) (issue.Issue, error) {
+	written, err := a.editIssue(entry.ID, "", func(target issue.Issue) (issue.Issue, error) {
 		target.Status = status
 		target.Closed = closedAt
 		target.Reason = reason
@@ -153,9 +153,8 @@ func (a *app) closeOne(
 		return closeData{}, asError(err), nil
 	}
 	isHandled[entry.ID] = true
-	written := writeData.Data.(map[string]string)
 	outcome.Outcome = outcomeClosed
-	outcome.ETag = written["etag"]
+	outcome.ETag = written.ETag
 	return outcome, nil, nil
 }
 
@@ -183,13 +182,13 @@ func (a *app) newReopenCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
+			written, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
 				return a.reopen(target, status, options.reason)
 			})
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, result)
+			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	}
 	flags := cmd.Flags()

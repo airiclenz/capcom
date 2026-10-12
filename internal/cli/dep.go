@@ -88,7 +88,7 @@ func (a *app) newDepAddCommand() *cobra.Command {
 					),
 				}
 			}
-			result, err := a.editIssue(dependent.ID, "", func(target issue.Issue) (issue.Issue, error) {
+			written, err := a.editIssue(dependent.ID, "", func(target issue.Issue) (issue.Issue, error) {
 				if !isPresent {
 					target.Deps = append(slices.Clone(target.Deps), dependency.ID)
 				}
@@ -97,7 +97,7 @@ func (a *app) newDepAddCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, result)
+			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	})
 }
@@ -123,7 +123,7 @@ func (a *app) newDepRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := a.editIssue(dependent.ID, "", func(target issue.Issue) (issue.Issue, error) {
+			written, err := a.editIssue(dependent.ID, "", func(target issue.Issue) (issue.Issue, error) {
 				kept := slices.DeleteFunc(slices.Clone(target.Deps), isRemoved)
 				if len(kept) == len(target.Deps) {
 					return issue.Issue{}, Errorf(CodeNotFound, "%s does not depend on %s", dependent.ID, args[1])
@@ -137,7 +137,7 @@ func (a *app) newDepRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, result)
+			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	})
 }

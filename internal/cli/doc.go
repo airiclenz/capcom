@@ -20,7 +20,7 @@
 //   - `know.go` — capcom know and its tree, show, search, add and verify subcommands
 //   - `know_mv.go` — capcom know mv: renames a Note or moves it below another
 //   - `know_rm.go` — capcom know rm: removes a Note that has no children
-//   - `know_update.go` — capcom know update: the read-modify-write cycle of a Note file
+//   - `know_update.go` — capcom know update: changes a Note through the node store
 //   - `list.go` — capcom list: lists issues by filter
 //   - `lock.go` — capcom lock acquire, touch, release, break, check and status: the Tree lock
 //   - `log.go` — capcom log: appends an entry to an issue's Log
@@ -35,5 +35,5 @@
 //   - `root.go` — Run, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word
 //   - `show.go` — capcom show and the resolution of an issue argument to its index entry
-//   - `update.go` — capcom update and editIssue, the read-modify-write cycle of an issue file
+//   - `update.go` — capcom update and editIssue, which every issue edit verb goes through to the node store
 package cli

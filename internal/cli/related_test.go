@@ -164,6 +164,21 @@ func TestRelatedAdd_StaleIfMatch_FailsConflictAndWritesNothing(t *testing.T) {
 	}
 }
 
+func TestRelatedAdd_StaleIfMatchBelowFormatTwo_LeavesTheConfigAlone(t *testing.T) {
+	root := newRelatedStore(t)
+	const keylessConfig = "types: [bug, feature, task, chore]\n"
+	writeStoreConfig(t, root, keylessConfig)
+
+	stdout, stderr, exitCode := runCLI(t, root, "related", "add", "--if-match", "0000000000000000", "login-flow", "db-schema")
+
+	if exitCode != ExitError || !strings.HasPrefix(stderr, "capcom: .capcom/issues/login-flow.md: etag 0000000000000000") {
+		t.Errorf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	if config := readStoreConfig(t, root); config != keylessConfig || strings.Contains(stdout, "warning:") {
+		t.Errorf("config.yaml = %q stdout = %q, want the config unchanged and no warning", config, stdout)
+	}
+}
+
 func TestRelatedRm_RoundTrip_RemovesTheKey(t *testing.T) {
 	root := newRelatedStore(t)
 	mustRun(t, root, "related", "add", "login-flow", "db-schema")

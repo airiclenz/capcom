@@ -462,7 +462,17 @@ internal/cli/errors.go — triageTreeProblems, isIndexWarnedAbout, orphanedIDFai
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `go build ./...`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Create|KnowAdd'`
 **Commit:** `refactor(cli): create and know add through nodestore`
 
-## 16. Kind.Edit for update, know update and the edit verbs
+## 16. Kind.Edit for update, know update and the edit verbs — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): once ref has resolved, `Kind.Edit` returns a Written naming the node's id and file even when it fails (ETag empty); the cli's generic `editNode` (update.go) maps every failure through kindFailure and fills the file's path only into the change callback's own error (matched by identity, since Edit returns it unwrapped), so a write failure keeps the shape it had.
+
+NOTES (2026-10-12): the cli adapters `issueResolver` (update.go) and `noteResolver` (know_update.go) make `*index.Index` the Resolver; `editIssue` stays as a one-line wrapper returning `nodestore.Written`, so its seven callers build `writeResult` from it and close reads `written.ETag` (the map cast is gone). `updateNote` keeps its AGENTS.md refresh after the edit.
+
+NOTES (2026-10-12): `Edit` on a Kind built without a Resolver fails with an unexported `errNoResolver` rather than panicking.
+
+NOTES (2026-10-12): a node file that cannot be read now fails with its message naming the file relative to the worktree (it carried the absolute path before); know update now folds CRLF to LF before computing the etag, as WriteFileAtomic already did to the file, so the etag it reports always matches the file.
+
+NOTES (2026-10-12): `readIssueFile`, `writeIssueFile`, `writeNoteFile`, `absoluteIssuePath` and `frontmatterFailure` stay: fmt, show, know show, mv and know mv still use them (items 17 and 19).
 
 **What:**
 **Goal:** `Kind.Edit(ref, ifMatch, change)` resolves through the injected Resolver, checks the etag,

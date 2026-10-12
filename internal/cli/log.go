@@ -23,13 +23,13 @@ func (a *app) newLogCommand() *cobra.Command {
 			if strings.TrimSpace(text) == "" {
 				return Errorf(CodeInvalid, "the log text is empty")
 			}
-			result, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
+			written, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
 				return a.appendLog(target, text)
 			})
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, result)
+			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	})
 }

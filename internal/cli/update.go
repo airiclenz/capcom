@@ -14,7 +14,9 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
+	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -72,13 +74,13 @@ func (a *app) newUpdateCommand() *cobra.Command {
 				}
 				appendFile = text
 			}
-			result, err := a.editIssue(args[0], options.ifMatch, func(target issue.Issue) (issue.Issue, error) {
+			written, err := a.editIssue(args[0], options.ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				return a.applyUpdate(cmd, options, appendFile, target)
 			})
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, result)
+			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	}
 	flags := cmd.Flags()
@@ -194,47 +196,55 @@ func readTextInput(cmd *cobra.Command, path string) (string, error) {
 	return string(data), nil
 }
 
-// editIssue is the read-modify-write cycle every command that changes an existing issue goes
-// through: it resolves arg, reads the issue file, refuses with conflict when ifMatch is set and
-// is not the file's etag, applies change to the parsed issue, then validates and writes the result
-// atomically. The result names the issue and its new etag.
+// editIssue changes the issue arg names through the node store of the issue tree, which resolves
+// arg through the index, refuses with conflict when ifMatch is set and is not the file's etag,
+// applies change to the parsed issue, then validates and writes the result atomically (Kind.Edit).
+// It returns the issue written: its id, path and new etag.
 func (a *app) editIssue(
 	arg string,
 	ifMatch string,
 	change func(issue.Issue) (issue.Issue, error),
-) (Result, error) {
-	entry, err := a.resolveIssue(arg)
+) (nodestore.Written, error) {
+	return editNode(nodestore.Issues(a.store, issueResolver{index: a.issueIndex}), arg, ifMatch, change)
+}
+
+// editNode runs kind.Edit and types its failure through kindFailure. A failure of change that names
+// no file is placed at the node's file, so a refusal of the change itself still names the file.
+func editNode[T any](
+	kind *nodestore.Kind[T],
+	arg string,
+	ifMatch string,
+	change func(T) (T, error),
+) (nodestore.Written, error) {
+	var changeErr error
+	written, err := kind.Edit(arg, ifMatch, func(node T) (T, error) {
+		edited, err := change(node)
+		changeErr = err
+		return edited, err
+	})
+	if err == nil {
+		return written, nil
+	}
+	failure := kindFailure(err)
+	if err == changeErr && failure.Path == "" {
+		failure.Path = written.Path
+	}
+	return nodestore.Written{}, failure
+}
+
+// issueResolver resolves an issue argument through the index: the Resolver of the issue tree's
+// node store.
+type issueResolver struct {
+	index *index.Index
+}
+
+// Resolve resolves arg to the issue it names, failing as index.Index.Resolve does.
+func (r issueResolver) Resolve(arg string) (nodestore.Target, error) {
+	entry, err := r.index.Resolve(arg)
 	if err != nil {
-		return Result{}, err
+		return nodestore.Target{}, err
 	}
-	data, err := a.readIssueFile(entry.Path)
-	if err != nil {
-		return Result{}, err
-	}
-	if current := edit.ETag(data); ifMatch != "" && ifMatch != current {
-		return Result{}, &Error{
-			Code:    CodeConflict,
-			Path:    entry.Path,
-			Message: fmt.Sprintf("etag %s does not match the file's etag %s; show the issue again", ifMatch, current),
-		}
-	}
-	parsed, err := issue.Parse(entry.Path, data)
-	if err != nil {
-		return Result{}, a.frontmatterFailure(err)
-	}
-	edited, err := change(parsed)
-	if err != nil {
-		failure := asError(err)
-		if failure.Path == "" {
-			failure.Path = entry.Path
-		}
-		return Result{}, failure
-	}
-	etag, err := a.writeIssueFile(entry.Path, edited)
-	if err != nil {
-		return Result{}, err
-	}
-	return writeResult(entry.ID, entry.Path, etag), nil
+	return nodestore.Target{ID: entry.ID, Path: entry.Path}, nil
 }
 
 // readIssueFile reads the issue file at path, relative to the working tree root with forward

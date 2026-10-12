@@ -2,13 +2,14 @@ package cli
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -102,46 +103,42 @@ func readNoteInputs(cmd *cobra.Command, options *knowUpdateOptions) (noteInputs,
 	return inputs, nil
 }
 
-// updateNote is the read-modify-write cycle of know update: it resolves arg, reads the Note file,
-// refuses with conflict when --if-match is set and is not the file's etag, applies the flags to
-// the parsed Note, then validates and writes the result atomically and refreshes a stale capcom
-// block of AGENTS.md. Every failure names the Note file.
+// updateNote changes the Note arg names through the node store of the Knowledge tree, which
+// resolves arg through the index, refuses with conflict when --if-match is set and is not the
+// file's etag, applies the flags to the parsed Note, then validates and writes the result
+// atomically (Kind.Edit); it then refreshes a stale capcom block of AGENTS.md. Every failure names
+// the Note file.
 func (a *app) updateNote(
 	cmd *cobra.Command,
 	arg string,
 	options *knowUpdateOptions,
 	inputs noteInputs,
 ) (Result, error) {
-	entry, err := a.resolveNote(arg)
+	notes := nodestore.Notes(a.store, noteResolver{index: a.issueIndex})
+	written, err := editNode(notes, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
+		return applyNoteUpdate(cmd, options, inputs, note)
+	})
 	if err != nil {
 		return Result{}, err
 	}
-	data, err := a.readIssueFile(entry.Path)
-	if err != nil {
-		return Result{}, err
-	}
-	if current := edit.ETag(data); options.ifMatch != "" && options.ifMatch != current {
-		return Result{}, &Error{
-			Code:    CodeConflict,
-			Path:    entry.Path,
-			Message: fmt.Sprintf("etag %s does not match the file's etag %s; show the note again", options.ifMatch, current),
-		}
-	}
-	note, err := knowledge.Parse(entry.Path, data)
-	if err != nil {
-		return Result{}, a.frontmatterFailure(err)
-	}
-	note, err = applyNoteUpdate(cmd, options, inputs, note)
-	if err != nil {
-		return Result{}, &Error{Code: CodeInvalid, Path: entry.Path, Message: err.Error()}
-	}
-	etag, err := a.writeNoteFile(entry.Path, note)
-	if err != nil {
-		return Result{}, err
-	}
-	result := noteWriteResult(entry.ID, entry.Path, etag)
+	result := noteWriteResult(written.ID, written.Path, written.ETag)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
+}
+
+// noteResolver resolves a Note argument through the index: the Resolver of the Knowledge tree's
+// node store.
+type noteResolver struct {
+	index *index.Index
+}
+
+// Resolve resolves arg to the Note it names, failing as index.Index.ResolveNote does.
+func (r noteResolver) Resolve(arg string) (nodestore.Target, error) {
+	entry, err := r.index.ResolveNote(arg)
+	if err != nil {
+		return nodestore.Target{}, err
+	}
+	return nodestore.Target{ID: entry.ID, Path: entry.Path}, nil
 }
 
 // applyNoteUpdate applies the changed flags to note in the order title, labels, refs, whole body,
