@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   AGENTS.md skips background top-level Notes as it skips retired ones. `know show` and
   `know search` are unchanged.
 - The Managed block that `capcom agents` writes into `AGENTS.md` now lists the dependency commands (`create --dep`, `dep add`, `dep list`, `list --tree --depth 2`), says that `show` prints what blocks an issue and `close` names the issues it made ready, states what an issue's body holds (what is wrong or wanted, why, and an `## Acceptance` section; the how and the order belong in a plan), and maps where issues and Notes live under `.capcom/`. An existing block reads as out of date after upgrading: run `capcom agents` once to refresh it (`capcom check` and `capcom agents --check` report it until you do).
+- A name that one issue or Note file claims (as its id or an alias) and that a file left out for a repeated id also lists as an alias is now a duplicate: commands refuse it as they refuse any duplicated name, and `capcom check` reports it as `duplicate`. Two such left-out files listing the same alias are a duplicate too. `capcom check` now also reads a file left out for a repeated id, so it reports that file's frontmatter parse failures and conflict markers. An alias only a left-out file lists is unaffected.
 
 ## [0.4.0] - 2026-10-12
 
