@@ -289,7 +289,7 @@ issue file:
 ---
 title: CLI tests run through runCLI and never in parallel
 labels: [testing]
-refs: [internal/cli/testharness_test.go#func runCLI, docs/adr/0007-tests-use-real-temp-files-sqlite-and-git.md]
+refs: [internal/cli/testharness_test.go#func runCLI]
 aliases: [cli-tests]
 ---
 
@@ -425,7 +425,7 @@ elsewhere:
 ```
 
 - **format** — the store format version, a whole number of 1 or more; a missing key means 1
-  ([ADR 0009](adr/0009-the-store-declares-its-format-version.md)). It is read before every other
+  ([ADR 0009](../.capcom/knowledge/decisions/adr-0009.md)). It is read before every other
   key: a store whose format is newer than the binary reads fails every command with
   `.capcom/config.yaml:<line>: store format <n> is newer than this capcom reads (up to <max>); upgrade capcom`,
   except `capcom prime`, which reports it as one `warning: store:` line and exits 0. Unknown keys

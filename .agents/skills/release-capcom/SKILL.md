@@ -19,8 +19,8 @@ Turn everything shipped since the last published release — the whole history
 before the first one — into a published release: notes the owner approved, a
 version the owner confirmed, and every channel converged. The deterministic
 work belongs to `go run ./cmd/release`
-(`docs/adr/0008-the-repo-owns-its-release-pipeline.md`); this skill does the
-judgment and the asking.
+(ADR 0008: `.capcom/knowledge/decisions/adr-0008.md`, or
+`capcom know show "ADR 0008"`); this skill does the judgment and the asking.
 
 The optional argument `vX.Y.Z` (a bare `X.Y.Z` reads the same) is a version
 **proposal** — the owner still confirms it in step 4. `VERSION` holds the bare

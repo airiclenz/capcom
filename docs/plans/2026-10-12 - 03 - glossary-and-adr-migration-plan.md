@@ -112,7 +112,9 @@ docs/adr/0007-tests-use-real-temp-files-sqlite-and-git.md
 - `grep -rn '\](0' .capcom/knowledge/decisions` prints nothing; `--verify` passes for 0006–0010, the bodies of `adr-0006` and `adr-0007` included
 **Commit:** `docs(knowledge): move ADRs 0006 to 0010 into Knowledge`
 
-## 4. Point live references at the Notes
+## 4. Point live references at the Notes — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the reference grep's targets in docs/format.md sat at lines 292 and 428 (plan: 274 and 410) after earlier commits; same text, edited in place. In `_capcom.md` the glossary is carved out of the bookkeeping clause ("`.capcom/knowledge/` (except the glossary, `.capcom/knowledge/glossary/`)") and listed in the Docs row.
 
 Depends on item 3.
 

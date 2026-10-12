@@ -46,10 +46,11 @@ Conventional commits, `type(scope): subject` — types `feat`, `fix`, `docs`,
 (`cli`, `issue`, `index`, `release`, …). Bookkeeping that ships nothing:
 `chore(plans)`, `docs(plans)`, `docs(plan)`, `chore(issues)`,
 `chore(release)`, `chore(version)`, and any commit touching only
-`.capcom/issues/`, `.capcom/knowledge/`, `docs/plans/` or `docs/handoffs/`.
+`.capcom/issues/`, `.capcom/knowledge/` (except the glossary,
+`.capcom/knowledge/glossary/`), `docs/plans/` or `docs/handoffs/`.
 Ticket ids are capcom issue ids: the slug of a file under `.capcom/issues/`
 (e.g. `release-pipeline`), with no prefix. No AI attribution trailers. Plans
-live in `docs/plans/`, ADRs in `docs/adr/`.
+live in `docs/plans/`, decision records in `.capcom/knowledge/decisions/`.
 
 ## User surfaces — where a change becomes visible
 
@@ -60,7 +61,7 @@ live in `docs/plans/`, ADRs in `docs/adr/`.
 | Config keys & defaults | `internal/config/config.go` (`Default()`, the `.capcom/config.yaml` that `capcom init` writes) |
 | File formats | `docs/format.md` (issue files, Note files, the tree, `config.yaml`, the lock record, the Managed block) |
 | Agent integration | `internal/agents/block.go` (the AGENTS.md Managed block `capcom agents` writes), `internal/cli/prime.go` (the `capcom prime` Briefing), `internal/cli/init.go` (the Claude Code hooks `--claude-hooks` adds) |
-| Docs | `README.md`, `docs/format.md`, `docs/migrating-from-beads.md`, `CONTEXT.md` |
+| Docs | `README.md`, `docs/format.md`, `docs/migrating-from-beads.md`, `.capcom/knowledge/glossary/` |
 | Install & packaging | `.github/workflows/`, `cmd/release/templates/` |
 | Emitted strings | `internal/cli/` user messages and usage text, `internal/agents/block.go`, `internal/check/` (what `capcom check` reports) |
 

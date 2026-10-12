@@ -3,7 +3,7 @@
 A release is cut locally, from a clone of this repository, on Linux, macOS or Windows. The
 `release-capcom` skill does the judgment work (release notes, the version) and hands the rest to
 `go run ./cmd/release`, which builds, publishes and checks. Why it is split this way is recorded in
-[ADR 0008](adr/0008-the-repo-owns-its-release-pipeline.md).
+[ADR 0008](../.capcom/knowledge/decisions/adr-0008.md).
 
 One release publishes to four channels:
 

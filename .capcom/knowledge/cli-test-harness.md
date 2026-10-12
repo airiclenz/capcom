@@ -1,7 +1,7 @@
 ---
 title: CLI tests run through runCLI, hermetic and never parallel
 labels: [testing]
-refs: [internal/cli/testharness_test.go#func runCLI, docs/adr/0007-tests-use-real-temp-files-sqlite-and-git.md]
+refs: [internal/cli/testharness_test.go#func runCLI]
 ---
 
 CLI tests drive every command in process through `runCLI` (or `runCLIWith` for stdin and

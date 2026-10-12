@@ -1,7 +1,7 @@
 ---
 title: "Before cutting a release: use release-capcom, never tag or bump by hand"
 labels: [release]
-refs: [docs/releasing.md, docs/adr/0008-the-repo-owns-its-release-pipeline.md, .agents/skills/release-capcom/SKILL.md, cmd/release]
+refs: [docs/releasing.md, .agents/skills/release-capcom/SKILL.md, cmd/release]
 ---
 
 Releases are cut locally with the `release-capcom` skill (`.agents/skills/release-capcom/`), which
