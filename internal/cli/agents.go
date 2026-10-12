@@ -62,9 +62,9 @@ func (a *app) newAgentsCommand() *cobra.Command {
 
 // writeAgentsBlock brings the block up to date and reports what it did.
 func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
-	status, err := refreshAgentsBlock(opened, false)
+	status, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), agents.ModeWrite)
 	if err != nil {
-		return err
+		return agentsFailure(err)
 	}
 	data := agentsData{Path: agents.FileName, Block: blockWritten}
 	text := "wrote the capcom block to " + agents.FileName + "\n"
@@ -81,11 +81,7 @@ func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 
 // checkAgentsBlock reports the block's state; a stale block fails invalid at its marker line.
 func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
-	notes, err := agents.TopNotes(opened.KnowledgeDir())
-	if err != nil {
-		return err
-	}
-	status, err := agents.Inspect(opened.WorktreeRoot, notes)
+	status, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), agents.ModeInspect)
 	if err != nil {
 		return agentsFailure(err)
 	}
@@ -104,24 +100,6 @@ func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 		}
 	}
 	return a.emit(cmd, Result{Kind: "agents", Data: data, Text: text})
-}
-
-// refreshAgentsBlock writes the block for the store's Knowledge top level and returns the Status
-// found before writing. With isPresentOnly it writes only over a block already there, leaving an
-// AGENTS.md without one, or a missing AGENTS.md, as it is.
-func refreshAgentsBlock(opened *store.Store, isPresentOnly bool) (agents.Status, error) {
-	notes, err := agents.TopNotes(opened.KnowledgeDir())
-	if err != nil {
-		return agents.Status{}, err
-	}
-	if isPresentOnly {
-		status, err := agents.Inspect(opened.WorktreeRoot, notes)
-		if err != nil || status.State != agents.StateStale {
-			return status, agentsFailure(err)
-		}
-	}
-	status, err := agents.Write(opened.WorktreeRoot, notes)
-	return status, agentsFailure(err)
 }
 
 // agentsFailure types tangled markers as invalid at AGENTS.md and its line; nil stays nil.

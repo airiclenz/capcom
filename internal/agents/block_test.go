@@ -295,6 +295,96 @@ func TestTopNotes_MissingDirectory_IsEmpty(t *testing.T) {
 	}
 }
 
+// writeKnowledge writes a Knowledge tree holding the one top-level Note release-flow and returns
+// its directory, with the Notes TopNotes reads from it.
+func writeKnowledge(t *testing.T) (string, []Note) {
+	t.Helper()
+	dir := t.TempDir()
+	note := []byte("---\ntitle: Release flow\n---\n")
+	if err := os.WriteFile(filepath.Join(dir, "release-flow.md"), note, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	return dir, []Note{{ID: "release-flow", Title: "Release flow"}}
+}
+
+func TestSync_EachModeAndState_ReportsTheStateFoundAndWritesOnlyWhatTheModeAllows(t *testing.T) {
+	t.Parallel()
+	_, notes := writeKnowledge(t)
+	current := "# Guide\n\n" + Render(notes) + "\n"
+	stale := "# Guide\n\n" + Render(nil) + "\n"
+	const withoutBlock = "# Guide\n"
+	const missing = ""
+	cases := []struct {
+		name        string
+		mode        Mode
+		content     string
+		wantState   State
+		wantContent string
+	}{
+		{"inspect current", ModeInspect, current, StateCurrent, current},
+		{"inspect stale", ModeInspect, stale, StateStale, stale},
+		{"inspect without block", ModeInspect, withoutBlock, StateAbsent, withoutBlock},
+		{"inspect missing", ModeInspect, missing, StateAbsent, missing},
+		{"refresh current", ModeRefresh, current, StateCurrent, current},
+		{"refresh stale", ModeRefresh, stale, StateStale, current},
+		{"refresh without block", ModeRefresh, withoutBlock, StateAbsent, withoutBlock},
+		{"refresh missing", ModeRefresh, missing, StateAbsent, missing},
+		{"write current", ModeWrite, current, StateCurrent, current},
+		{"write stale", ModeWrite, stale, StateStale, current},
+		{"write without block", ModeWrite, withoutBlock, StateAbsent, withoutBlock + "\n" + Render(notes) + "\n"},
+		{"write missing", ModeWrite, missing, StateAbsent, Render(notes) + "\n"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			knowledgeDir, _ := writeKnowledge(t)
+			root := t.TempDir()
+			if testCase.content != missing {
+				root = writeGuide(t, testCase.content)
+			}
+
+			status, err := Sync(root, knowledgeDir, testCase.mode)
+
+			if err != nil || status.State != testCase.wantState {
+				t.Fatalf("Sync = %+v, %v; want state %d", status, err, testCase.wantState)
+			}
+			if got := readGuideOrEmpty(t, root); got != testCase.wantContent {
+				t.Errorf("AGENTS.md =\n%q\nwant\n%q", got, testCase.wantContent)
+			}
+		})
+	}
+}
+
+func TestSync_TangledMarkers_FailsAtTheMarkerLineWithoutWriting(t *testing.T) {
+	t.Parallel()
+	knowledgeDir, _ := writeKnowledge(t)
+	content := "# Guide\n" + BeginMarker + "\ntext\n"
+	root := writeGuide(t, content)
+
+	_, err := Sync(root, knowledgeDir, ModeWrite)
+
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Line != 2 {
+		t.Errorf("Sync err = %v, want an *Error at %s:2", err, FileName)
+	}
+	if got := readGuideText(t, root); got != content {
+		t.Errorf("AGENTS.md =\n%q\nwant it untouched", got)
+	}
+}
+
+// readGuideOrEmpty returns the AGENTS.md of root, or "" when there is none.
+func readGuideOrEmpty(t *testing.T, root string) string {
+	t.Helper()
+	content, err := os.ReadFile(Path(root))
+	if errors.Is(err, os.ErrNotExist) {
+		return ""
+	}
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	return string(content)
+}
+
 // mustStat returns the file info of root's AGENTS.md; a rewrite replaces the file, so os.SameFile
 // tells a rewritten AGENTS.md from an untouched one.
 func mustStat(t *testing.T, root string) os.FileInfo {

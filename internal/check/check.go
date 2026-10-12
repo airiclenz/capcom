@@ -418,11 +418,7 @@ func (c *checker) checkNote(node tree.Node, note knowledge.Note) error {
 
 // agentsBlock checks the Managed block of AGENTS.md against the Knowledge tree's top level.
 func (c *checker) agentsBlock() error {
-	notes, err := agents.TopNotes(c.store.KnowledgeDir())
-	if err != nil {
-		return err
-	}
-	status, err := agents.Inspect(c.store.WorktreeRoot, notes)
+	status, err := agents.Sync(c.store.WorktreeRoot, c.store.KnowledgeDir(), agents.ModeInspect)
 	var tangled *agents.Error
 	if errors.As(err, &tangled) {
 		c.add(tangled.Path, tangled.Line, CodeAgentsBlock, tangled.Message)

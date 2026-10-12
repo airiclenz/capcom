@@ -2,7 +2,9 @@
 // between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes. Render produces the
 // block deterministically from the top level of the Knowledge tree; Inspect tells whether the file
 // holds it and whether it is current; Write splices it in by its markers, or appends it when
-// absent, keeping every byte outside the markers and the file's line ending.
+// absent, keeping every byte outside the markers and the file's line ending. Sync is the one way
+// callers reconcile the block with the Knowledge tree: it reads the top level and inspects,
+// refreshes or writes in one pass.
 package agents
 
 import (
@@ -79,6 +81,20 @@ const (
 	StateCurrent
 	// StateStale is a block that differs from what Render produces now.
 	StateStale
+)
+
+// Mode is what Sync does with the block once it knows its State.
+type Mode int
+
+const (
+	// ModeInspect reports the State and writes nothing.
+	ModeInspect Mode = iota
+	// ModeRefresh rewrites a stale block only, leaving an AGENTS.md without the block, or no
+	// AGENTS.md, as it is.
+	ModeRefresh
+	// ModeWrite brings the block up to date: a stale block is replaced, an absent one appended,
+	// and a missing AGENTS.md created.
+	ModeWrite
 )
 
 // Status is the block's State and, when the block is present, the 1-based line of its begin
@@ -158,15 +174,7 @@ func Render(notes []Note) string {
 // so a CRLF file holding the current block is current. It fails with an *Error on markers that
 // cannot be told apart, and when the file cannot be read.
 func Inspect(worktreeRoot string, notes []Note) (Status, error) {
-	content, err := readGuide(worktreeRoot)
-	if err != nil {
-		return Status{}, err
-	}
-	span, err := findBlock(content)
-	if err != nil {
-		return Status{}, err
-	}
-	return statusOf(content, span, notes), nil
+	return reconcile(worktreeRoot, notes, ModeInspect)
 }
 
 // Write brings the block of the AGENTS.md of worktreeRoot up to date with notes and returns the
@@ -176,6 +184,24 @@ func Inspect(worktreeRoot string, notes []Note) (Status, error) {
 // ending (CRLF when the file has any). It fails as Inspect does, and when the file cannot be
 // written.
 func Write(worktreeRoot string, notes []Note) (Status, error) {
+	return reconcile(worktreeRoot, notes, ModeWrite)
+}
+
+// Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
+// tree in knowledgeDir, as mode says, and returns the Status found before any write. It reads the
+// file once: the Status it reports is the one it acted on. It fails as TopNotes does, as Inspect
+// does, and, when mode writes, when the file cannot be written.
+func Sync(worktreeRoot, knowledgeDir string, mode Mode) (Status, error) {
+	notes, err := TopNotes(knowledgeDir)
+	if err != nil {
+		return Status{}, err
+	}
+	return reconcile(worktreeRoot, notes, mode)
+}
+
+// reconcile reads the AGENTS.md of worktreeRoot, finds its block's Status against notes and, when
+// mode calls for it, writes the block Render produces for notes.
+func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 	content, err := readGuide(worktreeRoot)
 	if err != nil {
 		return Status{}, err
@@ -185,10 +211,24 @@ func Write(worktreeRoot string, notes []Note) (Status, error) {
 		return Status{}, err
 	}
 	status := statusOf(content, span, notes)
-	if status.State == StateCurrent {
+	if !mode.writes(status.State) {
 		return status, nil
 	}
 	return status, replaceFile(Path(worktreeRoot), splice(content, span, Render(notes)))
+}
+
+// writes reports whether mode rewrites a block found in state.
+func (m Mode) writes(state State) bool {
+	switch {
+	case state == StateCurrent:
+		return false
+	case m == ModeWrite:
+		return true
+	case m == ModeRefresh:
+		return state == StateStale
+	default:
+		return false
+	}
 }
 
 // statusOf compares the block span locates in content with the block Render produces for notes,

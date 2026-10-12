@@ -847,7 +847,9 @@ failed raise (`.capcom` dir 0o555; skipped on Windows and as root) whose `error.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/store/ ./internal/tree/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Related|Init|Merge'`
 **Commit:** `refactor(store): own the format raise`
 
-## 32. agents.Sync
+## 32. agents.Sync — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): refreshAgentsBlock (internal/cli/agents.go) is deleted rather than rewritten: its three callers (capcom agents, refreshAgentsAfterWrite, and --check through checkAgentsBlock) call agents.Sync with ModeWrite / ModeRefresh / ModeInspect directly; Inspect and Write stay exported and now share Sync's one-read reconcile core.
 
 **What:**
 **Goal:** `agents.Sync` (inspect, refresh-if-present, write) is the one way to reconcile the AGENTS.md

@@ -332,9 +332,10 @@ func noteWriteResult(id string, path string, etag string) Result {
 // warning, not a failed command. A refresh is reported in the text of result, a noteWriteResult,
 // and as an agents key in its --json data.
 func (a *app) refreshAgentsAfterWrite(result *Result) {
-	status, err := refreshAgentsBlock(a.store, true)
+	status, err := agents.Sync(a.store.WorktreeRoot, a.store.KnowledgeDir(), agents.ModeRefresh)
 	if err != nil {
-		result.Warnings = append(result.Warnings, flatten(err.Error())+"; the capcom block was not refreshed")
+		warning := flatten(agentsFailure(err).Error()) + "; the capcom block was not refreshed"
+		result.Warnings = append(result.Warnings, warning)
 		return
 	}
 	if status.State != agents.StateStale {
