@@ -150,17 +150,21 @@ capcom init --codex-hooks       # ...and run capcom prime from Codex's session h
 capcom init --merge-driver      # ...and merge issue Logs by entry (prints two git config lines)
 
 capcom create --id login-timeout-race --title "Session refresh races the login timeout" --type bug
+capcom create --dep login-timeout-race --id refresh-retry --title "Retry a failed token refresh"
 capcom ready                    # issues that are open and unblocked, most urgent first
 capcom list --label owner-run   # open issues, filtered
+capcom list --tree              # the issue outline: each parent with its closed/total children
 capcom show login-timeout-race
 capcom search refresh timeout
 capcom update login-timeout-race --priority 1 --add-label owner-run
 capcom log login-timeout-race "reproduced with two tabs"
 capcom dep add login-timeout-race token-store-rework
+capcom dep list --depth 2 login-timeout-race   # deps and dependents, two levels deep
+capcom dep graph                # the open issues' dependencies as a Mermaid flowchart
 capcom related add login-timeout-race session-refresh-bug   # shown on both; blocks neither
 capcom related rm login-timeout-race session-refresh-bug
 capcom mv login-timeout-race --parent login-flow --if-match <etag>   # etag from show
-capcom close login-timeout-race --reason "Fixed in 3f2a1c9"
+capcom close login-timeout-race --reason "Fixed in 3f2a1c9"   # names the issues it made ready
 capcom reopen login-timeout-race --reason "Came back on Safari"
 capcom rm login-timeout-race --drop-deps   # refuses children; drops the deps that name it
 

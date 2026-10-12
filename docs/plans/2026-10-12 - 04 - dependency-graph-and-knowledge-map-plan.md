@@ -494,7 +494,10 @@ internal/cli/lock.go — flagPurpose; .capcom/config.yaml — statuses (active: 
 `go run ./cmd/capcom agents --check`; `go run ./cmd/capcom know show issue-workflow | grep -c -e '--purpose' -e 'dep graph' -e 'list --tree'` prints non-zero
 **Commit:** `docs(knowledge): add the issue-workflow Note`
 
-## 17. README and format reference for the new output
+## 17. README and format reference for the new output — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): README examples put the flag before the id (`create --dep <id> --id ...`, `dep list --depth 2 <id>`) so the Acceptance greps match the literal strings; both forms run with the in-tree build.
+NOTES (2026-10-12): the new docs/format.md section is `### Dependency output`, placed right after `### Related links`; it also documents ready's `-- not ready:` suffix and dep graph's `--json` nodes/edges, since show and dep graph share that wording.
 
 **What:**
 **Goal:** the `## Usage` block of `README.md` shows `create --dep`, `dep list --depth 2`, `dep graph`

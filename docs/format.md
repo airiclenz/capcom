@@ -153,12 +153,89 @@ naming `b`, or failing that, the entries of `b` naming `a`. Two issues that are 
 link to an issue that no longer exists can still be removed. Both commands take `--if-match <etag>`,
 checked against the file they write, and `--kv`.
 
-`capcom show` lists an issue's links on both issues: a `related: [...]` line after `deps:` in the
-text, and `"related": [...]` in `--json`, always present. The list holds the issue's own `related`
+`capcom show` lists an issue's links on both issues: a `related: [...]` line after the `deps:`,
+`dependents:` and `children:` lines in the text (see Dependency output), and `"related": [...]` in
+`--json`, always present. The list holds the issue's own `related`
 entries in file order, then the ids of the issues whose links name it, in id order, each once. A
 renaming `capcom mv` rewrites every `related` entry naming the old id or one of its aliases, as it
 does `deps`. `capcom check` reports a `related` entry that names no issue (`missing-related`) or
 names the issue itself (`field`), at the `related` line.
+
+### Dependency output
+
+An issue **unblocks** exactly the todo issues that become Ready when it alone is closed. The
+commands below report Dependency facts in the output agents already read; their `--json` data
+only gains fields (the envelope's `schema` stays 1), and their `--kv` output is unchanged.
+
+`capcom show` prints, after `category:` and only for an issue in the todo category, a `ready:`
+line: `yes`, or `no (<reasons>)` worded as `ready --all` words them. After `deps:` come a
+`dependents:` line, the ids of the issues that depend on this one in tree order, and a `children:`
+line, `<closed>/<total> closed` for its direct children; each is left out when empty. The text
+lines run in this order:
+
+```text
+id, path, etag, parent, title, status, category, ready, type, priority, labels, deps,
+dependents, children, related, plan, aliases, created, closed, reason
+```
+
+```text
+category: todo
+ready: no (blocked by db-schema (todo); open children: write-tests)
+type: task
+priority: 2
+deps: [db-schema]
+dependents: [write-docs]
+children: 1/3 closed
+```
+
+In `--json`, `"ready"` is a boolean, present only for a todo issue; `"blocking"` lists the
+unsatisfied dependencies of an issue that is not Ready, each as `{"dep": ..., "reason": ...}`, and
+is left out otherwise; `"dependents"` is always present, `[]` when none; `"children"` is
+`{"total": N, "closed": N}`, left out for an issue without children.
+
+`capcom close` prints a `<id>  <outcome>` line per argument, then, when the closes made any todo
+issue Ready, one last line naming them:
+
+```text
+db-schema  closed
+login-flow  closed
+now ready: build-pipeline, ship-it
+```
+
+Each `--json` item carries `"now_ready"`: the todo issues that became Ready once that argument
+and the ones before it were closed, in tree order, each id reported once across the arguments. It
+is always an array, `[]` when none. An issue that
+`ready.hide` hides is never named.
+
+`capcom ready` lists the Ready issues most urgent first (priority 0 first), then the one that
+unblocks more issues first, then in tree order. A Ready issue that unblocks others ends its line
+with `-- unblocks N`, the count of those issues; under `--all`, a todo issue that is not Ready ends
+with `-- not ready: <reasons>`:
+
+```text
+session-refresh  open  P2  Session refresh  -- unblocks 1
+```
+
+In `--json`, `"unblocks"` lists the ids of the issues it unblocks, and is left out when there are
+none.
+
+`capcom dep graph [id] [--all]` prints the Dependency graph as a Mermaid flowchart: every issue
+that is not Closed, or, with an id, that issue and its transitive deps and dependents; `--all` adds
+Closed issues, and an issue named by id is always a node. `flowchart LR` comes first, then a node
+`n<k>["<id> (<status>)"]` per issue in tree order, then an edge `n<a> --> n<b>` from each
+dependency to its dependent, by dependent in tree order and then in its `deps` order. A dep naming
+no issue, or an issue left out, has no edge:
+
+```text
+flowchart LR
+    n1["build-pipeline (open)"]
+    n2["db-schema (open)"]
+    n3["login-flow (open)"]
+    n2 --> n1
+```
+
+Its `--json` data holds `"nodes"` (`id`, `status`, `category`, `title`) in node order and `"edges"`
+(`dependent`, `dependency`).
 
 ### Canonical form
 
