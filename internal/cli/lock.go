@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/lock"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -44,9 +43,6 @@ const (
 )
 
 const kindLock = "lock"
-
-// Environment variables naming the user a lock records: USER off Windows, USERNAME on it.
-var userVariables = []string{"USER", "USERNAME"}
 
 // lockData is one lock in the --json data of the lock commands. The lock fields describe the
 // record as it was found or written and are empty for a free lock; Token is set only for the
@@ -100,7 +96,7 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			claim, err := newClaim(target.store, purpose, holder)
+			claim, err := lock.CurrentClaim(target.store.WorktreeRoot, purpose, holder)
 			if err != nil {
 				return err
 			}
@@ -240,44 +236,6 @@ func openLockTarget() (lockTarget, error) {
 		locks: lock.Open(opened.GitCommonDir, opened.Config.Lock.TTL),
 		key:   lock.WorktreeKey(opened.GitDir, opened.GitCommonDir),
 	}, nil
-}
-
-// newClaim describes the calling session: purpose, holder (user@host unless given), and the host,
-// user and checked-out branch of this worktree.
-func newClaim(opened *store.Store, purpose, holder string) (lock.Claim, error) {
-	host, err := os.Hostname()
-	if err != nil {
-		return lock.Claim{}, fmt.Errorf("reading host name: %w", err)
-	}
-	branch, err := gitx.CurrentBranch(opened.WorktreeRoot)
-	if err != nil {
-		return lock.Claim{}, err
-	}
-
-	user := currentUser()
-	if holder == "" {
-		holder = host
-		if user != "" {
-			holder = user + "@" + host
-		}
-	}
-	return lock.Claim{
-		Purpose: purpose,
-		Holder:  holder,
-		Host:    host,
-		User:    user,
-		Branch:  branch,
-	}, nil
-}
-
-// currentUser returns the login name from the environment, or "" when none is set.
-func currentUser() string {
-	for _, variable := range userVariables {
-		if name := strings.TrimSpace(os.Getenv(variable)); name != "" {
-			return name
-		}
-	}
-	return ""
 }
 
 // emitLock renders a lock command's outcome: status in state on success. A lock held by another

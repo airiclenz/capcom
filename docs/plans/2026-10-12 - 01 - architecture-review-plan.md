@@ -801,7 +801,7 @@ internal/gitx/gitx_test.go — newRepo, TestRun_FailingCommand_ReturnsGitStderr;
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/gitx/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Lock`
 **Commit:** `refactor(gitx): add CurrentBranch`
 
-## 30. lock.CurrentClaim
+## 30. lock.CurrentClaim — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** `lock.CurrentClaim(worktreeRoot, purpose, holder)` builds the claim (branch, user, host);
