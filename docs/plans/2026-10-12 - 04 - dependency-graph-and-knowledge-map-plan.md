@@ -174,7 +174,9 @@ present for a blocked todo issue.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Show|Related'`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`
 **Commit:** `feat(show): print readiness and dependents`
 
-## 5. show prints child progress
+## 5. show prints child progress — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the count helper is `(*app).childProgress` in internal/cli/issue_render.go (two `ListIDs` queries: all direct children, then the done and dropped ones), passed into `showGraph.facts` as a new `children` argument for item 10 to reuse; README/format reference text is left to item 17, as item 4 did.
 
 **What:**
 **Goal:** `capcom show` on an issue with direct children prints `children: <closed>/<total> closed`

@@ -84,7 +84,11 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 				return Result{}, nil, err
 			}
 		}
-		facts := graph.facts(entry.ID, related)
+		children, err := a.childProgress(entry.ID)
+		if err != nil {
+			return Result{}, nil, err
+		}
+		facts := graph.facts(entry.ID, related, children)
 		etag := edit.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
@@ -131,9 +135,9 @@ func (a *app) loadShowGraph() (*showGraph, error) {
 }
 
 // facts gathers what show tells about the issue with id beyond its file; related is its links as
-// showLinks lists them.
-func (g *showGraph) facts(id string, related []string) showFacts {
-	facts := showFacts{related: related, dependents: nonNil(g.deps.Dependents(id))}
+// showLinks lists them, children its direct children's count as childProgress gives it.
+func (g *showGraph) facts(id string, related []string, children *childrenData) showFacts {
+	facts := showFacts{related: related, dependents: nonNil(g.deps.Dependents(id)), children: children}
 	if verdict, isJudged := g.verdicts[id]; isJudged {
 		facts.readiness = &verdict
 	}

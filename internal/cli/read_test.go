@@ -431,6 +431,44 @@ func TestShow_JSON_CarriesReadyBlockingAndDependents(t *testing.T) {
 	}
 }
 
+func TestShow_Text_ChildProgress(t *testing.T) {
+	root := newReadStore(t)
+
+	before := mustRun(t, root, "show", "login-flow")
+	leaf := mustRun(t, root, "show", "session-refresh")
+	mustRun(t, root, "close", "session-refresh", "--reason", "done")
+	after := mustRun(t, root, "show", "login-flow")
+
+	if !strings.Contains(before, "\nlabels: [auth, epic]\nchildren: 0/1 closed\nplan: ") {
+		t.Errorf("show login-flow with an open child = %q, want children: 0/1 closed after labels", before)
+	}
+	if !strings.Contains(after, "\nchildren: 1/1 closed\n") {
+		t.Errorf("show login-flow with a closed child = %q, want children: 1/1 closed", after)
+	}
+	if strings.Contains(leaf, "children:") {
+		t.Errorf("show session-refresh = %q, want no children line on a leaf", leaf)
+	}
+}
+
+func TestShow_JSON_ChildrenCountedOnlyWhenPresent(t *testing.T) {
+	root := newReadStore(t)
+	mustRun(t, root, "close", "session-refresh", "--reason", "done")
+
+	stdout := mustRun(t, root, "show", "--json", "login-flow", "session-refresh")
+
+	shown := map[string]map[string]any{}
+	for _, item := range decodeEnvelope(t, stdout)["data"].([]any) {
+		issue := item.(map[string]any)
+		shown[issue["id"].(string)] = issue
+	}
+	if children := fmt.Sprint(shown["login-flow"]["children"]); children != "map[closed:1 total:1]" {
+		t.Errorf("login-flow children = %s, want map[closed:1 total:1]", children)
+	}
+	if _, hasChildren := shown["session-refresh"]["children"]; hasChildren {
+		t.Errorf("session-refresh = %v, want no children key on a leaf", shown["session-refresh"])
+	}
+}
+
 func TestSearch_Words_RankTheBestMatchFirst(t *testing.T) {
 	root := newReadStore(t)
 	writeIssueFiles(t, root, map[string]string{

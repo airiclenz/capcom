@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -81,28 +82,64 @@ func issueLines(entries []index.Entry, issuesPrefix string) string {
 }
 
 // showData is one issue in the --json data of show: the shared form, plus its Related links as
-// showLinks lists them, whether it is Ready (todo category only) and what blocks it, and the ids of
-// the issues that depend on it. Related and Dependents are always present.
+// showLinks lists them, whether it is Ready (todo category only) and what blocks it, the ids of
+// the issues that depend on it, and how many of its direct children are Closed (left out when it has
+// none). Related and Dependents are always present.
 type showData struct {
 	issueData
 	Related    []string      `json:"related"`
 	Ready      *bool         `json:"ready,omitempty"`
 	Blocking   []blockerData `json:"blocking,omitempty"`
 	Dependents []string      `json:"dependents"`
+	Children   *childrenData `json:"children,omitempty"`
+}
+
+// childrenData counts an issue's direct children: all of them, and those that are Closed.
+type childrenData struct {
+	Total  int `json:"total"`
+	Closed int `json:"closed"`
+}
+
+// childProgress counts the direct children of the issue with id, Closed ones included, and how
+// many of them are Closed (category done or dropped). It returns nil for an issue without children.
+func (a *app) childProgress(id string) (*childrenData, error) {
+	children, err := a.issueIndex.ListIDs(index.Filter{ParentID: id, IsClosedIncluded: true})
+	if err != nil {
+		return nil, err
+	}
+	if len(children) == 0 {
+		return nil, nil
+	}
+	closed, err := a.issueIndex.ListIDs(index.Filter{
+		ParentID:         id,
+		Categories:       []config.Category{config.CategoryDone, config.CategoryDropped},
+		IsClosedIncluded: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &childrenData{Total: len(children), Closed: len(closed)}, nil
 }
 
 // showFacts is what show tells about an issue beyond its file: its Related links as showLinks
-// lists them, the ready rules' verdict when the issue is in the todo category (nil otherwise), and
-// the ids of the issues that depend on it, in tree order.
+// lists them, the ready rules' verdict when the issue is in the todo category (nil otherwise), the
+// ids of the issues that depend on it, in tree order, and its direct children's count (nil when it
+// has none).
 type showFacts struct {
 	related    []string
 	readiness  *issue.Readiness
 	dependents []string
+	children   *childrenData
 }
 
 // newShowData converts an indexed issue and what show tells about it to show's --json form.
 func newShowData(entry index.Entry, facts showFacts) showData {
-	shown := showData{issueData: newIssueData(entry), Related: facts.related, Dependents: facts.dependents}
+	shown := showData{
+		issueData:  newIssueData(entry),
+		Related:    facts.related,
+		Dependents: facts.dependents,
+		Children:   facts.children,
+	}
 	if facts.readiness != nil {
 		shown.Ready = &facts.readiness.IsReady
 		for _, blocker := range facts.readiness.Blocking {
@@ -115,8 +152,8 @@ func newShowData(entry index.Entry, facts showFacts) showData {
 // issueText renders one issue in full: its id, location, etag and frontmatter as `key: value`
 // lines in the file's key order, a blank line, then the body byte for byte. After category comes
 // ready, for an issue in the todo category: `yes`, or `no (<reasons>)` worded as ready --all words
-// them; after deps come the issue's dependents and its Related links as facts carries them. Empty
-// fields are left out, except priority.
+// them; after deps come the issue's dependents, `<closed>/<total> closed` for its direct children,
+// and its Related links as facts carries them. Empty fields are left out, except priority.
 func issueText(entry index.Entry, etag string, facts showFacts, body string) string {
 	fields := []KVPair{
 		{"id", entry.ID},
@@ -132,6 +169,7 @@ func issueText(entry index.Entry, etag string, facts showFacts, body string) str
 		{"labels", flowList(entry.Labels)},
 		{"deps", flowList(entry.Deps)},
 		{"dependents", flowList(facts.dependents)},
+		{"children", childrenText(facts.children)},
 		{"related", flowList(facts.related)},
 		{"plan", entry.Plan},
 		{"aliases", flowList(entry.Aliases)},
@@ -156,6 +194,15 @@ func issueText(entry index.Entry, etag string, facts showFacts, body string) str
 		text.WriteString("\n")
 	}
 	return text.String()
+}
+
+// childrenText is the children line's value for a count: "" without one, `<closed>/<total> closed`
+// otherwise.
+func childrenText(children *childrenData) string {
+	if children == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d closed", children.Closed, children.Total)
 }
 
 // readyText is the ready line's value for a verdict: "" without one, `yes` when the issue is Ready,
