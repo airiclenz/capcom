@@ -63,6 +63,17 @@ type repo interface {
 	ShowFile(ctx context.Context, revision, path string) (string, error)
 	// LastCommitTouching returns the last commit, at revision or before it, that changed path.
 	LastCommitTouching(ctx context.Context, revision, path string) (string, error)
+	// CloneAt fetches origin's tags into the checkout, then clones the checkout fresh into dir —
+	// an absolute path, which must not exist yet — and checks tag out there.
+	CloneAt(ctx context.Context, tag, dir string) error
+	// CreateRelease creates the GitHub release for tag, which origin must already hold, titled
+	// tag, with the notes file's text and every asset file, and marks it the latest release.
+	CreateRelease(ctx context.Context, tag, notesPath string, assets []string) error
+	// UploadAssets uploads each asset file to tag's GitHub release, replacing an asset of the
+	// same name.
+	UploadAssets(ctx context.Context, tag string, assets []string) error
+	// ReadAsset returns the content of tag's GitHub release asset name, writing nothing to disk.
+	ReadAsset(ctx context.Context, tag, name string) (string, error)
 }
 
 // githubRelease is a published GitHub release: its tag and when it was published.
@@ -343,4 +354,45 @@ func (r execRepo) LastCommitTouching(ctx context.Context, revision, path string)
 		return "", fmt.Errorf("git log found no commit changing %s at %s", path, revision)
 	}
 	return commit, nil
+}
+
+// CloneAt runs `git fetch --tags`, finds the checkout's top level with `git rev-parse`, clones it
+// with `git clone` from dir's parent and runs `git checkout <tag>` in the clone.
+func (r execRepo) CloneAt(ctx context.Context, tag, dir string) error {
+	if _, err := r.remote(ctx, "git", "fetch", "--quiet", "--tags", remoteName); err != nil {
+		return fmt.Errorf("fetch %s's tags: %w", remoteName, err)
+	}
+	toplevel, err := r.git(ctx, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return fmt.Errorf("find the checkout's top level: %w", err)
+	}
+	if _, err := r.commands.run(ctx, filepath.Dir(dir), nil, "git", "clone", "--quiet", strings.TrimSpace(toplevel), dir); err != nil {
+		return fmt.Errorf("clone the checkout to build %s: %w", tag, err)
+	}
+	if _, err := r.commands.run(ctx, dir, nil, "git", "checkout", "--quiet", tag); err != nil {
+		return fmt.Errorf("check out %s in the clone: %w", tag, err)
+	}
+	return nil
+}
+
+// CreateRelease runs `gh release create` with --verify-tag, so gh refuses a tag origin lacks
+// rather than making one, and --latest.
+func (r execRepo) CreateRelease(ctx context.Context, tag, notesPath string, assets []string) error {
+	args := []string{"release", "create", tag, "--repo", capcomRepo,
+		"--verify-tag", "--title", tag, "--notes-file", notesPath, "--latest"}
+	_, err := r.remote(ctx, "gh", append(args, assets...)...)
+	return err
+}
+
+// UploadAssets runs `gh release upload --clobber`, which replaces an asset of the same name.
+func (r execRepo) UploadAssets(ctx context.Context, tag string, assets []string) error {
+	args := []string{"release", "upload", tag, "--repo", capcomRepo, "--clobber"}
+	_, err := r.remote(ctx, "gh", append(args, assets...)...)
+	return err
+}
+
+// ReadAsset runs `gh release download --output -`, which prints the asset to stdout, so nothing
+// is written into the checkout, whose clean tree the next status or publish gate checks.
+func (r execRepo) ReadAsset(ctx context.Context, tag, name string) (string, error) {
+	return r.remote(ctx, "gh", "release", "download", tag, "--repo", capcomRepo, "--pattern", name, "--output", "-")
 }

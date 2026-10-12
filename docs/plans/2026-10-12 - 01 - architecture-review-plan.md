@@ -966,7 +966,13 @@ nonInteractiveEnv on the remote calls.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./cmd/release/`
 **Commit:** `refactor(release): publish tag steps on the repo seam`
 
-## 37. release: publish release step on the repo seam
+## 37. release: publish release step on the repo seam — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): repo gains CloneAt(tag, dir) (fetch --tags, rev-parse --show-toplevel, clone from dir's parent, checkout; the old error wording kept), CreateRelease(tag, notesPath, assets), UploadAssets(tag, assets) and ReadAsset(tag, name); convergeRelease, buildReleaseAssets and downloadReleaseSums call them, so publish.go keeps no git or gh release argv and channels.go no release download. Following the ratified "every gh release call names --repo airiclenz/capcom", create, upload and download now pass `--repo airiclenz/capcom` after the tag (same position as smoke's download).
+NOTES (2026-10-12): memRepo records CloneAt/CreateRelease/UploadAssets/ReadAsset in the shared ordered log (`repo <Method> <args>`), CloneAt writes writeReleaseTree into dir and requires origin to hold the tag, CreateRelease/UploadAssets stat every asset via requireFiles and add the asset names to releases, and ReadAsset reads the new assetContent map (which replaces publishFake.publishedSums). mutatingCommands swaps the own-repo argv prefixes (git fetch --quiet --tags, git clone, git checkout, gh release create/upload) for the three mutating repo methods; publishFake.respond drops their argv cases.
+NOTES (2026-10-12): TestPublishCreatesTheReleaseWithTheTagsArgv became the execRepo "CreateRelease" table case (--verify-tag/--title/--notes-file/--latest/--repo), its asset-order pin moved into TestPublishFirstRunConvergesTheTagThenTheRelease (the created release's assets in release order); TestPublishDownloadsTheSumsOutsideTheCheckout became the "ReadAsset" case (--output -, --repo); "UploadAssets" pins --clobber; new TestExecRepoCloneAtFetchesThenClonesTheTag / TestExecRepoCloneAtNamesTheStepThatFailed pin CloneAt's four calls and failures. publishToplevel now serves only the CloneAt test (comment updated).
+NOTES (2026-10-12): consequential edit — cmd/release/channels_test.go: made necessary by downloadReleaseSums reading through run.repo (TestPublishWritesTheRenderedFileIntoTheClone builds its publishRun by hand and now sets repo: fake.repo).
+NOTES (2026-10-12): retry fix — TestExecRepoCloneAtFetchesThenClonesTheTag clones into filepath.Join(t.TempDir(), "src") and expects the clone to run in that temp dir, so the expected dirs match filepath.Dir on Windows too.
 
 **What:**
 **Goal:** the release step (`CloneAt`, `CreateRelease`, `UploadAssets`, `ReadAsset`) and the sums

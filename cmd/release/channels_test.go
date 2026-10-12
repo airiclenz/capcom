@@ -177,7 +177,7 @@ func releasedFake() *publishFake {
 		bucketManifest: `{"version": "0.24.10"}`,
 		wingetListing:  wingetListing("0.24.10"),
 	}
-	fake.publishedSums = testReleaseSums()
+	fake.repo.assetContent[checksumsFile] = testReleaseSums()
 	fake.channels = fakeChannels{
 		tap:    fakeChannelRepo{file: "class Capcom < Formula\n  version \"0.24.10\"\nend\n"},
 		bucket: fakeChannelRepo{file: "{\"version\": \"0.24.10\"}\n"},
@@ -396,7 +396,7 @@ func TestPublishWritesTheRenderedFileIntoTheClone(t *testing.T) {
 		}
 		return respond(call)
 	}}
-	run := &publishRun{commands: commands, output: &strings.Builder{}, version: mustVersion(t, publishVersion),
+	run := &publishRun{commands: commands, repo: fake.repo, output: &strings.Builder{}, version: mustVersion(t, publishVersion),
 		options: publishOptions{dir: t.TempDir()}}
 
 	for _, converge := range []func() error{
@@ -639,33 +639,6 @@ func TestPublishLeavesASubmittedWingetReleaseAlone(t *testing.T) {
 	}
 	if !hasRow(result.output, "winget", "done", "submitted: pull request #301234") {
 		t.Errorf("the winget row does not report the open pull request:\n%s", result.output)
-	}
-}
-
-// TestPublishDownloadsTheSumsOutsideTheCheckout pins the channel steps' SHA256SUMS download to
-// stdout: nothing is written into the checkout, whose clean tree the next gate checks.
-func TestPublishDownloadsTheSumsOutsideTheCheckout(t *testing.T) {
-	t.Parallel()
-
-	result := runChannelPublish(t, releasedFake(), false, sentinelToken)
-
-	if result.err != nil {
-		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
-	}
-	var downloads []recordedCall
-	for _, call := range result.commands.recorded("gh") {
-		if len(call.args) > 1 && call.args[0] == "release" && call.args[1] == "download" {
-			downloads = append(downloads, call)
-		}
-	}
-	if len(downloads) == 0 {
-		t.Fatal("the channel steps never downloaded SHA256SUMS")
-	}
-	want := []string{"release", "download", publishVersion, "--pattern", checksumsFile, "--output", "-"}
-	for _, call := range downloads {
-		if !slices.Equal(call.args, want) {
-			t.Errorf("gh %q, want gh %q: the sums go to stdout, never a file in the checkout", call.args, want)
-		}
 	}
 }
 

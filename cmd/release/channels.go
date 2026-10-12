@@ -130,12 +130,11 @@ func packageCommitSubject(version releaseVersion) string {
 	return binaryName + " " + bareRelease(version)
 }
 
-// downloadReleaseSums reads the release's SHA256SUMS from GitHub to stdout, so nothing is written
-// into the checkout, whose clean tree the next status or publish gate checks.
+// downloadReleaseSums reads the release's SHA256SUMS from GitHub, writing nothing into the
+// checkout, whose clean tree the next status or publish gate checks.
 func downloadReleaseSums(ctx context.Context, run *publishRun) (string, error) {
 	tag := run.version.String()
-	sums, err := run.commands.run(ctx, run.options.dir, nonInteractiveEnv,
-		"gh", "release", "download", tag, "--pattern", checksumsFile, "--output", "-")
+	sums, err := run.repo.ReadAsset(ctx, tag, checksumsFile)
 	if err != nil {
 		return "", fmt.Errorf("download %s from GitHub release %s: %w", checksumsFile, tag, err)
 	}

@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-// The checkout's top level the publish tests clone, and the poll timing their tag waits run on.
-// The release they cut is publishVersion (smoke_test.go).
+// The checkout's top level execRepo's CloneAt test clones, and the poll timing the publish tests'
+// tag waits run on. The release they cut is publishVersion (smoke_test.go).
 const (
 	publishToplevel = "/home/owner/capcom"
 	testTagTimeout  = 30 * time.Second
@@ -29,13 +29,11 @@ const (
 var mutatingCommands = []string{
 	repoCallName + " " + methodPushMain,
 	repoCallName + " " + methodFetchTag,
+	repoCallName + " " + methodCloneAt,
+	repoCallName + " " + methodCreateRelease,
+	repoCallName + " " + methodUploadAssets,
 	"git push",
-	"git fetch --quiet --tags",
-	"git clone",
-	"git checkout",
 	"go build",
-	"gh release create",
-	"gh release upload",
 	"gh release delete",
 	"gh repo clone",
 	"git commit",
@@ -44,8 +42,8 @@ var mutatingCommands = []string{
 }
 
 // publishFake is what publish meets: capcom's checkout and GitHub repository held in repo, and
-// the commands the runner answers the way git, go and gh would — the clone, the build and the
-// release writes itself, the channel repositories' through remote.
+// the commands the runner answers the way git, go and gh would — the build itself, the channel
+// repositories' through remote.
 type publishFake struct {
 	repo memRepo
 	// remote is where the channel repositories stand.
@@ -57,8 +55,6 @@ type publishFake struct {
 	// commit it is on.
 	tagKind   string
 	tagCommit string
-	// publishedSums is the release's SHA256SUMS, as `gh release download` prints it.
-	publishedSums string
 	// channels is the tap, the bucket and the komac and gh installs the channel steps meet.
 	channels fakeChannels
 
@@ -73,14 +69,15 @@ type publishFake struct {
 func newPublishFake() *publishFake {
 	fake := &publishFake{
 		repo: memRepo{
-			commits:    linearHistory(),
-			head:       bumpCommit,
-			originMain: featureCommit,
-			greenRuns:  []string{featureCommit},
-			remoteTags: map[string]string{},
-			releases:   map[string][]string{},
-			files:      map[string]string{versionFile: strings.TrimPrefix(publishVersion, "v") + "\n"},
-			publish:    &memPublish{},
+			commits:      linearHistory(),
+			head:         bumpCommit,
+			originMain:   featureCommit,
+			greenRuns:    []string{featureCommit},
+			remoteTags:   map[string]string{},
+			releases:     map[string][]string{},
+			assetContent: map[string]string{},
+			files:        map[string]string{versionFile: strings.TrimPrefix(publishVersion, "v") + "\n"},
+			publish:      &memPublish{},
 		},
 		remote: fakeRemote{
 			hasTap:      true,
@@ -125,21 +122,11 @@ func (f *publishFake) opener() repoOpener {
 func (f *publishFake) respond(call recordedCall) (string, error) {
 	args := call.args
 	switch command := call.name + " " + strings.Join(args, " "); {
-	case command == "git fetch --quiet --tags origin",
-		command == "git checkout --quiet "+publishVersion,
-		call.name == "gh" && len(args) > 1 && args[0] == "release" && (args[1] == "create" || args[1] == "upload"):
-		return "", requireFiles(args)
-	case command == "git rev-parse --show-toplevel":
-		return publishToplevel + "\n", nil
-	case call.name == "git" && len(args) == 4 && args[0] == "clone" && args[2] == publishToplevel:
-		return "", writeReleaseTree(args[3])
 	case command == "git log -1 --format=%ct HEAD":
 		return testCommitTime, nil
 	case call.name == "go" && len(args) > 0 && args[0] == "build":
 		output := args[slices.Index(args, "-o")+1]
 		return "", os.WriteFile(output, []byte(stubBinary(call.env)), 0o755)
-	case command == "gh release download "+publishVersion+" --pattern SHA256SUMS --output -":
-		return f.publishedSums, nil
 	}
 	if output, isAnswered, err := f.respondChannel(call); isAnswered {
 		return output, err
@@ -148,7 +135,7 @@ func (f *publishFake) respond(call recordedCall) (string, error) {
 }
 
 // requireFiles fails when an absolute path among args names no file: gh would refuse to upload
-// an asset that is not there.
+// an asset that is not there, so memRepo refuses it too.
 func requireFiles(args []string) error {
 	for _, arg := range args {
 		if !filepath.IsAbs(arg) {
@@ -270,12 +257,13 @@ func lineIndex(lines []string, prefix string) int {
 
 // TestPublishFirstRunConvergesTheTagThenTheRelease pins a first run's order end to end: push
 // HEAD, wait for the CI-made tag, fetch it — the memRepo resolves no tag before it is fetched, so
-// a run that resolved it first would fail — then fetch the tags, clone, check the tag out, build
-// every archive and create the release, and print every step done.
+// a run that resolved it first would fail — then clone at the tag, build every archive and
+// create the release with the seven assets in release order, and print every step done.
 func TestPublishFirstRunConvergesTheTagThenTheRelease(t *testing.T) {
 	t.Parallel()
+	fake := newPublishFake()
 
-	result := runTestPublish(t, newPublishFake(), false)
+	result := runTestPublish(t, fake, false)
 
 	if result.err != nil {
 		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
@@ -283,11 +271,9 @@ func TestPublishFirstRunConvergesTheTagThenTheRelease(t *testing.T) {
 	wantOrder := []string{
 		"repo PushMain",
 		"repo FetchTag v0.24.11",
-		"git fetch --quiet --tags origin",
-		"git clone --quiet " + publishToplevel,
-		"git checkout --quiet v0.24.11",
+		"repo CloneAt v0.24.11 ",
 		"go build", "go build", "go build", "go build", "go build", "go build",
-		"gh release create v0.24.11",
+		"repo CreateRelease v0.24.11 " + result.notesPath + " ",
 	}
 	mutating := mutatingLines(result.commands)
 	if len(mutating) != len(wantOrder) {
@@ -301,43 +287,13 @@ func TestPublishFirstRunConvergesTheTagThenTheRelease(t *testing.T) {
 	if result.pauses != 2 {
 		t.Errorf("paused %d times, want 2: the tag appears on the third poll after the push", result.pauses)
 	}
+	wantAssets := releaseAssetNames(mustVersion(t, publishVersion))
+	if created := fake.repo.releases[publishVersion]; !slices.Equal(created, wantAssets) {
+		t.Errorf("release created with %q, want the %d assets %q", created, len(wantAssets), wantAssets)
+	}
 	for _, want := range []string{"tag      done  done by this run", "release  done  done by this run"} {
 		if !hasRow(result.output, want) {
 			t.Errorf("output lacks %q:\n%s", want, result.output)
-		}
-	}
-}
-
-// TestPublishCreatesTheReleaseWithTheTagsArgv pins `gh release create`'s argv: the tag, verified
-// to exist on the remote, as its title, the notes file, marked latest, then the seven assets in
-// release order — each one a built file when gh is asked for it.
-func TestPublishCreatesTheReleaseWithTheTagsArgv(t *testing.T) {
-	t.Parallel()
-
-	result := runTestPublish(t, newPublishFake(), false)
-
-	if result.err != nil {
-		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
-	}
-	creates := slices.DeleteFunc(result.commands.recorded("gh"), func(call recordedCall) bool {
-		return len(call.args) < 2 || call.args[1] != "create"
-	})
-	if len(creates) != 1 {
-		t.Fatalf("got %d gh release create calls, want 1", len(creates))
-	}
-	args := creates[0].args
-	wantHead := []string{"release", "create", publishVersion, "--verify-tag", "--title", publishVersion, "--notes-file", result.notesPath, "--latest"}
-	if !slices.Equal(args[:len(wantHead)], wantHead) {
-		t.Errorf("gh release create args = %q, want them to start %q", args, wantHead)
-	}
-	assets := args[len(wantHead):]
-	wantNames := releaseAssetNames(mustVersion(t, publishVersion))
-	if len(assets) != len(wantNames) {
-		t.Fatalf("gh release create uploads %q, want the %d assets %q", assets, len(wantNames), wantNames)
-	}
-	for index, asset := range assets {
-		if !filepath.IsAbs(asset) || filepath.Base(asset) != wantNames[index] {
-			t.Errorf("asset %d = %s, want an absolute path to %s", index, asset, wantNames[index])
 		}
 	}
 }
@@ -508,7 +464,7 @@ func TestPublishConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 			t.Errorf("ran %q, want no push once the tag exists", lines[index])
 		}
 	}
-	if lineIndex(lines, "gh release create v0.24.11") < 0 {
+	if lineIndex(lines, "repo CreateRelease v0.24.11") < 0 {
 		t.Errorf("the release was not created; commands: %q", lines)
 	}
 }
@@ -554,7 +510,7 @@ func TestPublishTagStepFailures(t *testing.T) {
 			if result.pauses != tc.wantPauses {
 				t.Errorf("paused %d times, want %d", result.pauses, tc.wantPauses)
 			}
-			if index := lineIndex(commandLines(result.commands), "git clone"); index >= 0 {
+			if index := lineIndex(commandLines(result.commands), "repo CloneAt"); index >= 0 {
 				t.Errorf("the release step ran after the tag step failed")
 			}
 			if !strings.Contains(result.output, "steps") {
@@ -591,7 +547,7 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 			fake := newPublishFake()
 			fake.tagged()
 			fake.repo.releases[publishVersion] = tc.uploaded
-			fake.publishedSums = rebuiltSums(t)
+			fake.repo.assetContent[checksumsFile] = rebuiltSums(t)
 
 			result := runTestPublish(t, fake, false)
 
@@ -599,29 +555,25 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 				t.Fatalf("publish failed: %v\n%s", result.err, result.output)
 			}
 			var uploads []recordedCall
-			for _, call := range result.commands.recorded("gh") {
-				switch {
-				case len(call.args) > 1 && call.args[1] == "create":
+			for _, call := range result.commands.recorded(repoCallName) {
+				switch call.args[0] {
+				case methodCreateRelease:
 					t.Errorf("created the release %q, want only an upload to the existing one", call.args)
-				case len(call.args) > 1 && call.args[1] == "upload":
+				case methodUploadAssets:
 					uploads = append(uploads, call)
 				}
 			}
 			if len(uploads) != 1 {
-				t.Fatalf("got %d gh release upload calls, want 1", len(uploads))
+				t.Fatalf("got %d UploadAssets calls, want 1", len(uploads))
 			}
 			args := uploads[0].args
-			if !slices.Equal(args[:4], []string{"release", "upload", publishVersion, "--clobber"}) {
-				t.Errorf("gh release upload args = %q, want them to start release upload %s --clobber", args, publishVersion)
+			if args[1] != publishVersion {
+				t.Errorf("UploadAssets args = %q, want them to name release %s", args, publishVersion)
 			}
-			var names []string
-			for _, path := range args[4:] {
-				names = append(names, filepath.Base(path))
-			}
-			if !slices.Equal(names, tc.wantUploads) {
+			if names := assetNames(args[2:]); !slices.Equal(names, tc.wantUploads) {
 				t.Errorf("uploaded %q, want only %q", names, tc.wantUploads)
 			}
-			isDownloaded := lineIndex(commandLines(result.commands), "gh release download") >= 0
+			isDownloaded := lineIndex(commandLines(result.commands), "repo ReadAsset "+publishVersion+" "+checksumsFile) >= 0
 			if isDownloaded != tc.wantDownload {
 				t.Errorf("downloaded SHA256SUMS = %t, want %t", isDownloaded, tc.wantDownload)
 			}
@@ -642,7 +594,7 @@ func TestPublishRefusesARebuildThatDoesNotMatchThePublishedSums(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fake.publishedSums = strings.Replace(sums, linuxHash, strings.Repeat("0", len(linuxHash)), 1)
+	fake.repo.assetContent[checksumsFile] = strings.Replace(sums, linuxHash, strings.Repeat("0", len(linuxHash)), 1)
 
 	result := runTestPublish(t, fake, false)
 
@@ -654,7 +606,7 @@ func TestPublishRefusesARebuildThatDoesNotMatchThePublishedSums(t *testing.T) {
 			t.Errorf("publish error = %v, want it to name %q", result.err, want)
 		}
 	}
-	if index := lineIndex(commandLines(result.commands), "gh release upload"); index >= 0 {
+	if index := lineIndex(commandLines(result.commands), "repo UploadAssets"); index >= 0 {
 		t.Errorf("uploaded assets over a mismatched SHA256SUMS")
 	}
 }

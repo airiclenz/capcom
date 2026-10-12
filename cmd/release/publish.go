@@ -403,7 +403,6 @@ func describeRelease(run *publishRun) string {
 // match. A release without SHA256SUMS has nothing to check against; the rebuild is
 // byte-identical to any earlier one from the same tag, so its own sums are uploaded.
 func convergeRelease(ctx context.Context, run *publishRun) error {
-	dir := run.options.dir
 	tag := run.version.String()
 	uploaded, isFound, err := run.repo.ReleaseAssets(ctx, tag)
 	if err != nil {
@@ -424,9 +423,8 @@ func convergeRelease(ctx context.Context, run *publishRun) error {
 	run.distDir = outDir
 
 	if !isFound {
-		args := []string{"release", "create", tag, "--verify-tag", "--title", tag, "--notes-file", run.notesPath, "--latest"}
-		args = append(args, assetPaths(outDir, releaseAssetNames(run.version))...)
-		if _, err := run.commands.run(ctx, dir, nonInteractiveEnv, "gh", args...); err != nil {
+		assets := assetPaths(outDir, releaseAssetNames(run.version))
+		if err := run.repo.CreateRelease(ctx, tag, run.notesPath, assets); err != nil {
 			return fmt.Errorf("create GitHub release %s: %w", tag, err)
 		}
 		return nil
@@ -438,35 +436,22 @@ func convergeRelease(ctx context.Context, run *publishRun) error {
 		}
 	}
 	missing := missingAssets(releaseAssetNames(run.version), uploaded)
-	// --clobber replaces only an asset left in a failed upload state: an uploaded one is never
-	// in missing.
-	args := append([]string{"release", "upload", tag, "--clobber"}, assetPaths(outDir, missing)...)
-	if _, err := run.commands.run(ctx, dir, nonInteractiveEnv, "gh", args...); err != nil {
+	// UploadAssets replaces an asset of the same name, which here is only one left in a failed
+	// upload state: an uploaded one is never in missing.
+	if err := run.repo.UploadAssets(ctx, tag, assetPaths(outDir, missing)); err != nil {
 		return fmt.Errorf("upload %s to GitHub release %s: %w", strings.Join(missing, ", "), tag, err)
 	}
 	return nil
 }
 
-// buildReleaseAssets fetches the tags, clones the checkout fresh into workDir, checks the tag out
-// there and runs dist over it — never over the current checkout, whatever it holds. It returns
-// the directory holding the assets.
+// buildReleaseAssets clones the checkout fresh into workDir at the tag and runs dist over the
+// clone — never over the current checkout, whatever it holds. It returns the directory holding
+// the assets.
 func buildReleaseAssets(ctx context.Context, run *publishRun, workDir string) (string, error) {
-	dir := run.options.dir
 	tag := run.version.String()
-	if _, err := run.commands.run(ctx, dir, nonInteractiveEnv, "git", "fetch", "--quiet", "--tags", remoteName); err != nil {
-		return "", fmt.Errorf("fetch %s's tags: %w", remoteName, err)
-	}
-	toplevel, err := run.commands.run(ctx, dir, nil, "git", "rev-parse", "--show-toplevel")
-	if err != nil {
-		return "", fmt.Errorf("find the checkout's top level: %w", err)
-	}
-
 	sourceDir := filepath.Join(workDir, "src")
-	if _, err := run.commands.run(ctx, workDir, nil, "git", "clone", "--quiet", strings.TrimSpace(toplevel), sourceDir); err != nil {
-		return "", fmt.Errorf("clone the checkout to build %s: %w", tag, err)
-	}
-	if _, err := run.commands.run(ctx, sourceDir, nil, "git", "checkout", "--quiet", tag); err != nil {
-		return "", fmt.Errorf("check out %s in the clone: %w", tag, err)
+	if err := run.repo.CloneAt(ctx, tag, sourceDir); err != nil {
+		return "", err
 	}
 	bare, err := readBareVersion(sourceDir)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -30,6 +31,10 @@ const (
 	methodIsAnnotated        = "IsAnnotated"
 	methodShowFile           = "ShowFile"
 	methodLastCommitTouching = "LastCommitTouching"
+	methodCloneAt            = "CloneAt"
+	methodCreateRelease      = "CreateRelease"
+	methodUploadAssets       = "UploadAssets"
+	methodReadAsset          = "ReadAsset"
 )
 
 // repoCallName is the name a memRepo's changes are recorded under in a runner's call record.
@@ -37,9 +42,9 @@ const repoCallName = "repo"
 
 // memRepo is the in-memory repo: the checkout and its GitHub repository held as plain state —
 // a commit history, where HEAD and origin/main stand, whether the tree is dirty, the tags, which
-// commits ci.yml ran green for, origin's tags, the GitHub releases, the files at HEAD and what a
-// publish run pushes and fetches — so a test states what the repo holds instead of what git and
-// gh print.
+// commits ci.yml ran green for, origin's tags, the GitHub releases and their assets' content, the
+// files at HEAD and what a publish run pushes, fetches, clones and releases — so a test states
+// what the repo holds instead of what git and gh print.
 type memRepo struct {
 	commits    map[string]fakeCommit
 	head       string
@@ -60,12 +65,16 @@ type memRepo struct {
 	// remoteTags are origin's tags, each with the type of the object GitHub's ref points at:
 	// "tag" for an annotated tag, "commit" for a lightweight one.
 	remoteTags map[string]string
-	// releases are the GitHub releases by tag, each with its fully uploaded assets.
+	// releases are the GitHub releases by tag, each with its fully uploaded assets; CreateRelease
+	// and UploadAssets add to it.
 	releases map[string][]string
+	// assetContent is what ReadAsset reads of a release asset, by name, whatever the release.
+	assetContent map[string]string
 	// files are the checkout's files at HEAD by path, for ShowFile.
 	files map[string]string
-	// publish is what a publish run changes; nil for a memRepo that refuses PushMain and
-	// FetchTag. It is a pointer, as madeCommits is, so every copy of the memRepo shares it.
+	// publish is what a publish run changes; nil for a memRepo that refuses PushMain, FetchTag,
+	// CloneAt, CreateRelease and UploadAssets. It is a pointer, as madeCommits is, so every copy
+	// of the memRepo shares it.
 	publish *memPublish
 	// failing names a method — methodParents — that fails outright, as one that cannot run.
 	failing string
@@ -74,9 +83,10 @@ type memRepo struct {
 // memPublish is the part of a memRepo a publish run changes: whether HEAD was pushed, the tags
 // the CI workflow made after the push, and the tags fetched into the checkout.
 type memPublish struct {
-	// log is the runner whose ordered call record PushMain and FetchTag join, as calls named
-	// repoCallName, so a test reads the repo's changes and the commands the runner ran in one
-	// order; nil records nothing.
+	// log is the runner whose ordered call record PushMain, FetchTag and the release step's
+	// CloneAt, CreateRelease, UploadAssets and ReadAsset join, as calls named repoCallName, so a
+	// test reads the repo's calls and the commands the runner ran in one order; nil records
+	// nothing.
 	log *fakeRunner
 	// tagAfterPush is the post-PushMain hook, the tag-on-version-bump workflow: asked on each
 	// RemoteHasTag poll after the push with how many polls that makes, it returns the tag origin
@@ -351,6 +361,99 @@ func (r memRepo) LastCommitTouching(_ context.Context, revision, path string) (s
 	}
 }
 
+// CloneAt records the clone in publish and its log and writes writeReleaseTree's checkout of
+// publishVersion into dir; origin must hold the tag, which a clone fetches first.
+func (r memRepo) CloneAt(_ context.Context, tag, dir string) error {
+	if err := r.failure(methodCloneAt); err != nil {
+		return err
+	}
+	if r.publish == nil {
+		return errors.New("this memRepo clones nothing")
+	}
+	r.publish.note(methodCloneAt, tag, dir)
+	if _, hasTag := r.remoteTag(tag); !hasTag {
+		return fmt.Errorf("origin has no tag %s", tag)
+	}
+	return writeReleaseTree(dir)
+}
+
+// CreateRelease records the release in publish's log and adds it to releases with the assets'
+// names, each of which must name a file, as gh requires; origin must hold the tag.
+func (r memRepo) CreateRelease(_ context.Context, tag, notesPath string, assets []string) error {
+	if err := r.failure(methodCreateRelease); err != nil {
+		return err
+	}
+	if r.publish == nil || r.releases == nil {
+		return errors.New("this memRepo creates no release")
+	}
+	r.publish.note(methodCreateRelease, append([]string{tag, notesPath}, assets...)...)
+	if _, hasTag := r.remoteTag(tag); !hasTag {
+		return fmt.Errorf("origin has no tag %s", tag)
+	}
+	if _, isFound := r.releases[tag]; isFound {
+		return fmt.Errorf("release %s already exists", tag)
+	}
+	if err := requireFiles(assets); err != nil {
+		return err
+	}
+	r.releases[tag] = assetNames(assets)
+	return nil
+}
+
+// UploadAssets records the upload in publish's log and adds the assets' names, each of which
+// must name a file, to the release.
+func (r memRepo) UploadAssets(_ context.Context, tag string, assets []string) error {
+	if err := r.failure(methodUploadAssets); err != nil {
+		return err
+	}
+	if r.publish == nil {
+		return errors.New("this memRepo uploads nothing")
+	}
+	r.publish.note(methodUploadAssets, append([]string{tag}, assets...)...)
+	uploaded, isFound := r.releases[tag]
+	// A test may hand releases a slice sharing its array with others: append to a copy.
+	uploaded = slices.Clone(uploaded)
+	if !isFound {
+		return fmt.Errorf("there is no release %s", tag)
+	}
+	if err := requireFiles(assets); err != nil {
+		return err
+	}
+	for _, name := range assetNames(assets) {
+		if !slices.Contains(uploaded, name) {
+			uploaded = append(uploaded, name)
+		}
+	}
+	r.releases[tag] = uploaded
+	return nil
+}
+
+// ReadAsset records the read in publish's log, when there is one, and returns the asset's
+// content from assetContent; the release must carry the asset.
+func (r memRepo) ReadAsset(_ context.Context, tag, name string) (string, error) {
+	if err := r.failure(methodReadAsset); err != nil {
+		return "", err
+	}
+	r.publish.note(methodReadAsset, tag, name)
+	if !slices.Contains(r.releases[tag], name) {
+		return "", fmt.Errorf("release %s has no asset %s", tag, name)
+	}
+	content, hasContent := r.assetContent[name]
+	if !hasContent {
+		return "", fmt.Errorf("this memRepo holds no content for %s", name)
+	}
+	return content, nil
+}
+
+// assetNames returns each asset path's file name.
+func assetNames(assets []string) []string {
+	names := make([]string, 0, len(assets))
+	for _, asset := range assets {
+		names = append(names, filepath.Base(asset))
+	}
+	return names
+}
+
 // remoteTag returns origin's tag: from remoteTags, whose commit is not held, or from the tags
 // the workflow made.
 func (r memRepo) remoteTag(tag string) (memTag, bool) {
@@ -374,9 +477,10 @@ func (r memRepo) resolve(revision string) string {
 	return revision
 }
 
-// note adds the change to the log's call record, unanswered, when there is a log.
+// note adds the call to the log's call record, unanswered, when there is a log; a nil
+// memPublish records nothing.
 func (p *memPublish) note(method string, args ...string) {
-	if p.log == nil {
+	if p == nil || p.log == nil {
 		return
 	}
 	p.log.mu.Lock()

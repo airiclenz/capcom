@@ -224,6 +224,35 @@ func TestExecRepoRunsEachMethodsArgv(t *testing.T) {
 			want:     bumpCommit,
 			wantCall: recordedCall{name: "git", args: []string{"log", "-1", "--format=%H", "HEAD", "--", "VERSION"}},
 		},
+		// CreateRelease verifies the tag exists on the remote rather than making one, titles the
+		// release with it and marks it latest; the assets follow in the order they were given.
+		"CreateRelease": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return nil, checkout.CreateRelease(ctx, "v0.24.11", "/notes.md", []string{"/dist/a.tar.gz", "/dist/SHA256SUMS"})
+			},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh", args: []string{"release", "create", "v0.24.11",
+				"--repo", "airiclenz/capcom", "--verify-tag", "--title", "v0.24.11", "--notes-file", "/notes.md", "--latest",
+				"/dist/a.tar.gz", "/dist/SHA256SUMS"}},
+		},
+		// UploadAssets' --clobber replaces an asset left in a failed upload state.
+		"UploadAssets": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return nil, checkout.UploadAssets(ctx, "v0.24.11", []string{"/dist/a.zip", "/dist/b.zip"})
+			},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh", args: []string{"release", "upload", "v0.24.11",
+				"--repo", "airiclenz/capcom", "--clobber", "/dist/a.zip", "/dist/b.zip"}},
+		},
+		// ReadAsset downloads to stdout, --output -, never to a file in the checkout, whose clean
+		// tree the next gate checks.
+		"ReadAsset": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return checkout.ReadAsset(ctx, "v0.24.11", checksumsFile)
+			},
+			output: "abc  capcom_0.24.11_linux_amd64.tar.gz\n",
+			want:   "abc  capcom_0.24.11_linux_amd64.tar.gz\n",
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh", args: []string{"release", "download", "v0.24.11",
+				"--repo", "airiclenz/capcom", "--pattern", "SHA256SUMS", "--output", "-"}},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -390,6 +419,75 @@ func TestExecRepoTellsANoFromABrokenCommand(t *testing.T) {
 
 			if err == nil || !strings.Contains(err.Error(), tc.wantError) {
 				t.Errorf("error = %v, want one containing %q", err, tc.wantError)
+			}
+		})
+	}
+}
+
+// TestExecRepoCloneAtFetchesThenClonesTheTag pins CloneAt's four calls: it fetches origin's
+// tags, never prompting, finds the checkout's top level, clones that from the clone's parent
+// directory and checks the tag out in the clone, the last three local.
+func TestExecRepoCloneAtFetchesThenClonesTheTag(t *testing.T) {
+	t.Parallel()
+	commands := &fakeRunner{respond: func(call recordedCall) (string, error) {
+		if call.args[0] == "rev-parse" {
+			return publishToplevel + "\n", nil
+		}
+		return "", nil
+	}}
+	checkout := execRepo{commands: commands, dir: "/checkout"}
+	build := t.TempDir()
+	clone := filepath.Join(build, "src")
+
+	err := checkout.CloneAt(t.Context(), "v0.24.11", clone)
+
+	if err != nil {
+		t.Fatalf("CloneAt: %v", err)
+	}
+	want := []recordedCall{
+		{dir: "/checkout", env: nonInteractiveEnv, name: "git", args: []string{"fetch", "--quiet", "--tags", "origin"}},
+		{dir: "/checkout", name: "git", args: []string{"rev-parse", "--show-toplevel"}},
+		{dir: build, name: "git", args: []string{"clone", "--quiet", publishToplevel, clone}},
+		{dir: clone, name: "git", args: []string{"checkout", "--quiet", "v0.24.11"}},
+	}
+	if !reflect.DeepEqual(commands.calls, want) {
+		t.Errorf("calls = %+v, want %+v", commands.calls, want)
+	}
+}
+
+// TestExecRepoCloneAtNamesTheStepThatFailed pins CloneAt's failures: each names its step, and a
+// failed step runs nothing after it.
+func TestExecRepoCloneAtNamesTheStepThatFailed(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		failing   string
+		wantError string
+		wantCalls int
+	}{
+		"the fetch":     {failing: "fetch", wantError: "fetch origin's tags", wantCalls: 1},
+		"the top level": {failing: "rev-parse", wantError: "find the checkout's top level", wantCalls: 2},
+		"the clone":     {failing: "clone", wantError: "clone the checkout to build v0.24.11", wantCalls: 3},
+		"the checkout":  {failing: "checkout", wantError: "check out v0.24.11 in the clone", wantCalls: 4},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			commands := &fakeRunner{respond: func(call recordedCall) (string, error) {
+				if call.args[0] == tc.failing {
+					return "", errors.New("git " + tc.failing + ": cannot run")
+				}
+				return publishToplevel + "\n", nil
+			}}
+			checkout := execRepo{commands: commands, dir: "/checkout"}
+
+			err := checkout.CloneAt(t.Context(), "v0.24.11", "/build/src")
+
+			if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Errorf("error = %v, want one containing %q", err, tc.wantError)
+			}
+			if len(commands.calls) != tc.wantCalls {
+				t.Errorf("calls = %+v, want %d", commands.calls, tc.wantCalls)
 			}
 		})
 	}
