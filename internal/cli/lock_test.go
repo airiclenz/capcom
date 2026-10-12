@@ -292,6 +292,23 @@ func TestLockTouch_FreeLock_FailsNotFoundWithFreeRecord(t *testing.T) {
 	}
 }
 
+func TestLockTouch_FreeLock_JSON_NamesWorktreeAndRecordPath(t *testing.T) {
+	root := newLockStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "lock", "touch", "--token", "any", "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	data, _ := envelope["data"].(map[string]any)
+	failure, _ := envelope["error"].(map[string]any)
+	if exitCode != ExitNotFound || data["worktree"] != "_main" || data["lock"] != "free" {
+		t.Errorf("exit = %d data = %v", exitCode, data)
+	}
+	path, _ := failure["path"].(string)
+	if failure["code"] != string(CodeNotFound) || path == "" || strings.Contains(failure["message"].(string), path) {
+		t.Errorf("error = %v, want not_found with the record path in path only", failure)
+	}
+}
+
 func TestLockAcquire_JSON_CarriesTokenAndBranch(t *testing.T) {
 	root := newLockStore(t)
 

@@ -85,6 +85,22 @@ type Status struct {
 	IsStale bool
 }
 
+// NotHeldError reports a touch of a free lock; it matches ErrNotHeld under errors.Is.
+type NotHeldError struct {
+	// Path is the lock record's file.
+	Path string
+}
+
+// Error names the record file, then gives ErrNotHeld's message.
+func (e *NotHeldError) Error() string {
+	return e.Path + ": " + ErrNotHeld.Error()
+}
+
+// Unwrap returns ErrNotHeld.
+func (e *NotHeldError) Unwrap() error {
+	return ErrNotHeld
+}
+
 // HeldError reports a lock held by a session other than the caller.
 type HeldError struct {
 	// Path is the lock record's file.
@@ -191,8 +207,9 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 	return acquired, isResumed, err
 }
 
-// Touch refreshes the heartbeat of key's lock for the holder of token. It fails with ErrNotHeld
-// when the lock is free and with a *HeldError when another session holds it.
+// Touch refreshes the heartbeat of key's lock for the holder of token. It fails with a
+// *NotHeldError, returning the free lock, when nobody holds it, and with a *HeldError when another
+// session holds it.
 func (l *Locks) Touch(key, token string) (Status, error) {
 	var touched Status
 	err := l.withGuard(key, func(now time.Time) error {
@@ -201,7 +218,8 @@ func (l *Locks) Touch(key, token string) (Status, error) {
 			return err
 		}
 		if !current.IsHeld {
-			return fmt.Errorf("%s: %w", l.RecordPath(key), ErrNotHeld)
+			touched = current
+			return &NotHeldError{Path: l.RecordPath(key)}
 		}
 		if current.Record.Token != token {
 			return l.heldError(current, now)

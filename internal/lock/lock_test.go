@@ -194,10 +194,17 @@ func TestTouch_FreeLock_FailsNotHeld(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)
 
-	_, err := locks.Touch(MainWorktreeKey, "any")
+	status, err := locks.Touch(MainWorktreeKey, "any")
 
-	if !errors.Is(err, ErrNotHeld) {
-		t.Fatalf("err = %v, want ErrNotHeld", err)
+	var notHeld *NotHeldError
+	if !errors.Is(err, ErrNotHeld) || !errors.As(err, &notHeld) {
+		t.Fatalf("err = %v, want a *NotHeldError matching ErrNotHeld", err)
+	}
+	if notHeld.Path != locks.RecordPath(MainWorktreeKey) {
+		t.Errorf("Path = %q, want %q", notHeld.Path, locks.RecordPath(MainWorktreeKey))
+	}
+	if status.Key != MainWorktreeKey || status.IsHeld {
+		t.Errorf("status = %+v, want the free lock of %q", status, MainWorktreeKey)
 	}
 }
 

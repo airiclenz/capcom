@@ -285,13 +285,14 @@ func currentUser() string {
 // the lock as found, so --kv keeps its LOCK= record and closes it with the failure's code.
 func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, token string, err error) error {
 	var held *lock.HeldError
+	var notHeld *lock.NotHeldError
 	switch {
 	case errors.As(err, &held):
 		failure := &Error{Code: CodeLocked, Message: held.Message(), Path: held.Path}
 		return a.emit(cmd, failedLockResult(foundState(held.Status), held.Status, failure))
-	case errors.Is(err, lock.ErrNotHeld):
-		failure := Errorf(CodeNotFound, "%s", err.Error())
-		return a.emit(cmd, failedLockResult(lockFree, lock.Status{Key: status.Key}, failure))
+	case errors.As(err, &notHeld):
+		failure := &Error{Code: CodeNotFound, Message: lock.ErrNotHeld.Error(), Path: notHeld.Path}
+		return a.emit(cmd, failedLockResult(lockFree, status, failure))
 	case err != nil:
 		return err
 	}

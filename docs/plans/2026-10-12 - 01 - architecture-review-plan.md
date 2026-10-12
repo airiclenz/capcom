@@ -169,7 +169,9 @@ green at base).
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run KnowAdd`
 **Commit:** `fix(cli): know add reports every validation problem`
 
-## 4. lock touch on a free lock names its worktree
+## 4. lock touch on a free lock names its worktree — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the record path reaches the CLI through a new `lock.NotHeldError{Path}` that unwraps to `ErrNotHeld` (mirroring `HeldError.Path`), since `emitLock` has no `Locks` to compute the path from; `errors.Is(err, lock.ErrNotHeld)` still holds.
 
 **What:**
 **Goal:** `capcom lock touch` on a lock that is not held reports `lock: free` with the worktree key
