@@ -116,7 +116,9 @@ TestWriteFileExclusive_PathExists_FailsWithErrExistAndLeavesFileAndNoTempFile
 - `go vet ./internal/tree/`
 **Commit:** `test(tree): cover WriteFileExclusive's copy fallback without hard links`
 
-## 5. Note fixes and handoff archive
+## 5. Note fixes and handoff archive — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the two superseded handoffs (2026-10-12 - 00 and - 01) were moved into docs/handoffs/archived/ under the same names; docs/handoffs/ is git-ignored, so the move is working-tree only and is not in FILES or the commit.
 
 **What:** apply the two approved Note corrections and archive the superseded handoffs.
 **Regression guard.** The release-process.md CURRENT sentence wraps across lines; replace it by reflowing the paragraph so the PROPOSED wording lands, keeping the file's line width.

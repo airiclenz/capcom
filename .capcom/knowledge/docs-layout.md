@@ -15,5 +15,7 @@ Read the relevant source before changing what it covers:
 - `docs/design/`: research and design notes. `docs/design/research-notes.md` is the pre-v1
   research record, not current design.
 - `docs/plans/`: implementation plans. Finished ones move to `docs/plans/archived/`.
-- `docs/handoffs/`: handoff documents between sessions.
+- `docs/handoffs/`: handoff documents between sessions. Local to each clone:
+  `docs/handoffs/.gitignore` ignores everything, so handoffs are never committed and other clones
+  do not see them.
 - `docs/format.md`: the full reference for the files under `.capcom/`.

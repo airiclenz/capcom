@@ -12,7 +12,8 @@ tag, bump `VERSION` or edit a CHANGELOG release heading by hand: `prepare` and `
 publish. ADR 0008 records the design.
 
 `cmd/release` is a dev tool, never shipped. It imports nothing from `internal/`. Its tests are the
-one exception to ADR 0007: they never run git, gh, go or komac. What the verbs ask of the capcom
-checkout and its GitHub repository goes through the `repo` seam (`repo.go`), held as plain state
-in `memRepo`; only `execRepo`'s own tests pin its argv. The toolchain and the tap, bucket and
+one exception to ADR 0007: apart from the version-bump script test (`versionbump_test.go`, see Note
+`adr-0008-amend-bumptest`), they never run git, gh, go or komac. What the verbs ask of the capcom
+checkout and its GitHub repository goes through the `repo` seam (`repo.go`), held as plain state in
+`memRepo`; only `execRepo`'s own tests pin its argv. The toolchain and the tap, bucket and
 winget-pkgs commands are faked through the runner seam (`runner.go`).
