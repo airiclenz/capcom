@@ -204,6 +204,22 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 			files: map[string]string{knowledge + "testing-rules.md": "---\ntitle: Testing rules\nrefs:\n  - no/such/file.go\n---\n"},
 			want:  knowledge + "testing-rules.md:4:" + check.CodeBrokenRef,
 		},
+		{
+			name: "superseded-by resolving to nothing",
+			files: map[string]string{
+				".capcom/config.yaml":     "format: 3\n",
+				knowledge + "old-flow.md": "---\ntitle: Old flow\nlabels: [flow]\nsuperseded-by: [no-such-note]\n---\n",
+			},
+			want: knowledge + "old-flow.md:4:" + check.CodeMissingSupersededBy,
+		},
+		{
+			name: "retired false in a format-2 store",
+			files: map[string]string{
+				".capcom/config.yaml":     "format: 2\n",
+				knowledge + "old-flow.md": "---\ntitle: Old flow\nretired: false\n---\n",
+			},
+			want: knowledge + "old-flow.md:3:" + check.CodeFormatTooOld,
+		},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -253,6 +269,66 @@ func TestRun_RelatedNamingAnAlias_ReportsNothing(t *testing.T) {
 
 	if len(problems) != 0 {
 		t.Fatalf("problems = %v, want none", problems)
+	}
+}
+
+func TestRun_SupersessionKeysWithoutConfig_ReportFormatTooOldAtEachKey(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		knowledge + "old-flow.md":  "---\ntitle: Old flow\nretired: true\nsuperseded-by: [new-flow]\n---\n",
+		knowledge + "new-flow.md":  "---\ntitle: New flow\n---\n",
+		knowledge + "live-flow.md": "---\ntitle: Live flow\nsuperseded-by: []\n---\n",
+	})
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.Code+" "+problem.String())
+	}
+	const advice = ": set format: 3 in .capcom/config.yaml, or run a capcom write verb that raises it"
+	want := []string{
+		check.CodeFormatTooOld + " " + knowledge +
+			"live-flow.md:3: superseded-by needs store format 3, but the store declares format 1" + advice,
+		check.CodeFormatTooOld + " " + knowledge +
+			"old-flow.md:3: retired needs store format 3, but the store declares format 1" + advice,
+		check.CodeFormatTooOld + " " + knowledge +
+			"old-flow.md:4: superseded-by needs store format 3, but the store declares format 1" + advice,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+func TestRun_SupersededByNamingAnAlias_ReportsNothing(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml":     "format: 3\n",
+		knowledge + "old-flow.md": "---\ntitle: Old flow\nretired: true\nsuperseded-by: [adr-0010]\n---\n",
+		knowledge + "new-flow.md": "---\ntitle: New flow\naliases: [adr-0010]\n---\n",
+	})
+
+	problems := runCheck(t, root)
+
+	if len(problems) != 0 {
+		t.Fatalf("problems = %v, want none", problems)
+	}
+}
+
+func TestRun_SupersededByNamingOnlyAnIDPrefix_ReportsMissingSupersededBy(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml":     "format: 3\n",
+		knowledge + "old-flow.md": "---\ntitle: Old flow\nsuperseded-by:\n  - new\n---\n",
+		knowledge + "new-flow.md": "---\ntitle: New flow\n---\n",
+	})
+
+	problems := runCheck(t, root)
+
+	got := locations(t, problems)
+	want := []string{knowledge + "old-flow.md:4:" + check.CodeMissingSupersededBy}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %v, want %v", problems, want)
 	}
 }
 

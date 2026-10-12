@@ -160,6 +160,18 @@ func (n Note) AliasesLine() int {
 	return n.lines[keyAliases]
 }
 
+// RetiredLine returns the 1-based line of the retired key in the file the Note was parsed from, or
+// 0 when the file has none or the Note was built in memory.
+func (n Note) RetiredLine() int {
+	return n.lines[keyRetired]
+}
+
+// SupersededByKeyLine returns the 1-based line of the superseded-by key in the file the Note was
+// parsed from, or 0 when the file has none or the Note was built in memory.
+func (n Note) SupersededByKeyLine() int {
+	return n.lines[keySupersededBy]
+}
+
 // RefLine returns the 1-based line of the i-th Ref in the file the Note was parsed from, or 0 for
 // a Note built in memory.
 func (n Note) RefLine(i int) int {

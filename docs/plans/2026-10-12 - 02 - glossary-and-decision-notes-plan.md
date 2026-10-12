@@ -155,7 +155,11 @@ internal/briefing/briefing_test.go — TestCompose_FixtureStore_ReturnsEverySect
 **Commit:** `feat(knowledge): exempt retired subtrees from the block and ref checks`
 Depends on item 5.
 
-## 8. check validates supersession and the store format
+## 8. check validates supersession and the store format — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from the assumption that item 3's kept key lines are readable from `check`: `Note.lines` is unexported, so `internal/knowledge/note.go` gains the accessors `RetiredLine()` and `SupersededByKeyLine()` (the key lines, set for any value, so `retired: false` and `superseded-by: []` count).
+NOTES (2026-10-12): `missing-superseded-by` cites the entry's own line (`SupersededByLine(i)`, as `Validate` does for superseded-by problems), which is the key's line in the canonical flow form; `format-too-old` cites the key's line. An entry `Validate` already rejects as no id is not reported again as missing.
+NOTES (2026-10-12): the supersession checks run for every parsed Note, retired subtrees included; the format-too-old message reads `<key> needs store format 3, but the store declares format N: set format: 3 in .capcom/config.yaml, or run a capcom write verb that raises it`.
 
 **What:**
 **Goal:** `capcom check` reports, citing the key's line: a `superseded-by` entry naming no Note by id or by an alias only one Note has (code `missing-superseded-by`, worded as `superseded-by %q names no note by id or by an alias only one note has`); and a Note using `retired` or `superseded-by` in a store whose `config.yaml` declares a format below 3 (new code `format-too-old`, message naming the key and telling the user to run a write verb or set `format: 3`).

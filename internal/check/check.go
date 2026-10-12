@@ -1,6 +1,7 @@
 // Package check validates a whole store at once, for `capcom check`: the config, the issue tree
 // and the Knowledge tree, read straight from the files and never from the index. It owns no rule
-// of its own beyond resolving deps, related links and plans; it collects what the config parser,
+// of its own beyond resolving deps, related links, plans and superseded-by links, and checking that
+// a Note's format-3 keys sit in a store declaring format 3; it collects what the config parser,
 // the tree loader, the issue and Note parsers and validators, the git conflict-marker scan of
 // package rawfm, the dependency cycle search and the Ref verifier report, each as a
 // Problem citing the file and, when known, the line (ADR 0006). It also reports an AGENTS.md whose
@@ -12,6 +13,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -51,6 +53,11 @@ const (
 	CodeMissingDep = "missing-dep"
 	// CodeMissingRelated is a related link that names no issue.
 	CodeMissingRelated = "missing-related"
+	// CodeMissingSupersededBy is a superseded-by link that names no Note.
+	CodeMissingSupersededBy = "missing-superseded-by"
+	// CodeFormatTooOld is a Note key the store's declared format does not hold yet: retired or
+	// superseded-by in a store below format 3.
+	CodeFormatTooOld = "format-too-old"
 	// CodeCycle is a dependency cycle.
 	CodeCycle = "cycle"
 	// CodeMissingPlan is a plan found in none of the configured plans directories.
@@ -63,6 +70,23 @@ const (
 
 // refSymbolSeparator splits a Note Ref into its path and symbol.
 const refSymbolSeparator = "#"
+
+// Store formats of the supersession check (ADR 0009).
+const (
+	// supersessionFormatVersion is the first store format whose Note files may carry the retired
+	// and superseded-by keys.
+	supersessionFormatVersion = 3
+	// missingConfigFormat is the format of a store without config.yaml: a missing format key means
+	// format 1, and config.Default stands in for the file at the current format only so that the
+	// other config defaults apply.
+	missingConfigFormat = 1
+)
+
+// The Note keys a store needs format 3 for, as Problems name them.
+const (
+	keyRetired      = "retired"
+	keySupersededBy = "superseded-by"
+)
 
 // planExtension is the extension a plan basename is looked up with, besides the bare name.
 const planExtension = ".md"
@@ -385,6 +409,10 @@ func (c *checker) notes() error {
 		return err
 	}
 
+	declaredFormat, err := c.declaredFormat()
+	if err != nil {
+		return err
+	}
 	nodes := loaded.Nodes()
 	isRetired := retiredSubtrees(nodes, parsed)
 	for _, node := range nodes {
@@ -392,11 +420,73 @@ func (c *checker) notes() error {
 		if !isParsed {
 			continue
 		}
+		c.checkSupersession(node, note, loaded, declaredFormat)
 		if err := c.checkNote(node, note, isRetired[node.ID]); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// declaredFormat returns the store format config.yaml declares, or format 1 when the store has no
+// config.yaml (ADR 0009).
+func (c *checker) declaredFormat() (int, error) {
+	path := c.store.ConfigPath()
+	_, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return missingConfigFormat, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", c.relative(path), err)
+	}
+	return c.store.Config.Format, nil
+}
+
+// checkSupersession checks the supersession keys of one parsed Note: each superseded-by entry must
+// name a Note by id or by an alias, and the retired and superseded-by keys need a store declaring
+// format 3, however they are set. An entry Validate rejects as no id is left to Validate.
+func (c *checker) checkSupersession(
+	node tree.Node,
+	note knowledge.Note,
+	notes *tree.Tree,
+	declaredFormat int,
+) {
+	path := node.Path
+	for i, successor := range note.SupersededBy {
+		if tree.ValidateAlias(successor) != nil {
+			continue
+		}
+		if _, isFound := notes.Lookup(successor); !isFound {
+			c.add(path, note.SupersededByLine(i), CodeMissingSupersededBy, fmt.Sprintf(
+				"superseded-by %q names no note by id or by an alias only one note has",
+				successor,
+			))
+		}
+	}
+	if declaredFormat >= supersessionFormatVersion {
+		return
+	}
+	keyLines := []struct {
+		key  string
+		line int
+	}{
+		{key: keyRetired, line: note.RetiredLine()},
+		{key: keySupersededBy, line: note.SupersededByKeyLine()},
+	}
+	for _, keyLine := range keyLines {
+		if keyLine.line == 0 {
+			continue
+		}
+		c.add(path, keyLine.line, CodeFormatTooOld, fmt.Sprintf(
+			"%s needs store format %d, but the store declares format %d: set format: %d in %s, "+
+				"or run a capcom write verb that raises it",
+			keyLine.key,
+			supersessionFormatVersion,
+			declaredFormat,
+			supersessionFormatVersion,
+			c.relative(c.store.ConfigPath()),
+		))
+	}
 }
 
 // retiredSubtrees returns the ids of the nodes that are retired or sit below a retired ancestor,
