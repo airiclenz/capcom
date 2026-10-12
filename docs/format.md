@@ -278,33 +278,77 @@ aliases: [cli-tests]
 CLI tests drive every command in process through `runCLI`, in a real temp git repository.
 ```
 
-| Key       | Value                                                                      | Required |
-|-----------|----------------------------------------------------------------------------|----------|
-| `title`   | One line that reads on its own.                                            | yes      |
-| `labels`  | A list of Labels.                                                          | no       |
-| `refs`    | A list of the files, directories and symbols the Note depends on.          | no       |
-| `aliases` | A list of the Note's former ids.                                           | no       |
+| Key             | Value                                                                    | Required |
+|-----------------|--------------------------------------------------------------------------|----------|
+| `title`         | One line that reads on its own.                                          | yes      |
+| `labels`        | A list of Labels.                                                        | no       |
+| `refs`          | A list of the files, directories and symbols the Note depends on.        | no       |
+| `retired`       | `true` or `false`: whether the Note no longer holds (see Supersession).  | no       |
+| `superseded-by` | A list of the ids of the Notes that replace this one (see Supersession). | no       |
+| `aliases`       | A list of the Note's former ids.                                         | no       |
 
-Any other key is an error, the id included. capcom writes a Note with the keys in the order of the
-table, empty fields left out, lists in flow style on one line, text unquoted wherever YAML reads it
-back unchanged and in double quotes otherwise, always on one line, and the body byte for byte. The
-body is free markdown.
+Any other key is an error, the id included. `retired` and `superseded-by` need store format 3 (see
+Config). capcom writes a Note with the keys in the order of the table, empty fields and a false
+`retired` left out, lists in flow style on one line, text unquoted wherever YAML reads it back
+unchanged and in double quotes otherwise, always on one line, and the body byte for byte. The body
+is free markdown.
 
-Notes are changed through capcom, never by hand-editing `.capcom/knowledge/`:
+Notes may be edited by hand, in any editor, or changed through capcom's write verbs (ADR 0010).
+`capcom check` and `capcom fmt --check` are the validators of a hand edit: `check` reports a file
+that does not parse or validate, or a link that names no Note, as `path:line: message`, and
+`fmt --check` lists a file that is not in canonical form, which `capcom fmt` then rewrites. The
+write verbs are the scripted path:
 
 - `capcom know add` writes a new Note, at the top of the tree or below `--parent`.
-- `capcom know update` changes a Note's title, labels, refs or body; only the flags given change
-  anything. The body takes the same edit flags as `capcom update` for an issue, plus `--body-file`
-  to replace the whole body.
+- `capcom know update` changes a Note's title, labels, refs, retired flag, superseded-by list or
+  body; only the flags given change anything. The body takes the same edit flags as
+  `capcom update` for an issue, plus `--body-file` to replace the whole body.
 - `capcom know mv` renames a Note, moves it below another (`--parent`, or `.` for the top of the
   tree), or both. A rename keeps the old id as an alias, and the Note's children move with it.
-- `capcom know rm` deletes a Note file together with its aliases. A Note with children is refused;
-  move or remove them first.
+  It rewrites every other Note's `superseded-by` entry naming the old id or one of its aliases.
+- `capcom know rm` deletes a Note file together with its aliases, and drops every other Note's
+  `superseded-by` entries naming it. A Note with children is refused; move or remove them first.
 
 An **etag** is a hash of a Note file's bytes: `capcom know show` prints it, and `know add`,
 `know update` and `know mv` print the new one after a write. `know update`, `know mv` and
 `know rm` take `--if-match <etag>` and refuse with a conflict, changing nothing, when the file's
-etag differs, so an agent never overwrites a Note that changed since it last read it.
+etag differs, so an agent never overwrites a Note that changed since it last read it. A hand edit
+changes the file's bytes, and so its etag, like a write verb does: `--if-match` refuses a write
+over a Note edited by hand since the agent last read it.
+
+### Supersession
+
+A **Retired** Note is one whose content no longer holds, kept so that old citations still resolve:
+`retired: true` marks it. **Supersession** links a Note to the Notes that replace it: its
+`superseded-by` list holds their ids. A Note replaced in whole is retired and names its
+successors; one replaced in part stays current, names its successors and says in its body what
+still holds. Neither key implies the other.
+
+- `capcom know tree`, `capcom know search` and `capcom know show --with-children` leave out a
+  retired Note and every Note below it, whatever their own `retired` key says; `--retired` brings
+  them back. `capcom know show <id>` always prints the Note it names, retired or not, with its
+  `retired` and `superseded-by` lines, and `capcom know tree <id>` starts from a retired Note
+  named directly.
+- The Managed block in AGENTS.md leaves out a retired top-level Note (see The Managed block in
+  AGENTS.md), and the Ref checks of `capcom know verify`, `capcom check` and `capcom prime` leave
+  out the Refs of a retired Note and of every Note below it (see Refs).
+- `capcom know update --retire` sets `retired: true` and `--unretire` removes it.
+  `--add-superseded-by <note>` takes an id, an alias or a prefix and writes the id it resolves to;
+  `--remove-superseded-by <id>` removes an entry by its text. Both repeat. An update that retires
+  a Note or adds a `superseded-by` entry in a store below format 3 first raises `config.yaml` to
+  `format: 3`, as `capcom related add` raises it to 2 (see Config), and warns:
+
+```text
+warning: .capcom/config.yaml: store format raised to 3; capcom releases that read only format 2 can no longer read this store
+```
+
+A `superseded-by` entry is spelled as an id or alias, appears once and never names the Note
+itself; anything else is an error at the entry's line. A renaming `capcom know mv` rewrites every
+entry naming the old id or one of its aliases to the new id, and `capcom know rm` drops every
+entry naming the removed Note; a Note file that does not parse is left as it is, with a warning
+naming it. `capcom check` reports a `superseded-by` entry that names no Note by id or by an alias
+(`missing-superseded-by`), at the entry's line, and a `retired` or `superseded-by` key in a store
+declaring a format below 3 (`format-too-old`), at the key's line.
 
 ### Refs
 
@@ -320,8 +364,8 @@ A **Ref** is either a path or `path#symbol`:
 
 A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists every such Ref as
 `path:line: ref "<ref>": <why>`, citing the Ref's line in the Note file, and fails when it finds
-one; `capcom check` reports them too. Both leave out the Refs of a retired Note and of every Note
-below it.
+one; `capcom check` reports them too, and `capcom prime` counts them in its briefing. All three
+leave out the Refs of a retired Note and of every Note below it.
 
 ## Config
 
@@ -373,7 +417,9 @@ elsewhere:
   `capcom related add` in a store below format 2 raises it: it replaces the `format:` line, or the
   format-1 template's commented `# format: 1` line, with `format: 2`, keeping every other byte, and
   creates `config.yaml` holding only that line when the store has none. It warns that capcom
-  releases reading only format 1, v0.1.0 among them, can no longer read the store.
+  releases reading only format 1, v0.1.0 among them, can no longer read the store. The first
+  `capcom know update` that retires a Note or adds a `superseded-by` entry raises a store below
+  format 3 to `format: 3` the same way (see Supersession).
 - **statuses** — an ordered mapping of status name to Status category. Every rule in capcom reads
   the category, never the name (ADR 0003). At least one status must be in `todo` and one in
   `done`. When capcom moves an issue into a category (create, close, reopen) it uses the first
@@ -451,9 +497,11 @@ from the Note files alone, so the same tree always yields the same block.
   block is neither: the block is opt-in.
 - A Note write that changes the top level of the Knowledge tree refreshes the block when
   `AGENTS.md` already holds one and it went out of date: a top-level `capcom know add`, a
-  `capcom know update` of a top-level Note's title, a `capcom know mv` into, out of or within the
-  top level, and a `capcom know rm` of a top-level Note. It never adds a block to a file without
-  one. A write below the top level changes nothing, since the block lists only the top level.
+  `capcom know update` of a top-level Note's title or retired flag, a `capcom know mv` into, out
+  of or within the top level, and a `capcom know rm` of a top-level Note. It never adds a block to
+  a file without one. A write below the top level changes nothing, since the block lists only the
+  top level. A hand edit refreshes nothing: `capcom check` reports the stale block, and
+  `capcom agents` rewrites it.
 - A marker that appears twice, an end marker before the begin marker, or a begin marker that is
   never closed is an error at that marker's line, for `agents` and `check` alike.
 

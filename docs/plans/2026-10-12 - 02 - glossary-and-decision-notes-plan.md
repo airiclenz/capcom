@@ -210,7 +210,9 @@ internal/nodestore/remove.go — planNoteRemove, plannedRemoval, removalPaths, r
 **Commit:** `feat(knowledge): keep supersession links through mv and rm`
 Depends on item 3.
 
-## 11. Docs: hand-editable Notes and the new keys
+## 11. Docs: hand-editable Notes and the new keys — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `docs/format.md` gains a `### Supersession` subsection under §Note files (modelled on §Related links), which holds the key semantics, the `know update` flags, mv/rm behaviour, the format-3 raise warning and the two check codes; the Config §format entry, the §Refs paragraph (now naming `capcom prime`) and the Managed-block refresh list (now "title or retired flag", plus a line saying a hand edit refreshes nothing) were updated per the regression guard.
 
 **What:**
 **Goal:** `docs/format.md` §Note files lists the six keys with `retired` and `superseded-by` semantics (subtree hiding, `--retired`, Managed block and ref-check exemption, mv/rm behaviour), says Notes may be edited by hand with `capcom check` and `capcom fmt --check` as validators, and keeps the etag paragraph accurate for hand edits; `README.md`'s Knowledge bullets and example mention glossary and decision trees and `--retired`.

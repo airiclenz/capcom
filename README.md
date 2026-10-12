@@ -55,9 +55,13 @@ and show up in code review like the code they describe.
 - **Project knowledge on demand.** The facts agents need about a repo (conventions, gotchas, why
   something is the way it is) live as small Notes under `.capcom/knowledge/`, so an agent pulls up
   just the part it needs instead of reading one huge instructions file. Each Note names the files
-  and symbols it talks about, and `capcom know verify` flags the ones that have gone. Notes are
-  changed with `capcom know update`, renamed or moved with `capcom know mv` (the old id stays an
-  alias, as with `capcom mv`) and deleted with `capcom know rm`.
+  and symbols it talks about, and `capcom know verify` flags the ones that have gone. A glossary
+  and decision records fit as Note trees too: one Note per term or decision, cited by id, so
+  "ADR 0076" resolves as `adr-0076`. A Note that no longer holds is marked `retired` and names its
+  replacements in `superseded-by`; browsing and search leave retired Notes out unless asked with
+  `--retired`. Notes may be edited by hand, with `capcom check` as the validator, or changed with
+  `capcom know update`, renamed or moved with `capcom know mv` (the old id stays an alias, as with
+  `capcom mv`) and deleted with `capcom know rm`.
 - **Changes on other branches.** `ready`, `list`, `show` and `prime` warn when an issue was
   changed on another local or remote-tracking branch that is not merged yet; capcom never merges
   them itself, and never fetches, so remote-tracking branches are as fresh as the last fetch.
@@ -171,6 +175,8 @@ capcom know search release
 capcom know update release-steps --add-label release --if-match <etag>   # etag from know show
 capcom know mv release-steps cutting-a-release   # the old id stays an alias
 capcom know rm cutting-a-release                 # refuses a Note with children
+capcom know update adr-0012 --retire --add-superseded-by "ADR 0031"   # replaced in whole
+capcom know tree --retired      # include retired Notes and everything below them
 capcom know verify              # Note refs that no longer resolve
 
 capcom agents                   # write or refresh the capcom block of AGENTS.md
