@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -184,5 +185,84 @@ func TestOpen_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 	}
 	if failure.Path != ".capcom/config.yaml" || failure.Line != 4 || !strings.Contains(failure.Message, "colour") {
 		t.Errorf("error = %v, want .capcom/config.yaml:4 naming colour", err)
+	}
+}
+
+// initStore creates a store in a new repository, replaces its config.yaml with content and returns
+// the opened store.
+func initStore(t *testing.T, content string) *Store {
+	t.Helper()
+	root := newRepo(t)
+	store, _, err := Init(root)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	writeConfig(t, root, content)
+	return store
+}
+
+func TestRaiseFormat_CRLFConfig_KeepsCRLFAndMode(t *testing.T) {
+	store := initStore(t, "types: [bug]\r\nformat: 1\r\nid_prefix: cc\r\n")
+	if err := os.Chmod(store.ConfigPath(), 0o600); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+
+	isRaised, err := store.RaiseFormat(2)
+
+	if err != nil || !isRaised {
+		t.Fatalf("RaiseFormat = %v, %v, want true, nil", isRaised, err)
+	}
+	content, _ := os.ReadFile(store.ConfigPath())
+	if want := "types: [bug]\r\nformat: 2\r\nid_prefix: cc\r\n"; string(content) != want {
+		t.Errorf("config.yaml = %q, want %q", content, want)
+	}
+	if info, err := os.Stat(store.ConfigPath()); runtime.GOOS != "windows" && (err != nil || info.Mode().Perm() != 0o600) {
+		t.Errorf("config.yaml mode = %v (%v), want 0600 kept", info.Mode().Perm(), err)
+	}
+}
+
+func TestRaiseFormat_FormatOneTemplate_WritesEveryByteConfigRaiseFormatReturns(t *testing.T) {
+	const template = "# capcom configuration.\n\n" +
+		"# The store format version; left as a comment, since a missing key means format 1.\n" +
+		"# format: 1\n\ntypes: [bug, task]\n"
+	store := initStore(t, template)
+	want, _ := config.RaiseFormat([]byte(template), 2)
+
+	isRaised, err := store.RaiseFormat(2)
+
+	if err != nil || !isRaised {
+		t.Fatalf("RaiseFormat = %v, %v, want true, nil", isRaised, err)
+	}
+	if content, _ := os.ReadFile(store.ConfigPath()); string(content) != string(want) {
+		t.Errorf("config.yaml = %q, want %q", content, want)
+	}
+}
+
+func TestRaiseFormat_AlreadyAtVersion_LeavesTheFileAlone(t *testing.T) {
+	store := initStore(t, "format: 2\r\n")
+
+	isRaised, err := store.RaiseFormat(2)
+
+	if err != nil || isRaised {
+		t.Fatalf("RaiseFormat = %v, %v, want false, nil", isRaised, err)
+	}
+	if content, _ := os.ReadFile(store.ConfigPath()); string(content) != "format: 2\r\n" {
+		t.Errorf("config.yaml = %q, want it untouched", content)
+	}
+}
+
+func TestRaiseFormat_MissingConfig_CreatesItHoldingTheFormatKey(t *testing.T) {
+	store := initStore(t, "")
+	if err := os.Remove(store.ConfigPath()); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	isRaised, err := store.RaiseFormat(2)
+
+	if err != nil || !isRaised {
+		t.Fatalf("RaiseFormat = %v, %v, want true, nil", isRaised, err)
+	}
+	if content, _ := os.ReadFile(store.ConfigPath()); string(content) != "format: 2\n" {
+		t.Errorf("config.yaml = %q, want %q", content, "format: 2\n")
 	}
 }

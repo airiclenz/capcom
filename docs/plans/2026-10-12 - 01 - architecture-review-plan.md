@@ -816,7 +816,11 @@ internal/lock/lock_test.go — testClaim; internal/gitx/gitx_test.go — newRepo
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Lock`
 **Commit:** `refactor(lock): move claim detection into lock`
 
-## 31. store.RaiseFormat
+## 31. store.RaiseFormat — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from "export item 2's byte-exact atomic writer": item 2 already exported it as `tree.WriteFileAtomicVerbatim`, so cli's `replaceFileBytes` moved into tree as `tree.ReplaceFileVerbatim` (stat the old file, then `WriteFileAtomicVerbatim` with its mode), not a second writer; merge_driver.go and init.go call it, and `mergedTempPattern` went with `replaceFileBytes` (the merge's temp file is now tree's `.<name>.tmp-*`).
+NOTES (2026-10-12): `store.Store` gains `ConfigPath()` beside `IssuesDir`/`KnowledgeDir`, so cli derives the `.capcom/config.yaml` warning and `error.path` without `storeConfigFile`; store returns raw errors and cli maps every one to `CodeInvalid` at that path.
+NOTES (2026-10-12): the failed-raise test is `TestRelatedAdd_RaiseFails_FailsInvalidAtTheConfig` in internal/cli/related_test.go (not in the item's Files list); no `internal/cli/doc.go` file-map line named a moved function, so doc.go is unchanged.
 
 **What:** Recast at the regression check (2026-10-12).
 **Goal:** `(*store.Store).RaiseFormat(n)` raises the store format (ADR 0009), writing every byte

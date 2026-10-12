@@ -192,7 +192,7 @@ func addMergeAttribute(worktreeRoot string) (isAdded bool, err error) {
 		}
 		return true, nil
 	}
-	if err := replaceFileBytes(path, appendAttributeLine(content)); err != nil {
+	if err := tree.ReplaceFileVerbatim(path, bytes.NewReader(appendAttributeLine(content))); err != nil {
 		return false, &Error{Code: CodeInvalid, Path: gitattributesPath, Message: err.Error()}
 	}
 	return true, nil

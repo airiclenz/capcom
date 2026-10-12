@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -295,5 +296,31 @@ func TestRelatedAdd_ThenListJSON_LeavesRelatedOut(t *testing.T) {
 		if _, isPresent := item.(map[string]any)["related"]; isPresent {
 			t.Errorf("list --json issue carries related: %v", item)
 		}
+	}
+}
+
+func TestRelatedAdd_RaiseFails_FailsInvalidAtTheConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory does not stop file creation on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only directory")
+	}
+	root := newRelatedStore(t)
+	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n")
+	storeDir := filepath.Join(root, ".capcom")
+	if err := os.Chmod(storeDir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(storeDir, 0o755) })
+
+	stdout, _, exitCode := runCLI(t, root, "--json", "related", "add", "login-flow", "db-schema")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	if exitCode != ExitError || failure["code"] != string(CodeInvalid) || failure["path"] != ".capcom/config.yaml" {
+		t.Errorf("exit = %d error = %v, want invalid at .capcom/config.yaml", exitCode, failure)
+	}
+	if related := showRelated(t, root, "login-flow"); len(related) != 0 {
+		t.Errorf("login-flow related = %v, want no link written", related)
 	}
 }

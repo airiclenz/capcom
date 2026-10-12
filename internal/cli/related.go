@@ -1,28 +1,21 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"slices"
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Store format and config file of capcom related add.
+// Store format of capcom related add.
 const (
 	// relatedFormatVersion is the first store format whose issue files may carry related links.
 	relatedFormatVersion = 2
-	// storeConfigFile is the store's config file, below the store root.
-	storeConfigFile = "config.yaml"
 	// formatRaisedWarning is the warning of the write that raises the store format: the config
 	// file, the new format, and the format older releases read.
 	formatRaisedWarning = "%s: store format raised to %d; capcom releases that read only format %d can no longer read this store"
@@ -169,29 +162,17 @@ func (a *app) relatedRemoval(first index.Entry, arg string) (index.Entry, func(s
 	}
 }
 
-// raiseStoreFormat raises the store's config.yaml to declare at least format version, every other
-// byte kept (config.RaiseFormat), and returns the warning to give when it changed the file, or ""
-// when the store already declared version or above. A missing config.yaml means format 1 to the
-// releases before format 2, so it is created holding only the format key.
+// raiseStoreFormat raises the store format to at least version (store.RaiseFormat) and returns the
+// warning to give when it changed config.yaml, or "" when the store already declared version or
+// above. Every failure is invalid at config.yaml.
 func (a *app) raiseStoreFormat(version int) (string, error) {
-	path := filepath.Join(a.store.Root, storeConfigFile)
-	displayPath := relativeSlashPath(a.store.WorktreeRoot, path)
-	data, err := os.ReadFile(path)
-	isMissing := errors.Is(err, fs.ErrNotExist)
-	if err != nil && !isMissing {
-		return "", &Error{Code: CodeInvalid, Path: displayPath, Message: err.Error()}
-	}
-	raised, isChanged := config.RaiseFormat(data, version)
-	if !isChanged {
-		return "", nil
-	}
-	if isMissing {
-		err = tree.WriteFileAtomic(path, bytes.NewReader(raised))
-	} else {
-		err = replaceFileBytes(path, raised)
-	}
+	displayPath := a.worktreeRelative(a.store.ConfigPath())
+	isRaised, err := a.store.RaiseFormat(version)
 	if err != nil {
 		return "", &Error{Code: CodeInvalid, Path: displayPath, Message: err.Error()}
+	}
+	if !isRaised {
+		return "", nil
 	}
 	return fmt.Sprintf(formatRaisedWarning, displayPath, version, version-1), nil
 }

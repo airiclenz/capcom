@@ -5,6 +5,7 @@
 package store
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/gitx"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Layout of a store, relative to the working tree root.
@@ -107,6 +109,38 @@ func (s *Store) IssuesDir() string {
 // KnowledgeDir returns the directory that holds the Knowledge tree.
 func (s *Store) KnowledgeDir() string {
 	return filepath.Join(s.Root, knowledgeDir)
+}
+
+// ConfigPath returns the path of the store's config.yaml.
+func (s *Store) ConfigPath() string {
+	return filepath.Join(s.Root, configFile)
+}
+
+// RaiseFormat raises config.yaml to declare at least store format version (ADR 0009) and reports
+// whether it changed the file. The file is written exactly as config.RaiseFormat returns it, which
+// keeps every other byte, CRLF line endings included, and it keeps its permission bits. A missing
+// config.yaml means format 1 to the releases before format 2, so it is created holding only the
+// format key. A store already at version or above is left untouched. s.Config is not reloaded.
+func (s *Store) RaiseFormat(version int) (bool, error) {
+	path := s.ConfigPath()
+	data, err := os.ReadFile(path)
+	isMissing := errors.Is(err, fs.ErrNotExist)
+	if err != nil && !isMissing {
+		return false, err
+	}
+	raised, isChanged := config.RaiseFormat(data, version)
+	if !isChanged {
+		return false, nil
+	}
+	if isMissing {
+		err = tree.WriteFileAtomicVerbatim(path, bytes.NewReader(raised), filePermissions)
+	} else {
+		err = tree.ReplaceFileVerbatim(path, bytes.NewReader(raised))
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // locate resolves the store paths for cwd without touching the store itself.

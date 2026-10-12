@@ -33,6 +33,18 @@ func WriteFileAtomicVerbatim(path string, content io.Reader, mode fs.FileMode) e
 	return writeFileAtomic(path, content, false, mode.Perm())
 }
 
+// ReplaceFileVerbatim replaces the existing file at path with everything read from content, byte
+// for byte, keeping the old file's permission bits: CRLF line endings and the mode survive, unlike
+// through WriteFileAtomic. It writes as WriteFileAtomicVerbatim does, and fails when path is
+// missing. Errors name path.
+func ReplaceFileVerbatim(path string, content io.Reader) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err // a *fs.PathError, which names path
+	}
+	return WriteFileAtomicVerbatim(path, content, info.Mode())
+}
+
 // writeFileAtomic is the atomic write of WriteFileAtomic and WriteFileAtomicVerbatim: it converts
 // CRLF to LF when isConvertingCRLF and gives the file permissions perm.
 func writeFileAtomic(path string, content io.Reader, isConvertingCRLF bool, perm fs.FileMode) error {

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Arguments and output of capcom merge-driver.
@@ -21,8 +23,6 @@ const (
 	mergeDriverMaxArgs = 7
 	// mergeTempDirPattern names the temp directory that holds the text merge's inputs.
 	mergeTempDirPattern = "capcom-merge-*"
-	// mergedTempPattern names the temp file the merge is written to beside ours before it replaces it.
-	mergedTempPattern = ".capcom-merge-*"
 	// conflictMessage is the failure of a merge that leaves conflict markers in ours.
 	conflictMessage = "conflict markers remain; resolve them and stage the file"
 	// mergeInputPermissions are the permissions of the text merge's temp input files.
@@ -98,7 +98,7 @@ func mergeIssueFile(args []string) Result {
 	if err != nil {
 		return failedMerge(&Error{Code: CodeInvalid, Path: path, Message: err.Error()})
 	}
-	if err := replaceFileBytes(args[mergeArgOurs], merged); err != nil {
+	if err := tree.ReplaceFileVerbatim(args[mergeArgOurs], bytes.NewReader(merged)); err != nil {
 		return failedMerge(&Error{Code: CodeInvalid, Path: args[mergeArgOurs], Message: err.Error()})
 	}
 
@@ -158,27 +158,4 @@ func gitTextMerge(labels gitx.MergeLabels) issue.TextMerge {
 		}
 		return gitx.MergeFile(paths[mergeArgBase], paths[mergeArgOurs], paths[mergeArgTheirs], labels)
 	}
-}
-
-// replaceFileBytes replaces path with content byte for byte through a temp file renamed over it,
-// keeping the old file's permissions. Unlike tree.WriteFileAtomic it keeps CRLF line endings.
-func replaceFileBytes(path string, content []byte) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	temp, err := os.CreateTemp(filepath.Dir(path), mergedTempPattern)
-	if err != nil {
-		return err
-	}
-	_, writeErr := temp.Write(content)
-	closeErr := temp.Close()
-	err = errors.Join(writeErr, closeErr, os.Chmod(temp.Name(), info.Mode().Perm()))
-	if err == nil {
-		err = os.Rename(temp.Name(), path)
-	}
-	if err != nil {
-		return errors.Join(err, os.Remove(temp.Name()))
-	}
-	return nil
 }
