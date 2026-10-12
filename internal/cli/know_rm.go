@@ -1,17 +1,11 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/edit"
-	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // kindNoteRemove is the --json kind of know rm: the id and path of the removed Note file.
@@ -46,86 +40,34 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 	return cmd
 }
 
-// removeNote resolves arg and deletes its Note file together with the Note's own children
-// directory when that is empty, then the parent's children directory when the removal emptied it.
-// Before anything is deleted it refuses a Note with children, a children directory holding other
-// files, and an --if-match that is not the file's etag; it never parses the Note file. The result
-// names the removed file, with a warning for every tree problem that concerns neither the Note nor
-// its parent and for an emptied parent directory left in place; a stale capcom block of AGENTS.md
-// is refreshed afterwards.
+// removeNote removes the Note arg names through the Note node store, which deletes its file
+// together with the Note's own children directory when that is empty, then the parent's children
+// directory when the removal emptied it. Before anything is deleted it refuses a Note with
+// children, a children directory holding other files, and an --if-match that is not the file's
+// etag; it never parses the Note file. The result names the removed file, with a warning for every
+// tree problem that concerns neither the Note nor its parent and for an emptied parent directory
+// left in place; a stale capcom block of AGENTS.md is refreshed afterwards.
 func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
-	notes, err := tree.Load(a.store.KnowledgeDir(), nodestore.Notes(a.store, nil).ReadAliases)
-	problems, err := a.treeProblems(err)
+	removed, problems, err := nodestore.Notes(a.store, nil).Remove(arg, options.ifMatch, false)
 	if err != nil {
-		return Result{}, err
-	}
-	node, err := resolveNode(notes, arg)
-	if err != nil {
-		return Result{}, err
-	}
-	parentPath := ""
-	if parent, isFound := notes.Lookup(node.ParentID); isFound {
-		parentPath = a.worktreeRelative(parent.Path)
-	}
-	warnings, err := a.triageTreeProblems(problems, a.worktreeRelative(node.Path), parentPath)
-	if err != nil {
-		return Result{}, err
-	}
-	removal, err := knowledge.PlanRemove(notes, node.ID)
-	if err != nil {
-		return Result{}, a.removalFailure(err, node)
-	}
-	path := relativeSlashPath(a.store.WorktreeRoot, node.Path)
-	data, err := os.ReadFile(node.Path)
-	if err != nil {
-		return Result{}, &Error{Code: CodeInvalid, Path: path, Message: err.Error()}
-	}
-	if current := edit.ETag(data); options.ifMatch != "" && options.ifMatch != current {
-		return Result{}, &Error{
-			Code:    CodeConflict,
-			Path:    path,
-			Message: fmt.Sprintf("etag %s does not match the file's etag %s; show the note again", options.ifMatch, current),
-		}
-	}
-	cleanupFailures, err := removal.Apply()
-	if err != nil {
-		return Result{}, a.removalFailure(err, node)
+		return Result{}, kindFailure(err)
 	}
 
-	result := noteRemoveResult(node.ID, path)
-	result.Warnings = append(result.Warnings, warnings...)
-	for _, failure := range cleanupFailures {
-		result.Warnings = append(result.Warnings, a.cleanupWarning(failure))
-	}
+	result := noteRemoveResult(removed.ID, removed.Path)
+	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
+	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
 }
 
-// removalFailure types err, a refusal of a removal of node or the failure of its Apply: invalid at
-// the children directory a *tree.ChildrenDirError or the first *fs.PathError names, else at the
-// node's file.
-func (a *app) removalFailure(err error, node tree.Node) error {
-	path := node.Path
-	var childrenDirErr *tree.ChildrenDirError
-	var pathErr *fs.PathError
-	switch {
-	case errors.As(err, &childrenDirErr):
-		path = childrenDirErr.Dir
-	case errors.As(err, &pathErr):
-		path = pathErr.Path
+// cleanupWarnings renders each of leftInPlace, an emptied directory a removal's cleanup left in
+// place, as a warning naming the directory, why it was left, and that it was left.
+func cleanupWarnings(leftInPlace []*nodestore.FileError) []string {
+	warnings := make([]string, 0, len(leftInPlace))
+	for _, failure := range leftInPlace {
+		warnings = append(warnings, failure.Path+": "+flatten(failure.Message)+"; the empty directory was not removed")
 	}
-	return &Error{Code: CodeInvalid, Path: relativeSlashPath(a.store.WorktreeRoot, path), Message: err.Error()}
-}
-
-// cleanupWarning renders failure, a removal's cleanup that left an emptied directory in place, as
-// a warning naming that directory relative to the working tree root.
-func (a *app) cleanupWarning(failure error) string {
-	var cleanupErr *tree.CleanupError
-	if !errors.As(failure, &cleanupErr) {
-		return a.worktreeRelativeText(flatten(failure.Error()))
-	}
-	return relativeSlashPath(a.store.WorktreeRoot, cleanupErr.Path) + ": " + flatten(cleanupErr.Err.Error()) +
-		"; the empty directory was not removed"
+	return warnings
 }
 
 // noteRemoveResult is the result of know rm: the id and path of the removed Note file.

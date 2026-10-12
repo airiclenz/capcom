@@ -120,13 +120,3 @@ func movedPath(path string, oldDir string, newDir string) string {
 	}
 	return path
 }
-
-// resolveNode resolves arg to its node in issues, typing the failure as resolveFailure does.
-func resolveNode(issues *tree.Tree, arg string) (tree.Node, error) {
-	node, err := issues.Resolve(arg)
-	if err != nil {
-		failure, _ := resolveFailure(err) // either way the command stops here
-		return tree.Node{}, failure
-	}
-	return node, nil
-}

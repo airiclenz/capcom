@@ -534,7 +534,19 @@ the current etag moves; `TestMv_DuplicateID_FailsNamingBothFiles`, `TestMv_OntoI
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Mv|Move'`
 **Commit:** `feat(cli): mv --if-match through nodestore`
 
-## 18. Kind.Remove for rm and know rm
+## 18. Kind.Remove for rm and know rm — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from the assumption that Remove fits in remove.go alone (Read-first planIssueRemoval and checkChildrenDir no longer exist in cli): the per-kind planner hook (Codec.planRemove) lives in internal/nodestore/codec.go and the test seam for Apply (Kind.applyRemoval) in internal/nodestore/kind.go, as item 17's planMove/applyMove do.
+
+NOTES (2026-10-12): the etag check keeps its place after the children refusals and before the dependents refusal (ifMatch passed into the plan); triage runs before planning against the node and its parent, and the cli drops index-warned problems with unwarnedTreeProblems, as mv does.
+
+NOTES (2026-10-12): consequential edit — internal/cli/mv.go: resolveNode lost its last callers (rm, know rm) and was deleted.
+
+NOTES (2026-10-12): consequential edit — internal/cli/errors.go: triageTreeProblems, splitTreeProblems and isBlockingTreeProblem lost their last callers and were deleted, as item 15's NOTES foresaw for items 17-18.
+
+NOTES (2026-10-12): OS-error text in a children-directory read failure, a know rm Apply failure and a cleanup warning is now relativized to the worktree like the rest; a know rm Apply failure now uses rm's failed-path pick and joined message.
+
+NOTES (2026-10-12): pre-existing: the consts issueNoun (rm.go) and noteNoun (know_rm.go) are unused; left as they are.
 
 **What:**
 **Goal:** `Kind.Remove(ref, ifMatch, dropDeps)` applies the plans of items 12–13 with the etag

@@ -31,6 +31,9 @@ type Kind[T any] struct {
 	// applyMove carries out a planned move; a test swaps it to inject a failure of the renames and
 	// rewrites Apply makes.
 	applyMove func(move *tree.Move) error
+	// applyRemoval carries out a planned removal, returning its cleanup failures as warnings; a
+	// test swaps it to inject a failure of the rewrites and removals Apply makes.
+	applyRemoval func(removal *tree.Removal) ([]error, error)
 }
 
 // Resolver resolves an argument naming an existing node, its id or one of its Aliases, to that
@@ -63,6 +66,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		worktreeRoot: s.WorktreeRoot,
 		resolver:     resolver,
 		applyMove:    (*tree.Move).Apply,
+		applyRemoval: (*tree.Removal).Apply,
 	}
 }
 
@@ -75,6 +79,7 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		worktreeRoot: s.WorktreeRoot,
 		resolver:     resolver,
 		applyMove:    (*tree.Move).Apply,
+		applyRemoval: (*tree.Removal).Apply,
 	}
 }
 

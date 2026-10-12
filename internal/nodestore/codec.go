@@ -27,6 +27,12 @@ type Codec[T any] struct {
 	// planMove works out the move of the node with exact id id in nodes to the destination to,
 	// reading the node files but changing nothing, failing as the kind's PlanMove does.
 	planMove func(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error)
+	// planRemove works out the removal of the node with exact id id in nodes, reading the node
+	// files but changing nothing: it refuses a node with children first, then an ifMatch that is
+	// not the node file's etag, as a *ConflictError at the absolute file with no message, then,
+	// on the issue kind, dependents unless shouldDropDeps, failing otherwise as the kind's
+	// PlanRemove does.
+	planRemove func(nodes *tree.Tree, id string, ifMatch string, shouldDropDeps bool) (*plannedRemoval, error)
 }
 
 // plannedMove is a move a Codec worked out: the tree move, with the kind's rewrites added, and
@@ -51,20 +57,22 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 		Validate: func(path string, node issue.Issue) []*frontmatter.Error {
 			return issue.Validate(path, node, cfg)
 		},
-		Aliases:  func(node issue.Issue) []string { return node.Aliases },
-		planMove: planIssueMove,
+		Aliases:    func(node issue.Issue) []string { return node.Aliases },
+		planMove:   planIssueMove,
+		planRemove: planIssueRemove,
 	}
 }
 
 // noteCodec is the Codec of the Knowledge tree.
 func noteCodec() Codec[knowledge.Note] {
 	return Codec[knowledge.Note]{
-		Noun:      "note",
-		Parse:     knowledge.Parse,
-		Serialize: knowledge.Note.Serialize,
-		Validate:  knowledge.Validate,
-		Aliases:   func(node knowledge.Note) []string { return node.Aliases },
-		planMove:  planNoteMove,
+		Noun:       "note",
+		Parse:      knowledge.Parse,
+		Serialize:  knowledge.Note.Serialize,
+		Validate:   knowledge.Validate,
+		Aliases:    func(node knowledge.Note) []string { return node.Aliases },
+		planMove:   planNoteMove,
+		planRemove: planNoteRemove,
 	}
 }
 

@@ -175,41 +175,6 @@ func (a *app) treeProblems(err error) (tree.Errors, error) {
 	return nil, a.treeLoadFailure(err)
 }
 
-// triageTreeProblems splits the tree problems of a command that writes by the files it touches,
-// targets, given relative to the working tree root with forward slashes ("" entries are ignored).
-// A problem blocks the command when it names a target as its file or as the other file of a
-// duplicate, or is an orphan directory where a target's children go; the blocking problems come
-// back as the command's failure. Every other problem is returned as a warning, "path: message",
-// unless the index refresh already warned about the same problem, so no problem is reported twice.
-func (a *app) triageTreeProblems(problems tree.Errors, targets ...string) ([]string, error) {
-	warned, err := a.splitTreeProblems(problems, targets...)
-	if err != nil {
-		return nil, err
-	}
-	return treeProblemWarnings(warned), nil
-}
-
-// splitTreeProblems splits problems as triageTreeProblems does, but returns the problems to warn
-// about as tree errors, their paths relative to the working tree root with forward slashes, for
-// triageTreeProblems to render.
-func (a *app) splitTreeProblems(problems tree.Errors, targets ...string) (tree.Errors, error) {
-	var blocking tree.Errors
-	var warned tree.Errors
-	for _, problem := range problems {
-		relative := a.relativeTreeError(problem)
-		switch {
-		case isBlockingTreeProblem(relative, targets):
-			blocking = append(blocking, problem)
-		case !a.isIndexWarnedAbout(relative):
-			warned = append(warned, relative)
-		}
-	}
-	if len(blocking) > 0 {
-		return nil, a.treeLoadFailure(blocking)
-	}
-	return warned, nil
-}
-
 // treeProblemWarnings renders each problem as a warning, "path: message".
 func treeProblemWarnings(problems tree.Errors) []string {
 	var warnings []string
@@ -230,25 +195,6 @@ func (a *app) unwarnedTreeProblems(problems tree.Errors) []string {
 		}
 	}
 	return treeProblemWarnings(unwarned)
-}
-
-// isBlockingTreeProblem reports whether problem, its paths relative like targets, concerns one of
-// targets: it is the target's file, the other file of the target's duplicate, or an orphan
-// directory at the target's children directory.
-func isBlockingTreeProblem(problem *tree.Error, targets []string) bool {
-	for _, target := range targets {
-		if target == "" {
-			continue
-		}
-		if problem.Path == target || problem.Other == target {
-			return true
-		}
-		childrenDir := strings.TrimSuffix(target, nodeFileExtension)
-		if errors.Is(problem, tree.ErrOrphanDirectory) && problem.Path == childrenDir {
-			return true
-		}
-	}
-	return false
 }
 
 // isIndexWarnedAbout reports whether this command's index refresh warned about problem, its path
