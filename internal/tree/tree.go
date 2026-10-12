@@ -29,6 +29,12 @@ const hiddenPrefix = "."
 // rootParentID is the ParentID of a top-level node.
 const rootParentID = ""
 
+// The claims a duplicate alias problem names its Other file by.
+const (
+	idClaim    = "the id of"
+	aliasClaim = "also an alias of"
+)
+
 var (
 	idPattern    = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+){0,3}$`)
 	aliasPattern = regexp.MustCompile(`^[a-z0-9.-]+$`)
@@ -169,12 +175,15 @@ func ValidateAlias(alias string) error {
 // Load reports, as an *Error naming the file, an invalid id, an alias CheckAliases rejects (its
 // message naming the "node"), an id or alias two files share (naming the other file in Other), and
 // every entry Walk leaves out (an entry that is not a regular file, a node file over 1 MiB, a child
-// directory without its node file), as Walk words it. It finds every such problem in one pass and returns them all as Errors,
-// together with the tree of what it could place: a file with an invalid id, a directory without its
-// node file (with its whole subtree), a repeated id after its first file and an invalid or repeated
-// alias are left out. A
-// directory that cannot be read and an AliasFunc error stop the load and return no tree; the
-// AliasFunc error comes back unchanged.
+// directory without its node file), as Walk words it. It finds every such problem in one pass and
+// returns them all as Errors, together with the tree of what it could place: a file with an invalid
+// id, a directory without its node file (with its whole subtree), a repeated id after its first
+// file and an invalid or repeated alias are left out. A directory that cannot be read and an
+// AliasFunc error stop the load and return no tree; the AliasFunc error comes back unchanged.
+//
+// aliases is called for every node file, one left out for a repeated id included. Such a file's
+// aliases are checked as any other file's and never mapped; one that a kept file also claims as its
+// id or an alias, or that an earlier such file lists, is a duplicate, which Resolve refuses.
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	tree := &Tree{
 		dir:        dir,
@@ -194,8 +203,11 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 		}
 		return tree.nodes[i].Path < tree.nodes[j].Path
 	})
-	tree.indexIDs(&problems)
+	dropped := tree.indexIDs(&problems)
 	if err := tree.indexAliases(aliases, &problems); err != nil {
+		return nil, err
+	}
+	if err := tree.checkDroppedAliases(aliases, dropped, &problems); err != nil {
 		return nil, err
 	}
 	if len(problems) > 0 {
@@ -357,7 +369,9 @@ func leftOutFileOf(entry fs.DirEntry, id string) (*leftOutFile, error) {
 
 // indexIDs maps every id to its node and every parent to its children. A repeated id is added to
 // problems and recorded as a duplicate, and its node dropped, so the first file of the id keeps it.
-func (t *Tree) indexIDs(problems *Errors) {
+// It returns the dropped nodes, in order.
+func (t *Tree) indexIDs(problems *Errors) []Node {
+	var dropped []Node
 	kept := t.nodes[:0]
 	for _, node := range t.nodes {
 		if first, taken := t.byID[node.ID]; taken {
@@ -368,6 +382,7 @@ func (t *Tree) indexIDs(problems *Errors) {
 			}
 			*problems = append(*problems, problem)
 			t.recordDuplicate(node.ID, problem)
+			dropped = append(dropped, node)
 			continue
 		}
 		t.byID[node.ID] = len(kept)
@@ -375,6 +390,7 @@ func (t *Tree) indexIDs(problems *Errors) {
 		kept = append(kept, node)
 	}
 	t.nodes = kept
+	return dropped
 }
 
 // CheckAliases checks the aliases of the one node file at path on their own: each must be a valid
@@ -459,25 +475,67 @@ func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 // indexAlias maps one alias of node i, which CheckAliases passed, after checking no other node has
 // it as its id or an alias.
 func (t *Tree) indexAlias(i int, alias string) *Error {
-	path := t.nodes[i].Path
-	if owner, taken := t.byID[alias]; taken {
-		return &Error{
-			Path:  path,
-			Other: t.nodes[owner].Path,
-			Alias: alias,
-			Err:   fmt.Errorf("%w alias %q: the id of", ErrDuplicate, alias),
-		}
-	}
-	if owner, taken := t.byAlias[alias]; taken {
-		return &Error{
-			Path:  path,
-			Other: t.nodes[owner].Path,
-			Alias: alias,
-			Err:   fmt.Errorf("%w alias %q: also an alias of", ErrDuplicate, alias),
-		}
+	if problem := t.claimedAlias(t.nodes[i].Path, alias); problem != nil {
+		return problem
 	}
 	t.byAlias[alias] = i
 	return nil
+}
+
+// checkDroppedAliases reads the Aliases of every node indexIDs dropped for a repeated id, once the
+// kept nodes' aliases are mapped, and checks them without mapping any. An alias CheckAliases
+// rejects is added to problems; one a kept node has as its id or an alias, or an earlier dropped
+// node lists, is added to problems and recorded as a duplicate, so Resolve refuses it. An alias
+// only one dropped node lists is left alone. It fails only when aliases does.
+func (t *Tree) checkDroppedAliases(aliases AliasFunc, dropped []Node, problems *Errors) error {
+	if aliases == nil {
+		return nil
+	}
+	droppedOwners := map[string]string{}
+	for _, node := range dropped {
+		names, err := aliases(node.Path)
+		if err != nil {
+			return err
+		}
+		kept, rejected := CheckAliases(node.Path, "node", node.ID, names)
+		*problems = append(*problems, rejected...)
+		for _, alias := range kept {
+			problem := t.claimedAlias(node.Path, alias)
+			if other, taken := droppedOwners[alias]; problem == nil && taken {
+				problem = newDuplicateAliasError(node.Path, other, alias, aliasClaim)
+			}
+			if problem == nil {
+				droppedOwners[alias] = node.Path
+				continue
+			}
+			*problems = append(*problems, problem)
+			t.recordDuplicate(alias, problem)
+		}
+	}
+	return nil
+}
+
+// claimedAlias returns the problem of the file at path listing alias when a kept node already has
+// it as its id or a mapped alias, naming that node's file in Other, and nil otherwise.
+func (t *Tree) claimedAlias(path, alias string) *Error {
+	if owner, taken := t.byID[alias]; taken {
+		return newDuplicateAliasError(path, t.nodes[owner].Path, alias, idClaim)
+	}
+	if owner, taken := t.byAlias[alias]; taken {
+		return newDuplicateAliasError(path, t.nodes[owner].Path, alias, aliasClaim)
+	}
+	return nil
+}
+
+// newDuplicateAliasError is the problem of the file at path listing alias, which the file other
+// also claims, claim wording how.
+func newDuplicateAliasError(path, other, alias, claim string) *Error {
+	return &Error{
+		Path:  path,
+		Other: other,
+		Alias: alias,
+		Err:   fmt.Errorf("%w alias %q: %s", ErrDuplicate, alias, claim),
+	}
 }
 
 // recordDuplicate records problem, which names two files claiming name, as the duplicate of name,

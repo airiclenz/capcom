@@ -39,7 +39,10 @@ bring two Knowledge Notes in line with the code and archive the two superseded h
 - 3: guard folded (mv cases are renames; each swap removes the file first; path from `notes.Nodes()`)
 - 5: guard folded (writer decision: reflow the release-process paragraph)
 
-## 1. Resolve refuses an alias a dropped duplicate-id file shares
+## 1. Resolve refuses an alias a dropped duplicate-id file shares — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): TestResolve_DuplicatedName_FailsNamingTwoClaimants now builds its AliasFunc with aliasesByPath for every case (its existing keys are top-level files, whose relative path is their base name, so the existing cases behave as before); aliasesByFile stays for every other existing test.
+NOTES (2026-10-12): indexAlias's two duplicate-alias errors now come from shared helpers (claimedAlias, newDuplicateAliasError) that the dropped-file check reuses; the error text is unchanged.
 
 **What:** Fixes bug `resolve-dropped-alias`. Load reads aliases only for the files it keeps, so a name that a kept file and a dropped duplicate-id file both claim still resolves. Reading a dropped file's aliases makes `capcom check` also report that file's frontmatter parse failures and conflict markers; this is intended, and `check_test.go` pins one such case alongside the `CodeDuplicate` case.
 **Regression guard.** Every dropped-file test builds its AliasFunc with a new path-keyed helper, `aliasesByPath(dir, map[relpath][]string)` in `tree_test.go`: `aliasesByFile` keys on `filepath.Base`, and a dropped duplicate-id file shares its kept twin's base name. `aliasesByFile` stays for the existing tests. When N is already a recorded duplicate, `recordDuplicate` keeps the earlier problem, so `Resolve(N)` fails with the first duplicate problem Load recorded for N.

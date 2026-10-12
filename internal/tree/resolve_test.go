@@ -226,13 +226,37 @@ func TestResolve_DuplicatedName_FailsNamingTwoClaimants(t *testing.T) {
 			arg:     "legacy-1",
 			want:    [2]string{"bar.md", "baz.md"},
 		},
+		{
+			name:    "id of a kept file a dropped duplicate-id file aliases",
+			files:   []string{"foo.md", "bar.md", "sub.md", "sub/foo.md"},
+			aliases: map[string][]string{"sub/foo.md": {"bar"}},
+			arg:     "bar",
+			want:    [2]string{"bar.md", "sub/foo.md"},
+		},
+		{
+			name:    "alias of a kept file a dropped duplicate-id file aliases",
+			files:   []string{"foo.md", "bar.md", "sub.md", "sub/foo.md"},
+			aliases: map[string][]string{"bar.md": {"legacy-1"}, "sub/foo.md": {"legacy-1"}},
+			arg:     "legacy-1",
+			want:    [2]string{"bar.md", "sub/foo.md"},
+		},
+		{
+			name:  "alias of two dropped duplicate-id files",
+			files: []string{"foo.md", "bar.md", "sub.md", "sub/foo.md", "sub/bar.md"},
+			aliases: map[string][]string{
+				"sub/bar.md": {"legacy-1"},
+				"sub/foo.md": {"legacy-1"},
+			},
+			arg:  "legacy-1",
+			want: [2]string{"sub/bar.md", "sub/foo.md"},
+		},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir()
 			writeNodes(t, dir, testCase.files...)
-			loaded := loadWithDuplicates(t, dir, aliasesByFile(testCase.aliases))
+			loaded := loadWithDuplicates(t, dir, aliasesByPath(dir, testCase.aliases))
 
 			node, err := loaded.Resolve(testCase.arg)
 
@@ -247,6 +271,21 @@ func TestResolve_DuplicatedName_FailsNamingTwoClaimants(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestResolve_AliasOnlyADroppedFileLists_IsNotADuplicate(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "foo.md", "sub.md", "sub/foo.md")
+	loaded := loadWithDuplicates(t, dir, aliasesByPath(dir, map[string][]string{
+		"sub/foo.md": {"legacy-1"},
+	}))
+
+	node, err := loaded.Resolve("legacy-1")
+
+	if !errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrDuplicate) {
+		t.Fatalf("Resolve(legacy-1) = %q, %v; want ErrNotFound, as before the file was dropped", node.ID, err)
 	}
 }
 

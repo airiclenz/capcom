@@ -363,6 +363,37 @@ func TestRun_DuplicateIDAndAlias_NameBothFilesRelativeToTheWorktree(t *testing.T
 	}
 }
 
+func TestRun_DroppedDuplicateIDFiles_AliasClashAndParseFailureReported(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		issues + "export-csv.md":                 issueFile("aliases: [apogee-qi3]\n"),
+		issues + "login-flow.md":                 issueFile(""),
+		issues + "export-csv/session-timeout.md": issueFile(""),
+		issues + "login-flow/session-timeout.md": issueFile("aliases: [apogee-qi3]\n"),
+		issues + "session-timeout.md":            issueFile("estimate: 3\n"),
+	})
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.Code+" "+problem.String())
+	}
+	keptTwin := issues + "export-csv/session-timeout.md"
+	want := []string{
+		check.CodeDuplicate + " " + issues + `login-flow/session-timeout.md: duplicate id "session-timeout", also at ` +
+			keptTwin,
+		check.CodeDuplicate + " " + issues + `login-flow/session-timeout.md:7: duplicate alias "apogee-qi3": ` +
+			"also an alias of " + issues + "export-csv.md",
+		check.CodeDuplicate + " " + issues + `session-timeout.md: duplicate id "session-timeout", also at ` + keptTwin,
+		check.CodeFrontmatter + " " + issues + `session-timeout.md:7: unknown key "estimate"; an issue has ` +
+			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
 func TestRun_DirectoryProblems_WordedAsTheIndexWarnsThem(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{

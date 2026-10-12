@@ -56,6 +56,18 @@ func aliasesByFile(aliases map[string][]string) tree.AliasFunc {
 	}
 }
 
+// aliasesByPath returns an AliasFunc that looks a node's aliases up by its path relative to dir,
+// slash-separated, so two files of one id in different directories can list different aliases.
+func aliasesByPath(dir string, aliases map[string][]string) tree.AliasFunc {
+	return func(path string) ([]string, error) {
+		relative, err := filepath.Rel(dir, path)
+		if err != nil {
+			return nil, err
+		}
+		return aliases[filepath.ToSlash(relative)], nil
+	}
+}
+
 // ids returns the ids of nodes, in order.
 func ids(nodes []tree.Node) []string {
 	result := make([]string, 0, len(nodes))
@@ -410,6 +422,81 @@ func TestLoad_DuplicateAlias_NamesTheOtherFileApart(t *testing.T) {
 	}
 	if message := `duplicate alias "apogee-qi3": also an alias of ` + want.Other; problem.Message() != message {
 		t.Fatalf("Message = %q, want %q", problem.Message(), message)
+	}
+}
+
+func TestLoad_DroppedFileAliasAnotherFileClaims_IsADuplicateNamingBoth(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		files   []string
+		aliases map[string][]string
+		want    [2]string
+		message string
+	}{
+		{
+			name:    "id of a kept file",
+			files:   []string{"foo.md", "bar.md", "sub.md", "sub/foo.md"},
+			aliases: map[string][]string{"sub/foo.md": {"bar"}},
+			want:    [2]string{"sub/foo.md", "bar.md"},
+			message: `duplicate alias "bar": the id of `,
+		},
+		{
+			name:    "alias of a kept file",
+			files:   []string{"foo.md", "bar.md", "sub.md", "sub/foo.md"},
+			aliases: map[string][]string{"bar.md": {"legacy-1"}, "sub/foo.md": {"legacy-1"}},
+			want:    [2]string{"sub/foo.md", "bar.md"},
+			message: `duplicate alias "legacy-1": also an alias of `,
+		},
+		{
+			name:    "alias of an earlier dropped file",
+			files:   []string{"foo.md", "bar.md", "sub.md", "sub/foo.md", "sub/bar.md"},
+			aliases: map[string][]string{"sub/bar.md": {"legacy-1"}, "sub/foo.md": {"legacy-1"}},
+			want:    [2]string{"sub/foo.md", "sub/bar.md"},
+			message: `duplicate alias "legacy-1": also an alias of `,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeNodes(t, dir, testCase.files...)
+
+			_, err := tree.Load(dir, aliasesByPath(dir, testCase.aliases))
+
+			var problems tree.Errors
+			if !errors.As(err, &problems) {
+				t.Fatalf("Load = %v, want Errors", err)
+			}
+			var aliasProblems []*tree.Error
+			for _, problem := range problems {
+				if problem.Alias != "" {
+					aliasProblems = append(aliasProblems, problem)
+				}
+			}
+			path := filepath.Join(dir, filepath.FromSlash(testCase.want[0]))
+			other := filepath.Join(dir, filepath.FromSlash(testCase.want[1]))
+			if len(aliasProblems) != 1 || !errors.Is(aliasProblems[0], tree.ErrDuplicate) {
+				t.Fatalf("alias problems = %v, want one wrapping ErrDuplicate", aliasProblems)
+			}
+			problem := aliasProblems[0]
+			if problem.Path != path || problem.Other != other || problem.Message() != testCase.message+other {
+				t.Fatalf("problem = %+v, want Path %s and Message %q", problem, path, testCase.message+other)
+			}
+		})
+	}
+}
+
+func TestLoad_AliasOnlyADroppedFileLists_IsNoProblem(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "foo.md", "sub.md", "sub/foo.md")
+
+	_, err := tree.Load(dir, aliasesByPath(dir, map[string][]string{"sub/foo.md": {"legacy-1"}}))
+
+	var problems tree.Errors
+	if !errors.As(err, &problems) || len(problems) != 1 || problems[0].Alias != "" {
+		t.Fatalf("Load = %v, want the duplicate id alone", err)
 	}
 }
 
