@@ -132,6 +132,17 @@ An optional cross-cutting marker on an **Issue** or a **Note**, for groupings th
 **Status** cannot express (`owner-run`, `invariant`).
 _Avoid_: tag, category
 
+**Retired**:
+A **Note** whose content no longer holds, kept so that old citations still resolve. Browsing and
+search leave retired **Notes** out unless asked for them.
+_Avoid_: archived, deleted, inactive, dead
+
+**Supersession**:
+The link from a **Note** to the **Notes** that replace it, in whole or in part. A **Note** replaced
+in whole is also **Retired**; one replaced in part stays current and says in its body what still
+holds.
+_Avoid_: replaced-by, successor
+
 ### Agent interface
 
 **Briefing**:
