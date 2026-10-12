@@ -393,7 +393,8 @@ func noteBody(text string) string {
 
 // newKnowVerifyCommand lists every Ref of every Note that no longer resolves: a missing path, a
 // `path#symbol` whose file lacks the symbol text, or a path outside the working tree. Each line
-// cites the Ref's line in its Note. Any finding fails the command, after the list.
+// cites the Ref's line in its Note. A retired subtree is exempt. Any finding fails the command,
+// after the list.
 func (a *app) newKnowVerifyCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:         "verify",
@@ -420,9 +421,10 @@ func (a *app) newKnowVerifyCommand() *cobra.Command {
 	}
 }
 
-// verifyNotes reads every usable Note file and checks its Refs, in tree order.
+// verifyNotes reads every usable Note file outside a retired subtree and checks its Refs, in tree
+// order.
 func (a *app) verifyNotes() ([]knowledge.Finding, error) {
-	notes, err := a.issueIndex.Notes(true)
+	notes, err := a.issueIndex.Notes(false)
 	if err != nil {
 		return nil, err
 	}

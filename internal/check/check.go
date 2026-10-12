@@ -385,23 +385,49 @@ func (c *checker) notes() error {
 		return err
 	}
 
-	for _, node := range loaded.Nodes() {
+	nodes := loaded.Nodes()
+	isRetired := retiredSubtrees(nodes, parsed)
+	for _, node := range nodes {
 		note, isParsed := parsed[node.Path]
 		if !isParsed {
 			continue
 		}
-		if err := c.checkNote(node, note); err != nil {
+		if err := c.checkNote(node, note, isRetired[node.ID]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// checkNote checks one parsed Note: its fields, then whether each Ref resolves.
-func (c *checker) checkNote(node tree.Node, note knowledge.Note) error {
+// retiredSubtrees returns the ids of the nodes that are retired or sit below a retired ancestor,
+// read from the parsed Note files (by path) and never from the index. A Note that did not parse
+// counts as not retired.
+func retiredSubtrees(nodes []tree.Node, parsed map[string]knowledge.Note) map[string]bool {
+	byID := make(map[string]tree.Node, len(nodes))
+	for _, node := range nodes {
+		byID[node.ID] = node
+	}
+	isRetired := map[string]bool{}
+	for _, node := range nodes {
+		for current, isFound := node, true; isFound; current, isFound = byID[current.ParentID] {
+			if parsed[current.Path].IsRetired {
+				isRetired[node.ID] = true
+				break
+			}
+		}
+	}
+	return isRetired
+}
+
+// checkNote checks one parsed Note: its fields, then, unless isRetired says it sits in a retired
+// subtree, whether each Ref resolves.
+func (c *checker) checkNote(node tree.Node, note knowledge.Note, isRetired bool) error {
 	path := c.relative(node.Path)
 	for _, problem := range knowledge.Validate(path, note) {
 		c.add(path, problem.Line, CodeField, problem.Message)
+	}
+	if isRetired {
+		return nil
 	}
 	findings, err := knowledge.Verify(c.store.WorktreeRoot, path, node.ID, note)
 	if err != nil {

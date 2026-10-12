@@ -129,6 +129,24 @@ func TestCompose_FixtureStore_ReturnsEverySection(t *testing.T) {
 	}
 }
 
+func TestCompose_BrokenRefsInRetiredSubtree_AreNotCounted(t *testing.T) {
+	files := briefingStore()
+	files[".capcom/config.yaml"] = briefingConfig + "format: 3\n"
+	files[".capcom/knowledge/old-notes.md"] = "---\ntitle: Old notes\nretired: true\nrefs: [gone.go]\n---\n"
+	files[".capcom/knowledge/old-notes/old-step.md"] = "---\ntitle: Old step\nrefs: [gone.go]\n---\n"
+	root := newBriefingRepo(t, files)
+
+	got := Compose(root, time.Now())
+
+	if got.Health == nil {
+		t.Fatalf("Compose = %+v; want the health section", got)
+	}
+	if got.Health.ProblemCount != 1 || len(got.Health.BrokenRefs) != 1 ||
+		got.Health.BrokenRefs[0].Path != ".capcom/knowledge/build-notes.md" {
+		t.Errorf("Health = %+v; want only the broken ref of build-notes", got.Health)
+	}
+}
+
 func TestCompose_WithoutStore_FailsTheStoreAndLeavesEverySectionOut(t *testing.T) {
 	root := newBriefingRepo(t, nil)
 

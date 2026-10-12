@@ -320,7 +320,8 @@ A **Ref** is either a path or `path#symbol`:
 
 A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists every such Ref as
 `path:line: ref "<ref>": <why>`, citing the Ref's line in the Note file, and fails when it finds
-one; `capcom check` reports them too.
+one; `capcom check` reports them too. Both leave out the Refs of a retired Note and of every Note
+below it.
 
 ## Config
 
@@ -439,8 +440,8 @@ line of its own. The block holds a short paragraph naming capcom as the issue re
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
 install instructions, https://github.com/airiclenz/capcom#install), the handful of commands an
 agent needs, and the top level of the Knowledge tree, one
-`` - `<id>`: <title> `` line per top-level Note in id order. It is rendered from the Note files
-alone, so the same tree always yields the same block.
+`` - `<id>`: <title> `` line per top-level Note in id order, a retired one left out. It is rendered
+from the Note files alone, so the same tree always yields the same block.
 
 - `capcom agents` writes the block: it replaces the lines between the markers, or appends the
   block to the end of the file when it has none, and creates `AGENTS.md` when there is none. Every

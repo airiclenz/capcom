@@ -138,7 +138,10 @@ internal/cli/output.go — SchemaVersion; internal/cli/rm.go — issueRemoveResu
 **Commit:** `feat(know): hide retired notes from browsing unless asked`
 Depends on item 5.
 
-## 7. Retired subtrees leave the Managed block and ref checks
+## 7. Retired subtrees leave the Managed block and ref checks — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): consequential edit — docs/format.md: made necessary by the Managed block leaving out a retired top-level Note and know verify/check skipping the Refs of retired subtrees (the §Note files Ref paragraph and §The Managed block line-per-Note sentence would otherwise be false)
+NOTES (2026-10-12): `check` resolves the retired subtree from the parsed Note files in its own tree load (new helper `retiredSubtrees`), never from the index; `internal/briefing/briefing.go` needed no change, `briefing_test.go` pins the exemption through check.Run.
 
 **What:**
 **Goal:** a retired top-level Note is absent from the Managed block; Notes in a retired subtree are exempt from broken-ref reporting in `capcom know verify`, `capcom check` and the Briefing's `broken note refs` count; their frontmatter is still validated by `check`.

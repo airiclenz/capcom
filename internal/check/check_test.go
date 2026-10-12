@@ -220,6 +220,28 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 	}
 }
 
+func TestRun_RetiredSubtree_SkipsRefChecksButStillValidatesFields(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml": "format: 3\n",
+		knowledge + "old-flow.md": "---\ntitle: Old flow\nretired: true\n" +
+			"superseded-by: [old-flow]\nrefs: [no/such/file.go]\n---\n",
+		knowledge + "old-flow/step-one.md": "---\ntitle: Step one\nrefs: [no/such/file.go]\n---\n",
+		knowledge + "live-flow.md":         "---\ntitle: Live flow\nrefs: [no/such/file.go]\n---\n",
+	})
+
+	problems := runCheck(t, root)
+
+	got := locations(t, problems)
+	want := []string{
+		knowledge + "live-flow.md:3:" + check.CodeBrokenRef,
+		knowledge + "old-flow.md:4:" + check.CodeField,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %v, want %v", problems, want)
+	}
+}
+
 func TestRun_RelatedNamingAnAlias_ReportsNothing(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{

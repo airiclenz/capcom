@@ -406,6 +406,22 @@ func TestKnowVerify_RefBelowAFile_IsListedAsBroken(t *testing.T) {
 	}
 }
 
+func TestKnowVerify_BrokenRefsInRetiredSubtree_AreNotListed(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"old-harness.md":          "---\ntitle: Old harness\nretired: true\nrefs: [gone.go]\n---\n",
+		"old-harness/old-step.md": "---\ntitle: Old step\nrefs: [gone.go]\n---\n",
+		"live-notes.md":           "---\ntitle: Live notes\nrefs: [gone.go]\n---\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "verify")
+
+	want := ".capcom/knowledge/live-notes.md:3: ref \"gone.go\": no such file or directory\n"
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "1 note refs do not resolve") {
+		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
+	}
+}
+
 func TestKnowVerify_EveryRefResolves_PrintsNothing(t *testing.T) {
 	root := newKnowStore(t)
 

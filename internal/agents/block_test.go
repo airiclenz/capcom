@@ -285,6 +285,33 @@ func TestTopNotes_KnowledgeTree_ListsTopLevelInIDOrderSkippingUnparsable(t *test
 	}
 }
 
+func TestTopNotes_RetiredTopLevelNote_IsLeftOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	files := map[string]string{
+		"old-flow.md":             "---\ntitle: Old flow\nretired: true\n---\n",
+		"old-flow/step-one.md":    "---\ntitle: Step one\n---\n",
+		"release-flow.md":         "---\ntitle: Release flow\nretired: false\n---\n",
+		"release-flow/retired.md": "---\ntitle: Retired child\nretired: true\n---\n",
+	}
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+
+	notes, err := TopNotes(dir)
+
+	want := Note{ID: "release-flow", Title: "Release flow"}
+	if err != nil || len(notes) != 1 || notes[0] != want {
+		t.Errorf("TopNotes = %v, %v; want [%v]", notes, err, want)
+	}
+}
+
 func TestTopNotes_MissingDirectory_IsEmpty(t *testing.T) {
 	t.Parallel()
 
