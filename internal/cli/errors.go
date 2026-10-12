@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -96,6 +97,26 @@ func asError(err error) *Error {
 		return typed
 	}
 	return &Error{Code: CodeInvalid, Message: err.Error()}
+}
+
+// kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a
+// stale --if-match a conflict and an id another node answers to exists, each at the file the
+// failure names, relative to the working tree root, and its line when known. Any other failure goes
+// through asError.
+func kindFailure(err error) *Error {
+	var file *nodestore.FileError
+	if errors.As(err, &file) {
+		return &Error{Code: CodeInvalid, Path: file.Path, Line: file.Line, Message: file.Message}
+	}
+	var conflict *nodestore.ConflictError
+	if errors.As(err, &conflict) {
+		return &Error{Code: CodeConflict, Path: conflict.Path, Message: conflict.Message}
+	}
+	var exists *nodestore.ExistsError
+	if errors.As(err, &exists) {
+		return &Error{Code: CodeExists, Path: exists.Path, Message: exists.Message}
+	}
+	return asError(err)
 }
 
 // treeLoadFailure returns a tree.Load failure as an *Error, naming every file of its tree

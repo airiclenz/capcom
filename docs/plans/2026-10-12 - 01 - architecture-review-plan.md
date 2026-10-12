@@ -403,7 +403,15 @@ unparseable issue succeeds, and a stale `--if-match` on an issue with a dependen
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/issue/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Rm`
 **Commit:** `refactor(issue): plan rm through tree.Plan`
 
-## 14. nodestore skeleton
+## 14. nodestore skeleton — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the four cli alias lookups are folded into one generic pair, `Kind.ReadAliases` and `Kind.RecoverAliases`, driven by the kind's Codec; the cli originals stay until item 15 repoints their callers.
+
+NOTES (2026-10-12): nodestore also imports `internal/frontmatter` (the `Codec.Validate` result type and `fileError`'s `errors.As`), a package the approach's import list leaves out; it imports neither index nor cli. `edit` is not imported yet: nothing computes an etag until a verb lands.
+
+NOTES (2026-10-12): the error constructors (`fileError`, `conflictError`, `existsError`) are unexported Kind methods and `cli.kindFailure` has no caller yet; both get their callers in items 15-18. The constructors are tested directly from the internal test package; kindFailure is untested until a verb reaches it through runCLI.
+
+NOTES (2026-10-12): `ConflictError` and `ExistsError` carry their message text (the wording of the cli's existsFailure / noteExistsFailure and its etag conflicts, noun from the Codec) in a `Message` field beside their structured fields, so kindFailure maps all three types the same way.
 
 **What:**
 **Goal:** a package `internal/nodestore` exports `Kind[T]` with constructors `Issues` and `Notes`, a
