@@ -197,6 +197,67 @@ func TestLoad_DirectoryWithoutNodeFile_Fails(t *testing.T) {
 	}
 }
 
+func TestWalk_DirectoryProblems_WordedAndLeftOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir,
+		"Bad_Name.md",
+		"Bad_Name/child-issue.md",
+		"good-issue.md",
+		"good-issue/nested-issue.md",
+		"orphan-dir/lost-issue.md",
+	)
+
+	nodes, problems, err := tree.Walk(dir)
+
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got := ids(nodes); !reflect.DeepEqual(got, []string{"good-issue", "nested-issue"}) {
+		t.Errorf("nodes = %v, want the valid nodes only", got)
+	}
+	want := map[string]string{
+		filepath.Join(dir, "Bad_Name"): "directory left out: its node file Bad_Name.md has an invalid id",
+		filepath.Join(dir, "Bad_Name.md"): `invalid id "Bad_Name": ` +
+			"must be 2 to 4 words of a-z and 0-9 joined by single hyphens",
+		filepath.Join(dir, "orphan-dir"): "directory without its node file: no orphan-dir.md beside it; left out",
+	}
+	got := map[string]string{}
+	for _, problem := range problems {
+		got[problem.Path] = problem.Message()
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+func TestWalk_InvalidIDDirectory_IsAnOrphanDirectory(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "Bad_Name.md", "Bad_Name/child-issue.md")
+
+	_, problems, err := tree.Walk(dir)
+
+	if err != nil || len(problems) != 2 {
+		t.Fatalf("Walk = %v, %v; want the invalid id and its directory", problems, err)
+	}
+	directory := problems[1]
+	if directory.Path != filepath.Join(dir, "Bad_Name") || !errors.Is(directory, tree.ErrOrphanDirectory) {
+		t.Errorf("directory problem = %v, want it at Bad_Name wrapping ErrOrphanDirectory", directory)
+	}
+}
+
+func TestWalk_MissingDirectory_WalksEmpty(t *testing.T) {
+	t.Parallel()
+	dir := filepath.Join(t.TempDir(), "issues")
+
+	nodes, problems, err := tree.Walk(dir)
+
+	if nodes != nil || problems != nil || err != nil {
+		t.Errorf("Walk = %v, %v, %v; want nothing", nodes, problems, err)
+	}
+}
+
 func TestLoad_InvalidID_FailsNamingFile(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

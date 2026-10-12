@@ -3,6 +3,7 @@ package index
 import (
 	"database/sql"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -459,6 +460,31 @@ func TestRefresh_BadNames_WarnAndSkip(t *testing.T) {
 
 	if report.Indexed != 1 || len(report.Warnings) != 3 {
 		t.Errorf("report = %+v, want 1 indexed and 3 warnings", report)
+	}
+}
+
+func TestRefresh_DirectoryWarnings_WordedAsTheTreeWalk(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "Bad_Name.md", issueText("Bad", "open", ""))
+	writeIssue(t, s, "Bad_Name/child-issue.md", issueText("Child", "open", ""))
+	writeIssue(t, s, "orphan-dir/lost-issue.md", issueText("Lost", "open", ""))
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	want := map[string]string{
+		".capcom/issues/Bad_Name":   "directory left out: its node file Bad_Name.md has an invalid id",
+		".capcom/issues/orphan-dir": "directory without its node file: no orphan-dir.md beside it; left out",
+	}
+	got := map[string]string{}
+	for _, warning := range report.Warnings {
+		if warning.Kind == WarningOrphanDirectory {
+			got[warning.Path] = warning.Message
+		}
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("orphan directory warnings = %q\nwant %q", got, want)
 	}
 }
 

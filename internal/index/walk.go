@@ -8,113 +8,65 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Node layout of the issue tree and the Knowledge tree (ADR 0001), as the tree package reads it.
-const (
-	nodeExtension = ".md"
-	hiddenPrefix  = "."
-)
-
 // walkIssues lists the node files of the tree in issuesDir (the issue tree, or the Knowledge
-// tree), in path order, with paths relative to worktreeRoot. A missing issuesDir is an empty tree. A file whose name is not a valid
-// id and a directory without a valid node file are warned about through r and skipped, with the
-// directory's whole subtree.
+// tree), in path order, with paths relative to worktreeRoot. It adapts tree.Walk, the one directory
+// walk: each node file is stat'ed for the refresh to compare, and each walk problem — a file whose
+// name is not a valid id, a directory without a valid node file, left out with its whole subtree —
+// is warned about through r. A missing issuesDir is an empty tree. A file gone before its stat is
+// skipped. A walk or stat failure names its path relative to worktreeRoot.
 func walkIssues(worktreeRoot, issuesDir string, r *refresher) ([]foundFile, error) {
-	if _, err := os.Stat(issuesDir); errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	walker := treeWalker{worktreeRoot: worktreeRoot, refresher: r}
-	if err := walker.walk(issuesDir, ""); err != nil {
+	nodes, problems, err := tree.Walk(issuesDir)
+	if err != nil {
+		var pathErr *fs.PathError
+		if errors.As(err, &pathErr) {
+			return nil, fmt.Errorf("%s: %w", worktreeRelative(worktreeRoot, pathErr.Path), err)
+		}
 		return nil, err
 	}
-	slices.SortFunc(walker.found, func(a, b foundFile) int {
-		return cmp.Compare(a.path, b.path)
-	})
-	return walker.found, nil
-}
-
-// treeWalker collects the node files below one directory.
-type treeWalker struct {
-	worktreeRoot string
-	refresher    *refresher
-	found        []foundFile
-}
-
-// walk collects the node files of dir, all children of parentID, and recurses into the
-// directories that belong to a valid node.
-func (w *treeWalker) walk(dir string, parentID string) error {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return fmt.Errorf("%s: %w", w.relative(dir), err)
+	for _, problem := range problems {
+		r.warn(walkWarningKind(problem), worktreeRelative(worktreeRoot, problem.Path), 0, problem.Message())
 	}
 
-	validIDs := map[string]bool{}
-	invalidIDs := map[string]bool{}
-	var childDirs []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if strings.HasPrefix(name, hiddenPrefix) {
-			continue
-		}
-		if entry.IsDir() {
-			childDirs = append(childDirs, name)
-			continue
-		}
-		id, isNode := strings.CutSuffix(name, nodeExtension)
-		if !isNode {
-			continue
-		}
-		absolute := filepath.Join(dir, name)
-		if err := tree.ValidateID(id); err != nil {
-			invalidIDs[id] = true
-			w.refresher.warn(WarningInvalidID, w.relative(absolute), 0, err.Error())
-			continue
-		}
-		info, err := entry.Info()
+	found := make([]foundFile, 0, len(nodes))
+	for _, node := range nodes {
+		info, err := os.Lstat(node.Path)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
 		if err != nil {
-			return fmt.Errorf("%s: %w", w.relative(absolute), err)
+			return nil, fmt.Errorf("%s: %w", worktreeRelative(worktreeRoot, node.Path), err)
 		}
-		validIDs[id] = true
-		w.found = append(w.found, foundFile{
-			path:     w.relative(absolute),
-			absolute: absolute,
-			id:       id,
-			parentID: parentID,
+		found = append(found, foundFile{
+			path:     worktreeRelative(worktreeRoot, node.Path),
+			absolute: node.Path,
+			id:       node.ID,
+			parentID: node.ParentID,
 			size:     info.Size(),
 			mtime:    info.ModTime().UnixNano(),
 		})
 	}
-
-	for _, name := range childDirs {
-		path := filepath.Join(dir, name)
-		switch {
-		case validIDs[name]:
-			if err := w.walk(path, name); err != nil {
-				return err
-			}
-		case invalidIDs[name]:
-			w.refresher.warn(WarningOrphanDirectory, w.relative(path), 0, fmt.Sprintf(
-				"directory left out: its node file %s%s has an invalid id", name, nodeExtension,
-			))
-		default:
-			w.refresher.warn(WarningOrphanDirectory, w.relative(path), 0, fmt.Sprintf(
-				"%v: no %s%s beside it; left out", tree.ErrOrphanDirectory, name, nodeExtension,
-			))
-		}
-	}
-	return nil
+	slices.SortFunc(found, func(a, b foundFile) int {
+		return cmp.Compare(a.path, b.path)
+	})
+	return found, nil
 }
 
-// relative names a path below the working tree root with forward slashes, for rows and warnings.
-func (w *treeWalker) relative(path string) string {
-	relative, err := filepath.Rel(w.worktreeRoot, path)
+// walkWarningKind is the warning kind of a tree.Walk problem: an invalid id, or else an orphan
+// directory, the only two problems a walk reports.
+func walkWarningKind(problem *tree.Error) WarningKind {
+	if errors.Is(problem, tree.ErrInvalidID) {
+		return WarningInvalidID
+	}
+	return WarningOrphanDirectory
+}
+
+// worktreeRelative names a path below worktreeRoot with forward slashes, for rows and warnings.
+func worktreeRelative(worktreeRoot, path string) string {
+	relative, err := filepath.Rel(worktreeRoot, path)
 	if err != nil {
 		return filepath.ToSlash(path)
 	}

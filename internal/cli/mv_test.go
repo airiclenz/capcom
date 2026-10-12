@@ -147,6 +147,25 @@ func TestMv_UnrelatedBadFileName_MovesAndWarnsOnce(t *testing.T) {
 	}
 }
 
+func TestMv_UnrelatedInvalidIDDirectory_MovesAndWarnsOnce(t *testing.T) {
+	root := newMoveStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"Bad_Name.md":             validIssue,
+		"Bad_Name/child-issue.md": validIssue,
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "mv", "login-flow", "auth-flow")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "auth-flow.md")
+	want := ".capcom/issues/Bad_Name: directory left out: its node file Bad_Name.md has an invalid id"
+	if count := strings.Count(stdout+stderr, want); count != 1 {
+		t.Errorf("%q warned %d times, want once\nstdout = %q\nstderr = %q", want, count, stdout, stderr)
+	}
+}
+
 func TestMv_BadFileInMovedChildrenDir_WarnsWithNewPath(t *testing.T) {
 	root := newMoveStore(t)
 	writeIssueFiles(t, root, map[string]string{"login-flow/Bad_Name.md": validIssue})

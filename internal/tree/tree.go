@@ -42,7 +42,8 @@ var (
 	ErrInvalidAlias = errors.New("invalid alias")
 	// ErrDuplicate reports an id or alias used twice anywhere in one tree.
 	ErrDuplicate = errors.New("duplicate")
-	// ErrOrphanDirectory reports a child directory without the node file of the same name.
+	// ErrOrphanDirectory reports a child directory without the node file of the same name, or
+	// whose node file has an invalid id.
 	ErrOrphanDirectory = errors.New("directory without its node file")
 	// ErrNotFound reports an argument that matches no id, alias or id prefix.
 	ErrNotFound = errors.New("not found")
@@ -155,10 +156,11 @@ func ValidateAlias(alias string) error {
 // dot and files not ending in .md are skipped. aliases may be nil when the kind has none.
 //
 // Load reports, as an *Error naming the file, an invalid id or alias, an id or alias used twice
-// anywhere in the tree (naming the other file in Other), and a child directory without its node file. It finds
-// every such problem in one pass and returns them all as Errors, together with the tree of what it
-// could place: a file with an invalid id, a directory without its node file (with its whole
-// subtree), a repeated id after its first file and an invalid or repeated alias are left out. A
+// anywhere in the tree (naming the other file in Other), and a child directory without its node
+// file, as Walk words it. It finds every such problem in one pass and returns them all as Errors,
+// together with the tree of what it could place: a file with an invalid id, a directory without its
+// node file (with its whole subtree), a repeated id after its first file and an invalid or repeated
+// alias are left out. A
 // directory that cannot be read and an AliasFunc error stop the load and return no tree; the
 // AliasFunc error comes back unchanged.
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
@@ -168,14 +170,11 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 		byAlias:  map[string]int{},
 		children: map[string][]int{},
 	}
-	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
-		return tree, nil
-	}
-
-	var problems Errors
-	if err := tree.walk(dir, rootParentID, &problems); err != nil {
+	nodes, problems, err := Walk(dir)
+	if err != nil {
 		return nil, err
 	}
+	tree.nodes = nodes
 	sort.Slice(tree.nodes, func(i, j int) bool {
 		if tree.nodes[i].ID != tree.nodes[j].ID {
 			return tree.nodes[i].ID < tree.nodes[j].ID
@@ -193,15 +192,60 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	return tree, nil
 }
 
+// Walk lists the node files of the tree stored in dir: the one directory walk of ADR 0001, which
+// Load and the index both build on. A missing dir walks as an empty tree. Names starting with a dot
+// and files not ending in .md are skipped. Each Node's Path is joined onto dir and its Aliases are
+// nil; the nodes come in walk order, each directory's files by name before its child directories.
+//
+// Walk reports, as an *Error naming the file or directory, a node file whose name is not a valid id
+// (wrapping ErrInvalidID) and a child directory that has no node file with a valid id beside it
+// (wrapping ErrOrphanDirectory), in walk order. Such a file, and such a directory with its whole
+// subtree, are left out. A directory that cannot be read stops the walk: its os.ReadDir error comes
+// back unchanged, with no nodes and no problems.
+func Walk(dir string) ([]Node, Errors, error) {
+	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil, nil
+	}
+	var walker treeWalker
+	if err := walker.walk(dir, rootParentID); err != nil {
+		return nil, nil, err
+	}
+	return walker.nodes, walker.problems, nil
+}
+
+// invalidIDDirectoryError is the problem of a child directory whose node file is there but named by
+// an invalid id. It wraps ErrOrphanDirectory, since the directory is left out like one without its
+// node file, while its text names the invalid node file instead.
+type invalidIDDirectoryError struct {
+	name string
+}
+
+// Error renders the problem without its path.
+func (e *invalidIDDirectoryError) Error() string {
+	return fmt.Sprintf("directory left out: its node file %s%s has an invalid id", e.name, nodeExtension)
+}
+
+// Unwrap returns ErrOrphanDirectory.
+func (e *invalidIDDirectoryError) Unwrap() error {
+	return ErrOrphanDirectory
+}
+
+// treeWalker collects the nodes and the problems of one Walk.
+type treeWalker struct {
+	nodes    []Node
+	problems Errors
+}
+
 // walk collects the nodes of dir, all children of parentID, and recurses into the child
 // directories that have their node file, adding every invalid id and orphan directory to problems.
-func (t *Tree) walk(dir string, parentID string, problems *Errors) error {
+func (w *treeWalker) walk(dir string, parentID string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
 
-	nodeIDs := map[string]bool{}
+	validIDs := map[string]bool{}
+	invalidIDs := map[string]bool{}
 	var childDirs []string
 	for _, entry := range entries {
 		name := entry.Name()
@@ -218,24 +262,28 @@ func (t *Tree) walk(dir string, parentID string, problems *Errors) error {
 		}
 		path := filepath.Join(dir, name)
 		if err := ValidateID(id); err != nil {
-			*problems = append(*problems, &Error{Path: path, Err: err})
+			invalidIDs[id] = true
+			w.problems = append(w.problems, &Error{Path: path, Err: err})
 			continue
 		}
-		nodeIDs[id] = true
-		t.nodes = append(t.nodes, Node{ID: id, Path: path, ParentID: parentID})
+		validIDs[id] = true
+		w.nodes = append(w.nodes, Node{ID: id, Path: path, ParentID: parentID})
 	}
 
 	for _, name := range childDirs {
 		path := filepath.Join(dir, name)
-		if !nodeIDs[name] {
-			*problems = append(*problems, &Error{
+		switch {
+		case validIDs[name]:
+			if err := w.walk(path, name); err != nil {
+				return err
+			}
+		case invalidIDs[name]:
+			w.problems = append(w.problems, &Error{Path: path, Err: &invalidIDDirectoryError{name: name}})
+		default:
+			w.problems = append(w.problems, &Error{
 				Path: path,
-				Err:  fmt.Errorf("%w: no %s%s beside it", ErrOrphanDirectory, name, nodeExtension),
+				Err:  fmt.Errorf("%w: no %s%s beside it; left out", ErrOrphanDirectory, name, nodeExtension),
 			})
-			continue
-		}
-		if err := t.walk(path, name, problems); err != nil {
-			return err
 		}
 	}
 	return nil

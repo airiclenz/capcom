@@ -525,6 +525,24 @@ func TestCreate_IDInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 	}
 }
 
+func TestCreate_IDInsideInvalidIDDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"Bad_Name.md":             validIssue,
+		"Bad_Name/child-issue.md": validIssue,
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "child-issue", "--title", "Child")
+
+	want := `.capcom/issues/Bad_Name/child-issue.md: id "child-issue" is already taken by this file`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "child-issue.md")); err == nil {
+		t.Error("child-issue.md was written beside the left-out file of the same id")
+	}
+}
+
 func TestCreate_UnrelatedOrphanDirectory_WritesAndWarns(t *testing.T) {
 	root := newWriteStore(t)
 	writeIssueFiles(t, root, map[string]string{"lost-dir/other-id.md": validIssue})

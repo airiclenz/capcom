@@ -264,6 +264,33 @@ func TestRun_DuplicateIDAndAlias_NameBothFilesRelativeToTheWorktree(t *testing.T
 	}
 }
 
+func TestRun_DirectoryProblems_WordedAsTheIndexWarnsThem(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		issues + "Bad_Name.md":              issueFile(""),
+		issues + "Bad_Name/child-issue.md":  issueFile(""),
+		issues + "orphan-dir/lost-issue.md": issueFile(""),
+	})
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.Code+" "+problem.String())
+	}
+	want := []string{
+		check.CodeOrphanDirectory + " " + issues +
+			"Bad_Name: directory left out: its node file Bad_Name.md has an invalid id",
+		check.CodeInvalidID + " " + issues + `Bad_Name.md: invalid id "Bad_Name": ` +
+			"must be 2 to 4 words of a-z and 0-9 joined by single hyphens",
+		check.CodeOrphanDirectory + " " + issues +
+			"orphan-dir: directory without its node file: no orphan-dir.md beside it; left out",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
 func TestRun_ThreeCycle_ReportedExactlyOnce(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{

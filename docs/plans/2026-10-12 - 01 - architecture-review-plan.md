@@ -653,7 +653,11 @@ and `TestKnowMv_BadFileInMovedChildrenDir_WarnsWithNewPath`.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Prime|Reindex|Mv'`
 **Commit:** `refactor(index): Open returns a fresh index`
 
-## 23. One ADR 0001 walk
+## 23. One ADR 0001 walk — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): internal/cli/errors.go is unchanged — both directory problems still wrap tree.ErrOrphanDirectory (the invalid-id one through the new invalidIDDirectoryError type), so treeProblemKindOf pairs them with WarningOrphanDirectory as before; TestMv_UnrelatedInvalidIDDirectory_MovesAndWarnsOnce pins that pairing.
+NOTES (2026-10-12): the "capcom check shows the new wording" test lives in internal/check/check_test.go (Problem.String, which the cli prints verbatim), not internal/cli/check_test.go, which the item's Files does not list.
+NOTES (2026-10-12): the index adapter now stats each node file with os.Lstat after tree.Walk instead of DirEntry.Info during the walk; a node file that vanishes between the two is still skipped, but its children directory is now walked rather than warned about as an orphan.
 
 **What:**
 **Goal:** `tree.Walk` is the one directory walk; the index adapts it (stat, relative paths); both
