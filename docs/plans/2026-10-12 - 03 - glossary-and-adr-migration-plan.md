@@ -66,7 +66,10 @@ internal/tree/resolve.go — NormalizeArg; internal/tree/tree.go — ValidateID;
 - for every term, its Note body appears verbatim in `CONTEXT.md` (the script's own `--verify` mode, run after the hand-written titles)
 **Commit:** `docs(knowledge): move the glossary into Knowledge`
 
-## 2. Decision records 0001–0005 and the decisions parent
+## 2. Decision records 0001–0005 and the decisions parent — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): each adr-NNNN-rejected body is the Considered Options section's content verbatim without its "## Considered Options" heading line, which the child's title replaces; hand-written titles and summaries live in the throwaway script's tables (docs/skill-runs/migrate-knowledge/split_adr.py, gitignored; --parent writes decisions.md, --verify checks)
+NOTES (2026-10-12): adr-0002 carries no superseded-by key yet: adr-0010 does not exist until item 3, which owns that supersession
 
 **What:**
 **Goal:** `.capcom/knowledge/decisions.md` exists, and `decisions/adr-0001` … `adr-0005` hold ADRs 0001–0005 in ADR 0010's shape; the AGENTS.md managed block lists `decisions`; `docs/adr/` is unchanged.

@@ -42,6 +42,7 @@ Knowledge tree, top level:
 
 - `cli-test-harness`: CLI tests run through runCLI, hermetic and never parallel
 - `coding-conventions`: Before writing code: house conventions, gofmt and capcom-specific rules
+- `decisions`: Decision records: why capcom works the way it does, one Note per record with its sections as children
 - `docs-layout`: Before reading or changing a design: where the glossary, ADRs, plans and handoffs live
 - `glossary`: Domain glossary: the terms to use in code, docs and messages, one Note per term
 - `release-process`: Before cutting a release: use release-capcom, never tag or bump by hand
