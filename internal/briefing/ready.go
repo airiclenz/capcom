@@ -1,5 +1,6 @@
 // Package briefing composes what capcom tells an agent about the work in front of it: the
-// Ready-list that capcom ready and prime show.
+// Briefing capcom prime renders (Compose) and the Ready-list that capcom ready and prime show
+// (ReadyList).
 package briefing
 
 import (

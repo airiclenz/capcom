@@ -742,7 +742,13 @@ internal/index/query.go — Filter, List; internal/issue/ready.go — Readiness
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/briefing/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Ready|Prime'`
 **Commit:** `refactor(briefing): add the Ready-list module`
 
-## 27. Briefing module
+## 27. Briefing module — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): consequential edit — internal/briefing/ready.go: the package doc comment now names Compose beside ReadyList, made necessary by adding the Briefing to the package
+NOTES (2026-10-12): the cli-local `briefing` struct and its brief/briefIssues/briefLocks/briefCheck methods are gone (composition moved to briefing.Compose, rendering to renderBriefing, addCappedList, addLocks, addHealth); prime.go therefore imports the package under its own name, while ready.go keeps the `readylist` alias item 26 gave it
+NOTES (2026-10-12): Elsewhere scan warnings come back as Failures of SectionElsewhere but render as the scan worded them, without a `section: ` prefix, because the guard's `section: flatten(err)` form would have changed prime's output; every other section renders as `section: flatten(err)`, the store's through storeFailure
+NOTES (2026-10-12): a panic recovered in Compose is a SectionInternal ("prime") Failure rendered as `prime: internal error: <value>`, now flattened onto one line; cli keeps its own recover around rendering with the same wording
+NOTES (2026-10-12): prime no longer sets a.store either (Compose opens its own store); internal/cli/prime_test.go is unchanged, and every existing prime and ready test passes as is
 
 **What:**
 **Goal:** `briefing.Compose(cwd, now)` returns the Briefing as data (Ready planned/unplanned, Doing,

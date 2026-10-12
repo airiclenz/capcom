@@ -8,12 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	readylist "github.com/airiclenz/capcom/internal/briefing"
+	"github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/check"
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/lock"
-	"github.com/airiclenz/capcom/internal/store"
 )
 
 const kindPrime = "prime"
@@ -41,18 +39,6 @@ type primeListData struct {
 	Issues []issueData `json:"issues"`
 }
 
-// briefing collects the Briefing's sections and the warnings of the sources that failed.
-type briefing struct {
-	data     primeData
-	text     strings.Builder
-	warnings []string
-}
-
-// warn records that section's source failed with err, as one line.
-func (b *briefing) warn(section string, err error) {
-	b.warnings = append(b.warnings, section+": "+flatten(err.Error()))
-}
-
 // newPrimeCommand prints the Briefing an agent session starts with: Ready work split planned and
 // unplanned, the issues in progress, every worktree's Tree lock, issue changes on other branches,
 // broken Note refs and the count of check problems. It never fails: a source that cannot be read
@@ -63,106 +49,99 @@ func (a *app) newPrimeCommand() *cobra.Command {
 		Short: "Print the session Briefing: ready work, locks, other branches and store health",
 		Args:  cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			return a.emit(cmd, a.brief())
+			return a.emit(cmd, primeResult())
 		}),
 	}
 }
 
-// brief composes the Briefing. It opens the store and refreshes the index itself, rather than
-// through the shared annotationIndex, so that their failures are warnings too.
-func (a *app) brief() (result Result) {
-	var b briefing
+// primeResult composes the Briefing of the working directory and renders it. It opens the store
+// and the index through briefing.Compose, rather than through the shared annotationIndex, so that
+// their failures are warnings too.
+func primeResult() Result {
+	now := time.Now()
+	cwd, err := os.Getwd()
+	if err != nil {
+		failure := briefing.Failure{Section: briefing.SectionStore, Err: err}
+		return renderBriefing(briefing.Briefing{Failures: []briefing.Failure{failure}}, now)
+	}
+	return renderBriefing(briefing.Compose(cwd, now), now)
+}
+
+// renderBriefing renders composed as prime's result, with lock ages measured back from now. A
+// section composed left out is left out of the text and the data, and each failure is one warning.
+func renderBriefing(composed briefing.Briefing, now time.Time) (result Result) {
+	warnings := primeWarnings(composed.Failures)
 	defer func() {
 		// A Briefing must never cost the session its start: even a defect becomes a warning.
 		if recovered := recover(); recovered != nil {
-			b.warnings = append(b.warnings, fmt.Sprintf("prime: internal error: %v", recovered))
-			result = Result{Kind: kindPrime, Data: primeData{}, Warnings: b.warnings}
+			warnings = append(warnings, fmt.Sprintf("prime: internal error: %v", recovered))
+			result = Result{Kind: kindPrime, Data: primeData{}, Warnings: warnings}
 		}
 	}()
 
-	cwd, err := os.Getwd()
-	if err == nil {
-		a.store, err = store.Open(cwd)
+	var data primeData
+	var text strings.Builder
+	if work := composed.Work; work != nil {
+		data.ReadyPlanned = addCappedList(&text, "ready, planned", work.ReadyPlanned)
+		data.ReadyUnplanned = addCappedList(&text, "ready, unplanned", work.ReadyUnplanned)
+		data.Doing = issueListData(work.Doing)
+		fmt.Fprintf(&text, "doing: %d\n", len(work.Doing))
+		text.WriteString(indentLines(issueLines(work.Doing, "")))
 	}
-	if err != nil {
-		b.warn("store", storeFailure(err))
-		return Result{Kind: kindPrime, Data: b.data, Warnings: b.warnings}
+	if composed.Locks != nil {
+		data.Locks = addLocks(&text, composed.Locks, now)
 	}
-	a.briefIssues(&b)
-	a.briefLocks(&b)
-	a.briefCheck(&b, cwd)
-	result = Result{Kind: kindPrime, Data: b.data, Text: b.text.String(), Warnings: b.warnings}
-	return a.addElsewhere(result, false, a.issuesPathspec())
+	if health := composed.Health; health != nil {
+		data.BrokenRefs = append([]check.Problem{}, health.BrokenRefs...)
+		data.CheckProblems = &health.ProblemCount
+		addHealth(&text, *health)
+	}
+	return Result{
+		Kind:      kindPrime,
+		Data:      data,
+		Text:      text.String(),
+		Warnings:  warnings,
+		Elsewhere: composed.Elsewhere,
+	}
 }
 
-// briefIssues adds the Ready lists and the issues in a doing status, read from the refreshed index.
-func (a *app) briefIssues(b *briefing) {
-	// The refresh report Open leaves on Report is never read on purpose: its warnings name files
-	// the index left out, and briefCheck already counts each of them in "check: N problems".
-	// Repeating them here would flood the session start with one line per broken file.
-	opened, err := index.Open(a.store, index.ModeRefresh)
-	if err != nil {
-		b.warn("index", fmt.Errorf("%w; run capcom reindex", err))
-		return
-	}
-	a.issueIndex = opened
-	defer func() {
-		a.issueIndex = nil
-		if err := opened.Close(); err != nil {
-			b.warn("index", err)
+// primeWarnings renders each failure as one warning line: `<section>: <error>` on one line, the
+// store's typed as any store failure is, and an Elsewhere scan warning as the scan worded it.
+func primeWarnings(failures []briefing.Failure) []string {
+	warnings := make([]string, 0, len(failures))
+	for _, failure := range failures {
+		err := failure.Err
+		switch failure.Section {
+		case briefing.SectionElsewhere:
+			warnings = append(warnings, err.Error())
+			continue
+		case briefing.SectionStore:
+			err = storeFailure(err)
 		}
-	}()
-
-	ready, err := readylist.ReadyList(opened, a.store.Config, readylist.ReadyOptions{})
-	if err != nil {
-		b.warn("ready", err)
-		return
+		warnings = append(warnings, string(failure.Section)+": "+flatten(err.Error()))
 	}
-	doing, err := opened.List(index.Filter{Categories: []config.Category{config.CategoryDoing}})
-	if err != nil {
-		b.warn("doing", err)
-		return
-	}
-	var planned, unplanned []index.Entry
-	for _, current := range ready {
-		if current.Entry.Plan != "" {
-			planned = append(planned, current.Entry)
-		} else {
-			unplanned = append(unplanned, current.Entry)
-		}
-	}
-	b.data.ReadyPlanned = b.addCappedList("ready, planned", planned)
-	b.data.ReadyUnplanned = b.addCappedList("ready, unplanned", unplanned)
-	b.data.Doing = issueListData(doing)
-	fmt.Fprintf(&b.text, "doing: %d\n", len(doing))
-	b.text.WriteString(indentLines(issueLines(doing, "")))
+	return warnings
 }
 
 // addCappedList writes the heading and the first primeListCap issues of one Ready list.
-func (b *briefing) addCappedList(heading string, entries []index.Entry) *primeListData {
+func addCappedList(text *strings.Builder, heading string, entries []index.Entry) *primeListData {
 	shown := entries[:min(len(entries), primeListCap)]
-	fmt.Fprintf(&b.text, "%s: %d", heading, len(entries))
+	fmt.Fprintf(text, "%s: %d", heading, len(entries))
 	if len(shown) < len(entries) {
-		fmt.Fprintf(&b.text, ", first %d shown", len(shown))
+		fmt.Fprintf(text, ", first %d shown", len(shown))
 	}
-	b.text.WriteString("\n" + indentLines(issueLines(shown, "")))
+	text.WriteString("\n" + indentLines(issueLines(shown, "")))
 	return &primeListData{Count: len(entries), Issues: issueListData(shown)}
 }
 
-// briefLocks adds the Tree lock of every worktree that has one, with its age and stale flag.
-func (a *app) briefLocks(b *briefing) {
-	held, err := lock.Open(a.store.GitCommonDir, a.store.Config.Lock.TTL).List()
-	if err != nil {
-		b.warn("locks", err)
-		return
-	}
-	now := time.Now()
-	b.data.Locks = make([]lockData, 0, len(held))
-	fmt.Fprintf(&b.text, "locks: %d\n", len(held))
+// addLocks writes the Tree lock of every worktree that has one, with its age and stale flag.
+func addLocks(text *strings.Builder, held []lock.Status, now time.Time) []lockData {
+	data := make([]lockData, 0, len(held))
+	fmt.Fprintf(text, "locks: %d\n", len(held))
 	for _, status := range held {
-		b.data.Locks = append(b.data.Locks, newLockData(foundState(status), status, ""))
+		data = append(data, newLockData(foundState(status), status, ""))
 		record := status.Record
-		fmt.Fprintf(&b.text, "  %s: held by %s for %s, heartbeat %s ago: %s",
+		fmt.Fprintf(text, "  %s: held by %s for %s, heartbeat %s ago: %s",
 			status.Key,
 			record.Holder,
 			ageText(now.Sub(record.Since)),
@@ -170,41 +149,28 @@ func (a *app) briefLocks(b *briefing) {
 			flatten(record.Purpose),
 		)
 		if status.IsStale {
-			b.text.WriteString(" (stale)")
+			text.WriteString(" (stale)")
 		}
-		b.text.WriteString("\n")
+		text.WriteString("\n")
 	}
+	return data
 }
 
-// briefCheck adds the broken Note refs and the count of every check problem.
-func (a *app) briefCheck(b *briefing, cwd string) {
-	problems, err := check.Run(cwd)
-	if err != nil {
-		b.warn("check", err)
-		return
+// addHealth writes the broken Note refs and the count of every check problem.
+func addHealth(text *strings.Builder, health briefing.Health) {
+	fmt.Fprintf(text, "broken note refs: %d\n", len(health.BrokenRefs))
+	for _, problem := range health.BrokenRefs {
+		text.WriteString("  " + problem.String() + "\n")
 	}
-	b.data.BrokenRefs = []check.Problem{}
-	for _, problem := range problems {
-		if problem.Code == check.CodeBrokenRef {
-			b.data.BrokenRefs = append(b.data.BrokenRefs, problem)
-		}
-	}
-	count := len(problems)
-	b.data.CheckProblems = &count
-
-	fmt.Fprintf(&b.text, "broken note refs: %d\n", len(b.data.BrokenRefs))
-	for _, problem := range b.data.BrokenRefs {
-		b.text.WriteString("  " + problem.String() + "\n")
-	}
-	if count == 0 {
-		b.text.WriteString("check: no problems\n")
+	if health.ProblemCount == 0 {
+		text.WriteString("check: no problems\n")
 		return
 	}
 	noun := "problems"
-	if count == 1 {
+	if health.ProblemCount == 1 {
 		noun = "problem"
 	}
-	fmt.Fprintf(&b.text, "check: %d %s; run capcom check\n", count, noun)
+	fmt.Fprintf(text, "check: %d %s; run capcom check\n", health.ProblemCount, noun)
 }
 
 // indentLines indents every line of text by textIndent.
