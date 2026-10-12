@@ -316,7 +316,11 @@ internal/cli/know_mv.go — noteMoveFailure; internal/cli/issue_render.go — re
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/check/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Mv|Move|Update|Know'`
 **Commit:** `refactor(cli): one failure path for frontmatter errors`
 
-## 11. tree.Plan: Move's step/undo core, generalised
+## 11. tree.Plan: Move's step/undo core, generalised — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `(*Move).Apply() error` kept as a wrapper over the embedded `Plan.Apply() ([]error, error)`, so no caller changed: internal/cli/mv.go, internal/cli/know_mv.go, internal/issue/move.go, internal/knowledge/move.go, both of their move_test.go files and internal/tree/export_test.go (SetMoveRename reaches the promoted `rename` field) are untouched.
+
+NOTES (2026-10-12): `Plan` exports `AddStep(apply, undo)`, `AddRewrite`, `AddCleanup(func() error)` and `Apply`; rename and empty-dir steps stay unexported (`renameStep` on Plan in plan.go, `removeEmptyDirStep` still an undoable step in move.go); the zero Plan is usable (nil rename means os.Rename). The three Plan tests sit in internal/tree/move_test.go, the listed test file, rather than a new plan_test.go.
 
 **What:**
 **Goal:** `internal/tree` exports a `Plan` (ordered steps with undo, `AddRewrite`, best-effort

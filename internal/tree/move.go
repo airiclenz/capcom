@@ -1,7 +1,6 @@
 package tree
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -75,7 +74,7 @@ type Rewrite struct {
 
 // Move is a rename and re-parent of one node, worked out by PlanMove before anything on disk
 // changes, then carried out by Apply. It knows nothing of the node files' format: a caller that
-// changes file contents adds them with AddRewrite.
+// changes file contents adds them with AddRewrite. Its renames are the steps of its Plan.
 type Move struct {
 	// Node is the moved node, as it was before the move.
 	Node Node
@@ -84,16 +83,7 @@ type Move struct {
 	// NewPath is the node file after the move.
 	NewPath string
 
-	rewrites []moveStep
-	renames  []moveStep
-	// rename renames a file or directory; tests swap it to inject a failure.
-	rename func(oldPath string, newPath string) error
-}
-
-// moveStep is one change a Move makes on disk and the change that takes it back.
-type moveStep struct {
-	apply func() error
-	undo  func() error
+	Plan
 }
 
 // PlanMove works out the move of the node with exact id id to the destination to, changing
@@ -117,7 +107,7 @@ func (t *Tree) PlanMove(id string, to Destination, kind string) (*Move, error) {
 		return nil, err
 	}
 
-	move := &Move{Node: node, NewID: to.ID, NewPath: newPath, rename: os.Rename}
+	move := &Move{Node: node, NewID: to.ID, NewPath: newPath}
 	if newPath != node.Path {
 		move.planRenames(t)
 	}
@@ -176,28 +166,7 @@ func RenameAliases(aliases []string, oldID string, newID string) []string {
 	return append(kept, oldID)
 }
 
-// AddRewrite adds a file whose content the move replaces. Apply writes every rewrite atomically at
-// the file's current path, in the order added, before it makes any rename. Taking a rewrite back
-// writes Original byte for byte, CRLF included, with the permissions the file had just before
-// Apply overwrote it.
-func (m *Move) AddRewrite(rewrite Rewrite) {
-	var mode fs.FileMode
-	m.rewrites = append(m.rewrites, moveStep{
-		apply: func() error {
-			info, err := os.Stat(rewrite.Path)
-			if err != nil {
-				return err
-			}
-			mode = info.Mode()
-			return WriteFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Content))
-		},
-		undo: func() error {
-			return WriteFileAtomicVerbatim(rewrite.Path, bytes.NewReader(rewrite.Original), mode)
-		},
-	})
-}
-
-// planRenames adds the renames that carry m.Node to m.NewPath, in this fixed order: create the
+// planRenames adds the steps that carry m.Node to m.NewPath, in this fixed order: create the
 // destination directory when the new parent has no children yet, rename the node file, rename its
 // children directory when it has one, and remove the old parent's directory when the move left it
 // empty.
@@ -205,43 +174,29 @@ func (m *Move) planRenames(nodes *Tree) {
 	node := m.Node
 	newDir := filepath.Dir(m.NewPath)
 	if _, err := os.Stat(newDir); errors.Is(err, fs.ErrNotExist) {
-		m.renames = append(m.renames, moveStep{
+		m.steps = append(m.steps, step{
 			apply: func() error { return os.Mkdir(newDir, movedDirPermissions) },
 			undo:  func() error { return os.Remove(newDir) },
 		})
 	}
 
-	m.renames = append(m.renames, m.renameStep(node.Path, m.NewPath))
+	m.steps = append(m.steps, m.renameStep(node.Path, m.NewPath))
 	childrenDir := strings.TrimSuffix(node.Path, nodeExtension)
 	if info, err := os.Stat(childrenDir); err == nil && info.IsDir() {
 		newChildrenDir := strings.TrimSuffix(m.NewPath, nodeExtension)
-		m.renames = append(m.renames, m.renameStep(childrenDir, newChildrenDir))
+		m.steps = append(m.steps, m.renameStep(childrenDir, newChildrenDir))
 	}
 
 	oldDir := filepath.Dir(node.Path)
 	if node.ParentID != "" && oldDir != newDir && len(nodes.ChildrenOf(node.ParentID)) == 1 {
-		m.renames = append(m.renames, removeEmptyDirStep(oldDir))
-	}
-}
-
-// renameStep renames oldPath to newPath, refusing to replace anything already at newPath, and
-// renames it back to undo it.
-func (m *Move) renameStep(oldPath string, newPath string) moveStep {
-	return moveStep{
-		apply: func() error {
-			if _, err := os.Lstat(newPath); !errors.Is(err, fs.ErrNotExist) {
-				return fmt.Errorf("%s: %w", newPath, ErrMoveTarget)
-			}
-			return m.rename(oldPath, newPath)
-		},
-		undo: func() error { return m.rename(newPath, oldPath) },
+		m.steps = append(m.steps, removeEmptyDirStep(oldDir))
 	}
 }
 
 // removeEmptyDirStep removes dir when nothing is left in it, and creates it again to undo that.
-func removeEmptyDirStep(dir string) moveStep {
+func removeEmptyDirStep(dir string) step {
 	isRemoved := false
-	return moveStep{
+	return step{
 		apply: func() error {
 			entries, err := os.ReadDir(dir)
 			if err != nil || len(entries) > 0 {
@@ -259,28 +214,12 @@ func removeEmptyDirStep(dir string) moveStep {
 	}
 }
 
-// Apply carries out the move: it writes every rewrite atomically at its file's current path, then
-// makes the renames in PlanMove's fixed order. When any step fails it takes back the steps already
-// made, newest first, so the tree is as it was; the error names the failing path and any step that
-// could not be taken back. Apply must run at most once.
+// Apply carries out the move through its Plan: it writes every rewrite atomically at its file's
+// current path, then makes the renames in PlanMove's fixed order. When any step fails it takes back
+// the steps already made, newest first, so the tree is as it was; the error names the failing path
+// and any step that could not be taken back. PlanMove adds no cleanups, so Apply returns no
+// warnings; a caller that adds one calls Plan.Apply to have them. Apply must run at most once.
 func (m *Move) Apply() error {
-	steps := slices.Concat(m.rewrites, m.renames)
-	for applied, step := range steps {
-		if err := step.apply(); err != nil {
-			return rollBack(steps[:applied], err)
-		}
-	}
-	return nil
-}
-
-// rollBack undoes the applied steps, newest first, and returns cause with every failure to undo
-// one appended.
-func rollBack(applied []moveStep, cause error) error {
-	failures := []error{cause}
-	for index := len(applied) - 1; index >= 0; index-- {
-		if err := applied[index].undo(); err != nil {
-			failures = append(failures, fmt.Errorf("rolling back: %w", err))
-		}
-	}
-	return errors.Join(failures...)
+	_, err := m.Plan.Apply()
+	return err
 }

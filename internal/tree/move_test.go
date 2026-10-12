@@ -300,3 +300,100 @@ func TestRenameAliases(t *testing.T) {
 		})
 	}
 }
+
+// errCleanup is the failure an injected cleanup reports.
+var errCleanup = errors.New("injected cleanup failure")
+
+// recordStep adds a step named name to plan that logs "apply name" and "undo name" to log, and
+// fails to apply with errInjected when isFailing.
+func recordStep(plan *tree.Plan, log *[]string, name string, isFailing bool) {
+	plan.AddStep(
+		func() error {
+			*log = append(*log, "apply "+name)
+			if isFailing {
+				return errInjected
+			}
+			return nil
+		},
+		func() error {
+			*log = append(*log, "undo "+name)
+			return nil
+		},
+	)
+}
+
+func TestPlanApply_StepFails_UndoesAppliedStepsNewestFirstAndSkipsCleanups(t *testing.T) {
+	var plan tree.Plan
+	var log []string
+	recordStep(&plan, &log, "first", false)
+	recordStep(&plan, &log, "second", false)
+	recordStep(&plan, &log, "third", true)
+	recordStep(&plan, &log, "fourth", false)
+	plan.AddCleanup(func() error {
+		log = append(log, "cleanup")
+		return nil
+	})
+
+	warnings, err := plan.Apply()
+
+	if !errors.Is(err, errInjected) {
+		t.Fatalf("Apply err = %v, want the injected failure", err)
+	}
+	if warnings != nil {
+		t.Errorf("Apply warnings = %v, want none", warnings)
+	}
+	want := []string{"apply first", "apply second", "apply third", "undo second", "undo first"}
+	if !slices.Equal(log, want) {
+		t.Errorf("log = %v, want %v", log, want)
+	}
+}
+
+func TestPlanApply_CleanupsFail_ReturnsWarningsInOrderAndKeepsSteps(t *testing.T) {
+	var plan tree.Plan
+	var log []string
+	recordStep(&plan, &log, "only", false)
+	errLater := errors.New("later cleanup failure")
+	plan.AddCleanup(func() error { return errCleanup })
+	plan.AddCleanup(func() error {
+		log = append(log, "cleanup")
+		return nil
+	})
+	plan.AddCleanup(func() error { return errLater })
+
+	warnings, err := plan.Apply()
+
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if len(warnings) != 2 || !errors.Is(warnings[0], errCleanup) || !errors.Is(warnings[1], errLater) {
+		t.Errorf("Apply warnings = %v, want [%v %v]", warnings, errCleanup, errLater)
+	}
+	if want := []string{"apply only", "cleanup"}; !slices.Equal(log, want) {
+		t.Errorf("log = %v, want %v", log, want)
+	}
+}
+
+func TestPlanApply_RewriteAddedAfterStep_AppliesFirst(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "rewritten-node.md")
+	path := filepath.Join(dir, "rewritten-node.md")
+	var plan tree.Plan
+	var seen string
+	plan.AddStep(
+		func() error {
+			content, err := os.ReadFile(path)
+			seen = string(content)
+			return err
+		},
+		func() error { return nil },
+	)
+	plan.AddRewrite(tree.Rewrite{Path: path, Original: []byte("x\n"), Content: []byte("rewritten\n")})
+
+	if _, err := plan.Apply(); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	if seen != "rewritten\n" {
+		t.Errorf("the step saw %q, want the rewrite already made", seen)
+	}
+}
