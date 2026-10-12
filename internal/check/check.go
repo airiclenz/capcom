@@ -218,13 +218,22 @@ func treeCode(err error) string {
 	}
 }
 
-// readFile reads a store file, naming it in the error.
-func (c *checker) readFile(path string) ([]byte, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", c.relative(path), err)
+// readFile reads the issue or Note file at path through tree.ReadNodeFile. A file it refuses
+// unread, one no longer a regular file or grown past 1 MiB since the walk, is recorded as a
+// not-regular problem, as the walk records one, and isRead is false with no error. Any other
+// failed read is an error naming the file.
+func (c *checker) readFile(path string) (data []byte, isRead bool, err error) {
+	data, err = tree.ReadNodeFile(path)
+	for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
+		if errors.Is(err, refusal) {
+			c.add(path, 0, CodeNotRegular, refusal.Error())
+			return nil, false, nil
+		}
 	}
-	return data, nil
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: %w", c.relative(path), err)
+	}
+	return data, true, nil
 }
 
 // parsedIssue is one issue file of the tree with what parsing it gave.
@@ -239,8 +248,8 @@ type parsedIssue struct {
 func (c *checker) issues() error {
 	parsed := map[string]issue.Issue{}
 	readAliases := func(path string) ([]string, error) {
-		data, err := c.readFile(path)
-		if err != nil {
+		data, isRead, err := c.readFile(path)
+		if !isRead {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
@@ -395,8 +404,8 @@ func (c *checker) checkCycles(entries []parsedIssue, graph issue.DepGraph) {
 func (c *checker) notes() error {
 	parsed := map[string]knowledge.Note{}
 	readAliases := func(path string) ([]string, error) {
-		data, err := c.readFile(path)
-		if err != nil {
+		data, isRead, err := c.readFile(path)
+		if !isRead {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)

@@ -199,8 +199,8 @@ func (k *Kind[T]) findUnparsedAliasHolder(
 }
 
 // findNodeFile returns the first node file at any depth below dir that answers to id, skipping
-// hidden names as tree.Load does, or "" when there is none. A file answers to id when it is named
-// id or, by isAlias, when aliases reads id among its Aliases.
+// hidden names and entries that are not regular files as tree.Load does, or "" when there is none.
+// A file answers to id when it is named id or, by isAlias, when aliases reads id among its Aliases.
 func findNodeFile(
 	dir string,
 	id string,
@@ -218,6 +218,11 @@ func findNodeFile(
 			return nil
 		}
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), nodeFileExtension) {
+			return nil
+		}
+		// A symlink, named pipe, socket or device is never a node file; ModeIrregular is not
+		// refused, as tree.Walk does not refuse it: Windows reports it for some ordinary files.
+		if entry.Type()&^fs.ModeIrregular != 0 {
 			return nil
 		}
 		if entry.Name() == name {

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
 )
@@ -574,5 +575,33 @@ func TestRun_ConflictMarkersInFrontmatter_ReportedOnceWithoutAFrontmatterProblem
 	}
 	if !reflect.DeepEqual(problems, want) {
 		t.Errorf("problems = %+v\nwant %+v", problems, want)
+	}
+}
+
+// fifoCheckTimeout bounds a check run over a named pipe: a run that opens the pipe blocks for good.
+const fifoCheckTimeout = 30 * time.Second
+
+func TestRun_NamedPipeIssueFile_ReportedNotRegularWithoutBlocking(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{issues + "login-flow.md": issueFile("")})
+	makeFIFO(t, filepath.Join(root, filepath.FromSlash(issues+"stuck-issue.md")))
+	done := make(chan []check.Problem, 1)
+
+	go func() {
+		problems, err := check.Run(root)
+		if err != nil {
+			t.Errorf("Run: %v", err)
+		}
+		done <- problems
+	}()
+
+	select {
+	case problems := <-done:
+		want := []string{issues + "stuck-issue.md:0:" + check.CodeNotRegular}
+		if got := locations(t, problems); !reflect.DeepEqual(got, want) {
+			t.Errorf("problems = %v, want %v", problems, want)
+		}
+	case <-time.After(fifoCheckTimeout):
+		t.Fatal("Run blocked on the named pipe")
 	}
 }

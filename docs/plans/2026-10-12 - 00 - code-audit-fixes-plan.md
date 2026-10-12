@@ -76,7 +76,11 @@ internal/index/index_test.go — TestRefresh_EachProducer_SetsTheWarningKindAndR
 - `go vet ./internal/index/`
 **Commit:** `fix(index): warn on non-regular store files instead of reading them`
 
-## 3. `check`, `update` and `nodestore` read store files through the guarded reader
+## 3. `check`, `update` and `nodestore` read store files through the guarded reader — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `findNodeFile` skips non-regular entries with its own mode test (`entry.Type()&^fs.ModeIrregular != 0`), matching `tree.Walk`'s rule, because tree's `isNotRegular` is unexported and the tree package is outside this item's files.
+NOTES (2026-10-12): `Format` keeps its documented contract and fails with a `*FileError` on a file `tree.ReadNodeFile` refuses (a file swapped after the walk); `ReadAliases`/`RecoverAliases` return no aliases and no error for one, and check's alias reader records a `not-regular` problem and leaves the file unparsed. `FileError` has no Unwrap.
+NOTES (2026-10-12): `readIssueFile` also serves `show`, `close` and `know`, so those reads are guarded too; `readTextInput` (`--body-file`) is unchanged, as the item says.
 
 **What:** Same finding, reader half one. Depends on item 1.
 **Regression guard.** `findNodeFile` skips non-regular entries. `ReadAliases`/`RecoverAliases` and check's `readAliases` treat another node's sentinel error as a left-out file (warning), never a failure. No Unwrap on `FileError`. The check FIFO test is a non-biting guard test.

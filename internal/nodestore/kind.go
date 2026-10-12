@@ -6,7 +6,7 @@
 package nodestore
 
 import (
-	"os"
+	"errors"
 	"path/filepath"
 	"strings"
 
@@ -84,10 +84,15 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 }
 
 // ReadAliases is the tree.AliasFunc of the kind's tree: the Aliases the node file at path records.
-// A file that does not parse contributes none; the index reports it. A file that cannot be read
-// fails with a *tree.Error naming path as it was given.
+// A file that does not parse contributes none; the index reports it. So does a file
+// tree.ReadNodeFile refuses (not a regular file, or larger than 1 MiB), which is left out unread as
+// the walk leaves one out. A file that cannot be read otherwise fails with a *tree.Error naming
+// path as it was given.
 func (k *Kind[T]) ReadAliases(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
+	data, err := tree.ReadNodeFile(path)
+	if isRefusedRead(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, &tree.Error{Path: path, Err: err}
 	}
@@ -101,10 +106,14 @@ func (k *Kind[T]) ReadAliases(path string) ([]string, error) {
 
 // RecoverAliases is the recovering lookup of the kind's tree: the aliases rawfm.Aliases still reads
 // from the raw frontmatter of a node file at path that does not parse, and none for one that
-// parses, whose Aliases ReadAliases returns. A file that cannot be read fails with a *tree.Error
-// naming path as it was given.
+// parses, whose Aliases ReadAliases returns. A file tree.ReadNodeFile refuses gives none, as for
+// ReadAliases. A file that cannot be read otherwise fails with a *tree.Error naming path as it was
+// given.
 func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
+	data, err := tree.ReadNodeFile(path)
+	if isRefusedRead(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, &tree.Error{Path: path, Err: err}
 	}
@@ -112,6 +121,12 @@ func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 		return nil, nil
 	}
 	return rawfm.Aliases(data), nil
+}
+
+// isRefusedRead reports whether err is tree.ReadNodeFile refusing a file unread: one that is not a
+// regular file, or is larger than 1 MiB.
+func isRefusedRead(err error) bool {
+	return errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge)
 }
 
 // relative names path relative to the working tree root with forward slashes. A path that is

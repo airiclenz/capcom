@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -224,5 +225,38 @@ func assertFileError(line int, text string) func(t *testing.T, err error) {
 			!strings.Contains(failure.Message, text) {
 			t.Errorf("err = %v, want a *FileError at %s:%d containing %q", err, editedIssuePath, line, text)
 		}
+	}
+}
+
+func TestEdit_NodeFileBecameASymlink_FailsWithAFileErrorAtItAndWritesNothing(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	issues, path := newEditedIssue(t)
+	target := writeNodeFile(t, t.TempDir(), editedIssueID+".md", canonicalIssue)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatalf("Symlink(%s): %v", path, err)
+	}
+	calls := 0
+
+	_, err := issues.Edit(editedIssueID, "", retitle("Fix the lexer", &calls))
+
+	var failure *FileError
+	if !errors.As(err, &failure) || failure.Path != editedIssuePath ||
+		!strings.Contains(failure.Message, "not a regular file") {
+		t.Errorf("err = %v, want a *FileError at %s saying it is not a regular file", err, editedIssuePath)
+	}
+	if calls != 0 {
+		t.Errorf("change ran %d times, want none", calls)
+	}
+	if content := readFile(t, target); content != canonicalIssue {
+		t.Errorf("symlink target changed:\n%s", content)
 	}
 }

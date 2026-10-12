@@ -2,7 +2,8 @@ package nodestore
 
 import (
 	"bytes"
-	"os"
+
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Formatted is the outcome of a Format: the node files it rewrote, or with isCheck would rewrite,
@@ -21,8 +22,9 @@ type Formatted struct {
 //
 // A tree problem, and a file that does not parse or validate, is a warning and the file is left
 // alone. A tree that cannot be loaded at all fails as it is, its files relative to the working
-// tree root; a node file that cannot be read fails with a *FileError at it; a failed write is
-// returned as it is. Files rewritten before a failure stay rewritten.
+// tree root; a node file that cannot be read, or that tree.ReadNodeFile refuses unread (not a
+// regular file, or larger than 1 MiB), fails with a *FileError at it; a failed write is returned as
+// it is. Files rewritten before a failure stay rewritten.
 func (k *Kind[T]) Format(isCheck bool) (Formatted, error) {
 	nodes, problems, err := k.load()
 	if err != nil {
@@ -35,7 +37,7 @@ func (k *Kind[T]) Format(isCheck bool) (Formatted, error) {
 
 	for _, node := range nodes.Nodes() {
 		path := k.relative(node.Path)
-		data, err := os.ReadFile(node.Path)
+		data, err := tree.ReadNodeFile(node.Path)
 		if err != nil {
 			return Formatted{}, k.fileError(node.Path, err)
 		}
