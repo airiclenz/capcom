@@ -329,8 +329,9 @@ internal/tree/move_test.go — moveNode, snapshotDir, TestMoveApply_SecondRename
 - `GOMEMLIMIT=2GiB go test ./internal/tree/ -run 'Move'`
 **Commit:** `test(tree): cover the mv guard against an existing target`
 
-## 19. Test concurrent index refresh
+## 19. Test concurrent index refresh — ✅ DONE (2026-10-12)
 
+NOTES (2026-10-12): the test fails on any concurrent Refresh or edit error, not only one naming `SQLITE_BUSY`/`database is locked`; a mutation run with `busy_timeout(0)` failed it with 60 "database is locked" errors over 3 runs, then the DSN was restored.
 **What:** Test-only: nothing runs two `Open`/`Refresh` at once on one `index.db`.
 **Files:** internal/index/index_test.go
 **Read first:** internal/index/index.go — Open, dsnOptions; internal/index/refresh.go — refresh, recordedFile.isDirty, racyGranularity; internal/index/index_test.go — newStore, openIndex

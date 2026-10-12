@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -763,5 +764,84 @@ func TestRefresh_CommitFails_ReportsOnlyTheCommitError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "commit refresh: disk I/O error") {
 		t.Errorf("Refresh error = %q, want it to name the commit failure", err)
+	}
+}
+
+// concurrentRounds is how many times each goroutine of the concurrent refresh test acts.
+const concurrentRounds = 20
+
+// editedIssueText is the edited issue's content after edit round: its body grows by one byte a
+// round, so every edit changes the file's size and no refresh can take an edit for clean.
+func editedIssueText(round int) string {
+	return issueText(fmt.Sprintf("Edit %d", round), "open", strings.Repeat("x", round)+"\n")
+}
+
+// refreshRounds refreshes x concurrentRounds times and sends every failure to failures.
+func refreshRounds(x *Index, failures chan<- error) {
+	for range concurrentRounds {
+		if _, err := x.Refresh(); err != nil {
+			failures <- err
+		}
+	}
+}
+
+// editRounds rewrites the file at path concurrentRounds times in place, as an editor saves it,
+// and sends every failure to failures.
+func editRounds(path string, failures chan<- error) {
+	for round := 1; round <= concurrentRounds; round++ {
+		if err := os.WriteFile(path, []byte(editedIssueText(round)), 0o644); err != nil {
+			failures <- err
+		}
+	}
+}
+
+func TestRefresh_ConcurrentIndexesAndAnEdit_NeitherFailsAndBothSeeTheSameRows(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "first-issue.md", issueText("First", "open", ""))
+	writeIssue(t, s, "first-issue/child-issue.md", issueText("Child", "open", ""))
+	writeIssue(t, s, "second-issue.md", issueText("Second", "open", ""))
+	edited := writeIssue(t, s, "edited-issue.md", editedIssueText(0))
+	first := openIndex(t, s)
+	second := openIndex(t, s)
+	var waitGroup sync.WaitGroup
+	failures := make(chan error, 3*concurrentRounds)
+
+	for _, act := range []func(){
+		func() { refreshRounds(first, failures) },
+		func() { refreshRounds(second, failures) },
+		func() { editRounds(edited, failures) },
+	} {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			act()
+		}()
+	}
+	waitGroup.Wait()
+	close(failures)
+	firstReport := refresh(t, first)
+	secondReport := refresh(t, second)
+
+	// A busy or locked database is the failure this test exists for; any other is a failure too.
+	for err := range failures {
+		t.Errorf("concurrent refresh or edit failed: %v", err)
+	}
+	want := []string{"edited-issue", "first-issue", "child-issue", "second-issue"}
+	for name, x := range map[string]*Index{"first": first, "second": second} {
+		ids, err := x.ListIDs(Filter{IsClosedIncluded: true})
+		if err != nil {
+			t.Fatalf("%s index ListIDs: %v", name, err)
+		}
+		if !slices.Equal(ids, want) {
+			t.Errorf("%s index ids = %v, want %v, each once", name, ids, want)
+		}
+		if title := mustIssue(t, x, "edited-issue").Title; title != fmt.Sprintf("Edit %d", concurrentRounds) {
+			t.Errorf("%s index edited-issue title = %q, want the last edit's", name, title)
+		}
+	}
+	if firstReport.Indexed != len(want) || secondReport.Indexed != len(want) {
+		t.Errorf("final refreshes indexed %d and %d issues, want %d each",
+			firstReport.Indexed, secondReport.Indexed, len(want))
 	}
 }
