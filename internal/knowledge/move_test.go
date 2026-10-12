@@ -2,8 +2,11 @@ package knowledge
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -49,6 +52,84 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("ReadFile: %v", err)
 	}
 	return string(data)
+}
+
+// makeSymlink creates a symbolic link at link pointing to target, skipping the test on Windows and
+// as root.
+func makeSymlink(t *testing.T, target string, link string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("Symlink(%s): %v", link, err)
+	}
+}
+
+// unreadSwap is one way of swapping a Note file after Load for one tree.ReadNodeFile refuses
+// unread: swap replaces the regular Note file at path, whose content is content.
+type unreadSwap struct {
+	name string
+	swap func(t *testing.T, path string, content string)
+}
+
+// unreadSwaps are the swaps tree.ReadNodeFile refuses: a symlink to a regular file holding the
+// same content, a named pipe, and a regular file over 1 MiB written in place.
+func unreadSwaps() []unreadSwap {
+	return []unreadSwap{
+		{name: "symlink", swap: func(t *testing.T, path string, content string) {
+			target := filepath.Join(t.TempDir(), filepath.Base(path))
+			if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+			removeSwapped(t, path)
+			makeSymlink(t, target, path)
+		}},
+		{name: "fifo", swap: func(t *testing.T, path string, _ string) {
+			removeSwapped(t, path)
+			makeFIFO(t, path)
+		}},
+		{name: "over 1 MiB", swap: func(t *testing.T, path string, content string) {
+			oversized := content + strings.Repeat("x", 1<<20)
+			if err := os.WriteFile(path, []byte(oversized), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+		}},
+	}
+}
+
+// removeSwapped removes the Note file at path, so a symlink or named pipe can take its place.
+func removeSwapped(t *testing.T, path string) {
+	t.Helper()
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+}
+
+// lstatSwapped returns the os.Lstat of the swapped file at path.
+func lstatSwapped(t *testing.T, path string) fs.FileInfo {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("Lstat: %v", err)
+	}
+	return info
+}
+
+// nodePath returns the file path of the Note with id id among the nodes of notes, failing the test
+// when notes has no such Note.
+func nodePath(t *testing.T, notes *tree.Tree, id string) string {
+	t.Helper()
+	for _, node := range notes.Nodes() {
+		if node.ID == id {
+			return node.Path
+		}
+	}
+	t.Fatalf("no Note %s in the tree", id)
+	return ""
 }
 
 func TestPlanMove_Rename_RecordsTheOldIDAsAnAlias(t *testing.T) {
@@ -142,5 +223,36 @@ func TestPlanMove_BelowItsOwnChild_NamesANote(t *testing.T) {
 
 	if !errors.Is(err, tree.ErrMoveIntoSubtree) || !strings.Contains(err.Error(), "cannot move a note below") {
 		t.Errorf("PlanMove below its own child = %v", err)
+	}
+}
+
+func TestPlanMove_Rename_NodeFileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt(t *testing.T) {
+	for _, tc := range unreadSwaps() {
+		t.Run(tc.name, func(t *testing.T) {
+			successor := "---\ntitle: Swapped\nsuperseded-by: [old-rule]\n---\n"
+			notes := loadNotes(t, map[string]string{
+				"old-rule.md": "---\ntitle: Old rule\n---\n",
+				"swapped.md":  successor,
+			})
+			swappedPath := nodePath(t, notes, "swapped")
+			tc.swap(t, swappedPath, successor)
+			swapped := lstatSwapped(t, swappedPath)
+
+			move, err := PlanMove(notes, "old-rule", tree.Destination{ID: "new-rule"})
+			if err != nil {
+				t.Fatalf("PlanMove: %v", err)
+			}
+			if err := move.Apply(); err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+
+			if want := []string{swappedPath}; !slices.Equal(move.Unread, want) {
+				t.Errorf("Unread = %v, want %v", move.Unread, want)
+			}
+			if got := lstatSwapped(t, swappedPath); got.Mode() != swapped.Mode() || got.Size() != swapped.Size() {
+				t.Errorf("swapped file = %v %d bytes, want it as swapped: %v %d bytes",
+					got.Mode(), got.Size(), swapped.Mode(), swapped.Size())
+			}
+		})
 	}
 }

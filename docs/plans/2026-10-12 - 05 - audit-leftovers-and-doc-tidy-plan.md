@@ -80,7 +80,10 @@ internal/check/fifo_unix_test.go — makeFIFO; internal/tree/tree_test.go — ma
 - `go vet ./internal/issue/`
 **Commit:** `test(issue): cover a node file swapped after Load in rm and mv`
 
-## 3. Note rm and mv: test a node file swapped after Load
+## 3. Note rm and mv: test a node file swapped after Load — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): each case also calls Apply after the plan, as item 2's do, so "left exactly as swapped" (os.Lstat mode and size) is checked after the write, not only after the read-only plan; the swapped Note's superseded-by names the removed or renamed Note, so a plan that read it would have rewritten it.
+NOTES (2026-10-12): the swap helpers (makeSymlink, unreadSwaps, removeSwapped, lstatSwapped) mirror item 2's in internal/issue/move_test.go, and a new nodePath helper takes the swapped Note's path from notes.Nodes(); the tests load through the existing loadNotes helper.
 
 **What:** Covers the Note half of `unread-swap-test`.
 **Regression guard.** The mv cases are a rename (the new id differs from the old): `knowledge.PlanMove` returns before `planSuccessorRewrites` on a re-parent. Each symlink or FIFO swap first `os.Remove`s the Note file, then creates the symlink or FIFO at its path; the >1 MiB case overwrites in place. Take the Note's path from `notes.Nodes()` (`loadNotes`/`newNoteTree` return only the tree; `Tree.Dir` also exists).

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/tree"
@@ -35,5 +36,36 @@ func TestPlanRemove_WithChildren_NamesANote(t *testing.T) {
 	var refusal *tree.ChildrenError
 	if !errors.As(err, &refusal) || err.Error() != "note parent-note has 1 child note; remove or move them first" {
 		t.Errorf("PlanRemove of a parent = %v; want a *tree.ChildrenError naming a note", err)
+	}
+}
+
+func TestPlanRemove_NodeFileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt(t *testing.T) {
+	for _, tc := range unreadSwaps() {
+		t.Run(tc.name, func(t *testing.T) {
+			successor := "---\ntitle: Swapped\nsuperseded-by: [gone-rule]\n---\n"
+			notes := loadNotes(t, map[string]string{
+				"gone-rule.md": "---\ntitle: Gone rule\n---\n",
+				"swapped.md":   successor,
+			})
+			swappedPath := nodePath(t, notes, "swapped")
+			tc.swap(t, swappedPath, successor)
+			swapped := lstatSwapped(t, swappedPath)
+
+			removal, err := PlanRemove(notes, "gone-rule")
+			if err != nil {
+				t.Fatalf("PlanRemove: %v", err)
+			}
+			if _, err := removal.Apply(); err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
+
+			if want := []string{swappedPath}; !slices.Equal(removal.Unread, want) {
+				t.Errorf("Unread = %v, want %v", removal.Unread, want)
+			}
+			if got := lstatSwapped(t, swappedPath); got.Mode() != swapped.Mode() || got.Size() != swapped.Size() {
+				t.Errorf("swapped file = %v %d bytes, want it as swapped: %v %d bytes",
+					got.Mode(), got.Size(), swapped.Mode(), swapped.Size())
+			}
+		})
 	}
 }
