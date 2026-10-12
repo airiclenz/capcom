@@ -1,11 +1,13 @@
 ---
 title: know tree cannot hide background Notes such as rejected options
-status: open
+status: done
 type: feature
 priority: 2
 deps: [outline-depth-hint]
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:44Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 12 (archived in e61d7bf)
 ---
 
 The rejected-option sections of decision records sit in `know tree` beside the decisions, and

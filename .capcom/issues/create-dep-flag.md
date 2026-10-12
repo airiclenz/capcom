@@ -1,10 +1,12 @@
 ---
 title: create cannot record dependencies, so filing a waiting issue takes two commands
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:43Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 6 (archived in e61d7bf)
 ---
 
 Filing an issue that waits on another takes two commands, `create` then `dep add`, and smaller

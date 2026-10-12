@@ -1,10 +1,12 @@
 ---
 title: No query for which issues a close would make Ready, and no bounded dependency walk
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:43Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 1 (archived in e61d7bf)
 ---
 
 capcom can tell whether an issue is Ready, but not which issues would become Ready if some issues

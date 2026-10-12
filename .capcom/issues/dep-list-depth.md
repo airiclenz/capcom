@@ -1,11 +1,13 @@
 ---
 title: dep list shows only direct dependencies and dependents
-status: open
+status: done
 type: feature
 priority: 2
 deps: [unblocks-query, outline-depth-hint]
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:43Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 9 (archived in e61d7bf)
 ---
 
 `capcom dep list` shows only direct dependencies and dependents, so "everything this waits on"

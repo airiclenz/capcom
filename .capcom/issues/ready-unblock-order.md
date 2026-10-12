@@ -1,11 +1,13 @@
 ---
 title: ready ignores how much work an issue unblocks when ordering a priority
-status: open
+status: done
 type: feature
 priority: 2
 deps: [unblocks-query]
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:43Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 3 (archived in e61d7bf)
 ---
 
 `capcom ready` orders by priority, then by tree position, so an issue that holds up three others

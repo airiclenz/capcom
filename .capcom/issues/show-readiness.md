@@ -1,10 +1,12 @@
 ---
 title: show prints neither readiness nor dependents
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:43Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 4 (archived in e61d7bf)
 ---
 
 `capcom show` prints an issue's raw `deps` list but not whether the issue is Ready, why not, or

@@ -1,11 +1,13 @@
 ---
 title: No Note on filing, claiming and closing issues with dependencies
-status: open
+status: done
 type: task
 priority: 2
 deps: [close-now-ready, ready-unblock-order, dep-list-depth, list-tree-outline, dep-graph-mermaid, agents-block-map]
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:44Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 16 (archived in e61d7bf)
 ---
 
 The new dependency commands and the issue conventions need one place an agent reads before

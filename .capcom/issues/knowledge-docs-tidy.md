@@ -1,10 +1,12 @@
 ---
 title: Naming scheme, legacy docs, flagged ambiguities and config semantics are under-documented
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:44Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 15 (archived in e61d7bf)
 ---
 
 Four tidy-ups from the knowledge-organization review:

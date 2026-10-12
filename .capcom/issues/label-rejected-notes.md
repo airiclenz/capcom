@@ -1,11 +1,13 @@
 ---
 title: Rejected ADR option Notes are not marked as background
-status: open
+status: done
 type: task
 priority: 2
 deps: [know-tree-background]
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:44Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 13 (archived in e61d7bf)
 ---
 
 With background Notes hidden from `know tree`, the rejected-option Notes of the decision records

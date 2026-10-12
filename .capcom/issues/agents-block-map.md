@@ -1,11 +1,13 @@
 ---
 title: The AGENTS block omits dependencies, the issue-body rule and the store layout
-status: open
+status: done
 type: feature
 priority: 2
 deps: [close-now-ready, show-readiness, create-dep-flag, dep-list-depth, list-tree-outline, know-tree-background]
 plan: 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan
 created: 2026-10-12T18:13:07Z
+closed: 2026-10-12T19:09:44Z
+reason: Resolved by plan 2026-10-12 - 04 - dependency-graph-and-knowledge-map-plan, item 14 (archived in e61d7bf)
 ---
 
 The AGENTS.md block that `capcom agents` writes is often the only capcom guidance an agent sees.
