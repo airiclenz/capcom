@@ -74,6 +74,28 @@ func TestCreate_FreeIDAtTheTop_WritesTheNode(t *testing.T) {
 	}
 }
 
+func TestCreate_FilePlantedAfterTheClaimCheck_FailsAsTakenAndKeepsIt(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	planted := "planted by another session\n"
+	build := buildIssue(t, "open")
+	plantingBuild := func() (issue.Issue, error) {
+		writeNodeFile(t, s.IssuesDir(), newIssueID+".md", planted)
+		return build()
+	}
+
+	_, _, err := Issues(s, nil).Create(newIssueID, "", plantingBuild)
+
+	assertExists(".capcom/issues/parser-fix.md", newIssueID, "already taken by issue parser-fix")(t, err)
+	data, readErr := os.ReadFile(filepath.Join(s.IssuesDir(), newIssueID+".md"))
+	if readErr != nil || string(data) != planted {
+		t.Errorf("planted file = %q, %v; want it unchanged", data, readErr)
+	}
+	if files := nodeFiles(t, s.IssuesDir()); len(files) != 1 {
+		t.Errorf("issues dir holds %v, want only the planted file", files)
+	}
+}
+
 func TestCreate_ParentByAlias_WritesIntoItsChildrenDirectory(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

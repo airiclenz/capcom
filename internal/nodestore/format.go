@@ -56,7 +56,7 @@ func (k *Kind[T]) Format(isCheck bool) (Formatted, error) {
 			continue
 		}
 		if !isCheck {
-			if _, err := k.write(node.Path, node.ID, parsed); err != nil {
+			if _, err := k.write(node.Path, node.ID, parsed, replaceFile); err != nil {
 				return Formatted{}, err
 			}
 		}

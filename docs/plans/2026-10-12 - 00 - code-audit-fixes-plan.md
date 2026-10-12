@@ -257,7 +257,11 @@ internal/lock/lock_test.go — TestRead_CorruptRecord_FailsNamingTheFile
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Lock'`
 **Commit:** `fix(lock): let break clear a corrupt record and list skip it`
 
-## 14. `Create` places a new node file with an exclusive create
+## 14. `Create` places a new node file with an exclusive create — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): internal/nodestore/edit.go and internal/nodestore/format.go, beyond **Files:**, only pass the new `replaceFile` mode to the shared `Kind.write`, as the regression guard's "a shared writer takes a mode flag" requires; Edit and Format keep the atomic overwrite.
+NOTES (2026-10-12): `writeFileAtomic`'s directory, temp-file and fsync steps moved into a shared `writeTemp` helper that `WriteFileExclusive` also uses; `WriteFileAtomic`'s behaviour and error messages are unchanged.
+NOTES (2026-10-12): the `O_CREATE|O_EXCL` fallback for file systems without hard links has no test; it can only be reached by injecting a failing link.
 
 **What:** Two sessions creating one id at once silently overwrite each other.
 **Regression guard.** Only Create writes exclusively; Edit and Format keep `Kind.write`'s atomic overwrite (a shared writer takes a mode flag). `tree.WriteFileExclusive` (`atomic.go`): `MkdirAll`, write and fsync a temp, `os.Link` it into place, remove it, `syncDir`; any Link error not `fs.ErrExist` (EPERM, ENOTSUP, ERROR_INVALID_FUNCTION) falls back to `O_CREATE|O_EXCL`.

@@ -23,6 +23,17 @@ const hiddenNamePrefix = "."
 // problemSeparator joins the validation problems of one node in a single message.
 const problemSeparator = "; "
 
+// writeMode says whether write may replace a file already at the node's path.
+type writeMode int
+
+const (
+	// replaceFile replaces the file atomically, as Edit and Format do.
+	replaceFile writeMode = iota
+	// createFile never replaces a file: one already at the path fails with an error wrapping
+	// fs.ErrExist, as Create needs.
+	createFile
+)
+
 // Create writes a new node of the kind, named id, below the node parent names (its id, one of its
 // Aliases or a unique id prefix; "" places it at the top of the tree), with the content build
 // returns. It returns the node written and the tree problems that do not concern it, their paths
@@ -43,7 +54,9 @@ const problemSeparator = "; "
 //  6. build, whose failure is returned as it is.
 //  7. validation: a node that does not validate fails with a *FileError at the new file, listing
 //     every problem and citing the first problem's line.
-//  8. the atomic write, whose failure is returned as it is.
+//  8. the exclusive write, which never replaces a file: a file that appeared at the new node's path
+//     since the claim refusals fails with the *ExistsError naming it; any other failure is
+//     returned as it is.
 func (k *Kind[T]) Create(
 	id string,
 	parent string,
@@ -72,7 +85,11 @@ func (k *Kind[T]) Create(
 	if err != nil {
 		return Written{}, nil, err
 	}
-	written, err := k.write(path, id, node)
+	written, err := k.write(path, id, node, createFile)
+	if errors.Is(err, fs.ErrExist) {
+		// Another writer placed the file after the claim refusals passed.
+		return Written{}, nil, k.existsError(id, tree.Node{ID: id, Path: path})
+	}
 	if err != nil {
 		return Written{}, nil, err
 	}
@@ -327,16 +344,22 @@ func (k *Kind[T]) relativeTreeError(problem *tree.Error) *tree.Error {
 	return &relative
 }
 
-// write validates node and writes it atomically, with LF line endings, to path, the absolute file
-// of the node id. A node that does not validate fails with a *FileError listing every problem,
-// citing the first problem's line, and is not written.
-func (k *Kind[T]) write(path string, id string, node T) (Written, error) {
+// write validates node and writes it, with LF line endings, to path, the absolute file of the node
+// id: replacing any file there atomically under replaceFile, and under createFile only where no
+// file is, failing with an error wrapping fs.ErrExist otherwise. A node that does not validate
+// fails with a *FileError listing every problem, citing the first problem's line, and is not
+// written.
+func (k *Kind[T]) write(path string, id string, node T, mode writeMode) (Written, error) {
 	relative := k.relative(path)
 	if problems := k.codec.Validate(relative, node); len(problems) > 0 {
 		return Written{}, validationError(relative, problems)
 	}
 	data := bytes.ReplaceAll(k.codec.Serialize(node), []byte("\r\n"), []byte("\n"))
-	if err := tree.WriteFileAtomic(path, bytes.NewReader(data)); err != nil {
+	writeFile := tree.WriteFileAtomic
+	if mode == createFile {
+		writeFile = tree.WriteFileExclusive
+	}
+	if err := writeFile(path, bytes.NewReader(data)); err != nil {
 		return Written{}, err
 	}
 	return Written{ID: id, Path: relative, ETag: edit.ETag(data)}, nil

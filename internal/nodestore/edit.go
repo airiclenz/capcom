@@ -51,7 +51,7 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err != nil {
 		return located, err
 	}
-	written, err := k.write(path, target.ID, edited)
+	written, err := k.write(path, target.ID, edited, replaceFile)
 	if err != nil {
 		return located, err
 	}
