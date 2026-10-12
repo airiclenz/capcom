@@ -303,6 +303,28 @@ func TestParse_YAMLSyntaxError_CitesFileLine(t *testing.T) {
 	}
 }
 
+func TestParse_ConflictMarkerInFrontmatter_CitesTheMarker(t *testing.T) {
+	content := "---\n<<<<<<< HEAD\ntitle: Mine\n=======\ntitle: Theirs\n>>>>>>> other-branch\n" +
+		"status: open\n---\n"
+
+	_, err := issue.Parse(testPath, []byte(content))
+
+	want := testPath + `:2: git conflict marker "<<<<<<< HEAD"; resolve the conflict and delete the markers`
+	if err == nil || err.Error() != want {
+		t.Errorf("Parse error = %v, want %s", err, want)
+	}
+}
+
+func TestParse_ConflictMarkerOnlyInBody_KeepsTheYAMLError(t *testing.T) {
+	content := "---\ntitle: T\nstatus: [open\n---\n<<<<<<< HEAD\n=======\n>>>>>>> other-branch\n"
+
+	_, err := issue.Parse(testPath, []byte(content))
+
+	if err == nil || !strings.Contains(err.Error(), "invalid YAML frontmatter") {
+		t.Errorf("Parse error = %v, want the YAML error", err)
+	}
+}
+
 func TestParse_EmptyFrontmatterAndBody(t *testing.T) {
 	cases := []string{"---\n---\n", "---\n---", "---\n# only a comment\n---\n"}
 	for _, content := range cases {

@@ -373,6 +373,25 @@ func TestCreate_UnrelatedBadFileName_WritesAndWarnsOnce(t *testing.T) {
 	}
 }
 
+func TestCreate_BesideConflictedFrontmatter_WarnsNamingTheMarker(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"merged-one.md": "---\n<<<<<<< HEAD\ntitle: Mine\n=======\ntitle: Theirs\n>>>>>>> other-branch\n" +
+			"status: open\ntype: task\n---\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	want := `warning: .capcom/issues/merged-one.md:2: git conflict marker "<<<<<<< HEAD"; ` +
+		"resolve the conflict and delete the markers\n"
+	if !strings.Contains(stdout, want) || strings.Contains(stdout+stderr, "invalid YAML") {
+		t.Errorf("stdout = %q\nstderr = %q\nwant the warning %q and no YAML error", stdout, stderr, want)
+	}
+}
+
 func TestCreate_UnderParentInOrphanDirectory_Fails(t *testing.T) {
 	root := newWriteStore(t)
 	writeIssueFiles(t, root, map[string]string{"lost-dir/parent-one.md": validIssue})

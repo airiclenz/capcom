@@ -10,6 +10,8 @@ import (
 	"unicode"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/airiclenz/capcom/internal/rawfm"
 )
 
 // fence is the line that opens and closes the frontmatter.
@@ -37,6 +39,8 @@ var yamlLineError = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
 // Parse fails, with an *Error citing the file line, when the content does not open with a `---`
 // line, when the frontmatter is never closed, on invalid YAML, on an unknown or repeated key and on
 // a value of the wrong shape. It does not check values against the config; that is Validate.
+// When the frontmatter holds a git conflict marker, such a failure cites the first marker
+// instead, in the words `capcom check` reports it with.
 func Parse(path string, data []byte) (Issue, error) {
 	text := string(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
 	if !strings.HasPrefix(text, fenceLine) {
@@ -54,14 +58,14 @@ func Parse(path string, data []byte) (Issue, error) {
 	p := parser{path: path}
 	root, err := p.document(front)
 	if err != nil {
-		return Issue{}, err
+		return Issue{}, p.conflictError(data, front, err)
 	}
 	issue := Issue{Priority: DefaultPriority, Body: body, lines: map[string]int{}}
 	if root == nil {
 		return issue, nil
 	}
 	if err := p.fields(root, &issue); err != nil {
-		return Issue{}, err
+		return Issue{}, p.conflictError(data, front, err)
 	}
 	return issue, nil
 }
@@ -140,6 +144,18 @@ func (p parser) document(front string) (*yaml.Node, error) {
 		return nil, p.errorAt(root, "the frontmatter must be a mapping of keys")
 	}
 	return root, nil
+}
+
+// conflictError returns err, the failure to parse the frontmatter front of the file content data,
+// unless the frontmatter holds a git conflict marker: then an *Error at the first such marker, worded
+// as `capcom check` reports it, since the marker, not the YAML it breaks, is what to fix.
+func (p parser) conflictError(data []byte, front string, err error) error {
+	lastFrontmatterLine := strings.Count(front, "\n") + frontmatterLineOffset
+	markers := rawfm.ConflictMarkers(data)
+	if len(markers) == 0 || markers[0].Line > lastFrontmatterLine {
+		return err
+	}
+	return &Error{Path: p.path, Line: markers[0].Line, Message: rawfm.ConflictMessage(markers[0])}
 }
 
 // yamlError turns a yaml.v3 syntax error into an *Error citing the file line it names.

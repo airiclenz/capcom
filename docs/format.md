@@ -200,9 +200,11 @@ line:
 - a line that is exactly `=======`, but only between a `<<<<<<< ` line and its `>>>>>>> ` line,
   since a bare `=======` is a setext heading underline.
 
-The frontmatter is always scanned, and markers there are reported beside the frontmatter problem
-they cause. Body lines inside a fenced code block (opened by three backticks or three tildes) are
-not scanned, so a Note may show a conflict as an example. CRLF files give the same problems.
+The frontmatter is always scanned. A marker there breaks the frontmatter, and every command that
+reads the file warns with the first such marker's `conflict` message in place of the YAML error it
+causes, so `capcom check` reports it once, as `conflict`, with no `frontmatter` problem beside it.
+Body lines inside a fenced code block (opened by three backticks or three tildes) are not scanned,
+so a Note may show a conflict as an example. CRLF files give the same problems.
 
 To resolve a Log conflict:
 

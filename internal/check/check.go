@@ -250,18 +250,24 @@ func (c *checker) checkConflictMarkers(path string, data []byte) {
 	}
 }
 
-// addParseFailure records a file that does not parse, at the line its parser blamed.
+// addParseFailure records a file that does not parse, at the line its parser blamed. A parser
+// blames a conflict marker in the frontmatter with the conflict problem's own words, which
+// checkConflictMarkers has already recorded, so that failure is not recorded twice.
 func (c *checker) addParseFailure(path string, err error) {
+	line, message := 0, err.Error()
 	var issueFailure *issue.Error
 	var noteFailure *knowledge.Error
 	switch {
 	case errors.As(err, &issueFailure):
-		c.add(path, issueFailure.Line, CodeFrontmatter, issueFailure.Message)
+		line, message = issueFailure.Line, issueFailure.Message
 	case errors.As(err, &noteFailure):
-		c.add(path, noteFailure.Line, CodeFrontmatter, noteFailure.Message)
-	default:
-		c.add(path, 0, CodeFrontmatter, err.Error())
+		line, message = noteFailure.Line, noteFailure.Message
 	}
+	conflict := Problem{Path: c.relative(path), Line: line, Code: CodeConflict, Message: message}
+	if slices.Contains(c.problems, conflict) {
+		return
+	}
+	c.add(path, line, CodeFrontmatter, message)
 }
 
 // graphNodes turns the tree's issues into dependency graph nodes. A file that does not parse is a

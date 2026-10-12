@@ -74,7 +74,10 @@ Message; existing `internal/check` conflict tests pass unchanged.
 - `go list -deps ./internal/rawfm/ | grep 'capcom/internal/'` (lists only `internal/rawfm`)
 **Commit:** `refactor(rawfm): share the conflict-marker scan outside check`
 
-## 2. Parse warning names a conflict marker in the frontmatter
+## 2. Parse warning names a conflict marker in the frontmatter — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the conflict blame covers every Parse failure after the frontmatter is split (the YAML decode and the key/value decode in `fields`), not only the YAML error path, so a marker is named whichever stage it breaks; unclosed-frontmatter and missing-fence errors keep their wording.
+NOTES (2026-10-12): `TestRun_ConflictMarkersInFrontmatter_ReportedBesideTheParseFailure` in internal/check/check_test.go asserted the duplicate frontmatter problem the plan's guard drops; it is replaced by `TestRun_ConflictMarkersInFrontmatter_ReportedOnceWithoutAFrontmatterProblem`, which pins the full problem list and text.
 
 **What:** part of `.capcom/issues/create-alias-unparseable.md`: the `create` warning names only
 the YAML error when the frontmatter holds a git conflict marker.

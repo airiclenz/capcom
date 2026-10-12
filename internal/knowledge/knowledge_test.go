@@ -77,6 +77,29 @@ func TestParse_BadFiles_FailCitingTheLine(t *testing.T) {
 	}
 }
 
+func TestParse_ConflictMarkerInFrontmatter_CitesTheMarker(t *testing.T) {
+	t.Parallel()
+	content := "---\n<<<<<<< HEAD\ntitle: Mine\n=======\ntitle: Theirs\n>>>>>>> other-branch\n---\n"
+
+	_, err := Parse(notePath, []byte(content))
+
+	want := notePath + `:2: git conflict marker "<<<<<<< HEAD"; resolve the conflict and delete the markers`
+	if err == nil || err.Error() != want {
+		t.Errorf("Parse error = %v, want %s", err, want)
+	}
+}
+
+func TestParse_ConflictMarkerOnlyInBody_KeepsTheYAMLError(t *testing.T) {
+	t.Parallel()
+	content := "---\ntitle: [x\n---\n<<<<<<< HEAD\n=======\n>>>>>>> other-branch\n"
+
+	_, err := Parse(notePath, []byte(content))
+
+	if err == nil || !strings.Contains(err.Error(), "invalid YAML frontmatter") {
+		t.Errorf("Parse error = %v, want the YAML error", err)
+	}
+}
+
 func TestValidate_NoTitleOrPathlessRef_ReportsBoth(t *testing.T) {
 	t.Parallel()
 	note := parseNote(t, "---\nlabels: [x]\nrefs: [\"#symbol\"]\n---\n")

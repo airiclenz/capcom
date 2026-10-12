@@ -404,7 +404,7 @@ func TestRun_ConflictMarker_MessageQuotesTheMarkerAndSaysHowToResolve(t *testing
 	}
 }
 
-func TestRun_ConflictMarkersInFrontmatter_ReportedBesideTheParseFailure(t *testing.T) {
+func TestRun_ConflictMarkersInFrontmatter_ReportedOnceWithoutAFrontmatterProblem(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{
 		issues + "login-flow.md": "---\ntitle: Some issue\n<<<<<<< HEAD\nstatus: done\n=======\n" +
@@ -413,17 +413,20 @@ func TestRun_ConflictMarkersInFrontmatter_ReportedBesideTheParseFailure(t *testi
 
 	problems := runCheck(t, root)
 
-	conflicts := []string{}
-	isFrontmatterReported := false
-	for _, problem := range problems {
-		switch problem.Code {
-		case check.CodeConflict:
-			conflicts = append(conflicts, strconv.Itoa(problem.Line))
-		case check.CodeFrontmatter:
-			isFrontmatterReported = true
+	conflict := func(line int, marker string) check.Problem {
+		return check.Problem{
+			Path:    issues + "login-flow.md",
+			Line:    line,
+			Code:    check.CodeConflict,
+			Message: "git conflict marker " + strconv.Quote(marker) + "; resolve the conflict and delete the markers",
 		}
 	}
-	if want := []string{"3", "5", "7"}; !reflect.DeepEqual(conflicts, want) || !isFrontmatterReported {
-		t.Errorf("problems = %v; want conflict at lines %v and a frontmatter problem", problems, want)
+	want := []check.Problem{
+		conflict(3, "<<<<<<< HEAD"),
+		conflict(5, "======="),
+		conflict(7, ">>>>>>> other-branch"),
+	}
+	if !reflect.DeepEqual(problems, want) {
+		t.Errorf("problems = %+v\nwant %+v", problems, want)
 	}
 }
