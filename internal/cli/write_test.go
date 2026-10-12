@@ -157,6 +157,36 @@ func TestCreate_LabelWithEmptyEntry_DropsIt(t *testing.T) {
 	mustRun(t, root, "check")
 }
 
+func TestCreate_DepByAliasAndRepeated_StoresEachCanonicalIDOnce(t *testing.T) {
+	root := newWriteStore(t)
+
+	mustRun(t, root, "create", "--id", "new-thing", "--title", "New thing",
+		"--dep", "former-name,login-flow", "--dep", "renamed-issue")
+
+	if content := readStoreFile(t, root, "new-thing.md"); !strings.Contains(content, "\ndeps: [renamed-issue, login-flow]\n") {
+		t.Errorf("content = %q", content)
+	}
+	stdout := mustRun(t, root, "dep", "list", "former-name")
+	if !strings.Contains(stdout, "dependents:\n  new-thing  open  P2  New thing\n") {
+		t.Errorf("dep list stdout = %q", stdout)
+	}
+}
+
+func TestCreate_MissingDep_FailsLikeDepAddAndWritesNothing(t *testing.T) {
+	root := newWriteStore(t)
+	_, depAddStderr, depAddExit := runCLI(t, root, "dep", "add", "login-flow", "gone-issue")
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "new-thing", "--title", "New thing",
+		"--dep", "login-flow", "--dep", "gone-issue")
+
+	if exitCode != depAddExit || exitCode == ExitOK || stderr != depAddStderr {
+		t.Errorf("exit = %d stderr = %q, want dep add's exit = %d stderr = %q", exitCode, stderr, depAddExit, depAddStderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "new-thing.md")); !os.IsNotExist(err) {
+		t.Errorf("new-thing.md: Stat err = %v, want not exist", err)
+	}
+}
+
 func TestUpdate_Fields_ChangeTheFile(t *testing.T) {
 	root := newWriteStore(t)
 

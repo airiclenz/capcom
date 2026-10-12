@@ -37,8 +37,8 @@ type depGraph struct {
 }
 
 // newDepCommand groups the commands that add, remove and list Dependency edges. dep add and dep
-// rm are the only writers of an issue's deps; every edge is stored on the dependent, under the
-// canonical id of the issue it depends on.
+// rm change an existing issue's deps and create --dep writes a new issue's; every edge is stored
+// on the dependent, under the canonical id of the issue it depends on.
 func (a *app) newDepCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dep",

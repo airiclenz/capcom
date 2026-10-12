@@ -17,6 +17,7 @@ import (
 const (
 	flagID       = "id"
 	flagBodyFile = "body-file"
+	flagDep      = "dep"
 )
 
 // preferredDefaultType is the type a new issue gets without --type, when the config declares it;
@@ -34,6 +35,7 @@ type createOptions struct {
 	plan      string
 	status    string
 	bodyFile  string
+	deps      []string
 }
 
 // newCreateCommand writes a new issue file. The id is always the caller's choice, never generated.
@@ -62,6 +64,7 @@ func (a *app) newCreateCommand() *cobra.Command {
 	flags.StringVar(&options.plan, flagPlan, "", "basename of the plan the issue belongs to")
 	flags.StringVar(&options.status, flagStatus, "", "initial status, not in a closed category (default: the first todo status)")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
+	flags.StringSliceVar(&options.deps, flagDep, nil, "issues the new one depends on; repeat or separate with commas")
 	_ = cmd.MarkFlagRequired(flagID)    // fails only for an undefined flag
 	_ = cmd.MarkFlagRequired(flagTitle) // fails only for an undefined flag
 	return a.withKV(cmd)
@@ -69,12 +72,16 @@ func (a *app) newCreateCommand() *cobra.Command {
 
 // create places the new issue in the tree and writes it, with a warning for every tree problem
 // that concerns neither the issue's file nor its parent's, unless the index refresh already
-// warned about it.
+// warned about it. A --dep that resolves to no issue fails the create before anything is written.
 func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error) {
+	deps, err := a.resolveDeps(options.deps)
+	if err != nil {
+		return Result{}, err
+	}
 	written, problems, err := nodestore.Issues(a.store, nil).Create(
 		options.id,
 		options.parent,
-		func() (issue.Issue, error) { return a.newIssue(cmd, options) },
+		func() (issue.Issue, error) { return a.newIssue(cmd, options, deps) },
 	)
 	if err != nil {
 		return Result{}, kindFailure(err)
@@ -84,8 +91,27 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error)
 	return result, nil
 }
 
-// newIssue builds the issue the flags describe, created now.
-func (a *app) newIssue(cmd *cobra.Command, options *createOptions) (issue.Issue, error) {
+// resolveDeps returns the canonical ids of the issues args name, in the order given and once each;
+// an empty arg is skipped. No cycle is possible, since nothing depends on a new issue yet.
+func (a *app) resolveDeps(args []string) ([]string, error) {
+	var deps []string
+	for _, arg := range args {
+		if arg == "" {
+			continue
+		}
+		dependency, err := a.resolveIssue(arg)
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(deps, dependency.ID) {
+			deps = append(deps, dependency.ID)
+		}
+	}
+	return deps, nil
+}
+
+// newIssue builds the issue the flags describe, created now, depending on deps.
+func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string) (issue.Issue, error) {
 	cfg := a.store.Config
 	status := options.status
 	if status == "" {
@@ -105,6 +131,7 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions) (issue.Issue,
 		Priority: options.priority,
 		Labels:   edit.Labels(nil, options.labels, nil),
 		Plan:     options.plan,
+		Deps:     deps,
 		Created:  time.Now().UTC().Truncate(time.Second),
 	}
 	if options.bodyFile == "" {

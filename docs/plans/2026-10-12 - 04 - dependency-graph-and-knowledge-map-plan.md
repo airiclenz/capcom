@@ -194,7 +194,10 @@ is closed, `children: 1/1 closed`; a leaf has no line.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Show`
 **Commit:** `feat(show): print how many children are closed`
 
-## 6. create takes dependencies
+## 6. create takes dependencies — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): consequential edit — internal/cli/dep.go: made necessary by create --dep writing deps (the newDepCommand comment called dep add and dep rm the only writers of an issue's deps)
+NOTES (2026-10-12): an empty --dep entry (for example `a,,b`) is skipped, as --label drops empty entries
 
 **What:**
 **Goal:** `capcom create --dep <id|alias|prefix>` (repeatable, comma-separated allowed) writes each
