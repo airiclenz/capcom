@@ -213,9 +213,10 @@ func TestMove_Refusals_MoveNothing(t *testing.T) {
 			},
 			assert: func(t *testing.T, err error) {
 				t.Helper()
-				var blocking tree.Errors
-				if !errors.As(err, &blocking) || !strings.Contains(err.Error(), movedIssuePath) {
-					t.Errorf("err = %v, want the tree problem naming %s", err, movedIssuePath)
+				var duplicate *tree.Error
+				if !errors.As(err, &duplicate) || !errors.Is(err, tree.ErrDuplicate) ||
+					!strings.Contains(err.Error(), movedIssuePath) {
+					t.Errorf("err = %v, want the duplicate *tree.Error naming %s", err, movedIssuePath)
 				}
 			},
 		},

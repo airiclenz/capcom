@@ -113,7 +113,12 @@ internal/agents/block_test.go — TestTopNotes_RetiredTopLevelNote_IsLeftOut
 - `grep -rn --include='*.go' --exclude='*_test.go' 'os.ReadFile' internal/issue internal/knowledge/move.go internal/knowledge/remove.go internal/tree/remove.go` prints nothing
 **Commit:** `fix(store): guard the remaining node-file reads`
 
-## 5. Tree resolution refuses a duplicated id or alias
+## 5. Tree resolution refuses a duplicated id or alias — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from the assumed `duplicates map[string][2]string`: `Tree.duplicates` maps each name to the duplicate *Error Load already reports for it (both files in Path and Other), and Resolve returns a copy of it, so the refusal is worded exactly like Load's warning.
+NOTES (2026-10-12): claims are collected from the ids of every walked file and the aliases of the files Load keeps; the aliases of a file dropped as a duplicate id are not read (reading them would add an AliasFunc failure mode to Load), so a name only such a file aliases is not refused here, unlike the index.
+NOTES (2026-10-12): changed outcome — internal/nodestore/move_test.go "duplicate of the moved issue" now gets the duplicate *tree.Error from Resolve instead of the tree.Errors from triage; still a refusal naming the file with nothing moved.
+NOTES (2026-10-12): the `know rm` runCLI test lives in internal/cli/know_rm_test.go, beside the other `know rm` tests, which the item's Files line does not list; the shared fixture and assertion helpers live in rm_test.go.
 
 **What:** Fix: `tree.Load` keeps a duplicate's first file while the index drops both, so `rm`/`mv`/`know rm`/`know mv` act on a node `show` calls absent. Binding: the header's **Duplicates** call. `tree.Resolve`'s only callers are nodestore's `Create` (`--parent`), `Move` (ref, `--parent`) and `Remove` — exactly the tree-resolved writes — so the refusal lives in `tree.Resolve` alone (one deep module, no per-call-site checks). Index-resolved commands (`update`, `close`, `log`, `know update`, `dep`, `related`, `show`) are item 6's; `Edit` is not touched here.
 **Goal:** `(*Tree).Resolve` fails with an `*Error` wrapping `tree.ErrDuplicate`, never `ErrNotFound`, naming two claimant files, when the normalised argument is an id or alias that two or more files claim — before exact, alias or prefix matching; `tree.Load`, its warnings and `Lookup` are unchanged.

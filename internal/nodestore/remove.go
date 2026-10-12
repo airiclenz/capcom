@@ -75,7 +75,8 @@ type plannedRemoval struct {
 // It resolves ref against the Tree it loads, never through the Resolver, and runs, in this order,
 // stopping at the first failure:
 //  1. the Tree load: a tree that cannot be loaded at all fails with its *tree.Error or tree.Errors.
-//  2. the resolution of ref: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped.
+//  2. the resolution of ref: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped, or, for a name two
+//     files claim, a *tree.Error wrapping tree.ErrDuplicate that names both files.
 //  3. triage: a tree problem naming the node's file, its parent's file or one of their children
 //     directories blocks the removal and comes back as the failure, a tree.Errors.
 //  4. the children refusals: a node with children is a *FileError at its file, a children
@@ -93,7 +94,7 @@ func (k *Kind[T]) Remove(ref string, ifMatch string, shouldDropDeps bool) (Remov
 	}
 	node, err := nodes.Resolve(ref)
 	if err != nil {
-		return Removed{}, nil, err
+		return Removed{}, nil, k.resolveFailure(err)
 	}
 	parentPath := ""
 	if parent, isFound := nodes.Lookup(node.ParentID); isFound {

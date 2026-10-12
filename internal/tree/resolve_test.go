@@ -2,6 +2,7 @@ package tree_test
 
 import (
 	"errors"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -176,5 +177,103 @@ func TestLookup_IgnoresPrefixes(t *testing.T) {
 				t.Fatalf("Lookup(%q) found = %v, want %v", testCase.name, found, testCase.isFound)
 			}
 		})
+	}
+}
+
+// loadWithDuplicates loads dir, which holds at least one duplicated id or alias, and fails the test
+// unless Load reports ErrDuplicate together with the tree of what it could place.
+func loadWithDuplicates(t *testing.T, dir string, aliases tree.AliasFunc) *tree.Tree {
+	t.Helper()
+	loaded, err := tree.Load(dir, aliases)
+	if !errors.Is(err, tree.ErrDuplicate) || loaded == nil {
+		t.Fatalf("Load = %v, %v; want a tree and ErrDuplicate", loaded, err)
+	}
+	return loaded
+}
+
+func TestResolve_DuplicatedName_FailsNamingTwoClaimants(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		files   []string
+		aliases map[string][]string
+		arg     string
+		want    [2]string
+	}{
+		{
+			name:  "id in two files",
+			files: []string{"foo.md", "sub.md", "sub/foo.md", "foo-bar.md"},
+			arg:   "foo",
+			want:  [2]string{"foo.md", "sub/foo.md"},
+		},
+		{
+			name:  "citation spelling of an id in two files",
+			files: []string{"foo.md", "sub.md", "sub/foo.md", "foo-bar.md"},
+			arg:   " FOO ",
+			want:  [2]string{"foo.md", "sub/foo.md"},
+		},
+		{
+			name:    "id another file aliases",
+			files:   []string{"foo.md", "baz.md", "foo-bar.md"},
+			aliases: map[string][]string{"baz.md": {"foo"}},
+			arg:     "foo",
+			want:    [2]string{"foo.md", "baz.md"},
+		},
+		{
+			name:    "alias of two files",
+			files:   []string{"bar.md", "baz.md"},
+			aliases: map[string][]string{"bar.md": {"legacy-1"}, "baz.md": {"legacy-1"}},
+			arg:     "legacy-1",
+			want:    [2]string{"bar.md", "baz.md"},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeNodes(t, dir, testCase.files...)
+			loaded := loadWithDuplicates(t, dir, aliasesByFile(testCase.aliases))
+
+			node, err := loaded.Resolve(testCase.arg)
+
+			var problem *tree.Error
+			if !errors.As(err, &problem) || !errors.Is(err, tree.ErrDuplicate) || errors.Is(err, tree.ErrNotFound) {
+				t.Fatalf("Resolve(%q) = %q, %v; want an *Error wrapping ErrDuplicate", testCase.arg, node.ID, err)
+			}
+			for _, file := range testCase.want {
+				path := filepath.Join(dir, filepath.FromSlash(file))
+				if problem.Path != path && problem.Other != path {
+					t.Errorf("Resolve(%q) = %v, want it to name %s", testCase.arg, err, path)
+				}
+			}
+		})
+	}
+}
+
+func TestResolve_DuplicatedName_LeavesOtherNamesAndLookupAlone(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "foo.md", "sub.md", "sub/foo.md", "foo-bar.md")
+	loaded := loadWithDuplicates(t, dir, nil)
+	cases := []struct {
+		arg  string
+		want string
+	}{
+		{"foo-b", "foo-bar"},
+		{"foo-bar", "foo-bar"},
+		{"sub", "sub"},
+	}
+	for _, testCase := range cases {
+		node, err := loaded.Resolve(testCase.arg)
+
+		if err != nil || node.ID != testCase.want {
+			t.Errorf("Resolve(%q) = %q, %v; want %q", testCase.arg, node.ID, err, testCase.want)
+		}
+	}
+
+	node, found := loaded.Lookup("foo")
+
+	if !found || node.Path != filepath.Join(dir, "foo.md") {
+		t.Errorf("Lookup(foo) = %+v, %v; want the first file of the id", node, found)
 	}
 }

@@ -133,6 +133,9 @@ type Tree struct {
 	byID     map[string]int
 	byAlias  map[string]int
 	children map[string][]int
+	// duplicates maps every id or alias two or more files claim to the first problem Load reported
+	// for it, which names two of those files.
+	duplicates map[string]*Error
 }
 
 // ValidateID checks that id is a kebab slug of one to four lowercase words or numbers, at most 40
@@ -174,10 +177,11 @@ func ValidateAlias(alias string) error {
 // AliasFunc error comes back unchanged.
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	tree := &Tree{
-		dir:      dir,
-		byID:     map[string]int{},
-		byAlias:  map[string]int{},
-		children: map[string][]int{},
+		dir:        dir,
+		byID:       map[string]int{},
+		byAlias:    map[string]int{},
+		children:   map[string][]int{},
+		duplicates: map[string]*Error{},
 	}
 	nodes, problems, err := Walk(dir)
 	if err != nil {
@@ -352,16 +356,18 @@ func leftOutFileOf(entry fs.DirEntry, id string) (*leftOutFile, error) {
 }
 
 // indexIDs maps every id to its node and every parent to its children. A repeated id is added to
-// problems and its node dropped, so the first file of the id keeps it.
+// problems and recorded as a duplicate, and its node dropped, so the first file of the id keeps it.
 func (t *Tree) indexIDs(problems *Errors) {
 	kept := t.nodes[:0]
 	for _, node := range t.nodes {
 		if first, taken := t.byID[node.ID]; taken {
-			*problems = append(*problems, &Error{
+			problem := &Error{
 				Path:  node.Path,
 				Other: kept[first].Path,
 				Err:   fmt.Errorf("%w id %q, also at", ErrDuplicate, node.ID),
-			})
+			}
+			*problems = append(*problems, problem)
+			t.recordDuplicate(node.ID, problem)
 			continue
 		}
 		t.byID[node.ID] = len(kept)
@@ -424,8 +430,9 @@ func (e *repeatedAliasError) Unwrap() []error {
 }
 
 // indexAliases reads every node's Aliases and maps each to its node. An alias CheckAliases rejects,
-// or one that repeats another node's id or alias, is added to problems and not mapped. Load has no
-// kind, so a message names the node. It fails only when aliases does.
+// or one that repeats another node's id or alias, is added to problems and not mapped; the latter
+// is also recorded as a duplicate. Load has no kind, so a message names the node. It fails only
+// when aliases does.
 func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 	if aliases == nil {
 		return nil
@@ -440,8 +447,9 @@ func (t *Tree) indexAliases(aliases AliasFunc, problems *Errors) error {
 		kept, rejected := CheckAliases(node.Path, "node", node.ID, names)
 		*problems = append(*problems, rejected...)
 		for _, alias := range kept {
-			if err := t.indexAlias(i, alias); err != nil {
-				*problems = append(*problems, err)
+			if problem := t.indexAlias(i, alias); problem != nil {
+				*problems = append(*problems, problem)
+				t.recordDuplicate(alias, problem)
 			}
 		}
 	}
@@ -470,6 +478,14 @@ func (t *Tree) indexAlias(i int, alias string) *Error {
 	}
 	t.byAlias[alias] = i
 	return nil
+}
+
+// recordDuplicate records problem, which names two files claiming name, as the duplicate of name,
+// unless an earlier problem already is.
+func (t *Tree) recordDuplicate(name string, problem *Error) {
+	if _, isRecorded := t.duplicates[name]; !isRecorded {
+		t.duplicates[name] = problem
+	}
 }
 
 // Dir returns the directory the tree was loaded from.

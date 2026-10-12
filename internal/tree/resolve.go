@@ -46,8 +46,17 @@ func NormalizeArg(arg string) string {
 // a name: an exact id first, then an Alias, then the one id the name is a prefix of. It fails with
 // an *AmbiguousError when the prefix matches several ids, and with ErrNotFound when it matches
 // none; both quote the argument as given.
+//
+// Before any of that, a name that two or more files claim as their id or an alias fails with an
+// *Error wrapping ErrDuplicate that names two of those files, the problem Load reported for it:
+// Load keeps the first file of such a name, but a write must not act on a node another file also
+// answers to.
 func (t *Tree) Resolve(arg string) (Node, error) {
 	name := NormalizeArg(arg)
+	if problem, isDuplicate := t.duplicates[name]; isDuplicate {
+		duplicate := *problem
+		return Node{}, &duplicate
+	}
 	if node, found := t.Lookup(name); found {
 		return node, nil
 	}

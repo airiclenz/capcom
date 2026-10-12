@@ -41,7 +41,8 @@ type Moved struct {
 // It resolves ref and to.Parent against the Tree it loads, never through the Resolver, and runs,
 // in this order, stopping at the first failure:
 //  1. the Tree load: a tree that cannot be loaded at all fails with its *tree.Error or tree.Errors.
-//  2. the resolution of ref, then of to.Parent: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped.
+//  2. the resolution of ref, then of to.Parent: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped,
+//     or, for a name two files claim, a *tree.Error wrapping tree.ErrDuplicate naming both files.
 //  3. the plan: an id another node holds is an *ExistsError; the node file that does not parse, or
 //     any other refusal (an invalid id, a parent inside the node's own subtree), a *FileError.
 //  4. on a rename, a node file inside an orphan directory named the new id or recording it among
@@ -60,7 +61,7 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	}
 	node, err := nodes.Resolve(ref)
 	if err != nil {
-		return Moved{}, nil, err
+		return Moved{}, nil, k.resolveFailure(err)
 	}
 	destination := tree.Destination{ID: node.ID, ParentID: node.ParentID}
 	if to.ID != "" {
@@ -70,7 +71,7 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	if to.IsReparented {
 		parent, err := resolveParent(nodes, to.Parent)
 		if err != nil {
-			return Moved{}, nil, err
+			return Moved{}, nil, k.resolveFailure(err)
 		}
 		destination.ParentID, parentPath = parent.ID, parent.Path
 	}
@@ -114,8 +115,7 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 }
 
 // resolveParent returns the node parent resolves to in nodes, or the zero node, the top of the
-// tree, for "". A parent that does not resolve fails with tree.ErrNotFound or tree.ErrAmbiguous,
-// unwrapped.
+// tree, for "". A parent that does not resolve fails as tree.Resolve does.
 func resolveParent(nodes *tree.Tree, parent string) (tree.Node, error) {
 	if parent == "" {
 		return tree.Node{}, nil

@@ -196,6 +196,21 @@ func TestKnowRm_ChildOfDuplicateParent_Fails(t *testing.T) {
 	}
 }
 
+func TestKnowRm_DuplicatedID_FailsNamingBothFiles(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"testing-rules/release-flow.md": "---\ntitle: Release flow too\n---\n"})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "rm", "release-flow")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode,
+		".capcom/knowledge/release-flow.md", ".capcom/knowledge/testing-rules/release-flow.md")
+	for _, name := range []string{"release-flow.md", "testing-rules/release-flow.md"} {
+		if !noteFileExists(t, root, name) {
+			t.Errorf("%s was removed", name)
+		}
+	}
+}
+
 func TestKnowRm_UnparseableNote_RemovesItsFile(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{"testing-rules/broken-note.md": "no frontmatter\n"})

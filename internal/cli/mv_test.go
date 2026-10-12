@@ -340,3 +340,15 @@ func TestMv_StaleIfMatch_ConflictsAndMovesNothing(t *testing.T) {
 		t.Errorf("the tree changed")
 	}
 }
+
+func TestMv_BelowDuplicatedID_FailsNamingBothFiles(t *testing.T) {
+	root, files := newDuplicateIssueStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "mv", "foo-bar", "--parent", "foo")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	assertIssueFilesUnchanged(t, root, files)
+	if issueFileExists(t, root, "foo/foo-bar.md") {
+		t.Error("foo-bar was moved below the duplicated id")
+	}
+}

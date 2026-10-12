@@ -36,7 +36,8 @@ const problemSeparator = "; "
 //     among its Aliases, which the tree leaves out; then a node file that does not parse but whose
 //     raw frontmatter still lists id as an alias. Each later refusal relies on the earlier ones
 //     having passed.
-//  4. the --parent resolution: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped.
+//  4. the --parent resolution: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped, or, for a name
+//     two files claim, a *tree.Error wrapping tree.ErrDuplicate that names both files.
 //  5. triage: a tree problem naming the new file, the parent's file or the parent's children
 //     directory blocks the write and comes back as the failure, a tree.Errors.
 //  6. build, whose failure is returned as it is.
@@ -60,7 +61,7 @@ func (k *Kind[T]) Create(
 	}
 	path, parentPath, err := newNodePath(nodes, id, parent)
 	if err != nil {
-		return Written{}, nil, err
+		return Written{}, nil, k.resolveFailure(err)
 	}
 	warnings, err := k.triage(problems, k.relative(path), k.relative(parentPath))
 	if err != nil {
@@ -249,7 +250,7 @@ func nodeID(path string) string {
 
 // newNodePath returns the file of the new node id, below the node parent resolves to or at the top
 // of the tree when parent is "", and the file of that parent node, "" at the top. A parent that
-// does not resolve fails with tree.ErrNotFound or tree.ErrAmbiguous, unwrapped.
+// does not resolve fails as tree.Resolve does.
 func newNodePath(nodes *tree.Tree, id string, parent string) (string, string, error) {
 	parentNode := tree.Node{}
 	if parent != "" {
@@ -305,6 +306,16 @@ func isBlockingProblem(problem *tree.Error, targets []string) bool {
 		}
 	}
 	return false
+}
+
+// resolveFailure returns err, a failure of tree.Resolve, with the files of a duplicate's *tree.Error
+// relative to the working tree root; any other failure comes back as it is.
+func (k *Kind[T]) resolveFailure(err error) error {
+	var problem *tree.Error
+	if errors.As(err, &problem) {
+		return k.relativeTreeError(problem)
+	}
+	return err
 }
 
 // relativeTreeError returns a copy of problem whose Path and Other are relative to the working tree

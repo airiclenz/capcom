@@ -335,3 +335,54 @@ func TestRm_DropDeps_FileHoldingDepAndRelated_LosesBoth(t *testing.T) {
 	}
 	assertCheckPasses(t, root)
 }
+
+// newDuplicateIssueStore creates an issue store where foo.md and sub-issue/foo.md share the id foo
+// beside foo-bar, and returns its root and the content of every issue file by slash path.
+func newDuplicateIssueStore(t *testing.T) (string, map[string]string) {
+	t.Helper()
+	files := map[string]string{
+		"foo.md":           readIssue("Foo", "open", "", ""),
+		"foo-bar.md":       readIssue("Foo bar", "open", "", ""),
+		"sub-issue.md":     readIssue("Sub issue", "open", "", ""),
+		"sub-issue/foo.md": readIssue("Foo too", "open", "", ""),
+	}
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, files)
+	return root, files
+}
+
+// assertDuplicateRefusal fails the test unless a command exited 1 with stderr naming every one of
+// paths, relative to the working tree root, and no absolute path inside root.
+func assertDuplicateRefusal(t *testing.T, root string, stderr string, exitCode int, paths ...string) {
+	t.Helper()
+	if exitCode != ExitError || !strings.Contains(stderr, "duplicate") {
+		t.Errorf("exit = %d stderr = %q, want 1 and a duplicate refusal", exitCode, stderr)
+	}
+	for _, path := range paths {
+		if !strings.Contains(stderr, path) {
+			t.Errorf("stderr = %q, want it to name %s", stderr, path)
+		}
+	}
+	if strings.Contains(stderr, root) {
+		t.Errorf("stderr = %q names an absolute path", stderr)
+	}
+}
+
+// assertIssueFilesUnchanged fails the test unless every issue file of files still holds its content.
+func assertIssueFilesUnchanged(t *testing.T, root string, files map[string]string) {
+	t.Helper()
+	for name, content := range files {
+		if got := readStoreFile(t, root, name); got != content {
+			t.Errorf("%s = %q, want it unchanged", name, got)
+		}
+	}
+}
+
+func TestRm_DuplicatedID_FailsNamingBothFiles(t *testing.T) {
+	root, files := newDuplicateIssueStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "rm", "foo")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	assertIssueFilesUnchanged(t, root, files)
+}

@@ -140,6 +140,26 @@ func TestRemove_Refusals_RemoveNothing(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "duplicated id",
+			ref:  "fix-parser",
+			setup: func(t *testing.T, dir string) {
+				writeNodeFile(t, dir, "zz-other.md", plainIssue)
+				writeNodeFile(t, filepath.Join(dir, "zz-other"), "fix-parser.md", plainIssue)
+			},
+			assert: func(t *testing.T, err error) {
+				t.Helper()
+				var duplicate *tree.Error
+				if !errors.As(err, &duplicate) || !errors.Is(err, tree.ErrDuplicate) || errors.Is(err, tree.ErrNotFound) {
+					t.Fatalf("err = %v, want a *tree.Error wrapping tree.ErrDuplicate", err)
+				}
+				for _, path := range []string{removedIssuePath, ".capcom/issues/zz-other/fix-parser.md"} {
+					if duplicate.Path != path && duplicate.Other != path {
+						t.Errorf("err = %v, want it to name %s", err, path)
+					}
+				}
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
