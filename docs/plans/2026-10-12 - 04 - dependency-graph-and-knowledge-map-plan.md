@@ -265,7 +265,11 @@ internal/cli/know_test.go — TestKnowTree_DepthAndStart_LimitTheOutline, newRet
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Know|DocFileMap'`
 **Commit:** `feat(know): show where tree --depth cut children`
 
-## 9. dep list walks to a depth
+## 9. dep list walks to a depth — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the `... <n> more (--depth <d>)` hint prints only when `--depth` is given (an explicit `--depth 1` included). Without the flag the output stays byte for byte as it was, as the Goal and the dep-list-depth Acceptance require.
+NOTES (2026-10-12): the listed issue, when a cycle or self-dep leads back to it, prints as its full issue line without a branch, not as `(see above)`, because it is never printed in a section. A dep the file repeats (by id or alias) prints in full each time at depth 1, and only the first one carries its branch.
+NOTES (2026-10-12): dep list JSON items mirror the text lines, so a `(see above)` issue is an item again with its own `via` (the diamond's shared issue appears twice). JSON gets no `more` field because the Goal names only `depth` and `via`.
 
 **What:**
 **Goal:** `capcom dep list <id> --depth N` prints both sections, `deps:` and `dependents:`, as

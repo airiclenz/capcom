@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -84,6 +86,188 @@ func TestDepList_Issue_ShowsDepsAndDependents(t *testing.T) {
 		"  login-flow  open  P2  Login flow\n"
 	if stdout != want {
 		t.Errorf("stdout = %q\nwant     %q", stdout, want)
+	}
+}
+
+// newDepChainStore creates a store with the chain chain-a -> chain-b -> chain-c -> chain-d.
+func newDepChainStore(t *testing.T) string {
+	t.Helper()
+	return newIssueStore(t, map[string]string{
+		"chain-a.md": readIssue("A", "open", "deps: [chain-b]\n", ""),
+		"chain-b.md": readIssue("B", "open", "deps: [chain-c]\n", ""),
+		"chain-c.md": readIssue("C", "open", "deps: [chain-d]\n", ""),
+		"chain-d.md": readIssue("D", "open", "", ""),
+	})
+}
+
+func TestDepList_Depth_WalksThatManyLevels(t *testing.T) {
+	root := newDepChainStore(t)
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "deps at depth 2 hint the cut level",
+			args: []string{"chain-a", "--depth", "2"},
+			want: "deps:\n" +
+				"  chain-b  open  P2  B\n" +
+				"    chain-c  open  P2  C\n" +
+				"      ... 1 more (--depth 3)\n" +
+				"dependents:\n",
+		},
+		{
+			name: "deps at depth 0 show every level",
+			args: []string{"chain-a", "--depth", "0"},
+			want: "deps:\n" +
+				"  chain-b  open  P2  B\n" +
+				"    chain-c  open  P2  C\n" +
+				"      chain-d  open  P2  D\n" +
+				"dependents:\n",
+		},
+		{
+			name: "dependents at depth 2 hint the cut level",
+			args: []string{"chain-d", "--depth", "2"},
+			want: "deps:\n" +
+				"dependents:\n" +
+				"  chain-c  open  P2  C\n" +
+				"    chain-b  open  P2  B\n" +
+				"      ... 1 more (--depth 3)\n",
+		},
+		{
+			name: "explicit depth 1 hints the cut level",
+			args: []string{"chain-b", "--depth", "1"},
+			want: "deps:\n" +
+				"  chain-c  open  P2  C\n" +
+				"    ... 1 more (--depth 2)\n" +
+				"dependents:\n" +
+				"  chain-a  open  P2  A\n",
+		},
+		{
+			name: "default prints the direct deps and dependents alone",
+			args: []string{"chain-b"},
+			want: "deps:\n" +
+				"  chain-c  open  P2  C\n" +
+				"dependents:\n" +
+				"  chain-a  open  P2  A\n",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			stdout := mustRun(t, root, append([]string{"dep", "list"}, testCase.args...)...)
+
+			if stdout != testCase.want {
+				t.Errorf("stdout = %q\nwant     %q", stdout, testCase.want)
+			}
+		})
+	}
+}
+
+func TestDepList_Diamond_PrintsTheSharedIssueOnceThenSeeAbove(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"top.md":   readIssue("Top", "open", "deps: [left, right]\n", ""),
+		"left.md":  readIssue("Left", "open", "deps: [base]\n", ""),
+		"right.md": readIssue("Right", "open", "deps: [base]\n", ""),
+		"base.md":  readIssue("Base", "open", "", ""),
+	})
+
+	stdout := mustRun(t, root, "dep", "list", "top", "--depth", "0")
+	jsonOut := mustRun(t, root, "dep", "list", "--json", "top", "--depth", "0")
+
+	want := "deps:\n" +
+		"  left  open  P2  Left\n" +
+		"    base  open  P2  Base\n" +
+		"  right  open  P2  Right\n" +
+		"    base  (see above)\n" +
+		"dependents:\n"
+	if stdout != want {
+		t.Errorf("stdout = %q\nwant     %q", stdout, want)
+	}
+	data, _ := decodeEnvelope(t, jsonOut)["data"].(map[string]any)
+	deps, _ := data["deps"].([]any)
+	var got []string
+	for _, item := range deps {
+		fields := item.(map[string]any)
+		got = append(got, fmt.Sprintf("%v@%v<%v", fields["id"], fields["depth"], fields["via"]))
+	}
+	wantItems := []string{"left@1<", "base@2<left", "right@1<", "base@2<right"}
+	if !slices.Equal(got, wantItems) {
+		t.Errorf("deps items = %v, want %v", got, wantItems)
+	}
+}
+
+func TestDepList_NegativeDepth_FailsUsage(t *testing.T) {
+	root := newDepChainStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "dep", "list", "chain-a", "--depth", "-1")
+
+	if exitCode != ExitUsage || !strings.Contains(stderr, "--depth must be 0 (every level) or more") {
+		t.Errorf("exit = %d stderr = %q", exitCode, stderr)
+	}
+}
+
+func TestDepList_MissingDepBeforeResolved_PrintsInFileOrder(t *testing.T) {
+	root := newDepChainStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"chain-b.md": readIssue("B", "open", "deps: [gone-issue, chain-c]\n", ""),
+	})
+
+	stdout := mustRun(t, root, "dep", "list", "chain-b", "--depth", "2")
+
+	want := "deps:\n" +
+		"  gone-issue  missing\n" +
+		"  chain-c  open  P2  C\n" +
+		"    chain-d  open  P2  D\n" +
+		"dependents:\n" +
+		"  chain-a  open  P2  A\n"
+	if stdout != want {
+		t.Errorf("stdout = %q\nwant     %q", stdout, want)
+	}
+}
+
+func TestDepList_DuplicateAndSelfDep_PrintVerbatimAtDepthOne(t *testing.T) {
+	root := newDepChainStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"chain-b.md": readIssue("B", "open", "deps: [chain-c, chain-b, chain-c]\n", ""),
+	})
+
+	stdout := mustRun(t, root, "dep", "list", "chain-b", "--depth", "0")
+
+	want := "deps:\n" +
+		"  chain-c  open  P2  C\n" +
+		"    chain-d  open  P2  D\n" +
+		"  chain-b  open  P2  B\n" +
+		"  chain-c  open  P2  C\n" +
+		"dependents:\n" +
+		"  chain-a  open  P2  A\n" +
+		"  chain-b  open  P2  B\n"
+	if stdout != want {
+		t.Errorf("stdout = %q\nwant     %q", stdout, want)
+	}
+}
+
+func TestDepList_OtherCommandsJSON_CarryNoDepthOrVia(t *testing.T) {
+	root := newDepChainStore(t)
+
+	listOut := mustRun(t, root, "list", "--json")
+	showOut := mustRun(t, root, "show", "--json", "chain-a")
+
+	listed, _ := decodeEnvelope(t, listOut)["data"].([]any)
+	shown, _ := decodeEnvelope(t, showOut)["data"].(map[string]any)
+	items := []map[string]any{shown}
+	for _, item := range listed {
+		items = append(items, item.(map[string]any))
+	}
+	if len(items) != 5 {
+		t.Fatalf("got %d items, want 4 listed and 1 shown", len(items))
+	}
+	for _, item := range items {
+		if _, hasDepth := item["depth"]; hasDepth {
+			t.Errorf("%v carries depth", item["id"])
+		}
+		if _, hasVia := item["via"]; hasVia {
+			t.Errorf("%v carries via", item["id"])
+		}
 	}
 }
 
