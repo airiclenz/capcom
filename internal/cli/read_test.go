@@ -559,3 +559,14 @@ func TestKV_SupportingCommands_ListKVAndEndWithStatus(t *testing.T) {
 		})
 	}
 }
+
+func TestShow_DuplicatedID_FailsNamingBothFiles(t *testing.T) {
+	root, _ := newDuplicateIssueStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "foo")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	if stdout != "" {
+		t.Errorf("stdout = %q, want nothing shown", stdout)
+	}
+}

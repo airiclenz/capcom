@@ -119,3 +119,27 @@ func TestDepRm_DanglingDep_RemovesItByItsText(t *testing.T) {
 		t.Errorf("login-flow.md = %q", content)
 	}
 }
+
+func TestDepRm_IDOfInvalidFile_RemovesTheExactEntry(t *testing.T) {
+	root, _ := newInvalidFooStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"dependent.md": readIssue("Dependent", "open", "deps: [foo, foo-bar]\n", ""),
+	})
+
+	mustRun(t, root, "dep", "rm", "dependent", "foo")
+
+	if content := readStoreFile(t, root, "dependent.md"); !strings.Contains(content, "deps: [foo-bar]\n") {
+		t.Errorf("dependent.md = %q", content)
+	}
+}
+
+func TestDepRm_DuplicatedDep_FailsNamingBothFilesAndWritesNothing(t *testing.T) {
+	root, files := newDuplicateIssueStore(t)
+	files["dependent.md"] = readIssue("Dependent", "open", "deps: [foo, foo-bar]\n", "")
+	writeIssueFiles(t, root, files)
+
+	_, stderr, exitCode := runCLI(t, root, "dep", "rm", "dependent", "foo")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	assertIssueFilesUnchanged(t, root, files)
+}

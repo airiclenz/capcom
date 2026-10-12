@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -164,6 +165,85 @@ func TestResolve_AmbiguousPrefix_ListsCandidates(t *testing.T) {
 	var ambiguous *tree.AmbiguousError
 	if !errors.As(err, &ambiguous) || !slices.Equal(ambiguous.Candidates, []string{"login-bug", "login-flow"}) {
 		t.Errorf("Resolve err = %v, want ambiguous between login-bug and login-flow", err)
+	}
+}
+
+func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T) {
+	t.Parallel()
+	aliasing := func(title, alias string) string {
+		return issueWith(title, "open", "aliases: ["+alias+"]\n")
+	}
+	cases := []struct {
+		name      string
+		files     map[string]string
+		isInvalid bool
+		paths     []string
+	}{
+		{
+			name:  "duplicated id",
+			files: map[string]string{"foo.md": issueText("A", "open", ""), "foo-bar/foo.md": issueText("B", "open", "")},
+			paths: []string{".capcom/issues/foo.md", ".capcom/issues/foo-bar/foo.md"},
+		},
+		{
+			name:  "id another issue aliases",
+			files: map[string]string{"foo.md": issueText("A", "open", ""), "baz.md": aliasing("Baz", "foo")},
+			paths: []string{".capcom/issues/baz.md", ".capcom/issues/foo.md"},
+		},
+		{
+			name:  "id of an issue left out for its alias",
+			files: map[string]string{"foo.md": aliasing("A", "qux"), "qux.md": issueText("Qux", "open", "")},
+			paths: []string{".capcom/issues/foo.md", ".capcom/issues/qux.md"},
+		},
+		{
+			name:      "invalid file",
+			files:     map[string]string{"foo.md": "---\nstatus: open\n---\n"},
+			isInvalid: true,
+			paths:     []string{".capcom/issues/foo.md"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			writeIssue(t, s, "foo-bar.md", issueText("Foo bar", "open", ""))
+			for name, content := range tc.files {
+				writeIssue(t, s, name, content)
+			}
+			x := openIndex(t, s)
+			refresh(t, x)
+
+			_, err := x.Resolve("Foo")
+			prefixed, prefixErr := x.Resolve("fo")
+
+			if errors.Is(err, tree.ErrNotFound) != tc.isInvalid || errors.Is(err, tree.ErrDuplicate) == tc.isInvalid {
+				t.Errorf("Resolve(Foo) err = %v, want invalid %v", err, tc.isInvalid)
+			}
+			for _, path := range tc.paths {
+				if err == nil || !strings.Contains(err.Error(), path) {
+					t.Errorf("Resolve(Foo) err = %v, want it to name %s", err, path)
+				}
+			}
+			if prefixErr != nil || prefixed.ID != "foo-bar" {
+				t.Errorf("Resolve(fo) = %q, %v; want foo-bar", prefixed.ID, prefixErr)
+			}
+		})
+	}
+}
+
+func TestResolveNote_DuplicatedID_RefusesInsteadOfPrefixMatching(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "foo-bar.md", "---\ntitle: Foo bar\n---\n")
+	writeNote(t, s, "foo.md", "---\ntitle: A\n---\n")
+	writeNote(t, s, "foo-bar/foo.md", "---\ntitle: B\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	_, err := x.ResolveNote("foo")
+
+	if !errors.Is(err, tree.ErrDuplicate) || errors.Is(err, tree.ErrNotFound) {
+		t.Errorf("ResolveNote(foo) err = %v, want ErrDuplicate", err)
 	}
 }
 

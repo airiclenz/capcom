@@ -129,7 +129,8 @@ func (x *Index) Note(id string) (entry NoteEntry, found bool, err error) {
 // id, then an Alias, then the one id the argument is a prefix of. A retired Note, or one under a
 // retired ancestor, resolves like any other. It fails with an error matching
 // tree.ErrNotFound when nothing matches, and with a *tree.AmbiguousError when the prefix matches
-// several ids.
+// several ids. A name only a Note left out as a duplicate answers to, or the id of an invalid
+// Note file, fails as Resolve says, never as a prefix.
 func (x *Index) ResolveNote(arg string) (NoteEntry, error) {
 	id, err := x.resolveID(noteNodes, arg)
 	if err != nil {

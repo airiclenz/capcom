@@ -703,3 +703,12 @@ func TestCreate_OrphanDirectoryWithOtherAlias_WritesAndWarns(t *testing.T) {
 		t.Errorf("stdout = %q stderr = %q, want a warning containing %q", stdout, stderr, want)
 	}
 }
+
+func TestUpdate_DuplicatedID_FailsNamingBothFilesAndLeavesThePrefixMatchUnchanged(t *testing.T) {
+	root, files := newDuplicateIssueStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "update", "foo", "--title", "y")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	assertIssueFilesUnchanged(t, root, files)
+}

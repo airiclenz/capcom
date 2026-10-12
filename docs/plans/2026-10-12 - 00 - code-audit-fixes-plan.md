@@ -133,7 +133,13 @@ Existing duplicate tests (mv, know mv/rm, nodestore, create, check, tree) keep t
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Mv|Rm|Create|KnowAdd|KnowMv|KnowRm'`
 **Commit:** `fix(tree): refuse a duplicated id or alias when resolving for a write`
 
-## 6. Id resolution refuses a name that exactly matches an excluded node
+## 6. Id resolution refuses a name that exactly matches an excluded node — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the duplicate error for a name only one left-out node claims (it was left out for a clash on another of its names) names that clash, e.g. `foo.md: duplicate alias "qux": also the id of qux.md`, so it is still a *tree.Error wrapping tree.ErrDuplicate that names two files; the wording mirrors the refresh's duplicate warning.
+NOTES (2026-10-12): the invalid-file error reads `id "foo" not found: .capcom/issues/foo.md is invalid`; the invalid file's files row is matched by kind and problems IS NOT NULL in SQL and by path.Base == name+".md" in Go, no LIKE.
+NOTES (2026-10-12): consequential edit — internal/index/notes.go: made necessary by the new refusal in resolveID, which ResolveNote's doc comment now states.
+NOTES (2026-10-12): consequential edit — docs/format.md: made necessary by the new refusal in resolveID; "Naming a node" now says an exact name of a left-out duplicate or an invalid file is never matched as a prefix.
+NOTES (2026-10-12): no internal/cli code changed: a duplicate *tree.Error already falls through resolveFailure to asError (exit 1, and multi-id `show`/`close` stop at it), and dep rm/related rm treat only tree.ErrNotFound as the exact-text case.
 
 **What:** `resolveID` prefix-matches when the exact id is excluded, so `close foo` with a duplicate `foo` mutates `foo-bar`. Covers every index-resolved command (`update`, `close`, `log`, `know update` via `issueResolver`/`ResolveNote`; `dep`, `related`, `show`). Depends on item 5.
 **Regression guard.** A duplicate-excluded exact name returns the same kind of error as item 5's refusal (exit 1, `tree.ErrDuplicate`, not `ErrNotFound`, both files relative); `dep rm`, `related rm`, multi-id `show` stop at it. Only the invalid-file case wraps `tree.ErrNotFound`, quoting arg as typed, so `dep rm`/`related rm` drop the exact-text entry and `show a foo b` goes on. Match an invalid file's `files` row by `kind = ? AND problems IS NOT NULL` and base name == name+".md", no LIKE.

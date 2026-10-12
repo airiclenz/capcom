@@ -134,3 +134,36 @@ func TestReopen_OpenIssue_FailsInvalid(t *testing.T) {
 		t.Errorf("exit = %d stderr = %q", exitCode, stderr)
 	}
 }
+
+// newInvalidFooStore creates an issue store where foo.md is invalid beside a valid foo-bar, and
+// returns its root and the content of every issue file by slash path.
+func newInvalidFooStore(t *testing.T) (string, map[string]string) {
+	t.Helper()
+	files := map[string]string{
+		"foo.md":     "---\nstatus: open\n---\n",
+		"foo-bar.md": readIssue("Foo bar", "open", "", ""),
+	}
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, files)
+	return root, files
+}
+
+func TestClose_IDOfInvalidFile_FailsNotFoundAndLeavesThePrefixMatchOpen(t *testing.T) {
+	root, files := newInvalidFooStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "close", "foo", "--reason", "x")
+
+	if exitCode != ExitNotFound || !strings.Contains(stderr, `id "foo" not found: .capcom/issues/foo.md`) {
+		t.Errorf("exit = %d stderr = %q, want not found naming foo.md", exitCode, stderr)
+	}
+	assertIssueFilesUnchanged(t, root, files)
+}
+
+func TestClose_DuplicatedID_FailsNamingBothFilesAndLeavesThePrefixMatchOpen(t *testing.T) {
+	root, files := newDuplicateIssueStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "close", "foo", "--reason", "x")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	assertIssueFilesUnchanged(t, root, files)
+}
