@@ -452,7 +452,7 @@ elsewhere:
 - **plans** — the directories a `plan:` basename is looked up in, in order.
 - **ready.hide** — labels whose issues `ready` leaves out by default.
 - **lock.ttl** — a positive duration (`2h`, `90m`).
-- **elsewhere.days** — a whole number of days, 0 or more. The Elsewhere scan reads local and
+- **elsewhere.days** — a whole number of days, 0 to 36500. The Elsewhere scan reads local and
   remote-tracking branches whose tip is newer than this. capcom never fetches, so a
   remote-tracking branch is as fresh as the last `git fetch`.
 

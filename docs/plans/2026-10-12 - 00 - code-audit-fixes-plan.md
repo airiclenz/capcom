@@ -182,7 +182,9 @@ internal/cli/mv_test.go — TestMv_Parent_MovesBelowThenToTop, newMoveStore; int
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Mv|Move'`
 **Commit:** `fix(cli): refuse an empty --parent instead of moving to the top`
 
-## 9. `elsewhere.days` above 36500 is a config error
+## 9. `elsewhere.days` above 36500 is a config error — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the error for a negative, fractional or non-numeric `elsewhere.days` now also reads "expected a whole number of days, 0 to 36500" (was "0 or more"), since one check covers every invalid value; the `Elsewhere.Days` doc comment says "0 to maxElsewhereDays".
 
 **What:** A large `elsewhere.days` overflows the cutoff and silences the Elsewhere scan.
 **Goal:** `elsewhere.days` above `maxElsewhereDays = 36500` fails to load with an error naming the config file, line and bound; 36500 loads; the `docs/format.md` bullet says "0 to 36500".

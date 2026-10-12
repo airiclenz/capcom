@@ -283,6 +283,8 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 		{"negative ttl", "lock:\n  ttl: -1h\n", 2},
 		{"negative days", "elsewhere:\n  days: -2\n", 2},
 		{"fractional days", "elsewhere:\n  days: 1.5\n", 2},
+		{"days just above the bound", "elsewhere:\n  days: 36501\n", 2},
+		{"days far above the bound", "elsewhere:\n  days: 999999\n", 2},
 		{"plans not a list", "\nplans: docs/plans\n", 2},
 		{"not a mapping", "- open\n", 1},
 		{"format zero", "format: 0\n", 1},
@@ -305,6 +307,26 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 				t.Errorf("error at %s:%d (%v), want %s:%d", failure.Path, failure.Line, err, testPath, testCase.wantLine)
 			}
 		})
+	}
+}
+
+func TestParse_ElsewhereDaysAtBound_Loads(t *testing.T) {
+	t.Parallel()
+
+	config, err := Parse(testPath, []byte("elsewhere:\n  days: 36500\n"))
+
+	if err != nil || config.Elsewhere.Days != 36500 {
+		t.Errorf("Parse = elsewhere.days %d, %v; want 36500, nil", config.Elsewhere.Days, err)
+	}
+}
+
+func TestParse_ElsewhereDaysAboveBound_ErrorNamesBound(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse(testPath, []byte("elsewhere:\n  days: 36501\n"))
+
+	if err == nil || !strings.Contains(err.Error(), "0 to 36500") {
+		t.Errorf("err = %v, want an error naming the bound 0 to 36500", err)
 	}
 }
 

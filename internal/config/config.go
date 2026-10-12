@@ -67,6 +67,10 @@ const (
 	defaultElsewhereDays = 30
 )
 
+// maxElsewhereDays bounds elsewhere.days at about a century: a larger window overflows the
+// Elsewhere scan's cutoff duration and silences the scan.
+const maxElsewhereDays = 36500
+
 // DefaultFile is the config.yaml `capcom init` writes. It parses to Default().
 const DefaultFile = `# capcom configuration. Every key is optional; a missing key takes the value shown here.
 
@@ -136,7 +140,7 @@ type Lock struct {
 
 // Elsewhere configures the scan of other local and remote-tracking branches.
 type Elsewhere struct {
-	// Days is the age, in days, beyond which a branch tip is ignored. Never negative.
+	// Days is the age, in days, beyond which a branch tip is ignored. 0 to maxElsewhereDays.
 	Days int
 }
 
@@ -476,8 +480,8 @@ func (p parser) elsewhere(value *yaml.Node, config *Config) error {
 			return p.errorAt(key, "unknown key %q in %s", key.Value, keyElsewhere)
 		}
 		days, err := strconv.Atoi(setting.Value)
-		if setting.Kind != yaml.ScalarNode || err != nil || days < 0 {
-			return p.errorAt(setting, "elsewhere.days: expected a whole number of days, 0 or more")
+		if setting.Kind != yaml.ScalarNode || err != nil || days < 0 || days > maxElsewhereDays {
+			return p.errorAt(setting, "elsewhere.days: expected a whole number of days, 0 to %d", maxElsewhereDays)
 		}
 		config.Elsewhere.Days = days
 		return nil
