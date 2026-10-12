@@ -19,8 +19,8 @@ and answers the agents' questions about the project, all from plain files that l
 itself.
 
 **Contents:** [Why](#why) · [Features](#what-it-does) · [Works with](#works-with-any-coding-agent) ·
-[Install](#install) · [Quick start](#quick-start) · [Commands](#usage) · [FAQ](#faq) ·
-[License](#license)
+[Install](#install) · [Quick start](#quick-start) · [Commands](#usage) ·
+[Non-goals](#non-goals) · [FAQ](#faq) · [License](#license)
 
 ## Why
 
@@ -194,6 +194,20 @@ The binary is `capcom`. If you want a shorter command, a **shell alias** such as
 `alias cc=capcom` works well. Don't install a binary or symlink named `cc`, though: that name
 belongs to the system C compiler, and build tools call it.
 
+## Non-goals
+
+capcom stays one binary over files in git. Each feature below would bring back a second store, a
+background process or a sync chore, the problems capcom exists to remove, so none of them will be
+added:
+
+- **A server, multi-writer mode or hosting.** The files in the repository are the only store. A
+  server would hold a second copy that has to be kept in step with them; git branches and merges
+  already let several people and agents write at once.
+- **A daemon or background sync.** capcom runs only while a command runs. The index refreshes
+  itself on the next command, and capcom never fetches, pushes or merges.
+- **Notifications.** capcom sends nothing. `capcom prime` and the other-branch warnings show what
+  changed when an agent asks.
+
 ## FAQ
 
 **Does capcom need a server, an account or a database?**
@@ -203,6 +217,39 @@ the git directory, never committed, and rebuilt on demand.
 **How does a team or several agents share issues?**
 Through git, like the code: push, pull and merge. Each issue is its own file, so changes to
 different issues merge without conflicts, and `capcom check` validates the result after a merge.
+A `post-merge` git hook can run it after every merge
+([docs/format.md](docs/format.md#checking-the-store-after-every-merge)).
+
+**Can CI check the issue and Note files?**
+Yes. `capcom check` fails on any problem in the store, and `capcom fmt --check` fails when a file
+is not in canonical form; neither writes a file. A minimal GitHub Actions workflow, saved as
+`.github/workflows/capcom.yml`:
+
+```yaml
+name: capcom
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go install github.com/airiclenz/capcom/cmd/capcom@latest
+      - run: capcom check
+      - run: capcom fmt --check
+```
+
+Replace `latest` with a release tag such as `v0.3.0` to pin the version CI runs.
 
 **What happens when two branches log on the same issue?**
 Both append to its `## Log`, and git's normal merge stops on a conflict there.

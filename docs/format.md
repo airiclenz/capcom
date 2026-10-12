@@ -255,6 +255,24 @@ Commit `.gitattributes`. A clone without the config ignores the `merge=capcom-lo
 merges issue files with git's normal text merge, so a Log conflict there is resolved by hand as
 above.
 
+#### Checking the store after every merge
+
+A merge without a conflict can still leave the store broken: one branch removes an issue that the
+other branch made a dependency of, for example. git runs a `post-merge` hook after every merge
+that completes, including a `git pull` that merges, and a hook that runs `capcom check` lists each
+such problem as `path:line: message`:
+
+```sh
+#!/bin/sh
+capcom check
+```
+
+Save it as `.git/hooks/post-merge`, or in the directory `core.hooksPath` names when that is set,
+and make it executable. git does not version hooks, so every clone installs it once; capcom
+installs no hooks itself. The hook cannot undo the merge: fix what it reports in a new commit.
+git does not run it when the merge stops on a conflict, or for `git pull --rebase`; run
+`capcom check` yourself then, as in step 3 above.
+
 ## Note files
 
 A **Note** is one fact about the repository that an agent pulls up on demand: a convention, a
