@@ -28,6 +28,9 @@ type Kind[T any] struct {
 	// resolver resolves an argument naming an existing node; it may be nil for a caller that
 	// never resolves one.
 	resolver Resolver
+	// applyMove carries out a planned move; a test swaps it to inject a failure of the renames and
+	// rewrites Apply makes.
+	applyMove func(move *tree.Move) error
 }
 
 // Resolver resolves an argument naming an existing node, its id or one of its Aliases, to that
@@ -59,6 +62,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		dir:          s.IssuesDir(),
 		worktreeRoot: s.WorktreeRoot,
 		resolver:     resolver,
+		applyMove:    (*tree.Move).Apply,
 	}
 }
 
@@ -70,6 +74,7 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		dir:          s.KnowledgeDir(),
 		worktreeRoot: s.WorktreeRoot,
 		resolver:     resolver,
+		applyMove:    (*tree.Move).Apply,
 	}
 }
 

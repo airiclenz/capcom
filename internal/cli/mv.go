@@ -1,15 +1,11 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/edit"
-	"github.com/airiclenz/capcom/internal/frontmatter"
-	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -17,132 +13,94 @@ import (
 // rootParentArg is the --parent value of capcom mv that moves an issue to the top of the tree.
 const rootParentArg = "."
 
-// applyMove carries out a planned move for mv and know mv; a test swaps it to inject a failure of
-// the renames and rewrites Apply makes.
-var applyMove = (*tree.Move).Apply
+// mvOptions holds the flags of one capcom mv.
+type mvOptions struct {
+	parent       string
+	isReparented bool
+	ifMatch      string
+}
 
 // newMvCommand renames an issue, moves it below another, or both. A rename keeps the old id as an
 // Alias and rewrites every deps entry that named the issue; the issue's subtree moves with it.
 // capcom moves files with a plain file-system rename and never runs git.
 func (a *app) newMvCommand() *cobra.Command {
-	var parent string
+	options := &mvOptions{}
 	cmd := &cobra.Command{
-		Use:         "mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>]",
+		Use:         "mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if-match <etag>]",
 		Short:       "Rename an issue or move it below another",
 		Args:        cobra.RangeArgs(1, 2),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			isReparented := cmd.Flags().Changed(flagParent)
-			if len(args) == 1 && !isReparented {
+			options.isReparented = cmd.Flags().Changed(flagParent)
+			if len(args) == 1 && !options.isReparented {
 				return UsageErrorf("mv needs a new id, --parent, or both")
 			}
-			result, err := a.move(args, parent, isReparented)
+			result, err := a.move(args, options)
 			if err != nil {
 				return err
 			}
 			return a.emit(cmd, result)
 		}),
 	}
-	cmd.Flags().StringVar(&parent, flagParent, "", "move the issue below this one; . moves it to the top of the tree")
+	flags := cmd.Flags()
+	flags.StringVar(&options.parent, flagParent, "", "move the issue below this one; . moves it to the top of the tree")
+	flags.StringVar(&options.ifMatch, flagIfMatch, "", "only move when the file's etag is this one (see show)")
 	return a.withKV(cmd)
 }
 
-// move resolves the issue args[0] names and moves it to the new id args[1], when given, and below
-// parent, when isReparented. The result names the issue's new id, path and etag, with a warning
+// move moves the issue args[0] names to the new id args[1], when given, and below options.parent,
+// when reparented. It refuses with conflict, before anything moves, when --if-match is set and is
+// not the issue file's etag. The result names the issue's new id, path and etag, with a warning
 // for every tree problem that concerns neither the issue, its new path nor the new parent, and for
 // every issue file whose deps could not be checked.
-func (a *app) move(args []string, parent string, isReparented bool) (Result, error) {
-	issueStore := nodestore.Issues(a.store, nil)
-	issues, err := tree.Load(a.store.IssuesDir(), issueStore.ReadAliases)
-	problems, err := a.treeProblems(err)
+func (a *app) move(args []string, options *mvOptions) (Result, error) {
+	moved, problems, err := nodestore.Issues(a.store, nil).Move(
+		args[0],
+		moveDestination(args, options.parent, options.isReparented),
+		options.ifMatch,
+	)
 	if err != nil {
-		return Result{}, err
+		return Result{}, kindFailure(err)
 	}
-	node, err := resolveNode(issues, args[0])
-	if err != nil {
-		return Result{}, err
-	}
-	destination := tree.Destination{ID: node.ID, ParentID: node.ParentID}
-	if len(args) == 2 {
-		destination.ID = args[1]
-	}
-	if isReparented {
-		if destination.ParentID, err = resolveParent(issues, parent); err != nil {
-			return Result{}, err
-		}
-	}
-
-	move, err := issue.PlanMove(issues, node.ID, destination)
-	if err != nil {
-		return Result{}, a.moveFailure(err, node)
-	}
-	resolvedParentID := ""
-	if isReparented {
-		resolvedParentID = destination.ParentID
-	}
-	warned, err := a.triageMoveProblems(issues, problems, move.Move, resolvedParentID, issueStore.ReadAliases)
-	if err != nil {
-		return Result{}, err
-	}
-	if move.NewID != move.Node.ID {
-		// PlanMove has parsed the moved issue's file, so the holder found is another issue's.
-		err := a.unparsedAliasFailure(issues, problems, move.NewID, issueNoun, issueStore.RecoverAliases)
-		if err != nil {
-			return Result{}, err
-		}
-	}
-	if err := applyMove(move.Move); err != nil {
-		return Result{}, a.moveApplyFailure(err, move.Node)
-	}
-	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
-	result := writeResult(move.NewID, path, edit.ETag(move.Content))
-	result.Warnings = append(result.Warnings, a.movedWarnings(move.Move, warned)...)
-	for _, unread := range move.Unread {
+	result := writeResult(moved.ID, moved.Path, moved.ETag)
+	result.Warnings = append(result.Warnings, a.movedWarnings(moved, problems)...)
+	for _, unread := range moved.Unread {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
 			"%s: deps not checked for %s: the file does not parse",
-			relativeSlashPath(a.store.WorktreeRoot, unread),
-			move.Node.ID,
+			unread,
+			moved.OldID,
 		))
 	}
 	return result, nil
 }
 
-// triageMoveProblems splits the tree problems of move as splitTreeProblems does, against the
-// moved node's file, its new path and the file of newParentID, the parent the command resolved
-// ("" when it resolved none, or the top of the tree), and returns the problems to warn about. A
-// new id is first refused as orphanedIDFailure does, with aliases reading the Aliases of a file
-// inside an orphan directory.
-func (a *app) triageMoveProblems(
-	issues *tree.Tree,
-	problems tree.Errors,
-	move *tree.Move,
-	newParentID string,
-	aliases tree.AliasFunc,
-) (tree.Errors, error) {
-	if move.NewID != move.Node.ID {
-		if err := a.orphanedIDFailure(problems, move.NewID, aliases); err != nil {
-			return nil, err
-		}
+// moveDestination is the nodestore.Destination of mv and know mv: the new id args[1], when given,
+// and parent, when isReparented, rootParentArg naming the top of the tree.
+func moveDestination(args []string, parent string, isReparented bool) nodestore.Destination {
+	destination := nodestore.Destination{Parent: parent, IsReparented: isReparented}
+	if len(args) == 2 {
+		destination.ID = args[1]
 	}
-	parentPath := ""
-	if parent, isFound := issues.Lookup(newParentID); isFound {
-		parentPath = a.worktreeRelative(parent.Path)
+	if parent == rootParentArg {
+		destination.Parent = ""
 	}
-	return a.splitTreeProblems(
-		problems,
-		a.worktreeRelative(move.Node.Path),
-		a.worktreeRelative(move.NewPath),
-		parentPath,
-	)
+	return destination
 }
 
-// movedWarnings renders warned, the problems triageMoveProblems returned, as warnings once move
-// has been applied. A path inside the moved node's children directory, in warned and in the
-// index refresh's warnings alike, is renamed to where that file now lives, so no warning names a
-// file by a path that no longer exists.
-func (a *app) movedWarnings(move *tree.Move, warned tree.Errors) []string {
-	oldDir := a.worktreeRelative(strings.TrimSuffix(move.Node.Path, nodeFileExtension)) + "/"
-	newDir := a.worktreeRelative(strings.TrimSuffix(move.NewPath, nodeFileExtension)) + "/"
+// movedWarnings renders problems, the tree problems a move returned, as warnings once the move has
+// been applied, leaving out every problem the index refresh already warned about. A path inside
+// the moved node's children directory, in problems and in the index refresh's warnings alike, is
+// renamed to where that file now lives, so no warning names a file by a path that no longer
+// exists.
+func (a *app) movedWarnings(moved nodestore.Moved, problems tree.Errors) []string {
+	var warned tree.Errors
+	for _, problem := range problems {
+		if !a.isIndexWarnedAbout(problem) {
+			warned = append(warned, problem)
+		}
+	}
+	oldDir := strings.TrimSuffix(moved.OldPath, nodeFileExtension) + "/"
+	newDir := strings.TrimSuffix(moved.Path, nodeFileExtension) + "/"
 	for i := range a.indexReport.Warnings {
 		warning := &a.indexReport.Warnings[i]
 		warning.Path = movedPath(warning.Path, oldDir, newDir)
@@ -171,49 +129,4 @@ func resolveNode(issues *tree.Tree, arg string) (tree.Node, error) {
 		return tree.Node{}, failure
 	}
 	return node, nil
-}
-
-// resolveParent returns the id of the issue the --parent value names, or "" for rootParentArg.
-func resolveParent(issues *tree.Tree, parent string) (string, error) {
-	if parent == rootParentArg {
-		return "", nil
-	}
-	node, err := resolveNode(issues, parent)
-	if err != nil {
-		return "", err
-	}
-	return node.ID, nil
-}
-
-// moveFailure types a move PlanMove refused: a taken id is exists, naming the file that holds it;
-// an unknown issue is not_found; everything else, an invalid id and a parent inside the issue's
-// own subtree among them, is invalid at the issue's file.
-func (a *app) moveFailure(err error, node tree.Node) error {
-	var taken *tree.TakenError
-	if errors.As(err, &taken) {
-		return existsFailure(taken.ID, taken.Owner, a.store.WorktreeRoot)
-	}
-	if errors.Is(err, tree.ErrNotFound) {
-		return Errorf(CodeNotFound, "%s", err.Error())
-	}
-	var parseFailure *frontmatter.Error
-	if errors.As(err, &parseFailure) {
-		return a.frontmatterFailure(err)
-	}
-	return &Error{
-		Code:    CodeInvalid,
-		Path:    relativeSlashPath(a.store.WorktreeRoot, node.Path),
-		Message: err.Error(),
-	}
-}
-
-// moveApplyFailure types a move of node whose Apply failed: invalid at the node's file, with every
-// path the failure names, the step that failed and any it could not take back, relative to the
-// working tree root.
-func (a *app) moveApplyFailure(err error, node tree.Node) error {
-	return &Error{
-		Code:    CodeInvalid,
-		Path:    a.worktreeRelative(node.Path),
-		Message: a.worktreeRelativeText(err.Error()),
-	}
 }

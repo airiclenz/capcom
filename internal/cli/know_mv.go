@@ -1,16 +1,9 @@
 package cli
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/edit"
-	"github.com/airiclenz/capcom/internal/frontmatter"
-	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // knowMvOptions holds the flags of one capcom know mv.
@@ -48,84 +41,22 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 	return cmd
 }
 
-// moveNote resolves the Note args[0] names and moves it to the new id args[1], when given, and
-// below options.parent, when reparented. It refuses with conflict, before anything moves, when
+// moveNote moves the Note args[0] names to the new id args[1], when given, and below
+// options.parent, when reparented. It refuses with conflict, before anything moves, when
 // --if-match is set and is not the Note file's etag. The result names the Note's new id, path and
 // etag, with a warning for every tree problem that concerns neither the Note, its new path nor the
 // new parent; a stale capcom block of AGENTS.md is refreshed afterwards.
 func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
-	noteStore := nodestore.Notes(a.store, nil)
-	notes, err := tree.Load(a.store.KnowledgeDir(), noteStore.ReadAliases)
-	problems, err := a.treeProblems(err)
+	moved, problems, err := nodestore.Notes(a.store, nil).Move(
+		args[0],
+		moveDestination(args, options.parent, options.isReparented),
+		options.ifMatch,
+	)
 	if err != nil {
-		return Result{}, err
+		return Result{}, kindFailure(err)
 	}
-	node, err := resolveNode(notes, args[0])
-	if err != nil {
-		return Result{}, err
-	}
-	destination := tree.Destination{ID: node.ID, ParentID: node.ParentID}
-	if len(args) == 2 {
-		destination.ID = args[1]
-	}
-	if options.isReparented {
-		if destination.ParentID, err = resolveParent(notes, options.parent); err != nil {
-			return Result{}, err
-		}
-	}
-
-	move, err := knowledge.PlanMove(notes, node.ID, destination)
-	if err != nil {
-		return Result{}, a.noteMoveFailure(err, node)
-	}
-	resolvedParentID := ""
-	if options.isReparented {
-		resolvedParentID = destination.ParentID
-	}
-	warned, err := a.triageMoveProblems(notes, problems, move.Move, resolvedParentID, noteStore.ReadAliases)
-	if err != nil {
-		return Result{}, err
-	}
-	if move.NewID != move.Node.ID {
-		// PlanMove has parsed the moved Note's file, so the holder found is another Note's.
-		err := a.unparsedAliasFailure(notes, problems, move.NewID, noteNoun, noteStore.RecoverAliases)
-		if err != nil {
-			return Result{}, err
-		}
-	}
-	if current := edit.ETag(move.Original); options.ifMatch != "" && options.ifMatch != current {
-		return Result{}, &Error{
-			Code:    CodeConflict,
-			Path:    relativeSlashPath(a.store.WorktreeRoot, node.Path),
-			Message: fmt.Sprintf("etag %s does not match the file's etag %s; show the note again", options.ifMatch, current),
-		}
-	}
-	if err := applyMove(move.Move); err != nil {
-		return Result{}, a.moveApplyFailure(err, move.Node)
-	}
-	path := relativeSlashPath(a.store.WorktreeRoot, move.NewPath)
-	result := noteWriteResult(move.NewID, path, edit.ETag(move.Content))
-	result.Warnings = append(result.Warnings, a.movedWarnings(move.Move, warned)...)
+	result := noteWriteResult(moved.ID, moved.Path, moved.ETag)
+	result.Warnings = append(result.Warnings, a.movedWarnings(moved, problems)...)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
-}
-
-// noteMoveFailure types a move knowledge.PlanMove refused: a taken id is exists, naming the Note
-// file that holds it; a Note file that does not parse is invalid at its file and line; everything
-// else, an invalid id and a parent inside the Note's own subtree among them, is invalid at the
-// Note's file.
-func (a *app) noteMoveFailure(err error, node tree.Node) error {
-	var taken *tree.TakenError
-	if errors.As(err, &taken) {
-		return noteExistsFailure(taken.ID, taken.Owner, a.store.WorktreeRoot)
-	}
-	var parseFailure *frontmatter.Error
-	if errors.As(err, &parseFailure) {
-		return a.frontmatterFailure(err)
-	}
-	return &Error{
-		Code:    CodeInvalid,
-		Path:    relativeSlashPath(a.store.WorktreeRoot, node.Path),
-		Message: err.Error(),
-	}
 }

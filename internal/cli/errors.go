@@ -3,9 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -29,9 +27,6 @@ const (
 // nodeFileExtension ends every issue and Note file; a node's children directory is its path
 // without it.
 const nodeFileExtension = ".md"
-
-// hiddenNamePrefix starts the file and directory names tree.Load skips, temp files among them.
-const hiddenNamePrefix = "."
 
 // Process exit codes.
 const (
@@ -195,8 +190,8 @@ func (a *app) triageTreeProblems(problems tree.Errors, targets ...string) ([]str
 }
 
 // splitTreeProblems splits problems as triageTreeProblems does, but returns the problems to warn
-// about as tree errors, their paths relative to the working tree root with forward slashes, for a
-// command that renames those paths before it renders them.
+// about as tree errors, their paths relative to the working tree root with forward slashes, for
+// triageTreeProblems to render.
 func (a *app) splitTreeProblems(problems tree.Errors, targets ...string) (tree.Errors, error) {
 	var blocking tree.Errors
 	var warned tree.Errors
@@ -235,145 +230,6 @@ func (a *app) unwarnedTreeProblems(problems tree.Errors) []string {
 		}
 	}
 	return treeProblemWarnings(unwarned)
-}
-
-// orphanedIDFailure refuses id, the new id of a node being written or moved, when a node file
-// anywhere under one of the orphan directories among problems is named id or records id among the
-// Aliases that aliases reads from it. tree.Load leaves such a file out of the tree, so writing the id
-// beside it would make a duplicate that surfaces only once the orphan directory is fixed. The
-// failure names that file relative to the working tree root; it is nil when there is no such file.
-func (a *app) orphanedIDFailure(problems tree.Errors, id string, aliases tree.AliasFunc) error {
-	for _, problem := range problems {
-		if !errors.Is(problem, tree.ErrOrphanDirectory) {
-			continue
-		}
-		path, isAlias, err := findNodeFile(problem.Path, id, aliases)
-		if err != nil {
-			return asError(err)
-		}
-		if path == "" {
-			continue
-		}
-		claim := "taken by"
-		if isAlias {
-			claim = "an alias of"
-		}
-		return &Error{
-			Code: CodeExists,
-			Path: a.worktreeRelative(path),
-			Message: fmt.Sprintf(
-				"id %q is already %s this file, inside the orphan directory %s",
-				id,
-				claim,
-				a.worktreeRelative(problem.Path),
-			),
-		}
-	}
-	return nil
-}
-
-// unparsedAliasFailure refuses id, the new id of a node of kind ("issue", "note") being written or
-// moved, when a node file that does not parse may hold id as an alias: recovered, the kind's
-// recovering lookup, reads id from the raw frontmatter of the file of a node of nodes, or of a file
-// anywhere under one of the orphan directories among problems. Such a file cannot say which ids it
-// holds, so writing id beside it would risk a duplicate that surfaces only once the file is fixed;
-// every other problem of the file stays a warning. recovered reads none from a file that parses,
-// whose claims existsFailure and orphanedIDFailure refuse, and the caller runs both first. The
-// failure names the file relative to the working tree root; it is nil when there is no such file.
-func (a *app) unparsedAliasFailure(
-	nodes *tree.Tree,
-	problems tree.Errors,
-	id string,
-	kind string,
-	recovered tree.AliasFunc,
-) error {
-	path, err := findUnparsedAliasHolder(nodes, problems, id, recovered)
-	if err != nil {
-		return asError(err)
-	}
-	if path == "" {
-		return nil
-	}
-	return &Error{
-		Code: CodeExists,
-		Path: a.worktreeRelative(path),
-		Message: fmt.Sprintf(
-			"id %q may be an alias of %s %s, whose file does not parse: fix it first",
-			id,
-			kind,
-			strings.TrimSuffix(filepath.Base(path), nodeFileExtension),
-		),
-	}
-}
-
-// findUnparsedAliasHolder returns the first node file, of a node of nodes or anywhere under one of
-// the orphan directories among problems, from which recovered reads id, or "" when there is none.
-func findUnparsedAliasHolder(
-	nodes *tree.Tree,
-	problems tree.Errors,
-	id string,
-	recovered tree.AliasFunc,
-) (string, error) {
-	for _, node := range nodes.Nodes() {
-		names, err := recovered(node.Path)
-		if err != nil {
-			return "", err
-		}
-		if slices.Contains(names, id) {
-			return node.Path, nil
-		}
-	}
-	for _, problem := range problems {
-		if !errors.Is(problem, tree.ErrOrphanDirectory) {
-			continue
-		}
-		// orphanedIDFailure has already refused a file named id, so a file found here holds id
-		// as an alias.
-		path, _, err := findNodeFile(problem.Path, id, recovered)
-		if err != nil || path != "" {
-			return path, err
-		}
-	}
-	return "", nil
-}
-
-// findNodeFile returns the first node file at any depth below dir that answers to id, skipping
-// hidden names as tree.Load does, or "" when there is none. A file answers to id when it is named
-// id or, by isAlias, when aliases reads id among its Aliases; aliases may be nil when the kind has
-// none.
-func findNodeFile(dir string, id string, aliases tree.AliasFunc) (path string, isAlias bool, err error) {
-	name := id + nodeFileExtension
-	err = filepath.WalkDir(dir, func(current string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if current != dir && strings.HasPrefix(entry.Name(), hiddenNamePrefix) {
-			if entry.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), nodeFileExtension) {
-			return nil
-		}
-		if entry.Name() == name {
-			path = current
-			return fs.SkipAll
-		}
-		if aliases == nil {
-			return nil
-		}
-		names, err := aliases(current)
-		if err != nil {
-			return err
-		}
-		if slices.Contains(names, id) {
-			path, isAlias = current, true
-			return fs.SkipAll
-		}
-		return nil
-	})
-	return path, isAlias, err
 }
 
 // isBlockingTreeProblem reports whether problem, its paths relative like targets, concerns one of

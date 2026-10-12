@@ -496,7 +496,23 @@ internal/cli/related_test.go — TestRelatedRm_NotRelated_FailsNotFound
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Update|Close|Reopen|Log|Related|Dep'`
 **Commit:** `refactor(cli): edit verbs through nodestore`
 
-## 17. Kind.Move; capcom mv gains --if-match
+## 17. Kind.Move; capcom mv gains --if-match — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from "wrap issue.PlanMove": issue.Move carried no copy of the moved file's bytes before the move, which the etag guard needs, so it gains `Original` (set where planRewrite reads the moved issue), mirroring knowledge.Move.Original.
+
+NOTES (2026-10-12): `Kind.Move(ref, to Destination, ifMatch) (Moved, tree.Errors, error)` runs the whole sequence (load, resolve ref and --parent against the Tree, plan, orphan claim, triage, unparsed-alias claim, etag, Apply) and, like Create, returns the non-blocking tree problems; cli filters them against the index report and renames paths inside the moved children directory (`movedWarnings`) so nodestore never sees the index. The per-kind planner is an unexported `planMove` field of Codec.
+
+NOTES (2026-10-12): the apply test seam moved from cli's package var `applyMove` to an unexported Kind field `applyMove`; TestMv_ApplyFails_* and TestKnowMv_ApplyFails_* (cli) are replaced by nodestore's TestMove_ApplyFails_NamesTheFilesRelativeToTheWorktree, which asserts the same relative *FileError (kindFailure maps it to invalid at that path).
+
+NOTES (2026-10-12): consequential edit — internal/cli/know_mv_test.go: made necessary by removing cli's applyMove seam (its ApplyFails test moved to nodestore).
+
+NOTES (2026-10-12): consequential edit — internal/cli/errors.go: made necessary by mv and know mv leaving it — orphanedIDFailure, unparsedAliasFailure, findUnparsedAliasHolder, findNodeFile and hiddenNamePrefix lost their last callers and were deleted; the splitTreeProblems comment no longer names a renaming caller.
+
+NOTES (2026-10-12): consequential edit — internal/cli/create.go: made necessary by mv moving to nodestore — existsFailure lost its last caller and was deleted.
+
+NOTES (2026-10-12): consequential edit — internal/cli/know.go: made necessary by know mv moving to nodestore — noteExistsFailure lost its last caller and was deleted.
+
+NOTES (2026-10-12): an unreadable node file during a move's plan now fails with its message naming files relative to the worktree; a plan-time tree.ErrNotFound on know mv now types not_found as on mv (unreachable after resolution).
 
 **What:**
 **Goal:** `Kind.Move(ref, dest, ifMatch)` plans and applies a move with the etag guard; `capcom mv`

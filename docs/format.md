@@ -113,10 +113,10 @@ section, the dated, append-only record of progress and remarks.
 issue with children, an issue whose children directory still holds any file, and an issue other
 issues depend on (their `deps` name its id or an alias), listing those issues; `--drop-deps`
 removes their `deps` entries for it instead. A `deps` entry of the issue on itself does not count.
-Like `update`, it takes `--if-match <etag>` and refuses with a conflict when the file's etag
-differs. Other issues' `related` entries naming the issue never refuse it: they are always
-removed, and those issues are reported as `related_dropped`. capcom deletes the file itself and
-never runs git.
+Like `update` and `mv`, it takes `--if-match <etag>` and refuses with a conflict, changing
+nothing, when the file's etag differs. Other issues' `related` entries naming the issue never
+refuse it: they are always removed, and those issues are reported as `related_dropped`. capcom
+deletes the file itself and never runs git.
 
 ### Related links
 

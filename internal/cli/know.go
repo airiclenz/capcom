@@ -13,7 +13,6 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags of the know subcommands; --id, --title, --parent, --label and --body-file are shared with
@@ -374,20 +373,6 @@ func noteBody(text string) string {
 		return ""
 	}
 	return "\n" + edit.WithFinalNewline(text)
-}
-
-// noteExistsFailure refuses id, which is the id or an Alias of the existing Note; it names that
-// Note's file, relative to worktreeRoot.
-func noteExistsFailure(id string, existing tree.Node, worktreeRoot string) *Error {
-	message := fmt.Sprintf("id %q is already taken by note %s", id, existing.ID)
-	if existing.ID != id {
-		message = fmt.Sprintf("id %q is already an alias of note %s", id, existing.ID)
-	}
-	return &Error{
-		Code:    CodeExists,
-		Path:    relativeSlashPath(worktreeRoot, existing.Path),
-		Message: message,
-	}
 }
 
 // newKnowVerifyCommand lists every Ref of every Note that no longer resolves: a missing path, a

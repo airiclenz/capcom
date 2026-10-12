@@ -5,10 +5,12 @@ import (
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Codec is what a Kind knows of its node files: how one parses, serializes and validates, which
-// Aliases a parsed node records, and the noun that names one node in a message.
+// Aliases a parsed node records, the noun that names one node in a message, and how a move of one
+// node is worked out.
 type Codec[T any] struct {
 	// Noun names one node of the kind in a message: "issue" or "note".
 	Noun string
@@ -22,6 +24,22 @@ type Codec[T any] struct {
 	Validate func(path string, node T) []*frontmatter.Error
 	// Aliases returns the former ids node records.
 	Aliases func(node T) []string
+	// planMove works out the move of the node with exact id id in nodes to the destination to,
+	// reading the node files but changing nothing, failing as the kind's PlanMove does.
+	planMove func(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error)
+}
+
+// plannedMove is a move a Codec worked out: the tree move, with the kind's rewrites added, and
+// the moved node file's content before and after it.
+type plannedMove struct {
+	*tree.Move
+	// original is the moved node file's content before the move, as read from disk.
+	original []byte
+	// content is the moved node file's content after the move.
+	content []byte
+	// unread are the files of other nodes that do not parse, so the references in them to the
+	// moved node could not be checked and were left as they are.
+	unread []string
 }
 
 // issueCodec is the Codec of the issue tree; cfg declares the statuses and types Validate accepts.
@@ -33,7 +51,8 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 		Validate: func(path string, node issue.Issue) []*frontmatter.Error {
 			return issue.Validate(path, node, cfg)
 		},
-		Aliases: func(node issue.Issue) []string { return node.Aliases },
+		Aliases:  func(node issue.Issue) []string { return node.Aliases },
+		planMove: planIssueMove,
 	}
 }
 
@@ -45,5 +64,25 @@ func noteCodec() Codec[knowledge.Note] {
 		Serialize: knowledge.Note.Serialize,
 		Validate:  knowledge.Validate,
 		Aliases:   func(node knowledge.Note) []string { return node.Aliases },
+		planMove:  planNoteMove,
 	}
+}
+
+// planIssueMove is the move planner of the issue tree: issue.PlanMove, which also rewrites the deps
+// and related entries that name the moved issue.
+func planIssueMove(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error) {
+	move, err := issue.PlanMove(nodes, id, to)
+	if err != nil {
+		return nil, err
+	}
+	return &plannedMove{Move: move.Move, original: move.Original, content: move.Content, unread: move.Unread}, nil
+}
+
+// planNoteMove is the move planner of the Knowledge tree: knowledge.PlanMove.
+func planNoteMove(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error) {
+	move, err := knowledge.PlanMove(nodes, id, to)
+	if err != nil {
+		return nil, err
+	}
+	return &plannedMove{Move: move.Move, original: move.Original, content: move.Content}, nil
 }

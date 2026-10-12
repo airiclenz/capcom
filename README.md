@@ -155,7 +155,7 @@ capcom log login-timeout-race "reproduced with two tabs"
 capcom dep add login-timeout-race token-store-rework
 capcom related add login-timeout-race session-refresh-bug   # shown on both; blocks neither
 capcom related rm login-timeout-race session-refresh-bug
-capcom mv login-timeout-race --parent login-flow
+capcom mv login-timeout-race --parent login-flow --if-match <etag>   # etag from show
 capcom close login-timeout-race --reason "Fixed in 3f2a1c9"
 capcom reopen login-timeout-race --reason "Came back on Safari"
 capcom rm login-timeout-race --drop-deps   # refuses children; drops the deps that name it

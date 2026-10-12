@@ -1,14 +1,11 @@
 package cli
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // newMoveStore creates a store with login-flow, a child below it, and an issue depending on
@@ -268,17 +265,6 @@ func TestMv_Rename_RelatedLinksFollow(t *testing.T) {
 	assertCheckPasses(t, root)
 }
 
-// failMoveApply makes every move fail its first rename the way os.Rename does, naming both paths
-// absolutely, until the test ends.
-func failMoveApply(t *testing.T) {
-	t.Helper()
-	previous := applyMove
-	applyMove = func(move *tree.Move) error {
-		return &os.LinkError{Op: "rename", Old: move.Node.Path, New: move.NewPath, Err: fs.ErrPermission}
-	}
-	t.Cleanup(func() { applyMove = previous })
-}
-
 // assertWorktreeRelativeFailure checks that the --json failure in stdout is invalid at wantPath,
 // with a line when hasLine, and that its message names no path by the worktree's absolute root.
 func assertWorktreeRelativeFailure(t *testing.T, root string, stdout string, wantPath string, hasLine bool) {
@@ -304,19 +290,34 @@ func TestMv_UnparseableIssue_FailsInvalidAtItsRelativeFileAndLine(t *testing.T) 
 	assertWorktreeRelativeFailure(t, root, stdout, ".capcom/issues/renamed-issue.md", true)
 }
 
-func TestMv_ApplyFails_NamesTheFilesRelativeToTheWorktree(t *testing.T) {
+func TestMv_IfMatchFromShow_Moves(t *testing.T) {
 	root := newMoveStore(t)
-	failMoveApply(t)
+	etag := textETag(mustRun(t, root, "show", "renamed-issue"))
 
-	stdout, _, exitCode := runCLI(t, root, "mv", "--json", "renamed-issue", "other-name")
+	stdout, stderr, exitCode := runCLI(t, root, "mv", "renamed-issue", "other-name", "--if-match", etag)
 
-	if exitCode != ExitError {
-		t.Errorf("exit = %d, want %d", exitCode, ExitError)
+	if exitCode != ExitOK || !issueFileExists(t, root, "other-name.md") {
+		t.Errorf("mv --if-match %s = %d\n%s%s", etag, exitCode, stdout, stderr)
 	}
-	assertWorktreeRelativeFailure(t, root, stdout, ".capcom/issues/renamed-issue.md", false)
+}
+
+func TestMv_StaleIfMatch_ConflictsAndMovesNothing(t *testing.T) {
+	root := newMoveStore(t)
+	etag := textETag(mustRun(t, root, "show", "login-flow"))
+	mustRun(t, root, "update", "login-flow", "--title", "Login steps")
+	before := readStoreFile(t, root, "login-flow.md")
+	dependent := readStoreFile(t, root, "session-work.md")
+
+	stdout, _, exitCode := runCLI(t, root, "mv", "--json", "login-flow", "auth-flow", "--if-match", etag)
+
 	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
-	wantNewPath := filepath.Join(".capcom", "issues", "other-name.md")
-	if message, _ := failure["message"].(string); !strings.Contains(message, wantNewPath) {
-		t.Errorf("message = %q, want it to name %s", message, wantNewPath)
+	message, _ := failure["message"].(string)
+	if exitCode != ExitError || failure["code"] != string(CodeConflict) ||
+		failure["path"] != ".capcom/issues/login-flow.md" || !strings.Contains(message, "show the issue again") {
+		t.Errorf("stale --if-match = %d, error %v; want conflict at the issue file", exitCode, failure)
+	}
+	if issueFileExists(t, root, "auth-flow.md") || !issueFileExists(t, root, "login-flow/child-issue.md") ||
+		readStoreFile(t, root, "login-flow.md") != before || readStoreFile(t, root, "session-work.md") != dependent {
+		t.Errorf("the tree changed")
 	}
 }

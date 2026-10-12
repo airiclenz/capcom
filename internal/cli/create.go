@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"slices"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags of capcom create; --title, --status, --type, --priority, --label, --parent and --plan are
@@ -124,18 +122,4 @@ func defaultType(cfg config.Config) string {
 		return preferredDefaultType
 	}
 	return cfg.Types[0]
-}
-
-// existsFailure refuses id, which is the id or an Alias of the existing issue; it names that
-// issue's file, relative to worktreeRoot.
-func existsFailure(id string, existing tree.Node, worktreeRoot string) *Error {
-	message := fmt.Sprintf("id %q is already taken by issue %s", id, existing.ID)
-	if existing.ID != id {
-		message = fmt.Sprintf("id %q is already an alias of issue %s", id, existing.ID)
-	}
-	return &Error{
-		Code:    CodeExists,
-		Path:    relativeSlashPath(worktreeRoot, existing.Path),
-		Message: message,
-	}
 }

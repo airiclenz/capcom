@@ -14,6 +14,8 @@ const moveKind = "an issue"
 // with the issue files whose content the move changes added as rewrites.
 type Move struct {
 	*tree.Move
+	// Original is the issue file's content before the move, as read from disk.
+	Original []byte
 	// Content is the issue file's content after the move.
 	Content []byte
 	// Unread are the files of other issues that do not parse, so their deps and related entries
@@ -50,8 +52,8 @@ func PlanMove(issues *tree.Tree, id string, to tree.Destination) (*Move, error) 
 }
 
 // planRewrites reads the moved issue's file, and on a rename every other issue file, and returns
-// the files whose content the move changes, the moved issue's first. It sets m.Content and
-// m.Unread.
+// the files whose content the move changes, the moved issue's first. It sets m.Original,
+// m.Content and m.Unread.
 func (m *Move) planRewrites(issues *tree.Tree) ([]tree.Rewrite, error) {
 	names := append([]string{m.Node.ID}, m.Node.Aliases...)
 	var rewrites []tree.Rewrite
@@ -78,7 +80,7 @@ func (m *Move) planRewrites(issues *tree.Tree) ([]tree.Rewrite, error) {
 // planRewrite reads the issue file at path and returns its rewrite, or nil when the move leaves
 // it as it is: deps and related entries naming one of names become m.NewID and, for the moved
 // issue (isMoved), the Aliases record the old id. A file of another issue that does not parse joins m.Unread; the
-// moved issue's own content goes to m.Content.
+// moved issue's own content goes to m.Original and m.Content.
 func (m *Move) planRewrite(path string, names []string, isMoved bool) (*tree.Rewrite, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -98,6 +100,7 @@ func (m *Move) planRewrite(path string, names []string, isMoved bool) (*tree.Rew
 	edited.Related = renameDeps(parsed.Related, names, m.NewID)
 	if isMoved {
 		edited.Aliases = tree.RenameAliases(parsed.Aliases, m.Node.ID, m.NewID)
+		m.Original = data
 		m.Content = data
 	}
 	if slices.Equal(edited.Deps, parsed.Deps) && slices.Equal(edited.Related, parsed.Related) &&
