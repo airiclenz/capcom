@@ -1,37 +1,99 @@
 package issue
 
 import (
-	"bytes"
-	"fmt"
-	"regexp"
 	"strconv"
-	"strings"
 	"time"
-	"unicode"
 
-	"gopkg.in/yaml.v3"
-
-	"github.com/airiclenz/capcom/internal/rawfm"
+	"github.com/airiclenz/capcom/internal/frontmatter"
 )
 
-// fence is the line that opens and closes the frontmatter.
-const fence = "---"
+// issueKind is the issue kind of frontmatter file: the noun its failures use and every key it
+// knows, in the order Serialize writes them.
+var issueKind = frontmatter.Kind{Noun: "an issue", Keys: fieldKeys()}
 
-// fenceLine is a fence with its line ending.
-const fenceLine = fence + "\n"
+// field is one frontmatter key of an issue: how Parse reads it into an Issue and how Serialize
+// writes it back.
+type field struct {
+	key    string
+	decode func(value frontmatter.Field, issue *Issue) error
+	encode func(issue Issue, out *frontmatter.Encoder)
+}
 
-// frontmatterLineOffset turns a line of the frontmatter YAML into a line of the file: the opening
-// fence is line 1.
-const frontmatterLineOffset = 1
+// fields is the issue field table: every frontmatter key, in the order Serialize writes them.
+var fields = []field{
+	textField(keyTitle, func(issue *Issue) *string { return &issue.Title }),
+	textField(keyStatus, func(issue *Issue) *string { return &issue.Status }),
+	textField(keyType, func(issue *Issue) *string { return &issue.Type }),
+	{
+		key: keyPriority,
+		decode: func(value frontmatter.Field, issue *Issue) (err error) {
+			issue.Priority, err = priority(value)
+			return err
+		},
+		encode: func(issue Issue, out *frontmatter.Encoder) {
+			out.Raw(keyPriority, strconv.Itoa(issue.Priority))
+		},
+	},
+	listField(keyLabels, func(issue *Issue) *[]string { return &issue.Labels }),
+	listField(keyDeps, func(issue *Issue) *[]string { return &issue.Deps }),
+	listField(keyRelated, func(issue *Issue) *[]string { return &issue.Related }),
+	textField(keyPlan, func(issue *Issue) *string { return &issue.Plan }),
+	listField(keyAliases, func(issue *Issue) *[]string { return &issue.Aliases }),
+	timeField(keyCreated, func(issue *Issue) *time.Time { return &issue.Created }),
+	timeField(keyClosed, func(issue *Issue) *time.Time { return &issue.Closed }),
+	textField(keyReason, func(issue *Issue) *string { return &issue.Reason }),
+}
 
-// YAML tags the parser resolves plain scalars to.
-const (
-	tagString = "!!str"
-	tagNull   = "!!null"
-)
+// textField is a text key held in the Issue field at returns.
+func textField(key string, at func(issue *Issue) *string) field {
+	return field{
+		key: key,
+		decode: func(value frontmatter.Field, issue *Issue) (err error) {
+			*at(issue), err = value.Text()
+			return err
+		},
+		encode: func(issue Issue, out *frontmatter.Encoder) { out.Text(key, *at(&issue)) },
+	}
+}
 
-// yamlLineError matches the line a yaml.v3 syntax error names, relative to the frontmatter.
-var yamlLineError = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
+// listField is a list key held in the Issue field at returns; an issue keeps no entry lines.
+func listField(key string, at func(issue *Issue) *[]string) field {
+	return field{
+		key: key,
+		decode: func(value frontmatter.Field, issue *Issue) (err error) {
+			*at(issue), _, err = value.List()
+			return err
+		},
+		encode: func(issue Issue, out *frontmatter.Encoder) { out.List(key, *at(&issue)) },
+	}
+}
+
+// timeField is a timestamp key held in the Issue field at returns, written in RFC3339 UTC and left
+// out when zero.
+func timeField(key string, at func(issue *Issue) *time.Time) field {
+	return field{
+		key: key,
+		decode: func(value frontmatter.Field, issue *Issue) (err error) {
+			*at(issue), err = timestamp(value)
+			return err
+		},
+		encode: func(issue Issue, out *frontmatter.Encoder) {
+			if at(&issue).IsZero() {
+				return
+			}
+			out.Raw(key, at(&issue).UTC().Format(time.RFC3339))
+		},
+	}
+}
+
+// fieldKeys lists the keys of the field table, in its order.
+func fieldKeys() []string {
+	keys := make([]string, 0, len(fields))
+	for _, entry := range fields {
+		keys = append(keys, entry.key)
+	}
+	return keys
+}
 
 // Parse decodes the issue file content data. path names the file in every error. CRLF line
 // endings are read as LF. A missing priority reads as DefaultPriority.
@@ -42,51 +104,21 @@ var yamlLineError = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
 // When the frontmatter holds a git conflict marker, such a failure cites the first marker
 // instead, in the words `capcom check` reports it with.
 func Parse(path string, data []byte) (Issue, error) {
-	text := string(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
-	if !strings.HasPrefix(text, fenceLine) {
-		return Issue{}, &Error{Path: path, Line: 1, Message: "an issue file must start with a --- line"}
-	}
-	front, body, isClosed := splitFrontmatter(text[len(fenceLine):])
-	if !isClosed {
-		return Issue{}, &Error{
-			Path:    path,
-			Line:    1,
-			Message: "the frontmatter opened here is never closed by a --- line",
-		}
-	}
-
-	p := parser{path: path}
-	root, err := p.document(front)
-	if err != nil {
-		return Issue{}, p.conflictError(data, front, err)
-	}
-	issue := Issue{Priority: DefaultPriority, Body: body, lines: map[string]int{}}
-	if root == nil {
-		return issue, nil
-	}
-	if err := p.fields(root, &issue); err != nil {
-		return Issue{}, p.conflictError(data, front, err)
-	}
-	return issue, nil
-}
-
-// splitFrontmatter splits rest, the content after the opening fence, at the first line that is
-// exactly a fence. isClosed is false when there is none.
-func splitFrontmatter(rest string) (front string, body string, isClosed bool) {
-	offset := 0
-	for {
-		end := strings.IndexByte(rest[offset:], '\n')
-		if end < 0 {
-			if rest[offset:] == fence {
-				return rest[:offset], "", true
+	issue := Issue{Priority: DefaultPriority}
+	document, err := frontmatter.Decode(path, data, issueKind, func(value frontmatter.Field) error {
+		for _, entry := range fields {
+			if entry.key == value.Key {
+				return entry.decode(value, &issue)
 			}
-			return "", "", false
 		}
-		if rest[offset:offset+end] == fence {
-			return rest[:offset], rest[offset+end+1:], true
-		}
-		offset += end + 1
+		return nil // unreachable: Decode hands over only the keys of issueKind
+	})
+	if err != nil {
+		return Issue{}, err
 	}
+	issue.Body = document.Body
+	issue.lines = document.Lines
+	return issue, nil
 }
 
 // Serialize writes the issue in the canonical form: the frontmatter keys in the fixed order title,
@@ -95,157 +127,23 @@ func splitFrontmatter(rest string) (front string, body string, isClosed bool) {
 // RFC3339 UTC; text plain where YAML reads it back unchanged and double-quoted otherwise; then the
 // body verbatim.
 func (i Issue) Serialize() []byte {
-	var out strings.Builder
-	out.WriteString(fenceLine)
-	writeText(&out, keyTitle, i.Title)
-	writeText(&out, keyStatus, i.Status)
-	writeText(&out, keyType, i.Type)
-	fmt.Fprintf(&out, "%s: %d\n", keyPriority, i.Priority)
-	writeList(&out, keyLabels, i.Labels)
-	writeList(&out, keyDeps, i.Deps)
-	writeList(&out, keyRelated, i.Related)
-	writeText(&out, keyPlan, i.Plan)
-	writeList(&out, keyAliases, i.Aliases)
-	writeTime(&out, keyCreated, i.Created)
-	writeTime(&out, keyClosed, i.Closed)
-	writeText(&out, keyReason, i.Reason)
-	out.WriteString(fenceLine)
-	out.WriteString(i.Body)
-	return []byte(out.String())
-}
-
-// parser decodes the frontmatter of one file, attributing every failure to its path and line.
-type parser struct {
-	path string
-}
-
-func (p parser) errorAt(node *yaml.Node, format string, args ...any) *Error {
-	return &Error{
-		Path:    p.path,
-		Line:    node.Line + frontmatterLineOffset,
-		Message: fmt.Sprintf(format, args...),
+	var out frontmatter.Encoder
+	for _, entry := range fields {
+		entry.encode(i, &out)
 	}
-}
-
-// document parses the frontmatter into its top-level mapping node, or nil when it holds no keys.
-func (p parser) document(front string) (*yaml.Node, error) {
-	var document yaml.Node
-	if err := yaml.Unmarshal([]byte(front), &document); err != nil {
-		return nil, p.yamlError(err)
-	}
-	if len(document.Content) == 0 {
-		return nil, nil
-	}
-	root := document.Content[0]
-	if root.Kind == yaml.ScalarNode && root.Tag == tagNull {
-		return nil, nil
-	}
-	if root.Kind != yaml.MappingNode {
-		return nil, p.errorAt(root, "the frontmatter must be a mapping of keys")
-	}
-	return root, nil
-}
-
-// conflictError returns err, the failure to parse the frontmatter front of the file content data,
-// unless the frontmatter holds a git conflict marker: then an *Error at the first such marker, worded
-// as `capcom check` reports it, since the marker, not the YAML it breaks, is what to fix.
-func (p parser) conflictError(data []byte, front string, err error) error {
-	lastFrontmatterLine := strings.Count(front, "\n") + frontmatterLineOffset
-	markers := rawfm.ConflictMarkers(data)
-	if len(markers) == 0 || markers[0].Line > lastFrontmatterLine {
-		return err
-	}
-	return &Error{Path: p.path, Line: markers[0].Line, Message: rawfm.ConflictMessage(markers[0])}
-}
-
-// yamlError turns a yaml.v3 syntax error into an *Error citing the file line it names.
-func (p parser) yamlError(err error) *Error {
-	match := yamlLineError.FindStringSubmatch(err.Error())
-	if match == nil {
-		return &Error{Path: p.path, Message: fmt.Sprintf("invalid YAML frontmatter: %v", err)}
-	}
-	line, _ := strconv.Atoi(match[1]) // the pattern admits digits only
-	return &Error{
-		Path:    p.path,
-		Line:    line + frontmatterLineOffset,
-		Message: "invalid YAML frontmatter: " + match[2],
-	}
-}
-
-// fields applies every key of root onto issue, rejecting unknown and repeated keys.
-func (p parser) fields(root *yaml.Node, issue *Issue) error {
-	for index := 0; index+1 < len(root.Content); index += 2 {
-		key, value := root.Content[index], root.Content[index+1]
-		if _, isSeen := issue.lines[key.Value]; isSeen {
-			return p.errorAt(key, "duplicate key %q", key.Value)
-		}
-		if err := p.field(key, value, issue); err != nil {
-			return err
-		}
-		issue.lines[key.Value] = key.Line + frontmatterLineOffset
-	}
-	return nil
-}
-
-// field decodes one key's value into issue.
-func (p parser) field(key, value *yaml.Node, issue *Issue) error {
-	var err error
-	switch key.Value {
-	case keyTitle:
-		issue.Title, err = p.text(key.Value, value)
-	case keyStatus:
-		issue.Status, err = p.text(key.Value, value)
-	case keyType:
-		issue.Type, err = p.text(key.Value, value)
-	case keyPriority:
-		issue.Priority, err = p.priority(value)
-	case keyLabels:
-		issue.Labels, err = p.list(key.Value, value)
-	case keyDeps:
-		issue.Deps, err = p.list(key.Value, value)
-	case keyRelated:
-		issue.Related, err = p.list(key.Value, value)
-	case keyPlan:
-		issue.Plan, err = p.text(key.Value, value)
-	case keyAliases:
-		issue.Aliases, err = p.list(key.Value, value)
-	case keyCreated:
-		issue.Created, err = p.timestamp(key.Value, value)
-	case keyClosed:
-		issue.Closed, err = p.timestamp(key.Value, value)
-	case keyReason:
-		issue.Reason, err = p.text(key.Value, value)
-	default:
-		err = p.errorAt(key, "unknown key %q", key.Value)
-	}
-	return err
-}
-
-func isNull(node *yaml.Node) bool {
-	return node.Kind == yaml.ScalarNode && node.Tag == tagNull
-}
-
-// text reads a scalar as text; an empty value reads as "".
-func (p parser) text(key string, value *yaml.Node) (string, error) {
-	if isNull(value) {
-		return "", nil
-	}
-	if value.Kind != yaml.ScalarNode {
-		return "", p.errorAt(value, "%s: expected text", key)
-	}
-	return value.Value, nil
+	return out.File(i.Body)
 }
 
 // priority reads a whole number; its range is Validate's to check. An empty value reads as
 // DefaultPriority.
-func (p parser) priority(value *yaml.Node) (int, error) {
-	if isNull(value) {
+func priority(value frontmatter.Field) (int, error) {
+	if value.IsEmpty() {
 		return DefaultPriority, nil
 	}
-	priority, err := strconv.Atoi(value.Value)
-	if value.Kind != yaml.ScalarNode || err != nil {
-		return 0, p.errorAt(
-			value,
+	text, isScalar := value.Scalar()
+	priority, err := strconv.Atoi(text)
+	if !isScalar || err != nil {
+		return 0, value.Errorf(
 			"%s: expected a whole number from %d to %d",
 			keyPriority,
 			MinPriority,
@@ -255,140 +153,18 @@ func (p parser) priority(value *yaml.Node) (int, error) {
 	return priority, nil
 }
 
-// list reads a flow- or block-style list of non-empty text entries; an empty list reads as nil.
-func (p parser) list(key string, value *yaml.Node) ([]string, error) {
-	if isNull(value) {
-		return nil, nil
-	}
-	if value.Kind != yaml.SequenceNode {
-		return nil, p.errorAt(value, "%s: expected a list such as [a, b]", key)
-	}
-	if len(value.Content) == 0 {
-		return nil, nil
-	}
-	entries := make([]string, 0, len(value.Content))
-	for _, item := range value.Content {
-		if item.Kind != yaml.ScalarNode || isNull(item) || item.Value == "" {
-			return nil, p.errorAt(item, "%s: every entry must be non-empty text", key)
-		}
-		entries = append(entries, item.Value)
-	}
-	return entries, nil
-}
-
 // timestamp reads an RFC3339 timestamp as UTC to the second; an empty value reads as the zero time.
-func (p parser) timestamp(key string, value *yaml.Node) (time.Time, error) {
-	if isNull(value) {
+func timestamp(value frontmatter.Field) (time.Time, error) {
+	if value.IsEmpty() {
 		return time.Time{}, nil
 	}
-	parsed, err := time.Parse(time.RFC3339, value.Value)
-	if value.Kind != yaml.ScalarNode || err != nil {
-		return time.Time{}, p.errorAt(
-			value,
+	text, isScalar := value.Scalar()
+	parsed, err := time.Parse(time.RFC3339, text)
+	if !isScalar || err != nil {
+		return time.Time{}, value.Errorf(
 			"%s: expected an RFC3339 timestamp such as 2026-10-11T09:30:00Z",
-			key,
+			value.Key,
 		)
 	}
 	return parsed.UTC().Truncate(time.Second), nil
-}
-
-func writeText(out *strings.Builder, key string, value string) {
-	if value == "" {
-		return
-	}
-	fmt.Fprintf(out, "%s: %s\n", key, scalar(value, false))
-}
-
-func writeList(out *strings.Builder, key string, entries []string) {
-	if len(entries) == 0 {
-		return
-	}
-	quoted := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		quoted = append(quoted, scalar(entry, true))
-	}
-	fmt.Fprintf(out, "%s: [%s]\n", key, strings.Join(quoted, ", "))
-}
-
-func writeTime(out *strings.Builder, key string, value time.Time) {
-	if value.IsZero() {
-		return
-	}
-	fmt.Fprintf(out, "%s: %s\n", key, value.UTC().Format(time.RFC3339))
-}
-
-// scalar renders value as a YAML scalar: plain when YAML reads it back as the same text, in the
-// context it is written in (a mapping value or a flow-list entry), and double-quoted otherwise.
-func scalar(value string, isFlowEntry bool) string {
-	if isPlainSafe(value, isFlowEntry) {
-		return value
-	}
-	return doubleQuoted(value)
-}
-
-// isPlainSafe reports whether value, written unquoted, parses back as exactly the same string.
-// It asks the YAML parser itself, so every indicator, comment, number and keyword is covered.
-func isPlainSafe(value string, isFlowEntry bool) bool {
-	if value == "" || strings.IndexFunc(value, needsEscape) >= 0 {
-		return false
-	}
-	probe := "k: " + value
-	if isFlowEntry {
-		probe = "k: [" + value + "]"
-	}
-	var document yaml.Node
-	if yaml.Unmarshal([]byte(probe), &document) != nil || len(document.Content) != 1 {
-		return false
-	}
-	mapping := document.Content[0]
-	if mapping.Kind != yaml.MappingNode || len(mapping.Content) != 2 {
-		return false
-	}
-	parsed := mapping.Content[1]
-	if isFlowEntry {
-		if parsed.Kind != yaml.SequenceNode || len(parsed.Content) != 1 {
-			return false
-		}
-		parsed = parsed.Content[0]
-	}
-	return parsed.Kind == yaml.ScalarNode && parsed.Style == 0 && parsed.Tag == tagString &&
-		parsed.Value == value
-}
-
-// needsEscape reports a rune a YAML double-quoted scalar must escape: control characters, the
-// Unicode line breaks YAML folds, the byte order mark, and every other rune outside YAML 1.2's
-// printable set (the surrogates and the noncharacters U+FFFE and U+FFFF), which a YAML parser
-// rejects when written raw.
-func needsEscape(r rune) bool {
-	switch {
-	case unicode.IsControl(r), r == '\u2028', r == '\u2029', r == '\uFEFF':
-		return true
-	case r <= '\uD7FF', r >= '\uE000' && r <= '\uFFFD', r >= '\U00010000' && r <= unicode.MaxRune:
-		return false
-	default:
-		return true
-	}
-}
-
-// doubleQuoted renders value as a YAML double-quoted scalar on one line.
-func doubleQuoted(value string) string {
-	var out strings.Builder
-	out.WriteByte('"')
-	for _, r := range value {
-		switch {
-		case r == '"' || r == '\\':
-			out.WriteByte('\\')
-			out.WriteRune(r)
-		case r == '\n':
-			out.WriteString(`\n`)
-		case r == '\t':
-			out.WriteString(`\t`)
-		case needsEscape(r):
-			fmt.Fprintf(&out, `\u%04X`, r)
-		default:
-			out.WriteRune(r)
-		}
-	}
-	out.WriteByte('"')
-	return out.String()
 }

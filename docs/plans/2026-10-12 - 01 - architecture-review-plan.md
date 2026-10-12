@@ -252,7 +252,9 @@ internal/issue/file_test.go — TestSerialize_TrickyText_RoundTrips; docs/format
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/frontmatter/`
 **Commit:** `refactor(frontmatter): add the shared encoder`
 
-## 8. Issues parse and serialize through the codec
+## 8. Issues parse and serialize through the codec — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the issue field table is a `fields` slice of {key, decode, encode} entries built by `textField` / `listField` / `timeField` (priority is spelled out inline); it drives Parse's Decode callback, Serialize's Encoder calls and the `issueKind` key list, so the key order lives in one place. `issue.Error` is `type Error = frontmatter.Error`; the issue copies of the quoting helpers are gone.
 
 **What:**
 **Goal:** `internal/issue/file.go` holds only the issue field table and the `priority` / `timestamp`

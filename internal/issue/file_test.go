@@ -16,6 +16,10 @@ import (
 // testPath is the file name the tests hand to Parse, so errors can be matched exactly.
 const testPath = ".capcom/issues/login-timeout-race.md"
 
+// issueKeysHint is the hint an unknown key's message ends with, naming every key an issue knows.
+const issueKeysHint = "; an issue has title, status, type, priority, labels, deps, related, plan, " +
+	"aliases, created, closed and reason"
+
 func readGolden(t *testing.T, name string) []byte {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", name))
@@ -221,12 +225,12 @@ func TestParse_Failures_CiteFileLine(t *testing.T) {
 		{
 			name:    "unknown key",
 			content: "---\ntitle: T\nstatus: open\nupdated: 2026-10-11T09:30:00Z\n---\n",
-			want:    testPath + `:4: unknown key "updated"`,
+			want:    testPath + `:4: unknown key "updated"` + issueKeysHint,
 		},
 		{
 			name:    "stored id",
 			content: "---\nid: login-timeout-race\n---\n",
-			want:    testPath + `:2: unknown key "id"`,
+			want:    testPath + `:2: unknown key "id"` + issueKeysHint,
 		},
 		{
 			name:    "duplicate key",

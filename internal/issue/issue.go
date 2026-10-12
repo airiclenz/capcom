@@ -6,8 +6,9 @@
 package issue
 
 import (
-	"fmt"
 	"time"
+
+	"github.com/airiclenz/capcom/internal/frontmatter"
 )
 
 // Priority bounds and the priority an issue without one gets. 0 is the most urgent.
@@ -68,21 +69,10 @@ type Issue struct {
 	lines map[string]int
 }
 
-// Error is an issue file that cannot be used. Line is the 1-based line of the offending key or
-// value, or 0 when no single line is to blame.
-type Error struct {
-	Path    string
-	Line    int
-	Message string
-}
-
-// Error renders "path:line: message", or "path: message" when the line is unknown.
-func (e *Error) Error() string {
-	if e.Line > 0 {
-		return fmt.Sprintf("%s:%d: %s", e.Path, e.Line, e.Message)
-	}
-	return fmt.Sprintf("%s: %s", e.Path, e.Message)
-}
+// Error is an issue file that cannot be used: the one frontmatter.Error both kinds report, with
+// the file, the 1-based line of the offending key or value (0 when no single line is to blame) and
+// the message.
+type Error = frontmatter.Error
 
 // DepsLine returns the 1-based line of the deps key in the file the Issue was parsed from, or 0
 // when the file has none or the Issue was built in memory.
