@@ -392,6 +392,72 @@ func TestCreate_BesideConflictedFrontmatter_WarnsNamingTheMarker(t *testing.T) {
 	}
 }
 
+// withConflictAroundTitle returns content, an issue file opening with its title line, with that
+// line inside a git conflict hunk as a merge leaves it, so the file's frontmatter does not parse.
+func withConflictAroundTitle(content string) string {
+	title, rest, _ := strings.Cut(strings.TrimPrefix(content, "---\n"), "\n")
+	return "---\n<<<<<<< HEAD\n" + title + "\n=======\ntitle: Theirs\n>>>>>>> other-branch\n" + rest
+}
+
+// breakIssueFile puts the title line of the issue file at a slash path below .capcom/issues/ inside
+// a git conflict hunk, so the file does not parse.
+func breakIssueFile(t *testing.T, root string, name string) {
+	t.Helper()
+	writeIssueFiles(t, root, map[string]string{name: withConflictAroundTitle(readStoreFile(t, root, name))})
+}
+
+func TestCreate_AliasOfUnparseableIssue_FailsExistsNamingTheFile(t *testing.T) {
+	root := newWriteStore(t)
+	mustRun(t, root, "create", "--id", "first-issue", "--title", "First")
+	mustRun(t, root, "mv", "first-issue", "moved-issue")
+	breakIssueFile(t, root, "moved-issue.md")
+
+	stdout, _, exitCode := runCLI(t, root, "create", "--json", "--id", "first-issue", "--title", "Duplicate")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	wantMessage := `id "first-issue" may be an alias of issue moved-issue, whose file does not parse: fix it first`
+	if exitCode != ExitError || failure["code"] != string(CodeExists) ||
+		failure["path"] != ".capcom/issues/moved-issue.md" || failure["message"] != wantMessage {
+		t.Errorf("exit = %d error = %v, want exists at moved-issue.md with %q", exitCode, failure, wantMessage)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "first-issue.md")); err == nil {
+		t.Error("first-issue.md was written although an unparseable file lists it as an alias")
+	}
+}
+
+func TestCreate_AliasOfUnparseableIssueInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lost-dir/deeper-dir/other-id.md": withConflictAroundTitle(
+			readIssue("Lost", "open", "aliases:\n  - dup-id\n", ""),
+		),
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "dup-id", "--title", "Duplicate")
+
+	want := `.capcom/issues/lost-dir/deeper-dir/other-id.md: id "dup-id" may be an alias of issue other-id, ` +
+		"whose file does not parse: fix it first"
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "dup-id.md")); err == nil {
+		t.Error("dup-id.md was written although an unparseable orphaned file lists it as an alias")
+	}
+}
+
+func TestCreate_BesideUnparseableIssueWithOtherAlias_WritesAndWarnsOnce(t *testing.T) {
+	root := newWriteStore(t)
+	breakIssueFile(t, root, "renamed-issue.md")
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--id", "good-one", "--title", "Good one")
+
+	if exitCode != ExitOK {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	readStoreFile(t, root, "good-one.md")
+	assertWarnedOnce(t, stdout+stderr, "warning: .capcom/issues/renamed-issue.md:")
+}
+
 func TestCreate_UnderParentInOrphanDirectory_Fails(t *testing.T) {
 	root := newWriteStore(t)
 	writeIssueFiles(t, root, map[string]string{"lost-dir/parent-one.md": validIssue})

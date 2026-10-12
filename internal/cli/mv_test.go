@@ -211,6 +211,39 @@ func TestMv_OntoAliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 	readStoreFile(t, root, "renamed-issue.md")
 }
 
+func TestMv_OntoAliasOfUnparseableIssue_FailsExistsNamingTheFile(t *testing.T) {
+	root := newMoveStore(t)
+	mustRun(t, root, "create", "--id", "first-issue", "--title", "First")
+	mustRun(t, root, "mv", "first-issue", "moved-issue")
+	breakIssueFile(t, root, "moved-issue.md")
+
+	stdout, _, exitCode := runCLI(t, root, "mv", "--json", "login-flow", "first-issue")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	wantMessage := `id "first-issue" may be an alias of issue moved-issue, whose file does not parse: fix it first`
+	if exitCode != ExitError || failure["code"] != string(CodeExists) ||
+		failure["path"] != ".capcom/issues/moved-issue.md" || failure["message"] != wantMessage {
+		t.Errorf("exit = %d error = %v, want exists at moved-issue.md with %q", exitCode, failure, wantMessage)
+	}
+	readStoreFile(t, root, "login-flow.md")
+}
+
+func TestMv_OntoAliasOfUnparseableIssueInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
+	root := newMoveStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lost-dir/other-id.md": withConflictAroundTitle(readIssue("Lost", "open", "aliases: [dup-id]\n", "")),
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "mv", "renamed-issue", "dup-id")
+
+	want := `.capcom/issues/lost-dir/other-id.md: id "dup-id" may be an alias of issue other-id, ` +
+		"whose file does not parse: fix it first"
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	readStoreFile(t, root, "renamed-issue.md")
+}
+
 func TestMv_Rename_RelatedLinksFollow(t *testing.T) {
 	root := newMoveStore(t)
 	mustRun(t, root, "related", "add", "session-work", "login-flow")

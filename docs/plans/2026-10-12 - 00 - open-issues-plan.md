@@ -105,7 +105,11 @@ carries the conflict wording, not the YAML error.
 **Commit:** `fix(issue): name a conflict marker in the frontmatter parse warning`
 Depends on item 1.
 
-## 3. create and mv refuse an alias held by an unparseable issue file
+## 3. create and mv refuse an alias held by an unparseable issue file — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): re-derived from the assumed side map with orphanedIDFailure taking the kind noun: the new kind-neutral `unparsedAliasFailure(nodes, problems, id, kind, recovered)` in internal/cli/errors.go searches for the one new id instead of building a deduplicated alias map (only one id is ever checked), covering the tree's nodes and, through the unchanged `findNodeFile` with the recovering lookup `recoverAliases` (create.go), files inside orphan directories; `orphanedIDFailure`, `triageMoveProblems`, `readAliases` and every know call site are unchanged, so item 4 adds one `unparsedAliasFailure(..., noteNoun, <note recovering lookup>)` call per command.
+NOTES (2026-10-12): `mv` checks after `PlanMove` and `triageMoveProblems` (still before `Apply`) rather than before `PlanMove`, so a definite "already taken / already an alias" failure wins over the possible one, and `PlanMove` has already refused a moved file that does not parse, so the holder found is always another issue; `create` checks right after `orphanedIDFailure` for the same reason.
+NOTES (2026-10-12): consequential edit — internal/rawfm/conflict.go: made necessary by adding rawfm.Aliases (the package doc named only the conflict markers).
 
 **What:** Recast at the regression check (2026-10-12). bug `.capcom/issues/create-alias-unparseable.md`: `readAliases` in
 `internal/cli/create.go` returns no aliases for a file that does not parse, so `create` and `mv`

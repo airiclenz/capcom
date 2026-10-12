@@ -1,6 +1,7 @@
 // Package rawfm reads what it can from the raw text of an issue or Note file, before and without
-// parsing it: the git conflict markers a merge leaves in the file. It imports no capcom package,
-// so every layer that reports on a file, the parsers as well as `capcom check`, can use it.
+// parsing it: the git conflict markers a merge leaves in the file, and the aliases its frontmatter
+// lists, for a file that does not parse. It imports no capcom package, so every layer that reports
+// on a file, the parsers as well as `capcom check`, can use it.
 package rawfm
 
 import (

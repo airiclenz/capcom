@@ -228,6 +228,71 @@ func (a *app) orphanedIDFailure(problems tree.Errors, id string, aliases tree.Al
 	return nil
 }
 
+// unparsedAliasFailure refuses id, the new id of a node of kind ("issue", "note") being written or
+// moved, when a node file that does not parse may hold id as an alias: recovered, the kind's
+// recovering lookup, reads id from the raw frontmatter of the file of a node of nodes, or of a file
+// anywhere under one of the orphan directories among problems. Such a file cannot say which ids it
+// holds, so writing id beside it would risk a duplicate that surfaces only once the file is fixed;
+// every other problem of the file stays a warning. recovered reads none from a file that parses,
+// whose claims existsFailure and orphanedIDFailure refuse, and the caller runs both first. The
+// failure names the file relative to the working tree root; it is nil when there is no such file.
+func (a *app) unparsedAliasFailure(
+	nodes *tree.Tree,
+	problems tree.Errors,
+	id string,
+	kind string,
+	recovered tree.AliasFunc,
+) error {
+	path, err := findUnparsedAliasHolder(nodes, problems, id, recovered)
+	if err != nil {
+		return asError(err)
+	}
+	if path == "" {
+		return nil
+	}
+	return &Error{
+		Code: CodeExists,
+		Path: a.worktreeRelative(path),
+		Message: fmt.Sprintf(
+			"id %q may be an alias of %s %s, whose file does not parse: fix it first",
+			id,
+			kind,
+			strings.TrimSuffix(filepath.Base(path), nodeFileExtension),
+		),
+	}
+}
+
+// findUnparsedAliasHolder returns the first node file, of a node of nodes or anywhere under one of
+// the orphan directories among problems, from which recovered reads id, or "" when there is none.
+func findUnparsedAliasHolder(
+	nodes *tree.Tree,
+	problems tree.Errors,
+	id string,
+	recovered tree.AliasFunc,
+) (string, error) {
+	for _, node := range nodes.Nodes() {
+		names, err := recovered(node.Path)
+		if err != nil {
+			return "", err
+		}
+		if slices.Contains(names, id) {
+			return node.Path, nil
+		}
+	}
+	for _, problem := range problems {
+		if !errors.Is(problem, tree.ErrOrphanDirectory) {
+			continue
+		}
+		// orphanedIDFailure has already refused a file named id, so a file found here holds id
+		// as an alias.
+		path, _, err := findNodeFile(problem.Path, id, recovered)
+		if err != nil || path != "" {
+			return path, err
+		}
+	}
+	return "", nil
+}
+
 // findNodeFile returns the first node file at any depth below dir that answers to id, skipping
 // hidden names as tree.Load does, or "" when there is none. A file answers to id when it is named
 // id or, by isAlias, when aliases reads id among its Aliases; aliases may be nil when the kind has

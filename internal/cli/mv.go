@@ -77,6 +77,13 @@ func (a *app) move(args []string, parent string, isReparented bool) (Result, err
 	if err != nil {
 		return Result{}, err
 	}
+	if move.NewID != move.Node.ID {
+		// PlanMove has parsed the moved issue's file, so the holder found is another issue's.
+		err := a.unparsedAliasFailure(issues, problems, move.NewID, issueNoun, recoverAliases)
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	if err := move.Apply(); err != nil {
 		return Result{}, asError(err)
 	}
