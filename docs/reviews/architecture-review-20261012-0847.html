@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review — capcom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .schematic { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
+      .diagram { min-height: 320px; }
+      pre.mermaid { background: transparent; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+      <!-- Header -->
+      <header class="space-y-4 border-b border-stone-200 pb-8">
+        <p class="text-xs uppercase tracking-wider text-slate-500">Architecture review · 2026-10-12 · v0.2.1 (dc21c39)</p>
+        <h1 class="font-serif text-4xl">capcom</h1>
+        <div class="flex flex-wrap gap-5 text-xs text-slate-600">
+          <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 border border-slate-500 bg-white"></span>module</span>
+          <span class="flex items-center gap-2"><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#64748b" stroke-width="2" class="seam"/></svg>seam</span>
+          <span class="flex items-center gap-2"><svg width="28" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke-width="2" class="leak"/><polygon points="22,0 28,4 22,8" fill="#dc2626"/></svg>leakage</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 deep rounded-sm"></span>deep module</span>
+        </div>
+        <nav class="flex flex-wrap gap-2 text-xs font-mono">
+          <a href="#kind" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">1 · node kind</a>
+          <a href="#frontmatter" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">2 · frontmatter</a>
+          <a href="#index" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">3 · index</a>
+          <a href="#remove" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">4 · remove plan</a>
+          <a href="#briefing" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">5 · briefing</a>
+          <a href="#release" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">6 · release repo</a>
+          <a href="#passthrough" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">7 · pass-throughs</a>
+          <a href="#defects" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-red-500">defects</a>
+          <a href="#top-recommendation" class="px-2 py-1 rounded bg-white border border-stone-200 hover:border-emerald-500">top pick</a>
+        </nav>
+      </header>
+
+      <section id="candidates" class="space-y-14">
+
+        <!-- 1 ─────────────────────────────────────────────── -->
+        <article id="kind" class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <h2 class="font-serif text-2xl">1 · One node-store module per Tree kind</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-medium">Strong</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600 grid sm:grid-cols-2 gap-x-6">
+            <li>internal/cli/create.go · know.go</li>
+            <li>internal/cli/update.go · know_update.go</li>
+            <li>internal/cli/mv.go · know_mv.go</li>
+            <li>internal/cli/rm.go · know_rm.go</li>
+            <li>internal/cli/fmt.go · errors.go</li>
+            <li>internal/tree · internal/issue · internal/knowledge</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-red-700 mb-3">Before — every write verb wires the Tree by hand</p>
+              <div class="overflow-x-auto">
+              <table class="text-[0.65rem] w-full border-separate" style="border-spacing:3px">
+                <thead class="text-slate-500">
+                  <tr><th></th><th class="font-normal">load +<br>aliasFn</th><th class="font-normal">triage</th><th class="font-normal">claim<br>check</th><th class="font-normal">etag</th><th class="font-normal">validate</th><th class="font-normal">rel/abs<br>path</th></tr>
+                </thead>
+                <tbody class="font-mono">
+                  <tr><td class="pr-1">create</td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-red-100"></td><td></td><td class="bg-red-100"></td><td class="bg-red-100"></td></tr>
+                  <tr><td class="pr-1">know add</td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-red-100"></td><td></td><td class="bg-amber-200" title="only problems[0], no line"></td><td class="bg-red-100"></td></tr>
+                  <tr><td class="pr-1">update…</td><td class="bg-slate-100" title="index route"></td><td></td><td></td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-red-100"></td></tr>
+                  <tr><td class="pr-1">know update</td><td class="bg-slate-100"></td><td></td><td></td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-red-100"></td></tr>
+                  <tr><td class="pr-1">mv</td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-amber-200" title="no --if-match"></td><td></td><td class="bg-amber-200" title="absolute path leaks"></td></tr>
+                  <tr><td class="pr-1">know mv</td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-red-100"></td><td class="bg-red-100"></td><td></td><td class="bg-red-100"></td></tr>
+                  <tr><td class="pr-1">rm</td><td class="bg-red-100"></td><td class="bg-red-100"></td><td></td><td class="bg-red-100"></td><td></td><td class="bg-red-100"></td></tr>
+                  <tr><td class="pr-1">know rm</td><td class="bg-red-100"></td><td class="bg-red-100"></td><td></td><td class="bg-red-100"></td><td></td><td class="bg-red-100"></td></tr>
+                  <tr><td class="pr-1">fmt</td><td class="bg-red-100"></td><td class="bg-red-100"></td><td></td><td></td><td class="bg-red-100"></td><td class="bg-red-100"></td></tr>
+                </tbody>
+              </table>
+              </div>
+              <p class="text-[0.65rem] text-slate-500 mt-3"><span class="inline-block w-3 h-3 bg-red-100 align-middle"></span> step re-implemented in cli &nbsp; <span class="inline-block w-3 h-3 bg-amber-200 align-middle"></span> copy already drifted &nbsp; <span class="inline-block w-3 h-3 bg-slate-100 align-middle"></span> index route instead</p>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram flex flex-col">
+              <p class="schematic text-emerald-700 mb-3">After — cli parses flags, renders <span class="font-mono normal-case">Written</span></p>
+              <div class="flex gap-2 mb-2">
+                <div class="flex-1 border border-slate-400 rounded px-2 py-1 schematic text-center">cli verbs</div>
+              </div>
+              <svg height="18" class="w-full"><line x1="0" y1="9" x2="100%" y2="9" stroke="#64748b" stroke-width="2" class="seam"/></svg>
+              <div class="deep rounded-lg p-4 text-white flex-1 space-y-3">
+                <p class="schematic text-emerald-300">Kind · Issues | Notes</p>
+                <p class="font-mono text-xs text-slate-200 leading-relaxed">Create(id, parent, build)<br>Edit(ref, ifMatch, change) → Written<br>Move(ref, dest, ifMatch)<br>Remove(ref, ifMatch)</p>
+                <div class="grid grid-cols-3 gap-1.5 opacity-50">
+                  <span class="border border-slate-500 rounded schematic text-[0.55rem] text-center py-1">aliasFn pair</span>
+                  <span class="border border-slate-500 rounded schematic text-[0.55rem] text-center py-1">claim check</span>
+                  <span class="border border-slate-500 rounded schematic text-[0.55rem] text-center py-1">triage</span>
+                  <span class="border border-slate-500 rounded schematic text-[0.55rem] text-center py-1">etag guard</span>
+                  <span class="border border-slate-500 rounded schematic text-[0.55rem] text-center py-1">validate→Error</span>
+                  <span class="border border-slate-500 rounded schematic text-[0.55rem] text-center py-1">paths</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="font-semibold">Problem</dt>
+            <dd>Issue and Note write verbs are parallel copies in <code>cli</code>: the load → triage → claim-check → etag → validate → write sequence is spelled out 7 times, and the order is documented in <code>errors.go:236</code> rather than enforced.</dd>
+            <dt class="font-semibold">Solution</dt>
+            <dd>A deep module, one value per Tree kind (Issues, Notes), owns the alias functions, the claim check, triage, the etag guard, validation and the path convention, and returns <code>Written{ID, Path, ETag}</code> instead of a rendered <code>Result</code>.</dd>
+            <dt class="font-semibold">Wins</dt>
+            <dd>
+              <ul class="list-disc ml-5 space-y-0.5">
+                <li>locality: drift between copies ends</li>
+                <li>leverage: one interface, 9 verbs</li>
+                <li>delete 4 aliasFn helpers</li>
+                <li>tests hit Kind without <code>runCLI</code></li>
+                <li>close stops unpicking <code>Result.Data</code></li>
+                <li>Note parity: <code>mv --if-match</code>, full errors</li>
+              </ul>
+            </dd>
+          </dl>
+          <p class="text-xs text-slate-500">Evidence: <code>relativeSlashPath</code> ×21 across 10 files; etag check inlined ×5; validation→<code>*Error</code> ×5; <code>close.go:156</code> casts <code>Data.(map[string]string)</code> to recover the etag.</p>
+        </article>
+
+        <!-- 2 ─────────────────────────────────────────────── -->
+        <article id="frontmatter" class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <h2 class="font-serif text-2xl">2 · One frontmatter codec for Issues and Notes</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-medium">Strong</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>internal/issue/file.go</li>
+            <li>internal/knowledge/note.go</li>
+            <li>internal/config/config.go (296–399)</li>
+            <li>internal/check/check.go (addParseFailure)</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-red-700 mb-4">Before — mass of two copies</p>
+              <div class="flex items-end gap-6 h-64">
+                <div class="flex flex-col items-center gap-1 flex-1">
+                  <div class="w-full bg-red-200 border border-red-400 h-24 flex items-center justify-center schematic text-[0.55rem] text-center">interface<br>parse·Error·Serialize</div>
+                  <div class="w-full bg-slate-200 border border-slate-400 h-32 flex items-center justify-center schematic text-[0.55rem] text-center">split · document<br>fields · text · list</div>
+                  <span class="font-mono text-xs mt-1">issue</span>
+                </div>
+                <div class="flex flex-col items-center gap-1 flex-1">
+                  <div class="w-full bg-red-200 border border-red-400 h-24 flex items-center justify-center schematic text-[0.55rem] text-center">interface<br>parse·Error·Serialize</div>
+                  <div class="w-full bg-slate-200 border border-slate-400 h-32 flex items-center justify-center schematic text-[0.55rem] text-center">split · document<br>fields · text · list</div>
+                  <span class="font-mono text-xs mt-1">knowledge</span>
+                </div>
+                <div class="flex flex-col items-center gap-1 flex-1">
+                  <div class="w-full bg-red-200 border border-red-400 h-16 flex items-center justify-center schematic text-[0.55rem] text-center">parser scaffold</div>
+                  <div class="w-full bg-slate-200 border border-slate-400 h-20"></div>
+                  <span class="font-mono text-xs mt-1">config</span>
+                </div>
+              </div>
+              <p class="text-[0.65rem] text-slate-500 mt-2">Two <code>Error</code> types; two quoting policies (hand-rolled vs yaml.v3 Encoder).</p>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-emerald-700 mb-4">After — thin kinds on one deep codec</p>
+              <div class="flex items-end gap-6 h-64">
+                <div class="flex flex-col items-center gap-1 flex-1">
+                  <div class="w-full border border-slate-400 bg-white h-8 flex items-center justify-center schematic text-[0.55rem]">issue fields</div>
+                  <span class="font-mono text-xs">issue</span>
+                </div>
+                <div class="flex flex-col items-center gap-1 flex-[2]">
+                  <div class="w-full bg-emerald-200 border border-emerald-500 h-8 flex items-center justify-center schematic text-[0.55rem]">Split · Decode · Encode · Error</div>
+                  <div class="w-full deep h-48 rounded-b flex items-center justify-center schematic text-[0.6rem] text-slate-300 text-center px-2">fences · CRLF · line offsets<br>conflict markers · yaml errors<br>one quoting policy</div>
+                  <span class="font-mono text-xs mt-1">frontmatter</span>
+                </div>
+                <div class="flex flex-col items-center gap-1 flex-1">
+                  <div class="w-full border border-slate-400 bg-white h-8 flex items-center justify-center schematic text-[0.55rem]">note fields</div>
+                  <span class="font-mono text-xs">knowledge</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="font-semibold">Problem</dt>
+            <dd><code>issue/file.go</code> and <code>knowledge/note.go</code> carry the same ~75-line frontmatter parser, separate <code>Error</code> types and different serialisation, so "canonical form" means two things.</dd>
+            <dt class="font-semibold">Solution</dt>
+            <dd>Extract a frontmatter module (split, decode with a per-kind field callback, encode, one <code>Error{Path, Line, Message}</code>); Issues and Notes keep only their field tables. <code>rawfm</code> stays — it is deep and must read unparseable files.</dd>
+            <dt class="font-semibold">Wins</dt>
+            <dd>
+              <ul class="list-disc ml-5 space-y-0.5">
+                <li>deletion test: either copy goes</li>
+                <li>locality: one quoting policy</li>
+                <li><code>check</code> drops its type switch</li>
+                <li>parser tests written once</li>
+              </ul>
+            </dd>
+          </dl>
+          <p class="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">ADR 0009 — keep strictness: unknown keys stay errors in the shared decoder. Unifying the quoting policy may reformat existing files; <code>capcom fmt</code> covers that, but it is a visible diff.</p>
+        </article>
+
+        <!-- 3 ─────────────────────────────────────────────── -->
+        <article id="index" class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <h2 class="font-serif text-2xl">3 · Let the index own its freshness, walk and warnings</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-medium">Strong</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>internal/index/index.go · refresh.go · walk.go</li>
+            <li>internal/tree/tree.go</li>
+            <li>internal/cli/root.go (prepareIndex) · errors.go (357–434) · prime.go · mv.go</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-red-700 mb-1">Before</p>
+              <pre class="mermaid">
+flowchart TB
+  ann["26 × cobra annotation"] --> prep["root.prepareIndex"]
+  prep --> open["index.Open<br/>(no tables yet)"]
+  prep --> ref["Refresh()"]
+  prime["prime.briefIssues"] -.copy.-> open
+  prime -.copy.-> ref
+  ref --> walk["index/walk.go<br/>own tree walk"]
+  tw["tree.walk"] ~~~ walk
+  ref --> msg["Warning{Message string}"]
+  errs["cli/errors.go<br/>HasPrefix / HasSuffix"] --> msg
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#991b1b;
+  class errs,walk,prime leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-emerald-700 mb-1">After</p>
+              <pre class="mermaid">
+flowchart TB
+  cli["read verbs · prime"] --> io["index.Open(store, Fresh)"]
+  subgraph deep["index (deep)"]
+    io --> r["refresh once"]
+    r --> w["tree.Walk rules"]
+    r --> k["Warning{Kind, Message}"]
+  end
+  cli --> k
+  classDef d fill:#0f172a,color:#e2e8f0,stroke:#0f172a;
+  class io,r,w,k d
+              </pre>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="font-semibold">Problem</dt>
+            <dd>The index is deep inside but leaks three things across its seam: callers must call <code>Refresh</code> before any query, <code>cli</code> classifies warnings by matching message text, and <code>index/walk.go</code> re-implements the ADR 0001 walk with different orphan wording than <code>tree</code>.</dd>
+            <dt class="font-semibold">Solution</dt>
+            <dd><code>index.Open</code> returns a fresh index (or refreshes lazily on first query); <code>Warning</code> carries a typed kind; the directory walk and the duplicate id/alias rules come from <code>tree</code>.</dd>
+            <dt class="font-semibold">Wins</dt>
+            <dd>
+              <ul class="list-disc ml-5 space-y-0.5">
+                <li>ordering constraint leaves the interface</li>
+                <li>rewording a message breaks nothing</li>
+                <li>locality: one ADR 0001 walk</li>
+                <li>delete 26 annotations + prime copy</li>
+              </ul>
+            </dd>
+          </dl>
+          <p class="text-xs text-slate-500">Also: an alias equal to its own id gets two messages ("duplicate alias: the id of …" in <code>tree</code>, "repeats the issue's own id" in <code>index</code>). <code>mv.go:139</code> mutates <code>a.indexReport.Warnings</code> in place for <code>emit</code> to read later.</p>
+        </article>
+
+        <!-- 4 ─────────────────────────────────────────────── -->
+        <article id="remove" class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <h2 class="font-serif text-2xl">4 · Remove becomes a Tree plan, like Move</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800 font-medium">Worth exploring</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>internal/tree/move.go (PlanMove · Apply 259–279)</li>
+            <li>internal/issue/move.go (planRewrite)</li>
+            <li>internal/cli/rm.go (planDepDrops 195–230 · applyIssueRemoval · restoreRewrites 243–279)</li>
+            <li>internal/cli/know_rm.go (removeEmptyParentDir)</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram space-y-2">
+              <p class="schematic text-red-700 mb-2">Before — cross-section of two paths</p>
+              <div class="grid grid-cols-2 gap-3 text-[0.65rem]">
+                <div class="space-y-1.5">
+                  <p class="font-mono text-slate-500">mv</p>
+                  <div class="h-10 border-l-4 border-slate-400 bg-slate-50 px-2 flex items-center">cli: flags</div>
+                  <div class="h-10 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center">issue.PlanMove: rewrites</div>
+                  <div class="h-10 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center">tree.Move.Apply</div>
+                  <div class="h-10 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center">rollback</div>
+                </div>
+                <div class="space-y-1.5">
+                  <p class="font-mono text-slate-500">rm</p>
+                  <div class="h-10 border-l-4 border-slate-400 bg-slate-50 px-2 flex items-center">cli: flags</div>
+                  <div class="h-10 border-l-4 border-red-500 bg-red-50 px-2 flex items-center">cli: planDepDrops</div>
+                  <div class="h-10 border-l-4 border-red-500 bg-red-50 px-2 flex items-center">cli: applyIssueRemoval</div>
+                  <div class="h-10 border-l-4 border-red-500 bg-red-50 px-2 flex items-center">cli: restoreRewrites</div>
+                </div>
+              </div>
+              <p class="text-[0.65rem] text-slate-500 pt-2">Each walks every issue file and decides its own "Unread" set.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-emerald-700 mb-2">After — symmetric plans, one applier</p>
+              <pre class="mermaid">
+flowchart TB
+  mv["cli mv"] --> pm["issue.PlanMove"]
+  rm["cli rm"] --> pr["issue.PlanRemove"]
+  pm --> plan["tree.Plan<br/>steps + undo"]
+  pr --> plan
+  plan --> apply["Apply · rollback · empty-dir cleanup"]
+  classDef d fill:#0f172a,color:#e2e8f0,stroke:#0f172a;
+  class plan,apply d
+              </pre>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="font-semibold">Problem</dt>
+            <dd>Move has a planned, roll-back-able path through <code>issue</code> and <code>tree</code>; Remove re-implements the plan, apply and undo machinery inside <code>cli</code>.</dd>
+            <dt class="font-semibold">Solution</dt>
+            <dd>Add <code>issue.PlanRemove</code> producing the same step/undo plan that <code>tree</code> already applies; empty-directory cleanup joins the applier.</dd>
+            <dt class="font-semibold">Wins</dt>
+            <dd>
+              <ul class="list-disc ml-5 space-y-0.5">
+                <li>one rollback, tested once</li>
+                <li>rm logic testable below the CLI</li>
+                <li>delete ~90 lines from <code>cli/rm.go</code></li>
+              </ul>
+            </dd>
+          </dl>
+          <p class="text-xs text-slate-500">Natural sub-step of candidate 1 (its <code>Remove</code>), but can land first on its own.</p>
+        </article>
+
+        <!-- 5 ─────────────────────────────────────────────── -->
+        <article id="briefing" class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <h2 class="font-serif text-2xl">5 · Make the Briefing (and the Ready list) a module</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800 font-medium">Worth exploring</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>internal/cli/prime.go (brief 73–95 · briefIssues 98–114 · briefLocks 156–177)</li>
+            <li>internal/cli/ready.go (readyEntries 95–128 · selects 133–152)</li>
+            <li>internal/cli/dep.go:202 · internal/check/check.go:278 (Entry→Node)</li>
+            <li>internal/issue/ready.go · internal/index/query.go</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-red-700 mb-1">Before</p>
+              <pre class="mermaid">
+flowchart LR
+  p["prime.brief"] --> s["store.Open"]
+  p --> i["index.Open + Refresh"]
+  p --> app["a.issueIndex = opened<br/>(borrowed)"]
+  app --> re["readyEntries"]
+  re --> n["Entry→Node<br/>(×3 copies)"]
+  re --> sel["selects<br/>(re-does SQL filter)"]
+  p --> l["lock.List"]
+  p --> c["check.Run<br/>(re-parses all files)"]
+  p --> e["addElsewhere"]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#991b1b;
+  class app,n,sel leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-emerald-700 mb-1">After</p>
+              <pre class="mermaid">
+flowchart LR
+  pr["cli prime"] --> b["briefing.Compose(store)<br/>→ Briefing"]
+  rd["cli ready"] --> rl["ReadyList(opts)<br/>sorted · filtered"]
+  b --> rl
+  b --> x["locks · elsewhere ·<br/>broken refs · check count"]
+  classDef d fill:#0f172a,color:#e2e8f0,stroke:#0f172a;
+  class b,rl,x d
+              </pre>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="font-semibold">Problem</dt>
+            <dd>The Briefing is a glossary term but not a module: <code>prime.go</code> composes it from five sources and borrows <code>readyEntries</code> by temporarily setting a shared field on <code>app</code>.</dd>
+            <dt class="font-semibold">Solution</dt>
+            <dd>A Briefing module returns data (Ready planned/unplanned, Doing, Tree locks, Elsewhere, broken Refs, check count); a Ready-list module owns Entry→Node, filters, sort and limit; <code>cli</code> only renders.</dd>
+            <dt class="font-semibold">Wins</dt>
+            <dd>
+              <ul class="list-disc ml-5 space-y-0.5">
+                <li>domain term maps to one module</li>
+                <li>no hidden ordering on <code>app</code></li>
+                <li>Briefing tests skip <code>t.Chdir</code></li>
+                <li>delete 2 Entry→Node copies</li>
+              </ul>
+            </dd>
+          </dl>
+        </article>
+
+        <!-- 6 ─────────────────────────────────────────────── -->
+        <article id="release" class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <h2 class="font-serif text-2xl">6 · A semantic repo seam for the release tool</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800 font-medium">Worth exploring</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">ports &amp; adapters</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>cmd/release/runner.go</li>
+            <li>cmd/release/gate.go · prepare.go · publish.go · status.go</li>
+            <li>cmd/release/gate_test.go (fakeRepo.respond 79–126)</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-red-700 mb-1">Before — the seam is argv</p>
+              <pre class="mermaid">
+flowchart LR
+  v["verbs<br/>~30 git · 19 gh calls"] --> r["runner.run(name, args…)"]
+  r --> exec["exec"]
+  f["fakeRepo.respond<br/>matches argv strings"] -.-> r
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#991b1b;
+  class f,v leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram">
+              <p class="schematic text-emerald-700 mb-1">After — two adapters, one real seam</p>
+              <pre class="mermaid">
+flowchart LR
+  v["verbs"] --> i["repo: Head · IsAncestor ·<br/>Tags · ChangedFiles · ReleaseView"]
+  i --> g["git/gh adapter"]
+  i --> fk["in-memory adapter"]
+  classDef d fill:#0f172a,color:#e2e8f0,stroke:#0f172a;
+  class i d
+              </pre>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="font-semibold">Problem</dt>
+            <dd>Tests fake <code>git</code> and <code>gh</code> by matching argv strings, so changing any command line breaks fakes in unrelated tests.</dd>
+            <dt class="font-semibold">Solution</dt>
+            <dd>Put the seam at repository operations; the exec adapter owns the argv, the test adapter owns semantic state.</dd>
+            <dt class="font-semibold">Wins</dt>
+            <dd>
+              <ul class="list-disc ml-5 space-y-0.5">
+                <li>two adapters justify the seam</li>
+                <li>fakes describe state, not argv</li>
+                <li>locality: argv in one adapter</li>
+              </ul>
+            </dd>
+          </dl>
+          <p class="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">ADR 0007 (real git in tests) covers the shipped binary; <code>cmd/release</code> already fakes at argv level for <code>gh</code>, so this moves an existing fake rather than adding one. Real-git coverage of the git adapter can stay.</p>
+        </article>
+
+        <!-- 7 ─────────────────────────────────────────────── -->
+        <article id="passthrough" class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <h2 class="font-serif text-2xl">7 · Delete the pass-throughs; move stray domain bits home</h2>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-200 text-slate-700 font-medium">Speculative</span>
+            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>internal/issue/mutate.go (WithLabels · AppendBody · ReplaceBody)</li>
+            <li>internal/edit/edit.go (WithFinalNewline · NormalizeNewlines · AppendBlock)</li>
+            <li>internal/gitx/gitx.go:100 (Run) ← internal/cli/lock.go:252</li>
+            <li>internal/cli/lock.go (newClaim 245–271) · internal/cli/related.go:25 (storeConfigFile)</li>
+            <li>internal/agents/block.go (TopNotes + Inspect/Write, ×3 callers)</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram space-y-1.5">
+              <p class="schematic text-red-700 mb-2">Before — thin bands</p>
+              <div class="h-9 border-l-4 border-slate-400 bg-slate-50 px-2 flex items-center text-xs font-mono">cli/update.go</div>
+              <div class="h-9 border-l-4 border-red-400 bg-red-50 px-2 flex items-center text-xs font-mono">issue.WithLabels → edit.Labels</div>
+              <div class="h-9 border-l-4 border-slate-400 bg-slate-50 px-2 flex items-center text-xs font-mono">cli/know_update.go → edit.Labels</div>
+              <div class="h-9 border-l-4 border-red-400 bg-red-50 px-2 flex items-center text-xs font-mono">cli/lock.go → gitx.Run("branch", …)</div>
+              <div class="h-9 border-l-4 border-red-400 bg-red-50 px-2 flex items-center text-xs font-mono">cli/related.go → "config.yaml"</div>
+              <div class="h-9 border-l-4 border-red-400 bg-red-50 px-2 flex items-center text-xs font-mono">cli/agents.go → TopNotes + Write</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 diagram space-y-1.5">
+              <p class="schematic text-emerald-700 mb-2">After — each fact in its module</p>
+              <div class="h-9 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center text-xs font-mono">edit.Labels (both kinds)</div>
+              <div class="h-9 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center text-xs font-mono">gitx.CurrentBranch</div>
+              <div class="h-9 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center text-xs font-mono">lock.CurrentClaim(root, purpose, holder)</div>
+              <div class="h-9 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center text-xs font-mono">store.RaiseFormat(n)  (ADR 0009)</div>
+              <div class="h-9 border-l-4 border-emerald-600 bg-emerald-50 px-2 flex items-center text-xs font-mono">agents.Sync(store)</div>
+            </div>
+          </div>
+
+          <dl class="grid sm:grid-cols-[7rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt class="font-semibold">Problem</dt>
+            <dd>Small shallow modules and domain facts sit on the wrong side of their seam: the deletion test removes the <code>issue</code> label/body wrappers at no cost, and <code>cli</code> owns git argv, claim detection and the config path.</dd>
+            <dt class="font-semibold">Solution</dt>
+            <dd>Delete the wrappers; move each stray fact into the module whose name it carries.</dd>
+            <dt class="font-semibold">Wins</dt>
+            <dd>
+              <ul class="list-disc ml-5 space-y-0.5">
+                <li>one shape per edit operation</li>
+                <li>git argv leaves <code>cli</code></li>
+                <li>store owns its format raise</li>
+              </ul>
+            </dd>
+          </dl>
+        </article>
+      </section>
+
+      <!-- Defects -->
+      <section id="defects" class="rounded-lg border border-red-200 bg-red-50/50 p-6 space-y-3">
+        <h2 class="font-serif text-xl">Defects found on the way</h2>
+        <p class="text-sm text-slate-600">Not part of this review's scope — run <code>/code-audit</code> to confirm and triage.</p>
+        <ul class="text-sm space-y-2 list-disc ml-5">
+          <li><strong>mv leaks an absolute path.</strong> <code>cli/mv.go:192</code> passes a moved issue's parse failure through <code>issueFailure</code>, which copies <code>issue.Error.Path</code> unchanged; that path is absolute (<code>issue/move.go:84</code>). <code>noteMoveFailure</code> relativizes. Drift between the copies of candidate 1.</li>
+          <li><strong><code>lock touch</code> on a free lock reports an empty worktree.</strong> <code>lock.Touch</code> returns a zero <code>Status</code> on <code>ErrNotHeld</code>; <code>emitLock</code> (<code>cli/lock.go:294</code>) renders <code>lock.Status{Key: status.Key}</code>, so the key is empty.</li>
+          <li><strong><code>know add</code> reports only the first validation problem, with no line</strong> (<code>cli/know.go:337</code>); <code>writeNoteFile</code> reports all, with lines.</li>
+          <li><strong>Move rollback is not byte-exact for CRLF files</strong> — undo writes through <code>WriteFileAtomic</code>, which normalises to LF (<code>tree/move.go:186</code>, acknowledged in a comment).</li>
+          <li><strong><code>prime</code> discards the Refresh report</strong> (<code>prime.go</code>), so index "left out" warnings never reach the Briefing — possibly intended, since the check count covers them.</li>
+        </ul>
+      </section>
+
+      <!-- Top recommendation -->
+      <section id="top-recommendation" class="deep rounded-xl p-8 text-white space-y-3">
+        <p class="schematic text-emerald-300">Top recommendation</p>
+        <h2 class="font-serif text-3xl"><a href="#kind" class="underline decoration-emerald-400 underline-offset-4">1 · One node-store module per Tree kind</a></h2>
+        <p class="text-slate-300 max-w-3xl">It is the widest shallow surface in the codebase — 9 verbs, 7 copies of one sequence — and the copies have already drifted into a user-visible defect (the <code>mv</code> absolute path). Candidates 2 and 4 then land inside it as its internals.</p>
+      </section>
+    </main>
+  </body>
+</html>

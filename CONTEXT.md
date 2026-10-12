@@ -112,17 +112,19 @@ _Avoid_: expired, dead, abandoned
 
 **Knowledge**:
 The committed, shared body of facts about the repository that agents consult on demand:
-conventions, gotchas and the reasons behind them. It holds **Notes**.
+conventions, gotchas, the domain glossary, decision records and the reasons behind them. It holds
+**Notes**, which people and agents may edit by hand as well as through capcom.
 _Avoid_: memory, docs, wiki
 
 **Note**:
-One self-contained fact or rule in **Knowledge**.
+One self-contained piece of **Knowledge**: a fact, a rule, a glossary term, or a decision
+record or one section of it. A long document becomes a **Note** with its sections as children, so
+a reader opens only the part it needs.
 _Avoid_: entry, memory, fact
 
 **Ref**:
 A file, directory or symbol in the repository that a **Note** depends on. A **Note** with a ref
-that no longer exists is suspect until someone checks it. ADRs and the glossary are referenced,
-never copied.
+that no longer exists is suspect until someone checks it.
 _Avoid_: link, anchor, dependency (that word belongs to **Issues**)
 
 **Label**:
