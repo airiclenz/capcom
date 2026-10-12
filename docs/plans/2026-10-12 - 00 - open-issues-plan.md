@@ -201,7 +201,7 @@ both fail under the guard's mutation of `kvRenderer.Render`.
 **Closes:** kv-warning-order
 **Commit:** `docs(format): state where --kv puts warnings`
 
-## 6. Settle the beads guide's open migration cases
+## 6. Settle the beads guide's open migration cases — ✅ DONE (2026-10-12)
 
 **What:**
 **Goal:** `docs/migrating-from-beads.md` answers every bullet of

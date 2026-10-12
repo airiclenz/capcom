@@ -72,9 +72,9 @@ The left column is the key in the beads export.
 | `dependencies`            | By dependency type, see Dependencies.                                                      |
 | `created_at`              | `created`, RFC3339 in UTC to the second (`2026-10-11T09:30:00Z`).                          |
 | `closed_at`               | `closed`, in the same form; a Closed issue needs it.                                       |
-| `close_reason`            | `reason`; a Closed issue needs it, so write `Closed in beads.` when the export has none.   |
+| `close_reason`            | `reason`: a non-empty reason is kept verbatim (`Closed` included). A Closed issue needs one, so write `Closed in beads.` only when the export's is empty. |
 | `updated_at`              | Dropped: git and the index know when a file changed. It dates no Log entry.                |
-| `started_at`, `assignee`, `owner`, `external_ref`, anything else | Dropped, see What does not migrate. Copy a value that still matters into a Log entry. |
+| `started_at`, `assignee`, `owner`, `external_ref`, `created_by`, `dependency_count`, `dependent_count`, `comment_count`, `_type`, anything else | Dropped, see What does not migrate. Copy a value that still matters into a Log entry. |
 
 ### Statuses
 
@@ -99,7 +99,9 @@ An epic's children nest under it through their parent-child dependencies either 
   A closed issue keeps its closed status and just loses the label. This lowers the ready count:
   `bd ready` listed an open issue that carried only the `parked` label, but `parked` is in the
   waiting category, and a waiting issue is not ready, nor is any issue below it in the tree.
-- `planned` is dropped: an issue is Planned when its `plan:` field is set.
+- `planned` is dropped: an issue is Planned when its `plan:` field is set. An issue whose `spec_id`
+  names a plan gets `plan:` (see Plans), so it is Planned with or without the `planned` label,
+  closed issues included.
 - Every other label carries over unchanged.
 
 ### Plans
@@ -111,7 +113,8 @@ config's `plans` list, the archive included. When `capcom check` reports `missin
 plan's current name, or drop the field and record the old value in a Log entry.
 
 A `spec_id` that points at a document that is not a plan (a review, a design note) gets no `plan:`
-at all, since `plan:` makes the issue Planned: record the path in a Log entry instead.
+at all, since `plan:` makes the issue Planned: record the path in a Log entry instead, dated by
+`created_at`, with the author `beads`: `- <created_at date> beads: spec: <path>`.
 
 ### Dependencies
 
@@ -125,6 +128,9 @@ it, not to the one it names.
 | `parent-child`    | The issue's file moves into the directory of its parent (`depends_on_id`), see below.   |
 | `related`         | `capcom related add <capcom id> <capcom id of depends_on_id>`, on one side only.        |
 | `discovered-from` | A Log entry: `discovered while working on <capcom id>`.                                 |
+
+A dependency's `created_by` and `metadata` are dropped; only its type, its two ids and, for a
+discovered-from link, its date carry over.
 
 Nesting comes from the parent-child dependencies alone. Dotted beads ids (`apogee-kk0.4`) are
 usually children of the id before the dot, but not every child has a dotted id, so do not rely on
@@ -153,9 +159,14 @@ item, oldest first:
 A comment becomes `- <date of created_at> <author>: <text>`, the text verbatim, with any further
 lines indented two spaces under the item. The `notes` field is often a running record of several
 dated entries; split it into one Log entry per date, each with that date and the author `beads`,
-since beads keeps no author for it, and sort them in among the comments by date. A `notes` value
-with no dated entries becomes one entry dated by `closed_at`, else by `created_at`. Never date a
-note by `updated_at`: it moves on every edit, so it files old notes after later comments.
+since beads keeps no author for it, and sort them in among the comments by date. Only a date at
+the start of a line starts an entry (`2026-09-09 (owner): ...`, `2026-09-06 later: ...`); a date in
+mid-sentence (`narrowed by the 2026-09-08 review`) is part of the text around it. Each entry runs
+to the next line that starts with a date. The leading date and a `:` directly after it are
+removed, and the rest of the text is kept verbatim, `(owner):` or `later:` included. An undated
+lead before the first dated entry becomes an entry of its own, dated by `created_at`. A `notes`
+value with no dated entries becomes one entry dated by `closed_at`, else by `created_at`. Never
+date a note by `updated_at`: it moves on every edit, so it files old notes after later comments.
 Discovered-from links use the date of the dependency and the author `beads`.
 
 ### Mentions of other issues
@@ -179,7 +190,9 @@ These have no home in capcom, so they go with `.beads/`:
 
 - `.beads/interactions.jsonl`, beads' event log of every change to every issue;
 - the Dolt history of the beads database and its remote;
-- `started_at`, `updated_at`, the assignee and the other dropped fields of the mapping above;
+- `started_at`, `updated_at`, the assignee and the other dropped fields of the mapping above,
+  among them `created_by`, the counts `dependency_count`, `dependent_count` and `comment_count`,
+  the record kind `_type`, and a dependency's `created_by` and `metadata`;
 - the time of day, the ids and the exact whitespace of comments.
 
 Keep the final `bd export` from step 1, and a copy of `.beads/interactions.jsonl`, outside the
