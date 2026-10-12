@@ -79,10 +79,18 @@ trigger another workflow, the tap, bucket and winget pushes need a personal toke
 come from an agent.
 
 **`cmd/release` is a scoped exception to [ADR 0007](0007-tests-use-real-temp-files-sqlite-and-git.md).**
-Its tests fake `git`, `gh`, `go` and `komac` through one runner seam (`runner.go`; `fakeRunner`,
-`fakeToolchain`) instead of running them, because `gh`, GitHub and winget-pkgs cannot be made
-hermetic, and a test must never publish. Files are still real files in `t.TempDir()`. ADR 0007
-keeps covering every package of capcom itself.
+Its tests never run `git`, `gh`, `go` or `komac`, because `gh`, GitHub and winget-pkgs cannot be
+made hermetic, and a test must never publish. Two seams carry the fakes. What the release verbs ask
+of the capcom checkout and its GitHub repository goes through one semantic `repo` interface
+(`repo.go`): `execRepo` is the production adapter over git and gh, every `gh release` call naming
+`--repo airiclenz/capcom`, and the verbs' tests hold that repository as plain state in `memRepo`,
+never as canned argv; only `execRepo`'s own tests pin the argv it runs. Everything else (the
+toolchain, dist's read of the commit time of the source tree it builds, and the tap, bucket and
+winget-pkgs commands) goes through one runner seam (`runner.go`; `fakeRunner`, `fakeToolchain`).
+Files are still real files in `t.TempDir()`. ADR 0007 keeps covering every package of capcom itself.
+
+Amended 2026-10-12: the tests first faked every command, capcom's own repository included,
+through the runner by argv; the `repo` seam replaced those own-repo fakes.
 
 ## Considered Options
 

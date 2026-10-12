@@ -38,16 +38,10 @@ var releaseAssetsV02411 = []string{
 	"SHA256SUMS",
 }
 
-// fakeRemote answers the publish-step probes' commands the way git and gh would over remotes
-// in a given state. Its zero value is a release nothing has been published for, on channels
-// whose one-time setup is still pending.
+// fakeRemote answers the channel probes' gh commands the way gh would over the tap, bucket and
+// winget-pkgs repositories in a given state; capcom's own repository is a memRepo, never argv
+// here. Its zero value is channels whose one-time setup is still pending.
 type fakeRemote struct {
-	// tagObject is the type of the version's tag on origin: "" for no tag, "tag" for an
-	// annotated one, "commit" for a lightweight one.
-	tagObject string
-	// release is what `gh release view <tag> --repo airiclenz/capcom --json assets` prints, ""
-	// for no release.
-	release string
 	// hasTap is whether the tap repository exists; formula is its formula, "" for none.
 	hasTap  bool
 	formula string
@@ -63,7 +57,7 @@ type fakeRemote struct {
 	failing string
 }
 
-// respond answers one probe command.
+// respond answers one channel probe command.
 func (r fakeRemote) respond(call recordedCall) (string, error) {
 	command := call.name + " " + strings.Join(call.args, " ")
 	fail := func(detail string) (string, error) {
@@ -74,22 +68,6 @@ func (r fakeRemote) respond(call recordedCall) (string, error) {
 	}
 	args := call.args
 	switch {
-	case call.name == "git" && len(args) == 4 && args[0] == "ls-remote":
-		if r.tagObject == "" {
-			return "", nil
-		}
-		return "81eec1b3ac7d27f7ef38fe2368b59b89cbd8832b\t" + args[3] + "\n", nil
-	case call.name == "gh" && len(args) == 4 && args[0] == "api" && strings.HasPrefix(args[1], "repos/"+capcomRepo+"/git/ref/tags/"):
-		if r.tagObject == "" {
-			return fail(ghNotFound)
-		}
-		return r.tagObject + "\n", nil
-	case call.name == "gh" && len(args) == 7 && args[0] == "release" && args[1] == "view" &&
-		args[3] == "--repo" && args[4] == capcomRepo && args[6] == "assets":
-		if r.release == "" {
-			return fail(ghNoRelease)
-		}
-		return r.release, nil
 	case command == "gh api repos/"+tapRepo+" --jq .full_name":
 		if !r.hasTap {
 			return fail(ghNotFound)
@@ -142,16 +120,6 @@ func contentsAPIBase64(content string) string {
 		encoded = encoded[60:]
 	}
 	return strings.Join(append(lines, encoded), "\n") + "\n"
-}
-
-// releaseJSON is `gh release view --json assets` output for a release carrying names, each in
-// state; the real output's other asset fields are left out, as the probe reads none of them.
-func releaseJSON(state string, names ...string) string {
-	assets := make([]string, 0, len(names))
-	for _, name := range names {
-		assets = append(assets, fmt.Sprintf(`{"name":%q,"state":%q}`, name, state))
-	}
-	return `{"assets":[` + strings.Join(assets, ",") + `]}` + "\n"
 }
 
 // wingetListing is a winget-pkgs contents listing of the package's manifest directory holding one

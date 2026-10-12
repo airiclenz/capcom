@@ -12,7 +12,10 @@
 //
 // Every external command it runs goes through one runner seam (runner.go), so its tests never
 // reach the network, a real `git` or a real toolchain. What it asks of the capcom checkout and its
-// GitHub repository goes through the repo seam (repo.go) above it.
+// GitHub repository goes through the repo seam (repo.go) above it: the verbs' tests hold that
+// state in memRepo and never fake an own-repo command by argv, which only execRepo's own tests
+// pin. The runner's fakes answer the toolchain, dist's read of its source tree's commit time, and
+// the tap, bucket and winget-pkgs commands.
 //
 // It is a dev tool, never a release asset: dist does not ship it, and it imports nothing from
 // capcom's internal packages.

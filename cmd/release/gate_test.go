@@ -33,27 +33,6 @@ type fakeCommit struct {
 	changed []string
 }
 
-// fakeRepo answers the gate's and the baseline's commands the way git and gh would over a
-// checkout whose history is commits, and hands the publish-step probes' commands to remote. It
-// stays in step with execRepo's argv until the own-repo argv fakes are retired, though no test
-// drives it any more: the gate's, status's and publish's tests all run over memRepo.
-type fakeRepo struct {
-	commits    map[string]fakeCommit
-	head       string
-	originMain string
-	isDirty    bool
-	// greenRuns are the commits ci.yml has a successful run for.
-	greenRuns []string
-	// failing names a command — "git rev-list" — that fails outright, as one that cannot run.
-	failing string
-	// release is what `gh release view` prints, "" for a repository with no published release;
-	// tags is what `git tag --list` prints.
-	release string
-	tags    string
-	// remote is where the publish channels stand; its zero value has published nothing.
-	remote fakeRemote
-}
-
 // linearHistory is root ← feature ← bump ← rollup, each commit with its own path set.
 func linearHistory() map[string]fakeCommit {
 	return map[string]fakeCommit{
@@ -70,86 +49,6 @@ type exitStatus int
 
 func (e exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
 func (e exitStatus) ExitCode() int { return int(e) }
-
-// runner returns a recording runner over the repo.
-func (r fakeRepo) runner() *fakeRunner {
-	return &fakeRunner{respond: r.respond}
-}
-
-// respond answers one command.
-func (r fakeRepo) respond(call recordedCall) (string, error) {
-	command := call.name + " " + strings.Join(call.args, " ")
-	if r.failing != "" && strings.HasPrefix(command, r.failing) {
-		return "", fmt.Errorf("%s: cannot run", r.failing)
-	}
-	args := call.args
-	switch {
-	case command == "git fetch --quiet origin main --tags":
-		return "", nil
-	case command == "git status --porcelain":
-		if r.isDirty {
-			return " M internal/cli/root.go\n", nil
-		}
-		return "", nil
-	case command == "git rev-parse --verify HEAD^{commit}":
-		return r.head + "\n", nil
-	case call.name == "git" && len(args) == 4 && args[0] == "rev-list" && args[1] == "--parents":
-		commit := args[3]
-		return strings.Join(append([]string{commit}, r.commits[commit].parents...), " ") + "\n", nil
-	case call.name == "git" && len(args) == 5 && args[0] == "diff-tree":
-		commit := args[4]
-		if parents := r.commits[commit].parents; len(parents) == 0 || parents[0] != args[3] {
-			return "", fmt.Errorf("diff-tree asked for %s against %s, not its first parent", commit, args[3])
-		}
-		// One path per line, as `git diff-tree -r --name-only` prints them.
-		var listed strings.Builder
-		for _, path := range r.commits[commit].changed {
-			listed.WriteString(path + "\n")
-		}
-		return listed.String(), nil
-	case call.name == "git" && len(args) == 4 && args[0] == "merge-base" && args[1] == "--is-ancestor":
-		if r.reaches(r.resolve(args[3]), r.resolve(args[2])) {
-			return "", nil
-		}
-		return "", exitStatus(1)
-	case call.name == "gh" && len(args) > 1 && args[0] == "run" && args[1] == "list":
-		if slices.Contains(r.greenRuns, args[slices.Index(args, "--commit")+1]) {
-			return `[{"databaseId":38131086119}]` + "\n", nil
-		}
-		return "[]\n", nil
-	case command == "gh release view --repo "+capcomRepo+" --json tagName,publishedAt":
-		if r.release == "" {
-			return "", fmt.Errorf("%s: %s", command, ghNoRelease)
-		}
-		return r.release, nil
-	case call.name == "git" && len(args) == 3 && args[0] == "rev-list" && args[1] == "--count":
-		return "7\n", nil
-	case command == "git tag --list v*":
-		return r.tags, nil
-	}
-	return r.remote.respond(call)
-}
-
-// resolve turns the gate's symbolic names into commits.
-func (r fakeRepo) resolve(revision string) string {
-	switch revision {
-	case "HEAD":
-		return r.head
-	case "origin/main":
-		return r.originMain
-	}
-	return revision
-}
-
-// reaches reports whether target is from or one of its ancestors.
-func (r fakeRepo) reaches(from, target string) bool {
-	if from == target {
-		return true
-	}
-	return slices.ContainsFunc(r.commits[from].parents, func(parent string) bool {
-		return r.reaches(parent, target)
-	})
-}
 
 // TestGatePeelsOnlyTrailingChangelogAndVersionCommits pins how the gate commit is found: HEAD's
 // trailing first-parent commits that touch only CHANGELOG.md and/or VERSION are walked past, the

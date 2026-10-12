@@ -1022,7 +1022,12 @@ injected repo; the `gh is not installed` SKIP; a no-release stale-bucket SKIP wi
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./cmd/release/`
 **Commit:** `refactor(release): smoke on the repo seam`
 
-## 39. release: retire own-repo argv fakes and record the seam
+## 39. release: retire own-repo argv fakes and record the seam — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): gate_test.go loses fakeRepo with its runner, respond, resolve and reaches, none of which any test used any more. fakeCommit, linearHistory and exitStatus stay because memRepo, smoke_test.go and repo_test.go use them. probes_test.go's fakeRemote loses its tagObject and release fields and its ls-remote, `gh api …/git/ref/tags/` and `gh release view … assets` branches, so it now answers only the tap, bucket and winget-pkgs gh commands. Its doc comment says so.
+NOTES (2026-10-12): consequential edit — cmd/release/probes_test.go: the releaseJSON helper was deleted, because removing fakeRemote.release (and item 36's earlier move of the release probe to memRepo) left it with no caller.
+NOTES (2026-10-12): status_test.go, publish_test.go, channels_test.go and smoke_test.go are named in Files but needed no edit. They set no own-repo fakeRemote field, and their only own-repo argv literals are the exempt `git log -1 --format=%ct HEAD` and negative must-not-run assertions (main_test.go's gateCommands, publish_test.go's mutatingCommands), which fake nothing.
+NOTES (2026-10-12): ADR 0008's scoped-exception paragraph was rewritten in place to describe two seams. The repo seam (execRepo over git/gh, every `gh release` call naming `--repo airiclenz/capcom`, verb tests on memRepo, argv pinned only in execRepo's own tests) covers capcom's own repository. The runner seam covers the toolchain, dist's commit-time read and the channel repos. A dated "Amended 2026-10-12" paragraph follows it, in the form ADRs 0002 and 0004 use. The Note was updated with `capcom know update release-process --body-replace-old/--body-replace-new`. The main.go package doc and the runner.go runner doc now say the same.
 
 **What:**
 **Goal:** no `cmd/release` test fakes a capcom-repo git/gh call by argv (`fakeRepo.respond` and the
