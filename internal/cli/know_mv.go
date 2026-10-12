@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -116,9 +117,9 @@ func (a *app) noteMoveFailure(err error, node tree.Node) error {
 	if errors.As(err, &taken) {
 		return noteExistsFailure(taken.ID, taken.Owner, a.store.WorktreeRoot)
 	}
-	var parseFailure *knowledge.Error
+	var parseFailure *frontmatter.Error
 	if errors.As(err, &parseFailure) {
-		return a.noteFailure(err)
+		return a.frontmatterFailure(err)
 	}
 	return &Error{
 		Code:    CodeInvalid,

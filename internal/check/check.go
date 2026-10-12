@@ -19,6 +19,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/rawfm"
@@ -255,13 +256,9 @@ func (c *checker) checkConflictMarkers(path string, data []byte) {
 // checkConflictMarkers has already recorded, so that failure is not recorded twice.
 func (c *checker) addParseFailure(path string, err error) {
 	line, message := 0, err.Error()
-	var issueFailure *issue.Error
-	var noteFailure *knowledge.Error
-	switch {
-	case errors.As(err, &issueFailure):
-		line, message = issueFailure.Line, issueFailure.Message
-	case errors.As(err, &noteFailure):
-		line, message = noteFailure.Line, noteFailure.Message
+	var failure *frontmatter.Error
+	if errors.As(err, &failure) {
+		line, message = failure.Line, failure.Message
 	}
 	conflict := Problem{Path: c.relative(path), Line: line, Code: CodeConflict, Message: message}
 	if slices.Contains(c.problems, conflict) {

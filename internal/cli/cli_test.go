@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom"
+	"github.com/airiclenz/capcom/internal/frontmatter"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 func decodeEnvelope(t *testing.T, stdout string) map[string]any {
@@ -245,6 +249,39 @@ func TestError_ExitCode_MapsCodes(t *testing.T) {
 
 			if got := testCase.failure.ExitCode(); got != testCase.want {
 				t.Errorf("ExitCode() = %d, want %d", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestUpdate_FrontmatterFailure_RelativizesOnlyAnAbsolutePath(t *testing.T) {
+	root := t.TempDir()
+	application := &app{store: &store.Store{WorktreeRoot: root}}
+	tests := map[string]struct {
+		path string
+		want string
+	}{
+		"absolute path below the worktree": {
+			path: filepath.Join(root, ".capcom", "issues", "a.md"),
+			want: ".capcom/issues/a.md",
+		},
+		"relative index path": {
+			path: ".capcom/issues/a.md",
+			want: ".capcom/issues/a.md",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			parseFailure := &frontmatter.Error{Path: test.path, Line: 3, Message: "unknown key"}
+
+			err := application.frontmatterFailure(fmt.Errorf("parse: %w", parseFailure))
+
+			var failure *Error
+			if !errors.As(err, &failure) {
+				t.Fatalf("err = %v, want an *Error", err)
+			}
+			if failure.Code != CodeInvalid || failure.Path != test.want || failure.Line != 3 {
+				t.Errorf("failure = %+v, want invalid at %s line 3", failure, test.want)
 			}
 		})
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -219,7 +220,7 @@ func (a *app) editIssue(
 	}
 	parsed, err := issue.Parse(entry.Path, data)
 	if err != nil {
-		return Result{}, a.issueFailure(err)
+		return Result{}, a.frontmatterFailure(err)
 	}
 	edited, err := change(parsed)
 	if err != nil {
@@ -275,10 +276,11 @@ func (a *app) absoluteIssuePath(path string) string {
 	return filepath.Join(a.store.WorktreeRoot, filepath.FromSlash(path))
 }
 
-// issueFailure types an issue file that cannot be parsed: invalid, at its file and line, both
-// the path and the message naming the file relative to the working tree root.
-func (a *app) issueFailure(err error) error {
-	var failure *issue.Error
+// frontmatterFailure types an issue or Note file that cannot be parsed: invalid, at its file and
+// line, both the path and the message naming the file relative to the working tree root. A path
+// the parser was given relative, an index entry's, is kept as it is.
+func (a *app) frontmatterFailure(err error) error {
+	var failure *frontmatter.Error
 	if errors.As(err, &failure) {
 		return &Error{
 			Code:    CodeInvalid,

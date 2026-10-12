@@ -2,7 +2,6 @@ package cli
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -508,7 +507,7 @@ func (a *app) verifyNotes() ([]knowledge.Finding, error) {
 		}
 		note, err := knowledge.Parse(entry.Path, data)
 		if err != nil {
-			return nil, a.noteFailure(err)
+			return nil, a.frontmatterFailure(err)
 		}
 		found, err := knowledge.Verify(a.store.WorktreeRoot, entry.Path, entry.ID, note)
 		if err != nil {
@@ -517,21 +516,6 @@ func (a *app) verifyNotes() ([]knowledge.Finding, error) {
 		findings = append(findings, found...)
 	}
 	return findings, nil
-}
-
-// noteFailure types a Note file that cannot be parsed: invalid, at its file and line, both the
-// path and the message naming the file relative to the working tree root.
-func (a *app) noteFailure(err error) error {
-	var failure *knowledge.Error
-	if errors.As(err, &failure) {
-		return &Error{
-			Code:    CodeInvalid,
-			Path:    a.worktreeRelative(failure.Path),
-			Line:    failure.Line,
-			Message: a.worktreeRelativeText(failure.Message),
-		}
-	}
-	return asError(err)
 }
 
 // resolveNote resolves one argument to its Note, typing the failure as resolveFailure does.

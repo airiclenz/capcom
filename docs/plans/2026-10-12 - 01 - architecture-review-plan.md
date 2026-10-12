@@ -291,7 +291,13 @@ internal/cli/fmt.go — canonicalNote; internal/index/notes.go — parseNote; in
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/knowledge/`; `go run ./cmd/capcom fmt --check`
 **Commit:** `refactor(knowledge): serialize Notes through the frontmatter codec`
 
-## 10. One parse-failure path in check and cli
+## 10. One parse-failure path in check and cli — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): consequential edit — internal/cli/know_update.go: made necessary by merging noteFailure into frontmatterFailure (updateNote called noteFailure)
+
+NOTES (2026-10-12): the one helper is `app.frontmatterFailure` (in update.go, replacing issueFailure; noteFailure deleted from know.go); it relativizes through the existing worktreeRelative, which already keeps a relative path as is (relativeSlashPath returns "" for it), so no separate filepath.IsAbs check was added — TestUpdate_FrontmatterFailure_RelativizesOnlyAnAbsolutePath pins both cases
+
+NOTES (2026-10-12): moveFailure and noteMoveFailure stay two functions (they differ in their exists failure and not_found handling); only their parse branch now matches *frontmatter.Error and goes through frontmatterFailure
 
 **What:**
 **Goal:** `check.addParseFailure` has no type switch over kind error types, and cli turns any
