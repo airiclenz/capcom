@@ -293,7 +293,11 @@ missing dep listed before a resolved one prints first; `list`/`show --json` item
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Dep`
 **Commit:** `feat(dep): walk dependencies and dependents to a depth`
 
-## 10. list --tree prints the issue outline
+## 10. list --tree prints the issue outline — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): a parent's progress is counted from the issues already loaded for the outline, not with item 5's `childProgress` index queries (two queries per parent). The rule is the same: all usable direct children, and the closed ones among them (done or dropped).
+NOTES (2026-10-12): `--depth` counts levels below the top, or below `--parent`, as in `know tree`. The `... <n> more` hint counts only the children the outline would print, so closed ones count only with `--all`. A `--parent` issue prints even when it is closed.
+NOTES (2026-10-12): `list --tree` keeps the `issue-list` JSON kind, and its items are a list-specific `issueTreeItem` wrapping `issueData` with `depth`. The progress is in the text only, because the Goal names only `depth` for JSON. README and docs/format.md are left to item 17.
 
 **What:**
 **Goal:** `capcom list --tree [--depth N] [--parent <id>] [--all]` prints the issue hierarchy as

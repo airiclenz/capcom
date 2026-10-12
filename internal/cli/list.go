@@ -2,6 +2,7 @@ package cli
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -24,7 +25,15 @@ const (
 	flagUnplanned = "unplanned"
 	flagAll       = "all"
 	flagLimit     = "limit"
+	flagTree      = "tree"
 )
+
+// treeRowFilters are the flags of capcom list that pick rows and so cannot be combined with
+// --tree: the outline keeps every issue below its start, --all deciding only about Closed ones.
+var treeRowFilters = []string{
+	flagStatus, flagCategory, flagLabel, flagNoLabel, flagType, flagPriority,
+	flagPlan, flagPlanned, flagUnplanned, flagLimit,
+}
 
 // statusCategories are the categories --category accepts (ADR 0003).
 var statusCategories = []config.Category{
@@ -46,31 +55,28 @@ type listOptions struct {
 	isAll              bool
 	isElsewhereSkipped bool
 	limit              int
+	isTree             bool
+	depth              int
 }
 
 // newListCommand lists issues in tree order, one line each. Without flags it lists every issue
-// that is not Closed. Issue changes on other local and remote-tracking branches are reported
-// apart from the list (Elsewhere).
+// that is not Closed. With --tree it prints the issue outline instead (see issueTreeResult).
+// Issue changes on other local and remote-tracking branches are reported apart from the list
+// (Elsewhere).
 func (a *app) newListCommand() *cobra.Command {
-	options := &listOptions{}
+	options := &listOptions{depth: unlimitedDepth}
 	cmd := &cobra.Command{
 		Use:         "list",
 		Short:       "List issues; without flags, every issue that is not closed",
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			filter, err := a.listFilter(options)
-			if err != nil {
+			if err := checkTreeFlags(cmd, options); err != nil {
 				return err
 			}
-			entries, err := a.issueIndex.List(filter)
+			result, err := a.listResult(options)
 			if err != nil {
 				return err
-			}
-			result := Result{
-				Kind: "issue-list",
-				Data: issueListData(entries),
-				Text: issueLines(entries, relativeSlashPath(a.store.WorktreeRoot, a.store.IssuesDir())),
 			}
 			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.issuesPathspec()))
 		}),
@@ -82,15 +88,60 @@ func (a *app) newListCommand() *cobra.Command {
 	flags.StringSliceVar(&options.noLabels, flagNoLabel, nil, "only issues carrying none of these labels")
 	flags.StringSliceVar(&options.types, flagType, nil, "only issues of one of these types")
 	flags.IntSliceVar(&options.priorities, flagPriority, nil, "only issues with one of these priorities")
-	flags.StringVar(&options.parent, flagParent, "", "only the direct children of this issue (id, alias or prefix)")
+	flags.StringVar(&options.parent, flagParent, "",
+		"only the direct children of this issue (id, alias or prefix); with --tree, this issue first, then its subtree")
 	flags.StringVar(&options.plan, flagPlan, "", "only issues whose plan contains this text")
 	flags.BoolVar(&options.isPlanned, flagPlanned, false, "only issues with a plan")
 	flags.BoolVar(&options.isUnplanned, flagUnplanned, false, "only issues without a plan")
 	flags.BoolVar(&options.isAll, flagAll, false, "include closed issues")
 	flags.IntVar(&options.limit, flagLimit, 0, "list at most this many issues (0: all)")
 	flags.BoolVar(&options.isElsewhereSkipped, flagNoElsewhere, false, "skip the report of issue changes on other branches")
+	flags.BoolVar(&options.isTree, flagTree, false,
+		"print the issue outline: each parent with its closed/total children, closed issues left out unless --all")
+	flags.IntVar(&options.depth, flagDepth, unlimitedDepth,
+		"with --tree, levels below the top (or below --parent) to print; 0 prints every level")
 	cmd.MarkFlagsMutuallyExclusive(flagPlanned, flagUnplanned)
 	return cmd
+}
+
+// checkTreeFlags rejects --depth without --tree, a negative --depth, and any row filter with --tree.
+func checkTreeFlags(cmd *cobra.Command, options *listOptions) error {
+	flags := cmd.Flags()
+	if !options.isTree {
+		if flags.Changed(flagDepth) {
+			return UsageErrorf("--%s needs --%s", flagDepth, flagTree)
+		}
+		return nil
+	}
+	for _, name := range treeRowFilters {
+		if flags.Changed(name) {
+			return UsageErrorf("--%s cannot be combined with --%s", name, flagTree)
+		}
+	}
+	if options.depth < unlimitedDepth {
+		return UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
+	}
+	return nil
+}
+
+// listResult lists the issues options select, one line each, or with --tree their outline.
+func (a *app) listResult(options *listOptions) (Result, error) {
+	if options.isTree {
+		return a.issueTreeResult(options)
+	}
+	filter, err := a.listFilter(options)
+	if err != nil {
+		return Result{}, err
+	}
+	entries, err := a.issueIndex.List(filter)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{
+		Kind: "issue-list",
+		Data: issueListData(entries),
+		Text: issueLines(entries, relativeSlashPath(a.store.WorktreeRoot, a.store.IssuesDir())),
+	}, nil
 }
 
 // listFilter checks the flags against the config and turns them into an index filter. An explicit
@@ -156,4 +207,122 @@ func (a *app) checkListValues(options *listOptions) error {
 		return UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
 	}
 	return nil
+}
+
+// issueTreeItem is one line of list --tree in --json: the issue and its indentation depth.
+type issueTreeItem struct {
+	issueData
+	Depth int `json:"depth"`
+}
+
+// issueTree is the issue hierarchy list --tree walks: every usable issue grouped under its parent,
+// Closed ones included so they count in their parent's progress, and the outline built so far.
+type issueTree struct {
+	children map[string][]index.Entry
+	isAll    bool
+	maxDepth int
+	rows     []outlineRow
+	items    []issueTreeItem
+}
+
+// issueTreeResult prints the issue outline: one line per issue, `id  status  P<n>  title`,
+// indented two spaces per level, a parent's line ending `  (<closed>/<total> closed)` over all its
+// direct children. Without --all, Closed issues and their subtrees are left out. With --parent
+// that issue prints first, at depth 0, followed by its subtree. --depth limits the levels below the
+// top (or below --parent), with a `... <n> more (--depth <d>)` line under each issue it cut.
+func (a *app) issueTreeResult(options *listOptions) (Result, error) {
+	entries, err := a.issueIndex.List(index.Filter{IsClosedIncluded: true})
+	if err != nil {
+		return Result{}, err
+	}
+	tree := &issueTree{
+		children: issuesByParent(entries),
+		isAll:    options.isAll,
+		maxDepth: options.depth,
+		items:    []issueTreeItem{},
+	}
+	if options.parent == "" {
+		tree.visit("", 1, 0)
+	} else {
+		start, err := a.resolveIssue(options.parent)
+		if err != nil {
+			return Result{}, err
+		}
+		tree.add(start, 0, 0, 0)
+		tree.visit(start.ID, 1, 1)
+	}
+	return Result{Kind: "issue-list", Data: tree.items, Text: renderOutline(tree.rows)}, nil
+}
+
+// issuesByParent groups entries by the id of their parent, in the order given. An entry with no
+// parent, or whose parent is not among entries (its file unusable), goes under "" as a root.
+func issuesByParent(entries []index.Entry) map[string][]index.Entry {
+	isListed := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		isListed[entry.ID] = true
+	}
+	children := map[string][]index.Entry{}
+	for _, entry := range entries {
+		parentID := entry.ParentID
+		if !isListed[parentID] {
+			parentID = ""
+		}
+		children[parentID] = append(children[parentID], entry)
+	}
+	return children
+}
+
+// visit adds the shown children of parentID at indent, level levels below the start, and their
+// subtrees. On the last level --depth allows, each child counts the shown children it cut instead.
+func (t *issueTree) visit(parentID string, level int, indent int) {
+	isLastLevel := t.maxDepth != unlimitedDepth && level >= t.maxDepth
+	for _, child := range t.shownChildren(parentID) {
+		if isLastLevel {
+			t.add(child, indent, len(t.shownChildren(child.ID)), level+1)
+			continue
+		}
+		t.add(child, indent, 0, 0)
+		t.visit(child.ID, level+1, indent+1)
+	}
+}
+
+// shownChildren returns the direct children of parentID the outline prints: all of them with
+// --all, and otherwise those that are not Closed.
+func (t *issueTree) shownChildren(parentID string) []index.Entry {
+	if t.isAll {
+		return t.children[parentID]
+	}
+	var shown []index.Entry
+	for _, child := range t.children[parentID] {
+		if !isClosedCategory(child.Category) {
+			shown = append(shown, child)
+		}
+	}
+	return shown
+}
+
+// add appends the line of entry at indent, cutting more children that --depth moreDepth would show.
+func (t *issueTree) add(entry index.Entry, indent int, more int, moreDepth int) {
+	text := strings.TrimSuffix(issueLines([]index.Entry{entry}, ""), "\n")
+	if progress := t.progress(entry.ID); progress != nil {
+		text += "  (" + childrenText(progress) + ")"
+	}
+	t.rows = append(t.rows, outlineRow{depth: indent, text: text, more: more, moreDepth: moreDepth})
+	t.items = append(t.items, issueTreeItem{issueData: newIssueData(entry), Depth: indent})
+}
+
+// progress counts the direct children of the issue with id, Closed ones included, and how many of
+// them are Closed, as childProgress does; it returns nil for an issue without children.
+func (t *issueTree) progress(id string) *childrenData {
+	children := t.children[id]
+	if len(children) == 0 {
+		return nil
+	}
+	progress := &childrenData{Total: len(children)}
+	for _, child := range children {
+		if isClosedCategory(child.Category) {
+			progress.Closed++
+		}
+	}
+	return progress
 }

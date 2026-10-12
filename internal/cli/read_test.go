@@ -226,6 +226,146 @@ func TestList_UnknownParent_IsNotFound(t *testing.T) {
 	}
 }
 
+// readStoreTree is the --tree outline of newReadStore without --all: the dropped old-idea is left
+// out, login-flow carries its one open child.
+var readStoreTree = "login-flow  open  P2  Login flow  (0/1 closed)\n" +
+	"  session-refresh  parked  P2  " + longTitle + "\n" +
+	"release-checklist  open  P0  Release checklist\n"
+
+func TestListTree_Flags_PrintTheOutline(t *testing.T) {
+	root := newReadStore(t)
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{}, readStoreTree},
+		{[]string{"--depth", "0"}, readStoreTree},
+		{[]string{"--depth", "2"}, readStoreTree},
+		{[]string{"--depth", "1"}, "login-flow  open  P2  Login flow  (0/1 closed)\n" +
+			"  ... 1 more (--depth 2)\n" +
+			"release-checklist  open  P0  Release checklist\n"},
+		{[]string{"--all"}, "login-flow  open  P2  Login flow  (0/1 closed)\n" +
+			"  session-refresh  parked  P2  " + longTitle + "\n" +
+			"old-idea  dropped  P2  Old idea\n" +
+			"release-checklist  open  P0  Release checklist\n"},
+		{[]string{"--parent", "login"}, "login-flow  open  P2  Login flow  (0/1 closed)\n" +
+			"  session-refresh  parked  P2  " + longTitle + "\n"},
+		{[]string{"--parent", "login-flow", "--depth", "1"}, "login-flow  open  P2  Login flow  (0/1 closed)\n" +
+			"  session-refresh  parked  P2  " + longTitle + "\n"},
+		{[]string{"--parent", "session-refresh"}, "session-refresh  parked  P2  " + longTitle + "\n"},
+	}
+
+	for _, current := range cases {
+		stdout, stderr, exitCode := runCLI(t, root, append([]string{"list", "--tree"}, current.args...)...)
+
+		if exitCode != ExitOK || stderr != "" || stdout != current.want {
+			t.Errorf("list --tree %v exit = %d stderr = %q\nstdout = %q\nwant     %q",
+				current.args, exitCode, stderr, stdout, current.want)
+		}
+	}
+}
+
+func TestListTree_ClosedChild_CountedButLeftOut(t *testing.T) {
+	root := newReadStore(t)
+	mustRun(t, root, "close", "session-refresh", "--reason", "done")
+
+	stdout := mustRun(t, root, "list", "--tree")
+	all := mustRun(t, root, "list", "--tree", "--all", "--parent", "login-flow")
+
+	want := "login-flow  open  P2  Login flow  (1/1 closed)\n" +
+		"release-checklist  open  P0  Release checklist\n"
+	if stdout != want {
+		t.Errorf("list --tree = %q, want %q", stdout, want)
+	}
+	if !strings.HasPrefix(all, "login-flow  open  P2  Login flow  (1/1 closed)\n  session-refresh  done  P2  ") {
+		t.Errorf("list --tree --all --parent login-flow = %q, want the closed child shown under its parent", all)
+	}
+}
+
+func TestListTree_ClosedParent_LeavesOutItsSubtree(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"old-idea/old-step.md": readIssue("Old step", "open", "", "\nA step of the old idea.\n"),
+	})
+
+	stdout := mustRun(t, root, "list", "--tree")
+	all := mustRun(t, root, "list", "--tree", "--all")
+
+	if stdout != readStoreTree {
+		t.Errorf("list --tree = %q, want %q", stdout, readStoreTree)
+	}
+	if !strings.Contains(all, "\nold-idea  dropped  P2  Old idea  (0/1 closed)\n  old-step  open  P2  Old step\n") {
+		t.Errorf("list --tree --all = %q, want old-step under old-idea", all)
+	}
+}
+
+func TestListTree_ChildOfInvalidParent_PrintsAsRoot(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{"login-flow.md": "no frontmatter here\n"})
+
+	stdout, _, exitCode := runCLI(t, root, "list", "--tree")
+
+	// The unusable file's warning follows the outline.
+	want := "session-refresh  parked  P2  " + longTitle + "\n" +
+		"release-checklist  open  P0  Release checklist\nwarning: "
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, want) {
+		t.Errorf("list --tree exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
+	}
+}
+
+func TestListTree_JSON_ItemsCarryDepth(t *testing.T) {
+	root := newReadStore(t)
+
+	tree := mustRun(t, root, "list", "--tree", "--json")
+	flat := mustRun(t, root, "list", "--json")
+
+	envelope := decodeEnvelope(t, tree)
+	var depths []string
+	for _, item := range envelope["data"].([]any) {
+		issue := item.(map[string]any)
+		depths = append(depths, fmt.Sprintf("%s:%v", issue["id"], issue["depth"]))
+	}
+	want := []string{"login-flow:0", "session-refresh:1", "release-checklist:0"}
+	if envelope["kind"] != "issue-list" || !slices.Equal(depths, want) {
+		t.Errorf("list --tree --json = kind %v, depths %v; want issue-list, %v", envelope["kind"], depths, want)
+	}
+	for _, item := range decodeEnvelope(t, flat)["data"].([]any) {
+		if _, hasDepth := item.(map[string]any)["depth"]; hasDepth {
+			t.Errorf("list --json item = %v, want no depth", item)
+		}
+	}
+}
+
+func TestListTree_BadFlags_UsageErrorNamesTheFlag(t *testing.T) {
+	root := newReadStore(t)
+	cases := []struct {
+		args []string
+		flag string
+	}{
+		{[]string{"--tree", "--label", "x"}, "--label"},
+		{[]string{"--tree", "--status", "open"}, "--status"},
+		{[]string{"--tree", "--category", "todo"}, "--category"},
+		{[]string{"--tree", "--no-label", "auth"}, "--no-label"},
+		{[]string{"--tree", "--type", "task"}, "--type"},
+		{[]string{"--tree", "--priority", "2"}, "--priority"},
+		{[]string{"--tree", "--plan", "login"}, "--plan"},
+		{[]string{"--tree", "--planned"}, "--planned"},
+		{[]string{"--tree", "--unplanned"}, "--unplanned"},
+		{[]string{"--tree", "--limit", "1"}, "--limit"},
+		{[]string{"--tree", "--depth", "-1"}, "--depth"},
+		{[]string{"--depth", "1"}, "--depth"},
+	}
+
+	for _, current := range cases {
+		stdout, stderr, exitCode := runCLI(t, root, append([]string{"list"}, current.args...)...)
+
+		if exitCode != ExitUsage || stdout != "" || !strings.Contains(stderr, current.flag) {
+			t.Errorf("list %v exit = %d stdout = %q stderr = %q, want a usage failure naming %s",
+				current.args, exitCode, stdout, stderr, current.flag)
+		}
+	}
+}
+
 func TestShow_Text_PrintsFrontmatterThenBodyVerbatim(t *testing.T) {
 	root := newReadStore(t)
 
