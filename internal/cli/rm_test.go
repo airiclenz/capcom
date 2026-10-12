@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -162,6 +160,43 @@ func TestRm_StaleIfMatch_ConflictsAndKeepsTheFile(t *testing.T) {
 	}
 }
 
+func TestRm_StaleIfMatchWithDependent_Conflicts(t *testing.T) {
+	root := newRmStore(t)
+	mustRun(t, root, "rm", "child-issue")
+	etag := textETag(mustRun(t, root, "show", "login-flow"))
+	mustRun(t, root, "update", "login-flow", "--title", "Login flow again")
+
+	stdout, _, exitCode := runCLI(t, root, "rm", "--json", "login-flow", "--if-match", etag)
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	if exitCode != ExitError || failure["code"] != string(CodeConflict) || failure["path"] != ".capcom/issues/login-flow.md" {
+		t.Errorf("stale --if-match on a dependency = %d, error %v; want conflict at the issue file", exitCode, failure)
+	}
+	if !issueFileExists(t, root, "login-flow.md") {
+		t.Errorf("the issue was removed")
+	}
+}
+
+func TestRm_OwnFileDoesNotParse_RemovesItAndDropsItsDeps(t *testing.T) {
+	root := newRmStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"broken-issue.md": "---\ntitle: [unclosed\naliases: [broken-name]\n---\n",
+		"blocked-work.md": readIssue("Blocked", "open", "deps: [broken-name, login-flow]\n", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "rm", "--kv", "broken-issue", "--drop-deps")
+
+	if exitCode != ExitOK || issueFileExists(t, root, "broken-issue.md") {
+		t.Fatalf("rm of an issue whose file does not parse = %d\n%s%s", exitCode, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "DEPS_DROPPED=[blocked-work]\n") {
+		t.Errorf("stdout = %q", stdout)
+	}
+	if blocked := readStoreFile(t, root, "blocked-work.md"); !strings.Contains(blocked, "deps: [login-flow]\n") {
+		t.Errorf("blocked-work.md = %q", blocked)
+	}
+}
+
 func TestRm_UnrelatedBadFileName_RemovesAndWarnsOnce(t *testing.T) {
 	root := newRmStore(t)
 	writeIssueFiles(t, root, map[string]string{"Bad_Name.md": validIssue})
@@ -299,44 +334,4 @@ func TestRm_DropDeps_FileHoldingDepAndRelated_LosesBoth(t *testing.T) {
 		t.Errorf("session-work.md = %q", session)
 	}
 	assertCheckPasses(t, root)
-}
-
-func TestRm_IssueFileRemovalFails_RestoresRewriteBytesAndMode(t *testing.T) {
-	root := newRmStore(t)
-	original := strings.ReplaceAll(readIssue("Blocked", "open", "deps: [renamed-issue]\n", ""), "\n", "\r\n")
-	writeIssueFiles(t, root, map[string]string{"blocked-work.md": original})
-	dependent := filepath.Join(root, ".capcom", "issues", "blocked-work.md")
-	if err := os.Chmod(dependent, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	before, err := os.Stat(dependent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { removeFile = os.Remove })
-	removeFile = func(path string) error {
-		if filepath.Base(path) == "renamed-issue.md" {
-			return errors.New("injected remove failure")
-		}
-		return os.Remove(path)
-	}
-
-	_, stderr, exitCode := runCLI(t, root, "rm", "renamed-issue", "--drop-deps")
-
-	if exitCode == 0 || !strings.Contains(stderr, ".capcom/issues/renamed-issue.md") {
-		t.Errorf("rm exit %d, stderr %q, want a failure naming renamed-issue.md", exitCode, stderr)
-	}
-	if content := readStoreFile(t, root, "blocked-work.md"); content != original {
-		t.Errorf("blocked-work.md = %q, want %q", content, original)
-	}
-	after, err := os.Stat(dependent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runtime.GOOS != "windows" && after.Mode().Perm() != before.Mode().Perm() {
-		t.Errorf("blocked-work.md mode = %v, want %v kept", after.Mode().Perm(), before.Mode().Perm())
-	}
-	if !issueFileExists(t, root, "renamed-issue.md") {
-		t.Errorf("renamed-issue.md was removed")
-	}
 }

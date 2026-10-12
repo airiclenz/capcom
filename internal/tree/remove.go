@@ -202,13 +202,8 @@ func (r *Removal) doRemove(path string) error {
 	return r.remove(path)
 }
 
-// RemoveEmptyDir removes dir when nothing is left in it and leaves it when anything is. A dir that
-// cannot be read or removed fails with a *CleanupError naming it.
-func RemoveEmptyDir(dir string) error {
-	return removeEmptyDir(dir, os.Remove)
-}
-
-// removeEmptyDir removes dir with remove when nothing is left in it; see RemoveEmptyDir.
+// removeEmptyDir removes dir with remove when nothing is left in it and leaves it when anything is.
+// A dir that cannot be read or removed fails with a *CleanupError naming it.
 func removeEmptyDir(dir string, remove func(path string) error) error {
 	entries, err := os.ReadDir(dir)
 	if err == nil && len(entries) > 0 {

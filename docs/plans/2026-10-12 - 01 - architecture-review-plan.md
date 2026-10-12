@@ -370,7 +370,15 @@ knowledge and a CLI test that remove an unparseable Note; existing know rm and r
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/ ./internal/knowledge/`; `go build ./...`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Rm`
 **Commit:** `refactor(tree): plan Remove like Move`
 
-## 13. issue.PlanRemove; rm uses it
+## 13. issue.PlanRemove; rm uses it — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): `issue.PlanRemove(issues, id, issue.RemoveOptions{IfMatch, ShouldDropDeps})` returns an `*issue.Removal` embedding `*tree.Removal`, with `DepsDropped`, `RelatedDropped` (tree order) and `Unread`. It takes the etag (`IfMatch`) so the check order is unchanged: tree refusals, then a stale etag (`*issue.ETagMismatchError`, conflict), then dependents (`*issue.DependentsError`, invalid). The dependents refusal keeps today's path order (sorted by slash path, as the index's `ORDER BY path` gave it). The removed issue's file is read for its etag but never parsed; its names are the id plus `node.Aliases`, or `rawfm.Aliases` of its bytes when the node has none.
+
+NOTES (2026-10-12): The cli maps an Apply failure through `issueRemovalApplyFailure`: Path is the first planned path (rewritten files, children dir, issue file) the cause's message names as `<path>:`, else the issue file. The message joins the cause and any rollback failures with `; `, as before, and now passes through `worktreeRelativeText`. internal/issue/move.go is untouched: the drop loop needs no move-specific branch, so the loop lives in remove.go (`planDrops`) and no helper was shared.
+
+NOTES (2026-10-12): `TestRm_IssueFileRemovalFails_RestoresRewriteBytesAndMode` and the cli `removeFile` seam are gone. The rollback test is now `TestPlanRemove_ApplyFails_RestoresRewritesChildrenDirAndFile` in internal/issue/remove_test.go. It injects a failing step with the exported `Plan.AddStep` after the removal's own steps, because `tree.SetRemovalRemove` lives in tree's export_test.go, which issue tests cannot reach. Cli rm no longer uses `loadDepGraph` or the index for its dependents.
+
+NOTES (2026-10-12): deviation, deleting dead code (coding-standards [must]; anticipated by item 12's NOTES): internal/tree/remove.go — `tree.RemoveEmptyDir` lost its last caller with this item, so it was deleted and its doc folded into `removeEmptyDir`. internal/tree/remove_test.go — its `TestRemoveEmptyDir_HoldsAnEntry_LeavesIt` became `TestPlanRemove_ParentDirHoldsAnEntry_LeavesIt`, which tests the same behaviour through `PlanRemove`.
 
 **What:**
 **Goal:** `issue.PlanRemove` plans the removal plus dependency and related drops, matching dependents

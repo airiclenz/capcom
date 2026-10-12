@@ -191,13 +191,13 @@ func TestRemovalApply_EmptiedParentDirRemovalFails_WarnsAndKeepsTheRemoval(t *te
 	}
 }
 
-func TestRemoveEmptyDir_HoldsAnEntry_LeavesIt(t *testing.T) {
+func TestPlanRemove_ParentDirHoldsAnEntry_LeavesIt(t *testing.T) {
 	dir := t.TempDir()
-	writeNodes(t, dir, "parent-node/.keep")
+	writeNodes(t, dir, "parent-node.md", "parent-node/kid-node.md", "parent-node/.keep")
 
-	err := tree.RemoveEmptyDir(filepath.Join(dir, "parent-node"))
+	warnings, err := planRemove(t, dir, "kid-node").Apply()
 
-	if _, statErr := os.Stat(filepath.Join(dir, "parent-node")); err != nil || errors.Is(statErr, fs.ErrNotExist) {
-		t.Errorf("RemoveEmptyDir of a non-empty directory = %v, stat %v; want it left", err, statErr)
+	if _, statErr := os.Stat(filepath.Join(dir, "parent-node")); err != nil || warnings != nil || errors.Is(statErr, fs.ErrNotExist) {
+		t.Errorf("Apply = %v, %v, stat %v; want the parent directory left", warnings, err, statErr)
 	}
 }
