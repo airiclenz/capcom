@@ -318,6 +318,23 @@ func TestScan_LocalBranchBehindItsRemote_ReportsTheRemoteOnly(t *testing.T) {
 	}
 }
 
+func TestScan_DivergedLocalAndRemoteBranch_ReportsBoth(t *testing.T) {
+	origin, clone := newClone(t)
+	onBranch(t, clone, "fix-login", map[string]string{"login-flow.md": issueFile("done")})
+	onBranch(t, origin, "fix-login", map[string]string{"login-flow/session-refresh.md": issueFile("done")})
+	git(t, clone, "fetch", "-q")
+
+	report := scan(clone)
+
+	want := []string{
+		"login-flow: done on fix-login (unmerged)",
+		"session-refresh: done on origin/fix-login (unmerged)",
+	}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) || len(report.Warnings) != 0 {
+		t.Errorf("entries = %q, warnings = %q; want %q and no warnings", lines, report.Warnings, want)
+	}
+}
+
 func TestScan_UpstreamOfTheCurrentBranch_IsNotReported(t *testing.T) {
 	origin, clone := newClone(t)
 	commitIssues(t, origin, map[string]string{"login-flow.md": issueFile("done")})

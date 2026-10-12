@@ -340,7 +340,7 @@ NOTES (2026-10-12): the test fails on any concurrent Refresh or edit error, not 
 - `GOMEMLIMIT=2GiB go test -race ./internal/index/ -run 'Concurrent'`
 **Commit:** `test(index): refresh one index from two connections at once`
 
-## 20. Test the diverged local/remote branch pair in the Elsewhere scan
+## 20. Test the diverged local/remote branch pair in the Elsewhere scan — ✅ DONE (2026-10-12)
 
 **What:** Test-only: `redundantRef` with diverged `x` and `origin/x` is untested.
 **Files:** internal/elsewhere/elsewhere_test.go
