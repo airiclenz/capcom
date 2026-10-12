@@ -173,7 +173,12 @@ internal/check/check_test.go — TestRun_OneFixturePerProblemClass_ReportsPathLi
 **Commit:** `feat(check): validate supersession links and their store format`
 Depends on items 3 and 4.
 
-## 9. know update writes the new keys
+## 9. know update writes the new keys — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the format-raised warning goes where `related add` puts it (the result's warnings, printed on stdout), not stderr as the item's Tests line says; the tests assert it on stdout.
+NOTES (2026-10-12): an unknown `--add-superseded-by` target exits 3 (`not_found`, as every unresolved argument does), an ambiguous prefix or the Note itself exits 1 (`invalid`); all three name the Note file.
+NOTES (2026-10-12): before raising, the callback runs `knowledge.Validate` on the edited Note and skips the raise when it fails, so an edit that Kind.Edit then refuses (e.g. `--retire --title ""`) never rewrites `config.yaml`; the Note's file is resolved up front for this (only when `--retire` or `--add-superseded-by` is given).
+NOTES (2026-10-12): `--remove-superseded-by` removes by exact id text and is not resolved, mirroring `--remove-ref`; the command's Short text now reads "Change a Note's title, labels, refs, retirement or body".
 
 **What:**
 **Goal:** `capcom know update <id>` accepts `--retire`, `--unretire`, `--add-superseded-by <id|alias>` (repeatable; resolved at write time to the target's id, refused when it names no Note or the Note itself) and `--remove-superseded-by <id>`; `--retire` with `--unretire` is refused; the first such write in a store below format 3 raises it to 3 and prints the existing format-raised warning.

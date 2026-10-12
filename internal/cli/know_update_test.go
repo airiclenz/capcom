@@ -194,6 +194,7 @@ func TestKnowUpdate_NoChangeOrClashingFlags_AreUsageErrors(t *testing.T) {
 		{"--if-match", "0000000000000000"},
 		{"--body-file", "-", "--body-append", "more"},
 		{"--body-file", "-", "--body-replace-old", "a", "--body-replace-new", "b"},
+		{"--retire", "--unretire"},
 	}
 
 	for _, args := range cases {
@@ -251,5 +252,127 @@ func TestKnowUpdate_TangledAgentsMarkers_WarnsAndWritesTheNote(t *testing.T) {
 	}
 	if readAgentsGuide(t, root) != tangled {
 		t.Errorf("AGENTS.md changed to %q", readAgentsGuide(t, root))
+	}
+}
+
+// knowUpdateFormatRaisedText is the warning line of the know update that raises a store to format 3.
+const knowUpdateFormatRaisedText = "warning: .capcom/config.yaml: store format raised to 3; " +
+	"capcom releases that read only format 2 can no longer read this store\n"
+
+func TestKnowUpdate_RetireAndSupersededBy_WriteThenClearTheKeys(t *testing.T) {
+	root := newKnowStore(t)
+	before := readNoteFile(t, root, "release-flow.md")
+
+	mustRun(t, root, "know", "update", "release-flow", "--retire",
+		"--add-superseded-by", "cli-tests", "--add-superseded-by", "git-fixtures")
+	retired := readNoteFile(t, root, "release-flow.md")
+	mustRun(t, root, "know", "update", "release-flow", "--unretire",
+		"--remove-superseded-by", "cli-tests", "--remove-superseded-by", "git-fixtures")
+
+	want := "---\ntitle: Release flow\nlabels: [process]\nretired: true\n" +
+		"superseded-by: [cli-tests, git-fixtures]\n---\n\nTag, then publish.\n"
+	if retired != want {
+		t.Errorf("retired note file = %q; want %q", retired, want)
+	}
+	if after := readNoteFile(t, root, "release-flow.md"); after != before {
+		t.Errorf("cleared note file = %q; want %q", after, before)
+	}
+}
+
+func TestKnowUpdate_SupersededByAliasOrCitation_StoresTheID(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\naliases: [fixtures]\n---\n",
+	})
+
+	mustRun(t, root, "know", "update", "release-flow", "--add-superseded-by", "fixtures",
+		"--add-superseded-by", "CLI Tests")
+
+	if got := readNoteFile(t, root, "release-flow.md"); !strings.Contains(got, "superseded-by: [git-fixtures, cli-tests]\n") {
+		t.Errorf("note file = %q; want the canonical ids", got)
+	}
+}
+
+func TestKnowUpdate_UnknownOrSelfSuccessor_IsRefusedAndWritesNothing(t *testing.T) {
+	root := newKnowStore(t)
+	writeStoreConfig(t, root, "format: 2\n")
+	before := readNoteFile(t, root, "release-flow.md")
+	cases := []struct {
+		args     []string
+		wantCode int
+	}{
+		{[]string{"--add-superseded-by", "absent"}, ExitNotFound},
+		{[]string{"--add-superseded-by", "release-flow"}, ExitError},
+		{[]string{"--retire", "--add-superseded-by", "release"}, ExitError},
+	}
+
+	for _, current := range cases {
+		_, stderr, exitCode := runCLI(t, root, append([]string{"know", "update", "release-flow"}, current.args...)...)
+
+		if exitCode != current.wantCode || !strings.HasPrefix(stderr, "capcom: .capcom/knowledge/release-flow.md: ") {
+			t.Errorf("know update %v = %d, stderr %q; want %d at the note file", current.args, exitCode, stderr, current.wantCode)
+		}
+	}
+	if after := readNoteFile(t, root, "release-flow.md"); after != before {
+		t.Errorf("note file changed to %q", after)
+	}
+	if config := readStoreConfig(t, root); config != "format: 2\n" {
+		t.Errorf("config.yaml = %q; want it left at format 2", config)
+	}
+}
+
+func TestKnowUpdate_FormatTwoStore_RaisedToThreeOnceWithAWarning(t *testing.T) {
+	root := newKnowStore(t)
+	writeStoreConfig(t, root, "format: 2\n")
+
+	first := mustRun(t, root, "know", "update", "release-flow", "--retire")
+	second := mustRun(t, root, "know", "update", "cli-tests", "--add-superseded-by", "git-fixtures")
+
+	if !strings.Contains(first, knowUpdateFormatRaisedText) || strings.Contains(second, "warning:") {
+		t.Errorf("first = %q\nsecond = %q; want the warning on the first only", first, second)
+	}
+	if config := readStoreConfig(t, root); config != "format: 3\n" {
+		t.Errorf("config.yaml = %q; want format 3", config)
+	}
+}
+
+func TestKnowUpdate_FormatTwoStore_SupersededByAdd_RaisesToThree(t *testing.T) {
+	root := newKnowStore(t)
+	writeStoreConfig(t, root, "format: 2\n")
+
+	stdout := mustRun(t, root, "know", "update", "release-flow", "--add-superseded-by", "cli-tests")
+
+	if config := readStoreConfig(t, root); config != "format: 3\n" || !strings.Contains(stdout, knowUpdateFormatRaisedText) {
+		t.Errorf("config.yaml = %q stdout = %q", config, stdout)
+	}
+}
+
+func TestKnowUpdate_WritesThatGainNoKey_LeaveTheConfigAlone(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"release-flow.md": "---\ntitle: Release flow\nretired: true\nsuperseded-by: [cli-tests]\n---\n",
+	})
+	writeStoreConfig(t, root, "format: 2\n")
+	staleETag := "0000000000000000"
+	cases := []struct {
+		args     []string
+		wantCode int
+	}{
+		{[]string{"--retire", "--add-superseded-by", "cli-tests"}, ExitOK},
+		{[]string{"--remove-superseded-by", "cli-tests"}, ExitOK},
+		{[]string{"--unretire"}, ExitOK},
+		{[]string{"--retire", "--if-match", staleETag}, ExitError},
+		{[]string{"--retire", "--title", ""}, ExitError},
+	}
+
+	for _, current := range cases {
+		stdout, stderr, exitCode := runCLI(t, root, append([]string{"know", "update", "release-flow"}, current.args...)...)
+
+		if exitCode != current.wantCode || strings.Contains(stdout, "warning:") {
+			t.Errorf("know update %v = %d\n%s%s; want %d without a warning", current.args, exitCode, stdout, stderr, current.wantCode)
+		}
+		if config := readStoreConfig(t, root); config != "format: 2\n" {
+			t.Fatalf("know update %v: config.yaml = %q; want it left at format 2", current.args, config)
+		}
 	}
 }

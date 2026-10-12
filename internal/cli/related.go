@@ -12,10 +12,13 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Store format of capcom related add.
+// Store formats of the writes that raise the store format: capcom related add and know update.
 const (
 	// relatedFormatVersion is the first store format whose issue files may carry related links.
 	relatedFormatVersion = 2
+	// supersessionFormatVersion is the first store format whose Note files may carry the retired
+	// and superseded-by keys.
+	supersessionFormatVersion = 3
 	// formatRaisedWarning is the warning of the write that raises the store format: the config
 	// file, the new format, and the format older releases read.
 	formatRaisedWarning = "%s: store format raised to %d; capcom releases that read only format %d can no longer read this store"
