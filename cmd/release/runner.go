@@ -11,7 +11,9 @@ import (
 
 // runner is the one seam every external command this program runs goes through — `go`, `git`,
 // `gh`, `komac` alike. The release verbs never call os/exec themselves, so a test hands them a
-// recording fake and no test of this package ever reaches the network or a real toolchain.
+// recording fake and no test of a verb ever reaches the network, a real `git` or a real
+// toolchain; only versionbump_test.go runs real `git`, under the workflow's script and never
+// through this seam.
 // What the verbs ask of the capcom checkout and its GitHub repository goes through the repo seam
 // (repo.go) instead, whose execRepo is the one caller of the runner with that argv; the runner
 // itself carries the toolchain, dist's read of its source tree's commit time, and the tap, bucket

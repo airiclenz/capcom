@@ -289,7 +289,11 @@ internal/cli/update.go — editNode; internal/nodestore/edit_test.go — TestEdi
 - `GOMEMLIMIT=2GiB go test ./internal/nodestore/`
 **Commit:** `fix(nodestore): re-check the etag before replacing an edited file`
 
-## 16. Test the tag-on-version-bump script
+## 16. Test the tag-on-version-bump script — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): the VersionBump tests also skip on Windows (the plan named only missing bash/git): the script runs only on the ubuntu tag-on-version-bump runner, and on a Windows CI runner `bash` may resolve to WSL and a Windows GITHUB_OUTPUT path is unreliable under Git Bash.
+NOTES (2026-10-12): the tests pass the hermetic git env per command instead of newRepo's t.Setenv, so they can run with t.Parallel like the rest of cmd/release; the variables are the same.
+NOTES (2026-10-12): adr-0008-decision.md is left unedited; the new Note's body states that it replaces that Note's "its tests never run git" sentence, and adr-0008.md routes readers to it (no superseded-by key added, as the plan's Files did not list the decision Note).
 
 **What:** Recast at the regression check (2026-10-12). Test-only: `.github/scripts/version-bump.sh` decides release tags and no test runs it.
 **Regression guard.** Per the header call, add Note `adr-0008/adr-0008-amend-bumptest.md` (free 4-word id; `-amend-1012` is taken) to `adr-0008.md`'s reading list; it supersedes `adr-0008-decision.md` ("Its tests never run `git`, …"). Rewrite the `main.go` package doc and `runner.go` doc saying tests never reach git (line-wrapped; a grep misses it).
