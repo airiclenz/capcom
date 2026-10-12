@@ -60,7 +60,7 @@ func laterClock() Option {
 
 func openIndex(t *testing.T, s *store.Store, options ...Option) *Index {
 	t.Helper()
-	opened, err := Open(s, options...)
+	opened, err := Open(s, ModeRefresh, options...)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -124,9 +124,9 @@ func TestRefresh_NewTree_IndexesEveryIssue(t *testing.T) {
 	writeIssue(t, s, "parent-issue/child-issue.md", "---\ntitle: Child\nstatus: done\ntype: bug\n"+
 		"priority: 1\nlabels: [ui, auth]\ndeps: [parent-issue]\nplan: some-plan\naliases: [old-child]\n"+
 		"created: 2026-10-11T09:00:00Z\nclosed: 2026-10-11T10:00:00Z\nreason: fixed\n---\nbody\n")
-	x := openIndex(t, s)
 
-	report := refresh(t, x)
+	x := openIndex(t, s)
+	report := x.Report()
 
 	if !report.Rebuilt || report.Indexed != 2 || len(report.Parsed) != 2 || len(report.Warnings) != 0 {
 		t.Fatalf("report = %+v, want a rebuilt index of 2 issues and no warnings", report)
@@ -376,6 +376,73 @@ func TestRebuild_ExistingIndex_ReparsesEverything(t *testing.T) {
 
 	if err != nil || !report.Rebuilt || len(report.Parsed) != 1 || report.Indexed != 1 {
 		t.Errorf("Rebuild = %+v, %v; want everything parsed again", report, err)
+	}
+}
+
+func TestOpen_TreeChangedSinceLastOpen_ReturnsAFreshIndex(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	openIndex(t, s, laterClock())
+	writeIssue(t, s, "late-issue.md", issueText("Late", "open", ""))
+
+	x := openIndex(t, s, laterClock())
+
+	report := x.Report()
+	if !isIndexed(t, x, "late-issue") || report.Indexed != 1 || len(report.Parsed) != 1 {
+		t.Errorf("Report = %+v; want late-issue indexed by Open alone", report)
+	}
+}
+
+func TestOpen_ModeRebuild_RebuildsTheIndex(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "first-issue.md", issueText("First", "open", ""))
+	openIndex(t, s, laterClock())
+
+	x, err := Open(s, ModeRebuild, laterClock())
+
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := x.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+	report := x.Report()
+	if !report.Rebuilt || len(report.Parsed) != 1 || report.Indexed != 1 {
+		t.Errorf("Report = %+v; want everything parsed again", report)
+	}
+}
+
+func TestOpen_DatabaseUnreadable_FailsWithoutAnIndex(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	if err := os.MkdirAll(filepath.Dir(Path(s)), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	garbage := []byte(strings.Repeat("not an index ", 512))
+	if err := os.WriteFile(Path(s), garbage, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	x, err := Open(s, ModeRefresh)
+
+	if err == nil || x != nil {
+		t.Errorf("Open = %v, %v; want a failure and no index", x, err)
+	}
+}
+
+func TestReport_CallerChangesIt_IndexKeepsItsOwn(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "Bad_Name.md", issueText("Bad", "open", ""))
+	x := openIndex(t, s)
+
+	x.Report().Warnings[0].Path = "renamed.md"
+
+	if got := x.Report().Warnings[0].Path; got != ".capcom/issues/Bad_Name.md" {
+		t.Errorf("Report().Warnings[0].Path = %q; want the index's own path", got)
 	}
 }
 

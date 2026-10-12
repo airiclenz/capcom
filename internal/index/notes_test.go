@@ -199,9 +199,9 @@ func TestNotes_OldSchemaIndex_RebuildsWithTheNotes(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	x := openIndex(t, s)
 
-	report := refresh(t, x)
+	x := openIndex(t, s)
+	report := x.Report()
 	_, found, err := x.Note("release-flow")
 
 	if !report.Rebuilt || err != nil || !found {

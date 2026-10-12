@@ -56,7 +56,9 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 		return Result{}, kindFailure(err)
 	}
 	result := noteWriteResult(moved.ID, moved.Path, moved.ETag)
-	result.Warnings = append(result.Warnings, a.movedWarnings(moved, problems)...)
+	indexWarnings, warnings := a.movedWarnings(moved, problems)
+	a.indexWarnings = indexWarnings
+	result.Warnings = append(result.Warnings, warnings...)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
 }

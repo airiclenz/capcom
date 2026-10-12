@@ -628,7 +628,10 @@ about both, on that path.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Create|Warn'`
 **Commit:** `fix(cli): classify index warnings by kind`
 
-## 22. index.Open returns a fresh index
+## 22. index.Open returns a fresh index — ✅ DONE (2026-10-12)
+
+NOTES (2026-10-12): Open(s, mode, options...) takes index.ModeRefresh / index.ModeRebuild; Refresh and Rebuild also record their report, so Report() is the latest pass (Open's own until one runs again) and returns cloned slices. cli keeps a.indexReport (Open's report, never mutated) and adds a.indexWarnings, which emit renders; mv and know mv replace it with movedWarnings' renamed copies.
+NOTES (2026-10-12): prime now adds the "; run capcom reindex" hint to every Open failure, since Open's refresh and its mkdir/ping failures arrive on one error; previously a mkdir or ping failure carried no hint.
 
 **What:**
 **Goal:** `index.Open(store, mode)` returns an index already refreshed (or rebuilt) with its report

@@ -24,7 +24,8 @@ import (
 const racyGranularity = time.Second
 
 // Refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
-// IMMEDIATE transaction.
+// IMMEDIATE transaction, and records its report as the one Report returns. Open has already
+// refreshed or rebuilt the index; Refresh is for a caller that changed the tree since.
 // It re-parses only the files that are new, changed in size or mtime, or racily clean, drops the
 // rows of files that are gone, and rebuilds everything when the schema version or the configured
 // statuses and types changed. Files that cannot be used are reported in the Report's Warnings and
@@ -34,7 +35,7 @@ func (x *Index) Refresh() (Report, error) {
 }
 
 // Rebuild drops every table and indexes the whole issue tree and Knowledge tree again, in one
-// transaction.
+// transaction, and records its report as the one Report returns.
 func (x *Index) Rebuild() (Report, error) {
 	return x.refresh(true)
 }
@@ -79,6 +80,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	slices.SortFunc(report.Warnings, func(a, b Warning) int {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line), cmp.Compare(a.Message, b.Message))
 	})
+	x.report = report
 	return report, nil
 }
 

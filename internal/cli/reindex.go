@@ -16,8 +16,8 @@ type reindexData struct {
 	Issues int `json:"issues"`
 }
 
-// newReindexCommand rebuilds the index from the issue and Note files. The rebuild itself runs in
-// prepareIndex, as the command's annotation asks.
+// newReindexCommand rebuilds the index from the issue and Note files. The rebuild itself runs when
+// prepareIndex opens the index in index.ModeRebuild, as the command's annotation asks.
 func (a *app) newReindexCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:         "reindex",

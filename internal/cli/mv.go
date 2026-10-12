@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -63,7 +64,9 @@ func (a *app) move(args []string, options *mvOptions) (Result, error) {
 		return Result{}, kindFailure(err)
 	}
 	result := writeResult(moved.ID, moved.Path, moved.ETag)
-	result.Warnings = append(result.Warnings, a.movedWarnings(moved, problems)...)
+	indexWarnings, warnings := a.movedWarnings(moved, problems)
+	a.indexWarnings = indexWarnings
+	result.Warnings = append(result.Warnings, warnings...)
 	for _, unread := range moved.Unread {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(
 			"%s: deps not checked for %s: the file does not parse",
@@ -89,10 +92,14 @@ func moveDestination(args []string, parent string, isReparented bool) nodestore.
 
 // movedWarnings renders problems, the tree problems a move returned, as warnings once the move has
 // been applied, leaving out every problem the index refresh already warned about. A path inside
-// the moved node's children directory, in problems and in the index refresh's warnings alike, is
-// renamed to where that file now lives, so no warning names a file by a path that no longer
-// exists.
-func (a *app) movedWarnings(moved nodestore.Moved, problems tree.Errors) []string {
+// the moved node's children directory is renamed to where that file now lives, in problems and in
+// indexWarnings alike, so no warning names a file by a path that no longer exists. indexWarnings
+// are renamed copies of the index refresh's warnings, to be rendered in place of them; the
+// report itself is left as it is.
+func (a *app) movedWarnings(
+	moved nodestore.Moved,
+	problems tree.Errors,
+) (indexWarnings []index.Warning, warnings []string) {
 	var warned tree.Errors
 	for _, problem := range problems {
 		if !a.isIndexWarnedAbout(problem) {
@@ -101,15 +108,16 @@ func (a *app) movedWarnings(moved nodestore.Moved, problems tree.Errors) []strin
 	}
 	oldDir := strings.TrimSuffix(moved.OldPath, nodeFileExtension) + "/"
 	newDir := strings.TrimSuffix(moved.Path, nodeFileExtension) + "/"
-	for i := range a.indexReport.Warnings {
-		warning := &a.indexReport.Warnings[i]
+	indexWarnings = make([]index.Warning, 0, len(a.indexReport.Warnings))
+	for _, warning := range a.indexReport.Warnings {
 		warning.Path = movedPath(warning.Path, oldDir, newDir)
+		indexWarnings = append(indexWarnings, warning)
 	}
 	for _, problem := range warned {
 		problem.Path = movedPath(problem.Path, oldDir, newDir)
 		problem.Other = movedPath(problem.Other, oldDir, newDir)
 	}
-	return treeProblemWarnings(warned)
+	return indexWarnings, treeProblemWarnings(warned)
 }
 
 // movedPath returns path with its leading oldDir replaced by newDir, or path unchanged when it

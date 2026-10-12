@@ -96,9 +96,12 @@ func (a *app) brief() (result Result) {
 
 // briefIssues adds the Ready lists and the issues in a doing status, read from the refreshed index.
 func (a *app) briefIssues(b *briefing) {
-	opened, err := index.Open(a.store)
+	// The refresh report Open leaves on Report is never read on purpose: its warnings name files
+	// the index left out, and briefCheck already counts each of them in "check: N problems".
+	// Repeating them here would flood the session start with one line per broken file.
+	opened, err := index.Open(a.store, index.ModeRefresh)
 	if err != nil {
-		b.warn("index", err)
+		b.warn("index", fmt.Errorf("%w; run capcom reindex", err))
 		return
 	}
 	a.issueIndex = opened
@@ -108,13 +111,6 @@ func (a *app) briefIssues(b *briefing) {
 			b.warn("index", err)
 		}
 	}()
-	// The Refresh report is discarded on purpose: its warnings name files the index left out,
-	// and briefCheck already counts each of them in "check: N problems". Repeating them here
-	// would flood the session start with one line per broken file.
-	if _, err := opened.Refresh(); err != nil {
-		b.warn("index", fmt.Errorf("%w; run capcom reindex", err))
-		return
-	}
 
 	ready, err := a.readyEntries(&readyOptions{})
 	if err != nil {

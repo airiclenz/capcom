@@ -1,9 +1,9 @@
 // Package index keeps the disposable SQLite index of a store at `<git-dir>/capcom/index.db`. The
 // index mirrors the issue tree and the Knowledge tree and is never committed; the markdown files
-// stay the truth. Refresh brings it up to date incrementally, re-parsing only the files whose size
-// or mtime changed, and Rebuild (or deleting the file) recreates it from scratch. A file that
-// cannot be used is reported as a Warning and left out while the rest stays queryable. The index
-// only reads `.capcom/`; it never writes there.
+// stay the truth. Open returns the index already up to date: Refresh brings it up to date
+// incrementally, re-parsing only the files whose size or mtime changed, and Rebuild (or deleting
+// the file) recreates it from scratch. A file that cannot be used is reported as a Warning and
+// left out while the rest stays queryable. The index only reads `.capcom/`; it never writes there.
 package index
 
 import (
@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,10 +40,22 @@ const dsnOptions = "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txloc
 
 // Index is an open index of one store. It is not safe for concurrent use; open one per command.
 type Index struct {
-	db    *sql.DB
-	store *store.Store
-	now   func() time.Time
+	db     *sql.DB
+	store  *store.Store
+	now    func() time.Time
+	report Report
 }
+
+// Mode is how Open brings the index up to date before returning it.
+type Mode int
+
+// The modes of Open.
+const (
+	// ModeRefresh re-reads only the files that changed since the index recorded them, as Refresh.
+	ModeRefresh Mode = iota
+	// ModeRebuild recreates every table and reads both trees again, as Rebuild.
+	ModeRebuild
+)
 
 // Option configures an Index at Open.
 type Option func(*Index)
@@ -136,9 +149,11 @@ func Path(s *store.Store) string {
 	return filepath.Join(s.GitDir, dirName, fileName)
 }
 
-// Open opens the index of s, creating its directory and database file when missing. The tables
-// are created or brought up to date by the first Refresh, not here.
-func Open(s *store.Store, options ...Option) (*Index, error) {
+// Open opens the index of s, creating its directory and database file when missing, and refreshes
+// or rebuilds it as mode asks, so the index it returns is up to date with the trees on disk and
+// Report holds what that first pass did. When the refresh or rebuild fails, Open closes the
+// database and returns the failure.
+func Open(s *store.Store, mode Mode, options ...Option) (*Index, error) {
 	path := Path(s)
 	if err := os.MkdirAll(filepath.Dir(path), dirPermissions); err != nil {
 		return nil, fmt.Errorf("%s: %w", filepath.Dir(path), err)
@@ -158,7 +173,24 @@ func Open(s *store.Store, options ...Option) (*Index, error) {
 	for _, option := range options {
 		option(index)
 	}
+	prepare := index.Refresh
+	if mode == ModeRebuild {
+		prepare = index.Rebuild
+	}
+	if _, err := prepare(); err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
 	return index, nil
+}
+
+// Report returns what the latest refresh or rebuild did: Open's own, until Refresh or Rebuild
+// runs again. Its slices are copies, so a caller may change them without touching the index.
+func (x *Index) Report() Report {
+	report := x.report
+	report.Parsed = slices.Clone(report.Parsed)
+	report.Removed = slices.Clone(report.Removed)
+	report.Warnings = slices.Clone(report.Warnings)
+	return report
 }
 
 // Close releases the database.

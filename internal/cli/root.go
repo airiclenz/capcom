@@ -37,10 +37,12 @@ type app struct {
 	isKV     bool
 	renderer Renderer
 	// store and issueIndex are set for a command annotated with annotationIndex; Run closes the
-	// index. indexReport is what preparing the index did, and its warnings go with the result.
-	store       *store.Store
-	issueIndex  *index.Index
-	indexReport index.Report
+	// index. indexReport is what opening the index did. indexWarnings are the index warnings that
+	// go with the result: the report's own, or the renamed copies a move puts in their place.
+	store         *store.Store
+	issueIndex    *index.Index
+	indexReport   index.Report
+	indexWarnings []index.Warning
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and
@@ -128,8 +130,8 @@ func (a *app) prepare(cmd *cobra.Command, args []string) error {
 	return a.prepareIndex(cmd)
 }
 
-// prepareIndex opens the store and its index and refreshes or rebuilds it, once per command, as
-// the command's annotationIndex asks.
+// prepareIndex opens the store and its index, refreshed or rebuilt as the command's
+// annotationIndex asks, once per command.
 func (a *app) prepareIndex(cmd *cobra.Command) error {
 	mode := cmd.Annotations[annotationIndex]
 	if mode == "" {
@@ -143,22 +145,18 @@ func (a *app) prepareIndex(cmd *cobra.Command) error {
 	if err != nil {
 		return storeFailure(err)
 	}
-	issueIndex, err := index.Open(opened)
+	indexMode := index.ModeRefresh
+	if mode == indexRebuild {
+		indexMode = index.ModeRebuild
+	}
+	issueIndex, err := index.Open(opened, indexMode)
 	if err != nil {
 		return asError(err)
 	}
 	a.store = opened
 	a.issueIndex = issueIndex
-
-	prepareIndex := issueIndex.Refresh
-	if mode == indexRebuild {
-		prepareIndex = issueIndex.Rebuild
-	}
-	report, err := prepareIndex()
-	if err != nil {
-		return asError(err)
-	}
-	a.indexReport = report
+	a.indexReport = issueIndex.Report()
+	a.indexWarnings = a.indexReport.Warnings
 	return nil
 }
 
@@ -214,8 +212,8 @@ func (a *app) emit(cmd *cobra.Command, result Result) error {
 	if a.isKV && result.KV == nil {
 		return UsageErrorf("%s does not support --kv", cmd.CommandPath())
 	}
-	warnings := make([]string, 0, len(a.indexReport.Warnings)+len(result.Warnings))
-	for _, warning := range a.indexReport.Warnings {
+	warnings := make([]string, 0, len(a.indexWarnings)+len(result.Warnings))
+	for _, warning := range a.indexWarnings {
 		warnings = append(warnings, warning.String())
 	}
 	result.Warnings = append(warnings, result.Warnings...)
