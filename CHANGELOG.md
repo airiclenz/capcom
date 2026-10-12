@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-12
+
 - An issue or Note file whose frontmatter does not parse because a merge left a git conflict marker in it is now reported at the first marker's line with `git conflict marker "<marker>"; resolve the conflict and delete the markers` instead of the YAML error the marker causes, in every command's warning for that file. `capcom check` reports such a file once, as `conflict` problems only, with no `frontmatter` problem beside them.
 - `create` and `mv` no longer reuse an id that an issue file which does not parse lists among its aliases (for example a file a merge left with conflict markers). They read the `aliases:` list from the file's raw frontmatter, in either list form and past conflict markers, and refuse the id with code `exists`, naming the file: `id "<id>" may be an alias of issue <holder>, whose file does not parse: fix it first`. This also covers such a file inside a directory without its node file. A new id that no broken file lists is still written, and the broken file is still reported once as a warning.
 - `know add` and `know mv` no longer reuse an id that a Note which does not parse lists among its aliases. As for issues, they read the `aliases:` list from the Note's raw frontmatter and refuse the id with code `exists`, naming the file: `id "<id>" may be an alias of note <holder>, whose file does not parse: fix it first`. A new id that no broken Note lists is still written, and the broken Note is still reported once as a warning.
