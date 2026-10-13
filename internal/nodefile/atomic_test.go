@@ -104,6 +104,24 @@ func TestReplaceFileAtomic_MissingPath_FailsNotExistCreatingNothing(t *testing.T
 	}
 }
 
+func TestReplaceFileVerbatim_MissingPath_FailsNamingItAndCreatesNothing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "login-flow.md")
+
+	err := nodefile.ReplaceFileVerbatim(path, strings.NewReader("new\r\ncontent\n"))
+
+	if !errors.Is(err, fs.ErrNotExist) || !strings.Contains(err.Error(), path) {
+		t.Fatalf("ReplaceFileVerbatim = %v, want fs.ErrNotExist naming %s", err, path)
+	}
+	if _, statErr := os.Stat(path); !errors.Is(statErr, fs.ErrNotExist) {
+		t.Fatalf("Stat(%s) = %v, want the file still missing", path, statErr)
+	}
+	if names := dirEntries(t, dir); len(names) != 0 {
+		t.Fatalf("dir holds %v, want nothing: no file and no temp file", names)
+	}
+}
+
 // The copy fallback: on a file system that refuses hard links, WriteFileExclusive copies the temp
 // file into path instead. These tests swap a package variable, so they never run in parallel.
 

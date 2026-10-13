@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -164,5 +165,50 @@ func TestMergeDriver_MissingInput_FailsNamingItAndKeepsOurs(t *testing.T) {
 	}
 	if got := readDriverFile(t, oursPath); got != ours {
 		t.Errorf("ours = %q, want it unchanged %q", got, ours)
+	}
+}
+
+func TestMergeDriver_OursInReadOnlyDirectory_FailsInvalidAndKeepsOurs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory does not stop file creation on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only directory")
+	}
+	dir := outsideGitDir(t)
+	ours := driverIssueFile("Login", driverEntryBase, driverEntryOurs)
+	basePath, oursPath, theirsPath := writeDriverInputs(
+		t,
+		dir,
+		driverIssueFile("Login", driverEntryBase),
+		ours,
+		driverIssueFile("Login", driverEntryBase, driverEntryTheirs),
+	)
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	_, stderr, exitCode := runCLI(t, dir, "merge-driver", basePath, oursPath, theirsPath, mergeDriverPath)
+	stdout, _, jsonExitCode := runCLI(t, dir, "--json", "merge-driver", basePath, oursPath, theirsPath, mergeDriverPath)
+
+	if exitCode != ExitError || !strings.Contains(stderr, oursPath) {
+		t.Errorf("exit %d, stderr %q; want 1 and an error naming %s", exitCode, stderr, oursPath)
+	}
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	if jsonExitCode != ExitError || failure["code"] != string(CodeInvalid) || failure["path"] != oursPath {
+		t.Errorf("--json exit %d, error %v; want 1 and an invalid failure at %s", jsonExitCode, failure, oursPath)
+	}
+	if got := readDriverFile(t, oursPath); got != ours {
+		t.Errorf("ours = %q, want it unchanged %q", got, ours)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), ".tmp-") {
+			t.Errorf("temp file %s left in %s", entry.Name(), dir)
+		}
 	}
 }

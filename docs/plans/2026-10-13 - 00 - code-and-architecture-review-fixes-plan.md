@@ -2911,7 +2911,7 @@ Depends on P3.90; P0.2.
 - `go vet ./internal/lock/`
 **Commit:** `test(lock): cover Touch by a displaced holder and a real heartbeat advance`
 
-## P4.5 Merge-driver write failure and a missing replace target
+## P4.5 Merge-driver write failure and a missing replace target — ✅ DONE (2026-10-13)
 
 **What:** Covers T-06 (`merge-write-failure-test`): regression guards for a merge driver that cannot write `<ours>` and for `ReplaceFileVerbatim` on a missing path.
 **Tests:**
