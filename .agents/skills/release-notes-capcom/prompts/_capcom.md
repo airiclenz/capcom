@@ -60,7 +60,7 @@ live in `docs/plans/`, decision records in `.capcom/knowledge/decisions/`.
 | Output modes & exit codes | `internal/cli/output/` |
 | Config keys & defaults | `internal/config/config.go` (`Default()`, the `.capcom/config.yaml` that `capcom init` writes) |
 | File formats | `docs/format.md` (issue files, Note files, the tree, `config.yaml`, the lock record, the Managed block) |
-| Agent integration | `internal/agents/block.go` (the AGENTS.md Managed block `capcom agents` writes), `internal/cli/prime.go` (the `capcom prime` Briefing), `internal/cli/init.go` (the Claude Code hooks `--claude-hooks` adds) |
+| Agent integration | `internal/agents/block.go` (the AGENTS.md Managed block `capcom agents` writes), `internal/cli/prime.go` (the `capcom prime` Briefing), `internal/cli/init.go` with `internal/hooks/settings.go` (the Claude Code hooks `--claude-hooks` adds) |
 | Docs | `README.md`, `docs/format.md`, `docs/migrating-from-beads.md`, `.capcom/knowledge/glossary/` |
 | Install & packaging | `.github/workflows/`, `cmd/release/templates/` |
 | Emitted strings | `internal/cli/` user messages and usage text, `internal/agents/block.go`, `internal/check/` (what `capcom check` reports) |

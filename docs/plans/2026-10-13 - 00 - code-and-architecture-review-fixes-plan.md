@@ -2376,7 +2376,13 @@ Depends on P3.50.
 - `! grep -n 'ListIDs' internal/cli/issue_render.go`
 **Commit:** `refactor(cli): count child progress once and convert issue nodes in index`
 
-## P3.55 The agent-settings editor moves to internal/hooks
+## P3.55 The agent-settings editor moves to internal/hooks — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): internal/hooks also exports PrimeCommand ("capcom prime"), beyond the Goal's export list, so cli's kept primeCommand reads it (`const primeCommand = hooks.PrimeCommand`) instead of duplicating the literal; cli's kept codexHooksPath is now `var codexHooksPath = hooks.Codex.Path` (still used by the --codex-hooks flag help) and claudeSettingsPath is gone (flag help and snippet read hooks.Claude.Path).
+
+NOTES (2026-10-13): Merge returns content unchanged with isAdded false when every event already runs capcom prime; Install's read failure is a *hooks.Error without a line, as before.
+
+NOTES (2026-10-13): consequential edit — .agents/skills/release-notes-capcom/prompts/_capcom.md: made necessary by moving the Claude Code hooks editor out of internal/cli/init.go into internal/hooks/settings.go (the surface map named only init.go)
 
 **What:** Part 1 of A-09 (it replaces P2-12, which is out of scope): the Claude Code and Codex hooks-settings JSON editor moves from `cli/init.go` into a new package `internal/hooks`, its JSON edge cases unit-tested on byte slices.
 **Regression guard.** cli keeps `primeCommand`, `codexHooksPath`, `claudeHooksSnippet`, `codexFeatureNote` and the two status names, which init_test.go uses. The status names stay of type string (`claudeHooksAdded = string(hooks.Added)`, and `string(...)` at the `initData` assignment), because init_test.go compares them with `any` values decoded from JSON.
