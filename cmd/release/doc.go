@@ -31,15 +31,17 @@
 //   - `dist.go` — release dist: builds the archives for every release platform and SHA256SUMS
 //   - `doc.go` — the package comment and this file map
 //   - `gate.go` — the release gate: a clean, pushed checkout whose commit passed CI
+//   - `githubrelease.go` — the GitHub release step: probe, describe and converge, the asset build and the checks against what the release already carries
 //   - `main.go` — main, the root command and the exit code a run failure maps to
 //   - `prepare.go` — release prepare: the CHANGELOG rollup and VERSION bump commits
-//   - `probes.go` — the read-only probes that tell where each publish step stands on the remotes
-//   - `publish.go` — release publish: the gate, the step loop, and the tag, release and smoke steps
+//   - `probes.go` — the read-only probes that tell where each package channel and the smoke step stand on the remotes
+//   - `publish.go` — release publish: the gate, the step loop and the smoke step
 //   - `render.go` — renders the Homebrew formula, the Scoop manifest and the winget manifests from templates
 //   - `repo.go` — the repo seam over the capcom checkout and its GitHub repository, and execRepo
 //   - `runner.go` — the runner seam every external command goes through
 //   - `smoke.go` — release smoke: checks a published release from the outside
 //   - `status.go` — release status: the gate, the baseline and each publish step's probed state
 //   - `steps.go` — the publish step table status and publish both read, and the step states
-//   - `version.go` — the release version: parsing, ordering and the highest release tag
+//   - `tag.go` — the tag step: probe, describe, and converge by pushing main and waiting for the CI-made annotated tag
+//   - `version.go` — the release version: parsing, ordering, its bare form and the highest release tag
 package main

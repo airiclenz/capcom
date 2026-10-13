@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 )
 
 // The repositories and paths the publish steps write to, and so the ones their probes read.
 const (
-	capcomRepo        = "airiclenz/capcom"
 	tapRepo           = "airiclenz/homebrew-tap"
 	formulaPath       = "Formula/capcom.rb"
 	bucketRepo        = "airiclenz/scoop-bucket"
@@ -24,84 +22,6 @@ const (
 
 // formulaVersionPattern finds the version a Homebrew formula pins: its `version "X.Y.Z"` line.
 var formulaVersionPattern = regexp.MustCompile(`(?m)^\s*version\s+"([^"]*)"`)
-
-// probeTag reports the tag done only when origin holds an annotated tag for the version: a
-// lightweight tag carries no message and is not what a release is cut from, so it is unknown,
-// never done.
-func probeTag(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
-	tag := version.String()
-	hasTag, err := env.repo.RemoteHasTag(ctx, tag)
-	if err != nil {
-		return unknownStep(stepTag, "could not list %s's tags: %v", remoteName, err)
-	}
-	if !hasTag {
-		return stepReport{Name: stepTag, State: statePending, Detail: fmt.Sprintf("%s has no tag %s", remoteName, tag)}
-	}
-
-	kind, err := env.repo.RemoteTagType(ctx, tag)
-	if err != nil {
-		return unknownStep(stepTag, "could not read the type of tag %s: %v", tag, err)
-	}
-	switch kind {
-	case "tag":
-		return stepReport{Name: stepTag, State: stateDone, Detail: fmt.Sprintf("annotated tag %s on %s", tag, remoteName)}
-	case "commit":
-		return unknownStep(stepTag, "%s on %s is a lightweight tag; a release tag must be annotated", tag, remoteName)
-	default:
-		return unknownStep(stepTag, "tag %s points at a %q object, not an annotated tag", tag, kind)
-	}
-}
-
-// probeRelease reports the GitHub release done only when it is published, not a draft, and
-// carries every asset a release ships: the six archives and SHA256SUMS, each fully uploaded. A
-// draft's download URLs answer 404, so the channel steps must not run over one.
-func probeRelease(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
-	tag := version.String()
-	release, isFound, err := env.repo.ReleaseAssets(ctx, tag)
-	if err != nil {
-		return unknownStep(stepRelease, "could not read GitHub release %s: %v", tag, err)
-	}
-	if !isFound {
-		return stepReport{Name: stepRelease, State: statePending, Detail: fmt.Sprintf("no GitHub release %s", tag)}
-	}
-
-	want := releaseAssetNames(version)
-	missing := missingAssets(want, release.names)
-	switch {
-	case release.isDraft && len(missing) > 0:
-		return stepReport{Name: stepRelease, State: statePending, Detail: fmt.Sprintf(
-			"release %s is a draft and lacks %d of its %d assets: %s", tag, len(missing), len(want), strings.Join(missing, ", "))}
-	case release.isDraft:
-		return stepReport{Name: stepRelease, State: statePending, Detail: fmt.Sprintf(
-			"release %s is a draft with all %d assets", tag, len(want))}
-	case len(missing) > 0:
-		return stepReport{Name: stepRelease, State: statePending, Detail: fmt.Sprintf(
-			"release %s lacks %d of its %d assets: %s", tag, len(missing), len(want), strings.Join(missing, ", "))}
-	}
-	return stepReport{Name: stepRelease, State: stateDone, Detail: fmt.Sprintf("release %s with all %d assets", tag, len(want))}
-}
-
-// missingAssets returns the names in want that uploaded lacks, in want's order.
-func missingAssets(want, uploaded []string) []string {
-	var missing []string
-	for _, name := range want {
-		if !slices.Contains(uploaded, name) {
-			missing = append(missing, name)
-		}
-	}
-	return missing
-}
-
-// releaseAssetNames are the files a release of version carries: one archive per release
-// platform, then SHA256SUMS.
-func releaseAssetNames(version releaseVersion) []string {
-	bare := bareRelease(version)
-	names := make([]string, 0, len(distTargets)+1)
-	for _, target := range distTargets {
-		names = append(names, target.archiveName(bare))
-	}
-	return append(names, checksumsFile)
-}
 
 // probeHomebrew reports the tap setup-pending while its repository does not exist, and done when
 // its formula pins the version or a newer one. A tap without the formula is pending: the
@@ -260,20 +180,8 @@ func readRepoFile(ctx context.Context, commands runner, dir, repo, path string) 
 	return string(decoded), nil
 }
 
-// isReleaseNotFound reports whether a gh release failure is GitHub having no such release — or,
-// for `gh release view` with no tag, no published release at all — as opposed to a call that
-// could not be made.
-func isReleaseNotFound(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "release not found")
-}
-
 // isNotFound reports whether a gh api failure is GitHub answering 404 — the path or repository
 // does not exist, or the repository is empty — as opposed to a call that could not be made.
 func isNotFound(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "(HTTP 404)")
-}
-
-// bareRelease is the version without its `v`, as archive names and the channel files carry it.
-func bareRelease(version releaseVersion) string {
-	return strings.TrimPrefix(version.String(), "v")
 }

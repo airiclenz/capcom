@@ -129,17 +129,6 @@ func packageCommitSubject(version releaseVersion) string {
 	return binaryName + " " + bareRelease(version)
 }
 
-// downloadReleaseSums reads the release's SHA256SUMS from GitHub, writing nothing into the
-// checkout, whose clean tree the next status or publish gate checks.
-func downloadReleaseSums(ctx context.Context, run *publishRun) (string, error) {
-	tag := run.version.String()
-	sums, err := run.repo.ReadAsset(ctx, tag, checksumsFile)
-	if err != nil {
-		return "", fmt.Errorf("download %s from GitHub release %s: %w", checksumsFile, tag, err)
-	}
-	return sums, nil
-}
-
 // setupPendingError is a step's converge reporting, without failing, that the step cannot finish
 // until a human does a one-time setup: publish records the step setup-pending with detail and
 // goes on to the next step.

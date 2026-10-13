@@ -80,3 +80,8 @@ func highestReleaseTag(tags string) string {
 	}
 	return highest.String()
 }
+
+// bareRelease is the version without its `v`, as archive names and the channel files carry it.
+func bareRelease(version releaseVersion) string {
+	return strings.TrimPrefix(version.String(), "v")
+}

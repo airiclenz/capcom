@@ -11,6 +11,9 @@ import (
 	"strings"
 )
 
+// capcomRepo is the GitHub repository capcom is released from: its tags and its releases.
+const capcomRepo = "airiclenz/capcom"
+
 // repo is the semantic seam over the capcom checkout and its GitHub repository: what the release
 // verbs ask of them, in their own terms rather than as git or gh argv. execRepo is the production
 // adapter; the tests hold the same answers as plain state in memRepo. Every method fails with an
@@ -426,4 +429,11 @@ func (r execRepo) ReadAsset(ctx context.Context, tag, name string) (string, erro
 func (r execRepo) DownloadAsset(ctx context.Context, tag, name, dir string) error {
 	_, err := r.remote(ctx, "gh", "release", "download", tag, "--repo", capcomRepo, "--pattern", name, "--dir", dir)
 	return err
+}
+
+// isReleaseNotFound reports whether a gh release failure is GitHub having no such release — or,
+// for `gh release view` with no tag, no published release at all — as opposed to a call that
+// could not be made.
+func isReleaseNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "release not found")
 }

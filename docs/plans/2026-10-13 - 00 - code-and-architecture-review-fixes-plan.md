@@ -2540,7 +2540,10 @@ Depends on P1.40; P1.41; P1.43; P1.44; P3.70.
 - `! grep -rnE 'publishActions|steps\[[0-9]+\]' --include='*.go' --exclude='*_test.go' cmd/release`
 **Commit:** `refactor(release): one step table for status and publish`
 
-## P3.72 Release: the tag and GitHub release steps in their own files
+## P3.72 Release: the tag and GitHub release steps in their own files — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): `readRebuiltSums`, the helper only the release step's two sums checks (`checkPublishedSums`, `checkUploadedArchives`) call, moved to githubrelease.go with them; the plan did not name it. `removeBuildDir`, `sleepContext` and the `defaultTagTimeout`/`tagPollInterval` constants stay in publish.go, since the run and the publish options own them.
+NOTES (2026-10-13): `capcomRepo` left probes.go's const block for its own `const` line in repo.go, which needed a new one-line doc comment; doc.go's map gains tag.go and githubrelease.go and rewords the publish.go, probes.go and version.go lines.
 
 **What:** Second part of A-11, a pure move: the tag step and the GitHub release step leave `publish.go`, `probes.go` and `channels.go`.
 **Goal:** `tag.go` holds the tag step and `githubrelease.go` the release step; `publish.go` keeps them out; behaviour unchanged.
