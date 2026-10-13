@@ -1918,7 +1918,11 @@ Depends on P3.10; P2.35.
 **Closes:** node-layout-claims
 **Commit:** `refactor(cli): derive node-file paths through the tree layout`
 
-## P3.13 Characterise Move's reference rewrites through Kind
+## P3.13 Characterise Move's reference rewrites through Kind — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the ported alias `apogee-kk0.4` is replaced by kebab aliases (`old-login`, `legacy-name`) so the tests do not lean on a legacy id form; the alias-chain test checks the first id still resolves through a further Kind.Move (OldID third-name), since Kind has no resolver-free lookup.
+
+NOTES (2026-10-13): the unparseable-moved-issue case asserts Kind-level types (invalid id and own subtree a lineless *FileError, taken id an *ExistsError, valid rename a *FileError at the parse line) and that the tree is unchanged; the knowledge taken-id-first and swapped-after-Load cases are left to P3.15's refs_test.go as planned; makeFIFO is unused until P3.15.
 
 **What:** First part of A-04 (`reference-rewrite-engine`), as the characterisation tests the review asks for. These tests pin, at `Kind.Move` level, what `issue.PlanMove` and `knowledge.PlanMove`'s own tests pin today, so those planners can be deleted later. They pass on the pre-item tree. The U-02 and F-23 cases are not here; they are P3.15's bite tests.
 **Tests:** new `internal/nodestore/move_refs_test.go` (`package nodestore`), ported from `internal/issue/move_test.go`, `internal/knowledge/move_test.go` and `knowledge_test.go`'s `TestPlanMove_*`.
