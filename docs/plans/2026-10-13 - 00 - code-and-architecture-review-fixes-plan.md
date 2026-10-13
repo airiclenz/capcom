@@ -2510,7 +2510,7 @@ Depends on P3.62.
 - `grep -q 'diagnose.NameClashes' internal/index/duplicates.go`
 **Commit:** `refactor(diagnose): find name clashes in one pure function`
 
-## P3.70 Release: characterise tap and bucket push failures
+## P3.70 Release: characterise tap and bucket push failures — ✅ DONE (2026-10-13)
 
 **What:** Covers T-01 (`channel-push-failure-test`): nothing makes the tap or bucket clone, `rev-list`, commit or push fail. A characterisation test before P3.71 restructures this code.
 **Files:** cmd/release/channels_test.go

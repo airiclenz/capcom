@@ -36,12 +36,30 @@ type fakeChannelRepo struct {
 	isEmpty bool
 }
 
+// channelFailure is one command of a tap or bucket's clone step made to fail for one
+// repository. Its zero value fails nothing.
+type channelFailure struct {
+	// command is the failing command: "gh repo clone", "git rev-list", "git commit" or "git push".
+	command string
+	// repo is the tap or bucket repository the command fails for.
+	repo string
+}
+
+// errorFor returns the error command fails with over repo, nil when it is not the failing one.
+func (failure channelFailure) errorFor(command, repo string) error {
+	if command != failure.command || repo != failure.repo {
+		return nil
+	}
+	return fmt.Errorf("%s: exit status 1: remote rejected the request", command)
+}
+
 // fakeChannels is what the channel steps meet beyond the probes: the tap and bucket they clone,
-// whether komac is installed, whether `komac submit` fails, and the token gh is signed in with
-// ("" for none).
+// the clone-step command that fails, whether komac is installed, whether `komac submit` fails,
+// and the token gh is signed in with ("" for none).
 type fakeChannels struct {
 	tap                  fakeChannelRepo
 	bucket               fakeChannelRepo
+	failure              channelFailure
 	isKomacMissing       bool
 	isKomacSubmitFailing bool
 	ghToken              string
@@ -64,6 +82,9 @@ func (f *publishFake) respondChannel(call recordedCall) (string, bool, error) {
 	switch {
 	case call.name == "gh" && len(args) == 6 && args[0] == "repo" && args[1] == "clone":
 		repo, cloneDir := args[2], args[3]
+		if err := f.channels.failure.errorFor("gh repo clone", repo); err != nil {
+			return "", true, err
+		}
 		if f.channels.clones == nil {
 			f.channels.clones = map[string]string{}
 		}
@@ -88,6 +109,9 @@ func (f *publishFake) respondChannel(call recordedCall) (string, bool, error) {
 	repo, isClone := f.channels.clones[call.dir]
 	if !isClone || call.name != "git" {
 		return "", false, nil
+	}
+	if err := f.channels.failure.errorFor("git "+args[0], repo); err != nil {
+		return "", true, err
 	}
 	switch args[0] {
 	case "rev-list":
@@ -698,5 +722,73 @@ func TestPublishWingetConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 	}
 	if index := lineIndex(lines, "komac update "+wingetPackageID); index < 0 {
 		t.Errorf("winget was not submitted; commands: %q", lines)
+	}
+}
+
+// TestPublishChannelStepFailureStopsTheRun characterises a tap or bucket whose clone, history
+// read, commit or push fails: publish stops at that channel's step with an error naming the step,
+// the repository and what failed, prints the step table as the remote now holds it, and never
+// reaches the smoke step.
+func TestPublishChannelStepFailureStopsTheRun(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		failure   channelFailure
+		wantError string
+	}{
+		"tap clone": {
+			failure:   channelFailure{command: "gh repo clone", repo: tapRepo},
+			wantError: "the homebrew step failed: clone " + tapRepo + ": gh repo clone: exit status 1",
+		},
+		"tap history": {
+			failure:   channelFailure{command: "git rev-list", repo: tapRepo},
+			wantError: "the homebrew step failed: read " + tapRepo + "'s history: git rev-list: exit status 1",
+		},
+		"tap commit": {
+			failure:   channelFailure{command: "git commit", repo: tapRepo},
+			wantError: "the homebrew step failed: commit " + formulaPath + " to " + tapRepo + ": git commit: exit status 1",
+		},
+		"tap push": {
+			failure:   channelFailure{command: "git push", repo: tapRepo},
+			wantError: "the homebrew step failed: push " + formulaPath + " to " + tapRepo + ": git push: exit status 1",
+		},
+		"bucket clone": {
+			failure:   channelFailure{command: "gh repo clone", repo: bucketRepo},
+			wantError: "the scoop step failed: clone " + bucketRepo + ": gh repo clone: exit status 1",
+		},
+		"bucket history": {
+			failure:   channelFailure{command: "git rev-list", repo: bucketRepo},
+			wantError: "the scoop step failed: read " + bucketRepo + "'s history: git rev-list: exit status 1",
+		},
+		"bucket commit": {
+			failure:   channelFailure{command: "git commit", repo: bucketRepo},
+			wantError: "the scoop step failed: commit " + bucketPath + " to " + bucketRepo + ": git commit: exit status 1",
+		},
+		"bucket push": {
+			failure:   channelFailure{command: "git push", repo: bucketRepo},
+			wantError: "the scoop step failed: push " + bucketPath + " to " + bucketRepo + ": git push: exit status 1",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			fake := releasedFake()
+			if tc.failure.repo == bucketRepo {
+				fake.remote.formula = testFormula
+			}
+			fake.channels.failure = tc.failure
+
+			result := runChannelPublish(t, fake, false, sentinelToken)
+
+			if result.err == nil || !strings.Contains(result.err.Error(), tc.wantError) {
+				t.Fatalf("publish error = %v, want one naming %q", result.err, tc.wantError)
+			}
+			if !strings.Contains(result.output, "steps") {
+				t.Errorf("the step table was not printed:\n%s", result.output)
+			}
+			if len(result.smokes) != 0 {
+				t.Errorf("the smoke step ran %d times after the %s step failed", len(result.smokes), tc.failure.command)
+			}
+		})
 	}
 }
