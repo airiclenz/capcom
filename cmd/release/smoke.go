@@ -63,10 +63,12 @@ func defaultSmokeOptions(dir string) smokeOptions {
 }
 
 // smokeRun is one smoke run: what every check reads — the tag, the release's assets and the
-// latest release through repo — and the tally the summary reports.
+// latest release through repo, the bucket's manifest through channels — and the tally the
+// summary reports.
 type smokeRun struct {
 	commands runner
 	repo     repo
+	channels channelRepos
 	output   io.Writer
 	options  smokeOptions
 	version  releaseVersion
@@ -138,6 +140,7 @@ func runSmoke(ctx context.Context, commands runner, output io.Writer, options sm
 	run := &smokeRun{
 		commands: commands,
 		repo:     options.openRepo.open(commands, options.dir),
+		channels: execChannelRepos{commands: commands, dir: options.dir},
 		output:   output,
 		options:  options,
 		version:  version,

@@ -2641,7 +2641,12 @@ Depends on P3.80.
 - `GOMEMLIMIT=2GiB go test ./cmd/release/`
 **Commit:** `fix(release): find an open winget pull request without the search index`
 
-## P3.82 Release: publish a channel file through the seam
+## P3.82 Release: publish a channel file through the seam — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — cmd/release/doc.go: made necessary by removing readRepoFile; the file map's channels.go line no longer says it reads a channel file
+NOTES (2026-10-13): execChannelRepos.readContents, kept only for readRepoFile's 404-as-failure read, is folded into ReadFile; ReadFile's argv, decoding and errors are unchanged
+NOTES (2026-10-13): publishPackageFile stays as the shared helper convergeHomebrew and convergeScoop call; it now calls run.channels.PublishFile and prints "already holds this <path>: nothing to push" when nothing was pushed
+NOTES (2026-10-13): checkScoop on a missing manifest skips with the same "the bucket's manifest <path> in <repo> is unreadable" wording, now ending "there is no such file" instead of gh's 404 text; resolveWingetPackage through ListDirs now refuses a listing that is not JSON instead of reading it as listed (the winget probe already parsed the same listing)
 
 **What:** Second part of A-12: the tap and bucket write, and the remaining raw channel reads, go through `channelRepos`.
 **Regression guard.** `TestPublishWritesTheRenderedFileIntoTheClone` builds `&publishRun{…}` directly; that literal sets `channels: execChannelRepos{commands: commands, dir: …}`. `checkScoop` skips on `found == false` with today's "the bucket's manifest %s in %s is unreadable" wording.

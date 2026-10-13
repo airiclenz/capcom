@@ -54,6 +54,9 @@ type publishRun struct {
 	version  releaseVersion
 	// repo is the checkout publish pushes from, opened from the options.
 	repo repo
+	// channels is the package channels' repositories, which the probes read and the tap and
+	// bucket steps publish their files to.
+	channels channelRepos
 	// head is the commit HEAD resolved to when the gate judged it: VERSION is read at it, and the
 	// tag step checks, pushes and verifies it, never the symbolic HEAD. It stays empty when the
 	// whole gate did not run, as when the tag is already on origin, or HEAD did not resolve.
@@ -139,6 +142,7 @@ func runPublish(ctx context.Context, commands runner, output io.Writer, options 
 	run := &publishRun{
 		commands: commands,
 		repo:     options.openRepo.open(commands, options.dir),
+		channels: execChannelRepos{commands: commands, dir: options.dir},
 		output:   output,
 		options:  options,
 		version:  version,
@@ -215,7 +219,7 @@ func (r *publishRun) converge(ctx context.Context, gate string, steps []stepRepo
 
 // probe asks the remote where each of publish's steps stands, in publish order.
 func (r *publishRun) probe(ctx context.Context) []stepReport {
-	env := probeEnv{repo: r.repo, channels: execChannelRepos{commands: r.commands, dir: r.options.dir}}
+	env := probeEnv{repo: r.repo, channels: r.channels}
 	return probeSteps(ctx, env, r.version)
 }
 

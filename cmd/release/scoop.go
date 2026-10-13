@@ -113,9 +113,13 @@ func (r *smokeRun) checkScoop(ctx context.Context) {
 		r.skip("the release's %s did not download — nothing to check the bucket's hashes against", checksumsFile)
 		return
 	}
-	raw, err := readRepoFile(ctx, r.commands, r.options.dir, bucketRepo, bucketPath)
+	raw, hasManifest, err := r.channels.ReadFile(ctx, bucketRepo, bucketPath)
 	if err != nil {
 		r.skip("the bucket's manifest %s in %s is unreadable: %v", bucketPath, bucketRepo, err)
+		return
+	}
+	if !hasManifest {
+		r.skip("the bucket's manifest %s in %s is unreadable: there is no such file", bucketPath, bucketRepo)
 		return
 	}
 	manifest, err := parseScoopManifest(raw)

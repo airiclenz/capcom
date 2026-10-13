@@ -420,8 +420,9 @@ func TestPublishWritesTheRenderedFileIntoTheClone(t *testing.T) {
 		}
 		return respond(call)
 	}}
-	run := &publishRun{commands: commands, repo: fake.repo, output: &strings.Builder{}, version: mustVersion(t, publishVersion),
-		options: publishOptions{dir: t.TempDir()}}
+	dir := t.TempDir()
+	run := &publishRun{commands: commands, repo: fake.repo, channels: execChannelRepos{commands: commands, dir: dir},
+		output: &strings.Builder{}, version: mustVersion(t, publishVersion), options: publishOptions{dir: dir}}
 
 	for _, converge := range []func() error{
 		func() error { return convergeHomebrew(t.Context(), run) },

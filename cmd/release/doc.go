@@ -28,7 +28,7 @@
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
 //   - `channelrepos.go` — the channelRepos seam over the tap, bucket and winget-pkgs repositories, and execChannelRepos
-//   - `channels.go` — the helpers the package channels share: publishing a generated file to a channel repository, reading one, judging the version it pins
+//   - `channels.go` — the helpers the package channels share: publishing a generated file to a channel repository, judging the version it pins
 //   - `dist.go` — release dist: builds the archives for every release platform and SHA256SUMS
 //   - `doc.go` — the package comment and this file map
 //   - `gate.go` — the release gate: a clean, pushed checkout whose commit passed CI

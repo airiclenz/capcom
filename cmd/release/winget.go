@@ -92,18 +92,16 @@ const wingetSubmittedDetail = "submitted by this run: the pull request merges in
 // resolveWingetPackage records in the run whether winget-pkgs already has the package, which picks
 // the winget step's komac path. It asks only while the winget step is pending: a done or unknown
 // step never reaches the winget step's converge. It reads the listing the winget probe reads; a
-// 404 means the package is not there yet.
+// listing that is not there means the package is not there yet.
 func (r *publishRun) resolveWingetPackage(ctx context.Context, steps []stepReport) error {
 	if stepStateOf(steps, stepWinget) != statePending {
 		return nil
 	}
-	_, err := r.commands.run(ctx, r.options.dir, nil, "gh", "api", "repos/"+wingetRepo+"/contents/"+wingetManifestDir)
-	switch {
-	case err == nil:
-		r.isWingetPackageListed = true
-	case !isNotFound(err):
+	_, isListed, err := r.channels.ListDirs(ctx, wingetRepo, wingetManifestDir)
+	if err != nil {
 		return fmt.Errorf("could not tell whether %s has %s: %w", wingetRepo, wingetManifestDir, err)
 	}
+	r.isWingetPackageListed = isListed
 	return nil
 }
 

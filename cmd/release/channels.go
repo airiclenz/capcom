@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -15,54 +13,15 @@ func describePackageFile(run *publishRun, repo, path string) string {
 		path, run.version, checksumsFile, packageCommitSubject(run.version), repo)
 }
 
-// publishPackageFile clones repo into a temporary directory, writes content to path there and,
-// only when that changes the file, commits it as `capcom X.Y.Z` and pushes the commit straight to
-// the repository's branch — no pull request. A repository with no commits yet has
-// no branch to push to, so its first commit is pushed to main.
+// publishPackageFile publishes content to path in repo through the run's channels, committed as
+// `capcom X.Y.Z`, and says so when the repository already holds it.
 func publishPackageFile(ctx context.Context, run *publishRun, repo, path, content string) error {
-	workDir, err := os.MkdirTemp("", "capcom-channel-")
+	isPushed, err := run.channels.PublishFile(ctx, repo, path, content, packageCommitSubject(run.version))
 	if err != nil {
-		return fmt.Errorf("create the %s clone directory: %w", repo, err)
+		return err
 	}
-	defer func() { _ = os.RemoveAll(workDir) }()
-
-	cloneDir := filepath.Join(workDir, "repo")
-	if _, err := run.commands.run(ctx, workDir, nonInteractiveEnv, "gh", "repo", "clone", repo, cloneDir, "--", "--quiet"); err != nil {
-		return fmt.Errorf("clone %s: %w", repo, err)
-	}
-	history, err := run.commands.run(ctx, cloneDir, nil, "git", "rev-list", "--all", "--max-count=1")
-	if err != nil {
-		return fmt.Errorf("read %s's history: %w", repo, err)
-	}
-
-	filePath := filepath.Join(cloneDir, filepath.FromSlash(path))
-	if err := os.MkdirAll(filepath.Dir(filePath), directoryMode); err != nil {
-		return fmt.Errorf("create %s's directory in the %s clone: %w", path, repo, err)
-	}
-	if err := os.WriteFile(filePath, []byte(content), documentMode); err != nil {
-		return fmt.Errorf("write %s in the %s clone: %w", path, repo, err)
-	}
-	if _, err := run.commands.run(ctx, cloneDir, nil, "git", "add", "--", path); err != nil {
-		return fmt.Errorf("stage %s in the %s clone: %w", path, repo, err)
-	}
-	staged, err := run.commands.run(ctx, cloneDir, nil, "git", "diff", "--cached", "--name-only")
-	if err != nil {
-		return fmt.Errorf("compare %s with %s's: %w", path, repo, err)
-	}
-	if strings.TrimSpace(staged) == "" {
+	if !isPushed {
 		_, _ = fmt.Fprintf(run.output, "  %s already holds this %s: nothing to push\n", repo, path)
-		return nil
-	}
-
-	if _, err := run.commands.run(ctx, cloneDir, nil, "git", "commit", "--quiet", "-m", packageCommitSubject(run.version)); err != nil {
-		return fmt.Errorf("commit %s to %s: %w", path, repo, err)
-	}
-	pushRef := "HEAD"
-	if strings.TrimSpace(history) == "" {
-		pushRef = "HEAD:" + mainBranch
-	}
-	if _, err := run.commands.run(ctx, cloneDir, nonInteractiveEnv, "git", "push", "--quiet", remoteName, pushRef); err != nil {
-		return fmt.Errorf("push %s to %s: %w", path, repo, err)
 	}
 	return nil
 }
@@ -84,13 +43,6 @@ func pinnedVersionStep(name, file, pinned string, version releaseVersion) stepRe
 		return stepReport{Name: name, State: stateDone, Detail: fmt.Sprintf("%s pins newer %s", file, pinned)}
 	}
 	return stepReport{Name: name, State: statePending, Detail: fmt.Sprintf("%s pins %q, not %s", file, pinned, bare)}
-}
-
-// readRepoFile reads one file of a GitHub repository through the contents API, a 404 failing
-// like any other failed call: the smoke check's read of the bucket, which the probes make through
-// channelRepos instead.
-func readRepoFile(ctx context.Context, commands runner, dir, repo, path string) (string, error) {
-	return execChannelRepos{commands: commands, dir: dir}.readContents(ctx, repo, path)
 }
 
 // isNotFound reports whether a gh api failure is GitHub answering 404 — the path or repository
