@@ -133,7 +133,7 @@ func addSyncEffects(result *output.Result, effects nodestore.Effects) {
 func newNote(cmd *cobra.Command, options *knowAddOptions) (knowledge.Note, error) {
 	note := knowledge.Note{
 		Title:  options.title,
-		Labels: edit.Labels(nil, options.labels, nil),
+		Labels: edit.List(nil, options.labels, nil),
 		Refs:   options.refs,
 	}
 	if options.bodyFile == "" {

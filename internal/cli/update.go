@@ -107,7 +107,7 @@ func (a *app) applyUpdate(
 	if flags.Changed(flagPlan) {
 		target.Plan = options.plan
 	}
-	target.Labels = edit.Labels(target.Labels, options.addLabels, options.removeLabels)
+	target.Labels = edit.List(target.Labels, options.addLabels, options.removeLabels)
 	if flags.Changed(flagBodyReplaceOld) {
 		replaced, err := edit.ReplaceBody(target.Body, options.replaceOld, options.replaceNew)
 		if err != nil {

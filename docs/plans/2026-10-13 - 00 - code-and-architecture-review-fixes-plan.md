@@ -2857,7 +2857,7 @@ Depends on P3.97.
 - `grep -rnE 'agents\.(Inspect|Write|Render|TopNotes|Path)\b|\.Dir\(\)' --include=*.go internal | grep -v '^internal/agents/'` prints nothing
 **Commit:** `refactor(agents): unexport helpers used only inside the package`
 
-## P3.99 edit.Labels is named for what it does
+## P3.99 edit.Labels is named for what it does — ✅ DONE (2026-10-13)
 
 **What:** Part 3 of A-15: `edit.Labels`, which edits labels, Refs and superseded-by alike, becomes `edit.List`; `internal/edit` keeps only its body and list helpers (P2.9 moved `ETag` to `nodefile`).
 **Regression guard.** The Goal's grep is copied into Acceptance as a command with its expected result.

@@ -1,6 +1,6 @@
-// Package edit holds the text edits that issue and Note writes share: label merging, appending a
-// block to a markdown body and replacing one exact passage of it. Every function is pure; none
-// reads or writes a file.
+// Package edit holds the text edits that issue and Note writes share: merging a frontmatter list
+// (labels, Refs, superseded-by), appending a block to a markdown body and replacing one exact
+// passage of it. Every function is pure; none reads or writes a file.
 package edit
 
 import (
@@ -13,19 +13,19 @@ import (
 // ErrReplaceMatch reports body replacement text that does not occur exactly once in the body.
 var ErrReplaceMatch = errors.New("the text to replace must occur exactly once in the body")
 
-// Labels returns a new slice holding labels with each label of add appended unless it is empty or
-// already there, then each label of remove taken out. Labels keep their order; a label to remove
-// that is not there is ignored. The result is nil when no label is left; labels itself is not
-// modified.
-func Labels(labels []string, add []string, remove []string) []string {
-	merged := slices.Clone(labels)
-	for _, label := range add {
-		if label != "" && !slices.Contains(merged, label) {
-			merged = append(merged, label)
+// List returns a new slice holding list with each value of add appended unless it is empty or
+// already there, then each value of remove taken out. It serves any frontmatter list: labels,
+// Refs, superseded-by. Values keep their order; a value to remove that is not there is ignored.
+// The result is nil when no value is left; list itself is not modified.
+func List(list []string, add []string, remove []string) []string {
+	merged := slices.Clone(list)
+	for _, value := range add {
+		if value != "" && !slices.Contains(merged, value) {
+			merged = append(merged, value)
 		}
 	}
-	merged = slices.DeleteFunc(merged, func(label string) bool {
-		return slices.Contains(remove, label)
+	merged = slices.DeleteFunc(merged, func(value string) bool {
+		return slices.Contains(remove, value)
 	})
 	if len(merged) == 0 {
 		return nil

@@ -8,7 +8,7 @@ import (
 	"github.com/airiclenz/capcom/internal/edit"
 )
 
-func TestLabels_AddsMissingThenRemoves(t *testing.T) {
+func TestList_AddsMissingThenRemoves(t *testing.T) {
 	cases := []struct {
 		name   string
 		labels []string
@@ -26,7 +26,7 @@ func TestLabels_AddsMissingThenRemoves(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			original := slices.Clone(tc.labels)
 
-			merged := edit.Labels(original, tc.add, tc.remove)
+			merged := edit.List(original, tc.add, tc.remove)
 
 			if !slices.Equal(merged, tc.want) || (tc.want == nil && merged != nil) {
 				t.Errorf("labels = %#v, want %#v", merged, tc.want)
@@ -38,10 +38,10 @@ func TestLabels_AddsMissingThenRemoves(t *testing.T) {
 	}
 }
 
-func TestLabels_EmptyAdd_Dropped(t *testing.T) {
+func TestList_EmptyAdd_Dropped(t *testing.T) {
 	add := []string{"x", "", "y"}
 
-	merged := edit.Labels(nil, add, nil)
+	merged := edit.List(nil, add, nil)
 
 	if want := []string{"x", "y"}; !slices.Equal(merged, want) {
 		t.Errorf("labels = %#v, want %#v", merged, want)

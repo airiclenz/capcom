@@ -141,7 +141,7 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 		Status:   status,
 		Type:     issueType,
 		Priority: options.priority,
-		Labels:   edit.Labels(nil, options.labels, nil),
+		Labels:   edit.List(nil, options.labels, nil),
 		Plan:     options.plan,
 		Deps:     deps,
 		Created:  time.Now().UTC().Truncate(time.Second),

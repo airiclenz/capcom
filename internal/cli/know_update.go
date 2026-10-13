@@ -209,14 +209,14 @@ func applyNoteUpdate(
 	if flags.Changed(flagTitle) {
 		note.Title = options.title
 	}
-	note.Labels = edit.Labels(note.Labels, options.addLabels, options.removeLabels)
+	note.Labels = edit.List(note.Labels, options.addLabels, options.removeLabels)
 	for _, ref := range options.addRefs {
 		if err := knowledge.ValidateRef(ref); err != nil {
 			return knowledge.Note{}, err
 		}
 	}
 	// Refs merge like labels: an ordered set, added before removed.
-	note.Refs = edit.Labels(note.Refs, options.addRefs, options.removeRefs)
+	note.Refs = edit.List(note.Refs, options.addRefs, options.removeRefs)
 	if options.isRetiring {
 		note.IsRetired = true
 	}
@@ -224,7 +224,7 @@ func applyNoteUpdate(
 		note.IsRetired = false
 	}
 	// Successors merge like refs, the added ones already resolved to ids.
-	note.SupersededBy = edit.Labels(note.SupersededBy, inputs.successors, options.removeSuccessors)
+	note.SupersededBy = edit.List(note.SupersededBy, inputs.successors, options.removeSuccessors)
 	if flags.Changed(flagBodyFile) {
 		note.Body = noteBody(inputs.body)
 	}
