@@ -32,6 +32,7 @@ var mutatingCommands = []string{
 	repoCallName + " " + methodCloneAt,
 	repoCallName + " " + methodCreateRelease,
 	repoCallName + " " + methodUploadAssets,
+	repoCallName + " " + methodUndraftRelease,
 	"git push",
 	"go build",
 	"gh release delete",
@@ -576,6 +577,79 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 			isDownloaded := lineIndex(commandLines(result.commands), "repo ReadAsset "+publishVersion+" "+checksumsFile) >= 0
 			if isDownloaded != tc.wantDownload {
 				t.Errorf("downloaded SHA256SUMS = %t, want %t", isDownloaded, tc.wantDownload)
+			}
+		})
+	}
+}
+
+// TestPublishUndraftsADraftReleaseOnce pins the run over a draft an interrupted `gh release
+// create` left: it creates no release, uploads only the assets the draft lacks, then publishes
+// the draft exactly once, after the upload, so the release step then probes done.
+func TestPublishUndraftsADraftReleaseOnce(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		uploaded    []string
+		wantUploads []string
+	}{
+		"draft with all assets": {
+			uploaded: releaseAssetsV02411,
+		},
+		"draft missing two archives": {
+			uploaded:    slices.Delete(slices.Clone(releaseAssetsV02411), 4, 6),
+			wantUploads: []string{"capcom_0.24.11_windows_amd64.zip", "capcom_0.24.11_windows_arm64.zip"},
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			fake := newPublishFake()
+			fake.tagged()
+			fake.repo.releases[publishVersion] = tc.uploaded
+			fake.repo.drafts = map[string]bool{publishVersion: true}
+			fake.repo.assetContent[checksumsFile] = rebuiltSums(t)
+
+			result := runTestPublish(t, fake, false)
+
+			if result.err != nil {
+				t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+			}
+			lines := commandLines(result.commands)
+			var undrafts, uploads []string
+			for _, line := range lines {
+				switch {
+				case strings.HasPrefix(line, repoCallName+" "+methodCreateRelease):
+					t.Errorf("created the release %q, want only the draft published", line)
+				case strings.HasPrefix(line, repoCallName+" "+methodUploadAssets):
+					uploads = append(uploads, line)
+				case strings.HasPrefix(line, repoCallName+" "+methodUndraftRelease):
+					undrafts = append(undrafts, line)
+				}
+			}
+			if want := []string{"repo UndraftRelease " + publishVersion}; !slices.Equal(undrafts, want) {
+				t.Errorf("un-drafts = %q, want exactly %q", undrafts, want)
+			}
+			if tc.wantUploads == nil {
+				if len(uploads) > 0 {
+					t.Errorf("uploaded %q to a draft that carries every asset, want no upload", uploads)
+				}
+			} else {
+				if len(uploads) != 1 {
+					t.Fatalf("got UploadAssets calls %q, want 1", uploads)
+				}
+				if names := assetNames(strings.Fields(uploads[0])[3:]); !slices.Equal(names, tc.wantUploads) {
+					t.Errorf("uploaded %q, want only %q", names, tc.wantUploads)
+				}
+				if lineIndex(lines, "repo UploadAssets") > lineIndex(lines, "repo UndraftRelease") {
+					t.Errorf("published the draft before uploading the assets it lacks: %q", lines)
+				}
+			}
+			if !hasRow(result.output, "release  done  done by this run") {
+				t.Errorf("output lacks the release row done:\n%s", result.output)
+			}
+			env := probeEnv{repo: fake.repo, commands: result.commands, dir: t.TempDir()}
+			if step := probeRelease(t.Context(), env, mustVersion(t, publishVersion)); step.State != stateDone {
+				t.Errorf("release probes %s (%s) after the run, want done", step.State, step.Detail)
 			}
 		})
 	}

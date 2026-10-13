@@ -955,7 +955,12 @@ NOTES (2026-10-13): smoke's `Long` help text now says the brew upgrade check app
 - `capcom check`
 **Commit:** `fix(release): never downgrade a tap or bucket pinned to a newer version`
 
-## P1.41 Release: a draft release is pending until publish un-drafts it
+## P1.41 Release: a draft release is pending until publish un-drafts it — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from repo.ReleaseAssets returning a bare name slice: at the tree it returns ([]string, bool, error), so the new githubReleaseAssets{names, isDraft} struct replaces only the slice and the found flag stays its own return value.
+NOTES (2026-10-13): consequential edit — .capcom/knowledge/decisions/adr-0008/adr-0008-decision.md: made necessary by probeRelease no longer reading a draft with all seven assets as done ("the release is published, not a draft, and has all seven assets").
+NOTES (2026-10-13): publish's Long help text and describeRelease's dry-run line now say the release step publishes a draft; the memRepo publish-log comments name UndraftRelease (one wrapped comment reflowed).
+NOTES (2026-10-13): the two new probe cases sit at the end of TestProbesReportEachState's table so gofmt does not realign the existing release/tap rows.
 
 **What:** Fixes F-04 (`release-draft-probe`): a draft left by an interrupted `gh release create` probes `done`, and the channel steps then push download URLs that 404.
 **Regression guard.** `publish_test.go`'s `mutatingCommands` gains `repoCallName + " " + methodUndraftRelease`, so the no-change tests fail when a run un-drafts a release it should leave alone.

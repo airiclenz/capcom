@@ -127,11 +127,12 @@ func probeTag(ctx context.Context, env probeEnv, version releaseVersion) stepRep
 	}
 }
 
-// probeRelease reports the GitHub release done only when it carries every asset a release ships:
-// the six archives and SHA256SUMS, each fully uploaded.
+// probeRelease reports the GitHub release done only when it is published, not a draft, and
+// carries every asset a release ships: the six archives and SHA256SUMS, each fully uploaded. A
+// draft's download URLs answer 404, so the channel steps must not run over one.
 func probeRelease(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	tag := version.String()
-	uploaded, isFound, err := env.repo.ReleaseAssets(ctx, tag)
+	release, isFound, err := env.repo.ReleaseAssets(ctx, tag)
 	if err != nil {
 		return unknownStep(stepRelease, "could not read GitHub release %s: %v", tag, err)
 	}
@@ -140,8 +141,15 @@ func probeRelease(ctx context.Context, env probeEnv, version releaseVersion) ste
 	}
 
 	want := releaseAssetNames(version)
-	missing := missingAssets(want, uploaded)
-	if len(missing) > 0 {
+	missing := missingAssets(want, release.names)
+	switch {
+	case release.isDraft && len(missing) > 0:
+		return stepReport{Name: stepRelease, State: statePending, Detail: fmt.Sprintf(
+			"release %s is a draft and lacks %d of its %d assets: %s", tag, len(missing), len(want), strings.Join(missing, ", "))}
+	case release.isDraft:
+		return stepReport{Name: stepRelease, State: statePending, Detail: fmt.Sprintf(
+			"release %s is a draft with all %d assets", tag, len(want))}
+	case len(missing) > 0:
 		return stepReport{Name: stepRelease, State: statePending, Detail: fmt.Sprintf(
 			"release %s lacks %d of its %d assets: %s", tag, len(missing), len(want), strings.Join(missing, ", "))}
 	}

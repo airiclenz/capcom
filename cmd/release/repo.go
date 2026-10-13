@@ -49,9 +49,9 @@ type repo interface {
 	// annotated tag, "commit" for a lightweight one.
 	RemoteTagType(ctx context.Context, tag string) (string, error)
 	// ReleaseAssets returns the names of the GitHub release's fully uploaded assets — an asset in
-	// any other state is a failed or unfinished upload, not one the release carries — and false
-	// when there is no release for tag.
-	ReleaseAssets(ctx context.Context, tag string) ([]string, bool, error)
+	// any other state is a failed or unfinished upload, not one the release carries — and whether
+	// the release is still a draft, and false when there is no release for tag.
+	ReleaseAssets(ctx context.Context, tag string) (githubReleaseAssets, bool, error)
 	// PushMain pushes HEAD to origin's main branch.
 	PushMain(ctx context.Context) error
 	// FetchTag fetches origin's tag into the checkout's tag of the same name.
@@ -72,6 +72,8 @@ type repo interface {
 	// UploadAssets uploads each asset file to tag's GitHub release, replacing an asset of the
 	// same name.
 	UploadAssets(ctx context.Context, tag string, assets []string) error
+	// UndraftRelease publishes tag's draft GitHub release and marks it the latest release.
+	UndraftRelease(ctx context.Context, tag string) error
 	// ReadAsset returns the content of tag's GitHub release asset name, writing nothing to disk.
 	ReadAsset(ctx context.Context, tag, name string) (string, error)
 	// DownloadAsset downloads tag's GitHub release asset name into the directory dir, as
@@ -83,6 +85,14 @@ type repo interface {
 type githubRelease struct {
 	Tag       string
 	Published string
+}
+
+// githubReleaseAssets is what a GitHub release carries: the names of its fully uploaded assets,
+// and whether it is still a draft — one an interrupted `gh release create` left unpublished, whose
+// download URLs answer 404 until it is published.
+type githubReleaseAssets struct {
+	names   []string
+	isDraft bool
 }
 
 // repoOpener opens the repo for the checkout at dir. newRootCommand hands one to every verb's run
@@ -290,23 +300,25 @@ func (r execRepo) RemoteTagType(ctx context.Context, tag string) (string, error)
 	return strings.TrimSpace(kind), nil
 }
 
-// ReleaseAssets reads the release's assets and their states with `gh release view <tag>`.
-func (r execRepo) ReleaseAssets(ctx context.Context, tag string) ([]string, bool, error) {
-	output, err := r.remote(ctx, "gh", "release", "view", tag, "--repo", capcomRepo, "--json", "assets")
+// ReleaseAssets reads the release's assets, their states and whether it is a draft with
+// `gh release view <tag>`.
+func (r execRepo) ReleaseAssets(ctx context.Context, tag string) (githubReleaseAssets, bool, error) {
+	output, err := r.remote(ctx, "gh", "release", "view", tag, "--repo", capcomRepo, "--json", "assets,isDraft")
 	if isReleaseNotFound(err) {
-		return nil, false, nil
+		return githubReleaseAssets{}, false, nil
 	}
 	if err != nil {
-		return nil, false, err
+		return githubReleaseAssets{}, false, err
 	}
 	var release struct {
 		Assets []struct {
 			Name  string `json:"name"`
 			State string `json:"state"`
 		} `json:"assets"`
+		IsDraft bool `json:"isDraft"`
 	}
 	if err := json.Unmarshal([]byte(output), &release); err != nil {
-		return nil, false, fmt.Errorf("parse gh release view output: %w", err)
+		return githubReleaseAssets{}, false, fmt.Errorf("parse gh release view output: %w", err)
 	}
 
 	uploaded := make([]string, 0, len(release.Assets))
@@ -315,7 +327,7 @@ func (r execRepo) ReleaseAssets(ctx context.Context, tag string) ([]string, bool
 			uploaded = append(uploaded, asset.Name)
 		}
 	}
-	return uploaded, true, nil
+	return githubReleaseAssets{names: uploaded, isDraft: release.IsDraft}, true, nil
 }
 
 // PushMain pushes with `git push origin HEAD:main`.
@@ -391,6 +403,13 @@ func (r execRepo) CreateRelease(ctx context.Context, tag, notesPath string, asse
 func (r execRepo) UploadAssets(ctx context.Context, tag string, assets []string) error {
 	args := []string{"release", "upload", tag, "--repo", capcomRepo, "--clobber"}
 	_, err := r.remote(ctx, "gh", append(args, assets...)...)
+	return err
+}
+
+// UndraftRelease runs `gh release edit --draft=false --latest`, which publishes the draft and
+// marks it latest, as CreateRelease's --latest does for a release it creates.
+func (r execRepo) UndraftRelease(ctx context.Context, tag string) error {
+	_, err := r.remote(ctx, "gh", "release", "edit", tag, "--repo", capcomRepo, "--draft=false", "--latest")
 	return err
 }
 

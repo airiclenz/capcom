@@ -35,6 +35,7 @@ const (
 	methodCloneAt            = "CloneAt"
 	methodCreateRelease      = "CreateRelease"
 	methodUploadAssets       = "UploadAssets"
+	methodUndraftRelease     = "UndraftRelease"
 	methodReadAsset          = "ReadAsset"
 	methodDownloadAsset      = "DownloadAsset"
 )
@@ -73,13 +74,16 @@ type memRepo struct {
 	// releases are the GitHub releases by tag, each with its fully uploaded assets; CreateRelease
 	// and UploadAssets add to it.
 	releases map[string][]string
+	// drafts are the releases, by tag, still drafts — ones an interrupted `gh release create`
+	// left; UndraftRelease publishes one.
+	drafts map[string]bool
 	// assetContent is what ReadAsset reads, and DownloadAsset writes, of a release asset, by
 	// name, whatever the release.
 	assetContent map[string]string
 	// files are the checkout's files at HEAD by path, for ShowFile.
 	files map[string]string
 	// publish is what a publish run changes; nil for a memRepo that refuses PushMain, FetchTag,
-	// CloneAt, CreateRelease and UploadAssets. It is a pointer, as madeCommits is, so every copy
+	// CloneAt, CreateRelease, UploadAssets and UndraftRelease. It is a pointer, as madeCommits is, so every copy
 	// of the memRepo shares it.
 	publish *memPublish
 	// failing names a method — methodParents — that fails outright, as one that cannot run.
@@ -93,10 +97,9 @@ type memRepo struct {
 // the CI workflow made after the push, and the tags fetched into the checkout.
 type memPublish struct {
 	// log is the runner whose ordered call record PushMain, FetchTag and the release step's
-	// CloneAt, CreateRelease, UploadAssets, ReadAsset and DownloadAsset join, as calls named
-	// repoCallName, so a
-	// test reads the repo's calls and the commands the runner ran in one order; nil records
-	// nothing.
+	// CloneAt, CreateRelease, UploadAssets, UndraftRelease, ReadAsset and DownloadAsset join, as
+	// calls named repoCallName, so a test reads the repo's calls and the commands the runner ran
+	// in one order; nil records nothing.
 	log *fakeRunner
 	// tagAfterPush is the post-PushMain hook, the tag-on-version-bump workflow: asked on each
 	// RemoteHasTag poll after the push with how many polls that makes, it returns the tag origin
@@ -275,13 +278,13 @@ func (r memRepo) RemoteTagType(_ context.Context, tag string) (string, error) {
 	return remote.kind, nil
 }
 
-// ReleaseAssets returns the release's assets from releases.
-func (r memRepo) ReleaseAssets(_ context.Context, tag string) ([]string, bool, error) {
+// ReleaseAssets returns the release's assets from releases, and whether drafts holds it.
+func (r memRepo) ReleaseAssets(_ context.Context, tag string) (githubReleaseAssets, bool, error) {
 	if err := r.failure(methodReleaseAssets); err != nil {
-		return nil, false, err
+		return githubReleaseAssets{}, false, err
 	}
 	assets, isFound := r.releases[tag]
-	return slices.Clone(assets), isFound, nil
+	return githubReleaseAssets{names: slices.Clone(assets), isDraft: r.drafts[tag]}, isFound, nil
 }
 
 // PushMain records the push in publish and its log; from then on origin/main is HEAD.
@@ -435,6 +438,23 @@ func (r memRepo) UploadAssets(_ context.Context, tag string, assets []string) er
 		}
 	}
 	r.releases[tag] = uploaded
+	return nil
+}
+
+// UndraftRelease records the un-draft in publish's log and removes the release from drafts; the
+// release must exist.
+func (r memRepo) UndraftRelease(_ context.Context, tag string) error {
+	if err := r.failure(methodUndraftRelease); err != nil {
+		return err
+	}
+	if r.publish == nil {
+		return errors.New("this memRepo publishes no draft")
+	}
+	r.publish.note(methodUndraftRelease, tag)
+	if _, isFound := r.releases[tag]; !isFound {
+		return fmt.Errorf("there is no release %s", tag)
+	}
+	delete(r.drafts, tag)
 	return nil
 }
 

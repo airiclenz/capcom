@@ -171,6 +171,7 @@ func TestProbesReportEachState(t *testing.T) {
 	lightweight := map[string]string{"v0.24.11": "commit"}
 	sixAssets := map[string][]string{"v0.24.11": releaseAssetsV02411[:6]}
 	allAssets := map[string][]string{"v0.24.11": releaseAssetsV02411}
+	draft := map[string]bool{"v0.24.11": true}
 	olderFormula := strings.Replace(testFormula, `version "0.24.11"`, `version "0.24.10"`, 1)
 	newerFormula := strings.Replace(testFormula, `version "0.24.11"`, `version "0.24.12"`, 1)
 
@@ -222,6 +223,11 @@ func TestProbesReportEachState(t *testing.T) {
 		"winget pull requests unreadable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), failing: "gh pr list"},
 			wantState: stateUnknown, wantDetail: "could not list the open microsoft/winget-pkgs pull requests"},
 		"smoke": {probe: probeSmoke, repo: memRepo{remoteTags: annotated, releases: allAssets}, wantState: statePending, wantDetail: "publish runs it last"},
+		// A draft an interrupted `gh release create` left is never done: its download URLs 404.
+		"release draft with all assets": {probe: probeRelease, repo: memRepo{releases: allAssets, drafts: draft},
+			wantState: statePending, wantDetail: "release v0.24.11 is a draft with all 7 assets"},
+		"release draft lacking assets": {probe: probeRelease, repo: memRepo{releases: sixAssets, drafts: draft},
+			wantState: statePending, wantDetail: "release v0.24.11 is a draft and lacks 1 of its 7 assets: SHA256SUMS"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

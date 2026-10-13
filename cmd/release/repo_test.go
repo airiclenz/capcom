@@ -176,10 +176,20 @@ func TestExecRepoRunsEachMethodsArgv(t *testing.T) {
 				return []any{assets, isFound}, err
 			},
 			output: `{"assets":[{"name":"capcom_0.24.11_linux_amd64.tar.gz","state":"uploaded"},` +
-				`{"name":"SHA256SUMS","state":"starter"}]}` + "\n",
-			want: []any{[]string{"capcom_0.24.11_linux_amd64.tar.gz"}, true},
+				`{"name":"SHA256SUMS","state":"starter"}],"isDraft":false}` + "\n",
+			want: []any{githubReleaseAssets{names: []string{"capcom_0.24.11_linux_amd64.tar.gz"}}, true},
 			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh",
-				args: []string{"release", "view", "v0.24.11", "--repo", "airiclenz/capcom", "--json", "assets"}},
+				args: []string{"release", "view", "v0.24.11", "--repo", "airiclenz/capcom", "--json", "assets,isDraft"}},
+		},
+		"ReleaseAssets reads a draft": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				assets, isFound, err := checkout.ReleaseAssets(ctx, "v0.24.11")
+				return []any{assets, isFound}, err
+			},
+			output: `{"assets":[{"name":"SHA256SUMS","state":"uploaded"}],"isDraft":true}` + "\n",
+			want:   []any{githubReleaseAssets{names: []string{"SHA256SUMS"}, isDraft: true}, true},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh",
+				args: []string{"release", "view", "v0.24.11", "--repo", "airiclenz/capcom", "--json", "assets,isDraft"}},
 		},
 		"PushMain": {
 			call: func(ctx context.Context, checkout execRepo) (any, error) {
@@ -243,6 +253,14 @@ func TestExecRepoRunsEachMethodsArgv(t *testing.T) {
 			},
 			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh", args: []string{"release", "upload", "v0.24.11",
 				"--repo", "airiclenz/capcom", "--clobber", "/dist/a.zip", "/dist/b.zip"}},
+		},
+		// UndraftRelease publishes the draft and marks it latest, as CreateRelease does.
+		"UndraftRelease": {
+			call: func(ctx context.Context, checkout execRepo) (any, error) {
+				return nil, checkout.UndraftRelease(ctx, "v0.24.11")
+			},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "gh", args: []string{"release", "edit", "v0.24.11",
+				"--repo", "airiclenz/capcom", "--draft=false", "--latest"}},
 		},
 		// ReadAsset downloads to stdout, --output -, never to a file in the checkout, whose clean
 		// tree the next gate checks.
@@ -321,8 +339,8 @@ func TestExecRepoTellsANoFromABrokenCommand(t *testing.T) {
 
 		assets, isFound, err := checkout.ReleaseAssets(t.Context(), "v0.24.11")
 
-		if err != nil || isFound || assets != nil {
-			t.Errorf("ReleaseAssets = %q, %t, %v; want nil, false, nil", assets, isFound, err)
+		if err != nil || isFound || !reflect.DeepEqual(assets, githubReleaseAssets{}) {
+			t.Errorf("ReleaseAssets = %+v, %t, %v; want none, false, nil", assets, isFound, err)
 		}
 	})
 

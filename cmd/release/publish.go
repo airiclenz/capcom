@@ -117,7 +117,8 @@ func newPublishCommand(commands runner, openRepo repoOpener) *cobra.Command {
 			"then pushes HEAD to main and waits (--tag-timeout) for the CI-made annotated tag — it\n" +
 			"never creates one. The release step builds the archives in a fresh clone at the tag\n" +
 			"and creates the GitHub release, or uploads only the assets it lacks after checking the\n" +
-			"rebuilt sums against its SHA256SUMS. The homebrew and scoop steps render the formula\n" +
+			"rebuilt sums against its SHA256SUMS, then publishes a draft an interrupted run left;\n" +
+			"a draft release is never done. The homebrew and scoop steps render the formula\n" +
 			"and the manifest from the release's SHA256SUMS and commit `capcom X.Y.Z` straight to\n" +
 			"the tap and the bucket, pushing only when the file changes. The winget step submits\n" +
 			"with komac (GITHUB_TOKEN, else `gh auth token`): `komac update` once winget-pkgs has\n" +
@@ -393,7 +394,7 @@ func verifyTag(ctx context.Context, run *publishRun) error {
 
 // describeRelease says what the release step does.
 func describeRelease(run *publishRun) string {
-	return fmt.Sprintf("build the %d assets in a fresh clone at %s, then create GitHub release %s or upload the assets it lacks",
+	return fmt.Sprintf("build the %d assets in a fresh clone at %s, then create GitHub release %s or upload the assets it lacks and publish it if it is a draft",
 		len(releaseAssetNames(run.version)), run.version, run.version)
 }
 
@@ -401,13 +402,15 @@ func describeRelease(run *publishRun) string {
 // when the release exists, uploads only the assets it lacks — after checking the rebuilt sums
 // against the SHA256SUMS it already carries, so a rebuild never mixes with assets it does not
 // match. A release without SHA256SUMS has nothing to check against; the rebuild is
-// byte-identical to any earlier one from the same tag, so its own sums are uploaded.
+// byte-identical to any earlier one from the same tag, so its own sums are uploaded. A draft
+// release is published once it carries every asset.
 func convergeRelease(ctx context.Context, run *publishRun) error {
 	tag := run.version.String()
-	uploaded, isFound, err := run.repo.ReleaseAssets(ctx, tag)
+	release, isFound, err := run.repo.ReleaseAssets(ctx, tag)
 	if err != nil {
 		return fmt.Errorf("read GitHub release %s: %w", tag, err)
 	}
+	uploaded := release.names
 
 	workDir, err := os.MkdirTemp("", "capcom-publish-")
 	if err != nil {
@@ -438,8 +441,17 @@ func convergeRelease(ctx context.Context, run *publishRun) error {
 	missing := missingAssets(releaseAssetNames(run.version), uploaded)
 	// UploadAssets replaces an asset of the same name, which here is only one left in a failed
 	// upload state: an uploaded one is never in missing.
-	if err := run.repo.UploadAssets(ctx, tag, assetPaths(outDir, missing)); err != nil {
-		return fmt.Errorf("upload %s to GitHub release %s: %w", strings.Join(missing, ", "), tag, err)
+	if len(missing) > 0 {
+		if err := run.repo.UploadAssets(ctx, tag, assetPaths(outDir, missing)); err != nil {
+			return fmt.Errorf("upload %s to GitHub release %s: %w", strings.Join(missing, ", "), tag, err)
+		}
+	}
+	// A draft — one an interrupted `gh release create` left — is published only once it carries
+	// every asset, so no channel ever points at a download that is not there.
+	if release.isDraft {
+		if err := run.repo.UndraftRelease(ctx, tag); err != nil {
+			return fmt.Errorf("publish draft GitHub release %s: %w", tag, err)
+		}
 	}
 	return nil
 }

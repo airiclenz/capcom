@@ -45,8 +45,8 @@ comes from the default `-buildvcs` stamp: `smoke` reads `vcs.revision` from each
 info and requires the tagged commit.
 
 **`publish` converges.** Before each step it asks the remote whether that step is already done
-and skips it if so: the tag exists; the release has all seven assets; the formula pins the
-version or a newer one; the bucket manifest is at the version or a newer one; a winget pull
+and skips it if so: the tag exists; the release is published, not a draft, and has all seven
+assets; the formula pins the version or a newer one; the bucket manifest is at the version or a newer one; a winget pull
 request for the version is open or merged. A tap or bucket already on a newer release reads done,
 so a rerun for an older version never moves it back. A half-finished release is resumed by
 running `publish` again. There is no local state file, because the remote is the truth, and a
