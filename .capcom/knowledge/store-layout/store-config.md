@@ -1,7 +1,7 @@
 ---
 title: "What config.yaml controls: statuses, types, plans, ready.hide, lock.ttl, elsewhere.days and format"
 labels: [architecture]
-refs: [docs/format.md, internal/config/config.go#FormatVersion]
+refs: [docs/site/reference/file-format.md, internal/config/config.go#FormatVersion]
 ---
 
 `.capcom/config.yaml` is optional, and so is every key in it; a missing key takes the default
@@ -19,5 +19,5 @@ refs: [docs/format.md, internal/config/config.go#FormatVersion]
   whose format is newer than it reads (`prime` only warns), and any new key in an issue, a Note or
   `config.yaml` raises the format by one. The highest format this capcom reads is `FormatVersion`.
 
-`docs/format.md` `## Config` is the reference: the file `init` writes, the allowed values and the
-format raises.
+`docs/site/reference/file-format.md` `## Config` is the reference: the file `init` writes, the
+allowed values and the format raises.

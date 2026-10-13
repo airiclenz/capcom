@@ -31,8 +31,8 @@ flag, an output mode or exit code, a config key or shipped default; a
 frontmatter field or file-format rule; a line of the Managed block, the
 Briefing or the Claude Code hooks; an exported symbol; a documented
 behaviour; a workflow or packaging template. A changed count the README or
-`docs/format.md` states (commands, exit codes, frontmatter fields) is its own
-entry.
+`docs/site/reference/file-format.md` states (commands, exit codes, frontmatter
+fields) is its own entry.
 
 ## 2. Emitted strings — what capcom says to its user
 

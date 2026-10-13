@@ -1,7 +1,7 @@
 ---
 title: "Before reading or changing a design: where the glossary, ADRs, plans and handoffs live"
 labels: [docs]
-refs: [CONTEXT.md, docs/adr, docs/design, docs/plans, docs/handoffs, docs/format.md]
+refs: [CONTEXT.md, docs/adr, docs/design, docs/plans, docs/handoffs, docs/site/reference/file-format.md]
 ---
 
 Read the relevant source before changing what it covers:
@@ -18,4 +18,4 @@ Read the relevant source before changing what it covers:
 - `docs/handoffs/`: handoff documents between sessions. Local to each clone:
   `docs/handoffs/.gitignore` ignores everything, so handoffs are never committed and other clones
   do not see them.
-- `docs/format.md`: the full reference for the files under `.capcom/`.
+- `docs/site/reference/file-format.md`: the full reference for the files under `.capcom/`.

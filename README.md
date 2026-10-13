@@ -191,8 +191,9 @@ capcom reindex                  # rebuild the index from scratch
 ```
 
 `capcom <command> --help` lists every flag. The file formats are described in
-[docs/format.md](docs/format.md); moving a repository off beads is described in
-[docs/migrating-from-beads.md](docs/migrating-from-beads.md).
+[docs/site/reference/file-format.md](docs/site/reference/file-format.md); moving a repository off
+beads is described in
+[docs/site/getting-started/migrating-from-beads.md](docs/site/getting-started/migrating-from-beads.md).
 
 The binary is `capcom`. If you want a shorter command, a **shell alias** such as
 `alias cc=capcom` works well. Don't install a binary or symlink named `cc`, though: that name
@@ -222,7 +223,7 @@ the git directory, never committed, and rebuilt on demand.
 Through git, like the code: push, pull and merge. Each issue is its own file, so changes to
 different issues merge without conflicts, and `capcom check` validates the result after a merge.
 A `post-merge` git hook can run it after every merge
-([docs/format.md](docs/format.md#checking-the-store-after-every-merge)).
+([docs/site/reference/file-format.md](docs/site/reference/file-format.md#checking-the-store-after-every-merge)).
 
 **Can CI check the issue and Note files?**
 Yes. `capcom check` fails on any problem in the store, and `capcom fmt --check` fails when a file
@@ -260,7 +261,7 @@ Both append to its `## Log`, and git's normal merge stops on a conflict there.
 `capcom init --merge-driver` adds `.capcom/issues/**/*.md merge=capcom-log` to `.gitattributes`
 and prints two `git config` commands to run once per clone; with them, git merges the Log by
 entry. Without them, git merges as usual and you resolve the conflict by hand, keeping both
-sides' entries ([docs/format.md](docs/format.md#merge-conflicts-in-the-log)).
+sides' entries ([docs/site/reference/file-format.md](docs/site/reference/file-format.md#merge-conflicts-in-the-log)).
 
 **Can two agents work in the same repository at once?**
 Yes. The Tree lock tells each agent session whether another one is editing the working tree, and
@@ -268,8 +269,9 @@ every git worktree has a lock of its own, so agents can work in parallel worktre
 
 **How is it different from beads?**
 beads keeps a database and exports it to a file for git; capcom keeps only the files, so there is
-nothing to sync. [docs/migrating-from-beads.md](docs/migrating-from-beads.md) moves a repository
-over.
+nothing to sync.
+[docs/site/getting-started/migrating-from-beads.md](docs/site/getting-started/migrating-from-beads.md)
+moves a repository over.
 
 **Is it only for AI agents?**
 No. The files are readable markdown and every command prints plain text, so people can use

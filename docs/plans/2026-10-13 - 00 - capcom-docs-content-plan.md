@@ -113,7 +113,11 @@ NOTES (2026-10-13): every example was run against a scratch store; the merge-dri
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run HelpText ./internal/cli/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`
 **Commit:** `docs(cli): add long help and examples to the knowledge and store commands`
 
-## 5. Move the format and migration guides into docs/site
+## 5. Move the format and migration guides into docs/site — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from the Refs example sitting at `docs/format.md:476` (it is at line 490 in the tree); rewritten to `docs/site/reference/file-format.md`.
+NOTES (2026-10-13): to meet the docs page contract, file-format.md drops the pinned "v0.1.0 among them" from the format-2 warning prose, and the migration guide's "An epic's children nest under it" now reads "A beads `epic` becomes the Parent of its children"; links titled "format.md" now read "File format".
+NOTES (2026-10-13): sidebar orders chosen as file-format 2 (reference, after the CLI reference) and migrating-from-beads 3 (getting started); later items may renumber.
 
 **What:**
 **Regression guard.** Rewrite the Refs example at `docs/format.md:476` (`docs/format.md`) to the new path. Acceptance is exact: the grep over both old paths prints nothing besides the two stubs. Both moved files get a frontmatter check, and their body-H1 check skips fenced blocks: `file-format.md` carries column-0 `# ` YAML comments in its config example (`docs/format.md:496-511`).

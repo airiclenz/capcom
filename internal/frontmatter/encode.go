@@ -11,12 +11,12 @@ import (
 // tagString is the YAML tag the parser resolves plain text to.
 const tagString = "!!str"
 
-// Encoder writes one file in the canonical form of docs/format.md: the opening fence, one line per
-// key in the order the caller writes them, the closing fence, then the body byte for byte. Text
-// and list entries are written plain where YAML reads them back as the same text, and
-// double-quoted on one line otherwise, so reading an encoded file and encoding it again gives the
-// same bytes. Every write leaves out an empty value; a value the kind always writes is never
-// empty. The zero Encoder is ready to use.
+// Encoder writes one file in the canonical form of docs/site/reference/file-format.md: the opening
+// fence, one line per key in the order the caller writes them, the closing fence, then the body
+// byte for byte. Text and list entries are written plain where YAML reads them back as the same
+// text, and double-quoted on one line otherwise, so reading an encoded file and encoding it again
+// gives the same bytes. Every write leaves out an empty value; a value the kind always writes is
+// never empty. The zero Encoder is ready to use.
 type Encoder struct {
 	fields strings.Builder
 }
