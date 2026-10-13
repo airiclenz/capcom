@@ -38,7 +38,8 @@ type gateReport struct {
 // when the tree is clean, G is on origin/main, origin/main is contained in HEAD, and ci.yml has a
 // successful run for G or for a peeled commit origin/main contains — a push runs CI on its head
 // alone, so a feature pushed with a VERSION bump leaves the green run on the bump.
-// A check that cannot run is a failure too, named with its cause; the gate has no bypass.
+// A check that cannot run is a failure too, named with its cause; the gate has no bypass. Once the
+// version's tag is on origin, publish judges only the CI half, over the tag (checkTagCI).
 func checkGate(ctx context.Context, checkout repo) gateReport {
 	report := gateReport{Failures: []string{}}
 	fail := func(format string, args ...any) {
@@ -85,6 +86,43 @@ func checkGate(ctx context.Context, checkout repo) gateReport {
 	case !isCurrent:
 		fail("%s has commits HEAD does not: pull first", remoteMain)
 	}
+
+	if err := checkGreenRun(ctx, checkout, gate, peeled); err != nil {
+		fail("%v", err)
+	}
+
+	report.IsOK = len(report.Failures) == 0
+	return report
+}
+
+// checkTagCI judges the gate's CI half for a version whose tag is already on origin: the gate
+// commit is the tag's commit with its trailing first-parent CHANGELOG.md/VERSION-only commits
+// peeled off, and it clears only when ci.yml has a successful run for it or for a peeled commit
+// origin/main contains. The working tree, where HEAD stands and VERSION at HEAD are not
+// consulted: what is released is built from the tag, not from the checkout. The fetch brings the
+// tag in, so it resolves on a checkout that has never seen it. A check that cannot run is a
+// failure, named as checkGate names it; the report's Head stays empty.
+func checkTagCI(ctx context.Context, checkout repo, tag string) gateReport {
+	report := gateReport{Failures: []string{}}
+	fail := func(format string, args ...any) {
+		report.Failures = append(report.Failures, fmt.Sprintf(format, args...))
+	}
+
+	if err := checkout.FetchMain(ctx); err != nil {
+		fail("could not fetch %s: %v", remoteName, err)
+	}
+
+	tagged, err := checkout.Resolve(ctx, tag)
+	if err != nil {
+		fail("could not resolve tag %s: %v", tag, err)
+		return report
+	}
+	gate, peeled, err := peelBumps(ctx, checkout, tagged)
+	if err != nil {
+		fail("could not find the gate commit: %v", err)
+		return report
+	}
+	report.Commit = gate
 
 	if err := checkGreenRun(ctx, checkout, gate, peeled); err != nil {
 		fail("%v", err)

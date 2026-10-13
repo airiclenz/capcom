@@ -83,8 +83,9 @@ Keep the notes file outside the repository, so it never dirties the tree the gat
 - `publish vX.Y.Z --notes-file F [--dry-run] [--tag-timeout D]` pushes the commit the gate
   cleared at `HEAD` to `main`, refusing and pushing nothing if `HEAD` has moved since, waits
   (10 minutes by default) for CI to tag the `VERSION` bump, creates the GitHub release, commits
-  the rendered formula and Scoop manifest, submits to winget, and finally runs `smoke`. It never
-  prompts and never reads stdin.
+  the rendered formula and Scoop manifest, submits to winget, and finally runs `smoke`. Once the
+  tag is on origin, a rerun checks only the gate's CI half, over the tag, until the GitHub
+  release is done (see *The gate*). It never prompts and never reads stdin.
 - `smoke [vX.Y.Z] [--dist-dir D]` checks a published release from the outside: the annotated tag,
   the downloaded archives against `SHA256SUMS`, each binary's build stamp against the tagged
   commit, the host binary's version, Homebrew and the Scoop manifest.
@@ -97,6 +98,13 @@ Every verb prints its full description with `go run ./cmd/release <verb> --help`
 with its trailing `CHANGELOG.md`/`VERSION`-only commits peeled off) is on `origin/main`,
 `origin/main` is contained in `HEAD`, and `ci.yml` has a successful run for the gate commit or one
 of the peeled commits. There is no bypass: red CI blocks the release until it is fixed.
+
+Once the version's tag is on origin, `publish` builds from the tag, not the checkout, so while
+the GitHub release is not done it checks only the gate's CI half, over the tag: `ci.yml` must
+have a successful run for the tag's commit with its trailing `CHANGELOG.md`/`VERSION`-only
+commits peeled off, or for a peeled commit `origin/main` contains. The working tree, `HEAD` and
+`VERSION` at `HEAD` are not consulted, and the step table's gate row reads `CI only`. Once the
+release is done too, the gate is not consulted at all.
 
 ### The tag
 

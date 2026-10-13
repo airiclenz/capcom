@@ -56,7 +56,7 @@ type publishRun struct {
 	repo repo
 	// head is the commit HEAD resolved to when the gate judged it: VERSION is read at it, and the
 	// tag step checks, pushes and verifies it, never the symbolic HEAD. It stays empty when the
-	// gate did not run, as when the tag is already on origin, or HEAD did not resolve.
+	// whole gate did not run, as when the tag is already on origin, or HEAD did not resolve.
 	head string
 	// notesPath is the notes file as an absolute path, so it reads the same from any directory.
 	notesPath string
@@ -120,10 +120,14 @@ func newPublishCommand(commands runner, openRepo repoOpener) *cobra.Command {
 			"it refuses unless the release gate clears and VERSION at HEAD reads the version; it\n" +
 			"then pushes the commit the gate judged to main, refusing and pushing nothing if HEAD\n" +
 			"has moved since, and waits (--tag-timeout) for the CI-made annotated tag — it never\n" +
-			"creates one. The release step builds the archives in a fresh clone at the tag\n" +
-			"and creates the GitHub release, or uploads only the assets it lacks after checking the\n" +
-			"rebuilt sums against its SHA256SUMS, then publishes a draft an interrupted run left;\n" +
-			"a draft release is never done. The homebrew and scoop steps render the formula\n" +
+			"creates one. Once the tag is on origin and the release is not done, it refuses unless\n" +
+			"ci.yml has a successful run for the tag's gate commit (the tag's commit with its\n" +
+			"trailing CHANGELOG/VERSION-only commits peeled off) or a peeled commit origin/main\n" +
+			"contains; the working tree, HEAD and VERSION are not consulted. Once the release is\n" +
+			"done too, the gate is not consulted. The release step builds the archives in a fresh\n" +
+			"clone at the tag and creates the GitHub release, or uploads only the assets it lacks\n" +
+			"after checking the rebuilt sums against its SHA256SUMS, then publishes a draft an\n" +
+			"interrupted run left; a draft release is never done. The homebrew and scoop steps render the formula\n" +
 			"and the manifest from the release's SHA256SUMS and commit `capcom X.Y.Z` straight to\n" +
 			"the tap and the bucket, pushing only when the file changes. The winget step submits\n" +
 			"with komac (GITHUB_TOKEN, else `gh auth token`): `komac update` once winget-pkgs has\n" +
@@ -174,11 +178,8 @@ func runPublish(ctx context.Context, commands runner, output io.Writer, options 
 	}
 
 	steps := run.probe(ctx)
-	// publishActions runs the tag step first, so steps[0] is its probe.
-	gate := fmt.Sprintf("not checked: %s is on %s, so the release converges from remote state", version, remoteName)
-	if steps[0].State != stateDone {
-		gate, refusals = run.checkPushable(ctx, refusals)
-	}
+	var gate string
+	gate, refusals = run.checkGateFor(ctx, steps, refusals)
 	if err := run.resolveWingetPackage(ctx, steps); err != nil {
 		refusals = append(refusals, err)
 	}
@@ -250,6 +251,56 @@ func (r *publishRun) probe(ctx context.Context) []stepReport {
 	return steps
 }
 
+// checkGateFor judges as much of the release gate as the steps still need, and returns the
+// gate's line for the table and refusals with every blocking condition added. While the tag is
+// not on origin, the whole gate and VERSION at HEAD are judged (checkPushable). Once it is and the
+// release is not done, only the CI half is, over the tag's commit (checkTagCI): the release is
+// built from the tag, so the checkout's tree, HEAD and VERSION no longer matter, but a tag whose
+// commit never passed CI must not be released. With the release done too, the gate is not
+// consulted: the channels and the smoke test converge from the published release.
+func (r *publishRun) checkGateFor(ctx context.Context, steps []stepReport, refusals []error) (string, []error) {
+	if stepStateOf(steps, stepTag) != stateDone {
+		return r.checkPushable(ctx, refusals)
+	}
+	if stepStateOf(steps, stepRelease) != stateDone {
+		report := checkTagCI(ctx, r.repo, r.version.String())
+		return "CI only, the tag is on " + remoteName + ": " + gateRow(report), gateRefusals(report, refusals)
+	}
+	return fmt.Sprintf("not checked: %s is on %s and released, so the rest converges from remote state",
+		r.version, remoteName), refusals
+}
+
+// stepStateOf returns the state of the step named name among steps, stateUnknown when it is not
+// there.
+func stepStateOf(steps []stepReport, name string) stepState {
+	index := slices.IndexFunc(steps, func(step stepReport) bool { return step.Name == name })
+	if index < 0 {
+		return stateUnknown
+	}
+	return steps[index].State
+}
+
+// gateRow is the step table's verdict on a gate report: cleared or BLOCKED, at the gate commit
+// when it was found.
+func gateRow(report gateReport) string {
+	row := "cleared"
+	if !report.IsOK {
+		row = "BLOCKED"
+	}
+	if report.Commit != "" {
+		row += " at " + short(report.Commit)
+	}
+	return row
+}
+
+// gateRefusals returns refusals with each of the report's failures added as a gate refusal.
+func gateRefusals(report gateReport, refusals []error) []error {
+	for _, failure := range report.Failures {
+		refusals = append(refusals, fmt.Errorf("gate: %s", failure))
+	}
+	return refusals
+}
+
 // checkPushable judges what pushing the gated commit needs: the release gate, and VERSION at the
 // commit the gate resolved HEAD to reading the version — the bump the CI workflow tags. It keeps
 // that commit as the run's head, and returns the gate's line for the table and refusals with
@@ -257,16 +308,8 @@ func (r *publishRun) probe(ctx context.Context) []stepReport {
 func (r *publishRun) checkPushable(ctx context.Context, refusals []error) (string, []error) {
 	report := checkGate(ctx, r.repo)
 	r.head = report.Head
-	gate := "cleared"
-	if !report.IsOK {
-		gate = "BLOCKED"
-	}
-	if report.Commit != "" {
-		gate += " at " + short(report.Commit)
-	}
-	for _, failure := range report.Failures {
-		refusals = append(refusals, fmt.Errorf("gate: %s", failure))
-	}
+	gate := gateRow(report)
+	refusals = gateRefusals(report, refusals)
 
 	// A HEAD that did not resolve is already a gate failure, and leaves no commit to read at.
 	if r.head == "" {

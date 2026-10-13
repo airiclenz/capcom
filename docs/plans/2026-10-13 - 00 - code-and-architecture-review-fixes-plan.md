@@ -1002,7 +1002,12 @@ NOTES (2026-10-13): release-gate-binding is not listed under CLOSES: its part (a
 - `go vet ./cmd/release/`
 **Commit:** `fix(release): push the commit the gate judged, and refuse when HEAD moved`
 
-## P1.43 Release: keep the gate's CI half once the tag exists
+## P1.43 Release: keep the gate's CI half once the tag exists — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the CI half runs whenever the tag is done and the release step is not done (pending, and also unknown or setup-pending), not only when it is pending; an unknown release already refuses the run, and the extra check only adds refusals.
+NOTES (2026-10-13): the existing `not checked` gate row now reads `not checked: <version> is on origin and released, so the rest converges from remote state`, since it shows only once the release is done too; TestPublishChangesNothingWhenItHasNothingToDo's finished-release case now asserts it.
+NOTES (2026-10-13): checkTagCI resolves the tag after FetchMain, which already fetches origin's tags (`git fetch origin main --tags`), so no separate FetchTag (a mutating call in the tests) is made.
+NOTES (2026-10-13): the gate-row and refusal formatting checkPushable did inline moved into helpers gateRow and gateRefusals, shared with the new CI-only branch (runPublish now calls publishRun.checkGateFor, which finds the tag and release steps by name through stepStateOf).
 
 **What:** Fixes F-12(a) (`release-gate-binding`): once the version's tag is on origin, `publish` skips the gate entirely, so a release can be built from a tag whose commit never passed CI.
 **Regression guard.** Fix `publishFake.tagged()` once so it sets `tagCommits` (the tag's commit with a green CI run), so every pending-release test, including those P1.41 and P1.44 add, keeps passing. P1.43 rewrites the adr-0008-decision "publish converges" paragraph as P1.40 left it, not the base wording. The prose grep widens to `grep -rn -i 'HEAD.\{0,3\}to.\{0,3\}\(origin/\)\?main\|HEAD:main\|pushes .HEAD\|converges from remote state\|no bypass\|gate is blocked or VERSION' docs .agents .capcom/knowledge cmd/release`, leaving out channels.go's channel push (`git push --quiet origin HEAD:main`), which stays.

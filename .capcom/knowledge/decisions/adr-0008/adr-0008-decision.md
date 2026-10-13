@@ -50,14 +50,23 @@ assets; the formula pins the version or a newer one; the bucket manifest is at t
 request for the version is open or merged. A tap or bucket already on a newer release reads done,
 so a rerun for an older version never moves it back. A half-finished release is resumed by
 running `publish` again. There is no local state file, because the remote is the truth, and a
-second run cannot duplicate a commit or a pull request. `status` reports the same probes.
+second run cannot duplicate a commit or a pull request. `status` reports the same probes. While
+the tag is not on origin, `publish` binds the push to what the gate judged: it resolves `HEAD`
+once, in the gate, and reads `VERSION`, checks the commit against `origin/main`, pushes it with
+`git push origin <sha>:refs/heads/main` and verifies the tag on its bump commit, all at that SHA.
+`HEAD` resolving to another commit before the push refuses the run and pushes nothing.
 
 **The gate is green CI on the gated commit.** The gate commit is `HEAD` with its trailing
 first-parent commits that touch only `CHANGELOG.md` and/or `VERSION` peeled off; the peel stops at
 a merge. A cut clears only when the tree is clean, the gate commit is on `origin/main`,
 `origin/main` is contained in `HEAD`, and `ci.yml` has a successful run for the gate commit or a
 peeled commit `origin/main` contains. CI runs on Linux, macOS and Windows, so the answer does not
-depend on which OS cuts the release. The gate has no bypass.
+depend on which OS cuts the release. Once the version's tag is on origin and its GitHub
+release is not done, `publish` judges only the gate's CI half, over the tag: the gate commit is
+the tag's commit with the same peel, and `ci.yml` must have a successful run for it or a peeled
+commit `origin/main` contains. The tree, `HEAD` and `VERSION` at `HEAD` are not consulted, since
+the release is built from the tag; a tag whose commit never passed CI is still never released.
+With the release done too, the gate is not consulted. The gate has no bypass.
 
 **Package manifests are generated.** The Homebrew formula (`Formula/capcom.rb` in
 `airiclenz/homebrew-tap`), the Scoop manifest (`bucket/capcom.json` in `airiclenz/scoop-bucket`)

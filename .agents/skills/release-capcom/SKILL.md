@@ -138,8 +138,10 @@ Skip it on a resume that reuses `NF`; the temp file guards `NOTES_SRC` = `NF`.
 go run ./cmd/release publish vX.Y.Z --notes-file "NF_VALUE" --dry-run
 ```
 
-Show its output in full. Exit 1 means the gate is blocked or VERSION at HEAD
-does not read X.Y.Z while the tag is pending — relay the reasons and stop
+Show its output in full. Exit 1 means a refusal: while the tag is pending,
+the gate is blocked or VERSION at HEAD does not read X.Y.Z; once the tag is
+on origin and the release is pending, `ci.yml` has no successful run for the
+tag's commit (its gate row reads `CI only`) — relay the reasons and stop
 (see *Abort*). Otherwise *Ask* exactly once: "Publish vX.Y.Z? This pushes
 main, waits for CI to tag it, creates the GitHub release and updates
 Homebrew, Scoop and winget. It cannot be undone." — options *publish* and

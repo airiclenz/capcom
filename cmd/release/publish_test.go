@@ -102,9 +102,15 @@ func (f *publishFake) tagAfterPush(polls int) (memTag, bool) {
 	return memTag{name: publishVersion, kind: f.tagKind, commit: f.tagCommit}, true
 }
 
-// tagged puts the annotated tag on origin from the start, as on a run resumed after the tag step.
+// tagged puts the annotated tag on origin from the start, as on a run resumed after the tag step:
+// on the VERSION bump, whose gate commit (the feature commit) CI passed in newPublishFake, and in
+// the checkout, as the gate's fetch would bring it.
 func (f *publishFake) tagged() {
 	f.repo.remoteTags[publishVersion] = gitObjectTag
+	if f.repo.tagCommits == nil {
+		f.repo.tagCommits = map[string]string{}
+	}
+	f.repo.tagCommits[publishVersion] = bumpCommit
 }
 
 // runner returns a recording runner over the fake, whose call record the repo's changes join.
@@ -354,7 +360,7 @@ func TestPublishChangesNothingWhenItHasNothingToDo(t *testing.T) {
 	}{
 		"second run over a finished release": {
 			fake:       finished,
-			wantOutput: []string{"tag      done  annotated tag v0.24.11 on origin", "release  done  release v0.24.11 with all 7 assets"},
+			wantOutput: []string{"gate     not checked:", "tag      done  annotated tag v0.24.11 on origin", "release  done  release v0.24.11 with all 7 assets"},
 		},
 		"dry run over an unstarted release": {
 			fake:       newPublishFake(),
@@ -483,13 +489,15 @@ func TestPublishDryRunWithABlockedGateFailsButPrintsThePlan(t *testing.T) {
 }
 
 // TestPublishConvergesFromRemoteStateOnceTheTagExists pins the resume: once origin holds the
-// annotated tag, neither the gate nor VERSION at HEAD is consulted — a later VERSION bump and a
-// dirty tree, either of which refuses a run that consults them, do not stop the release being
-// built from the tag and created — and nothing is pushed.
+// annotated tag, only the gate's CI half is checked, over the tag's commit — its gate commit has a
+// green run — while the working tree and VERSION at HEAD are not consulted: a later VERSION bump
+// and a dirty tree, either of which refuses a run that consults them, do not stop the release
+// being built from the tag and created — and nothing is pushed.
 func TestPublishConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 	t.Parallel()
 	fake := newPublishFake()
 	fake.tagged()
+	fake.repo.greenRuns = []string{featureCommit}
 	fake.repo.isDirty = true
 	fake.repo.files[versionFile] = "0.24.12\n"
 
@@ -497,6 +505,9 @@ func TestPublishConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 
 	if result.err != nil {
 		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+	}
+	if want := "gate CI only, the tag is on origin: cleared at " + short(featureCommit); !hasRow(result.output, want) {
+		t.Errorf("output lacks %q:\n%s", want, result.output)
 	}
 	lines := commandLines(result.commands)
 	for _, unwanted := range []string{"repo PushMain", "git push"} {
@@ -506,6 +517,37 @@ func TestPublishConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 	}
 	if lineIndex(lines, "repo CreateRelease v0.24.11") < 0 {
 		t.Errorf("the release was not created; commands: %q", lines)
+	}
+}
+
+// TestPublishRefusesARedCIOnTheTagCommitWhileTheReleaseIsPending pins the gate's CI half once the
+// tag exists: with the tag on origin at the bump and no successful ci.yml run for its gate commit,
+// publish refuses before building anything, naming ci.yml, and the gate row says only the CI half
+// was judged.
+func TestPublishRefusesARedCIOnTheTagCommitWhileTheReleaseIsPending(t *testing.T) {
+	t.Parallel()
+	fake := newPublishFake()
+	fake.tagged()
+	fake.repo.greenRuns = nil
+
+	result := runTestPublish(t, fake, false)
+
+	if result.err == nil {
+		t.Fatalf("publish succeeded without a green CI run for the tag's commit:\n%s", result.output)
+	}
+	for _, want := range []string{"gate: " + ciWorkflow + " has no successful run for " + short(featureCommit), "nothing was changed"} {
+		if !strings.Contains(result.err.Error(), want) {
+			t.Errorf("publish error = %v, want it to name %q", result.err, want)
+		}
+	}
+	if want := "gate CI only, the tag is on origin: BLOCKED at " + short(featureCommit); !hasRow(result.output, want) {
+		t.Errorf("output lacks %q:\n%s", want, result.output)
+	}
+	if index := lineIndex(commandLines(result.commands), repoCallName+" "+methodCloneAt); index >= 0 {
+		t.Errorf("cloned at the tag over a red CI run")
+	}
+	if mutating := mutatingLines(result.commands); len(mutating) > 0 {
+		t.Errorf("issued mutating commands %q, want none", mutating)
 	}
 }
 
