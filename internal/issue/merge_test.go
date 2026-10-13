@@ -23,6 +23,13 @@ func issueFile(title string, entries ...string) string {
 		strings.Join(entries, "\n") + "\n"
 }
 
+// fencedLogExampleFile returns an issue file whose body quotes a Log section in a fenced code
+// block above its real Log section, which holds entries.
+func fencedLogExampleFile(entries ...string) string {
+	return "---\ntitle: T\nstatus: open\n---\n\nExample:\n\n```markdown\n## Log\n\n" +
+		"- 2026-09-01 Dave: quoted\n```\n\n## Log\n\n" + strings.Join(entries, "\n") + "\n"
+}
+
 // fakeTextMerge stands in for git merge-file at file granularity: a side that equals base yields
 // the other side, equal sides yield either, and anything else is one conflict hunk spanning the
 // whole file.
@@ -159,6 +166,13 @@ func TestMergeFile_ThreeVersions_MergesLogByEntry(t *testing.T) {
 					"\n\n## Notes\n\nTheirs.\n",
 			),
 			wantConflict: true,
+		},
+		{
+			name:   "a fenced example of a Log above the real one stays out of the merge",
+			base:   fencedLogExampleFile(entryOctFirst),
+			ours:   fencedLogExampleFile(entryOctFirst, entryOctLast),
+			theirs: fencedLogExampleFile(entryOctFirst, entryOctTenth),
+			want:   fencedLogExampleFile(entryOctFirst, entryOctTenth, entryOctLast),
 		},
 		{
 			name:   "only one side has a Log",

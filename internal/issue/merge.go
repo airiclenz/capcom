@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/airiclenz/capcom/internal/rawfm"
 )
 
 // TextMerge merges three versions of a text line by line, as git merge-file does, returning the
@@ -89,22 +91,21 @@ func MergeFile(base []byte, ours []byte, theirs []byte, textMerge TextMerge) ([]
 }
 
 // parseLog reads the Log section of an issue file: the section that opens with the first
-// LogHeading line and runs to the next level-one or level-two heading. A file without one gives a
-// section that is not present. isEntryOnly is false when the section holds a line that is neither
-// part of an entry nor blank before the first entry or after the last.
+// LogHeading line and runs to the next level-one or level-two heading, both outside a fenced code
+// block of the body, as logBounds finds them. A file without one gives a section that is not
+// present. isEntryOnly is false when the section holds a line that is neither part of an entry nor
+// blank before the first entry or after the last.
 func parseLog(data []byte) (section logSection, isEntryOnly bool) {
 	lines := strings.SplitAfter(string(data), "\n")
-	start := slices.IndexFunc(lines, func(line string) bool {
-		return strings.TrimRight(line, " \t\r\n") == LogHeading
-	})
+	texts := make([]string, 0, len(lines))
+	for _, line := range lines {
+		texts = append(texts, trimLineEnd(line))
+	}
+	start, end := logBounds(texts, rawfm.BodyStart(texts))
 	if start < 0 {
 		return logSection{}, true
 	}
 
-	end := start + 1
-	for end < len(lines) && !isSectionBoundary(trimLineEnd(lines[end])) {
-		end++
-	}
 	last := end - 1
 	for last > start && strings.TrimSpace(lines[last]) == "" {
 		last--

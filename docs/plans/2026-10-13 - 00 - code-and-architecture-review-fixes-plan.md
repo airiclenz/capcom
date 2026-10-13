@@ -866,7 +866,11 @@ Depends on P1.4.
 - `go vet ./internal/tree/`
 **Commit:** `fix(tree): walk a child directory that vanished mid-walk as empty`
 
-## P1.29 Log section lookup skips fenced code blocks
+## P1.29 Log section lookup skips fenced code blocks — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): CodeFence also exports IsOpen(), which logBounds needs to tell that its scan ended inside a never-closed fence (regression guard 1); the redo marks each such opener as plain text and scans again until no fence is left open.
+NOTES (2026-10-13): the shared helper is logBounds (with its one-pass scanLogBounds) in mutate.go, taking lines without their line endings; appendLogEntry trims only "\n" and parseLog uses trimLineEnd, so each keeps its own line-ending handling, and the heading test is now TrimRight(" \t") on those trimmed lines.
+NOTES (2026-10-13): the "unclosed fence above the Log appends to it" case passes on the pre-item tree by design (it guards against a regression of the fence-aware lookup); the other two new cases fail there (bite-checked). The rawfm package doc now also names body start and code fences.
 
 **What:** Recast at the regression check (2026-10-13). Fixes F-22 (`log-fence-aware`). `appendLogEntry` and `parseLog` take the first `## Log` line even when it sits inside a fenced code block, and their section-end scan does the same (per review F-22).
 **Regression guard.** (1) A fence still open at the end of the lines hides nothing: when the Log-bounds scan ends inside a fence, redo the start/end search treating that opener as plain text (`ConflictMarkers` keeps treating it as code); add mutate_test case "unclosed fence above the Log appends to it". (2) `parseLog` starts its `CodeFence` scan at the body (after the closing `---`), reusing rawfm's body-start rule (export it from rawfm).

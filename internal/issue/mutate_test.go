@@ -47,6 +47,21 @@ func TestIssue_AppendLog_AddsEntryToLogSection(t *testing.T) {
 			want: "\n## Log\n\n- 2026-10-11 Alice: first\n",
 		},
 		{
+			name: "fenced example of a Log above the real one",
+			body: "\nExample:\n\n```markdown\n## Log\n\n- 2026-10-01 Bob: quoted\n```\n\n" +
+				"## Log\n\n- 2026-10-10 Bob: seen\n",
+			text: "fixed",
+			want: "\nExample:\n\n```markdown\n## Log\n\n- 2026-10-01 Bob: quoted\n```\n\n" +
+				"## Log\n\n- 2026-10-10 Bob: seen\n- 2026-10-11 Alice: fixed\n",
+		},
+		{
+			name: "unclosed fence above the Log appends to it",
+			body: "\nIntro.\n\n```\nnever closed\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
+			text: "fixed",
+			want: "\nIntro.\n\n```\nnever closed\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +
+				"- 2026-10-11 Alice: fixed\n",
+		},
+		{
 			name: "multi-line text",
 			body: "",
 			text: "line one\r\nline two\n",
