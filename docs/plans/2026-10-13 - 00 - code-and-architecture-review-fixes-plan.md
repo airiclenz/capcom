@@ -850,7 +850,7 @@ Depends on P1.4.
 - `go vet ./internal/index/`
 **Commit:** `fix(index): read each query's rows from one snapshot`
 
-## P1.28 Walk treats a child directory that vanished as empty
+## P1.28 Walk treats a child directory that vanished as empty — ✅ DONE (2026-10-13)
 
 **What:** Fixes F-21 (`walk-vanished-dir`): `treeWalker.walk` returns the raw `os.ReadDir` error, so a child directory moved or removed mid-walk fails `tree.Walk`, the index refresh and `Open` (per review F-21).
 **Regression guard.** This item amends the `Load` doc comment as P1.8 left it, not the base wording. Rule: every comment saying an unreadable directory stops the walk or the load (`grep -n 'cannot be read' internal/tree/*.go`) gains "a child directory gone since its parent was read walks as empty".

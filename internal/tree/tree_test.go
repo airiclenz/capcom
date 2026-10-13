@@ -3,6 +3,7 @@ package tree_test
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -290,6 +291,32 @@ func TestWalk_MissingDirectory_WalksEmpty(t *testing.T) {
 
 	if nodes != nil || problems != nil || err != nil {
 		t.Errorf("Walk = %v, %v, %v; want nothing", nodes, problems, err)
+	}
+}
+
+func TestWalk_ChildDirectoryGoneBeforeItsRead_WalksTheRest(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "a.md", "a/b.md", "c.md")
+	childDir := filepath.Join(dir, "a")
+	tree.SetReadDir(t, func(path string) ([]fs.DirEntry, error) {
+		if path == childDir {
+			if err := os.RemoveAll(childDir); err != nil {
+				t.Fatalf("RemoveAll: %v", err)
+			}
+		}
+		return os.ReadDir(path)
+	})
+
+	nodes, problems, err := tree.Walk(dir)
+
+	if err != nil {
+		t.Fatalf("Walk: %v", err)
+	}
+	if got, want := ids(nodes), []string{"a", "c"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Walk ids = %v, want %v", got, want)
+	}
+	if problems != nil {
+		t.Errorf("Walk problems = %v, want none", problems)
 	}
 }
 

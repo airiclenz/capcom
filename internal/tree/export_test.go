@@ -1,6 +1,9 @@
 package tree
 
-import "testing"
+import (
+	"io/fs"
+	"testing"
+)
 
 // SetMoveRename replaces the rename a Move makes its renames with, so a test can inject a failure.
 func SetMoveRename(move *Move, rename func(oldPath string, newPath string) error) {
@@ -42,4 +45,14 @@ func SetBeforeOpen(t *testing.T, fn func(path string)) {
 	saved := beforeOpen
 	beforeOpen = fn
 	t.Cleanup(func() { beforeOpen = saved })
+}
+
+// SetReadDir replaces the directory listing Walk reads every directory with until t ends, so a test
+// can change the tree mid-walk. It swaps a package variable: a test that calls it never runs in
+// parallel.
+func SetReadDir(t *testing.T, fn func(dir string) ([]fs.DirEntry, error)) {
+	t.Helper()
+	saved := readDir
+	readDir = fn
+	t.Cleanup(func() { readDir = saved })
 }

@@ -29,6 +29,9 @@ const hiddenPrefix = "."
 // rootParentID is the ParentID of a top-level node.
 const rootParentID = ""
 
+// readDir lists a directory for the walk; a test swaps it to change the tree mid-walk.
+var readDir = os.ReadDir
+
 // The claims a duplicate alias problem names its Other file by.
 const (
 	idClaim    = "the id of"
@@ -194,7 +197,8 @@ func ValidateAlias(alias string) error {
 // under a directory beside a file of a repeated id is left out too, and each such directory is an
 // *Error wrapping ErrOrphanDirectory, its message naming the node file and its duplicate id. LeftOut
 // returns the node files left out for a repeated id. A directory that cannot be read or Lstat and
-// an AliasFunc error stop the load and return no tree; the AliasFunc error comes back unchanged.
+// an AliasFunc error stop the load and return no tree; the AliasFunc error comes back unchanged. A
+// child directory gone since its parent was read walks as empty.
 //
 // aliases is called for every node file, one left out for a repeated id or below one included. Such
 // a file's aliases are checked as any other file's and never mapped; one that a kept file also
@@ -248,7 +252,8 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 // (wrapping ErrOrphanDirectory), in walk order. Such a file, and such a directory with its whole
 // subtree, are left out; no file is opened, so a named pipe never blocks the walk. A directory that
 // cannot be read stops the walk, and so does a node file whose Lstat fails other than by being
-// gone: its os error comes back unchanged, with no nodes and no problems.
+// gone: its os error comes back unchanged, with no nodes and no problems. A child directory gone
+// since its parent was read walks as empty.
 func Walk(dir string) ([]Node, Errors, error) {
 	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
 		return nil, nil, nil
@@ -308,9 +313,14 @@ type treeWalker struct {
 
 // walk collects the nodes of dir, all children of parentID, and recurses into the child
 // directories that have their node file, adding every entry left out — an invalid id, an entry
-// that is not a regular file, a node file over 1 MiB, an orphan directory — to problems.
+// that is not a regular file, a node file over 1 MiB, an orphan directory — to problems. A child
+// directory gone since its parent was read walks as empty; any other failure to read dir is
+// returned unchanged.
 func (w *treeWalker) walk(dir string, parentID string) error {
-	entries, err := os.ReadDir(dir)
+	entries, err := readDir(dir)
+	if errors.Is(err, fs.ErrNotExist) && parentID != rootParentID {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
