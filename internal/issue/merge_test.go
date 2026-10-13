@@ -243,3 +243,87 @@ func TestMergeFile_TextMergeFails_ReturnsItsError(t *testing.T) {
 func crlf(text string) string {
 	return strings.ReplaceAll(text, "\n", "\r\n")
 }
+
+// logMergePlaceholder spells out the unexported placeholder MergeFile swaps in for the Log.
+const logMergePlaceholder = "capcomLogMergePlaceholder9f4c2e7a1b"
+
+// issueFileWithBody returns an issue file whose body is body and whose Log, its last section,
+// holds entries.
+func issueFileWithBody(body string, entries ...string) string {
+	return "---\ntitle: T\nstatus: open\n---\n\n" + body + "\n\n## Log\n\n" +
+		strings.Join(entries, "\n") + "\n"
+}
+
+func TestMergeFile_VersionHoldsPlaceholder_FallsBackToTextMerge(t *testing.T) {
+	bodyWithPlaceholder := "Body names " + logMergePlaceholder + "."
+	entryWithPlaceholder := "- 2026-10-05 Carol: quoted " + logMergePlaceholder
+	cases := []struct {
+		name   string
+		base   string
+		ours   string
+		theirs string
+	}{
+		{
+			name:   "every body holds it",
+			base:   issueFileWithBody(bodyWithPlaceholder, entryOctFirst),
+			ours:   issueFileWithBody(bodyWithPlaceholder, entryOctFirst, entryOctTenth),
+			theirs: issueFileWithBody(bodyWithPlaceholder, entryOctFirst, entryOctLast),
+		},
+		{
+			name:   "only base's body holds it",
+			base:   issueFileWithBody(bodyWithPlaceholder, entryOctFirst),
+			ours:   issueFileWithBody("Body.", entryOctFirst, entryOctTenth),
+			theirs: issueFileWithBody("Body.", entryOctFirst, entryOctLast),
+		},
+		{
+			name:   "only ours's body holds it",
+			base:   issueFileWithBody("Body.", entryOctFirst),
+			ours:   issueFileWithBody(bodyWithPlaceholder, entryOctFirst, entryOctTenth),
+			theirs: issueFileWithBody("Body.", entryOctFirst, entryOctLast),
+		},
+		{
+			name:   "only theirs's body holds it",
+			base:   issueFileWithBody("Body.", entryOctFirst),
+			ours:   issueFileWithBody("Body.", entryOctFirst, entryOctTenth),
+			theirs: issueFileWithBody(bodyWithPlaceholder, entryOctFirst, entryOctLast),
+		},
+		{
+			name:   "an entry every Log shares holds it",
+			base:   issueFileWithBody("Body.", entryWithPlaceholder),
+			ours:   issueFileWithBody("Body.", entryWithPlaceholder, entryOctTenth),
+			theirs: issueFileWithBody("Body.", entryWithPlaceholder, entryOctLast),
+		},
+		{
+			name:   "an entry only ours added holds it",
+			base:   issueFileWithBody("Body.", entryOctFirst),
+			ours:   issueFileWithBody("Body.", entryOctFirst, entryWithPlaceholder),
+			theirs: issueFileWithBody("Body.", entryOctFirst, entryOctLast),
+		},
+		{
+			name:   "an entry only theirs added holds it",
+			base:   issueFileWithBody("Body.", entryOctFirst),
+			ours:   issueFileWithBody("Body.", entryOctFirst, entryOctTenth),
+			theirs: issueFileWithBody("Body.", entryOctFirst, entryWithPlaceholder),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want, wantConflict, _ := fakeTextMerge([]byte(tc.base), []byte(tc.ours), []byte(tc.theirs))
+
+			got, hasConflict, err := issue.MergeFile(
+				[]byte(tc.base), []byte(tc.ours), []byte(tc.theirs), fakeTextMerge,
+			)
+
+			if err != nil {
+				t.Fatalf("MergeFile: %v", err)
+			}
+			if string(got) != string(want) || hasConflict != wantConflict {
+				t.Errorf(
+					"MergeFile = %q, conflict %v\nwant the text merge alone %q, conflict %v",
+					got, hasConflict, want, wantConflict,
+				)
+			}
+		})
+	}
+}

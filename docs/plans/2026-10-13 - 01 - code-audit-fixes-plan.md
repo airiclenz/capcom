@@ -342,7 +342,9 @@ Depends on 15.
 - `GOMEMLIMIT=2GiB go test ./internal/check/`
 **Commit:** `test(check): pin the related self-reference rule`
 
-## 19. Pin the merge driver's placeholder fallback and the verbatim writes
+## 19. Pin the merge driver's placeholder fallback and the verbatim writes — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the failing-reader case runs against both ReplaceFileVerbatim and WriteFileAtomicVerbatim; the seven placeholder cases were checked to bite by dropping the `bytes.Contains(version, logPlaceholder)` guard locally (all seven fail), then restoring merge.go.
 
 **What:** Test only (`internal/issue/merge.go` sentinel guard; `nodefile.WriteFileAtomicVerbatim`, `ReplaceFileVerbatim`).
 **Regression guard.** A sentinel on a bare non-entry Log line already trips `!isEntryOnly`, so the test would not bite. Spell the literal `capcomLogMergePlaceholder9f4c2e7a1b` in the test (`logPlaceholder` is unexported; tests are `package issue_test`) and put it in the body or inside an entry's text, with both sides' Logs changed, so the entry merge and `fakeTextMerge` give different output. Gate the 0600 mode assertion with `runtime.GOOS != "windows"`, as `atomic_test.go:71` does.

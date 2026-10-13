@@ -122,6 +122,91 @@ func TestReplaceFileVerbatim_MissingPath_FailsNamingItAndCreatesNothing(t *testi
 	}
 }
 
+func TestReplaceFileVerbatim_CRLFFile_KeepsBytesAndModeAndLeavesNoTempFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "login-flow.md")
+	if err := os.WriteFile(path, []byte("old\r\ncontent\r\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+
+	err := nodefile.ReplaceFileVerbatim(path, strings.NewReader("new\r\ncontent\r\n"))
+
+	if err != nil {
+		t.Fatalf("ReplaceFileVerbatim: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new\r\ncontent\r\n" {
+		t.Fatalf("content = %q, want the CRLF bytes unchanged", got)
+	}
+	if info, err := os.Stat(path); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
+		t.Fatalf("Stat = %v, %v; want mode 0600 kept", info, err)
+	}
+	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
+		t.Fatalf("dir holds %v, want only login-flow.md", names)
+	}
+}
+
+func TestWriteFileAtomicVerbatim_CRLF_WrittenUnchangedWithGivenMode(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "login-flow.md")
+
+	err := nodefile.WriteFileAtomicVerbatim(path, strings.NewReader("a\r\nb"), 0o600)
+
+	if err != nil {
+		t.Fatalf("WriteFileAtomicVerbatim: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "a\r\nb" {
+		t.Fatalf("content = %q, want %q", got, "a\r\nb")
+	}
+	if info, err := os.Stat(path); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
+		t.Fatalf("Stat = %v, %v; want mode 0600", info, err)
+	}
+	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
+		t.Fatalf("dir holds %v, want only login-flow.md", names)
+	}
+}
+
+func TestVerbatimWrites_ReaderFails_OldFileIntactNoTempFile(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		write func(path string, content io.Reader) error
+	}{
+		{name: "ReplaceFileVerbatim", write: nodefile.ReplaceFileVerbatim},
+		{
+			name: "WriteFileAtomicVerbatim",
+			write: func(path string, content io.Reader) error {
+				return nodefile.WriteFileAtomicVerbatim(path, content, 0o644)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			path := filepath.Join(dir, "login-flow.md")
+			writeNodes(t, dir, "login-flow.md")
+			reader := &failingReader{content: strings.NewReader(strings.Repeat("partial\r\n", 10000))}
+
+			err := test.write(path, reader)
+
+			if !errors.Is(err, errReaderFailed) || !strings.Contains(err.Error(), path) {
+				t.Fatalf("%s = %v, want the reader failure naming %s", test.name, err, path)
+			}
+			if got, _ := os.ReadFile(path); string(got) != "x\n" {
+				t.Fatalf("old file changed to %q", got)
+			}
+			if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
+				t.Fatalf("dir holds %v, want only login-flow.md", names)
+			}
+		})
+	}
+}
+
 // Without hard links: on a file system that refuses them, WriteFileExclusive renames the temp file
 // into place with a rename that refuses an existing path, and copies it in place only where that
 // rename is refused too. These tests swap package variables, so they never run in parallel.
