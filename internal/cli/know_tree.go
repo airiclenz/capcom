@@ -75,6 +75,11 @@ type outlineLine struct {
 	outlineRow
 }
 
+// noteID returns the id of entry, the key its children are grouped under.
+func noteID(entry index.NoteEntry) string {
+	return entry.ID
+}
+
 // noteOutlineLine returns the outline line of a Note at an indentation depth, cutting nothing.
 func noteOutlineLine(entry index.NoteEntry, depth int) outlineLine {
 	return outlineLine{entry, outlineRow{depth: depth, text: entry.ID + "  " + flatten(entry.Title)}}
@@ -97,31 +102,32 @@ func (a *app) outline(
 		return nil, err
 	}
 	if !isBackgroundIncluded {
-		// Dropping a background Note drops its subtree too: visit reaches a Note only through its
-		// parent's group. The filter stays here, not in childrenByParent, which know show
-		// --with-children also uses.
+		// Dropping a background Note drops its subtree too: walkOutline reaches a Note only
+		// through its parent's group. The filter stays here, not in childrenByParent, which know
+		// show --with-children also uses.
 		notes = slices.DeleteFunc(notes, func(note index.NoteEntry) bool {
 			return knowledge.IsBackground(note.Labels)
 		})
 	}
 	children := childrenByParent(notes)
 	var lines []outlineLine
-	var visit func(parentID string, level int, indent int)
-	visit = func(parentID string, level int, indent int) {
-		isLastLevel := maxDepth != unlimitedDepth && level >= maxDepth
-		for _, child := range children[parentID] {
-			line := noteOutlineLine(child, indent)
-			if isLastLevel {
-				line.more, line.moreDepth = len(children[child.ID]), level+1
-			}
-			lines = append(lines, line)
-			if !isLastLevel {
-				visit(child.ID, level+1, indent+1)
-			}
-		}
+	walk := func(parentID string, level int, indent int) {
+		walkOutline(
+			func(parentID string) []index.NoteEntry { return children[parentID] },
+			noteID,
+			parentID,
+			level,
+			indent,
+			maxDepth,
+			func(entry index.NoteEntry, indent int, more int, moreDepth int) {
+				line := noteOutlineLine(entry, indent)
+				line.more, line.moreDepth = more, moreDepth
+				lines = append(lines, line)
+			},
+		)
 	}
 	if len(args) == 0 {
-		visit("", 1, 0)
+		walk("", 1, 0)
 		return lines, nil
 	}
 	start, err := a.resolveNote(args[0])
@@ -129,6 +135,6 @@ func (a *app) outline(
 		return nil, err
 	}
 	lines = append(lines, noteOutlineLine(start, 0))
-	visit(start.ID, 1, 1)
+	walk(start.ID, 1, 1)
 	return lines, nil
 }

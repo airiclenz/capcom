@@ -2336,7 +2336,10 @@ Depends on P3.47.
 - `grep -n '\.Create(' internal/cli/create.go internal/cli/know_add.go` prints nothing
 **Commit:** `refactor(cli): share the create write path of issues and notes`
 
-## P3.50 One outline walker for list --tree and know tree
+## P3.50 One outline walker for list --tree and know tree — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): issueTree.visit became a one-line issueTree.walk that calls walkOutline with t.shownChildren and t.add; know tree's visit closure became a walk closure over walkOutline; small issueID and noteID helpers supply idOf.
+NOTES (2026-10-13): consequential edit — internal/cli/doc.go: made necessary by outline.go now holding the outline walker (file-map role line updated).
 
 **What:** Part 1 of A-08: a generic `walkOutline[E]` beside `renderOutline` walks both outlines; `issueTree.visit` and the closure inside `outline` go.
 **Regression guard.** The Goal is checked by an Acceptance grep.

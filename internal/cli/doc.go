@@ -36,7 +36,7 @@
 //   - `mv.go` — the destination, warnings and flags of mv and know mv, which node_verbs.go builds
 //   - `node_edit.go` — editIssue and editNode, which every issue and Note edit verb goes through, and their shared helpers
 //   - `node_verbs.go` — nodeVerbs, the descriptor of a Tree kind, the mv and rm commands built from it for both kinds, and the write path of create and know add
-//   - `outline.go` — the indented outline rows and their text, with the hint where --depth cut
+//   - `outline.go` — the outline walker, its indented rows and their text, with the hint where --depth cut
 //   - `output.go` — the Elsewhere scan of a result and the pathspec of the whole issue tree
 //   - `prime.go` — capcom prime: the session Briefing
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first

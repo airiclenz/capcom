@@ -232,14 +232,14 @@ func (a *app) issueTreeResult(options *listOptions) (output.Result, error) {
 		items:    []issueTreeItem{},
 	}
 	if options.parent == "" {
-		tree.visit("", 1, 0)
+		tree.walk("", 1, 0)
 	} else {
 		start, err := a.resolveIssue(options.parent)
 		if err != nil {
 			return output.Result{}, err
 		}
 		tree.add(start, 0, 0, 0)
-		tree.visit(start.ID, 1, 1)
+		tree.walk(start.ID, 1, 1)
 	}
 	return output.Result{Kind: "issue-list", Data: tree.items, Text: renderOutline(tree.rows)}, nil
 }
@@ -262,18 +262,15 @@ func issuesByParent(entries []index.Entry) map[string][]index.Entry {
 	return children
 }
 
-// visit adds the shown children of parentID at indent, level levels below the start, and their
-// subtrees. On the last level --depth allows, each child counts the shown children it cut instead.
-func (t *issueTree) visit(parentID string, level int, indent int) {
-	isLastLevel := t.maxDepth != unlimitedDepth && level >= t.maxDepth
-	for _, child := range t.shownChildren(parentID) {
-		if isLastLevel {
-			t.add(child, indent, len(t.shownChildren(child.ID)), level+1)
-			continue
-		}
-		t.add(child, indent, 0, 0)
-		t.visit(child.ID, level+1, indent+1)
-	}
+// walk adds the shown children of parentID at indent, level levels below the start, and their
+// subtrees, as walkOutline does.
+func (t *issueTree) walk(parentID string, level int, indent int) {
+	walkOutline(t.shownChildren, issueID, parentID, level, indent, t.maxDepth, t.add)
+}
+
+// issueID returns the id of entry, the key its children are grouped under.
+func issueID(entry index.Entry) string {
+	return entry.ID
 }
 
 // shownChildren returns the direct children of parentID the outline prints: all of them with
