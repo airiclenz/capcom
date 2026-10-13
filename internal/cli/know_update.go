@@ -158,17 +158,17 @@ func (a *app) resolveSuccessors(arg string, successorArgs []string) ([]string, e
 // updateNote changes the Note arg names through the node store of the Knowledge tree, which
 // resolves arg through the index, refuses with conflict when --if-match is set and is not the
 // file's etag, applies the flags to the parsed Note, then validates and writes the result
-// atomically (Kind.Edit); it then refreshes a stale capcom block of AGENTS.md. Every failure names
-// the Note file, or config.yaml when its raise fails. An edit that retires the Note or gives it a
-// new superseded-by entry raises a store below format 3 to 3 before the write (Kind.Edit), with a
-// warning.
+// atomically (Kind.Edit), whose sync hook (see notes) then refreshes a stale capcom block of
+// AGENTS.md. Every failure names the Note file, or config.yaml when its raise fails. An edit that
+// retires the Note or gives it a new superseded-by entry raises a store below format 3 to 3 before
+// the write (Kind.Edit), with a warning.
 func (a *app) updateNote(
 	cmd *cobra.Command,
 	arg string,
 	options *knowUpdateOptions,
 	inputs noteInputs,
 ) (output.Result, error) {
-	notes := nodestore.Notes(a.store, noteResolver{index: a.issueIndex})
+	notes := a.notes(noteResolver{index: a.issueIndex})
 	written, err := editNode(notes, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
 		return applyNoteUpdate(cmd, options, inputs, note)
 	})
@@ -177,7 +177,7 @@ func (a *app) updateNote(
 	}
 	result := noteWriteResult(written.ID, written.Path, written.ETag)
 	a.warnRaisedFormat(&result, written.Effects)
-	a.refreshAgentsAfterWrite(&result)
+	addSyncEffects(&result, written.Effects)
 	return result, nil
 }
 

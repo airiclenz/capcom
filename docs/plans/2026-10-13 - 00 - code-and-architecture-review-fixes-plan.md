@@ -2151,7 +2151,7 @@ Depends on P3.20.
 - `go vet ./internal/nodestore/`
 **Commit:** `refactor(nodestore): run a kind's sync hook after each landed write`
 
-## P3.22 The know verbs take the AGENTS.md re-sync from nodestore
+## P3.22 The know verbs take the AGENTS.md re-sync from nodestore — ✅ DONE (2026-10-13)
 
 **What:** Completes A-03 (`nodestore-post-write`). `know add` (top level only), `know update`, `know mv` and `know rm` each call `refreshAgentsAfterWrite` themselves.
 **Goal:** these four verbs build the Notes Kind with an AGENTS.md sync hook and render its outcome from the write's `Effects`. The text `refreshed: AGENTS.md`, the `--json` `agents: refreshed` key, including P3.17's `noteRemoveData`, and the warning `…; the capcom block was not refreshed` are unchanged. No know verb calls `agents.Sync` or `refreshAgentsAfterWrite`.

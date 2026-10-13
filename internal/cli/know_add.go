@@ -62,14 +62,15 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 // addNote places the new Note in the Knowledge tree and writes it, reporting the etag of the
 // bytes written, with a warning for every tree problem that concerns neither the Note's path nor
 // its parent, unless the index refresh already warned about it. A malformed --ref is refused
-// before the Note's id is weighed against the tree.
+// before the Note's id is weighed against the tree. A Note added at the top of the tree refreshes
+// a stale capcom block of AGENTS.md through the Kind's sync hook (see notes).
 func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (output.Result, error) {
 	for _, ref := range options.refs {
 		if err := knowledge.ValidateRef(ref); err != nil {
 			return output.Result{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
 		}
 	}
-	written, problems, err := nodestore.Notes(a.store, nil).Create(
+	written, problems, err := a.notes(nil).Create(
 		options.id,
 		options.parent,
 		func() (knowledge.Note, error) { return newNote(cmd, options) },
@@ -79,9 +80,7 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (output.Resul
 	}
 	result := noteWriteResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
-	if options.parent == "" {
-		a.refreshAgentsAfterWrite(&result)
-	}
+	addSyncEffects(&result, written.Effects)
 	return result, nil
 }
 
@@ -94,19 +93,35 @@ func noteWriteResult(id string, path string, etag string) output.Result {
 	}
 }
 
-// refreshAgentsAfterWrite refreshes the capcom block of AGENTS.md after a Note write that may have
-// changed the Knowledge top level, so check stays green. Only a stale block is rewritten; an
-// AGENTS.md without the block is left alone. The Note is already written, so a failure here is a
-// warning, not a failed command. A refresh is reported in the text of result, a noteWriteResult
-// or a noteRemoveResult, and as an agents key in its --json data.
-func (a *app) refreshAgentsAfterWrite(result *output.Result) {
+// notes is the node store of the Knowledge tree, resolving Note arguments through resolver, with
+// syncAgents as its sync hook: each Note write that may have changed the Knowledge top level (a
+// Create at the top, and every Edit, Move and Remove) refreshes the capcom block of AGENTS.md, so
+// check stays green.
+func (a *app) notes(resolver nodestore.Resolver) *nodestore.Kind[knowledge.Note] {
+	return nodestore.Notes(a.store, resolver).WithSync(a.syncAgents)
+}
+
+// syncAgents refreshes the capcom block of AGENTS.md, reporting whether it was stale and so
+// rewritten. Only a stale block is rewritten; an AGENTS.md without the block is left alone.
+func (a *app) syncAgents() (bool, error) {
 	status, err := agents.Sync(a.store.WorktreeRoot, a.store.KnowledgeDir(), agents.ModeRefresh)
 	if err != nil {
-		warning := flatten(agentsFailure(err).Error()) + "; the capcom block was not refreshed"
+		return false, err
+	}
+	return status.State == agents.StateStale, nil
+}
+
+// addSyncEffects renders the outcome of the AGENTS.md sync hook a Note write ran (see notes) onto
+// result, a noteWriteResult or a noteRemoveResult. The Note is already written, so a failed refresh
+// is a warning, not a failed command; a refresh is reported in the text and as an agents key in
+// the --json data.
+func addSyncEffects(result *output.Result, effects nodestore.Effects) {
+	if effects.SyncFailure != nil {
+		warning := flatten(agentsFailure(effects.SyncFailure).Error()) + "; the capcom block was not refreshed"
 		result.Warnings = append(result.Warnings, warning)
 		return
 	}
-	if status.State != agents.StateStale {
+	if !effects.IsSynced {
 		return
 	}
 	switch data := result.Data.(type) {

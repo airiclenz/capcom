@@ -4,7 +4,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
 // knowMvOptions holds the flags of one capcom know mv.
@@ -49,13 +48,14 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 // it rewrites changed while it ran. The result names the Note's new id, path and etag, with a
 // warning for every tree problem that concerns neither the Note, its new path nor the new parent,
 // for every Note file whose superseded-by entries could not be checked, and for an emptied old
-// parent directory it could not remove; a stale capcom block of AGENTS.md is refreshed afterwards.
+// parent directory it could not remove; the Kind's sync hook (see notes) refreshes a stale capcom
+// block of AGENTS.md afterwards.
 func (a *app) moveNote(args []string, options *knowMvOptions) (output.Result, error) {
 	destination, err := moveDestination(args, options.parent, options.isReparented)
 	if err != nil {
 		return output.Result{}, err
 	}
-	moved, problems, err := nodestore.Notes(a.store, nil).Move(args[0], destination, options.ifMatch)
+	moved, problems, err := a.notes(nil).Move(args[0], destination, options.ifMatch)
 	if err != nil {
 		return output.Result{}, kindFailure(err)
 	}
@@ -65,6 +65,6 @@ func (a *app) moveNote(args []string, options *knowMvOptions) (output.Result, er
 	result.Warnings = append(result.Warnings, warnings...)
 	result.Warnings = append(result.Warnings, supersededByUnreadWarnings(moved.Unread, moved.OldID)...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(moved.LeftInPlace)...)
-	a.refreshAgentsAfterWrite(&result)
+	addSyncEffects(&result, moved.Effects)
 	return result, nil
 }

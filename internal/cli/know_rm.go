@@ -51,10 +51,10 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 // Note file it rewrites changed while it ran; it never parses the Note file. The
 // result names the removed file, with a warning for every tree problem that concerns neither the
 // Note nor its parent, for every Note file whose superseded-by entries could not be checked and for
-// an emptied parent directory left in place; a stale capcom block of AGENTS.md is refreshed
-// afterwards.
+// an emptied parent directory left in place; the Kind's sync hook (see notes) refreshes a stale
+// capcom block of AGENTS.md afterwards.
 func (a *app) removeNote(arg string, options *knowRmOptions) (output.Result, error) {
-	removed, problems, err := nodestore.Notes(a.store, nil).Remove(arg, options.ifMatch, false)
+	removed, problems, err := a.notes(nil).Remove(arg, options.ifMatch, false)
 	if err != nil {
 		return output.Result{}, kindFailure(err)
 	}
@@ -63,7 +63,7 @@ func (a *app) removeNote(arg string, options *knowRmOptions) (output.Result, err
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	result.Warnings = append(result.Warnings, supersededByUnreadWarnings(removed.Unread, removed.ID)...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
-	a.refreshAgentsAfterWrite(&result)
+	addSyncEffects(&result, removed.Effects)
 	return result, nil
 }
 
