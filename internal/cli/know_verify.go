@@ -18,6 +18,16 @@ type findingData struct {
 	Message string `json:"message"`
 }
 
+// Help text of capcom know verify.
+const (
+	knowVerifyLong = "List every Ref of every Note that no longer resolves: a missing path, a path#symbol whose " +
+		"file lacks the symbol text, or a path outside the working tree. Each line cites the Ref's line " +
+		"in its Note as path:line. Retired subtrees are exempt. It takes no arguments, and any finding " +
+		"fails the command, exit code 1, after the list."
+	knowVerifyExample = "  capcom know verify          # Note refs that no longer resolve\n" +
+		"  capcom know verify --json   # the findings as a JSON envelope"
+)
+
 // newKnowVerifyCommand lists every Ref of every Note that no longer resolves: a missing path, a
 // `path#symbol` whose file lacks the symbol text, or a path outside the working tree. Each line
 // cites the Ref's line in its Note. A retired subtree is exempt. Any finding fails the command,
@@ -26,6 +36,8 @@ func (a *app) newKnowVerifyCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:         "verify",
 		Short:       "List the Note refs that no longer resolve",
+		Long:        knowVerifyLong,
+		Example:     knowVerifyExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

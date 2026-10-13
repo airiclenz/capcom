@@ -18,6 +18,18 @@ const (
 	flagRef = "ref"
 )
 
+// Help text of capcom know add.
+const (
+	knowAddLong = "Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never " +
+		"generates, and the title given by --title; both are required. --parent files it below another " +
+		"Note, --label and --ref set its Labels and Refs, and --body-file reads its markdown body from a " +
+		"file, - for stdin. It prints the new Note's id, path and etag, and a refreshed line when the " +
+		"capcom block of AGENTS.md was rewritten."
+	knowAddExample = "  capcom know add --id release-steps --title \"How a release is cut\" --ref docs/release.md   # a Note that depends on a file\n" +
+		"  capcom know add --id release-tags --parent release-steps --title \"Tagging a release\" --label release   # below release-steps\n" +
+		"  capcom know add --id adr-0031 --title \"ADR 0031: one index per worktree\" --body-file -   # body from stdin"
+)
+
 // kindNoteWrite is the --json kind of every command that writes a Note.
 const kindNoteWrite = "note-write"
 
@@ -37,6 +49,8 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "add --id <slug> --title <title>",
 		Short:       "Add a Note with a chosen id",
+		Long:        knowAddLong,
+		Example:     knowAddExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

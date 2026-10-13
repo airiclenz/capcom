@@ -28,6 +28,16 @@ type formatRun struct {
 	warnings []string
 }
 
+// Help text of capcom fmt.
+const (
+	fmtLong = "Rewrite every Issue and Note file whose bytes differ from its canonical form, listing each " +
+		"one, then the count. A file that does not parse or validate is left alone with a warning; " +
+		"capcom check is the validator. --check writes nothing, lists the files that would change and " +
+		"fails, exit code 1, when any would."
+	fmtExample = "  capcom fmt           # rewrite Issue and Note files in canonical form\n" +
+		"  capcom fmt --check   # list what would change; exit 1 when anything would"
+)
+
 // newFmtCommand rewrites every issue and Note file whose bytes differ from its canonical form and
 // lists each one, then the count. A file that does not parse or validate, and every tree problem,
 // is a warning and the file is left alone; capcom check is the validator. Each kind is formatted
@@ -38,6 +48,8 @@ func (a *app) newFmtCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "fmt [--check]",
 		Short:       "Rewrite every issue and Note file in canonical form",
+		Long:        fmtLong,
+		Example:     fmtExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

@@ -36,6 +36,21 @@ const (
 	flagMergeDriver = "merge-driver"
 )
 
+// Help text of capcom init.
+const (
+	initLong = "Create the capcom store in the current git working tree: .capcom/ with its issues and " +
+		"knowledge directories and config.yaml. An existing store is left as it is. Without " +
+		"--claude-hooks it prints the Claude Code hooks that run capcom prime at session start and " +
+		"before compaction, for you to add; --claude-hooks merges those SessionStart and PreCompact " +
+		"hooks into .claude/settings.json, and --codex-hooks into .codex/hooks.json. --merge-driver " +
+		"hands issue files to the capcom-log merge driver in .gitattributes and prints the two git " +
+		"config commands that define it. The flags are independent and can be combined."
+	initExample = "  capcom init                  # create .capcom/ in this git repository\n" +
+		"  capcom init --claude-hooks   # ...and run capcom prime from Claude Code's session hooks\n" +
+		"  capcom init --codex-hooks    # ...and from Codex's, which needs [features] hooks = true\n" +
+		"  capcom init --merge-driver   # ...and merge issue Logs by entry (prints two git config lines)"
+)
+
 // codexFeatureNote is what init --codex-hooks prints in text mode: Codex ignores its hooks file
 // unless the feature is on.
 const codexFeatureNote = "Codex runs hooks only with [features] hooks = true in its config.toml\n"
@@ -57,9 +72,11 @@ func (a *app) newInitCommand() *cobra.Command {
 	isCodexHooks := false
 	isMergeDriver := false
 	cmd := &cobra.Command{
-		Use:   "init",
-		Short: "Create the capcom store (.capcom/) in this git repository",
-		Args:  cobra.NoArgs,
+		Use:     "init",
+		Short:   "Create the capcom store (.capcom/) in this git repository",
+		Long:    initLong,
+		Example: initExample,
+		Args:    cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {

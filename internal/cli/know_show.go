@@ -16,6 +16,18 @@ const (
 	flagWithChildren = "with-children"
 )
 
+// Help text of capcom know show.
+const (
+	knowShowLong = "Print one Note in full: its id, path, etag, parent, title, Labels, Refs, retirement, " +
+		"superseded-by entries, Aliases and body. The argument may be an id, an Alias or a unique id " +
+		"prefix, and a retired Note still resolves. --with-children also prints the Notes directly below " +
+		"it, their retired ones only with --retired. The etag is what --if-match takes on know update, " +
+		"know mv and know rm."
+	knowShowExample = "  capcom know show release-steps                   # one Note in full\n" +
+		"  capcom know show release-steps --with-children   # and the Notes directly below it\n" +
+		"  capcom know show release-steps --json            # as a JSON envelope"
+)
+
 // newKnowShowCommand prints one Note in full, and with --with-children the Notes directly below
 // it after it. The named Note resolves even when retired; its retired children, and every child of
 // a retired Note, are shown only with --retired.
@@ -25,6 +37,8 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "show <id|alias|prefix>",
 		Short:       "Show a Note in full",
+		Long:        knowShowLong,
+		Example:     knowShowExample,
 		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

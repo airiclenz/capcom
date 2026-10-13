@@ -1,7 +1,12 @@
-Rename a Note or move it below another
+Rename a Note, move it below another Note, or both; --parent . moves it to the top of the Knowledge tree. A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every superseded-by entry that named the Note. Its children move with it. capcom renames the files itself and never runs git. It prints the Note's new id, path and etag.
 
 Usage:
   capcom know mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if-match <etag>] [flags]
+
+Examples:
+  capcom know mv release-steps cutting-a-release        # the old id stays an alias
+  capcom know mv release-tags --parent .                # to the top of the tree
+  capcom know mv release-tags --parent cutting-a-release --if-match <etag>   # etag from know show
 
 Flags:
   -h, --help              help for mv

@@ -96,7 +96,12 @@ NOTES (2026-10-13): every example was run against a scratch store; dep rm's dang
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run HelpText ./internal/cli/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`
 **Commit:** `docs(cli): add long help and examples to dep, related, lock, prime and agents`
 
-## 4. Help text: knowledge and store commands
+## 4. Help text: knowledge and store commands — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "know subcommand constructors live in know.go, know_mv.go and know_rm.go": know add/search/show/tree/verify have their own know_*.go files, and know mv/rm are the generic newMvCommand/newRmCommand fed by noteVerbs (node_verbs.go), so their help is noteMvHelp in mv.go and noteRmHelp in rm.go beside the issue counterparts, set on noteVerbs
+NOTES (2026-10-13): consequential edit — internal/cli/testdata/help/know-add.txt, know-mv.txt, know-rm.txt: made necessary by the new know add/mv/rm help text (TestHelp_NodeVerbs_MatchGolden pins the whole --help byte for byte); regenerated from the built binary
+NOTES (2026-10-13): help_text_test.go's two path tables and their tests became TestHelpText_EveryCommand_SetsLongAndExample over a breadth-first walk of the root and every available command (46 subtests); the --kv guard now derives its set from the walk too (every command without a local --kv flag), replacing the hand-kept commandsWithoutKV list, and the example-prefix check uses CommandPath so the root's lines are "  capcom <...>"
+NOTES (2026-10-13): every example was run against a scratch store; the merge-driver `%O %A %B %P %S %X %Y` line shows how git invokes it and is not runnable by hand, its second line (three files by hand) was run
 
 **What:** Depends on item 3 (shared test file).
 **Regression guard.** Acceptance also runs `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/` (whole package, catches the doc file map). `version` is built by `newVersionCommand` in `internal/cli/root.go` (there is no `version.go`). The walk covers every available command including the root, so item 4 also gives the root `capcom` command (`newRootCommand`) a `Long` and `Example`, keeping "--kv" out (`capcom --help` is pinned without it).

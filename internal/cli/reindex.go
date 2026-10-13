@@ -17,12 +17,24 @@ type reindexData struct {
 	Issues int `json:"issues"`
 }
 
+// Help text of capcom reindex.
+const (
+	reindexLong = "Rebuild the index from the Issue and Note files. The index is a disposable SQLite file " +
+		"under the git directory, never committed, that the other commands bring up to date " +
+		"themselves; reindex recreates it from scratch. It prints the number of Issues indexed and the " +
+		"index path, and reports each file it left out as a warning."
+	reindexExample = "  capcom reindex          # rebuild the index from scratch\n" +
+		"  capcom reindex --json   # {path, issues} in a JSON envelope"
+)
+
 // newReindexCommand rebuilds the index from the issue and Note files. The rebuild itself runs when
 // prepareIndex opens the index in index.ModeRebuild, as the command's annotation asks.
 func (a *app) newReindexCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:         "reindex",
 		Short:       "Rebuild the index from the issue and Note files",
+		Long:        reindexLong,
+		Example:     reindexExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRebuild},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

@@ -18,6 +18,20 @@ const (
 // backgroundFlagUsage is the help of the --background flag of know tree.
 const backgroundFlagUsage = "include notes labelled background and everything below them"
 
+// Help text of capcom know tree.
+const (
+	knowTreeLong = "Print the outline of the Knowledge tree, or of the subtree of the Note named: one line per " +
+		"Note with its id and title, indented two spaces per level. --depth limits the levels printed " +
+		"below the top, or below the named Note, and a \"... <n> more\" line marks each Note whose " +
+		"children it cut. Retired subtrees are left out unless --retired is given, and Background " +
+		"subtrees, labelled background, unless --background is given. A Note named as the start is " +
+		"printed even when retired or background."
+	knowTreeExample = "  capcom know tree                          # the whole Knowledge tree\n" +
+		"  capcom know tree --depth 2                # the top level and its direct children\n" +
+		"  capcom know tree release-steps            # one branch\n" +
+		"  capcom know tree --retired --background   # retired and background Notes included"
+)
+
 // outlineData is one line of know tree in --json: a Note, its indentation depth in the outline and
 // how many of its direct children --depth cut (more, left out when none).
 type outlineData struct {
@@ -40,6 +54,8 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "tree [id|alias|prefix]",
 		Short:       "Print the outline of Note ids and titles",
+		Long:        knowTreeLong,
+		Example:     knowTreeExample,
 		Args:        cobra.MaximumNArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

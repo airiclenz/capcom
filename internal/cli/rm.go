@@ -28,6 +28,17 @@ var issueRmHelp = commandHelp{
 		"  capcom rm login-timeout-race --drop-deps   # also drops the deps entries that name it",
 }
 
+// noteRmHelp is the help text of capcom know rm.
+var noteRmHelp = commandHelp{
+	long: "Remove a Note's file. A Note with children is refused, so no orphan directory is left behind. " +
+		"Every superseded-by entry naming it is dropped, and its Aliases go with the file. capcom deletes " +
+		"the file itself and never runs git. It prints the removed Note's id and path, and the Notes " +
+		"whose superseded-by entries were dropped. To keep a Note that no longer holds on record, retire " +
+		"it with know update --retire instead.",
+	example: "  capcom know rm release-tags                    # refused while it has children\n" +
+		"  capcom know rm release-tags --if-match <etag>  # etag from know show",
+}
+
 // rmOptions holds the flags of one capcom rm or know rm; know rm has no --drop-deps, so
 // shouldDropDeps stays false there.
 type rmOptions struct {

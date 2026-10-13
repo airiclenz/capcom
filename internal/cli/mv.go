@@ -23,6 +23,17 @@ var issueMvHelp = commandHelp{
 		"  capcom mv login-timeout-race --parent .              # back to the top of the tree",
 }
 
+// noteMvHelp is the help text of capcom know mv.
+var noteMvHelp = commandHelp{
+	long: "Rename a Note, move it below another Note, or both; --parent . moves it to the top of the " +
+		"Knowledge tree. A rename keeps the old id as an Alias, so old citations still resolve, and " +
+		"rewrites every superseded-by entry that named the Note. Its children move with it. capcom " +
+		"renames the files itself and never runs git. It prints the Note's new id, path and etag.",
+	example: "  capcom know mv release-steps cutting-a-release        # the old id stays an alias\n" +
+		"  capcom know mv release-tags --parent .                # to the top of the tree\n" +
+		"  capcom know mv release-tags --parent cutting-a-release --if-match <etag>   # etag from know show",
+}
+
 // mvOptions holds the flags of one capcom mv or know mv.
 type mvOptions struct {
 	parent       string

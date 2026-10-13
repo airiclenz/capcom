@@ -41,6 +41,20 @@ type knowUpdateOptions struct {
 	ifMatch          string
 }
 
+// Help text of capcom know update.
+const (
+	knowUpdateLong = "Change one Note; only the flags given change anything, and at least one is required. " +
+		"--title, --add-label, --remove-label, --add-ref and --remove-ref edit its frontmatter. --retire " +
+		"marks it retired, so it and its subtree leave browsing, --unretire clears that, and " +
+		"--add-superseded-by names the Notes that replace it. --body-file replaces the whole body, " +
+		"--body-append and --body-append-file add to it, and --body-replace-old with --body-replace-new " +
+		"replaces text that occurs exactly once. It prints the Note's id, path and new etag."
+	knowUpdateExample = "  capcom know update release-steps --add-label release --if-match <etag>   # etag from know show\n" +
+		"  capcom know update adr-0012 --retire --add-superseded-by adr-0031   # replaced in whole\n" +
+		"  capcom know update release-steps --body-append \"Run the gate first.\"   # add to the body\n" +
+		"  capcom know update release-steps --body-file notes.md   # replace the whole body"
+)
+
 // noteInputs is what know update reads and resolves before it touches the Note: the whole new body
 // of --body-file, the text of --body-append-file, and the ids the --add-superseded-by arguments
 // resolve to.
@@ -58,6 +72,8 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "update <id|alias|prefix>",
 		Short:       "Change a Note's title, labels, refs, retirement or body",
+		Long:        knowUpdateLong,
+		Example:     knowUpdateExample,
 		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

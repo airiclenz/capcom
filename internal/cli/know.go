@@ -9,6 +9,20 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 )
 
+// Help text of capcom know.
+const (
+	knowLong = "Read and change the Knowledge tree: Notes are markdown files under .capcom/knowledge/, each " +
+		"with a title, Labels, Refs and a body, nested by Parent like Issues. A Ref names a path or " +
+		"path#symbol the Note depends on, and know verify lists the Refs that no longer resolve. A Note " +
+		"that no longer holds is retired rather than removed, optionally naming the Notes that " +
+		"supersede it, and leaves browsing with its subtree. A write that leaves the capcom block of " +
+		"AGENTS.md stale refreshes it."
+	knowExample = "  capcom know tree --depth 2       # the top two levels of the Knowledge tree\n" +
+		"  capcom know show release-steps   # one Note in full\n" +
+		"  capcom know search release       # Notes that mention release\n" +
+		"  capcom know verify               # Note refs that no longer resolve"
+)
+
 // retiredFlagUsage is the help of the --retired flag shared by know tree, know show and know search.
 const retiredFlagUsage = "include retired notes and everything below them"
 
@@ -31,9 +45,11 @@ type noteData struct {
 // newKnowCommand groups the commands that read, add, change, move and remove Knowledge Notes.
 func (a *app) newKnowCommand() *cobra.Command {
 	know := &cobra.Command{
-		Use:   "know",
-		Short: "Read, search, add, update, move, remove and verify Knowledge Notes",
-		Args:  cobra.NoArgs,
+		Use:     "know",
+		Short:   "Read, search, add, update, move, remove and verify Knowledge Notes",
+		Long:    knowLong,
+		Example: knowExample,
+		Args:    cobra.NoArgs,
 	}
 	know.AddCommand(a.newKnowAddCommand())
 	know.AddCommand(newMvCommand(a, noteVerbs))

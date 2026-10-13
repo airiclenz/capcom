@@ -95,6 +95,8 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 	afterWrite:  addSyncEffects,
 	hasKV:       false,
 	hasDropDeps: false,
+	mvHelp:      noteMvHelp,
+	rmHelp:      noteRmHelp,
 }
 
 // newMvCommand builds capcom mv or know mv, as verbs says: it renames a node, moves it below

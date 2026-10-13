@@ -19,6 +19,25 @@ const (
 	argsTerminator = "--"
 )
 
+// Help text of capcom itself and of capcom version.
+const (
+	rootLong = "capcom is a git-native issue tracker and knowledge store for coding agents. Issues and " +
+		"Knowledge Notes are markdown files under .capcom/, versioned with the code; a disposable " +
+		"SQLite index lives under the git directory and is never committed. Every command prints plain " +
+		"text, or with --json a versioned JSON envelope. Run capcom <command> --help for a command's " +
+		"flags and examples."
+	rootExample = "  capcom init                  # create .capcom/ in this git repository\n" +
+		"  capcom prime                 # the session-start briefing\n" +
+		"  capcom ready                 # the Issues ready to work on, most urgent first\n" +
+		"  capcom know tree --depth 2   # the top two levels of the Knowledge tree\n" +
+		"  capcom ready --json          # the same list as a JSON envelope"
+	versionLong = "Print the version of this capcom binary as capcom <version>. --kv prints it as a " +
+		"VERSION line followed by STATUS, and --json inside a versioned JSON envelope."
+	versionExample = "  capcom version          # capcom <version>\n" +
+		"  capcom version --kv     # VERSION=<version>, then STATUS=ok\n" +
+		"  capcom version --json   # {version} in a JSON envelope"
+)
+
 // annotationIndex is the cobra annotation a command sets to have the store, and with it the index,
 // ready before its body runs: indexRefresh brings the index up to date, indexRebuild recreates it,
 // and storeOnly opens the store without the index. Commands without it never open the store or
@@ -85,6 +104,8 @@ func (a *app) newRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:                "capcom",
 		Short:              "A git-native issue tracker and knowledge store for coding agents",
+		Long:               rootLong,
+		Example:            rootExample,
 		SilenceErrors:      true,
 		SilenceUsage:       true,
 		DisableSuggestions: true,
@@ -237,9 +258,11 @@ func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 // newVersionCommand reports the embedded release version.
 func (a *app) newVersionCommand() *cobra.Command {
 	return a.withKV(&cobra.Command{
-		Use:   "version",
-		Short: "Print the capcom version",
-		Args:  cobra.NoArgs,
+		Use:     "version",
+		Short:   "Print the capcom version",
+		Long:    versionLong,
+		Example: versionExample,
+		Args:    cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			version := capcom.Version()
 			return a.emit(cmd, output.Result{
