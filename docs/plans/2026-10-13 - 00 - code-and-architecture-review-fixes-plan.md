@@ -179,7 +179,11 @@ NOTES (2026-10-13): bodies for agents-symlink-escape, terminal-control-escape, d
 - `git ls-files --error-unmatch 'docs/plans/2026-10-13 - 00 - code-and-architecture-review-fixes-plan.md'` succeeds
 **Commit:** `chore(issues): file the code and architecture review 2026-10-13 issues`
 
-## P0.1 File the review issues, part 2: pure moves, refactors and the defects they absorb
+## P0.1 File the review issues, part 2: pure moves, refactors and the defects they absorb — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): bodies for missing-config-format, dep-close-race and cli-output-package state the plan header's ratified design calls (init writes the template with `format:` commented out on an existing store; local compare-and-swap only, dep-cycle race stays reported by `check`; extract `internal/cli/output` only) instead of the review's open options.
+NOTES (2026-10-13): `ready-import-alias` depends on its sibling parent `split-large-files` per the review's `--dep` column, and the plan closes both in P2.37; `cli-output-package` (a `split-large-files` child) is closed only later, at P3.6, so `split-large-files` will still have an open child when P2.37 closes it.
+
 
 **What:** File the rest of review section 7 under `code-review-1013`: the parent `split-large-files` with the "Pure moves" rows below it, except `split-init-go` and `split-release-files`, which are out of scope; every "Deepening refactors" row; the six "Defects" rows P0.0 left out; and both rows of "Defects from the architecture exploration".
 **Goal:** `split-large-files` sits under `code-review-1013` and has 12 children. `code-review-1013` has 58 direct children. Every new issue has its section 7 id, title and deps and a body that ends in a `## Acceptance` section. Neither `split-init-go` nor `split-release-files` exists, and `capcom check` is clean.
