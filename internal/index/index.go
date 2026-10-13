@@ -98,22 +98,10 @@ const (
 	WarningField = diagnose.Field
 )
 
-// Warning is a file the index left out, or a problem it found in one. Path is relative to the
+// Warning is a file the index left out, or a problem it found in one. It is diagnose.Finding, so
+// check and the index find a file's problems through the same functions. Path is relative to the
 // working tree root with forward slashes; Line is 1-based, or 0 when no single line is to blame.
-type Warning struct {
-	Kind    WarningKind `json:"kind"`
-	Path    string      `json:"path"`
-	Line    int         `json:"line,omitempty"`
-	Message string      `json:"message"`
-}
-
-// String renders "path:line: message", or "path: message" when the line is unknown.
-func (w Warning) String() string {
-	if w.Line > 0 {
-		return fmt.Sprintf("%s:%d: %s", w.Path, w.Line, w.Message)
-	}
-	return fmt.Sprintf("%s: %s", w.Path, w.Message)
-}
+type Warning = diagnose.Finding
 
 // Report is what one Refresh or Rebuild did.
 type Report struct {

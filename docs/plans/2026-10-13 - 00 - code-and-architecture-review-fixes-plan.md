@@ -2463,7 +2463,13 @@ Depends on P3.60; P1.6; P1.8; P2.13; P2.17; P3.11; P3.6.
 - `! go list -deps ./internal/diagnose/ | grep -q 'capcom/internal/index$'`
 **Commit:** `refactor(diagnose): one problem-kind enum for check, index and cli`
 
-## P3.62 Per-file findings shared by check and the index
+## P3.62 Per-file findings shared by check and the index — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/diagnose/diagnose.go: made necessary by adding Finding and the per-file parse, validate and alias functions to diagnose (the package comment named only Kind and the sentinel mapping)
+
+NOTES (2026-10-13): check.go is untouched, as the plan's regression check ruled: check hands ParseIssue's and ParseNote's one Frontmatter finding to addParseFailure as an issue.Error / knowledge.Error (both frontmatter.Error), so its conflict-marker dedup and line/message reading stay as they were; check's field problems take their code through P3.61's kindCode (Field to "field")
+
+NOTES (2026-10-13): index.aliasProblems stays as a one-line adapter from foundFile to diagnose.AliasFindings, which the Goal names; files_test.go also pins Finding.String with and without a line, and the "without a line" parse case is a YAML error yaml.v3 gives no line for (a tab-indented key)
 
 **What:** Part 2 of A-06: parsing, validating and alias-checking one issue or Note file into findings is one set of `diagnose` functions, used by the index refresh and by `check`.
 **Regression guard.** The Goal is checked by an Acceptance grep.

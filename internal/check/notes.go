@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -28,9 +29,11 @@ func (c *checker) notes() error {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
-		found, err := knowledge.Parse(c.relative(path), data)
-		if err != nil {
-			c.addParseFailure(path, err)
+		found, findings := diagnose.ParseNote(c.relative(path), data)
+		if len(findings) > 0 {
+			// addParseFailure reads the line and message of a parse failure off its error.
+			failure := findings[0]
+			c.addParseFailure(path, &knowledge.Error{Path: failure.Path, Line: failure.Line, Message: failure.Message})
 			return nil, nil
 		}
 		parsed[path] = found
@@ -136,8 +139,8 @@ func retiredSubtrees(nodes []tree.Node, parsed map[string]knowledge.Note) map[st
 // subtree, whether each Ref resolves.
 func (c *checker) checkNote(node tree.Node, note knowledge.Note, isRetired bool) error {
 	path := c.relative(node.Path)
-	for _, problem := range knowledge.Validate(path, note) {
-		c.add(path, problem.Line, CodeField, problem.Message)
+	for _, finding := range diagnose.ValidateNote(path, note) {
+		c.add(path, finding.Line, kindCode(finding.Kind), finding.Message)
 	}
 	if isRetired {
 		return nil

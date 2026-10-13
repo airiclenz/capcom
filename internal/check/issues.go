@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -37,9 +38,11 @@ func (c *checker) issues() error {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
-		found, err := issue.Parse(c.relative(path), data)
-		if err != nil {
-			c.addParseFailure(path, err)
+		found, findings := diagnose.ParseIssue(c.relative(path), data)
+		if len(findings) > 0 {
+			// addParseFailure reads the line and message of a parse failure off its error.
+			failure := findings[0]
+			c.addParseFailure(path, &issue.Error{Path: failure.Path, Line: failure.Line, Message: failure.Message})
 			return nil, nil
 		}
 		parsed[path] = found
@@ -87,8 +90,8 @@ func graphNodes(entries []parsedIssue) []issue.Node {
 // related links, and that its related key, however it is set, sits in a store declaring format 2.
 func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	path := entry.node.Path
-	for _, problem := range issue.Validate(c.relative(path), entry.issue, c.store.Config) {
-		c.add(path, problem.Line, CodeField, problem.Message)
+	for _, finding := range diagnose.ValidateIssue(c.relative(path), entry.issue, c.store.Config) {
+		c.add(path, finding.Line, kindCode(finding.Kind), finding.Message)
 	}
 	if plan := entry.issue.Plan; plan != "" && !c.isPlanFound(plan) {
 		c.add(path, entry.issue.PlanLine(), CodeMissingPlan, fmt.Sprintf(

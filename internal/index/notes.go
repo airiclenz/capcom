@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -48,19 +49,11 @@ func retiredFilter(isRetiredIncluded bool) (with, condition string) {
 // parseNote parses and validates one Note file and returns every problem that keeps it out of the
 // index.
 func parseNote(file foundFile, data []byte) (knowledge.Note, []Warning) {
-	parsed, err := knowledge.Parse(file.path, data)
-	if err != nil {
-		var failure *knowledge.Error
-		if errors.As(err, &failure) {
-			return knowledge.Note{}, []Warning{{Kind: WarningFrontmatter, Path: failure.Path, Line: failure.Line, Message: failure.Message}}
-		}
-		return knowledge.Note{}, []Warning{{Kind: WarningFrontmatter, Path: file.path, Message: err.Error()}}
+	parsed, problems := diagnose.ParseNote(file.path, data)
+	if len(problems) > 0 {
+		return knowledge.Note{}, problems
 	}
-
-	var problems []Warning
-	for _, failure := range knowledge.Validate(file.path, parsed) {
-		problems = append(problems, Warning{Kind: WarningField, Path: failure.Path, Line: failure.Line, Message: failure.Message})
-	}
+	problems = diagnose.ValidateNote(file.path, parsed)
 	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
 }
 
