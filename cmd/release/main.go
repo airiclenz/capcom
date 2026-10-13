@@ -1,26 +1,3 @@
-// Command release is capcom's release maintainer program: it does the deterministic half of
-// cutting a release — building the archives, reporting where the release stands, making the
-// rollup and bump commits, publishing the release and its package channels, and smoke-testing a
-// published release — the same way on Linux, macOS and Windows, leaving the judgment half
-// (release notes, the version to cut) to the committed release skills.
-//
-//	go run ./cmd/release dist [--src DIR] [--out DIR]
-//	go run ./cmd/release status [vX.Y.Z] [--json]
-//	go run ./cmd/release prepare vX.Y.Z
-//	go run ./cmd/release publish vX.Y.Z --notes-file F [--dry-run] [--tag-timeout D]
-//	go run ./cmd/release smoke [vX.Y.Z] [--dist-dir D]
-//
-// Every external command it runs goes through one runner seam (runner.go), so the tests of its
-// verbs never reach the network, a real `git` or a real toolchain. The one exception is
-// versionbump_test.go, which runs the tag-on-version-bump workflow's script against a throwaway
-// local git repository, with no network and no gh (ADR 0008's bumptest amendment). What it asks of the capcom checkout and its
-// GitHub repository goes through the repo seam (repo.go) above it: the verbs' tests hold that
-// state in memRepo and never fake an own-repo command by argv, which only execRepo's own tests
-// pin. The runner's fakes answer the toolchain, dist's read of its source tree's commit time, and
-// the tap, bucket and winget-pkgs commands.
-//
-// It is a dev tool, never a release asset: dist does not ship it, and it imports nothing from
-// capcom's internal packages.
 package main
 
 import (

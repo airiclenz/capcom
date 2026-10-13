@@ -2522,7 +2522,9 @@ Depends on P3.62.
 - `go vet ./cmd/release/`
 **Commit:** `test(release): cover tap and bucket clone, commit and push failures`
 
-## P3.71 Release: one step table, and a doc.go file map
+## P3.71 Release: one step table, and a doc.go file map — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the one by-name step helper is the existing `stepStateOf` (publish.go), which `checkGateFor` already used; `resolveWingetPackage` now calls it too, so no new helper was added.
 
 **What:** First part of A-11: `publishSteps` and `publishActions` merge into one step record and one table; the package gets `doc.go` with a file map pinned by a structural test.
 **Regression guard.** Also moves the step-name consts (`stepTag`..`stepSmoke`) out of probes.go into steps.go, so probes.go is empty by P3.74. The Goal's "no code finds a step by its index" is checked by Acceptance (status_test.go's `report.Steps[2]` is a test and stays).

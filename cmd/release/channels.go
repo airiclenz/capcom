@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 )
 
@@ -155,8 +154,7 @@ func (e setupPendingError) Error() string { return e.detail }
 // step never reaches the winget step's converge. It reads the listing the winget probe reads; a
 // 404 means the package is not there yet.
 func (r *publishRun) resolveWingetPackage(ctx context.Context, steps []stepReport) error {
-	index := slices.IndexFunc(publishActions, func(action publishAction) bool { return action.name == stepWinget })
-	if steps[index].State != statePending {
+	if stepStateOf(steps, stepWinget) != statePending {
 		return nil
 	}
 	_, err := r.commands.run(ctx, r.options.dir, nil, "gh", "api", "repos/"+wingetRepo+"/contents/"+wingetManifestDir)

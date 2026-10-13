@@ -71,30 +71,6 @@ type publishRun struct {
 	isWingetPackageListed bool
 }
 
-// publishAction is one step publish converges: what a dry run says it would do, the work itself,
-// run only while the step's probe reports it pending, and what the step table says once it has
-// run ("done by this run" when empty). A converge that returns a setupPendingError has not
-// failed: the step is reported setup-pending and the run goes on.
-type publishAction struct {
-	name       string
-	describe   func(run *publishRun) string
-	converge   func(ctx context.Context, run *publishRun) error
-	doneDetail string
-}
-
-// publishActions are the steps publish converges, in the order it runs them; each one's probe
-// is the publishSteps entry of the same name, so what status reports done is what publish skips.
-// The channel steps (channels.go) run after the release, whose SHA256SUMS they render from, and
-// the smoke step (smoke.go) runs last, over everything the others published.
-var publishActions = []publishAction{
-	{name: stepTag, describe: describeTag, converge: convergeTag},
-	{name: stepRelease, describe: describeRelease, converge: convergeRelease},
-	{name: stepHomebrew, describe: describeHomebrew, converge: convergeHomebrew},
-	{name: stepScoop, describe: describeScoop, converge: convergeScoop},
-	{name: stepWinget, describe: describeWinget, converge: convergeWinget, doneDetail: wingetSubmittedDetail},
-	{name: stepSmoke, describe: describeSmoke, converge: convergeSmoke, doneDetail: smokePassedDetail},
-}
-
 // smokePassedDetail is the step table's line for a smoke test that passed.
 const smokePassedDetail = "passed by this run: no check failed"
 
@@ -210,32 +186,32 @@ func runPublish(ctx context.Context, commands runner, output io.Writer, options 
 // remote now holds them.
 func (r *publishRun) converge(ctx context.Context, gate string, steps []stepReport) error {
 	defer r.removeBuildDir()
-	for index, action := range publishActions {
+	for index, step := range publishSteps {
 		if steps[index].State == stateSetupPending {
-			_, _ = fmt.Fprintf(r.output, "%s: skipped, its one-time setup is pending: %s\n", action.name, steps[index].Detail)
+			_, _ = fmt.Fprintf(r.output, "%s: skipped, its one-time setup is pending: %s\n", step.name, steps[index].Detail)
 		}
 		if steps[index].State != statePending {
 			continue
 		}
-		_, _ = fmt.Fprintf(r.output, "%s: %s\n", action.name, action.describe(r))
-		err := action.converge(ctx, r)
+		_, _ = fmt.Fprintf(r.output, "%s: %s\n", step.name, step.describe(r))
+		err := step.converge(ctx, r)
 		var setupPending setupPendingError
 		if errors.As(err, &setupPending) {
-			_, _ = fmt.Fprintf(r.output, "%s: its one-time setup is pending: %s\n", action.name, setupPending.detail)
-			steps[index] = stepReport{Name: action.name, State: stateSetupPending, Detail: setupPending.detail}
+			_, _ = fmt.Fprintf(r.output, "%s: its one-time setup is pending: %s\n", step.name, setupPending.detail)
+			steps[index] = stepReport{Name: step.name, State: stateSetupPending, Detail: setupPending.detail}
 			continue
 		}
 		if err != nil {
 			if printErr := printPublish(r.output, r, gate, r.probe(ctx), false); printErr != nil {
 				return errors.Join(err, printErr)
 			}
-			return fmt.Errorf("the %s step failed: %w", action.name, err)
+			return fmt.Errorf("the %s step failed: %w", step.name, err)
 		}
-		detail := action.doneDetail
+		detail := step.doneDetail
 		if detail == "" {
 			detail = "done by this run"
 		}
-		steps[index] = stepReport{Name: action.name, State: stateDone, Detail: detail}
+		steps[index] = stepReport{Name: step.name, State: stateDone, Detail: detail}
 	}
 	return printPublish(r.output, r, gate, steps, false)
 }
@@ -243,12 +219,7 @@ func (r *publishRun) converge(ctx context.Context, gate string, steps []stepRepo
 // probe asks the remote where each of publish's steps stands, in publish order.
 func (r *publishRun) probe(ctx context.Context) []stepReport {
 	env := probeEnv{repo: r.repo, commands: r.commands, dir: r.options.dir}
-	steps := make([]stepReport, 0, len(publishActions))
-	for _, action := range publishActions {
-		index := slices.IndexFunc(publishSteps, func(step publishStep) bool { return step.name == action.name })
-		steps = append(steps, publishSteps[index].probe(ctx, env, r.version))
-	}
-	return steps
+	return probeSteps(ctx, env, r.version)
 }
 
 // checkGateFor judges as much of the release gate as the steps still need, and returns the
@@ -359,12 +330,12 @@ func printPublish(output io.Writer, run *publishRun, gate string, steps []stepRe
 	}
 	if isDryRun {
 		_, _ = fmt.Fprintln(table, "plan (dry run, nothing was changed)")
-		for index, action := range publishActions {
+		for index, step := range publishSteps {
 			plan := "skip: " + string(steps[index].State)
 			if steps[index].State == statePending {
-				plan = action.describe(run)
+				plan = step.describe(run)
 			}
-			_, _ = fmt.Fprintf(table, "  %s\t%s\n", action.name, plan)
+			_, _ = fmt.Fprintf(table, "  %s\t%s\n", step.name, plan)
 		}
 	}
 	if err := table.Flush(); err != nil {
