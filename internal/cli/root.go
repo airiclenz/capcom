@@ -93,7 +93,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newLockCommand())
 	root.AddCommand(a.newLogCommand())
 	root.AddCommand(a.newMergeDriverCommand())
-	root.AddCommand(a.newMvCommand())
+	root.AddCommand(newMvCommand(a, issueVerbs))
 	root.AddCommand(a.newPrimeCommand())
 	root.AddCommand(a.newReadyCommand())
 	root.AddCommand(a.newReindexCommand())

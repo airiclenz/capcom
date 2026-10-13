@@ -2278,7 +2278,7 @@ NOTES (2026-10-13): the six help goldens were written from `capcom <verb> --help
 - `go vet ./internal/cli/`
 **Commit:** `test(cli): pin help, --kv and warnings of mv, rm and create for both kinds`
 
-## P3.46 One mv command for both Tree kinds
+## P3.46 One mv command for both Tree kinds — ✅ DONE (2026-10-13)
 
 **What:** Part 1 of A-02: a `nodeVerbs[T]` descriptor and one generic mv build `capcom mv` and `capcom know mv`; `know_mv.go` is deleted.
 **Regression guard.** The `nodeVerbs.afterWrite` hook takes the `nodestore.Effects` the write returned (P3.22 renders the AGENTS.md sync from Effects), fixed once here; P3.47 and P3.48 use that signature. The Note `kind` is `func(a *app) *nodestore.Kind[knowledge.Note] { return a.notes(nil) }` (P3.22's sync-hooked helper). The Goal is checked by Acceptance.

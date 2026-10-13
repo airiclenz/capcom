@@ -24,7 +24,6 @@
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search
 //   - `know.go` — capcom know and the Note data, resolution and grouping its subcommands share
 //   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and AGENTS.md refresh
-//   - `know_mv.go` — capcom know mv: renames a Note or moves it below another
 //   - `know_rm.go` — capcom know rm: removes a Note that has no children
 //   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word
 //   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
@@ -35,8 +34,9 @@
 //   - `lock.go` — capcom lock acquire, touch, release, break, check and status: the Tree lock
 //   - `log.go` — capcom log: appends an entry to an issue's Log
 //   - `merge_driver.go` — capcom merge-driver: the git merge driver for issue files, Log by entry
-//   - `mv.go` — capcom mv: renames an issue or moves it below another
+//   - `mv.go` — the destination, warnings and flags of mv and know mv, which node_verbs.go builds
 //   - `node_edit.go` — editIssue and editNode, which every issue and Note edit verb goes through, and their shared helpers
+//   - `node_verbs.go` — nodeVerbs, the descriptor of a Tree kind, and the mv command built from it for both kinds
 //   - `outline.go` — the indented outline rows and their text, with the hint where --depth cut
 //   - `output.go` — the Elsewhere scan of a result and the pathspec of the whole issue tree
 //   - `prime.go` — capcom prime: the session Briefing
