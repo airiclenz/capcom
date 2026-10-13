@@ -92,11 +92,15 @@ come from an agent.
 
 **`cmd/release` is a scoped exception to ADR 0007.**
 Its tests never run `git`, `gh`, `go` or `komac`, because `gh`, GitHub and winget-pkgs cannot be
-made hermetic, and a test must never publish. Two seams carry the fakes. What the release verbs ask
+made hermetic, and a test must never publish. Three seams carry the fakes. What the release verbs ask
 of the capcom checkout and its GitHub repository goes through one semantic `repo` interface
 (`repo.go`): `execRepo` is the production adapter over git and gh, every `gh release` call naming
 `--repo airiclenz/capcom`, and the verbs' tests hold that repository as plain state in `memRepo`,
-never as canned argv; only `execRepo`'s own tests pin the argv it runs. Everything else (the
-toolchain, dist's read of the commit time of the source tree it builds, and the tap, bucket and
-winget-pkgs commands) goes through one runner seam (`runner.go`; `fakeRunner`, `fakeToolchain`).
+never as canned argv; only `execRepo`'s own tests pin the argv it runs. What they ask of the
+package channels' repositories (the tap, the bucket and winget-pkgs) goes through a second semantic
+interface, `channelRepos` (`channelrepos.go`): `execChannelRepos` is the production adapter over gh
+and git, and the verbs' tests hold those repositories as plain state in `memChannelRepos`; only
+`execChannelRepos`' own tests pin its argv. Everything else (the toolchain, dist's read of the
+commit time of the source tree it builds, komac, `gh auth token` and brew) goes through one runner
+seam (`runner.go`; `fakeRunner`, `fakeToolchain`).
 Files are still real files in `t.TempDir()`. ADR 0007 keeps covering every package of capcom itself.

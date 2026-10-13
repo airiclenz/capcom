@@ -2683,7 +2683,14 @@ Depends on P3.82.
 - `go vet ./cmd/release/`
 **Commit:** `refactor(release): inject the channel seam and add its in-memory adapter`
 
-## P3.84 Release: publish and smoke tests on the in-memory channel repos
+## P3.84 Release: publish and smoke tests on the in-memory channel repos — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): TestPublishWritesTheRenderedFileIntoTheClone renamed TestPublishWritesTheRenderedFileToTheChannel: the fake has no clone left, and the test now asserts the memChannelPublish records (repo, path, rendered content, subject)
+NOTES (2026-10-13): TestPublishCommitsAChannelFileOnlyWhenItChanges drives convergeHomebrew/convergeScoop directly over a run on memChannelRepos, so a repository already holding the rendered file still reaches PublishFile (a full run's probe would report it done first); it asserts which repositories were pushed and the "already holds this ...: nothing to push" line
+NOTES (2026-10-13): mutatingCommands also drops "gh release delete", a dead runner prefix nothing in cmd/release issues, alongside "git push", "gh repo clone" and "git commit"
+NOTES (2026-10-13): smokeFake's `failing` map went with the bucket answer (its one user was smokeReadBucket); a `bucketFailure` field feeds memChannelRepos.withFailure(ReadFile) instead, and smoke tests calling executeWith pass fake.channels()
+NOTES (2026-10-13): probes_test.go's wingetListing helper deleted (no caller left); contentsAPIBase64, wingetPull and wingetViewerPull stay there because channelrepos_test.go uses them; new helper channelReposOf merges memChannelRepos parts
+NOTES (2026-10-13): TestPublishChannelStepFailureStopsTheRun (T-01) is now two cases, PublishFile failing for the tap, then for the bucket; the per-step clone/history/commit/push failures stay in channelrepos_test.go
 
 **What:** Last part of A-12: the publish, channel and smoke tests hold the channel repositories in `memChannelRepos`; T-01's test is rewritten onto it; the runner-level channel fakes go.
 **Regression guard.** `mutatingCommands` gains `memChannelRepos`' `PublishFile` log prefix (logged as `memPublish.note` does), and the two `unwanted` lists name it in place of "git push"/"gh repo clone"; the dead runner prefixes go. The prose grep adds `winget-pkgs commands\|runner seams\?`; runner.go, the `release-process` Note and adr-0008-amend-bumptest are edited (Notes through `capcom know update`). `TestPublishPushesAnEmptyBucketToMain` is deleted: P3.82's channelrepos_test covers the empty-repository push. The Goal's checks are in Acceptance.

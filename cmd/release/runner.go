@@ -15,9 +15,11 @@ import (
 // toolchain; only versionbump_test.go runs real `git`, under the workflow's script and never
 // through this seam.
 // What the verbs ask of the capcom checkout and its GitHub repository goes through the repo seam
-// (repo.go) instead, whose execRepo is the one caller of the runner with that argv; the runner
-// itself carries the toolchain, dist's read of its source tree's commit time, and the tap, bucket
-// and winget-pkgs commands.
+// (repo.go) instead, whose execRepo is the one caller of the runner with that argv, and what they
+// ask of the tap, the bucket and winget-pkgs through the channelRepos seam (channelrepos.go),
+// whose execChannelRepos is the one caller with theirs; the runner itself carries the toolchain,
+// dist's read of its source tree's commit time, komac, `gh auth token`, brew and the released
+// binaries the smoke test runs.
 type runner interface {
 	// run executes name with args in dir, with env appended to the inherited environment (a
 	// later entry overrides an earlier one, so env wins), and returns what the command wrote to

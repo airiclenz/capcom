@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -38,86 +39,6 @@ var releaseAssetsV02411 = []string{
 	"SHA256SUMS",
 }
 
-// fakeRemote answers the channel probes' gh commands the way gh would over the tap, bucket and
-// winget-pkgs repositories in a given state; capcom's own repository is a memRepo, never argv
-// here. Its zero value is channels whose one-time setup is still pending.
-type fakeRemote struct {
-	// hasTap is whether the tap repository exists; formula is its formula, "" for none.
-	hasTap  bool
-	formula string
-	// hasBucket is whether the bucket repository exists; bucketManifest is its manifest, ""
-	// for an empty repository.
-	hasBucket      bool
-	bucketManifest string
-	// wingetListing is the package's manifest directory listing in winget-pkgs, "" while the
-	// package is not there; wingetPulls is what `gh pr list` prints, "" for no pull request;
-	// wingetViewerPulls is what the `gh api graphql` query for the signed-in account's open pull
-	// requests prints, "" for none.
-	wingetListing     string
-	wingetPulls       string
-	wingetViewerPulls string
-	// failing names a command — "gh api repos/airiclenz/homebrew-tap" — that cannot run.
-	failing string
-}
-
-// respond answers one channel probe command.
-func (r fakeRemote) respond(call recordedCall) (string, error) {
-	command := call.name + " " + strings.Join(call.args, " ")
-	fail := func(detail string) (string, error) {
-		return "", fmt.Errorf("%s: %s", command, detail)
-	}
-	if r.failing != "" && strings.HasPrefix(command, r.failing) {
-		return fail("cannot run")
-	}
-	args := call.args
-	switch {
-	case command == "gh api repos/"+tapRepo+" --jq .full_name":
-		if !r.hasTap {
-			return fail(ghNotFound)
-		}
-		return tapRepo + "\n", nil
-	case command == "gh api repos/"+tapRepo+"/contents/"+formulaPath+" --jq .content":
-		if !r.hasTap || r.formula == "" {
-			return fail(ghNotFound)
-		}
-		return contentsAPIBase64(r.formula), nil
-	case command == "gh api repos/"+bucketRepo+" --jq .full_name":
-		if !r.hasBucket {
-			return fail(ghNotFound)
-		}
-		return bucketRepo + "\n", nil
-	case command == "gh api repos/"+bucketRepo+"/contents/"+bucketPath+" --jq .content":
-		switch {
-		case !r.hasBucket:
-			return fail(ghNotFound)
-		case r.bucketManifest == "":
-			return fail(ghEmptyRepository)
-		}
-		return contentsAPIBase64(r.bucketManifest), nil
-	case command == "gh api repos/"+wingetRepo+"/contents/"+wingetManifestDir:
-		if r.wingetListing == "" {
-			return fail(ghNotFound)
-		}
-		return r.wingetListing, nil
-	case call.name == "gh" && len(args) > 1 && args[0] == "pr" && args[1] == "list":
-		if r.wingetPulls == "" {
-			return "[]\n", nil
-		}
-		return r.wingetPulls, nil
-	case call.name == "gh" && len(args) > 1 && args[0] == "api" && args[1] == "graphql":
-		if r.wingetViewerPulls == "" {
-			return wingetViewerPull(0, "", "", ""), nil
-		}
-		return r.wingetViewerPulls, nil
-	}
-	return "", fmt.Errorf("unexpected command %s", command)
-}
-
-// runner is a fake runner over the remote alone.
-func (r fakeRemote) runner() *fakeRunner {
-	return &fakeRunner{respond: r.respond}
-}
-
 // contentsAPIBase64 encodes content the way `gh api .../contents/<path> --jq .content` prints it:
 // base64 wrapped at 60 columns.
 func contentsAPIBase64(content string) string {
@@ -128,16 +49,6 @@ func contentsAPIBase64(content string) string {
 		encoded = encoded[60:]
 	}
 	return strings.Join(append(lines, encoded), "\n") + "\n"
-}
-
-// wingetListing is a winget-pkgs contents listing of the package's manifest directory holding one
-// directory per version.
-func wingetListing(versions ...string) string {
-	entries := make([]string, 0, len(versions))
-	for _, version := range versions {
-		entries = append(entries, fmt.Sprintf(`{"name":%q,"path":"%s/%s","type":"dir"}`, version, wingetManifestDir, version))
-	}
-	return "[" + strings.Join(entries, ",") + "]\n"
 }
 
 // wingetPull is `gh pr list --json number,title,url` output holding one komac pull request
@@ -200,6 +111,20 @@ func wingetHolding(versions []string, pulls ...pullRequest) memChannelRepos {
 		winget.dirs = map[string][]string{wingetManifestDir: versions}
 	}
 	return memChannelRepos{repos: map[string]memChannelRepo{wingetRepo: winget}}
+}
+
+// channelReposOf is channel repositories holding every repository the parts hold — a later
+// part's repository replacing an earlier part's of the same name — and failing as each part
+// fails; it records nothing.
+func channelReposOf(parts ...memChannelRepos) memChannelRepos {
+	channels := memChannelRepos{repos: map[string]memChannelRepo{}}
+	for _, part := range parts {
+		maps.Copy(channels.repos, part.repos)
+		for call, err := range part.failures {
+			channels = channels.withFailure(call.method, call.repo, err)
+		}
+	}
+	return channels
 }
 
 // fileHolding is a repository's files holding content at path, or no file when content is "".

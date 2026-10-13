@@ -103,6 +103,17 @@ func (c memChannelRepos) reads() []memChannelCall {
 	return slices.Clone(c.record.reads)
 }
 
+// publishedFiles returns the files PublishFile pushed so far, in order; none when nothing is
+// recorded.
+func (c memChannelRepos) publishedFiles() []memChannelPublish {
+	if c.record == nil {
+		return nil
+	}
+	c.record.mu.Lock()
+	defer c.record.mu.Unlock()
+	return slices.Clone(c.record.published)
+}
+
 // read records the read and returns the error the method was told to fail with on repo.
 func (c memChannelRepos) read(method, repo string) error {
 	call := memChannelCall{method: method, repo: repo}

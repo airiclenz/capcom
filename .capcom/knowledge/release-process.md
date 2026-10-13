@@ -15,5 +15,7 @@ publish. ADR 0008 records the design.
 one exception to ADR 0007: apart from the version-bump script test (`versionbump_test.go`, see Note
 `adr-0008-amend-bumptest`), they never run git, gh, go or komac. What the verbs ask of the capcom
 checkout and its GitHub repository goes through the `repo` seam (`repo.go`), held as plain state in
-`memRepo`; only `execRepo`'s own tests pin its argv. The toolchain and the tap, bucket and
-winget-pkgs commands are faked through the runner seam (`runner.go`).
+`memRepo`; only `execRepo`'s own tests pin its argv. What they ask of the tap, the bucket and
+winget-pkgs goes through the `channelRepos` seam (`channelrepos.go`) the same way, held in
+`memChannelRepos`; only `execChannelRepos`' own tests pin its argv. The toolchain, komac,
+`gh auth token` and brew are faked through the runner seam (`runner.go`).

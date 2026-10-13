@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -28,43 +29,12 @@ var testWingetManifests = []string{
 	"AiricLenz.Capcom.yaml",
 }
 
-// fakeChannelRepo is a tap or bucket repository as a clone of it holds it.
-type fakeChannelRepo struct {
-	// file is the generated file the repository holds, "" for none.
-	file string
-	// isEmpty is a repository with no commits yet.
-	isEmpty bool
-}
-
-// channelFailure is one command of a tap or bucket's clone step made to fail for one
-// repository. Its zero value fails nothing.
-type channelFailure struct {
-	// command is the failing command: "gh repo clone", "git rev-list", "git commit" or "git push".
-	command string
-	// repo is the tap or bucket repository the command fails for.
-	repo string
-}
-
-// errorFor returns the error command fails with over repo, nil when it is not the failing one.
-func (failure channelFailure) errorFor(command, repo string) error {
-	if command != failure.command || repo != failure.repo {
-		return nil
-	}
-	return fmt.Errorf("%s: exit status 1: remote rejected the request", command)
-}
-
-// fakeChannels is what the channel steps meet beyond the probes: the tap and bucket they clone,
-// the clone-step command that fails, whether komac is installed, whether `komac submit` fails,
-// and the token gh is signed in with ("" for none).
+// fakeChannels is what the winget step meets beyond winget-pkgs: whether komac is installed,
+// whether `komac submit` fails, and the token gh is signed in with ("" for none).
 type fakeChannels struct {
-	tap                  fakeChannelRepo
-	bucket               fakeChannelRepo
-	failure              channelFailure
 	isKomacMissing       bool
 	isKomacSubmitFailing bool
 	ghToken              string
-	// clones maps each clone directory to the repository cloned into it.
-	clones map[string]string
 	// submitted lists the files the manifest directory held when `komac submit` ran.
 	submitted []string
 }
@@ -72,78 +42,45 @@ type fakeChannels struct {
 // channelFile is the generated file publish writes in each channel repository.
 var channelFile = map[string]string{tapRepo: formulaPath, bucketRepo: bucketPath}
 
-// respondChannel answers the channel steps' commands: the clone of a tap or bucket and the git
-// commands run inside it, komac, and `gh auth token`. It reports false for any other command.
-func (f *publishFake) respondChannel(call recordedCall) (string, bool, error) {
+// respondTools answers the commands the channel steps run beside the channel repositories: komac
+// and `gh auth token`. Any other command is unexpected.
+func (f *publishFake) respondTools(call recordedCall) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	args := call.args
 	command := call.name + " " + strings.Join(args, " ")
 	switch {
-	case call.name == "gh" && len(args) == 6 && args[0] == "repo" && args[1] == "clone":
-		repo, cloneDir := args[2], args[3]
-		if err := f.channels.failure.errorFor("gh repo clone", repo); err != nil {
-			return "", true, err
-		}
-		if f.channels.clones == nil {
-			f.channels.clones = map[string]string{}
-		}
-		f.channels.clones[cloneDir] = repo
-		return "", true, f.writeClone(repo, cloneDir)
 	case command == "komac --version":
 		if f.channels.isKomacMissing {
-			return "", true, fmt.Errorf("komac --version: %w", &exec.Error{Name: "komac", Err: exec.ErrNotFound})
+			return "", fmt.Errorf("komac --version: %w", &exec.Error{Name: "komac", Err: exec.ErrNotFound})
 		}
-		return "komac 2.11.2\n", true, nil
+		return "komac 2.11.2\n", nil
 	case call.name == "komac" && len(args) == 3 && args[0] == "submit":
 		return f.submitManifests(call)
 	case call.name == "komac":
-		return "", true, nil
+		return "", nil
 	case command == "gh auth token":
 		if f.channels.ghToken == "" {
-			return "", true, fmt.Errorf("gh auth token: exit status 1: no oauth token found for github.com")
+			return "", fmt.Errorf("gh auth token: exit status 1: no oauth token found for github.com")
 		}
-		return f.channels.ghToken + "\n", true, nil
+		return f.channels.ghToken + "\n", nil
 	}
-
-	repo, isClone := f.channels.clones[call.dir]
-	if !isClone || call.name != "git" {
-		return "", false, nil
-	}
-	if err := f.channels.failure.errorFor("git "+args[0], repo); err != nil {
-		return "", true, err
-	}
-	switch args[0] {
-	case "rev-list":
-		if f.channelRepo(repo).isEmpty {
-			return "", true, nil
-		}
-		return bumpCommit + "\n", true, nil
-	case "diff":
-		written, err := os.ReadFile(filepath.Join(call.dir, filepath.FromSlash(channelFile[repo])))
-		if err != nil || string(written) == f.channelRepo(repo).file {
-			return "", true, err
-		}
-		return channelFile[repo] + "\n", true, nil
-	case "add", "commit", "push":
-		return "", true, nil
-	}
-	return "", false, nil
+	return "", fmt.Errorf("unexpected command %s", command)
 }
 
 // submitManifests answers `komac submit <dir> --yes`: it records the files the directory holds,
 // and when the submission is set to fail, fails echoing the token from komac's environment, as
 // a credential error might.
-func (f *publishFake) submitManifests(call recordedCall) (string, bool, error) {
+func (f *publishFake) submitManifests(call recordedCall) (string, error) {
 	entries, err := os.ReadDir(call.args[1])
 	if err != nil {
-		return "", true, err
+		return "", err
 	}
 	for _, entry := range entries {
 		f.channels.submitted = append(f.channels.submitted, entry.Name())
 	}
 	if !f.channels.isKomacSubmitFailing {
-		return "", true, nil
+		return "", nil
 	}
 	var token string
 	for _, variable := range call.env {
@@ -151,31 +88,7 @@ func (f *publishFake) submitManifests(call recordedCall) (string, bool, error) {
 			token = value
 		}
 	}
-	return "", true, fmt.Errorf("komac %s: exit status 1: bad credentials %s", strings.Join(call.args, " "), token)
-}
-
-// channelRepo returns the fake state of repo.
-func (f *publishFake) channelRepo(repo string) fakeChannelRepo {
-	if repo == tapRepo {
-		return f.channels.tap
-	}
-	return f.channels.bucket
-}
-
-// writeClone makes the clone directory of repo, holding its generated file when it has one.
-func (f *publishFake) writeClone(repo, cloneDir string) error {
-	if err := os.MkdirAll(cloneDir, 0o755); err != nil {
-		return err
-	}
-	content := f.channelRepo(repo).file
-	if content == "" {
-		return nil
-	}
-	filePath := filepath.Join(cloneDir, filepath.FromSlash(channelFile[repo]))
-	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(filePath, []byte(content), 0o644)
+	return "", fmt.Errorf("komac %s: exit status 1: bad credentials %s", strings.Join(call.args, " "), token)
 }
 
 // testReleaseSums is a SHA256SUMS body listing every archive of v0.24.11, one fixture hash each.
@@ -194,18 +107,12 @@ func releasedFake() *publishFake {
 	fake := newPublishFake()
 	fake.tagged()
 	fake.repo.releases[publishVersion] = releaseAssetsV02411
-	fake.remote = fakeRemote{
-		hasTap:         true,
-		formula:        strings.Replace(testFormula, "0.24.11", "0.24.10", 1),
-		hasBucket:      true,
-		bucketManifest: `{"version": "0.24.10"}`,
-		wingetListing:  wingetListing("0.24.10"),
-	}
+	fake.remote = channelReposOf(
+		tapHolding(strings.Replace(testFormula, "0.24.11", "0.24.10", 1)),
+		bucketHolding(`{"version": "0.24.10"}`),
+		wingetHolding([]string{"0.24.10"}),
+	)
 	fake.repo.assetContent[checksumsFile] = testReleaseSums()
-	fake.channels = fakeChannels{
-		tap:    fakeChannelRepo{file: "class Capcom < Formula\n  version \"0.24.10\"\nend\n"},
-		bucket: fakeChannelRepo{file: "{\"version\": \"0.24.10\"}\n"},
-	}
 	return fake
 }
 
@@ -224,19 +131,26 @@ func runChannelPublish(t *testing.T, fake *publishFake, isDryRun bool, token str
 	return runTestPublishWith(t, fake, publishOptions{notesFile: notesPath, isDryRun: isDryRun, getenv: getenv})
 }
 
-// callsInClone returns the git commands run inside the clone of repo, one line each.
-func callsInClone(fake *publishFake, commands *fakeRunner, repo string) []string {
-	fake.mu.Lock()
-	defer fake.mu.Unlock()
-	commands.mu.Lock()
-	defer commands.mu.Unlock()
-	var lines []string
-	for _, call := range commands.calls {
-		if call.name == "git" && fake.channels.clones[call.dir] == repo {
-			lines = append(lines, "git "+strings.Join(call.args, " "))
-		}
+// channelRun is a publish run of publishVersion over fake, its channel repositories recording
+// what they are pushed, for a test to drive the tap and bucket steps' converge through directly;
+// output holds what the run prints.
+func channelRun(t *testing.T, fake *publishFake) (run *publishRun, output *strings.Builder) {
+	t.Helper()
+	commands := fake.runner()
+	output = &strings.Builder{}
+	run = &publishRun{commands: commands, repo: fake.repo, channels: fake.remote, output: output,
+		version: mustVersion(t, publishVersion), options: publishOptions{dir: t.TempDir()}}
+	return run, output
+}
+
+// publishedRepos returns the repository of each file the channel repositories were pushed, in
+// order.
+func publishedRepos(channels memChannelRepos) []string {
+	var repos []string
+	for _, write := range channels.publishedFiles() {
+		repos = append(repos, write.repo)
 	}
-	return lines
+	return repos
 }
 
 // TestPublishWingetDryRunPrintsTheKomacCommandWithTheTokenRedacted ports the bash script's dry-run
@@ -337,7 +251,7 @@ func TestPublishWingetRequiresKomac(t *testing.T) {
 
 // TestPublishCommitsAChannelFileOnlyWhenItChanges pins the tap and the bucket: each takes the
 // rendered file, committed as `capcom X.Y.Z` and pushed to its branch, only when that changes the
-// file; a clone already holding it commits and pushes nothing.
+// file; a repository already holding it is pushed nothing, and the step says so.
 func TestPublishCommitsAChannelFileOnlyWhenItChanges(t *testing.T) {
 	t.Parallel()
 	sums := testReleaseSums()
@@ -349,24 +263,21 @@ func TestPublishCommitsAChannelFileOnlyWhenItChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pushed := []string{"git commit --quiet -m capcom 0.24.11", "git push --quiet origin HEAD"}
 
 	cases := map[string]struct {
-		tap, bucket  string
-		wantTapGit   []string
-		wantScoopGit []string
+		tap, bucket string
+		wantPushed  []string
 	}{
 		"both behind": {
-			wantTapGit:   pushed,
-			wantScoopGit: pushed,
+			wantPushed: []string{tapRepo, bucketRepo},
 		},
 		"tap already current": {
-			tap:          formula,
-			wantScoopGit: pushed,
+			tap:        formula,
+			wantPushed: []string{bucketRepo},
 		},
 		"bucket already current": {
 			bucket:     manifest,
-			wantTapGit: pushed,
+			wantPushed: []string{tapRepo},
 		},
 	}
 	for name, tc := range cases {
@@ -374,61 +285,46 @@ func TestPublishCommitsAChannelFileOnlyWhenItChanges(t *testing.T) {
 			t.Parallel()
 			fake := releasedFake()
 			if tc.tap != "" {
-				fake.channels.tap.file = tc.tap
+				fake.remote = channelReposOf(fake.remote, tapHolding(tc.tap))
 			}
 			if tc.bucket != "" {
-				fake.channels.bucket.file = tc.bucket
+				fake.remote = channelReposOf(fake.remote, bucketHolding(tc.bucket))
 			}
+			run, output := channelRun(t, fake)
 
-			result := runChannelPublish(t, fake, false, sentinelToken)
-
-			if result.err != nil {
-				t.Fatalf("publish failed: %v\n%s", result.err, result.output)
-			}
-			for repo, want := range map[string][]string{tapRepo: tc.wantTapGit, bucketRepo: tc.wantScoopGit} {
-				var writes []string
-				for _, line := range callsInClone(fake, result.commands, repo) {
-					if strings.HasPrefix(line, "git commit") || strings.HasPrefix(line, "git push") {
-						writes = append(writes, line)
-					}
+			for _, converge := range []func(context.Context, *publishRun) error{convergeHomebrew, convergeScoop} {
+				if err := converge(t.Context(), run); err != nil {
+					t.Fatal(err)
 				}
-				if !slices.Equal(writes, want) {
-					t.Errorf("%s: committed and pushed %q, want %q", repo, writes, want)
+			}
+
+			if pushed := publishedRepos(fake.remote); !slices.Equal(pushed, tc.wantPushed) {
+				t.Errorf("pushed to %q, want %q", pushed, tc.wantPushed)
+			}
+			for _, write := range fake.remote.publishedFiles() {
+				if write.subject != "capcom 0.24.11" {
+					t.Errorf("%s: committed as %q, want %q", write.repo, write.subject, "capcom 0.24.11")
+				}
+			}
+			for repo, current := range map[string]string{tapRepo: tc.tap, bucketRepo: tc.bucket} {
+				said := repo + " already holds this " + channelFile[repo] + ": nothing to push"
+				if isSaid := strings.Contains(output.String(), said); isSaid != (current != "") {
+					t.Errorf("%s: output says %q: %t, want %t:\n%s", repo, said, isSaid, current != "", output)
 				}
 			}
 		})
 	}
 }
 
-// TestPublishWritesTheRenderedFileIntoTheClone pins what the tap and the bucket receive: exactly
-// the file rendered from the release's SHA256SUMS, staged at its path, before the commit.
-func TestPublishWritesTheRenderedFileIntoTheClone(t *testing.T) {
+// TestPublishWritesTheRenderedFileToTheChannel pins what the tap and the bucket receive: exactly
+// the file rendered from the release's SHA256SUMS, at its path.
+func TestPublishWritesTheRenderedFileToTheChannel(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	written := map[string]string{}
-	respond := fake.respond
-	commands := &fakeRunner{respond: func(call recordedCall) (string, error) {
-		if call.name == "git" && len(call.args) > 0 && call.args[0] == "commit" {
-			fake.mu.Lock()
-			repo := fake.channels.clones[call.dir]
-			fake.mu.Unlock()
-			content, err := os.ReadFile(filepath.Join(call.dir, filepath.FromSlash(channelFile[repo])))
-			if err != nil {
-				return "", err
-			}
-			written[repo] = string(content)
-		}
-		return respond(call)
-	}}
-	dir := t.TempDir()
-	run := &publishRun{commands: commands, repo: fake.repo, channels: execChannelRepos{commands: commands, dir: dir},
-		output: &strings.Builder{}, version: mustVersion(t, publishVersion), options: publishOptions{dir: dir}}
+	run, _ := channelRun(t, fake)
 
-	for _, converge := range []func() error{
-		func() error { return convergeHomebrew(t.Context(), run) },
-		func() error { return convergeScoop(t.Context(), run) },
-	} {
-		if err := converge(); err != nil {
+	for _, converge := range []func(context.Context, *publishRun) error{convergeHomebrew, convergeScoop} {
+		if err := converge(t.Context(), run); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -441,39 +337,12 @@ func TestPublishWritesTheRenderedFileIntoTheClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if written[tapRepo] != formula {
-		t.Errorf("the tap's %s is not the rendered formula:\n%s", formulaPath, written[tapRepo])
+	want := []memChannelPublish{
+		{repo: tapRepo, path: formulaPath, content: formula, subject: "capcom 0.24.11"},
+		{repo: bucketRepo, path: bucketPath, content: manifest, subject: "capcom 0.24.11"},
 	}
-	if written[bucketRepo] != manifest {
-		t.Errorf("the bucket's %s is not the rendered manifest:\n%s", bucketPath, written[bucketRepo])
-	}
-	for _, repo := range []string{tapRepo, bucketRepo} {
-		if index := lineIndex(callsInClone(fake, commands, repo), "git add -- "+channelFile[repo]); index < 0 {
-			t.Errorf("%s: %s was not staged", repo, channelFile[repo])
-		}
-	}
-}
-
-// TestPublishPushesAnEmptyBucketToMain pins the first manifest: a bucket repository with no
-// commits has no branch for HEAD to push to, so its first commit goes to main.
-func TestPublishPushesAnEmptyBucketToMain(t *testing.T) {
-	t.Parallel()
-	fake := releasedFake()
-	fake.remote.bucketManifest = ""
-	fake.channels.bucket = fakeChannelRepo{isEmpty: true}
-
-	result := runChannelPublish(t, fake, false, sentinelToken)
-
-	if result.err != nil {
-		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
-	}
-	clone := callsInClone(fake, result.commands, bucketRepo)
-	if index := lineIndex(clone, "git push"); index < 0 || clone[index] != "git push --quiet origin HEAD:main" {
-		t.Errorf("bucket clone commands = %q, want the push git push --quiet origin HEAD:main", clone)
-	}
-	tap := callsInClone(fake, result.commands, tapRepo)
-	if index := lineIndex(tap, "git push"); index < 0 || tap[index] != "git push --quiet origin HEAD" {
-		t.Errorf("tap clone commands = %q, want the push git push --quiet origin HEAD", tap)
+	if got := fake.remote.publishedFiles(); !slices.Equal(got, want) {
+		t.Errorf("pushed:\n%+v\nwant the rendered formula and manifest:\n%+v", got, want)
 	}
 }
 
@@ -484,21 +353,18 @@ func TestPublishSkipsChannelsWhoseSetupIsPending(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]struct {
-		change      func(remote *fakeRemote)
+		missingRepo string
 		skipped     string
-		skippedRepo string
 		updatedRepo string
 	}{
 		"no tap repository": {
-			change:      func(remote *fakeRemote) { remote.hasTap = false },
+			missingRepo: tapRepo,
 			skipped:     "homebrew: skipped, its one-time setup is pending",
-			skippedRepo: tapRepo,
 			updatedRepo: bucketRepo,
 		},
 		"no bucket repository": {
-			change:      func(remote *fakeRemote) { remote.hasBucket = false },
+			missingRepo: bucketRepo,
 			skipped:     "scoop: skipped, its one-time setup is pending",
-			skippedRepo: bucketRepo,
 			updatedRepo: tapRepo,
 		},
 	}
@@ -506,8 +372,8 @@ func TestPublishSkipsChannelsWhoseSetupIsPending(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			fake := releasedFake()
-			tc.change(&fake.remote)
-			fake.remote.wingetListing = ""
+			delete(fake.remote.repos, tc.missingRepo)
+			fake.remote = channelReposOf(fake.remote, wingetHolding(nil))
 
 			result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -520,15 +386,15 @@ func TestPublishSkipsChannelsWhoseSetupIsPending(t *testing.T) {
 			if strings.Contains(result.output, "winget: skipped") {
 				t.Errorf("winget was skipped, want its first manifests submitted:\n%s", result.output)
 			}
-			lines := commandLines(result.commands)
-			if index := lineIndex(lines, "gh repo clone "+tc.skippedRepo); index >= 0 {
-				t.Errorf("ran %q for a channel whose setup is pending", lines[index])
+			pushed := publishedRepos(fake.remote)
+			if slices.Contains(pushed, tc.missingRepo) {
+				t.Errorf("pushed to %s, a channel whose setup is pending", tc.missingRepo)
 			}
-			if index := lineIndex(lines, "gh repo clone "+tc.updatedRepo); index < 0 {
-				t.Errorf("%s was not updated; commands: %q", tc.updatedRepo, lines)
+			if !slices.Contains(pushed, tc.updatedRepo) {
+				t.Errorf("%s was not updated; pushed to %q", tc.updatedRepo, pushed)
 			}
-			if index := lineIndex(lines, "komac submit"); index < 0 {
-				t.Errorf("the first winget manifests were not submitted; commands: %q", lines)
+			if index := lineIndex(commandLines(result.commands), "komac submit"); index < 0 {
+				t.Errorf("the first winget manifests were not submitted; commands: %q", commandLines(result.commands))
 			}
 		})
 	}
@@ -541,7 +407,7 @@ func TestPublishSkipsChannelsWhoseSetupIsPending(t *testing.T) {
 func TestPublishWingetSubmitsTheFirstManifestsWhenThePackageIsAbsent(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.remote.wingetListing = ""
+	fake.remote = channelReposOf(fake.remote, wingetHolding(nil))
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -584,7 +450,7 @@ func TestPublishWingetSubmitsTheFirstManifestsWhenThePackageIsAbsent(t *testing.
 func TestPublishWingetSubmitFailureIsSetupPending(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.remote.wingetListing = ""
+	fake.remote = channelReposOf(fake.remote, wingetHolding(nil))
 	fake.channels.isKomacSubmitFailing = true
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
@@ -626,7 +492,7 @@ func TestPublishWingetSubmitFailureIsSetupPending(t *testing.T) {
 func TestPublishWingetDryRunForAnAbsentPackage(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.remote.wingetListing = ""
+	fake.remote = channelReposOf(fake.remote, wingetHolding(nil))
 
 	result := runChannelPublish(t, fake, true, sentinelToken)
 
@@ -652,7 +518,7 @@ func TestPublishWingetDryRunForAnAbsentPackage(t *testing.T) {
 func TestPublishLeavesASubmittedWingetReleaseAlone(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.remote.wingetPulls = wingetPull(301234, "New version", "0.24.11")
+	fake.remote = channelReposOf(fake.remote, wingetHolding([]string{"0.24.10"}, komacPull(301234, "New version", "0.24.11")))
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -669,16 +535,13 @@ func TestPublishLeavesASubmittedWingetReleaseAlone(t *testing.T) {
 
 // TestPublishLeavesAChannelPinnedToANewerVersionAlone pins the no-downgrade rule: a rerun of
 // publish for an older release finds the tap and the bucket already on a newer one, reports both
-// done, and never clones, commits to or pushes either.
+// done, and never publishes to either.
 func TestPublishLeavesAChannelPinnedToANewerVersionAlone(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
 	newerFormula := strings.Replace(testFormula, "0.24.11", "0.24.12", 1)
 	newerManifest := `{"version": "0.24.12"}`
-	fake.remote.formula = newerFormula
-	fake.remote.bucketManifest = newerManifest
-	fake.channels.tap.file = newerFormula
-	fake.channels.bucket.file = newerManifest + "\n"
+	fake.remote = channelReposOf(fake.remote, tapHolding(newerFormula), bucketHolding(newerManifest))
 
 	result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -686,7 +549,7 @@ func TestPublishLeavesAChannelPinnedToANewerVersionAlone(t *testing.T) {
 		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
 	}
 	lines := commandLines(result.commands)
-	for _, unwanted := range []string{"gh repo clone", "git commit", "git push"} {
+	for _, unwanted := range []string{channelsCallName + " " + methodPublishFile} {
 		if index := lineIndex(lines, unwanted); index >= 0 {
 			t.Errorf("ran %q over a channel pinned to a newer version", lines[index])
 		}
@@ -705,8 +568,7 @@ func TestPublishLeavesAChannelPinnedToANewerVersionAlone(t *testing.T) {
 func TestPublishWingetConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 	t.Parallel()
 	fake := releasedFake()
-	fake.remote.formula = testFormula
-	fake.remote.bucketManifest = `{"version": "0.24.11"}`
+	fake.remote = channelReposOf(fake.remote, tapHolding(testFormula), bucketHolding(`{"version": "0.24.11"}`))
 	fake.repo.isDirty = true
 	fake.repo.files[versionFile] = "v0.24.12\n"
 
@@ -716,7 +578,7 @@ func TestPublishWingetConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
 	}
 	lines := commandLines(result.commands)
-	for _, unwanted := range []string{"repo PushMain", "git push", "gh repo clone"} {
+	for _, unwanted := range []string{"repo PushMain", channelsCallName + " " + methodPublishFile} {
 		if index := lineIndex(lines, unwanted); index >= 0 {
 			t.Errorf("ran %q, want only the winget submission once the tag exists", lines[index])
 		}
@@ -726,58 +588,36 @@ func TestPublishWingetConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 	}
 }
 
-// TestPublishChannelStepFailureStopsTheRun characterises a tap or bucket whose clone, history
-// read, commit or push fails: publish stops at that channel's step with an error naming the step,
-// the repository and what failed, prints the step table as the remote now holds it, and never
-// reaches the smoke step.
+// TestPublishChannelStepFailureStopsTheRun characterises a tap or bucket the publish fails for:
+// publish stops at that channel's step with an error naming the step and the failure, prints the
+// step table as the remote now holds it, and never reaches the smoke step. Which step of the
+// publish itself failed — the clone, the history read, the commit or the push — is
+// execChannelRepos' to name (channelrepos_test.go).
 func TestPublishChannelStepFailureStopsTheRun(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]struct {
-		failure   channelFailure
+		repo      string
 		wantError string
 	}{
-		"tap clone": {
-			failure:   channelFailure{command: "gh repo clone", repo: tapRepo},
-			wantError: "the homebrew step failed: clone " + tapRepo + ": gh repo clone: exit status 1",
+		"tap": {
+			repo:      tapRepo,
+			wantError: "the homebrew step failed: push " + formulaPath + " to " + tapRepo + ": remote rejected the request",
 		},
-		"tap history": {
-			failure:   channelFailure{command: "git rev-list", repo: tapRepo},
-			wantError: "the homebrew step failed: read " + tapRepo + "'s history: git rev-list: exit status 1",
-		},
-		"tap commit": {
-			failure:   channelFailure{command: "git commit", repo: tapRepo},
-			wantError: "the homebrew step failed: commit " + formulaPath + " to " + tapRepo + ": git commit: exit status 1",
-		},
-		"tap push": {
-			failure:   channelFailure{command: "git push", repo: tapRepo},
-			wantError: "the homebrew step failed: push " + formulaPath + " to " + tapRepo + ": git push: exit status 1",
-		},
-		"bucket clone": {
-			failure:   channelFailure{command: "gh repo clone", repo: bucketRepo},
-			wantError: "the scoop step failed: clone " + bucketRepo + ": gh repo clone: exit status 1",
-		},
-		"bucket history": {
-			failure:   channelFailure{command: "git rev-list", repo: bucketRepo},
-			wantError: "the scoop step failed: read " + bucketRepo + "'s history: git rev-list: exit status 1",
-		},
-		"bucket commit": {
-			failure:   channelFailure{command: "git commit", repo: bucketRepo},
-			wantError: "the scoop step failed: commit " + bucketPath + " to " + bucketRepo + ": git commit: exit status 1",
-		},
-		"bucket push": {
-			failure:   channelFailure{command: "git push", repo: bucketRepo},
-			wantError: "the scoop step failed: push " + bucketPath + " to " + bucketRepo + ": git push: exit status 1",
+		"bucket": {
+			repo:      bucketRepo,
+			wantError: "the scoop step failed: push " + bucketPath + " to " + bucketRepo + ": remote rejected the request",
 		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			fake := releasedFake()
-			if tc.failure.repo == bucketRepo {
-				fake.remote.formula = testFormula
+			if tc.repo == bucketRepo {
+				fake.remote = channelReposOf(fake.remote, tapHolding(testFormula))
 			}
-			fake.channels.failure = tc.failure
+			failure := fmt.Errorf("push %s to %s: remote rejected the request", channelFile[tc.repo], tc.repo)
+			fake.remote = fake.remote.withFailure(methodPublishFile, tc.repo, failure)
 
 			result := runChannelPublish(t, fake, false, sentinelToken)
 
@@ -788,7 +628,7 @@ func TestPublishChannelStepFailureStopsTheRun(t *testing.T) {
 				t.Errorf("the step table was not printed:\n%s", result.output)
 			}
 			if len(result.smokes) != 0 {
-				t.Errorf("the smoke step ran %d times after the %s step failed", len(result.smokes), tc.failure.command)
+				t.Errorf("the smoke step ran %d times after the %s step failed", len(result.smokes), tc.repo)
 			}
 		})
 	}

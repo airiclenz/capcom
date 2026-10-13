@@ -11,5 +11,6 @@ the script by absolute path, and skips where `bash` or `git` is missing and on W
 workflow runs only on Linux.
 
 This replaces the sentence in `adr-0008-decision` that "its tests never run `git`": the tests of
-the release verbs still never run `git`, `gh`, `go` or `komac`, and go through the `repo` and
-runner seams as that Note says; the script test is the one exception, and it touches neither seam.
+the release verbs still never run `git`, `gh`, `go` or `komac`, and go through the `repo`,
+`channelRepos` and runner seams as that Note says; the script test is the one exception, and it
+touches none of them.

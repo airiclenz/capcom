@@ -23,9 +23,9 @@ const (
 )
 
 // mutatingCommands are the commands that change something — origin, a GitHub release, the
-// checkout's refs, or the disk a build writes — by their leading words: the runner's commands,
-// and the memRepo's changes it records into the same log. A run that may change nothing issues
-// none of them.
+// checkout's refs, a channel repository, or the disk a build writes — by their leading words: the
+// runner's commands, and the memRepo's and memChannelRepos' changes they record into the same log.
+// A run that may change nothing issues none of them.
 var mutatingCommands = []string{
 	repoCallName + " " + methodPushMain,
 	repoCallName + " " + methodFetchTag,
@@ -33,22 +33,19 @@ var mutatingCommands = []string{
 	repoCallName + " " + methodCreateRelease,
 	repoCallName + " " + methodUploadAssets,
 	repoCallName + " " + methodUndraftRelease,
-	"git push",
+	channelsCallName + " " + methodPublishFile,
 	"go build",
-	"gh release delete",
-	"gh repo clone",
-	"git commit",
 	"komac update",
 	"komac submit",
 }
 
-// publishFake is what publish meets: capcom's checkout and GitHub repository held in repo, and
-// the commands the runner answers the way git, go and gh would — the build itself, the channel
-// repositories' through remote.
+// publishFake is what publish meets: capcom's checkout and GitHub repository held in repo, the
+// tap, the bucket and winget-pkgs held in remote, and the commands the runner answers the way go,
+// komac and gh would.
 type publishFake struct {
 	repo memRepo
 	// remote is where the channel repositories stand.
-	remote fakeRemote
+	remote memChannelRepos
 	// tagAppearsAfter is how many polls after the push origin still lacks the tag; -1 for a
 	// workflow that never makes it.
 	tagAppearsAfter int
@@ -56,7 +53,7 @@ type publishFake struct {
 	// commit it is on.
 	tagKind   string
 	tagCommit string
-	// channels is the tap, the bucket and the komac and gh installs the channel steps meet.
+	// channels is the komac and gh installs the winget step meets.
 	channels fakeChannels
 
 	mu sync.Mutex
@@ -80,11 +77,10 @@ func newPublishFake() *publishFake {
 			files:        map[string]string{versionFile: strings.TrimPrefix(publishVersion, "v") + "\n"},
 			publish:      &memPublish{},
 		},
-		remote: fakeRemote{
-			hasTap:      true,
-			formula:     testFormula,
-			wingetPulls: wingetPull(301234, "New version", strings.TrimPrefix(publishVersion, "v")),
-		},
+		remote: channelReposOf(
+			tapHolding(testFormula),
+			wingetHolding(nil, komacPull(301234, "New version", strings.TrimPrefix(publishVersion, "v"))),
+		),
 		tagAppearsAfter: 2,
 		tagKind:         gitObjectTag,
 		tagCommit:       bumpCommit,
@@ -113,10 +109,12 @@ func (f *publishFake) tagged() {
 	f.repo.tagCommits[publishVersion] = bumpCommit
 }
 
-// runner returns a recording runner over the fake, whose call record the repo's changes join.
+// runner returns a recording runner over the fake, whose call record the repo's changes and the
+// channel repositories' writes join.
 func (f *publishFake) runner() *fakeRunner {
 	commands := &fakeRunner{respond: f.respond}
 	f.repo.publish.log = commands
+	f.remote.record = &memChannelRecord{log: commands}
 	return commands
 }
 
@@ -135,10 +133,7 @@ func (f *publishFake) respond(call recordedCall) (string, error) {
 		output := args[slices.Index(args, "-o")+1]
 		return "", os.WriteFile(output, []byte(stubBinary(call.env)), 0o755)
 	}
-	if output, isAnswered, err := f.respondChannel(call); isAnswered {
-		return output, err
-	}
-	return f.remote.respond(call)
+	return f.respondTools(call)
 }
 
 // requireFiles fails when an absolute path among args names no file: gh would refuse to upload
@@ -205,13 +200,17 @@ func runTestPublish(t *testing.T, fake *publishFake, isDryRun bool) publishRunRe
 }
 
 // runTestPublishWith runs publish of publishVersion over fake with options, filling in the
-// version, the test poll timing, a counting sleep and, unless options has one, an environment
-// with nothing set and a smoke step that records what it was asked to check and passes.
+// version, the test poll timing, a counting sleep and, unless options has them, the fake's channel
+// repositories, an environment with nothing set and a smoke step that records what it was asked
+// to check and passes.
 func runTestPublishWith(t *testing.T, fake *publishFake, options publishOptions) publishRunResult {
 	t.Helper()
 	result := publishRunResult{commands: fake.runner(), notesPath: options.notesFile}
 	if options.openRepo == nil {
 		options.openRepo = fake.opener()
+	}
+	if options.channels == nil {
+		options.channels = fake.remote
 	}
 	if options.getenv == nil {
 		options.getenv = func(string) string { return "" }

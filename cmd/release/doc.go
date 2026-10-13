@@ -13,11 +13,15 @@
 // Every external command it runs goes through one runner seam (runner.go), so the tests of its
 // verbs never reach the network, a real `git` or a real toolchain. The one exception is
 // versionbump_test.go, which runs the tag-on-version-bump workflow's script against a throwaway
-// local git repository, with no network and no gh (ADR 0008's bumptest amendment). What it asks of the capcom checkout and its
-// GitHub repository goes through the repo seam (repo.go) above it: the verbs' tests hold that
-// state in memRepo and never fake an own-repo command by argv, which only execRepo's own tests
-// pin. The runner's fakes answer the toolchain, dist's read of its source tree's commit time, and
-// the tap, bucket and winget-pkgs commands.
+// local git repository, with no network and no gh (ADR 0008's bumptest amendment). Two semantic
+// seams sit above the runner, so three seams carry the tests' fakes. What it asks of the capcom
+// checkout and its GitHub repository goes through the repo seam (repo.go): the verbs' tests hold
+// that state in memRepo and never fake an own-repo command by argv, which only execRepo's own
+// tests pin. What it asks of the package channels' repositories — the tap, the bucket and
+// winget-pkgs — goes through the channelRepos seam (channelrepos.go) the same way: the verbs'
+// tests hold them in memChannelRepos, and only execChannelRepos' own tests pin its argv. The
+// runner's fakes answer the toolchain, dist's read of its source tree's commit time, komac,
+// `gh auth token`, brew and the released binaries the smoke test runs.
 //
 // It is a dev tool, never a release asset: dist does not ship it, and it imports nothing from
 // capcom's internal packages.

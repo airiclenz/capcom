@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"debug/buildinfo"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -25,13 +24,9 @@ const (
 	smokeBrewPrefix = "/opt/homebrew"
 )
 
-// smokeReadBucket is the one channel command whose answer the smoke tests vary, keyed as
-// smokeFake.failing reads it.
-const smokeReadBucket = "gh api repos/airiclenz/scoop-bucket/contents/bucket/capcom.json --jq .content"
-
 // smokeFake is a published publishVersion whose assets sit in releaseDir: repo holds the
-// checkout and its GitHub repository, and respond answers the channel and binary commands the
-// way gh, brew and the released binaries would.
+// checkout and its GitHub repository, channels the bucket, and respond answers the brew and
+// binary commands the way brew and the released binaries would.
 type smokeFake struct {
 	releaseDir string
 	repo       memRepo
@@ -46,10 +41,10 @@ type smokeFake struct {
 	// "installed"; brewReports is what its capcom prints for `capcom version`.
 	brew        string
 	brewReports string
-	// manifest is the bucket's manifest, "" for none (GitHub answers 404).
-	manifest string
-	// failing makes a command line fail with the error.
-	failing map[string]error
+	// manifest is the bucket's manifest, "" for none; bucketFailure, when set, is the error
+	// reading it fails with.
+	manifest      string
+	bucketFailure error
 }
 
 // newSmokeFake is a release published in full: the annotated tag is on origin and fetched, the
@@ -71,7 +66,6 @@ func newSmokeFake(t *testing.T) *smokeFake {
 		brew:          "installed",
 		brewReports:   "capcom " + strings.TrimPrefix(publishVersion, "v"),
 		manifest:      manifest,
-		failing:       map[string]error{},
 	}
 }
 
@@ -104,6 +98,16 @@ func publishedRepo(t *testing.T, releaseDir string) memRepo {
 // openRepo opens the fake's repo whatever the directory, as it stands when the run opens it.
 func (f *smokeFake) openRepo(string) repo {
 	return f.repo
+}
+
+// channels returns the channel repositories as the fake stands: the bucket holding its manifest,
+// read failing with bucketFailure when it is set.
+func (f *smokeFake) channels() memChannelRepos {
+	channels := bucketHolding(f.manifest)
+	if f.bucketFailure != nil {
+		channels = channels.withFailure(methodReadFile, bucketRepo, f.bucketFailure)
+	}
+	return channels
 }
 
 // publishedRelease builds publishVersion's six archives and SHA256SUMS with the fake toolchain
@@ -139,9 +143,6 @@ func writeReleaseTree(dir string) error {
 // respond answers one command.
 func (f *smokeFake) respond(call recordedCall) (string, error) {
 	line := call.name + " " + strings.Join(call.args, " ")
-	if err, isFailing := f.failing[line]; isFailing {
-		return "", err
-	}
 	args := call.args
 	switch {
 	case line == "brew list --formula capcom":
@@ -166,11 +167,6 @@ func (f *smokeFake) respond(call recordedCall) (string, error) {
 			return "", err
 		}
 		return fmt.Sprintf("capcom %s (%s)\n", f.binaryVersion, strings.TrimSpace(string(stub))), nil
-	case line == smokeReadBucket:
-		if f.manifest == "" {
-			return "", fmt.Errorf("gh: Not Found (HTTP 404)")
-		}
-		return base64.StdEncoding.EncodeToString([]byte(f.manifest)) + "\n", nil
 	}
 	return "", fmt.Errorf("unexpected command %q", line)
 }
@@ -201,7 +197,8 @@ type smokeRunResult struct {
 }
 
 // runTestSmoke runs smoke of publishVersion over fake from a linux/amd64 host, comparing against
-// the published release's own build, after adjust has changed the options.
+// the published release's own build, after adjust has changed the options; the channel
+// repositories, unless adjust sets them, are the fake's as adjust left it.
 func runTestSmoke(t *testing.T, fake *smokeFake, adjust func(options *smokeOptions)) smokeRunResult {
 	t.Helper()
 	options := smokeOptions{
@@ -215,6 +212,9 @@ func runTestSmoke(t *testing.T, fake *smokeFake, adjust func(options *smokeOptio
 	}
 	if adjust != nil {
 		adjust(&options)
+	}
+	if options.channels == nil {
+		options.channels = fake.channels()
 	}
 	commands := &fakeRunner{respond: fake.respond}
 	var output bytes.Buffer
@@ -319,7 +319,7 @@ func TestSmokeChecks(t *testing.T) {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
 				fake.repo.failures[methodRemoteTagType] = notFound
 				fake.repo.failures[methodReadAsset] = notFound
-				fake.failing[smokeReadBucket] = notFound
+				fake.bucketFailure = notFound
 			},
 			wantResults: [][2]string{{"SKIP", "gh is not installed"}},
 			wantTally:   "1 passed, 0 failed, 6 skipped",
@@ -553,7 +553,7 @@ func TestSmokeVersion(t *testing.T) {
 				fake := newSmokeFake(t)
 				commands := &fakeRunner{respond: fake.respond}
 
-				output, err := executeWith(t, commands, fake.openRepo, nil, tc.args...)
+				output, err := executeWith(t, commands, fake.openRepo, fake.channels(), tc.args...)
 
 				if tc.wantError != "" {
 					var failed runError
@@ -598,7 +598,7 @@ func TestSmokeFailureIsARunFailure(t *testing.T) {
 	fake := newSmokeFake(t)
 	fake.repo.remoteTags = map[string]string{}
 
-	output, err := executeWith(t, &fakeRunner{respond: fake.respond}, fake.openRepo, nil, "smoke", publishVersion)
+	output, err := executeWith(t, &fakeRunner{respond: fake.respond}, fake.openRepo, fake.channels(), "smoke", publishVersion)
 
 	if err == nil || exitCodeFor(err) != exitRunFailed {
 		t.Errorf("smoke error = %v (exit %d), want a run failure (exit %d)", err, exitCodeFor(err), exitRunFailed)
