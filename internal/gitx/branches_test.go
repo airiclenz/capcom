@@ -109,6 +109,36 @@ func TestBranches_UnbornRepository_ListsNone(t *testing.T) {
 	}
 }
 
+func TestHasCommit_NotARepository_ReturnsTheGitError(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	setHermeticGitEnv(t, root)
+
+	hasCommit, err := HasCommit(root, "HEAD")
+
+	var gitFailure *Error
+	if hasCommit || !errors.As(err, &gitFailure) {
+		t.Errorf("HasCommit(HEAD) outside a repository = %v, %v; want false and the git error", hasCommit, err)
+	}
+}
+
+func TestHasCommit_UnbornHead_IsFalseWithoutError(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	setHermeticGitEnv(t, root)
+	git(t, root, "init", "-q")
+
+	hasCommit, err := HasCommit(root, "HEAD")
+
+	if hasCommit || err != nil {
+		t.Errorf("HasCommit(HEAD) on an unborn branch = %v, %v; want false and no error", hasCommit, err)
+	}
+}
+
 func TestIsAncestor_MergedAndDivergedBranches(t *testing.T) {
 	root := newRepo(t)
 	git(t, root, "branch", "merged")
@@ -122,6 +152,16 @@ func TestIsAncestor_MergedAndDivergedBranches(t *testing.T) {
 	if mergedErr != nil || divergedErr != nil || !isMerged || isDiverged {
 		t.Errorf("merged = %v (%v), diverged = %v (%v); want true and false",
 			isMerged, mergedErr, isDiverged, divergedErr)
+	}
+}
+
+func TestIsAncestor_MissingRef_ReturnsAnError(t *testing.T) {
+	root := newRepo(t)
+
+	isAncestor, err := IsAncestor(root, "refs/heads/no-such-branch", "HEAD")
+
+	if isAncestor || err == nil {
+		t.Errorf("IsAncestor(missing ref) = %v, %v; want false and an error", isAncestor, err)
 	}
 }
 

@@ -26,6 +26,9 @@ const (
 	currentMarker = "*"
 	// notAncestorExit is the exit code of `merge-base --is-ancestor` when the answer is no.
 	notAncestorExit = 1
+	// noCommitExit is the exit code of `rev-parse --verify --quiet` when the revision names no
+	// commit; any other failure, such as 128 outside a repository, is a real git error.
+	noCommitExit = 1
 )
 
 // Change letters of `diff --name-status`.
@@ -134,14 +137,15 @@ func CurrentBranch(dir string) (string, error) {
 }
 
 // HasCommit reports whether revision names a commit in the repository containing dir; it is false
-// for HEAD on an unborn branch.
+// for HEAD on an unborn branch. A git failure other than "names no commit", such as dir lying
+// outside any repository, is returned as an error.
 func HasCommit(dir, revision string) (bool, error) {
 	_, err := run(dir, "rev-parse", "--verify", "--quiet", revision+"^{commit}")
 	if err == nil {
 		return true, nil
 	}
-	var gitFailure *Error
-	if errors.As(err, &gitFailure) {
+	var exitFailure *exec.ExitError
+	if errors.As(err, &exitFailure) && exitFailure.ExitCode() == noCommitExit {
 		return false, nil
 	}
 	return false, err

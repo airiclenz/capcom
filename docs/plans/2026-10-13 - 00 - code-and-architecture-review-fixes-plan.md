@@ -816,7 +816,7 @@ Depends on P0.9.
 - `go vet ./internal/elsewhere/`
 **Commit:** `fix(elsewhere): skip the scan when elsewhere.days is 0`
 
-## P1.26 gitx: HasCommit returns fatal git failures; pin IsAncestor's error path
+## P1.26 gitx: HasCommit returns fatal git failures; pin IsAncestor's error path — ✅ DONE (2026-10-13)
 
 **What:** Fixes F-19 (`hascommit-fatal-exit`): `gitx.HasCommit` maps every git exit to "no such commit". The item also adds T-08's (`isancestor-error-test`) `IsAncestor` error test.
 **Goal:** `HasCommit` returns `(false, nil)` only when `rev-parse --verify --quiet` exits 1. Any other git failure, such as exit 128 outside a repository, comes back as `(false, err)`. `IsAncestor` with a ref that does not exist returns `(false, err)` with a non-nil error.
