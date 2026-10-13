@@ -315,6 +315,23 @@ func TestRelatedAdd_KeylessConfig_RaisesTheFormatOnceWithAWarning(t *testing.T) 
 	}
 }
 
+func TestRelatedAdd_ConfigOpeningWithDocumentMarker_RaisesInsideIt(t *testing.T) {
+	root := newRelatedStore(t)
+	writeIssueFiles(t, root, map[string]string{"review-me.md": readIssue("Review me", "review", "", "")})
+	statuses := "statuses:\n  open: todo\n  review: doing\n  done: done\n"
+	writeStoreConfig(t, root, "# mine\n---\n"+statuses)
+
+	mustRun(t, root, "related", "add", "login-flow", "db-schema")
+	listed := mustRun(t, root, "list")
+
+	if config := readStoreConfig(t, root); config != "# mine\n---\nformat: 2\n"+statuses {
+		t.Errorf("config.yaml = %q", config)
+	}
+	if !strings.Contains(listed, "review-me") {
+		t.Errorf("list = %q, want it to list review-me", listed)
+	}
+}
+
 func TestRelatedAdd_MissingConfig_CreatesItAtFormatTwo(t *testing.T) {
 	root := newRelatedStore(t)
 	if err := os.Remove(filepath.Join(root, ".capcom", "config.yaml")); err != nil {

@@ -1,7 +1,10 @@
 package frontmatter
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"slices"
 	"strconv"
@@ -55,11 +58,12 @@ type Field struct {
 // keys calls apply never.
 //
 // Decode fails, with an *Error citing the file line, wherever Split does, on invalid YAML, on a
-// frontmatter that is not a mapping, on a repeated key, on a key outside kind.Keys (its message
-// ends with a hint generated from them: `; a note has title, labels, refs, retired, superseded-by
-// and aliases`), and with the first error apply returns. When the frontmatter holds a git conflict
-// marker, a failure past Split cites the first marker instead, in the words `capcom check` reports
-// it with, since the marker, not the YAML it breaks, is what to fix.
+// second YAML document, on a frontmatter that is not a mapping, on a repeated key, on a key outside
+// kind.Keys (its message ends with a hint generated from them: `; a note has title, labels, refs,
+// retired, superseded-by and aliases`), and with the first error apply returns. When the
+// frontmatter holds a git conflict marker, a failure past Split cites the first marker instead, in
+// the words `capcom check` reports it with, since the marker, not the YAML it breaks, is what to
+// fix.
 func Decode(path string, data []byte, kind Kind, apply func(Field) error) (Document, error) {
 	front, body, err := Split(path, data, kind.Noun)
 	if err != nil {
@@ -110,10 +114,22 @@ func (d decoder) decode(front string) (map[string]int, error) {
 }
 
 // document parses the frontmatter into its top-level mapping node, or nil when it holds no keys.
+// It fails on a second YAML document, so no key escapes the checks behind a `---` or `...` line.
 func (d decoder) document(front string) (*yaml.Node, error) {
+	decoder := yaml.NewDecoder(bytes.NewReader([]byte(front)))
 	var document yaml.Node
-	if err := yaml.Unmarshal([]byte(front), &document); err != nil {
+	if err := decoder.Decode(&document); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, nil
+		}
 		return nil, d.yamlError(err)
+	}
+	var second yaml.Node
+	if err := decoder.Decode(&second); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return nil, d.yamlError(err)
+		}
+		return nil, errorAt(d.path, &second, "only one YAML document is allowed")
 	}
 	if len(document.Content) == 0 {
 		return nil, nil

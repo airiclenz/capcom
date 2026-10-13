@@ -157,6 +157,18 @@ func TestDecode_Failures_CiteFileLine(t *testing.T) {
 			want:    testPath + ":3: priority: expected a whole number from 0 to 4",
 		},
 		{
+			name:    "content after a document end marker",
+			kind:    noteKind,
+			content: "---\ntitle: a\n...\nbogus: 1\n---\n",
+			want:    testPath + ":3: invalid YAML frontmatter: did not find expected <document start>",
+		},
+		{
+			name:    "second document",
+			kind:    noteKind,
+			content: "---\ntitle: a\n--- \nbogus: 1\n---\n",
+			want:    testPath + ":3: only one YAML document is allowed",
+		},
+		{
 			name:    "conflict marker overrides the failure it causes",
 			kind:    noteKind,
 			content: "---\n<<<<<<< HEAD\ntitle: A\n=======\ntitle: B\n>>>>>>> other\n---\n",

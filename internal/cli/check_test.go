@@ -130,3 +130,27 @@ func TestCheck_LogMergeConflict_ReportsEachMarkerAndExitsOne(t *testing.T) {
 		}
 	}
 }
+
+func TestCheck_ConfigWithSecondDocument_ReportsItsLine(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
+	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n---\ncolour: blue\n")
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	want := ".capcom/config.yaml:2: only one YAML document is allowed\n"
+	if exitCode != ExitError || stdout != want {
+		t.Errorf("check = %d, stdout %q; want 1 and %q", exitCode, stdout, want)
+	}
+}
+
+func TestCheck_FrontmatterWithSecondDocument_ReportsItsLine(t *testing.T) {
+	second := strings.Replace(validIssue, "priority: 2\n", "priority: 2\n--- \nupdated: today\n", 1)
+	root := newIssueStore(t, map[string]string{"valid-issue.md": second})
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	want := ".capcom/issues/valid-issue.md:6: only one YAML document is allowed\n"
+	if exitCode != ExitError || stdout != want {
+		t.Errorf("check = %d, stdout %q; want 1 and %q", exitCode, stdout, want)
+	}
+}

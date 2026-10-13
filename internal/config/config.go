@@ -227,29 +227,32 @@ func Parse(path string, data []byte) (Config, error) {
 }
 
 // realFormatLine matches a top-level format key and captures its value; commentedFormatLine
-// matches a commented-out one such as the format-1 template's `# format: 1`.
+// matches a commented-out one such as the format-1 template's `# format: 1`; documentStartLine
+// matches a `---` document start marker, trailing blanks or a comment allowed.
 var (
 	realFormatLine      = regexp.MustCompile(`^format:[ \t]*([^#\s]*)`)
 	commentedFormatLine = regexp.MustCompile(`^#[ \t]*format:[ \t]*[0-9]+[ \t]*$`)
+	documentStartLine   = regexp.MustCompile(`^---(?:[ \t]+(?:#.*)?)?$`)
 )
 
 // RaiseFormat returns config.yaml content that declares at least the given store format, every
 // other byte kept, and whether it changed anything. A top-level format line is replaced by
-// `format: <version>`; failing that, a commented-out one is, and the format-1 template's comment
-// line directly above it becomes the current template's. Content with neither gains
-// `format: <version>` as its first line, so the key is never written twice. Content already at
-// version or above is returned unchanged.
+// `format: <version>`; failing that, a commented-out one inside the document is, and the format-1
+// template's comment line directly above it becomes the current template's. Content with neither
+// gains `format: <version>` as a line of its own: directly after the `---` line that opens the
+// document, when one does, otherwise as the first line. The key is never written twice, nor
+// outside the document. Content already at version or above is returned unchanged.
 func RaiseFormat(data []byte, version int) ([]byte, bool) {
 	lines := bytes.SplitAfter(data, []byte("\n"))
-	index, declared := findFormatLine(lines)
+	start := documentStart(lines)
+	index, declared := findFormatLine(lines, start+1)
 	if declared >= version {
 		return data, false
 	}
 
 	formatKey := fmt.Sprintf("%s: %d", keyFormat, version)
 	if index < 0 {
-		raised := append([]byte(formatKey+lineEnding(lines[0], "\n")), data...)
-		return raised, true
+		return insertLine(lines, start+1, formatKey), true
 	}
 	isCommented := commentedFormatLine.Match(trimLineEnding(lines[index]))
 	lines[index] = []byte(formatKey + lineEnding(lines[index], ""))
@@ -259,10 +262,49 @@ func RaiseFormat(data []byte, version int) ([]byte, bool) {
 	return bytes.Join(lines, nil), true
 }
 
+// documentStart returns the index of the `---` line that opens the document, or -1 when the
+// content does not open with one: only blank lines, comments and `%` directives may precede it.
+func documentStart(lines [][]byte) int {
+	for index, line := range lines {
+		content := trimLineEnding(line)
+		trimmed := bytes.TrimLeft(content, " \t")
+		switch {
+		case documentStartLine.Match(content):
+			return index
+		case len(trimmed) == 0, trimmed[0] == '#', content[0] == '%':
+			continue
+		default:
+			return -1
+		}
+	}
+	return -1
+}
+
+// insertLine returns lines joined with text inserted as a line of its own before lines[at]. The
+// new line ends like the line above it (the first line, when at is 0), with LF failing that; a
+// last line without an ending gains one so the new line stays separate.
+func insertLine(lines [][]byte, at int, text string) []byte {
+	above := lines[max(at-1, 0)]
+	ending := lineEnding(above, "\n")
+	var joined bytes.Buffer
+	for _, line := range lines[:at] {
+		joined.Write(line)
+	}
+	if at > 0 && lineEnding(above, "") == "" {
+		joined.WriteString(ending)
+	}
+	joined.WriteString(text + ending)
+	for _, line := range lines[at:] {
+		joined.Write(line)
+	}
+	return joined.Bytes()
+}
+
 // findFormatLine returns the index of the line holding the top-level format key and the format it
-// declares, or, without one, the first commented-out format line and keylessFormat. With neither
-// the index is -1. A value that is not a whole number declares format 0, below every version.
-func findFormatLine(lines [][]byte) (index int, declared int) {
+// declares, or, without one, the first commented-out format line from the line index from on and
+// keylessFormat. With neither the index is -1. A value that is not a whole number declares format
+// 0, below every version.
+func findFormatLine(lines [][]byte, from int) (index int, declared int) {
 	commented := -1
 	for lineIndex, line := range lines {
 		content := trimLineEnding(line)
@@ -273,7 +315,7 @@ func findFormatLine(lines [][]byte) (index int, declared int) {
 			}
 			return lineIndex, version
 		}
-		if commented < 0 && commentedFormatLine.Match(content) {
+		if commented < 0 && lineIndex >= from && commentedFormatLine.Match(content) {
 			commented = lineIndex
 		}
 	}
@@ -310,7 +352,8 @@ func (p parser) errorAt(node *yaml.Node, format string, args ...any) *Error {
 	return failure
 }
 
-// document parses data into its top-level mapping node, or nil for an empty document.
+// document parses data into its top-level mapping node, or nil for an empty document. It fails on
+// a second YAML document, so no key escapes the checks behind a `---` or `...` line.
 func (p parser) document(data []byte) (*yaml.Node, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	var document yaml.Node
@@ -318,7 +361,14 @@ func (p parser) document(data []byte) (*yaml.Node, error) {
 		if err == io.EOF {
 			return nil, nil
 		}
-		return nil, &Error{Path: p.path, Message: fmt.Sprintf("invalid YAML: %v", err)}
+		return nil, p.yamlError(err)
+	}
+	var second yaml.Node
+	if err := decoder.Decode(&second); err != io.EOF {
+		if err != nil {
+			return nil, p.yamlError(err)
+		}
+		return nil, p.errorAt(&second, "only one YAML document is allowed")
 	}
 	if len(document.Content) == 0 {
 		return nil, nil
@@ -331,6 +381,11 @@ func (p parser) document(data []byte) (*yaml.Node, error) {
 		return nil, p.errorAt(root, "the config must be a mapping of keys")
 	}
 	return root, nil
+}
+
+// yamlError turns a yaml.v3 syntax error into an *Error; the line stays inside the message.
+func (p parser) yamlError(err error) *Error {
+	return &Error{Path: p.path, Message: fmt.Sprintf("invalid YAML: %v", err)}
 }
 
 // format reads the format key of root before any other key is looked at, so a store newer than

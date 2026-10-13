@@ -508,7 +508,11 @@ NOTES (2026-10-13): the three branches the Approach describes live in one shared
 - `go vet ./internal/cli/`
 **Commit:** `fix(cli): remove a dangling dep or related entry by its text before prefix matching`
 
-## P1.3 A second YAML document in front matter or config.yaml is an error
+## P1.3 A second YAML document in front matter or config.yaml is an error — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): config gains a one-line parser.yamlError helper so both Decode calls share the existing `invalid YAML: …` wording; RaiseFormat's inserted line goes through a new insertLine helper, which also gives a `---` last line without a newline its line ending.
+NOTES (2026-10-13): added TestParse_ContentAfterDocumentEnd_FailsAsInvalidYAMLNamingItsLine (config, not in the plan's test list) to pin the guard's `...` path; the RaiseFormat table also gained `--- # mine` and `# c\n---` (no newline) cases, and every case now checks the statuses re-parse unchanged.
+NOTES (2026-10-13): pre-existing, not changed: RaiseFormat still prepends `format:` to a config whose top-level mapping is flow-style (`{...}`) or indented, or whose `---` line carries content, which leaves it unparseable; that predates this item.
 
 **What:** Fixes F-08 (`yaml-multi-document`): both YAML decoders read only the first document, so anything after a `...` or a second `---` escapes the strict checks, and `config.RaiseFormat` prepends `format:` above a leading `---`, making a two-document config.
 **Regression guard.** A first `Decode` that returns `io.EOF` is the no-key frontmatter (return nil, as config's `parser.document` does); only the second `Decode` must return `io.EOF`. For config.yaml the Goal's "at a line" covers the `---` case only: content after `...` fails through config's `invalid YAML: …` path, with the line only in the message. `RaiseFormat`'s commented-key branch follows the same document-start rule: a commented format line before the first `---` counts as absent (insert after `---`, leave the comment).

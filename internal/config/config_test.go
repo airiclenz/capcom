@@ -174,6 +174,14 @@ func TestRaiseFormat_RewritesOrInsertsOneFormatKey(t *testing.T) {
 		{"CRLF kept", "types: [bug]\r\nformat: 1\r\n", "types: [bug]\r\nformat: 2\r\n"},
 		{"CRLF on insert", "types: [bug]\r\n", "format: 2\r\ntypes: [bug]\r\n"},
 		{"no final newline", "types: [bug]\nformat: 1", "types: [bug]\nformat: 2"},
+		{"document start", "---\n" + reviewStatuses, "---\nformat: 2\n" + reviewStatuses},
+		{"document start with a comment", "--- # mine\n" + reviewStatuses, "--- # mine\nformat: 2\n" + reviewStatuses},
+		{"comment before the document start", "# c\n---\n" + reviewStatuses, "# c\n---\nformat: 2\n" + reviewStatuses},
+		{"directive before the document start", "%YAML 1.1\n---\n" + reviewStatuses,
+			"%YAML 1.1\n---\nformat: 2\n" + reviewStatuses},
+		{"commented key before the document start", "# format: 1\n---\n" + reviewStatuses,
+			"# format: 1\n---\nformat: 2\n" + reviewStatuses},
+		{"document start at end of file", "# c\n---", "# c\n---\nformat: 2\n"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -188,9 +196,16 @@ func TestRaiseFormat_RewritesOrInsertsOneFormatKey(t *testing.T) {
 			if err != nil || config.Format != 2 {
 				t.Errorf("Parse(raised) = format %d, %v; want format 2", config.Format, err)
 			}
+			original, err := Parse(testPath, []byte(testCase.content))
+			if err != nil || !reflect.DeepEqual(config.Statuses, original.Statuses) {
+				t.Errorf("Parse(raised) statuses = %+v, want %+v (%v)", config.Statuses, original.Statuses, err)
+			}
 		})
 	}
 }
+
+// reviewStatuses is a statuses key with a status the default configuration does not have.
+const reviewStatuses = "statuses:\n  open: todo\n  review: doing\n  done: done\n"
 
 func TestRaiseFormat_AtOrAboveVersion_IsUnchanged(t *testing.T) {
 	t.Parallel()
@@ -292,6 +307,7 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 		{"non-integer format", "format: x\n", 1},
 		{"fractional format", "format: 1.5\n", 1},
 		{"format not a scalar", "format:\n  - 1\n", 2},
+		{"second document", "format: 2\n---\nstatuses:\n  open: todo\n  done: done\n", 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -338,6 +354,17 @@ func TestParse_MalformedYAML_NamesFile(t *testing.T) {
 	var failure *Error
 	if !errors.As(err, &failure) || failure.Path != testPath {
 		t.Errorf("err = %v, want a *config.Error naming %s", err, testPath)
+	}
+}
+
+func TestParse_ContentAfterDocumentEnd_FailsAsInvalidYAMLNamingItsLine(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse(testPath, []byte("types: [bug]\n...\ncolour: blue\n"))
+
+	var failure *Error
+	if !errors.As(err, &failure) || !strings.HasPrefix(failure.Message, "invalid YAML: yaml: line 2: ") {
+		t.Errorf("err = %v, want a *config.Error with an invalid YAML message naming line 2", err)
 	}
 }
 
