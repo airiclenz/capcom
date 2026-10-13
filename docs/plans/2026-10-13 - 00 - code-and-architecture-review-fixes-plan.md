@@ -1404,7 +1404,11 @@ Depends on P2.8.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers, the trimmed block comments and the doc map. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(cli): collect the shared flag constants in flags.go`
 
-## P2.21 Split cli/know.go per subcommand
+## P2.21 Split cli/know.go per subcommand — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): noteFromFile (added by P1.1) went to know_show.go, its only user; resolveNote, noteData/newNoteData, retiredFlagUsage and childrenByParent stay in know.go as shared by two or more subcommands; flagRetired joined flagDepth in flags.go's know block (gofmt realigned the flagDepth line).
+NOTES (2026-10-13): the know.go const block ("Flags of the know subcommands.") is gone; its members sit in blocks "Flags of capcom know tree." (flagBackground), "Flags of capcom know show." (flagWithChildren), "Flags of capcom know add." (flagRef), and kindNoteWrite in know_add.go gained its own doc comment ("the --json kind of every command that writes a Note") since it no longer shares a block.
+NOTES (2026-10-13): issue bodies know-update-empty-label and split-know-go cite internal/cli/know.go line numbers that are now stale; left untouched (issue register is not this item's to edit).
 
 **What:** Pure move per review P2-08, matching the existing `know_update.go`, `know_mv.go` and `know_rm.go`.
 **Regression guard.** `flagRetired`, used by know tree, know show and know search, moves to flags.go here; `flagWithChildren`, `flagRef` and `flagBackground` go to know_show.go, know_add.go and know_tree.go. `childrenByParent`, used by know tree and know show --with-children, stays in know.go. The move-only check allows the comments of the split const block.

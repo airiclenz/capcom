@@ -38,7 +38,8 @@ const (
 
 // Flags of the know subcommands that other commands share.
 const (
-	flagDepth = "depth"
+	flagDepth   = "depth"
+	flagRetired = "retired"
 )
 
 // flagNoElsewhere skips the Elsewhere scan of the commands that run one.

@@ -18,10 +18,15 @@
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search
-//   - `know.go` — capcom know and its tree, show, search, add and verify subcommands
+//   - `know.go` — capcom know and the Note data, resolution and grouping its subcommands share
+//   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and AGENTS.md refresh
 //   - `know_mv.go` — capcom know mv: renames a Note or moves it below another
 //   - `know_rm.go` — capcom know rm: removes a Note that has no children
+//   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word
+//   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
+//   - `know_tree.go` — capcom know tree: the outline of Note ids and titles
 //   - `know_update.go` — capcom know update: changes a Note through the node store
+//   - `know_verify.go` — capcom know verify: lists the Note refs that no longer resolve
 //   - `list.go` — capcom list: lists issues by filter
 //   - `lock.go` — capcom lock acquire, touch, release, break, check and status: the Tree lock
 //   - `log.go` — capcom log: appends an entry to an issue's Log
