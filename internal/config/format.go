@@ -83,7 +83,7 @@ func insertLine(lines [][]byte, at int, text string) []byte {
 
 // findFormatLine returns the index of the line holding the top-level format key and the format it
 // declares, or, without one, the first commented-out format line from the line index from on and
-// keylessFormat. With neither the index is -1. A value that is not a whole number declares format
+// MissingFormat. With neither the index is -1. A value that is not a whole number declares format
 // 0, below every version.
 func findFormatLine(lines [][]byte, from int) (index int, declared int) {
 	commented := -1
@@ -100,7 +100,7 @@ func findFormatLine(lines [][]byte, from int) (index int, declared int) {
 			commented = lineIndex
 		}
 	}
-	return commented, keylessFormat
+	return commented, MissingFormat
 }
 
 // trimLineEnding returns line without its trailing LF or CRLF.

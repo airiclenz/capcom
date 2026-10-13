@@ -8,22 +8,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Store formats of the writes that raise the store format: capcom related add and know update.
-const (
-	// relatedFormatVersion is the first store format whose issue files may carry related links.
-	relatedFormatVersion = 2
-	// supersessionFormatVersion is the first store format whose Note files may carry the retired
-	// and superseded-by keys.
-	supersessionFormatVersion = 3
-	// formatRaisedWarning is the warning of the write that raises the store format: the config
-	// file, the new format, and the format older releases read.
-	formatRaisedWarning = "%s: store format raised to %d; capcom releases that read only format %d can no longer read this store"
-)
+// formatRaisedWarning is the warning of the write that raises the store format (capcom related add
+// and know update): the config file, the new format, and the format older releases read.
+const formatRaisedWarning = "%s: store format raised to %d; capcom releases that read only format %d can no longer read this store"
 
 // newRelatedCommand groups the commands that add and remove Related links. A link is stored on
 // one issue only, under the canonical id of the other; show derives the reverse.
@@ -74,7 +67,7 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 				}
 				// Raised only once the etag check has passed, and before the link is written, so a
 				// store never holds a related link while it still declares format 1.
-				raiseWarning, raiseErr := a.raiseStoreFormat(relatedFormatVersion)
+				raiseWarning, raiseErr := a.raiseStoreFormat(config.FormatRelated)
 				if raiseErr != nil {
 					return issue.Issue{}, raiseErr
 				}

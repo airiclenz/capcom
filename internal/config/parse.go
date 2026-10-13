@@ -19,7 +19,7 @@ var categories = []Category{CategoryTodo, CategoryDoing, CategoryWaiting, Catego
 func Parse(path string, data []byte) (Config, error) {
 	p := parser{path: path}
 	config := Default()
-	config.Format = keylessFormat
+	config.Format = MissingFormat
 
 	root, err := p.document(data)
 	if err != nil {

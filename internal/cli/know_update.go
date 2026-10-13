@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
@@ -182,7 +183,7 @@ func (a *app) updateNote(
 		}
 		// Raised only once the etag check has passed, and before the keys are written, so a store
 		// never holds a format-3 key while it still declares an older format.
-		raiseWarning, raiseErr := a.raiseStoreFormat(supersessionFormatVersion)
+		raiseWarning, raiseErr := a.raiseStoreFormat(config.FormatSupersession)
 		if raiseErr != nil {
 			return knowledge.Note{}, raiseErr
 		}

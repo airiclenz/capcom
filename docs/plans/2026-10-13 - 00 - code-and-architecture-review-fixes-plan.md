@@ -1671,7 +1671,10 @@ Depends on P2.35.
 - `go vet ./internal/cli/`
 **Commit:** `refactor(cli): import internal/briefing under its own name in ready.go`
 
-## P3.1 Config owns the store-format constants
+## P3.1 Config owns the store-format constants — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from the assumption that supersessionFormatVersion, missingConfigFormat, declaredFormat and checkSupersession live in internal/check/check.go; P2.13 moved them to internal/check/notes.go, which is edited instead and check.go is untouched.
+NOTES (2026-10-13): with its two format constants gone, cli/related.go's const block held only formatRaisedWarning, so it became a single const declaration whose comment names the two raising writes the removed block comment named.
 
 **What:** First part of A-07 (`config-owns-format`). The format rules move to one owner, `config`, and their copies in `check` and `cli` go. Behaviour is unchanged.
 **Regression guard.** `declaredFormat` returns `config.MissingFormat` and `missingConfigFormat` is deleted here, so `check` defines no format constant of its own; P3.2 then deletes only `declaredFormat`.

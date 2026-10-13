@@ -7,23 +7,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // refSymbolSeparator splits a Note Ref into its path and symbol.
 const refSymbolSeparator = "#"
-
-// Store formats of the supersession check (ADR 0009).
-const (
-	// supersessionFormatVersion is the first store format whose Note files may carry the retired
-	// and superseded-by keys.
-	supersessionFormatVersion = 3
-	// missingConfigFormat is the format of a store without config.yaml: a missing format key means
-	// format 1, and config.Default stands in for the file at the current format only so that the
-	// other config defaults apply.
-	missingConfigFormat = 1
-)
 
 // The Note keys a store needs format 3 for, as Problems name them.
 const (
@@ -81,7 +71,7 @@ func (c *checker) declaredFormat() (int, error) {
 	path := c.store.ConfigPath()
 	_, err := os.Stat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return missingConfigFormat, nil
+		return config.MissingFormat, nil
 	}
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", c.relative(path), err)
@@ -125,7 +115,7 @@ func (c *checker) checkSupersession(
 			))
 		}
 	}
-	if declaredFormat >= supersessionFormatVersion {
+	if declaredFormat >= config.FormatSupersession {
 		return
 	}
 	keyLines := []struct {
@@ -143,9 +133,9 @@ func (c *checker) checkSupersession(
 			"%s needs store format %d, but the store declares format %d: set format: %d in %s, "+
 				"or run a capcom write verb that raises it",
 			keyLine.key,
-			supersessionFormatVersion,
+			config.FormatSupersession,
 			declaredFormat,
-			supersessionFormatVersion,
+			config.FormatSupersession,
 			c.relative(c.store.ConfigPath()),
 		))
 	}

@@ -27,9 +27,17 @@ const (
 // superseded-by keys to Notes.
 const FormatVersion = 3
 
-// keylessFormat is the format of a config.yaml without a format key: every store written before
-// the key existed (ADR 0009).
-const keylessFormat = 1
+// The store formats that capcom's format rules name (ADR 0009).
+const (
+	// MissingFormat is the format of a store with no config.yaml, or of a config.yaml with no
+	// format key: every store written before the key existed.
+	MissingFormat = 1
+	// FormatRelated is the first store format whose issue files may carry the related key.
+	FormatRelated = 2
+	// FormatSupersession is the first store format whose Note files may carry the retired and
+	// superseded-by keys.
+	FormatSupersession = 3
+)
 
 // formatComment is the template's comment line above its format key.
 const formatComment = "# The store format version. capcom refuses a store whose format is newer than it reads."
