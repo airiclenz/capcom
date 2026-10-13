@@ -1,6 +1,8 @@
 package lock
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -86,7 +88,7 @@ func TestLocks_AcquireTouchRelease_CycleFreesTheLock(t *testing.T) {
 	if err != nil || after.IsHeld {
 		t.Fatalf("after release: %+v, err %v", after, err)
 	}
-	if touched.Record.Heartbeat.Before(acquired.Record.Heartbeat) || !touched.Record.Since.Equal(acquired.Record.Since) {
+	if !touched.Record.Since.Equal(acquired.Record.Since) {
 		t.Errorf("touched = %+v, acquired = %+v", touched.Record, acquired.Record)
 	}
 	if released.Record.Token != acquired.Record.Token {
@@ -205,6 +207,66 @@ func TestTouch_FreeLock_FailsNotHeld(t *testing.T) {
 	}
 	if status.Key != MainWorktreeKey || status.IsHeld {
 		t.Errorf("status = %+v, want the free lock of %q", status, MainWorktreeKey)
+	}
+}
+
+func TestTouch_TokenOfDisplacedHolder_FailsHeldAndKeepsTheNewRecord(t *testing.T) {
+	t.Parallel()
+	locks, commonDir := openTest(t)
+	displaced := mustAcquire(t, locks, MainWorktreeKey)
+	if _, _, err := Open(commonDir, staleTTL).Acquire(MainWorktreeKey, Claim{Holder: "agent-b"}, "", true); err != nil {
+		t.Fatalf("take-stale Acquire: %v", err)
+	}
+	before, err := os.ReadFile(locks.RecordPath(MainWorktreeKey))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	_, err = locks.Touch(MainWorktreeKey, displaced.Record.Token)
+
+	if held := asHeldError(t, err); held.Status.Record.Holder != "agent-b" {
+		t.Errorf("held by %q, want agent-b", held.Status.Record.Holder)
+	}
+	after, err := os.ReadFile(locks.RecordPath(MainWorktreeKey))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Errorf("record changed:\n%s\nwant:\n%s", after, before)
+	}
+}
+
+func TestTouch_BackdatedHeartbeat_AdvancesIt(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	acquired := mustAcquire(t, locks, MainWorktreeKey)
+	stored, err := os.ReadFile(locks.RecordPath(MainWorktreeKey))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var record Record
+	if err := json.Unmarshal(stored, &record); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	backdated := record.Heartbeat.Add(-time.Hour)
+	record.Heartbeat = backdated
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	writeRecord(t, locks, MainWorktreeKey, string(data))
+
+	touched, err := locks.Touch(MainWorktreeKey, acquired.Record.Token)
+	if err != nil {
+		t.Fatalf("Touch: %v", err)
+	}
+	reread, err := locks.Read(MainWorktreeKey)
+
+	if !touched.Record.Heartbeat.After(backdated) {
+		t.Errorf("heartbeat = %v, want after %v", touched.Record.Heartbeat, backdated)
+	}
+	if err != nil || !reread.Record.Heartbeat.Equal(touched.Record.Heartbeat) {
+		t.Errorf("stored heartbeat = %v, err %v; want %v", reread.Record.Heartbeat, err, touched.Record.Heartbeat)
 	}
 }
 

@@ -2895,7 +2895,7 @@ Depends on P3.90; P0.2.
 - `go vet ./internal/briefing/`
 **Commit:** `test(briefing): pin the ready, doing, check and Elsewhere failure order`
 
-## P4.3 Lock Touch by a displaced holder, and a heartbeat that must advance
+## P4.3 Lock Touch by a displaced holder, and a heartbeat that must advance — ✅ DONE (2026-10-13)
 
 **What:** Covers T-05 (`lock-touch-tests`): the displaced session's Touch after a stale takeover, and a heartbeat assertion that fails when Touch leaves it unchanged.
 **Tests:** `internal/lock/lock_test.go`:
