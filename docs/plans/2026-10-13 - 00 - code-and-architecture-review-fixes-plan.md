@@ -1221,7 +1221,10 @@ Depends on P2.5; P0.8.
 - `grep -rnE '\b(tree|edit)\.(ReadNodeFile|ReadRegularFile|WriteFileAtomic|WriteFileAtomicVerbatim|ReplaceFileAtomic|ReplaceFileVerbatim|WriteFileExclusive|ETag)\b' --include=*.go internal/issue internal/knowledge` prints nothing
 **Commit:** `refactor(issue): import the node-file IO from internal/nodefile in issue and knowledge`
 
-## P2.7 nodefile package, part 6: nodestore imports nodefile
+## P2.7 nodefile package, part 6: nodestore imports nodefile — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): lines that gained the longer `nodefile.` qualifier were not rewrapped, to keep the diff to qualifiers and import lines (as in P2.5 and P2.6); four comment lines in nodestore/edit.go and nodestore/kind.go and one code line in nodestore/move.go now run to 101-104 columns.
+NOTES (2026-10-13): edit.go drops both the `edit` and `tree` imports and format.go drops `tree` (their only uses were the forwarded names; format.go keeps a comment-only `*tree.Error` mention); create.go, move.go and remove.go drop `edit` (ETag was its only use).
 
 **What:** Part 6 of review P2-03. The non-test files of `nodestore` call the moved functions through `nodefile`.
 **Regression guard.** The Goal (code and comments) is checked by an Acceptance grep; comment-only sites compile either way.

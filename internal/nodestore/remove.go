@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -163,7 +163,7 @@ func planNoteRemove(nodes *tree.Tree, id string, ifMatch string, _ bool) (*plann
 	if err != nil {
 		return nil, err
 	}
-	if current := edit.ETag(removal.Original); ifMatch != "" && ifMatch != current {
+	if current := nodefile.ETag(removal.Original); ifMatch != "" && ifMatch != current {
 		return nil, &ConflictError{Path: removal.Node.Path, IfMatch: ifMatch, ETag: current}
 	}
 	return &plannedRemoval{

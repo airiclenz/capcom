@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -461,9 +461,9 @@ func (k *Kind[T]) encode(path string, node T) ([]byte, error) {
 // place writes data, the bytes encode returned, to path, the absolute file of the node id, under
 // mode as write documents, and returns the node written.
 func (k *Kind[T]) place(path string, id string, data []byte, mode writeMode) (Written, error) {
-	writeFile := tree.ReplaceFileAtomic
+	writeFile := nodefile.ReplaceFileAtomic
 	if mode == createFile {
-		writeFile = tree.WriteFileExclusive
+		writeFile = nodefile.WriteFileExclusive
 	}
 	err := writeFile(path, bytes.NewReader(data))
 	if mode == replaceFile && errors.Is(err, fs.ErrNotExist) {
@@ -473,7 +473,7 @@ func (k *Kind[T]) place(path string, id string, data []byte, mode writeMode) (Wr
 	if err != nil {
 		return Written{}, err
 	}
-	return Written{ID: id, Path: k.relative(path), ETag: edit.ETag(data)}, nil
+	return Written{ID: id, Path: k.relative(path), ETag: nodefile.ETag(data)}, nil
 }
 
 // validationError is the *FileError of a node at path, relative to the working tree root, that

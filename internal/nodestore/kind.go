@@ -12,6 +12,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -91,11 +92,11 @@ func applyMove(move *tree.Move) ([]error, error) {
 
 // ReadAliases is the tree.AliasFunc of the kind's tree: the Aliases the node file at path records.
 // A file that does not parse contributes none; the index reports it. So does a file
-// tree.ReadNodeFile refuses (not a regular file, or larger than 1 MiB), which is left out unread as
+// nodefile.ReadNodeFile refuses (not a regular file, or larger than 1 MiB), which is left out unread as
 // the walk leaves one out. A file that cannot be read otherwise fails with a *tree.Error naming
 // path as it was given.
 func (k *Kind[T]) ReadAliases(path string) ([]string, error) {
-	data, err := tree.ReadNodeFile(path)
+	data, err := nodefile.ReadNodeFile(path)
 	if isRefusedRead(err) {
 		return nil, nil
 	}
@@ -112,11 +113,11 @@ func (k *Kind[T]) ReadAliases(path string) ([]string, error) {
 
 // RecoverAliases is the recovering lookup of the kind's tree: the aliases rawfm.Aliases still reads
 // from the raw frontmatter of a node file at path that does not parse, and none for one that
-// parses, whose Aliases ReadAliases returns. A file tree.ReadNodeFile refuses gives none, as for
+// parses, whose Aliases ReadAliases returns. A file nodefile.ReadNodeFile refuses gives none, as for
 // ReadAliases. A file that cannot be read otherwise fails with a *tree.Error naming path as it was
 // given.
 func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
-	data, err := tree.ReadNodeFile(path)
+	data, err := nodefile.ReadNodeFile(path)
 	if isRefusedRead(err) {
 		return nil, nil
 	}
@@ -129,7 +130,7 @@ func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 	return rawfm.Aliases(data), nil
 }
 
-// isRefusedRead reports whether err is tree.ReadNodeFile refusing a file unread: one that is not a
+// isRefusedRead reports whether err is nodefile.ReadNodeFile refusing a file unread: one that is not a
 // regular file, or is larger than 1 MiB.
 func isRefusedRead(err error) bool {
 	return errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge)

@@ -3,7 +3,7 @@ package nodestore
 import (
 	"errors"
 
-	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -107,7 +107,7 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 			return Moved{}, nil, err
 		}
 	}
-	if current := edit.ETag(move.original); ifMatch != "" && ifMatch != current {
+	if current := nodefile.ETag(move.original); ifMatch != "" && ifMatch != current {
 		return Moved{}, nil, k.conflictError(node.Path, ifMatch, current)
 	}
 	leftInPlace, err := k.applyMove(move.Move)
@@ -119,7 +119,7 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	}
 
 	moved := Moved{
-		Written: Written{ID: move.NewID, Path: k.relative(move.NewPath), ETag: edit.ETag(move.content)},
+		Written: Written{ID: move.NewID, Path: k.relative(move.NewPath), ETag: nodefile.ETag(move.content)},
 		OldID:   node.ID,
 		OldPath: k.relative(node.Path),
 	}

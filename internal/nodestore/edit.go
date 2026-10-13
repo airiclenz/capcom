@@ -4,8 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/airiclenz/capcom/internal/edit"
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // errNoResolver is the failure of Edit on a Kind built without a Resolver.
@@ -23,7 +22,7 @@ var beforeRecheck = func(path string) {}
 // It runs, in this order, stopping at the first failure:
 //  1. the resolution of ref through the Kind's Resolver, whose failure is returned as it is.
 //  2. the read of the node file: a file that cannot be read, or one that is not a regular file or
-//     is larger than 1 MiB (tree.ReadNodeFile refuses it unread), fails with a *FileError at it.
+//     is larger than 1 MiB (nodefile.ReadNodeFile refuses it unread), fails with a *FileError at it.
 //  3. the etag check: when ifMatch is set and is not the file's etag, a *ConflictError.
 //  4. the parse: a file that does not parse fails with a *FileError at its line when known.
 //  5. change, applied to the parsed node, whose failure is returned unwrapped.
@@ -46,11 +45,11 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	located := Written{ID: target.ID, Path: target.Path}
 	path := filepath.Join(k.worktreeRoot, filepath.FromSlash(target.Path))
 
-	data, err := tree.ReadNodeFile(path)
+	data, err := nodefile.ReadNodeFile(path)
 	if err != nil {
 		return located, k.fileError(path, err)
 	}
-	firstETag := edit.ETag(data)
+	firstETag := nodefile.ETag(data)
 	if ifMatch != "" && ifMatch != firstETag {
 		return located, k.conflictError(path, ifMatch, firstETag)
 	}
@@ -80,11 +79,11 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 // read or its etag is no longer firstETag, the etag Edit first read.
 func (k *Kind[T]) recheck(path string, firstETag string) error {
 	beforeRecheck(path)
-	data, err := tree.ReadNodeFile(path)
+	data, err := nodefile.ReadNodeFile(path)
 	if err != nil {
 		return k.fileError(path, err)
 	}
-	if current := edit.ETag(data); current != firstETag {
+	if current := nodefile.ETag(data); current != firstETag {
 		return k.conflictError(path, firstETag, current)
 	}
 	return nil
