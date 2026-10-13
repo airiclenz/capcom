@@ -4,7 +4,8 @@
 // holds it and whether it is current; Write splices it in by its markers, or appends it when
 // absent, keeping every byte outside the markers and the file's line ending. Sync is the one way
 // callers reconcile the block with the Knowledge tree: it reads the top level and inspects,
-// refreshes or writes in one pass.
+// refreshes or writes in one pass. The block is read and written only in a file inside the working
+// tree: an AGENTS.md that links outside it is never read or written.
 package agents
 
 import (
@@ -81,7 +82,8 @@ type Note struct {
 type State int
 
 const (
-	// StateAbsent is an AGENTS.md without the block, or no AGENTS.md at all.
+	// StateAbsent is an AGENTS.md without the block, no AGENTS.md at all, or an AGENTS.md that links
+	// outside the working tree when the mode does not write.
 	StateAbsent State = iota
 	// StateCurrent is a block equal to what Render produces now.
 	StateCurrent
@@ -112,14 +114,19 @@ type Status struct {
 
 // Error is an AGENTS.md whose markers cannot be told apart: a marker repeated, an end marker
 // before the begin marker, or a begin marker never closed. Line is the offending marker's line.
+// It is also an AGENTS.md a write refuses because it links outside the working tree; Line is 0
+// then.
 type Error struct {
 	Path    string
 	Line    int
 	Message string
 }
 
-// Error renders "path:line: message".
+// Error renders "path:line: message", or "path: message" when Line is 0.
 func (e *Error) Error() string {
+	if e.Line == 0 {
+		return fmt.Sprintf("%s: %s", e.Path, e.Message)
+	}
 	return fmt.Sprintf("%s:%d: %s", e.Path, e.Line, e.Message)
 }
 
@@ -181,9 +188,10 @@ func Render(notes []Note) string {
 }
 
 // Inspect reads the AGENTS.md of worktreeRoot and reports whether its block is absent, current or
-// stale against notes. A missing file is StateAbsent. Line endings are ignored in the comparison,
-// so a CRLF file holding the current block is current. It fails with an *Error on markers that
-// cannot be told apart, and when the file cannot be read.
+// stale against notes. A missing file is StateAbsent, and so is one that links outside the working
+// tree, which is not read. Line endings are ignored in the comparison, so a CRLF file holding the
+// current block is current. It fails with an *Error on markers that cannot be told apart, and when
+// the file cannot be read.
 func Inspect(worktreeRoot string, notes []Note) (Status, error) {
 	return reconcile(worktreeRoot, notes, ModeInspect)
 }
@@ -193,7 +201,8 @@ func Inspect(worktreeRoot string, notes []Note) (Status, error) {
 // a blank line, and a missing file is created holding the block alone; a current block leaves the
 // file untouched. Every byte outside the markers is kept, and the block takes the file's line
 // ending (CRLF when the file has any). It fails as Inspect does, and when the file cannot be
-// written.
+// written. An AGENTS.md that links outside the working tree fails it with an *Error, the file it
+// links to neither read nor written.
 func Write(worktreeRoot string, notes []Note) (Status, error) {
 	return reconcile(worktreeRoot, notes, ModeWrite)
 }
@@ -201,7 +210,9 @@ func Write(worktreeRoot string, notes []Note) (Status, error) {
 // Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
 // tree in knowledgeDir, as mode says, and returns the Status found before any write. It reads the
 // file once: the Status it reports is the one it acted on. It fails as TopNotes does, as Inspect
-// does, and, when mode writes, when the file cannot be written.
+// does, and, when mode writes, when the file cannot be written. An AGENTS.md that links outside the
+// working tree is never read: ModeWrite fails as Write does, and the other modes report
+// StateAbsent.
 func Sync(worktreeRoot, knowledgeDir string, mode Mode) (Status, error) {
 	notes, err := TopNotes(knowledgeDir)
 	if err != nil {
@@ -210,10 +221,22 @@ func Sync(worktreeRoot, knowledgeDir string, mode Mode) (Status, error) {
 	return reconcile(worktreeRoot, notes, mode)
 }
 
-// reconcile reads the AGENTS.md of worktreeRoot, finds its block's Status against notes and, when
-// mode calls for it, writes the block Render produces for notes.
+// reconcile resolves the AGENTS.md of worktreeRoot, reads it, finds its block's Status against
+// notes and, when mode calls for it, writes the block Render produces for notes to the same file.
+// A guide that links outside the working tree is neither read nor written.
 func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
-	content, err := readGuide(worktreeRoot)
+	guide, err := resolveGuide(worktreeRoot)
+	if err != nil {
+		return Status{}, fmt.Errorf("%s: %w", FileName, err)
+	}
+	if guide.isOutside && mode == ModeWrite {
+		return Status{}, outsideError(guide.path)
+	}
+	if guide.isOutside {
+		return Status{State: StateAbsent}, nil
+	}
+
+	content, err := readGuide(guide)
 	if err != nil {
 		return Status{}, err
 	}
@@ -226,32 +249,75 @@ func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 		return status, nil
 	}
 	spliced := splice(content, span, Render(notes))
-	target, perm, err := resolveGuide(Path(worktreeRoot))
-	if err == nil {
-		err = tree.WriteFileAtomicVerbatim(target, bytes.NewReader(spliced), perm)
-	}
+	err = tree.WriteFileAtomicVerbatim(guide.path, bytes.NewReader(spliced), guide.perm)
 	if err != nil {
 		return status, fmt.Errorf("%s: %w", FileName, err)
 	}
 	return status, nil
 }
 
-// resolveGuide returns the file a write of the AGENTS.md at path replaces and the permissions it
-// keeps: the target of a symlinked guide, so the link survives, and that file's mode. A missing
-// guide, or one whose link dangles, is path itself with newFilePermissions.
-func resolveGuide(path string) (string, fs.FileMode, error) {
+// guideFile is the file the AGENTS.md of a working tree is read from and written to.
+type guideFile struct {
+	// path is the guide's resolved target, so a symlinked guide stays a link, or the guide's own
+	// path when it is missing.
+	path string
+	// perm is the mode a write keeps: the target's, or newFilePermissions for a missing guide.
+	perm fs.FileMode
+	// isMissing is a guide that does not exist, or whose link dangles: it reads as no content.
+	isMissing bool
+	// isOutside is a guide whose target lies outside the working tree; perm is unset then.
+	isOutside bool
+}
+
+// resolveGuide resolves the AGENTS.md of worktreeRoot to the file it is read from and written to.
+// A missing guide, or one whose link dangles, is the guide's own path with newFilePermissions. A
+// target outside the working tree is marked isOutside and is not touched.
+func resolveGuide(worktreeRoot string) (guideFile, error) {
+	path := Path(worktreeRoot)
 	target, err := filepath.EvalSymlinks(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return path, newFilePermissions, nil
+		return guideFile{path: path, perm: newFilePermissions, isMissing: true}, nil
 	}
 	if err != nil {
-		return "", 0, err
+		return guideFile{}, err
+	}
+
+	isInside, err := isInsideTree(worktreeRoot, target)
+	if err != nil {
+		return guideFile{}, err
+	}
+	if !isInside {
+		return guideFile{path: target, isOutside: true}, nil
 	}
 	info, err := os.Stat(target)
 	if err != nil {
-		return "", 0, err
+		return guideFile{}, err
 	}
-	return target, info.Mode().Perm(), nil
+	return guideFile{path: target, perm: info.Mode().Perm()}, nil
+}
+
+// isInsideTree reports whether target, a path with its links resolved, lies inside the working tree
+// at worktreeRoot, its links resolved too. It fails when worktreeRoot cannot be resolved.
+func isInsideTree(worktreeRoot, target string) (bool, error) {
+	root, err := filepath.EvalSymlinks(worktreeRoot)
+	if err != nil {
+		return false, err
+	}
+	relative, err := filepath.Rel(root, target)
+	if err != nil {
+		// Rel fails only on paths it cannot relate, such as ones on different volumes: outside.
+		return false, nil
+	}
+	return filepath.IsLocal(relative), nil
+}
+
+// outsideError is the refusal of a write to an AGENTS.md that links to target, outside the working
+// tree.
+func outsideError(target string) *Error {
+	return &Error{
+		Path:    FileName,
+		Message: "links to " + target + ", outside the working tree; the capcom block is not read or written",
+	}
 }
 
 // writes reports whether mode rewrites a block found in state.
@@ -281,9 +347,13 @@ func statusOf(content []byte, span blockSpan, notes []Note) Status {
 	return Status{State: StateStale, Line: span.line}
 }
 
-// readGuide reads AGENTS.md, returning nil content when it does not exist.
-func readGuide(worktreeRoot string) ([]byte, error) {
-	content, err := os.ReadFile(Path(worktreeRoot))
+// readGuide reads the file guide resolved to, returning nil content when the guide is missing or
+// its file no longer exists.
+func readGuide(guide guideFile) ([]byte, error) {
+	if guide.isMissing {
+		return nil, nil
+	}
+	content, err := os.ReadFile(guide.path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}

@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -168,5 +169,38 @@ func TestAgents_TangledMarkers_FailAtTheirLine(t *testing.T) {
 
 	if exitCode != ExitError || !strings.HasPrefix(stderr, "capcom: AGENTS.md:2: ") {
 		t.Errorf("agents = %d, stderr %q; want 1 at AGENTS.md:2", exitCode, stderr)
+	}
+}
+
+func TestAgents_GuideLinkedOutsideTheTree_FailsNamingTheLink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	root := newKnowStore(t)
+	const original = "# Shell profile\n"
+	outside := filepath.Join(t.TempDir(), "bashrc")
+	if err := os.WriteFile(outside, []byte(original), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, agents.FileName)); err != nil {
+		t.Skipf("Symlink: %v", err)
+	}
+	resolved, err := filepath.EvalSymlinks(outside)
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "agents")
+
+	want := "capcom: AGENTS.md: links to " + resolved +
+		", outside the working tree; the capcom block is not read or written\n"
+	if exitCode != ExitError || stdout != "" || stderr != want {
+		t.Errorf("agents = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
+	}
+	if content, readErr := os.ReadFile(outside); readErr != nil || string(content) != original {
+		t.Errorf("outside file = %q, %v; want it untouched", content, readErr)
 	}
 }

@@ -630,5 +630,10 @@ the same block.
   `capcom agents` rewrites it.
 - A marker that appears twice, an end marker before the begin marker, or a begin marker that is
   never closed is an error at that marker's line, for `agents` and `check` alike.
+- An `AGENTS.md` that is a symbolic link keeps its link: the block is written to the file it
+  points to, but only when that file lies inside the working tree (`AGENTS.md -> CLAUDE.md`). An
+  `AGENTS.md` link that resolves outside the working tree is neither read nor written.
+  `capcom agents` fails on it; `capcom check`, `agents --check` and Note writes treat it as having
+  no block.
 
 Edits inside the markers are overwritten on the next refresh; write anything else outside them.

@@ -586,3 +586,79 @@ func mustStat(t *testing.T, root string) os.FileInfo {
 	}
 	return info
 }
+
+// linkGuideOutside makes a working tree whose AGENTS.md links to a file holding content in a
+// sibling directory outside it, and returns the tree's root and the linked file's resolved path. It
+// skips where a symlink test cannot run: on Windows, as root, and where os.Symlink fails.
+func linkGuideOutside(t *testing.T, content string) (string, string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	base := t.TempDir()
+	root := filepath.Join(base, "worktree")
+	outsideDir := filepath.Join(base, "outside")
+	for _, dir := range []string{root, outsideDir} {
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatalf("Mkdir: %v", err)
+		}
+	}
+	outside := filepath.Join(outsideDir, "bashrc")
+	if err := os.WriteFile(outside, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Symlink(outside, Path(root)); err != nil {
+		t.Skipf("Symlink: %v", err)
+	}
+	resolved, err := filepath.EvalSymlinks(outside)
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	return root, resolved
+}
+
+func TestSync_GuideLinkedOutsideTheTree_FailsAndLeavesTheTargetAlone(t *testing.T) {
+	t.Parallel()
+	_, notes := writeKnowledge(t)
+	current := "# Guide\n\n" + Render(notes) + "\n"
+	stale := "# Guide\n\n" + Render(nil) + "\n"
+	const withoutBlock = "# Guide\n"
+	cases := []struct {
+		name      string
+		mode      Mode
+		content   string
+		isRefused bool
+	}{
+		{"write without markers", ModeWrite, withoutBlock, true},
+		{"refresh stale", ModeRefresh, stale, false},
+		{"inspect current", ModeInspect, current, false},
+		{"inspect stale", ModeInspect, stale, false},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			knowledgeDir, _ := writeKnowledge(t)
+			root, outside := linkGuideOutside(t, testCase.content)
+
+			status, err := Sync(root, knowledgeDir, testCase.mode)
+
+			if testCase.isRefused {
+				want := FileName + ": links to " + outside +
+					", outside the working tree; the capcom block is not read or written"
+				var failure *Error
+				if !errors.As(err, &failure) || failure.Path != FileName || failure.Line != 0 || err.Error() != want {
+					t.Errorf("Sync err = %v, want an *Error %q", err, want)
+				}
+			} else if err != nil || status.State != StateAbsent || status.Line != 0 {
+				t.Errorf("Sync = %+v, %v; want StateAbsent unread and no error", status, err)
+			}
+			content, readErr := os.ReadFile(outside)
+			if readErr != nil || string(content) != testCase.content {
+				t.Errorf("outside file = %q, %v; want it untouched", content, readErr)
+			}
+		})
+	}
+}

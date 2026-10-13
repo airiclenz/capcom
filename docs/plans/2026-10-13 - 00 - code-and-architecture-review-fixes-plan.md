@@ -257,7 +257,13 @@ Depends on P0.0.
 - `go vet ./internal/tree/`; `GOOS=windows go vet ./internal/tree/`; `GOOS=darwin go vet ./internal/tree/`
 **Commit:** `fix(tree): read repository files through one guarded reader that never follows a swapped-in link`
 
-## P0.4 Keep the AGENTS.md block inside the working tree
+## P0.4 Keep the AGENTS.md block inside the working tree — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/cli/agents.go: made necessary by agents.Error now also carrying the outside-link refusal; only agentsFailure's doc comment changed, no code.
+
+NOTES (2026-10-13): resolveGuide returns an unexported guideFile struct (resolved path, permissions, isMissing, isOutside) rather than three values, and the outside test is a separate isInsideTree helper; reconcile now resolves first and wraps a non-ENOENT EvalSymlinks error as "AGENTS.md: <err>" in every mode, where before only the write step resolved.
+
+NOTES (2026-10-13): docs/format.md gains one bullet covering both the in-tree link that keeps working and the outside link that is refused, with the plan's sentence verbatim.
 
 **What:** Recast at the regression check (2026-10-13). Fixes F-01 (`agents-symlink-escape`). `resolveGuide` follows an `AGENTS.md` symlink to any target, and `reconcile` reads that target and atomically replaces it. A committed `AGENTS.md -> ~/.bashrc` therefore gets the block appended by `capcom agents` or by a Note write.
 **Regression guard.** An `AGENTS.md` link outside the working tree is refused only by `capcom agents` (write mode); check, prime and Note writes treat it as having no block: no read, no write, no new problem or warning. Binding: fail only in ModeWrite; in ModeInspect and ModeRefresh an outside link is unread and StateAbsent. Outside-ness is `!filepath.IsLocal(rel)` (a `filepath.Rel` error counts as outside). Both new tests skip on Windows and as root via the makeSymlink-style guard. docs/format.md's opt-in sentence ("the block is opt-in") stays true; the item's CHANGELOG entry (via its sidecar) states the in-tree limit, superseding the earlier CHANGELOG entry that kept a symlinked AGENTS.md a link with no in-tree limit; docs/format.md gains one sentence on that limit.
