@@ -123,10 +123,10 @@ func issueRemoveResult(id string, path string, dropped []string, relatedDropped 
 		Data: data,
 		Text: text,
 		KV: []KVRecord{{Pairs: []KVPair{
-			{"ID", id},
-			{"PATH", path},
-			{"DEPS_DROPPED", flowList(dropped)},
-			{"RELATED_DROPPED", flowList(relatedDropped)},
+			{Key: "ID", Value: id},
+			{Key: "PATH", Value: path},
+			{Key: "DEPS_DROPPED", Value: flowList(dropped)},
+			{Key: "RELATED_DROPPED", Value: flowList(relatedDropped)},
 		}}},
 	}
 }

@@ -104,16 +104,16 @@ func (a *app) noteFromFile(entry index.NoteEntry, file []byte) (index.NoteEntry,
 // lines, a blank line, then the body byte for byte. Empty fields are left out.
 func noteText(entry index.NoteEntry, etag string, body string) string {
 	fields := []KVPair{
-		{"id", entry.ID},
-		{"path", entry.Path},
-		{"etag", etag},
-		{"parent", entry.ParentID},
-		{"title", entry.Title},
-		{"labels", flowList(entry.Labels)},
-		{"refs", flowList(entry.Refs)},
-		{"retired", retiredText(entry.IsRetired)},
-		{"superseded-by", flowList(entry.SupersededBy)},
-		{"aliases", flowList(entry.Aliases)},
+		{Key: "id", Value: entry.ID},
+		{Key: "path", Value: entry.Path},
+		{Key: "etag", Value: etag},
+		{Key: "parent", Value: entry.ParentID},
+		{Key: "title", Value: entry.Title},
+		{Key: "labels", Value: flowList(entry.Labels)},
+		{Key: "refs", Value: flowList(entry.Refs)},
+		{Key: "retired", Value: retiredText(entry.IsRetired)},
+		{Key: "superseded-by", Value: flowList(entry.SupersededBy)},
+		{Key: "aliases", Value: flowList(entry.Aliases)},
 	}
 	var text strings.Builder
 	for _, field := range fields {

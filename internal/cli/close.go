@@ -110,7 +110,7 @@ func (a *app) closeResult(args []string, status string, reason string) (Result, 
 			}
 			messages = append(messages, failure.Error())
 			data = append(data, closeData{ID: arg, Outcome: string(failure.Code), NowReady: []string{}})
-			result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{"ID", arg}}, Status: string(failure.Code)})
+			result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{Key: "ID", Value: arg}}, Status: string(failure.Code)})
 			continue
 		}
 		outcome.NowReady = []string{}
@@ -126,7 +126,7 @@ func (a *app) closeResult(args []string, status string, reason string) (Result, 
 		}
 		data = append(data, outcome)
 		fmt.Fprintf(&text, "%s  %s\n", outcome.ID, outcome.Outcome)
-		result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{"ID", outcome.ID}}, Status: outcome.Outcome})
+		result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{Key: "ID", Value: outcome.ID}}, Status: outcome.Outcome})
 	}
 	if len(nowReady) > 0 {
 		fmt.Fprintf(&text, "now ready: %s\n", strings.Join(nowReady, ", "))

@@ -14,7 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -237,23 +237,9 @@ func initText(root string, created []string) string {
 	return text.String()
 }
 
-// storeFailure types a failure to open or create the store: a bad config.yaml is invalid at its
-// file and line, a missing store is not_initialized, and a directory outside git is invalid.
+// storeFailure is the temporary wrapper of output.StoreFailure.
 func storeFailure(err error) *Error {
-	var configFailure *config.Error
-	switch {
-	case errors.As(err, &configFailure):
-		return &Error{
-			Code:    CodeInvalid,
-			Message: configFailure.Message,
-			Path:    configFailure.Path,
-			Line:    configFailure.Line,
-		}
-	case errors.Is(err, store.ErrNotInitialized):
-		return Errorf(CodeNotInitialized, "%s", err.Error())
-	default:
-		return Errorf(CodeInvalid, "%s", err.Error())
-	}
+	return output.StoreFailure(err)
 }
 
 // The Claude Code settings file init --claude-hooks merges into, relative to the working tree root.

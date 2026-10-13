@@ -96,6 +96,6 @@ func writeResult(id string, path string, etag string) Result {
 		Kind: kindIssueWrite,
 		Data: map[string]string{"id": id, "path": path, "etag": etag},
 		Text: fmt.Sprintf("id: %s\npath: %s\netag: %s\n", id, path, etag),
-		KV:   []KVRecord{{Pairs: []KVPair{{"ID", id}, {"PATH", path}, {"ETAG", etag}}}},
+		KV:   []KVRecord{{Pairs: []KVPair{{Key: "ID", Value: id}, {Key: "PATH", Value: path}, {Key: "ETAG", Value: etag}}}},
 	}
 }

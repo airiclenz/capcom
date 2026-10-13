@@ -63,7 +63,7 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 			}
 			messages = append(messages, failure.Message)
 			result.KV = append(result.KV, KVRecord{
-				Pairs:  []KVPair{{"ID", arg}, {kvKeyMessage, failure.Message}},
+				Pairs:  []KVPair{{Key: "ID", Value: arg}, {Key: kvKeyMessage, Value: failure.Message}},
 				Status: string(failure.Code),
 			})
 			continue

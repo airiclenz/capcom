@@ -1,6 +1,13 @@
 package output
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"testing"
+
+	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/store"
+)
 
 func TestError_Error_PrefixesKnownLocation(t *testing.T) {
 	cases := []struct {
@@ -42,6 +49,29 @@ func TestError_ExitCode_MapsCodes(t *testing.T) {
 
 			if got := testCase.failure.ExitCode(); got != testCase.want {
 				t.Errorf("ExitCode() = %d, want %d", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestStoreFailure_MapsInitAndOpenErrors(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		wantCode Code
+		wantLine int
+	}{
+		{"not initialized", fmt.Errorf("/repo/.capcom: %w", store.ErrNotInitialized), CodeNotInitialized, 0},
+		{"outside git", fmt.Errorf("/tmp: %w", store.ErrNotGitRepository), CodeInvalid, 0},
+		{"bad config", &config.Error{Path: ".capcom/config.yaml", Line: 5, Message: "bad"}, CodeInvalid, 5},
+		{"other", errors.New("disk full"), CodeInvalid, 0},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			failure := StoreFailure(testCase.err)
+
+			if failure.Code != testCase.wantCode || failure.Line != testCase.wantLine {
+				t.Errorf("failure = %+v, want code %s line %d", failure, testCase.wantCode, testCase.wantLine)
 			}
 		})
 	}

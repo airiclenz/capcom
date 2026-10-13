@@ -158,57 +158,6 @@ func TestVersion_KV_EndsWithStatusOK(t *testing.T) {
 	}
 }
 
-func TestKVRenderer_Render_ClosesEveryRecordWithStatus(t *testing.T) {
-	var stdout bytes.Buffer
-	result := Result{
-		Warnings: []string{"index rebuilt"},
-		KV: []KVRecord{
-			{Pairs: []KVPair{{Key: "ID", Value: "first-issue"}, {Key: "TITLE", Value: "two\nlines"}}},
-			{Pairs: []KVPair{{Key: "ID", Value: "missing-issue"}}, Status: string(CodeNotFound)},
-		},
-	}
-
-	err := newRenderer(formatKV, &stdout, nil).Render(result)
-
-	if err != nil {
-		t.Fatalf("Render: %v", err)
-	}
-	want := "WARNING=index rebuilt\n" +
-		"ID=first-issue\nTITLE=two lines\nSTATUS=ok\n" +
-		"ID=missing-issue\nSTATUS=not_found\n"
-	if stdout.String() != want {
-		t.Errorf("output = %q, want %q", stdout.String(), want)
-	}
-}
-
-func TestTextRenderer_Render_WritesWarningsAfterResult(t *testing.T) {
-	var stdout, stderr bytes.Buffer
-
-	err := newRenderer(formatText, &stdout, &stderr).Render(Result{Text: "done\n", Warnings: []string{"a.md:3: bad"}})
-
-	if err != nil || stderr.Len() != 0 {
-		t.Fatalf("err = %v stderr = %q", err, stderr.String())
-	}
-	if want := "done\nwarning: a.md:3: bad\n"; stdout.String() != want {
-		t.Errorf("stdout = %q, want %q", stdout.String(), want)
-	}
-}
-
-func TestJSONRenderer_RenderError_CarriesLocation(t *testing.T) {
-	var stdout bytes.Buffer
-	failure := &Error{Code: CodeInvalid, Message: "unknown key", Path: "issue.md", Line: 4}
-
-	err := newRenderer(formatJSON, &stdout, nil).RenderError(failure)
-
-	if err != nil {
-		t.Fatalf("RenderError: %v", err)
-	}
-	errorBody := decodeEnvelope(t, stdout.String())["error"].(map[string]any)
-	if errorBody["path"] != "issue.md" || errorBody["line"] != float64(4) {
-		t.Errorf("error = %v, want path issue.md line 4", errorBody)
-	}
-}
-
 func TestUpdate_FrontmatterFailure_RelativizesOnlyAnAbsolutePath(t *testing.T) {
 	root := t.TempDir()
 	application := &app{store: &store.Store{WorktreeRoot: root}}

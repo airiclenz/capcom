@@ -1527,7 +1527,13 @@ Depends on P2.27; P0.11.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers, the capitalised names, the alias block and the Note. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(cli): move the error contract to internal/cli/output`
 
-## P2.30 cli/output package, part 2: the renderers and storeFailure
+## P2.30 cli/output package, part 2: the renderers and storeFailure — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): kvKeyMessage and kvLineBreaks are capitalised as KVKeyMessage and KVLineBreaks (Go keeps an acronym in one case, matching KVPair and KVRecord), not KvKeyMessage/KvLineBreaks; the other names take a plain capital (OutputFormat, FormatText, FormatJSON, FormatKV, NewRenderer, KindError, StoreFailure).
+NOTES (2026-10-13): cli/output.go also aliases the moved exported names SchemaVersion, Envelope, ErrorBody and Renderer beside Result, KVRecord and KVPair, so every name the file declared keeps its old spelling until P2.35.
+NOTES (2026-10-13): internal/cli/output/doc.go package comment widened to name the renderers and StoreFailure (not in Files; the package documents itself in doc.go).
+NOTES (2026-10-13): consequential edit — internal/cli/doc.go: made necessary by moving the output contract out of cli/output.go (its file-map line now says the file holds the temporary aliases and the Elsewhere scan of a result)
+NOTES (2026-10-13): plain `go vet` can replay a cached clean result on this host and miss the composites (unkeyed KVPair) findings; the 46 sites were found and checked with `GOCACHE=<fresh dir> go vet -composites ./internal/cli/`.
 
 **What:** Recast at the regression check (2026-10-13). Part 2 of review P2-14. The output contract (`Result`, the `--kv` records, the `--json` envelope and the renderers) moves from `internal/cli/output.go`, and `storeFailure` moves from `internal/cli/init.go`. Both go to `internal/cli/output`, behind temporary aliases.
 **Regression guard.** P0.11 calls the sanitiser only from the text renderer sink, so `sanitizeTerminal` moves into internal/cli/output with the renderer and stays unexported; its unit test moves with it into package output; no alias is made for it. Once `KVPair` aliases `output.KVPair`, `go vet` (composites) flags unkeyed `KVPair` literals; P2.30 keys every unkeyed `KVPair` literal in internal/cli (find with grep; at the base: close, issue_render, know_show, node_edit, rm, show) and lists those files in Files; the move-only check allows those keyed-literal edits. output/output_test.go declares its own `decodeEnvelope` (a copy of cli_test.go's, which other cli tests keep using); the move-only check allows it.

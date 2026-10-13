@@ -156,26 +156,26 @@ func newShowData(entry index.Entry, facts showFacts) showData {
 // and its Related links as facts carries them. Empty fields are left out, except priority.
 func issueText(entry index.Entry, etag string, facts showFacts, body string) string {
 	fields := []KVPair{
-		{"id", entry.ID},
-		{"path", entry.Path},
-		{"etag", etag},
-		{"parent", entry.ParentID},
-		{"title", entry.Title},
-		{"status", entry.Status},
-		{"category", string(entry.Category)},
-		{"ready", readyText(facts.readiness)},
-		{"type", entry.Type},
-		{"priority", fmt.Sprint(entry.Priority)},
-		{"labels", flowList(entry.Labels)},
-		{"deps", flowList(entry.Deps)},
-		{"dependents", flowList(facts.dependents)},
-		{"children", childrenText(facts.children)},
-		{"related", flowList(facts.related)},
-		{"plan", entry.Plan},
-		{"aliases", flowList(entry.Aliases)},
-		{"created", formatTimestamp(entry.Created)},
-		{"closed", formatTimestamp(entry.Closed)},
-		{"reason", entry.Reason},
+		{Key: "id", Value: entry.ID},
+		{Key: "path", Value: entry.Path},
+		{Key: "etag", Value: etag},
+		{Key: "parent", Value: entry.ParentID},
+		{Key: "title", Value: entry.Title},
+		{Key: "status", Value: entry.Status},
+		{Key: "category", Value: string(entry.Category)},
+		{Key: "ready", Value: readyText(facts.readiness)},
+		{Key: "type", Value: entry.Type},
+		{Key: "priority", Value: fmt.Sprint(entry.Priority)},
+		{Key: "labels", Value: flowList(entry.Labels)},
+		{Key: "deps", Value: flowList(entry.Deps)},
+		{Key: "dependents", Value: flowList(facts.dependents)},
+		{Key: "children", Value: childrenText(facts.children)},
+		{Key: "related", Value: flowList(facts.related)},
+		{Key: "plan", Value: entry.Plan},
+		{Key: "aliases", Value: flowList(entry.Aliases)},
+		{Key: "created", Value: formatTimestamp(entry.Created)},
+		{Key: "closed", Value: formatTimestamp(entry.Closed)},
+		{Key: "reason", Value: entry.Reason},
 	}
 	var text strings.Builder
 	for _, field := range fields {
@@ -222,11 +222,11 @@ func readyText(verdict *issue.Readiness) string {
 // status is ISSUE_STATUS. ETAG is the file's etag, for update --if-match.
 func issueKV(entry index.Entry, etag string) KVRecord {
 	return KVRecord{Pairs: []KVPair{
-		{"ID", entry.ID},
-		{"ETAG", etag},
-		{"ISSUE_STATUS", entry.Status},
-		{"CATEGORY", string(entry.Category)},
-		{"TITLE", entry.Title},
+		{Key: "ID", Value: entry.ID},
+		{Key: "ETAG", Value: etag},
+		{Key: "ISSUE_STATUS", Value: entry.Status},
+		{Key: "CATEGORY", Value: string(entry.Category)},
+		{Key: "TITLE", Value: entry.Title},
 	}}
 }
 

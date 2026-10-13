@@ -36,7 +36,7 @@
 //   - `mv.go` — capcom mv: renames an issue or moves it below another
 //   - `node_edit.go` — editIssue and editNode, which every issue and Note edit verb goes through, and their shared helpers
 //   - `outline.go` — the indented outline rows and their text, with the hint where --depth cut
-//   - `output.go` — the output contract: Result, the --json Envelope, --kv records and Renderers
+//   - `output.go` — the temporary aliases of the output contract, and the Elsewhere scan of a result
 //   - `prime.go` — capcom prime: the session Briefing
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first
 //   - `reindex.go` — capcom reindex: rebuilds the index from the issue and Note files

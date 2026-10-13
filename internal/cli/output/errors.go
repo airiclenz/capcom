@@ -3,6 +3,9 @@ package output
 import (
 	"errors"
 	"fmt"
+
+	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 // Code is the machine-readable class of a failed command. It appears as error.code in the
@@ -83,4 +86,23 @@ func AsError(err error) *Error {
 		return typed
 	}
 	return &Error{Code: CodeInvalid, Message: err.Error()}
+}
+
+// StoreFailure types a failure to open or create the store: a bad config.yaml is invalid at its
+// file and line, a missing store is not_initialized, and a directory outside git is invalid.
+func StoreFailure(err error) *Error {
+	var configFailure *config.Error
+	switch {
+	case errors.As(err, &configFailure):
+		return &Error{
+			Code:    CodeInvalid,
+			Message: configFailure.Message,
+			Path:    configFailure.Path,
+			Line:    configFailure.Line,
+		}
+	case errors.Is(err, store.ErrNotInitialized):
+		return Errorf(CodeNotInitialized, "%s", err.Error())
+	default:
+		return Errorf(CodeInvalid, "%s", err.Error())
+	}
 }
