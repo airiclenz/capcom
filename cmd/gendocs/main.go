@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/airiclenz/capcom/internal/cli"
 	"github.com/airiclenz/capcom/internal/clidoc"
@@ -28,10 +29,32 @@ func main() {
 	}
 }
 
-// run creates out when it is missing and writes the reference of the capcom command tree into it.
+// stalePagePattern matches every page a previous run wrote, so a command removed or renamed since
+// leaves no page behind.
+const stalePagePattern = "capcom*.md"
+
+// run creates out when it is missing, removes the pages a previous run wrote there and writes the
+// reference of the capcom command tree into it.
 func run(out string) error {
 	if err := os.MkdirAll(out, outDirMode); err != nil {
 		return fmt.Errorf("create %s: %w", out, err)
 	}
+	if err := removeStalePages(out); err != nil {
+		return err
+	}
 	return clidoc.WriteReference(cli.Command(), out)
+}
+
+// removeStalePages deletes every reference page in out, leaving any other file there untouched.
+func removeStalePages(out string) error {
+	stale, err := filepath.Glob(filepath.Join(out, stalePagePattern))
+	if err != nil {
+		return fmt.Errorf("list the pages in %s: %w", out, err)
+	}
+	for _, path := range stale {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("remove stale page: %w", err)
+		}
+	}
+	return nil
 }

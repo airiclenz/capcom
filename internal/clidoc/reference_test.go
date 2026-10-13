@@ -1,6 +1,7 @@
 package clidoc
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli"
 )
+
+// committedReferenceDir is the committed CLI reference, relative to this package's directory.
+const committedReferenceDir = "../../docs/site/reference/cli"
 
 // markdownLink matches a Markdown link and captures its target.
 var markdownLink = regexp.MustCompile(`\]\(([^)]*)\)`)
@@ -94,4 +98,49 @@ func checkFrontmatter(t *testing.T, name, text string) {
 	if want := strings.ReplaceAll(strings.TrimSuffix(name, markdownExtension), "_", " "); front.Title != want {
 		t.Errorf("%s: title %q, want %q", name, front.Title, want)
 	}
+}
+
+func TestReferenceUpToDate(t *testing.T) {
+	fresh := t.TempDir()
+	if err := WriteReference(cli.Command(), fresh); err != nil {
+		t.Fatalf("WriteReference: %v", err)
+	}
+	want := readPages(t, fresh)
+	got := readPages(t, committedReferenceDir)
+
+	for name, wantData := range want {
+		gotData, ok := got[name]
+		switch {
+		case !ok:
+			t.Errorf("%s: missing from %s", name, committedReferenceDir)
+		case !bytes.Equal(gotData, wantData):
+			t.Errorf("%s: differs from a fresh generation", name)
+		}
+	}
+	for name := range got {
+		if _, ok := want[name]; !ok {
+			t.Errorf("%s: no command generates this page", name)
+		}
+	}
+	if t.Failed() {
+		t.Log("the committed CLI reference is stale: run `go run ./cmd/gendocs` and commit the result")
+	}
+}
+
+// readPages returns the contents of every file in dir, keyed by file name.
+func readPages(t *testing.T, dir string) map[string][]byte {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	pages := make(map[string][]byte, len(entries))
+	for _, entry := range entries {
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		pages[entry.Name()] = data
+	}
+	return pages
 }

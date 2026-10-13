@@ -194,7 +194,9 @@ NOTES (2026-10-13): sidebar order: agent-setup 1, briefing 2, managed-block 3 un
 **Acceptance:** `for f in docs/site/agents/briefing.md docs/site/agents/managed-block.md docs/site/agents/agent-setup.md docs/site/reference/json-output.md; do test -f "$f" || { echo "MISSING $f"; continue; }; head -1 "$f" | grep -qx -- --- || echo "BAD $f"; awk '/^```/{f=!f} !f && /^# /{print "H1 " FILENAME; exit}' "$f"; done` prints nothing
 **Commit:** `docs(site): add agent workflow guides and the JSON output reference`
 
-## 10. Committed CLI reference with a staleness test
+## 10. Committed CLI reference with a staleness test — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): TestReferenceUpToDate compares every file in docs/site/reference/cli (not only capcom*.md), so any extra file there fails the test; gendocs removes only capcom*.md before writing
 
 **What:** Recast at the regression check (2026-10-13). Depends on items 1–4.
 **Regression guard.** TestReferenceUpToDate lives in internal/clidoc (compares a fresh generation of cli.Command() against ../../docs/site/reference/cli); Files/Tests/Acceptance updated accordingly. `doc.GenMarkdownTreeCustom` only creates files, so `cmd/gendocs` first removes the `capcom*.md` files in its `-out` dir; rerunning it after a command is removed or renamed then clears the extra page the test reports. Acceptance must pass before the item's commit (the verifier runs it before committing), so it never checks `git status` on the new directory: it plants a stale page, regenerates, asserts the stale page is gone, then runs `TestReferenceUpToDate`.

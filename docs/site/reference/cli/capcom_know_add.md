@@ -1,0 +1,49 @@
+---
+title: "capcom know add"
+description: "Add a Note with a chosen id"
+sidebar:
+  order: 1
+---
+
+## capcom know add
+
+Add a Note with a chosen id
+
+### Synopsis
+
+Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never generates, and the title given by --title; both are required. --parent files it below another Note, --label and --ref set its Labels and Refs, and --body-file reads its markdown body from a file, - for stdin. It prints the new Note's id, path and etag, and a refreshed line when the capcom block of AGENTS.md was rewritten.
+
+```
+capcom know add --id <slug> --title <title> [flags]
+```
+
+### Examples
+
+```
+  capcom know add --id release-steps --title "How a release is cut" --ref docs/release.md   # a Note that depends on a file
+  capcom know add --id release-tags --parent release-steps --title "Tagging a release" --label release   # below release-steps
+  capcom know add --id adr-0031 --title "ADR 0031: one index per worktree" --body-file -   # body from stdin
+```
+
+### Options
+
+```
+      --body-file string   file holding the markdown body; - reads stdin
+  -h, --help               help for add
+      --id string          the new note's id: a kebab slug of 1 to 4 words (required)
+      --label strings      labels; repeat or separate with commas
+      --parent string      add the note below this one
+      --ref stringArray    a path or path#symbol the note depends on; repeat for more
+      --title string       the note's title (required)
+```
+
+### Options inherited from parent commands
+
+```
+      --json   print a versioned JSON envelope
+```
+
+### SEE ALSO
+
+* [capcom know](capcom_know.md)	 - Read, search, add, update, move, remove and verify Knowledge Notes
+

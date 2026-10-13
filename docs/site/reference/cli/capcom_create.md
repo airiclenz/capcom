@@ -1,0 +1,55 @@
+---
+title: "capcom create"
+description: "Create an issue with a chosen id"
+sidebar:
+  order: 1
+---
+
+## capcom create
+
+Create an issue with a chosen id
+
+### Synopsis
+
+Create an Issue under the id you choose: a kebab-case slug of 1 to 4 words that names the work. --parent files it below another Issue, and --dep makes it wait for the Issues named; a --dep that names no Issue fails the create before anything is written. The body comes from --body-file (- reads stdin) and states what is wrong or wanted, why, and a "## Acceptance" section; an Issue created without a body draws a warning. It prints the new Issue's id, path and etag.
+
+```
+capcom create --id <slug> --title <title> [flags]
+```
+
+### Examples
+
+```
+  capcom create --id login-timeout-race --title "Session refresh races the login timeout" --type bug
+  capcom create --id refresh-retry --title "Retry a failed token refresh" --dep login-timeout-race   # waits for it
+  capcom create --id login-copy --title "Reword the login errors" --parent login-flow --priority 1
+  capcom create --id cache-warmup --title "Warm the cache on deploy" --body-file - < body.md   # body from stdin
+```
+
+### Options
+
+```
+      --body-file string   file holding the markdown body; - reads stdin
+      --dep strings        issues the new one depends on; repeat or separate with commas
+  -h, --help               help for create
+      --id string          the new issue's id: a kebab slug of 1 to 4 words (required)
+      --kv                 print KEY=VALUE lines ending in STATUS=
+      --label strings      labels; repeat or separate with commas
+      --parent string      create the issue below this one
+      --plan string        basename of the plan the issue belongs to
+      --priority int       priority, 0 (most urgent) to 4 (default 2)
+      --status string      initial status, not in a closed category (default: the first todo status)
+      --title string       the issue's title (required)
+      --type string        the issue's type (default task, or the first configured type)
+```
+
+### Options inherited from parent commands
+
+```
+      --json   print a versioned JSON envelope
+```
+
+### SEE ALSO
+
+* [capcom](capcom.md)	 - A git-native issue tracker and knowledge store for coding agents
+
