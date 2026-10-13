@@ -2167,7 +2167,9 @@ Depends on P3.21; P3.17; P2.21.
 **Closes:** nodestore-post-write
 **Commit:** `refactor(cli): render the AGENTS.md re-sync from nodestore's write effects`
 
-## P3.40 Pin the Issue lifecycle refusals before the rules move
+## P3.40 Pin the Issue lifecycle refusals before the rules move — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the reopen refusal pinned is the tree's full text, `status "open" is in the todo category, so the issue is not closed; only a closed issue can be reopened`, of which the plan quoted only the tail; create's closed-status refusal carries no file path (`capcom: status "done" is in the done category; create the issue open, then close it`), so it is pinned without one
 
 **What:** Characterisation tests for A-01: the exact text and Code of every status-category refusal and the already-closed outcome, so P3.41–P3.44 move the rules without changing a byte.
 **Tests:** package `cli`, never `t.Parallel()`; capture every expected string by running the pre-item tree, and never weaken an existing assertion.

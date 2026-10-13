@@ -127,8 +127,10 @@ func TestCreate_MissingIDOrClosedStatus_IsRefused(t *testing.T) {
 	_, _, missingExit := runCLI(t, root, "create", "--title", "No id")
 	_, stderr, closedExit := runCLI(t, root, "create", "--id", "born-done", "--title", "Done", "--status", "done")
 
-	if missingExit != ExitUsage || closedExit != ExitError || !strings.Contains(stderr, "close") {
-		t.Errorf("missing id exit = %d, closed status exit = %d stderr = %q", missingExit, closedExit, stderr)
+	wantStderr := "capcom: status \"done\" is in the done category; create the issue open, then close it\n"
+	if missingExit != ExitUsage || closedExit != ExitError || stderr != wantStderr {
+		t.Errorf("missing id exit = %d, closed status exit = %d\nstderr = %q\nwant     %q",
+			missingExit, closedExit, stderr, wantStderr)
 	}
 }
 
@@ -320,16 +322,24 @@ func TestUpdate_BodyAppendFile_FromFileAndStdin(t *testing.T) {
 func TestUpdate_StatusIntoOrOutOfClosed_IsRefused(t *testing.T) {
 	root := newWriteStore(t)
 
-	cases := map[string][]string{
-		"into done":    {"update", "login-flow", "--status", "done"},
-		"out of done":  {"update", "shipped-fix", "--status", "open"},
-		"done to drop": {"update", "shipped-fix", "--status", "dropped"},
+	const leavesClosed = "capcom: .capcom/issues/shipped-fix.md: " +
+		"status \"done\" is closed; use reopen to move the issue out of it\n"
+	cases := map[string]struct {
+		args       []string
+		wantStderr string
+	}{
+		"into done": {
+			args:       []string{"update", "login-flow", "--status", "done"},
+			wantStderr: "capcom: .capcom/issues/login-flow.md: status \"done\" is in the done category; use close\n",
+		},
+		"out of done":  {args: []string{"update", "shipped-fix", "--status", "open"}, wantStderr: leavesClosed},
+		"done to drop": {args: []string{"update", "shipped-fix", "--status", "dropped"}, wantStderr: leavesClosed},
 	}
-	for name, args := range cases {
-		_, stderr, exitCode := runCLI(t, root, args...)
+	for name, tc := range cases {
+		_, stderr, exitCode := runCLI(t, root, tc.args...)
 
-		if exitCode != ExitError || !strings.Contains(stderr, ".capcom/issues/") {
-			t.Errorf("%s: exit = %d stderr = %q", name, exitCode, stderr)
+		if exitCode != ExitError || stderr != tc.wantStderr {
+			t.Errorf("%s: exit = %d\nstderr = %q\nwant     %q", name, exitCode, stderr, tc.wantStderr)
 		}
 	}
 }

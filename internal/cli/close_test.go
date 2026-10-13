@@ -130,9 +130,34 @@ func TestReopen_OpenIssue_FailsInvalid(t *testing.T) {
 	root := newWriteStore(t)
 
 	_, stderr, exitCode := runCLI(t, root, "reopen", "login-flow", "--reason", "again")
+	stdout, _, jsonExitCode := runCLI(t, root, "reopen", "--json", "login-flow", "--reason", "again")
 
-	if exitCode != ExitError || !strings.Contains(stderr, "login-flow.md: ") || !strings.Contains(stderr, "not closed") {
-		t.Errorf("exit = %d stderr = %q", exitCode, stderr)
+	wantStderr := "capcom: .capcom/issues/login-flow.md: status \"open\" is in the todo category, " +
+		"so the issue is not closed; only a closed issue can be reopened\n"
+	if exitCode != ExitError || stderr != wantStderr {
+		t.Errorf("exit = %d\nstderr = %q\nwant     %q", exitCode, stderr, wantStderr)
+	}
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	if jsonExitCode != ExitError || failure["code"] != string(CodeInvalid) {
+		t.Errorf("--json exit = %d error = %v, want invalid", jsonExitCode, failure)
+	}
+}
+
+func TestClose_AlreadyClosed_KeepsClosedTimeAndReason(t *testing.T) {
+	root := newWriteStore(t)
+	before := readStoreFile(t, root, "shipped-fix.md")
+
+	text, textStderr, textExitCode := runCLI(t, root, "close", "shipped-fix", "--reason", "again")
+	kv, kvStderr, kvExitCode := runCLI(t, root, "close", "--kv", "shipped-fix", "--reason", "again")
+
+	if textExitCode != ExitOK || textStderr != "" || text != "shipped-fix  already_closed\n" {
+		t.Errorf("text: exit = %d stderr = %q stdout = %q", textExitCode, textStderr, text)
+	}
+	if kvExitCode != ExitOK || kvStderr != "" || kv != "ID=shipped-fix\nSTATUS=already_closed\n" {
+		t.Errorf("--kv: exit = %d stderr = %q stdout = %q", kvExitCode, kvStderr, kv)
+	}
+	if after := readStoreFile(t, root, "shipped-fix.md"); after != before {
+		t.Errorf("shipped-fix.md was rewritten:\n%s\nwant\n%s", after, before)
 	}
 }
 
