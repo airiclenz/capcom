@@ -1,8 +1,8 @@
 // Package index keeps the disposable SQLite index of a store at `<git-dir>/capcom/index.db`. The
 // index mirrors the issue tree and the Knowledge tree and is never committed; the markdown files
-// stay the truth. Open returns the index already up to date: Refresh brings it up to date
-// incrementally, re-parsing only the files whose size or mtime changed, and Rebuild (or deleting
-// the file) recreates it from scratch. A file that cannot be used is reported as a Warning and
+// stay the truth. Open returns the index already up to date: ModeRefresh brings it up to date
+// incrementally, re-parsing only the files whose size or mtime changed, and ModeRebuild (or
+// deleting the file) recreates it from scratch. A file that cannot be used is reported as a Warning and
 // left out while the rest stays queryable. The index only reads `.capcom/`; it never writes there.
 package index
 
@@ -55,18 +55,18 @@ type Mode int
 
 // The modes of Open.
 const (
-	// ModeRefresh re-reads only the files that changed since the index recorded them, as Refresh.
+	// ModeRefresh re-reads only the files that changed since the index recorded them.
 	ModeRefresh Mode = iota
-	// ModeRebuild recreates every table and reads both trees again, as Rebuild.
+	// ModeRebuild recreates every table and reads both trees again.
 	ModeRebuild
 )
 
 // Option configures an Index at Open.
 type Option func(*Index)
 
-// WithClock replaces the clock Refresh reads its start time from; tests use it to make the
+// withClock replaces the clock a refresh reads its start time from; tests use it to make the
 // racy-clean rule deterministic.
-func WithClock(now func() time.Time) Option {
+func withClock(now func() time.Time) Option {
 	return func(x *Index) {
 		x.now = now
 	}
@@ -103,15 +103,16 @@ const (
 // working tree root with forward slashes; Line is 1-based, or 0 when no single line is to blame.
 type Warning = diagnose.Finding
 
-// Report is what one Refresh or Rebuild did.
+// Report is what one refresh or rebuild did.
 type Report struct {
-	// Rebuilt is true when every table was recreated: on Rebuild, on a new database, and when the
-	// schema version or the configured statuses and types changed since the index was recorded.
-	Rebuilt bool
-	// Parsed lists the files read and parsed again, in path order.
-	Parsed []string
-	// Removed lists the files whose rows were dropped because the file is gone, in path order.
-	Removed []string
+	// rebuilt is true when every table was recreated: on a rebuild, on a new database, and when
+	// the schema version or the configured statuses and types changed since the index was
+	// recorded.
+	rebuilt bool
+	// parsed lists the files read and parsed again, in path order.
+	parsed []string
+	// removed lists the files whose rows were dropped because the file is gone, in path order.
+	removed []string
 	// Indexed is the number of issues every query sees once the refresh is done.
 	Indexed int
 	// Warnings are every file left out and every problem found, in path then line order. A
@@ -169,22 +170,17 @@ func Open(s *store.Store, mode Mode, options ...Option) (*Index, error) {
 	for _, option := range options {
 		option(index)
 	}
-	prepare := index.Refresh
-	if mode == ModeRebuild {
-		prepare = index.Rebuild
-	}
-	if _, err := prepare(); err != nil {
+	if _, err := index.refresh(mode == ModeRebuild); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
 	return index, nil
 }
 
-// Report returns what the latest refresh or rebuild did: Open's own, until Refresh or Rebuild
-// runs again. Its slices are copies, so a caller may change them without touching the index.
+// Report returns what the latest refresh or rebuild did: Open's own, until refresh runs again. Its slices are copies, so a caller may change them without touching the index.
 func (x *Index) Report() Report {
 	report := x.report
-	report.Parsed = slices.Clone(report.Parsed)
-	report.Removed = slices.Clone(report.Removed)
+	report.parsed = slices.Clone(report.parsed)
+	report.removed = slices.Clone(report.removed)
 	report.Warnings = slices.Clone(report.Warnings)
 	return report
 }

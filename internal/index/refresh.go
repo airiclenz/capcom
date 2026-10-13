@@ -31,24 +31,13 @@ var commitTx = (*sql.Tx).Commit
 // between the walk and its read.
 var readNodeFile = nodefile.ReadNodeFile
 
-// Refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
-// IMMEDIATE transaction, and records its report as the one Report returns. Open has already
-// refreshed or rebuilt the index; Refresh is for a caller that changed the tree since.
-// It re-parses only the files that are new, changed in size or mtime, or racily clean, drops the
-// rows of files that are gone, and rebuilds everything when the schema version or the configured
-// statuses and types changed. Files that cannot be used are reported in the Report's Warnings and
-// left out; Refresh itself fails only when the index or the tree cannot be read.
-func (x *Index) Refresh() (Report, error) {
-	return x.refresh(false)
-}
-
-// Rebuild drops every table and indexes the whole issue tree and Knowledge tree again, in one
-// transaction, and records its report as the one Report returns.
-func (x *Index) Rebuild() (Report, error) {
-	return x.refresh(true)
-}
-
-// refresh runs Refresh, or Rebuild when isForced is set.
+// refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
+// IMMEDIATE transaction, and records its report as the one Report returns. It re-parses only the
+// files that are new, changed in size or mtime, or racily clean, drops the rows of files that are
+// gone, and rebuilds everything when the schema version or the configured statuses and types
+// changed; isForced drops every table and indexes both trees again. Files that cannot be used are
+// reported in the Report's Warnings and left out; refresh itself fails only when the index or
+// the tree cannot be read.
 func (x *Index) refresh(isForced bool) (report Report, err error) {
 	ctx := context.Background()
 	start := x.now().Truncate(racyGranularity)
@@ -67,7 +56,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 		}
 	}()
 
-	report.Rebuilt, err = ensureSchema(ctx, tx, configHash(x.store.Config), isForced)
+	report.rebuilt, err = ensureSchema(ctx, tx, configHash(x.store.Config), isForced)
 	if err != nil {
 		return Report{}, x.databaseError(err)
 	}
@@ -210,19 +199,19 @@ func (r *refresher) sync(found []foundFile, report *Report) error {
 		}
 		if isGone {
 			if isKnown {
-				report.Removed = append(report.Removed, file.path)
+				report.removed = append(report.removed, file.path)
 			}
 			continue
 		}
-		report.Parsed = append(report.Parsed, file.path)
+		report.parsed = append(report.parsed, file.path)
 	}
 	for path := range recorded {
 		if err := r.forget(path); err != nil {
 			return err
 		}
-		report.Removed = append(report.Removed, path)
+		report.removed = append(report.removed, path)
 	}
-	slices.Sort(report.Removed)
+	slices.Sort(report.removed)
 	return nil
 }
 

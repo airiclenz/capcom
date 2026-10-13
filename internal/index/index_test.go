@@ -61,7 +61,7 @@ func writeIssue(t *testing.T, s *store.Store, name, content string) string {
 
 // laterClock returns a clock an hour ahead, so every file written so far reads as clean.
 func laterClock() Option {
-	return WithClock(func() time.Time { return time.Now().Add(time.Hour) })
+	return withClock(func() time.Time { return time.Now().Add(time.Hour) })
 }
 
 func openIndex(t *testing.T, s *store.Store, options ...Option) *Index {
@@ -80,7 +80,7 @@ func openIndex(t *testing.T, s *store.Store, options ...Option) *Index {
 
 func refresh(t *testing.T, x *Index) Report {
 	t.Helper()
-	report, err := x.Refresh()
+	report, err := x.refresh(false)
 	if err != nil {
 		t.Fatalf("Refresh: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestRefresh_NewTree_IndexesEveryIssue(t *testing.T) {
 	x := openIndex(t, s)
 	report := x.Report()
 
-	if !report.Rebuilt || report.Indexed != 2 || len(report.Parsed) != 2 || len(report.Warnings) != 0 {
+	if !report.rebuilt || report.Indexed != 2 || len(report.parsed) != 2 || len(report.Warnings) != 0 {
 		t.Fatalf("report = %+v, want a rebuilt index of 2 issues and no warnings", report)
 	}
 	child := mustIssue(t, x, "child-issue")
@@ -161,7 +161,7 @@ func TestRefresh_OneFileEdited_ReparsesOnlyThatFile(t *testing.T) {
 	writeIssue(t, s, "second-issue.md", issueText("Second, edited", "open", ""))
 	report := refresh(t, x)
 
-	if want := []string{".capcom/issues/second-issue.md"}; !slices.Equal(report.Parsed, want) || report.Rebuilt {
+	if want := []string{".capcom/issues/second-issue.md"}; !slices.Equal(report.parsed, want) || report.rebuilt {
 		t.Fatalf("report = %+v, want only %v parsed", report, want)
 	}
 	if title := mustIssue(t, x, "second-issue").Title; title != "Second, edited" {
@@ -177,7 +177,7 @@ func TestRefresh_SameSizeEditInOneMtimeTick_IsSeen(t *testing.T) {
 	if err := os.Chtimes(path, tick, tick); err != nil {
 		t.Fatalf("Chtimes: %v", err)
 	}
-	x := openIndex(t, s, WithClock(func() time.Time { return tick.Add(200 * time.Millisecond) }))
+	x := openIndex(t, s, withClock(func() time.Time { return tick.Add(200 * time.Millisecond) }))
 	refresh(t, x)
 
 	writeIssue(t, s, "racy-issue.md", issueText("Title B", "open", ""))
@@ -204,7 +204,7 @@ func TestRefresh_FileDeleted_DropsItsRows(t *testing.T) {
 	}
 	report := refresh(t, x)
 
-	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.Removed, want) || report.Indexed != 1 {
+	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.removed, want) || report.Indexed != 1 {
 		t.Fatalf("report = %+v, want %v removed and 1 indexed", report, want)
 	}
 	found, err := x.Search("unique")
@@ -233,8 +233,8 @@ func TestRefresh_ParseFailure_WarnsOnEveryRefreshAndIndexesTheRest(t *testing.T)
 			t.Errorf("%s refresh: warnings = %q indexed = %d, want %q and 1", name, got, report.Indexed, want)
 		}
 	}
-	if len(second.Parsed) != 0 {
-		t.Errorf("second refresh parsed %v, want nothing", second.Parsed)
+	if len(second.parsed) != 0 {
+		t.Errorf("second refresh parsed %v, want nothing", second.parsed)
 	}
 }
 
@@ -317,7 +317,7 @@ func TestRefresh_StatusRemapped_CategoryFollows(t *testing.T) {
 
 	report := refresh(t, x)
 
-	if !report.Rebuilt {
+	if !report.rebuilt {
 		t.Errorf("report = %+v, want a rebuild after the status map changed", report)
 	}
 	if category := mustIssue(t, x, "parked-issue").Category; category != config.CategoryDoing {
@@ -342,7 +342,7 @@ func TestRefresh_SchemaVersionChanged_Rebuilds(t *testing.T) {
 
 	report := refresh(t, x)
 
-	if !report.Rebuilt || len(report.Parsed) != 1 || report.Indexed != 1 {
+	if !report.rebuilt || len(report.parsed) != 1 || report.Indexed != 1 {
 		t.Errorf("report = %+v, want a rebuild that parsed and indexed the one issue", report)
 	}
 }
@@ -378,9 +378,9 @@ func TestRebuild_ExistingIndex_ReparsesEverything(t *testing.T) {
 	x := openIndex(t, s, laterClock())
 	refresh(t, x)
 
-	report, err := x.Rebuild()
+	report, err := x.refresh(true)
 
-	if err != nil || !report.Rebuilt || len(report.Parsed) != 1 || report.Indexed != 1 {
+	if err != nil || !report.rebuilt || len(report.parsed) != 1 || report.Indexed != 1 {
 		t.Errorf("Rebuild = %+v, %v; want everything parsed again", report, err)
 	}
 }
@@ -394,7 +394,7 @@ func TestOpen_TreeChangedSinceLastOpen_ReturnsAFreshIndex(t *testing.T) {
 	x := openIndex(t, s, laterClock())
 
 	report := x.Report()
-	if !isIndexed(t, x, "late-issue") || report.Indexed != 1 || len(report.Parsed) != 1 {
+	if !isIndexed(t, x, "late-issue") || report.Indexed != 1 || len(report.parsed) != 1 {
 		t.Errorf("Report = %+v; want late-issue indexed by Open alone", report)
 	}
 }
@@ -416,7 +416,7 @@ func TestOpen_ModeRebuild_RebuildsTheIndex(t *testing.T) {
 		}
 	})
 	report := x.Report()
-	if !report.Rebuilt || len(report.Parsed) != 1 || report.Indexed != 1 {
+	if !report.rebuilt || len(report.parsed) != 1 || report.Indexed != 1 {
 		t.Errorf("Report = %+v; want everything parsed again", report)
 	}
 }
@@ -624,8 +624,8 @@ func TestRefresh_EachProducer_SetsTheWarningKindAndReplaysIt(t *testing.T) {
 		}
 	}
 	// The second refresh parses nothing: its parse problems are the stored ones, replayed.
-	if len(second.Parsed) != 0 {
-		t.Errorf("second refresh parsed %v, want nothing", second.Parsed)
+	if len(second.parsed) != 0 {
+		t.Errorf("second refresh parsed %v, want nothing", second.parsed)
 	}
 }
 
@@ -793,7 +793,7 @@ func TestRefresh_IndexFromBeforeRelatedLinks_RebuildsWithThem(t *testing.T) {
 
 	report := refresh(t, x)
 
-	if !report.Rebuilt {
+	if !report.rebuilt {
 		t.Errorf("report = %+v, want a rebuild", report)
 	}
 	if holders := mustRelatedBy(t, x, "target-issue"); !slices.Equal(holders, []string{"holder-issue"}) {
@@ -823,7 +823,7 @@ func TestRefresh_IndexFromBeforeClaims_RebuildsWithThem(t *testing.T) {
 
 	report := refresh(t, x)
 
-	if !report.Rebuilt {
+	if !report.rebuilt {
 		t.Errorf("report = %+v, want a rebuild", report)
 	}
 	if _, err := x.Resolve("foo"); !errors.Is(err, tree.ErrNotFound) ||
@@ -868,7 +868,7 @@ func TestRefresh_CommitFails_ReportsOnlyTheCommitError(t *testing.T) {
 		return errCommit
 	}
 
-	_, err := x.Refresh()
+	_, err := x.refresh(false)
 
 	if !errors.Is(err, errCommit) {
 		t.Fatalf("Refresh error = %v, want it to wrap the commit failure", err)
@@ -903,11 +903,11 @@ func TestRefresh_FileGoneBeforeItsRead_IsDroppedAndNotParsed(t *testing.T) {
 	if isIndexed(t, x, "gone-issue") || err != nil || len(found) != 0 {
 		t.Errorf("gone-issue still indexed: search = %v, err %v", found, err)
 	}
-	if len(report.Parsed) != 0 {
-		t.Errorf("Parsed = %v, want nothing", report.Parsed)
+	if len(report.parsed) != 0 {
+		t.Errorf("Parsed = %v, want nothing", report.parsed)
 	}
-	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.Removed, want) {
-		t.Errorf("Removed = %v, want %v", report.Removed, want)
+	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.removed, want) {
+		t.Errorf("Removed = %v, want %v", report.removed, want)
 	}
 }
 
@@ -931,7 +931,7 @@ func TestRefresh_FileGoneBeforeItsStat_IsRemoved(t *testing.T) {
 
 	report := refresh(t, x)
 
-	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.Removed, want) || report.Indexed != 1 {
+	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.removed, want) || report.Indexed != 1 {
 		t.Errorf("report = %+v, want %v removed and 1 indexed", report, want)
 	}
 	if isIndexed(t, x, "gone-issue") {
@@ -953,7 +953,7 @@ func TestRefresh_BadStoredProblems_FailsNamingTheFile(t *testing.T) {
 		t.Fatalf("corrupt the stored problems: %v, %v", err, closeErr)
 	}
 
-	_, err = x.Refresh()
+	_, err = x.refresh(false)
 
 	if err == nil || !strings.Contains(err.Error(), ".capcom/issues/broken-issue.md") {
 		t.Errorf("Refresh error = %v, want one naming .capcom/issues/broken-issue.md", err)
@@ -972,7 +972,7 @@ func editedIssueText(round int) string {
 // refreshRounds refreshes x concurrentRounds times and sends every failure to failures.
 func refreshRounds(x *Index, failures chan<- error) {
 	for range concurrentRounds {
-		if _, err := x.Refresh(); err != nil {
+		if _, err := x.refresh(false); err != nil {
 			failures <- err
 		}
 	}

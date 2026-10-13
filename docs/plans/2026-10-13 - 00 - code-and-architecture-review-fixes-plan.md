@@ -2813,7 +2813,7 @@ Depends on P3.94.
 - `grep -nE 'type field |func (listField|fieldKeys)\(|unreachable' internal/knowledge/note.go` prints nothing
 **Commit:** `refactor(knowledge): declare Note keys with the generic field table`
 
-## P3.97 index exports only what its callers use
+## P3.97 index exports only what its callers use — ✅ DONE (2026-10-13)
 
 **What:** Part 1 of A-15, which runs after every other item: `Index.Refresh`, `Index.Rebuild`, `WithClock` and `Report`'s `Rebuilt`, `Parsed` and `Removed` fields, used only by `Open` and the package's own tests, are deleted or unexported.
 **Regression guard.** The Goal's grep is copied into Acceptance as a command with its expected result. The Goal and Acceptance grep must not match `nodestore.Removed` (P3.47 adds it to internal/cli): append `| grep -v 'nodestore\.Removed'` to the Acceptance pipeline and say so in the Goal.

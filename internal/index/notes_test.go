@@ -232,7 +232,7 @@ func TestNotes_OldSchemaIndex_RebuildsWithTheNotes(t *testing.T) {
 	report := x.Report()
 	_, found, err := x.Note("release-flow")
 
-	if !report.Rebuilt || err != nil || !found {
+	if !report.rebuilt || err != nil || !found {
 		t.Errorf("report = %+v, note found %v, %v; want a rebuild indexing the note", report, found, err)
 	}
 }
