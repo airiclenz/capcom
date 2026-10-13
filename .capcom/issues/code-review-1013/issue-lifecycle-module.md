@@ -1,11 +1,13 @@
 ---
 title: Move close, reopen and status rules into the issue package
-status: open
+status: done
 type: task
 priority: 3
 deps: [split-close-go, node-edit-helpers]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:43Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 The Issue status-category state machine lives only in cobra handlers: close needs a reason and a

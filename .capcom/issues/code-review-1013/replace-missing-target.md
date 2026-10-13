@@ -1,10 +1,12 @@
 ---
 title: A replace-mode write recreates a Node another session moved or removed
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:15Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 A replace-mode write recreates a Node that another session moved or removed. The atomic write

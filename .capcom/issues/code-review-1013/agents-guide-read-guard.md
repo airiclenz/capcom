@@ -1,11 +1,13 @@
 ---
 title: AGENTS.md read has no regular-file check or size cap; prime can hang or OOM
-status: open
+status: done
 type: bug
 priority: 1
 deps: [guarded-file-reader, briefing-panic-test]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:14Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 The `AGENTS.md` read (`readGuide`) has no regular-file check and no size cap. It is reached from

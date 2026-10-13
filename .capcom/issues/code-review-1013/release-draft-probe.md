@@ -1,10 +1,12 @@
 ---
 title: A draft release left by an interrupted create is probed as done
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:14Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 A draft release left by an interrupted `gh release create` is counted as published. Given

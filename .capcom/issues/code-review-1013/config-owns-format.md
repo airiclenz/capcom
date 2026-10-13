@@ -1,11 +1,13 @@
 ---
 title: Store format and per-key thresholds owned by config
-status: open
+status: done
 type: task
 priority: 3
 deps: [split-config-go, split-check-go]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:43Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 Two store-format rules have no single owner (ADR 0009). "A missing `config.yaml` means format 1"

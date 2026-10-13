@@ -1,11 +1,13 @@
 ---
 title: Briefing ready, doing, check and Elsewhere failure branches untested
-status: open
+status: done
 type: task
 priority: 3
 deps: [briefing-panic-test]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:13Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 `briefing.Compose` documents a failure order ("store, index, ready, doing, locks, check, then

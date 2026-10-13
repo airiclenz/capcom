@@ -1,11 +1,13 @@
 ---
 title: Split cli/know.go per subcommand
-status: open
+status: done
 type: task
 priority: 3
 deps: [cli-flags-file]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:43Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 `internal/cli/know.go` (553 lines) holds the `know` root and five of its subcommands, while

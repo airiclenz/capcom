@@ -1,10 +1,12 @@
 ---
 title: Split the large source files (pure moves)
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:42Z
+closed: 2026-10-13T18:09:26Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 Several source files have grown to 300-600 lines and mix concerns that change for different

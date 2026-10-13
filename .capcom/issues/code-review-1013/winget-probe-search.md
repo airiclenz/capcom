@@ -1,11 +1,13 @@
 ---
 title: Winget done-probe relies on the lagging GitHub search index
-status: open
+status: done
 type: bug
 priority: 3
 deps: [channel-repo-seam]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:44Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 The winget "done" probe in `cmd/release` lists pull requests with `gh pr list --search "... in:title"`,

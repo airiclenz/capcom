@@ -1,11 +1,13 @@
 ---
 title: Index reads after Open do not come from one snapshot
-status: open
+status: done
 type: bug
 priority: 3
 deps: [refresh-race-tests]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:15Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 Index reads after `Open` do not come from one snapshot. `List` reads each Issue with five

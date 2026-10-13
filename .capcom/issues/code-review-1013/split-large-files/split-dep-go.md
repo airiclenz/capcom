@@ -1,10 +1,12 @@
 ---
 title: Split cli/dep.go into dep, dep_list, dep_graph
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:43Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 `internal/cli/dep.go` (452 lines) holds every `dep` subcommand and the dependency-graph loader

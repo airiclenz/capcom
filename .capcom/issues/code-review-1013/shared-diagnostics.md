@@ -1,11 +1,13 @@
 ---
 title: One per-file diagnostics module for index and check
-status: open
+status: done
 type: task
 priority: 3
 deps: [left-out-name-claims, split-check-go, split-index-refresh, duplicate-id-subtree]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:43Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 The same file problems have two names, `CodeX` in `check` and `WarningX` in `index`, and three

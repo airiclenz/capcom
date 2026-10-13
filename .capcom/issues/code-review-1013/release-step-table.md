@@ -1,11 +1,13 @@
 ---
 title: "cmd/release: one step table and one file per channel"
-status: open
+status: done
 type: task
 priority: 3
 deps: [release-no-downgrade, release-draft-probe, release-gate-binding, channel-push-failure-test, release-sums-check]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:44Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 In `cmd/release`, `publishSteps` and `publishActions` are parallel tables joined by name, with one

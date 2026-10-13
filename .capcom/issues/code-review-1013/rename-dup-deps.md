@@ -1,11 +1,13 @@
 ---
 title: Issue rename leaves the new id twice in deps or related
-status: open
+status: done
 type: bug
 priority: 3
 deps: [reference-rewrite-engine]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:44Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 Issue rename leaves the new id twice in `deps` or `related`. `issue`'s `renameDeps`, applied to

@@ -1,11 +1,13 @@
 ---
 title: Missing config.yaml treated as format 3; init re-run raises the format
-status: open
+status: done
 type: bug
 priority: 3
 deps: [config-owns-format]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:44Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 A missing `config.yaml` is treated as format 3, and re-running `init` raises the store format.

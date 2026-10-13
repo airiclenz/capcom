@@ -1,10 +1,12 @@
 ---
 title: Code and architecture review 2026-10-13
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:13Z
+closed: 2026-10-13T18:09:26Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 Parent of the issues filed from the code and architecture review of 2026-10-13

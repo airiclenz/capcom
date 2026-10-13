@@ -1,11 +1,13 @@
 ---
 title: Names claimed by files left out of the index fall through to prefix matching
-status: open
+status: done
 type: bug
 priority: 2
 deps: [refresh-race-tests]
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:14Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 Names claimed by files the index leaves out fall through to unique-prefix matching. The

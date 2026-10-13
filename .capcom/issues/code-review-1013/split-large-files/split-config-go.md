@@ -1,10 +1,12 @@
 ---
 title: Split config/config.go into config, parse, format
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:42Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 `internal/config/config.go` (498 lines) holds the config types, the format raise and a strict

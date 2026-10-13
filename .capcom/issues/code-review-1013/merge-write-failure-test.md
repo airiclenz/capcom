@@ -1,10 +1,12 @@
 ---
 title: Merge driver write failure and ReplaceFileVerbatim missing path untested
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:13Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 The merge driver's failure to write `<ours>` (the `tree.ReplaceFileVerbatim` error that becomes

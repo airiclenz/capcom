@@ -1,10 +1,12 @@
 ---
 title: Move shared edit helpers out of cli/update.go
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:11:43Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 `internal/cli/update.go` (288 lines) hosts `editNode`, `readTextInput` and `writeResult`, which

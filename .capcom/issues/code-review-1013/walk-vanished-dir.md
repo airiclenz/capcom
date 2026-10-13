@@ -1,10 +1,12 @@
 ---
 title: A directory vanishing during the walk fails the whole refresh
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-10-13 - 00 - code-and-architecture-review-fixes-plan
 created: 2026-10-13T09:05:15Z
+closed: 2026-10-13T18:09:22Z
+reason: Resolved by plan 2026-10-13 - 00 - code-and-architecture-review-fixes-plan (archived in 12751c0)
 ---
 
 A directory that vanishes during the walk fails the whole refresh. `treeWalker.walk` returns the
