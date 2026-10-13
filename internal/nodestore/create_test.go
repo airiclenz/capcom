@@ -2,12 +2,14 @@ package nodestore
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -391,5 +393,29 @@ func assertExists(path string, holder string, text string) func(t *testing.T, er
 			!strings.Contains(failure.Message, text) {
 			t.Errorf("err = %v, want an *ExistsError at %s held by %s saying %q", err, path, holder, text)
 		}
+	}
+}
+
+func TestCreate_NoteWithSupersededByBelowFormatThree_RaisesTheFormat(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	configPath := writeNodeFile(t, s.Root, "config.yaml", "format: 2\n")
+	note, err := knowledge.Parse("node.md", []byte(canonicalNote))
+	if err != nil {
+		t.Fatal(err)
+	}
+	note.Aliases = nil
+
+	written, _, err := Notes(s, nil).Create("quoting", "", func() (knowledge.Note, error) {
+		return note, nil
+	})
+
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if content := readFile(t, configPath); written.RaisedFormat != config.FormatSupersession ||
+		content != fmt.Sprintf("format: %d\n", config.FormatSupersession) {
+		t.Errorf("RaisedFormat = %d, config.yaml = %q; want format %d declared",
+			written.RaisedFormat, content, config.FormatSupersession)
 	}
 }

@@ -2090,7 +2090,13 @@ Depends on P3.18; P3.17.
 **Closes:** reference-rewrite-engine
 **Commit:** `refactor(knowledge): delete the move and remove planners nodestore replaced`
 
-## P3.20 nodestore raises the store format in Edit and Create
+## P3.20 nodestore raises the store format in Edit and Create — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the raise lives in Kind.raise (kind.go); its failure message passes through relativeText like every other nodestore FileError, so an OS error naming the absolute config path now names it relative to the worktree (codes, paths and the refusal wording unchanged).
+
+NOTES (2026-10-13): know update's noteInputs.path became dead once the pre-validation went, so it was deleted; resolveSuccessors now returns only the successor ids and runs only for --add-superseded-by (--retire alone resolves the Note through Kind.Edit, with the same failure).
+
+NOTES (2026-10-13): related add now raises only after the issue validates (before, its change callback raised ahead of validation); added TestEdit_RaiseFails_FailsAtTheConfigAndWritesNothing beside the two planned Edit tests. create and know add do not render RaisedFormat yet: neither can set a key that needs a newer format today.
 
 **What:** First part of A-03 (`nodestore-post-write`). `related add` and `know update` each raise `config.yaml` inside their `Kind.Edit` change callback (`raiseStoreFormat`), in different orders relative to validation.
 **Goal:**

@@ -1,6 +1,8 @@
 package nodestore
 
 import (
+	"slices"
+
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -8,8 +10,8 @@ import (
 )
 
 // Codec is what a Kind knows of its node files: how one parses, serializes and validates, which
-// Aliases a parsed node records, the noun that names one node in a message, and which of its fields
-// reference other nodes.
+// Aliases a parsed node records, the noun that names one node in a message, which of its fields
+// reference other nodes, and the store format a write needs.
 type Codec[T any] struct {
 	// Noun names one node of the kind in a message: "issue" or "note".
 	Noun string
@@ -31,6 +33,10 @@ type Codec[T any] struct {
 	// refs are the node's reference fields, whose entries name other nodes of the tree by id; a
 	// rename rewrites them, and a removal drops them, through one engine.
 	refs []refField[T]
+	// requiredFormat returns the store format (ADR 0009) that writing after, the node before
+	// changed, needs config.yaml to declare: the format introducing a key value after gains, or 0
+	// when it gains none. A new node is written with the zero node as before.
+	requiredFormat func(before T, after T) int
 }
 
 // issueCodec is the Codec of the issue tree; cfg declares the statuses and types Validate accepts.
@@ -67,6 +73,12 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 				},
 			},
 		},
+		requiredFormat: func(before issue.Issue, after issue.Issue) int {
+			if gainsEntry(before.Related, after.Related) {
+				return config.FormatRelated
+			}
+			return 0
+		},
 	}
 }
 
@@ -94,5 +106,27 @@ func noteCodec() Codec[knowledge.Note] {
 				isSelfRefused: true,
 			},
 		},
+		requiredFormat: func(before knowledge.Note, after knowledge.Note) int {
+			if gainsSupersession(before, after) {
+				return config.FormatSupersession
+			}
+			return 0
+		},
 	}
+}
+
+// gainsSupersession reports whether after, the edit of before, newly carries a format-3 key value:
+// it is retired where before was not, or it has a superseded-by entry before lacks.
+func gainsSupersession(before knowledge.Note, after knowledge.Note) bool {
+	if after.IsRetired && !before.IsRetired {
+		return true
+	}
+	return gainsEntry(before.SupersededBy, after.SupersededBy)
+}
+
+// gainsEntry reports whether after holds an entry that before lacks.
+func gainsEntry(before []string, after []string) bool {
+	return slices.ContainsFunc(after, func(entry string) bool {
+		return !slices.Contains(before, entry)
+	})
 }

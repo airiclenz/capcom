@@ -1,17 +1,15 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
 // formatRaisedWarning is the warning of the write that raises the store format (capcom related add
@@ -60,18 +58,10 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 			}
 			isLinked := slices.ContainsFunc(holder.Related, graph.names(other.ID)) ||
 				slices.ContainsFunc(other.Related, graph.names(holder.ID))
-			warning := ""
 			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				if isLinked {
 					return target, nil
 				}
-				// Raised only once the etag check has passed, and before the link is written, so a
-				// store never holds a related link while it still declares format 1.
-				raiseWarning, raiseErr := a.raiseStoreFormat(config.FormatRelated)
-				if raiseErr != nil {
-					return issue.Issue{}, raiseErr
-				}
-				warning = raiseWarning
 				target.Related = append(slices.Clone(target.Related), other.ID)
 				return target, nil
 			})
@@ -79,9 +69,7 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 				return err
 			}
 			result := writeResult(written.ID, written.Path, written.ETag)
-			if warning != "" {
-				result.Warnings = append(result.Warnings, warning)
-			}
+			a.warnRaisedFormat(&result, written.Effects)
 			return a.emit(cmd, result)
 		}),
 	}
@@ -161,24 +149,15 @@ func (a *app) relatedRemoval(first index.Entry, arg string) (index.Entry, func(s
 	}
 }
 
-// raiseStoreFormat raises the store format to at least version (store.RaiseFormat) and returns the
-// warning to give when it changed config.yaml, or "" when the store already declared version or
-// above. Every failure is invalid at config.yaml; a config.yaml the guarded reader refuses carries
-// the refusal's own text, since RaiseFormat's error already names the file.
-func (a *app) raiseStoreFormat(version int) (string, error) {
+// warnRaisedFormat adds to result the warning of a write whose effects raised the store format
+// (formatRaisedWarning), and nothing when the write left config.yaml alone.
+func (a *app) warnRaisedFormat(result *output.Result, effects nodestore.Effects) {
+	if effects.RaisedFormat == 0 {
+		return
+	}
 	displayPath := a.worktreeRelative(a.store.ConfigPath())
-	isRaised, err := a.store.RaiseFormat(version)
-	if err != nil {
-		message := err.Error()
-		for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
-			if errors.Is(err, refusal) {
-				message = refusal.Error()
-			}
-		}
-		return "", &output.Error{Code: output.CodeInvalid, Path: displayPath, Message: message}
-	}
-	if !isRaised {
-		return "", nil
-	}
-	return fmt.Sprintf(formatRaisedWarning, displayPath, version, version-1), nil
+	result.Warnings = append(
+		result.Warnings,
+		fmt.Sprintf(formatRaisedWarning, displayPath, effects.RaisedFormat, effects.RaisedFormat-1),
+	)
 }

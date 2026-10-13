@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -306,5 +308,86 @@ func TestEdit_NodeFileBecameASymlink_FailsWithAFileErrorAtItAndWritesNothing(t *
 	}
 	if content := readFile(t, target); content != canonicalIssue {
 		t.Errorf("symlink target changed:\n%s", content)
+	}
+}
+
+// keylessConfig is a config.yaml that declares no store format, so the store is at format 1.
+const keylessConfig = "types: [bug, feature, task, chore]\n"
+
+// writeStoreConfig writes content as the config.yaml of the store holding the issue file
+// issuePath, a file at the top of its issue tree, and returns the config file's path.
+func writeStoreConfig(t *testing.T, issuePath string, content string) string {
+	t.Helper()
+	return writeNodeFile(t, filepath.Dir(filepath.Dir(issuePath)), "config.yaml", content)
+}
+
+// linkDBSchema is a change giving an issue the related entry db-schema and the title title.
+func linkDBSchema(title string) func(issue.Issue) (issue.Issue, error) {
+	return func(node issue.Issue) (issue.Issue, error) {
+		node.Title = title
+		node.Related = []string{"db-schema"}
+		return node, nil
+	}
+}
+
+// TestEdit_GainsRelatedBelowFormatTwo_RaisesBeforeTheWrite is not parallel: it sets the
+// package-level beforeRecheck hook, which the parallel tests only run after it restores.
+func TestEdit_GainsRelatedBelowFormatTwo_RaisesBeforeTheWrite(t *testing.T) {
+	issues, path := newEditedIssue(t)
+	configPath := writeStoreConfig(t, path, keylessConfig)
+	configAtRecheck := ""
+	setBeforeRecheck(t, func(string) { configAtRecheck = readFile(t, configPath) })
+
+	written, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
+
+	if err != nil {
+		t.Fatalf("Edit: %v", err)
+	}
+	wantLine := fmt.Sprintf("format: %d", config.FormatRelated)
+	if written.RaisedFormat != config.FormatRelated || !strings.Contains(configAtRecheck, wantLine) {
+		t.Errorf("RaisedFormat = %d, config.yaml before the write = %q; want %d and %q",
+			written.RaisedFormat, configAtRecheck, config.FormatRelated, wantLine)
+	}
+	if content := readFile(t, path); !strings.Contains(content, "related: [db-schema]") {
+		t.Errorf("issue file =\n%s\nwant the related link written", content)
+	}
+}
+
+func TestEdit_InvalidResult_LeavesTheFormatAlone(t *testing.T) {
+	t.Parallel()
+	issues, path := newEditedIssue(t)
+	configPath := writeStoreConfig(t, path, keylessConfig)
+
+	written, err := issues.Edit(editedIssueID, "", linkDBSchema(""))
+
+	var failure *FileError
+	if !errors.As(err, &failure) || failure.Path != editedIssuePath || written.RaisedFormat != 0 {
+		t.Errorf("Written = %+v err = %v, want a *FileError at the issue file and no raise", written, err)
+	}
+	if content := readFile(t, configPath); content != keylessConfig {
+		t.Errorf("config.yaml = %q, want it unchanged", content)
+	}
+	if content := readFile(t, path); content != canonicalIssue {
+		t.Errorf("issue file =\n%s\nwant it unchanged", content)
+	}
+}
+
+func TestEdit_RaiseFails_FailsAtTheConfigAndWritesNothing(t *testing.T) {
+	t.Parallel()
+	issues, path := newEditedIssue(t)
+	configPath := filepath.Join(filepath.Dir(filepath.Dir(path)), "config.yaml")
+	if err := os.Mkdir(configPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
+
+	var failure *FileError
+	if !errors.As(err, &failure) || failure.Path != ".capcom/config.yaml" ||
+		failure.Message != tree.ErrNotRegular.Error() {
+		t.Errorf("err = %v, want a *FileError at .capcom/config.yaml naming the refusal", err)
+	}
+	if content := readFile(t, path); content != canonicalIssue {
+		t.Errorf("issue file =\n%s\nwant it unchanged", content)
 	}
 }

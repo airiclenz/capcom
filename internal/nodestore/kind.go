@@ -30,6 +30,11 @@ type Kind[T any] struct {
 	// applyRemoval carries out a planned removal, returning its cleanup failures as warnings; a
 	// test swaps it to inject a failure of the rewrites and removals Apply makes.
 	applyRemoval func(removal *tree.Removal) ([]error, error)
+	// raiseFormat raises config.yaml to declare at least store format version and reports whether
+	// it changed the file, as store.Store.RaiseFormat does.
+	raiseFormat func(version int) (bool, error)
+	// configPath is the store's config.yaml, which a failure of raiseFormat names.
+	configPath string
 }
 
 // Resolver resolves an argument naming an existing node, its id or one of its Aliases, to that
@@ -46,11 +51,19 @@ type Target struct {
 }
 
 // Written is the outcome of a write: the node's id, its file relative to the working tree root
-// with forward slashes, and the file's new etag.
+// with forward slashes, the file's new etag, and the Effects of the write beyond the node file.
 type Written struct {
 	ID   string
 	Path string
 	ETag string
+	Effects
+}
+
+// Effects are what a write changed besides the node file.
+type Effects struct {
+	// RaisedFormat is the store format (ADR 0009) the write raised config.yaml to, so that the store
+	// declares the format of the key values the node gained; 0 when config.yaml was left alone.
+	RaisedFormat int
 }
 
 // Issues returns the node store of the issue tree of s, whose config validates every issue;
@@ -63,6 +76,8 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		resolver:     resolver,
 		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
+		raiseFormat:  s.RaiseFormat,
+		configPath:   s.ConfigPath(),
 	}
 }
 
@@ -76,6 +91,8 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		resolver:     resolver,
 		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
+		raiseFormat:  s.RaiseFormat,
+		configPath:   s.ConfigPath(),
 	}
 }
 
@@ -123,6 +140,32 @@ func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 		return nil, nil
 	}
 	return rawfm.Aliases(data), nil
+}
+
+// raise raises config.yaml to the store format writing after, the node before changed, needs
+// (Codec.requiredFormat), and returns the format it raised the file to: 0 when the write needs no
+// format or the store already declares it or above. A failure is a *FileError at config.yaml: a
+// config.yaml that is not a regular file or is larger than 1 MiB is named by the refusal alone.
+func (k *Kind[T]) raise(before T, after T) (int, error) {
+	version := k.codec.requiredFormat(before, after)
+	if version == 0 {
+		return 0, nil
+	}
+	isRaised, err := k.raiseFormat(version)
+	if err != nil {
+		message := k.relativeText(err.Error())
+		for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
+			if errors.Is(err, refusal) {
+				// The error already names config.yaml, which the FileError's path names.
+				message = refusal.Error()
+			}
+		}
+		return 0, &FileError{Path: k.relative(k.configPath), Message: message}
+	}
+	if !isRaised {
+		return 0, nil
+	}
+	return version, nil
 }
 
 // isRefusedRead reports whether err is nodefile.ReadNodeFile refusing a file unread: one that is not a

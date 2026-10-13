@@ -2,12 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
@@ -44,12 +42,11 @@ type knowUpdateOptions struct {
 }
 
 // noteInputs is what know update reads and resolves before it touches the Note: the whole new body
-// of --body-file, the text of --body-append-file, and for an edit that may raise the store format,
-// the Note's file and the ids the --add-superseded-by arguments resolve to.
+// of --body-file, the text of --body-append-file, and the ids the --add-superseded-by arguments
+// resolve to.
 type noteInputs struct {
 	body       string
 	appendFile string
-	path       string
 	successors []string
 }
 
@@ -73,8 +70,8 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if options.isRetiring || len(options.addSuccessors) > 0 {
-				if inputs.path, inputs.successors, err = a.resolveSuccessors(args[0], options.addSuccessors); err != nil {
+			if len(options.addSuccessors) > 0 {
+				if inputs.successors, err = a.resolveSuccessors(args[0], options.addSuccessors); err != nil {
 					return err
 				}
 			}
@@ -129,25 +126,25 @@ func readNoteInputs(cmd *cobra.Command, options *knowUpdateOptions) (noteInputs,
 	return inputs, nil
 }
 
-// resolveSuccessors resolves arg to its Note's file, and each of successorArgs, the
-// --add-superseded-by arguments, to the id of the Note it names, so the Note stores canonical ids
-// only. An argument naming no Note, several or the Note itself is refused, at the Note's file.
-func (a *app) resolveSuccessors(arg string, successorArgs []string) (path string, successors []string, err error) {
+// resolveSuccessors resolves each of successorArgs, the --add-superseded-by arguments, to the id of
+// the Note it names, so the Note stores canonical ids only. arg names the Note they are added to;
+// an argument naming no Note, several or the Note itself is refused, at the Note's file.
+func (a *app) resolveSuccessors(arg string, successorArgs []string) ([]string, error) {
 	holder, err := a.issueIndex.ResolveNote(arg)
 	if err != nil {
 		failure, _ := resolveFailure(err) // either way the command stops here
-		return "", nil, failure
+		return nil, failure
 	}
-	successors = make([]string, 0, len(successorArgs))
+	successors := make([]string, 0, len(successorArgs))
 	for _, successorArg := range successorArgs {
 		successor, err := a.issueIndex.ResolveNote(successorArg)
 		if err != nil {
 			failure, _ := resolveFailure(err) // either way the command stops here
 			failure.Path = holder.Path
-			return "", nil, failure
+			return nil, failure
 		}
 		if successor.ID == holder.ID {
-			return "", nil, &output.Error{
+			return nil, &output.Error{
 				Code:    output.CodeInvalid,
 				Path:    holder.Path,
 				Message: fmt.Sprintf("%s cannot be superseded by itself", holder.ID),
@@ -155,15 +152,16 @@ func (a *app) resolveSuccessors(arg string, successorArgs []string) (path string
 		}
 		successors = append(successors, successor.ID)
 	}
-	return holder.Path, successors, nil
+	return successors, nil
 }
 
 // updateNote changes the Note arg names through the node store of the Knowledge tree, which
 // resolves arg through the index, refuses with conflict when --if-match is set and is not the
 // file's etag, applies the flags to the parsed Note, then validates and writes the result
 // atomically (Kind.Edit); it then refreshes a stale capcom block of AGENTS.md. Every failure names
-// the Note file. An edit that retires the Note or gives it a new superseded-by entry first raises a
-// store below format 3 to 3, with a warning.
+// the Note file, or config.yaml when its raise fails. An edit that retires the Note or gives it a
+// new superseded-by entry raises a store below format 3 to 3 before the write (Kind.Edit), with a
+// warning.
 func (a *app) updateNote(
 	cmd *cobra.Command,
 	arg string,
@@ -171,32 +169,14 @@ func (a *app) updateNote(
 	inputs noteInputs,
 ) (output.Result, error) {
 	notes := nodestore.Notes(a.store, noteResolver{index: a.issueIndex})
-	warning := ""
 	written, err := editNode(notes, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
-		edited, err := applyNoteUpdate(cmd, options, inputs, note)
-		if err != nil || !gainsSupersession(note, edited) {
-			return edited, err
-		}
-		// Kind.Edit refuses an edit that does not validate; it must not raise the store first.
-		if len(knowledge.Validate(inputs.path, edited)) > 0 {
-			return edited, nil
-		}
-		// Raised only once the etag check has passed, and before the keys are written, so a store
-		// never holds a format-3 key while it still declares an older format.
-		raiseWarning, raiseErr := a.raiseStoreFormat(config.FormatSupersession)
-		if raiseErr != nil {
-			return knowledge.Note{}, raiseErr
-		}
-		warning = raiseWarning
-		return edited, nil
+		return applyNoteUpdate(cmd, options, inputs, note)
 	})
 	if err != nil {
 		return output.Result{}, err
 	}
 	result := noteWriteResult(written.ID, written.Path, written.ETag)
-	if warning != "" {
-		result.Warnings = append(result.Warnings, warning)
-	}
+	a.warnRaisedFormat(&result, written.Effects)
 	a.refreshAgentsAfterWrite(&result)
 	return result, nil
 }
@@ -214,17 +194,6 @@ func (r noteResolver) Resolve(arg string) (nodestore.Target, error) {
 		return nodestore.Target{}, err
 	}
 	return nodestore.Target{ID: entry.ID, Path: entry.Path}, nil
-}
-
-// gainsSupersession reports whether edited, the edit of before, newly carries a format-3 key value:
-// it is retired where before was not, or it has a superseded-by entry before lacks.
-func gainsSupersession(before knowledge.Note, edited knowledge.Note) bool {
-	if edited.IsRetired && !before.IsRetired {
-		return true
-	}
-	return slices.ContainsFunc(edited.SupersededBy, func(successor string) bool {
-		return !slices.Contains(before.SupersededBy, successor)
-	})
 }
 
 // applyNoteUpdate applies the changed flags to note in the order title, labels, refs, retired,

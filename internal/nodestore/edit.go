@@ -28,10 +28,14 @@ var beforeRecheck = func(path string) {}
 //  5. change, applied to the parsed node, whose failure is returned unwrapped.
 //  6. validation: a node that does not validate fails with a *FileError at the file, listing every
 //     problem and citing the first problem's line.
-//  7. the re-check, whether or not ifMatch is set: the node file is read again, a read failure
+//  7. the format raise: when the changed node gains a key value of a newer store format than
+//     config.yaml declares, config.yaml is raised to it (Written.RaisedFormat), so a store never
+//     holds such a value while it declares an older format; a failure is a *FileError at
+//     config.yaml.
+//  8. the re-check, whether or not ifMatch is set: the node file is read again, a read failure
 //     being a *FileError at it as in step 2, and when its etag is no longer the one step 2 read,
 //     a *ConflictError naming that first-read etag as stale; the newer file is left as it is.
-//  8. the atomic write: a node file removed or moved since the re-check fails with a *FileError at
+//  9. the atomic write: a node file removed or moved since the re-check fails with a *FileError at
 //     it and is not recreated; any other failure is returned as it is. An edit landing between the
 //     re-check and this write is still overwritten: the store takes no lock.
 func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (Written, error) {
@@ -65,6 +69,10 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err != nil {
 		return located, err
 	}
+	raised, err := k.raise(node, edited)
+	if err != nil {
+		return located, err
+	}
 	if err := k.recheck(path, firstETag); err != nil {
 		return located, err
 	}
@@ -72,10 +80,11 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err != nil {
 		return located, err
 	}
+	written.RaisedFormat = raised
 	return written, nil
 }
 
-// recheck reads the node file at path again, failing as Edit's step 7 documents when it cannot be
+// recheck reads the node file at path again, failing as Edit's step 8 documents when it cannot be
 // read or its etag is no longer firstETag, the etag Edit first read.
 func (k *Kind[T]) recheck(path string, firstETag string) error {
 	beforeRecheck(path)
