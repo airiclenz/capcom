@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -162,7 +163,7 @@ func checkSymbol(path string, symbol string) string {
 	if info.IsDir() {
 		return fmt.Sprintf("is a directory; symbol %q needs a file", symbol)
 	}
-	data, err := tree.ReadRegularFile(path)
+	data, err := nodefile.ReadRegularFile(path)
 	switch {
 	case errors.Is(err, tree.ErrNotRegular):
 		return fmt.Sprintf("is not a regular file; symbol %q needs a file", symbol)

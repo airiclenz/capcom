@@ -132,14 +132,14 @@ func makeSymlink(t *testing.T, target string, link string) {
 	}
 }
 
-// unreadSwap is one way of swapping an issue file after Load for one tree.ReadNodeFile refuses
+// unreadSwap is one way of swapping an issue file after Load for one nodefile.ReadNodeFile refuses
 // unread: swap replaces the regular issue file at path, whose content is content.
 type unreadSwap struct {
 	name string
 	swap func(t *testing.T, path string, content string)
 }
 
-// unreadSwaps are the swaps tree.ReadNodeFile refuses: a symlink to a regular file holding the
+// unreadSwaps are the swaps nodefile.ReadNodeFile refuses: a symlink to a regular file holding the
 // same content, a named pipe, and a regular file over 1 MiB written in place.
 func unreadSwaps() []unreadSwap {
 	return []unreadSwap{

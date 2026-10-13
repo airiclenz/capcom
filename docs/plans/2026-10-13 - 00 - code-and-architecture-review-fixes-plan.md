@@ -1200,7 +1200,10 @@ Depends on P2.4; P0.4; P0.5; P0.7.
 - `grep -rnE '(tree|edit)\.(ReadNodeFile|ReadRegularFile|WriteFileAtomic\w*|ReplaceFile\w*|WriteFileExclusive|ETag)\b' internal/lock internal/store internal/agents internal/check internal/index` prints nothing
 **Commit:** `refactor(store): import the node-file IO from internal/nodefile in lock, store, agents, check and index`
 
-## P2.6 nodefile package, part 5: issue and knowledge import nodefile
+## P2.6 nodefile package, part 5: issue and knowledge import nodefile — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): comments that gained the longer `nodefile.` qualifier were not rewrapped, to keep the diff to qualifiers and import lines (as in P2.5); four comment lines in issue/move.go, issue/remove.go and knowledge/remove.go now run to 101-102 columns.
+NOTES (2026-10-13): issue/remove.go and issue/remove_test.go drop the `edit` import (ETag was their only `edit` use); move_test.go in both packages had comment-only sites and gains no import.
 
 **What:** Part 5 of review P2-03. The `issue` and `knowledge` packages, their tests included, call the moved functions through `nodefile`.
 **Regression guard.** The Goal (code and comments) is checked by an Acceptance grep; comment-only sites compile either way.

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -27,7 +27,7 @@ type Removal struct {
 	// RelatedDropped are the ids of the issues whose related entries naming the removed issue are
 	// dropped, in tree order.
 	RelatedDropped []string
-	// Unread are the files of other issues that do not parse, or that tree.ReadNodeFile refuses
+	// Unread are the files of other issues that do not parse, or that nodefile.ReadNodeFile refuses
 	// unread, so their deps and related entries could not be checked for the removed issue and were
 	// left as they are.
 	Unread []string
@@ -35,7 +35,7 @@ type Removal struct {
 
 // RemoveOptions are the choices of one issue removal.
 type RemoveOptions struct {
-	// IfMatch, when not empty, is the etag (see edit.ETag) the issue file must still have.
+	// IfMatch, when not empty, is the etag (see nodefile.ETag) the issue file must still have.
 	IfMatch string
 	// ShouldDropDeps drops the deps entries of the issues that depend on the removed issue instead
 	// of refusing its removal.
@@ -85,11 +85,11 @@ func PlanRemove(issues *tree.Tree, id string, options RemoveOptions) (*Removal, 
 	if err != nil {
 		return nil, err
 	}
-	data, err := tree.ReadNodeFile(planned.Node.Path)
+	data, err := nodefile.ReadNodeFile(planned.Node.Path)
 	if err != nil {
 		return nil, err
 	}
-	if current := edit.ETag(data); options.IfMatch != "" && options.IfMatch != current {
+	if current := nodefile.ETag(data); options.IfMatch != "" && options.IfMatch != current {
 		return nil, &ETagMismatchError{Path: planned.Node.Path, IfMatch: options.IfMatch, ETag: current}
 	}
 
@@ -112,7 +112,7 @@ func PlanRemove(issues *tree.Tree, id string, options RemoveOptions) (*Removal, 
 }
 
 // planDrops reads every other issue file of issues, those tree.Load left out for a repeated id
-// included, through tree.ReadNodeFile and returns the files whose content the removal changes,
+// included, through nodefile.ReadNodeFile and returns the files whose content the removal changes,
 // without the deps and related entries that are one of names, in tree order, and the ids of the
 // dependents, in the order of their files' paths. It sets r.DepsDropped, r.RelatedDropped and
 // r.Unread.
@@ -124,7 +124,7 @@ func (r *Removal) planDrops(issues *tree.Tree, names []string) ([]tree.Rewrite, 
 		if other.ID == r.Node.ID {
 			continue
 		}
-		data, err := tree.ReadNodeFile(other.Path)
+		data, err := nodefile.ReadNodeFile(other.Path)
 		if isRefusedRead(err) {
 			r.Unread = append(r.Unread, other.Path)
 			continue
@@ -174,7 +174,7 @@ func dropEntries(entries []string, isDropped func(string) bool) []string {
 	return kept
 }
 
-// isRefusedRead reports whether err is tree.ReadNodeFile refusing a file unread: one that is not a
+// isRefusedRead reports whether err is nodefile.ReadNodeFile refusing a file unread: one that is not a
 // regular file, or is larger than 1 MiB.
 func isRefusedRead(err error) bool {
 	return errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge)

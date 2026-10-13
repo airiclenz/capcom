@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // removeFile is the content of a canonical issue file with the given deps, related and aliases
@@ -117,7 +117,7 @@ func TestPlanRemove_StaleIfMatch_ComesBeforeTheDependentsRefusal(t *testing.T) {
 	_, err := issue.PlanRemove(loadMoveTree(t, dir), "gone-issue", issue.RemoveOptions{IfMatch: "0000000000000000"})
 
 	var mismatch *issue.ETagMismatchError
-	if !errors.As(err, &mismatch) || mismatch.ETag != edit.ETag([]byte(removeFile("", "", ""))) {
+	if !errors.As(err, &mismatch) || mismatch.ETag != nodefile.ETag([]byte(removeFile("", "", ""))) {
 		t.Errorf("PlanRemove = %v, want an ETagMismatchError", err)
 	}
 }

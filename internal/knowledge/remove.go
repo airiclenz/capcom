@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -22,7 +23,7 @@ type Removal struct {
 	// SupersededByDropped are the ids of the Notes whose superseded-by entries naming the removed
 	// Note are dropped, in tree order.
 	SupersededByDropped []string
-	// Unread are the files of other Notes that do not parse, or that tree.ReadNodeFile refuses
+	// Unread are the files of other Notes that do not parse, or that nodefile.ReadNodeFile refuses
 	// unread, so their superseded-by entries could not be checked for the removed Note and were
 	// left as they are.
 	Unread []string
@@ -41,7 +42,7 @@ func PlanRemove(notes *tree.Tree, id string) (*Removal, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := tree.ReadNodeFile(planned.Node.Path)
+	data, err := nodefile.ReadNodeFile(planned.Node.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +63,7 @@ func PlanRemove(notes *tree.Tree, id string) (*Removal, error) {
 }
 
 // planDrops reads every other Note file of notes, those tree.Load left out for a repeated id
-// included, through tree.ReadNodeFile and returns, in tree order, the files whose superseded-by
+// included, through nodefile.ReadNodeFile and returns, in tree order, the files whose superseded-by
 // entries are one of names, without those entries. It sets r.SupersededByDropped and
 // r.Unread.
 func (r *Removal) planDrops(notes *tree.Tree, names []string) ([]tree.Rewrite, error) {
@@ -71,7 +72,7 @@ func (r *Removal) planDrops(notes *tree.Tree, names []string) ([]tree.Rewrite, e
 		if other.ID == r.Node.ID {
 			continue
 		}
-		data, err := tree.ReadNodeFile(other.Path)
+		data, err := nodefile.ReadNodeFile(other.Path)
 		if isRefusedRead(err) {
 			r.Unread = append(r.Unread, other.Path)
 			continue
@@ -96,7 +97,7 @@ func (r *Removal) planDrops(notes *tree.Tree, names []string) ([]tree.Rewrite, e
 	return rewrites, nil
 }
 
-// isRefusedRead reports whether err is tree.ReadNodeFile refusing a file unread: one that is not a
+// isRefusedRead reports whether err is nodefile.ReadNodeFile refusing a file unread: one that is not a
 // regular file, or is larger than 1 MiB.
 func isRefusedRead(err error) bool {
 	return errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge)
