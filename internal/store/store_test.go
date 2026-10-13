@@ -333,7 +333,7 @@ func initStore(t *testing.T, content string) *Store {
 }
 
 func TestRaiseFormat_CRLFConfig_KeepsCRLFAndMode(t *testing.T) {
-	store := initStore(t, "types: [bug]\r\nformat: 1\r\nid_prefix: cc\r\n")
+	store := initStore(t, "types: [bug]\r\nformat: 1\r\nplans: [epic]\r\n")
 	if err := os.Chmod(store.ConfigPath(), 0o600); err != nil {
 		t.Fatalf("Chmod: %v", err)
 	}
@@ -344,7 +344,7 @@ func TestRaiseFormat_CRLFConfig_KeepsCRLFAndMode(t *testing.T) {
 		t.Fatalf("RaiseFormat = %v, %v, want true, nil", isRaised, err)
 	}
 	content, _ := os.ReadFile(store.ConfigPath())
-	if want := "types: [bug]\r\nformat: 2\r\nid_prefix: cc\r\n"; string(content) != want {
+	if want := "types: [bug]\r\nformat: 2\r\nplans: [epic]\r\n"; string(content) != want {
 		t.Errorf("config.yaml = %q, want %q", content, want)
 	}
 	if info, err := os.Stat(store.ConfigPath()); runtime.GOOS != "windows" && (err != nil || info.Mode().Perm() != 0o600) {
@@ -357,7 +357,10 @@ func TestRaiseFormat_FormatOneTemplate_WritesEveryByteConfigRaiseFormatReturns(t
 		"# The store format version; left as a comment, since a missing key means format 1.\n" +
 		"# format: 1\n\ntypes: [bug, task]\n"
 	store := initStore(t, template)
-	want, _ := config.RaiseFormat([]byte(template), 2)
+	want, _, err := config.RaiseFormat(".capcom/config.yaml", []byte(template), 2)
+	if err != nil {
+		t.Fatalf("config.RaiseFormat: %v", err)
+	}
 
 	isRaised, err := store.RaiseFormat(2)
 
@@ -366,6 +369,38 @@ func TestRaiseFormat_FormatOneTemplate_WritesEveryByteConfigRaiseFormatReturns(t
 	}
 	if content, _ := os.ReadFile(store.ConfigPath()); string(content) != string(want) {
 		t.Errorf("config.yaml = %q, want %q", content, want)
+	}
+}
+
+func TestRaiseFormat_QuotedFormatKey_RewritesItAndTheStoreStillOpens(t *testing.T) {
+	store := initStore(t, "types: [bug]\n\"format\" : 2\n")
+
+	isRaised, err := store.RaiseFormat(3)
+
+	if err != nil || !isRaised {
+		t.Fatalf("RaiseFormat = %v, %v, want true, nil", isRaised, err)
+	}
+	if content, _ := os.ReadFile(store.ConfigPath()); string(content) != "types: [bug]\nformat: 3\n" {
+		t.Errorf("config.yaml = %q, want %q", content, "types: [bug]\nformat: 3\n")
+	}
+	if reopened, err := Open(store.WorktreeRoot); err != nil || reopened.Config.Format != 3 {
+		t.Errorf("Open after RaiseFormat = %v; want the store open at format 3", err)
+	}
+}
+
+func TestRaiseFormat_UnplaceableFormatKey_FailsNamingTheLineAndLeavesTheFile(t *testing.T) {
+	const content = "types: [bug]\n? format\n: 2\n"
+	store := initStore(t, content)
+
+	isRaised, err := store.RaiseFormat(3)
+
+	want := ".capcom/config.yaml:2: format: cannot raise the store format; " +
+		"write the key as `format: <number>` at the start of a line of its own"
+	if err == nil || isRaised || err.Error() != want {
+		t.Fatalf("RaiseFormat = %v, %v, want false and %q", isRaised, err, want)
+	}
+	if data, readErr := os.ReadFile(store.ConfigPath()); readErr != nil || string(data) != content {
+		t.Errorf("config.yaml = %q (%v), want its bytes unchanged", data, readErr)
 	}
 }
 

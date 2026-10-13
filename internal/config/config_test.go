@@ -151,10 +151,10 @@ func TestKeylessFile_Parse_DefaultsAtFormatOne(t *testing.T) {
 func TestRaiseFormat_KeylessFile_BecomesDefaultFile(t *testing.T) {
 	t.Parallel()
 
-	raised, isChanged := RaiseFormat([]byte(KeylessFile), FormatVersion)
+	raised, isChanged, err := RaiseFormat(testPath, []byte(KeylessFile), FormatVersion)
 
-	if !isChanged || string(raised) != DefaultFile {
-		t.Errorf("RaiseFormat = %v,\n%s\nwant DefaultFile", isChanged, raised)
+	if err != nil || !isChanged || string(raised) != DefaultFile {
+		t.Errorf("RaiseFormat = %v, %v,\n%s\nwant DefaultFile", isChanged, err, raised)
 	}
 }
 
@@ -187,10 +187,11 @@ func TestRaiseFormat_RewritesOrInsertsOneFormatKey(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			raised, isChanged := RaiseFormat([]byte(testCase.content), 2)
+			raised, isChanged, err := RaiseFormat(testPath, []byte(testCase.content), 2)
 
-			if !isChanged || string(raised) != testCase.want {
-				t.Fatalf("RaiseFormat(%q) = %q, %v; want %q, true", testCase.content, raised, isChanged, testCase.want)
+			if err != nil || !isChanged || string(raised) != testCase.want {
+				t.Fatalf("RaiseFormat(%q) = %q, %v, %v; want %q, true, nil",
+					testCase.content, raised, isChanged, err, testCase.want)
 			}
 			config, err := Parse(testPath, raised)
 			if err != nil || config.Format != 2 {
@@ -218,11 +219,11 @@ func TestRaiseFormat_AtOrAboveVersion_IsUnchanged(t *testing.T) {
 		{"# format: 1\n", 1},
 	}
 	for _, testCase := range cases {
-		raised, isChanged := RaiseFormat([]byte(testCase.content), testCase.version)
+		raised, isChanged, err := RaiseFormat(testPath, []byte(testCase.content), testCase.version)
 
-		if isChanged || string(raised) != testCase.content {
-			t.Errorf("RaiseFormat(%q, %d) = %q, %v; want it unchanged",
-				testCase.content, testCase.version, raised, isChanged)
+		if err != nil || isChanged || string(raised) != testCase.content {
+			t.Errorf("RaiseFormat(%q, %d) = %q, %v, %v; want it unchanged",
+				testCase.content, testCase.version, raised, isChanged, err)
 		}
 	}
 }

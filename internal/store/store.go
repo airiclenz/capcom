@@ -141,7 +141,9 @@ func (s *Store) ConfigPath() string {
 // keeps every other byte, CRLF line endings included, and it keeps its permission bits. A missing
 // config.yaml means format 1 to the releases before format 2, so it is created holding only the
 // format key. A store already at version or above is left untouched. s.Config is not reloaded. A
-// config.yaml that is not a regular file, or is larger than 1 MiB, fails as Open fails on it.
+// config.yaml that is not a regular file, or is larger than 1 MiB, fails as Open fails on it; one
+// that fails to parse, or whose format key config.RaiseFormat cannot rewrite in place, fails with
+// a *config.Error naming the file relative to the working tree root, and is left untouched.
 func (s *Store) RaiseFormat(version int) (bool, error) {
 	path := s.ConfigPath()
 	data, err := s.readConfig()
@@ -149,9 +151,9 @@ func (s *Store) RaiseFormat(version int) (bool, error) {
 	if err != nil && !isMissing {
 		return false, err
 	}
-	raised, isChanged := config.RaiseFormat(data, version)
-	if !isChanged {
-		return false, nil
+	raised, isChanged, err := config.RaiseFormat(s.relative(configFile), data, version)
+	if err != nil || !isChanged {
+		return false, err
 	}
 	if isMissing {
 		err = nodefile.WriteFileAtomicVerbatim(path, bytes.NewReader(raised), filePermissions)

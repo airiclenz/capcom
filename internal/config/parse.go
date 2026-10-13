@@ -17,24 +17,31 @@ var categories = []Category{CategoryTodo, CategoryDoing, CategoryWaiting, Catego
 // content leaves out take their Default value, except a missing format key, which means format 1;
 // an empty document is the default configuration at format 1.
 func Parse(path string, data []byte) (Config, error) {
+	config, _, err := parse(path, data)
+	return config, err
+}
+
+// parse is Parse that also returns the content's top-level mapping node, nil for an empty
+// document.
+func parse(path string, data []byte) (Config, *yaml.Node, error) {
 	p := parser{path: path}
 	config := Default()
 	config.Format = MissingFormat
 
 	root, err := p.document(data)
 	if err != nil {
-		return Config{}, err
+		return Config{}, nil, err
 	}
 	if root == nil {
-		return config, nil
+		return config, nil, nil
 	}
 	if err := p.format(root, &config); err != nil {
-		return Config{}, err
+		return Config{}, nil, err
 	}
 	if err := p.topLevel(root, &config); err != nil {
-		return Config{}, err
+		return Config{}, nil, err
 	}
-	return config, nil
+	return config, root, nil
 }
 
 // parser decodes one config file, attributing every failure to its path and line.
@@ -89,23 +96,30 @@ func (p parser) yamlError(err error) *Error {
 // format reads the format key of root before any other key is looked at, so a store newer than
 // this capcom fails as too new rather than on a key this capcom does not know (ADR 0009).
 func (p parser) format(root *yaml.Node, config *Config) error {
-	for index := 0; index+1 < len(root.Content); index += 2 {
-		key, value := root.Content[index], root.Content[index+1]
-		if key.Value != keyFormat {
-			continue
-		}
-		version, err := strconv.Atoi(value.Value)
-		if value.Kind != yaml.ScalarNode || err != nil || version < 1 {
-			return p.errorAt(value, "format: expected a whole number, 1 or more")
-		}
-		if version > FormatVersion {
-			return p.errorAt(key, "store format %d is newer than this capcom reads (up to %d); upgrade capcom",
-				version, FormatVersion)
-		}
-		config.Format = version
+	key, value := formatEntry(root)
+	if key == nil {
 		return nil
 	}
+	version, err := strconv.Atoi(value.Value)
+	if value.Kind != yaml.ScalarNode || err != nil || version < 1 {
+		return p.errorAt(value, "format: expected a whole number, 1 or more")
+	}
+	if version > FormatVersion {
+		return p.errorAt(key, "store format %d is newer than this capcom reads (up to %d); upgrade capcom",
+			version, FormatVersion)
+	}
+	config.Format = version
 	return nil
+}
+
+// formatEntry returns the key and value nodes of root's first format key, or nil, nil without one.
+func formatEntry(root *yaml.Node) (key *yaml.Node, value *yaml.Node) {
+	for index := 0; index+1 < len(root.Content); index += 2 {
+		if root.Content[index].Value == keyFormat {
+			return root.Content[index], root.Content[index+1]
+		}
+	}
+	return nil, nil
 }
 
 // topLevel applies every top-level key of root onto config. The format key was already read by

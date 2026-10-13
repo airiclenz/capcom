@@ -64,7 +64,12 @@ NOTES (2026-10-13): filed with `--plan "2026-10-13 - 01 - code-audit-fixes-plan"
 - `capcom check`
 **Commit:** `chore(issues): file the 2026-10-13 code audit`
 
-## 1. RaiseFormat finds every spelling of the format key
+## 1. RaiseFormat finds every spelling of the format key — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from the signature `RaiseFormat(data, version)`: it takes the path first, `RaiseFormat(path, data, version) ([]byte, bool, error)`, matching `Parse(path, data)`, so `Store.RaiseFormat` passes `s.relative(configFile)` into the parse as the regression guard requires and returns the `*config.Error` unwrapped (wrapping would print the path twice).
+NOTES (2026-10-13): the key's line comes from the parsed YAML node (`formatEntry`, shared with `parser.format`), not a line scan; `realFormatLine` only confirms its spelling. `internal/config/parse.go` gains `parse` (Parse returning the root node too) and `formatEntry`; a block-mapping root, a key at column 1 and the value on the key's line are also required, so a flow mapping spanning lines is refused rather than mangled.
+NOTES (2026-10-13): `RaiseFormat` now rejects content `Parse` rejects (it parses first); `TestRaiseFormat_CRLFConfig_KeepsCRLFAndMode` used the unknown key `id_prefix: cc` as filler and now uses `plans: [epic]`, which the store can open — the CRLF and mode assertions are unchanged.
+NOTES (2026-10-13): retry: `isPlaceable` also refuses a literal or folded block-scalar value (`format: >-` with its text below), which a one-line rewrite would have left dangling; `TestRaiseFormat_UnplaceableKey_FailsAtTheKeyLine` gains that case (line 2).
 
 **What:** Fix: `config.RaiseFormat` matches the key only by `^format:`, so a quoted key, `format : 2` or a BOM-prefixed first line gets a second `format:` line and the store stops opening.
 **Goal:** Raising a `config.yaml` whose `format` key is quoted (`"format": 2`, `'format': 2`), spaced (`format : 2`) or behind a UTF-8 BOM rewrites that one line in place; the BOM stays first; a file already at or above the target is returned unchanged; a file whose parsed config has a `format` key the line search cannot place returns an error and is not rewritten.
