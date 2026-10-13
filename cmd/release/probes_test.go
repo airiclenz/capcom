@@ -50,9 +50,12 @@ type fakeRemote struct {
 	hasBucket      bool
 	bucketManifest string
 	// wingetListing is the package's manifest directory listing in winget-pkgs, "" while the
-	// package is not there; wingetPulls is what `gh pr list` prints, "" for no pull request.
-	wingetListing string
-	wingetPulls   string
+	// package is not there; wingetPulls is what `gh pr list` prints, "" for no pull request;
+	// wingetViewerPulls is what the `gh api graphql` query for the signed-in account's open pull
+	// requests prints, "" for none.
+	wingetListing     string
+	wingetPulls       string
+	wingetViewerPulls string
 	// failing names a command — "gh api repos/airiclenz/homebrew-tap" — that cannot run.
 	failing string
 }
@@ -101,6 +104,11 @@ func (r fakeRemote) respond(call recordedCall) (string, error) {
 			return "[]\n", nil
 		}
 		return r.wingetPulls, nil
+	case call.name == "gh" && len(args) > 1 && args[0] == "api" && args[1] == "graphql":
+		if r.wingetViewerPulls == "" {
+			return wingetViewerPull(0, "", "", ""), nil
+		}
+		return r.wingetViewerPulls, nil
 	}
 	return "", fmt.Errorf("unexpected command %s", command)
 }
@@ -137,6 +145,17 @@ func wingetListing(versions ...string) string {
 func wingetPull(number int, kind, version string) string {
 	return fmt.Sprintf(`[{"number":%d,"title":"%s: AiricLenz.Capcom version %s","url":"https://github.com/microsoft/winget-pkgs/pull/%d"}]`+"\n",
 		number, kind, version, number)
+}
+
+// wingetViewerPull is the `gh api graphql` answer listing the signed-in account's open pull
+// requests: one komac pull request titled kind against repo, or none when number is 0.
+func wingetViewerPull(number int, kind, version, repo string) string {
+	nodes := ""
+	if number != 0 {
+		nodes = fmt.Sprintf(`{"number":%d,"title":"%s: AiricLenz.Capcom version %s","url":"https://github.com/microsoft/winget-pkgs/pull/%d",`+
+			`"repository":{"nameWithOwner":%q}}`, number, kind, version, number, repo)
+	}
+	return `{"data":{"viewer":{"pullRequests":{"nodes":[` + nodes + "]}}}}\n"
 }
 
 // mustVersion parses a release version or fails the test.
@@ -226,6 +245,8 @@ func TestProbesReportEachState(t *testing.T) {
 			wantState: stateUnknown, wantDetail: "could not parse gh pr list output: invalid character"},
 		"winget pull requests unreadable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), failing: "gh pr list"},
 			wantState: stateUnknown, wantDetail: "could not list the open microsoft/winget-pkgs pull requests"},
+		"winget viewer's pull requests unreadable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), failing: "gh api graphql"},
+			wantState: stateUnknown, wantDetail: "could not list the open microsoft/winget-pkgs pull requests"},
 		"smoke": {probe: probeSmoke, repo: memRepo{remoteTags: annotated, releases: allAssets}, wantState: statePending, wantDetail: "publish runs it last"},
 		// A draft an interrupted `gh release create` left is never done: its download URLs 404.
 		"release draft with all assets": {probe: probeRelease, repo: memRepo{releases: allAssets, drafts: draft},
@@ -244,6 +265,41 @@ func TestProbesReportEachState(t *testing.T) {
 			env := probeEnv{repo: tc.repo, channels: execChannelRepos{commands: tc.remote.runner(), dir: "."}}
 
 			step := tc.probe(t.Context(), env, mustVersion(t, version))
+
+			if step.State != tc.wantState || !strings.Contains(step.Detail, tc.wantDetail) {
+				t.Errorf("step = %s %q, want %s containing %q", step.State, step.Detail, tc.wantState, tc.wantDetail)
+			}
+		})
+	}
+}
+
+// TestProbeWingetFindsAPullRequestSearchHasNotIndexed pins that the winget probe reads done on a
+// pull request the signed-in account just opened, which GitHub search does not list yet — so an
+// immediate rerun does not submit it again — and only on one against winget-pkgs.
+func TestProbeWingetFindsAPullRequestSearchHasNotIndexed(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		viewerPulls string
+		wantState   stepState
+		wantDetail  string
+	}{
+		"in winget-pkgs": {viewerPulls: wingetViewerPull(312345, "New version", "0.24.11", wingetRepo),
+			wantState: stateDone, wantDetail: "submitted: pull request #312345 https://github.com/microsoft/winget-pkgs/pull/312345"},
+		"first submission in winget-pkgs": {viewerPulls: wingetViewerPull(312345, "New package", "0.24.11", wingetRepo),
+			wantState: stateDone, wantDetail: "submitted: pull request #312345"},
+		"in another repository": {viewerPulls: wingetViewerPull(312345, "New version", "0.24.11", "airiclenz/winget-pkgs"),
+			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.11 manifest or open pull request"},
+		"for another version": {viewerPulls: wingetViewerPull(312345, "New version", "0.24.10", wingetRepo),
+			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.11 manifest or open pull request"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			remote := fakeRemote{wingetListing: wingetListing("0.24.10"), wingetViewerPulls: tc.viewerPulls}
+			env := probeEnv{repo: memRepo{}, channels: execChannelRepos{commands: remote.runner(), dir: "."}}
+
+			step := probeWinget(t.Context(), env, mustVersion(t, "v0.24.11"))
 
 			if step.State != tc.wantState || !strings.Contains(step.Detail, tc.wantDetail) {
 				t.Errorf("step = %s %q, want %s containing %q", step.State, step.Detail, tc.wantState, tc.wantDetail)

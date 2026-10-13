@@ -2620,7 +2620,12 @@ Depends on P3.74.
 - `go vet ./cmd/release/`
 **Commit:** `refactor(release): read the channel repositories through a seam`
 
-## P3.81 Release: the winget probe does not wait on the search index
+## P3.81 Release: the winget probe does not wait on the search index — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): OpenPulls runs the search listing first, then the viewer query (`gh api graphql -f query=...` with nonInteractiveEnv, the latest 100 open pull requests by creation date); the viewer's nodes are kept when their `repository.nameWithOwner` equals the repository case-insensitively, and appended after the search results unless the search already listed that number; a failed or unparsable viewer answer fails OpenPulls like the search does, so probeWinget reports unknown
+NOTES (2026-10-13): winget.go is unchanged (not in Files), so probeWinget's "could not parse gh pr list output" detail now also covers an unparsable GraphQL viewer answer
+NOTES (2026-10-13): the viewer is gh's signed-in account; a pull request komac opened under a different GITHUB_TOKEN account is still found only through search, as before
+NOTES (2026-10-13): the two OpenPulls cases left TestExecChannelReposRunsEachMethodsArgv (which asserts exactly one call) for the new TestExecChannelReposOpenPullsReadsTheViewersPullsBesideTheSearch, which pins both argv and the merge; TestExecChannelReposTellsANoFromABrokenCommand gains a broken and an unparsable viewer answer; TestProbesReportEachState gains an unreadable viewer query case
 
 **What:** Fixes F-14 (`winget-probe-search`): the winget probe finds an open pull request only through GitHub search, which lags, so an immediate rerun submits a duplicate pull request to `microsoft/winget-pkgs`.
 **Regression guard.** Every status and publish test reaches the winget probe through `fakeRemote`, whose zero value answers the GraphQL call with an empty nodes list; Acceptance runs the whole package.
