@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 // newRepo creates a git repository holding an empty store in a temp dir and returns its root. It
@@ -57,10 +58,14 @@ const (
 	knowledge = ".capcom/knowledge/"
 )
 
-// runCheck runs check in root and fails the test on error.
+// runCheck opens the store in root, runs check on it and fails the test on error.
 func runCheck(t *testing.T, root string) []check.Problem {
 	t.Helper()
-	problems, err := check.Run(root)
+	opened, err := store.Open(root)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	problems, err := check.Run(opened)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -107,11 +112,6 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 		files map[string]string
 		want  string
 	}{
-		{
-			name:  "config error",
-			files: map[string]string{".capcom/config.yaml": "types: [task]\nbogus: 1\n"},
-			want:  ".capcom/config.yaml:2:" + check.CodeConfig,
-		},
 		{
 			name:  "unknown issue key",
 			files: map[string]string{issues + "login-flow.md": issueFile("estimate: 3\n")},
@@ -244,6 +244,40 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				t.Errorf("problems = %v, want %v", problems, want)
 			}
 		})
+	}
+}
+
+func TestConfigProblems_UnusableConfig_ReportsTheOneConfigProblem(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml":    "types: [task]\nbogus: 1\n",
+		issues + "login-flow.md": issueFile("estimate: 3\n"),
+	})
+	_, err := store.Open(root)
+
+	problems := check.ConfigProblems(err)
+
+	want := []string{".capcom/config.yaml:2:" + check.CodeConfig}
+	if got := locations(t, problems); !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %v, want %v", problems, want)
+	}
+}
+
+func TestConfigProblems_OtherOpenFailure_ReportsNothing(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(root))
+	if output, err := exec.Command("git", "init", "-q", root).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, output)
+	}
+	_, err := store.Open(root)
+	if err == nil {
+		t.Fatal("Open succeeded without a store")
+	}
+
+	if problems := check.ConfigProblems(err); problems != nil {
+		t.Errorf("problems = %v, want nil", problems)
 	}
 }
 
@@ -745,7 +779,13 @@ func TestRun_NamedPipeIssueFile_ReportedNotRegularWithoutBlocking(t *testing.T) 
 	done := make(chan []check.Problem, 1)
 
 	go func() {
-		problems, err := check.Run(root)
+		opened, err := store.Open(root)
+		if err != nil {
+			t.Errorf("Open: %v", err)
+			done <- nil
+			return
+		}
+		problems, err := check.Run(opened)
 		if err != nil {
 			t.Errorf("Run: %v", err)
 		}

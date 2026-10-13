@@ -12,6 +12,7 @@ import (
 	"github.com/airiclenz/capcom/internal/check"
 	"github.com/airiclenz/capcom/internal/elsewhere"
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 // briefingConfig declares a doing status, so the Briefing has issues in progress to list.
@@ -182,7 +183,7 @@ func TestCompose_BrokenIndexAndLocks_FailInOrderAndKeepTheRest(t *testing.T) {
 func TestCompose_PanickingSource_IsOneInternalFailureAndNoSection(t *testing.T) {
 	original := runCheck
 	t.Cleanup(func() { runCheck = original })
-	runCheck = func(string) ([]check.Problem, error) { panic("check exploded") }
+	runCheck = func(*store.Store) ([]check.Problem, error) { panic("check exploded") }
 	root := newBriefingRepo(t, briefingStore())
 
 	got := Compose(root, time.Now())

@@ -2709,7 +2709,7 @@ Depends on P3.83.
 - `grep -l channelRepos cmd/release/doc.go .capcom/knowledge/decisions/adr-0008/adr-0008-decision.md` lists both
 **Commit:** `test(release): hold the channel repositories in memory in the publish and smoke tests`
 
-## P3.90 check.Run takes the opened store
+## P3.90 check.Run takes the opened store — ✅ DONE (2026-10-13)
 
 **What:** Part 1 of A-10: `check.Run(s *store.Store)` validates an opened store, and `briefing.Compose` hands it the store it opened, so a session start opens the store once.
 **Regression guard.** The briefing `runCheck` seam changes type to take `*store.Store`, so P0.2's panic test (and any other test assigning it) is updated.

@@ -98,7 +98,7 @@ func Compose(cwd string, now time.Time) (composed Briefing) {
 	}
 	composed.readWork(s)
 	composed.readLocks(s)
-	composed.readHealth(cwd)
+	composed.readHealth(s)
 	composed.scanElsewhere(s, now)
 	return composed
 }
@@ -160,9 +160,9 @@ func (b *Briefing) readLocks(s *store.Store) {
 	}
 }
 
-// readHealth sets Health from a check of the store cwd belongs to.
-func (b *Briefing) readHealth(cwd string) {
-	problems, err := runCheck(cwd)
+// readHealth sets Health from a check of the opened store s.
+func (b *Briefing) readHealth(s *store.Store) {
+	problems, err := runCheck(s)
 	if err != nil {
 		b.fail(SectionCheck, err)
 		return

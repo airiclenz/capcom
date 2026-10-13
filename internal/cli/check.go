@@ -8,6 +8,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/check"
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 // newCheckCommand validates the whole store, reading the files and never the index, and lists
@@ -23,9 +24,9 @@ func (a *app) newCheckCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			problems, err := check.Run(cwd)
+			problems, err := checkProblems(cwd)
 			if err != nil {
-				return output.StoreFailure(err)
+				return err
 			}
 			data := append([]check.Problem{}, problems...)
 			var text strings.Builder
@@ -43,4 +44,22 @@ func (a *app) newCheckCommand() *cobra.Command {
 			return output.Rendered(output.Errorf(output.CodeInvalid, "%d problems found", len(problems)))
 		}),
 	}
+}
+
+// checkProblems opens the store of the git working tree containing cwd and checks it. A config.yaml
+// that cannot be used is the one problem reported, not a failure; any other open or check failure
+// is returned as the store failure it is.
+func checkProblems(cwd string) ([]check.Problem, error) {
+	opened, err := store.Open(cwd)
+	if err != nil {
+		if problems := check.ConfigProblems(err); problems != nil {
+			return problems, nil
+		}
+		return nil, output.StoreFailure(err)
+	}
+	problems, err := check.Run(opened)
+	if err != nil {
+		return nil, output.StoreFailure(err)
+	}
+	return problems, nil
 }

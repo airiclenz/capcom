@@ -22,28 +22,10 @@ import (
 	"github.com/airiclenz/capcom/internal/store"
 )
 
-// Run validates the store of the git working tree containing cwd and returns every problem it
-// finds, ordered by path and line, or nil for a valid store. A config.yaml that cannot be used is
-// the only problem reported, since every issue rule reads the config.
-//
-// It fails, as store.Open does, outside a git working tree and without a store, and when a store
-// file or directory cannot be read.
-func Run(cwd string) ([]Problem, error) {
-	opened, err := store.Open(cwd)
-	var configFailure *config.Error
-	if errors.As(err, &configFailure) {
-		return []Problem{{
-			Path:    configFailure.Path,
-			Line:    configFailure.Line,
-			Code:    CodeConfig,
-			Message: configFailure.Message,
-		}}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	run := checker{store: opened}
+// Run validates the opened store s and returns every problem it finds, ordered by path and line,
+// or nil for a valid store. It fails when a store file or directory cannot be read.
+func Run(s *store.Store) ([]Problem, error) {
+	run := checker{store: s}
 	if err := run.issues(); err != nil {
 		return nil, err
 	}
@@ -57,6 +39,22 @@ func Run(cwd string) ([]Problem, error) {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line))
 	})
 	return run.problems, nil
+}
+
+// ConfigProblems turns err, a store.Open failure, into the problems check reports for it: the one
+// config problem when config.yaml cannot be used, since every issue rule reads the config, and nil
+// for any other failure.
+func ConfigProblems(err error) []Problem {
+	var configFailure *config.Error
+	if !errors.As(err, &configFailure) {
+		return nil
+	}
+	return []Problem{{
+		Path:    configFailure.Path,
+		Line:    configFailure.Line,
+		Code:    CodeConfig,
+		Message: configFailure.Message,
+	}}
 }
 
 // checker collects the problems of one store.
