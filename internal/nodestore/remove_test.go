@@ -60,7 +60,7 @@ func TestRemove_DropDeps_RemovesTheIssueAndItsDependentsDeps(t *testing.T) {
 
 	removed, _, err := issues.Remove("fix-parser", etag, true)
 
-	if err != nil || removed.Path != removedIssuePath || !slices.Equal(removed.DepsDropped, []string{"session-work"}) {
+	if err != nil || removed.Path != removedIssuePath || !slices.Equal(removed.Dropped[RefDeps], []string{"session-work"}) {
 		t.Fatalf("Remove = %+v, %v; want fix-parser removed and session-work's deps dropped", removed, err)
 	}
 	if dependent := readFile(t, filepath.Join(dir, "session-work.md")); dependent != plainIssue {

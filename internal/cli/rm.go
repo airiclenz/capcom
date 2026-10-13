@@ -75,7 +75,7 @@ func (a *app) removeIssue(arg string, options *rmOptions) (output.Result, error)
 		return output.Result{}, issueRemovalFailure(err)
 	}
 
-	result := issueRemoveResult(removed.ID, removed.Path, removed.DepsDropped, removed.RelatedDropped)
+	result := issueRemoveResult(removed.ID, removed.Path, removed.Dropped[nodestore.RefDeps], removed.Dropped[nodestore.RefRelated])
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	for _, unread := range removed.Unread {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(

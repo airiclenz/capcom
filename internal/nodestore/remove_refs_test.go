@@ -39,10 +39,9 @@ func TestRemove_DropDeps_DropsDepsAndRelatedNamingTheIdOrAnAlias(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
-	if !slices.Equal(removed.DepsDropped, []string{"by-alias", "by-id"}) ||
-		!slices.Equal(removed.RelatedDropped, []string{"by-alias", "related-only"}) {
-		t.Errorf("DepsDropped = %v, RelatedDropped = %v; want the holders in tree order",
-			removed.DepsDropped, removed.RelatedDropped)
+	if !slices.Equal(removed.Dropped[RefDeps], []string{"by-alias", "by-id"}) ||
+		!slices.Equal(removed.Dropped[RefRelated], []string{"by-alias", "related-only"}) || len(removed.Dropped) != 2 {
+		t.Errorf("Dropped = %v; want the deps and related holders in tree order", removed.Dropped)
 	}
 	wants := map[string]string{
 		"by-id.md":        refIssue("deps: [kept-issue]\n", ""),
@@ -120,8 +119,8 @@ func TestRemove_UnparseableIssueFiles_RemovesOwnAndListsOthersAsUnread(t *testin
 	if want := []string{".capcom/issues/broken-other.md"}; !slices.Equal(removed.Unread, want) {
 		t.Errorf("Unread = %v, want %v", removed.Unread, want)
 	}
-	if !slices.Equal(removed.DepsDropped, []string{"blocked-work"}) {
-		t.Errorf("DepsDropped = %v, want the dependent naming the recovered alias", removed.DepsDropped)
+	if !slices.Equal(removed.Dropped[RefDeps], []string{"blocked-work"}) {
+		t.Errorf("Dropped = %v, want the dependent naming the recovered alias", removed.Dropped)
 	}
 	if got := readFile(t, filepath.Join(dir, "blocked-work.md")); got != refIssue("", "") {
 		t.Errorf("blocked-work.md =\n%s\nwant its deps entry dropped", got)
@@ -146,6 +145,9 @@ func TestRemove_Note_DropsOtherNotesSuccessorsNamingTheIdOrAnAlias(t *testing.T)
 
 	if err != nil || removed.ID != "old-rule" || removed.Path != ".capcom/knowledge/old-rule.md" {
 		t.Fatalf("Remove = %+v, %v; want old-rule removed", removed, err)
+	}
+	if want := map[string][]string{RefSupersededBy: {"by-alias", "by-id"}}; !maps.EqualFunc(removed.Dropped, want, slices.Equal) {
+		t.Errorf("Dropped = %v, want %v", removed.Dropped, want)
 	}
 	wants := map[string]string{
 		"by-id.md":     refNote("By id", "superseded-by: [other]\n", ""),

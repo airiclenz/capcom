@@ -5,12 +5,11 @@ import (
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Codec is what a Kind knows of its node files: how one parses, serializes and validates, which
-// Aliases a parsed node records, the noun that names one node in a message, which of its fields
-// reference other nodes, and how a removal of one node is worked out.
+// Aliases a parsed node records, the noun that names one node in a message, and which of its fields
+// reference other nodes.
 type Codec[T any] struct {
 	// Noun names one node of the kind in a message: "issue" or "note".
 	Noun string
@@ -24,20 +23,14 @@ type Codec[T any] struct {
 	Validate func(path string, node T) []*frontmatter.Error
 	// Aliases returns the former ids node records.
 	Aliases func(node T) []string
-	// nounPhrase names one node of the kind with its article, as the errors of a move do: "an
-	// issue" or "a note".
+	// nounPhrase names one node of the kind with its article, as the errors of a move or a removal
+	// do: "an issue" or "a note".
 	nounPhrase string
 	// setAliases returns node with its Aliases replaced by aliases.
 	setAliases func(node T, aliases []string) T
 	// refs are the node's reference fields, whose entries name other nodes of the tree by id; a
-	// rename rewrites them through one engine.
+	// rename rewrites them, and a removal drops them, through one engine.
 	refs []refField[T]
-	// planRemove works out the removal of the node with exact id id in nodes, reading the node
-	// files but changing nothing: it refuses a node with children first, then an ifMatch that is
-	// not the node file's etag, as a *ConflictError at the absolute file with no message, then,
-	// on the issue kind, dependents unless shouldDropDeps, failing otherwise as the kind's
-	// PlanRemove does.
-	planRemove func(nodes *tree.Tree, id string, ifMatch string, shouldDropDeps bool) (*plannedRemoval, error)
 }
 
 // issueCodec is the Codec of the issue tree; cfg declares the statuses and types Validate accepts.
@@ -57,15 +50,16 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 		},
 		refs: []refField[issue.Issue]{
 			{
-				key: "deps",
+				key: RefDeps,
 				get: func(node issue.Issue) []string { return node.Deps },
 				set: func(node issue.Issue, entries []string) issue.Issue {
 					node.Deps = entries
 					return node
 				},
+				blocksRemoval: true,
 			},
 			{
-				key: "related",
+				key: RefRelated,
 				get: func(node issue.Issue) []string { return node.Related },
 				set: func(node issue.Issue, entries []string) issue.Issue {
 					node.Related = entries
@@ -73,7 +67,6 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 				},
 			},
 		},
-		planRemove: planIssueRemove,
 	}
 }
 
@@ -92,7 +85,7 @@ func noteCodec() Codec[knowledge.Note] {
 		},
 		refs: []refField[knowledge.Note]{
 			{
-				key: "superseded-by",
+				key: RefSupersededBy,
 				get: func(node knowledge.Note) []string { return node.SupersededBy },
 				set: func(node knowledge.Note, entries []string) knowledge.Note {
 					node.SupersededBy = entries
@@ -101,6 +94,5 @@ func noteCodec() Codec[knowledge.Note] {
 				isSelfRefused: true,
 			},
 		},
-		planRemove: planNoteRemove,
 	}
 }

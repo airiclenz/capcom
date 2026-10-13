@@ -1,6 +1,7 @@
 package nodestore
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -182,5 +183,103 @@ func TestPlanNodeMove_RenameNote_FileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt
 			})
 			assertSwappedAfterLoadIsUnread(t, notes, dir, "swapped.md", successor, swap)
 		})
+	}
+}
+
+// assertRemovalSwappedAfterLoadIsUnread loads kind's tree, swaps the file name below dir, holding
+// content, as swap says, then plans and applies the removal of gone-name through the engine and
+// checks that the swapped file is listed as unread and left as it was.
+func assertRemovalSwappedAfterLoadIsUnread[T any](t *testing.T, kind *Kind[T], dir string, name string, content string, swap unreadSwap) {
+	t.Helper()
+	nodes, _, err := kind.load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	swappedPath := filepath.Join(dir, name)
+	swap.swap(t, swappedPath, content)
+	swapped := lstatSwapped(t, swappedPath)
+	node, err := nodes.Resolve("gone-name")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	removal, err := kind.planNodeRemoval(nodes, node, "", false)
+	if err != nil {
+		t.Fatalf("planNodeRemoval: %v", err)
+	}
+	if _, err := removal.Apply(); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	if want := []string{swappedPath}; !slices.Equal(removal.unread, want) {
+		t.Errorf("unread = %v, want %v", removal.unread, want)
+	}
+	if got := lstatSwapped(t, swappedPath); got.Mode() != swapped.Mode() || got.Size() != swapped.Size() {
+		t.Errorf("swapped file = %v %d bytes, want it as swapped: %v %d bytes",
+			got.Mode(), got.Size(), swapped.Mode(), swapped.Size())
+	}
+}
+
+func TestPlanNodeRemoval_Issue_FileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt(t *testing.T) {
+	t.Parallel()
+	for _, swap := range unreadSwaps() {
+		t.Run(swap.name, func(t *testing.T) {
+			t.Parallel()
+			dependent := refIssue("deps: [gone-name]\n", "")
+			issues, dir := newRefIssues(t, map[string]string{
+				"gone-name.md":    refIssue("", ""),
+				"swapped-work.md": dependent,
+			})
+			assertRemovalSwappedAfterLoadIsUnread(t, issues, dir, "swapped-work.md", dependent, swap)
+		})
+	}
+}
+
+func TestPlanNodeRemoval_Note_FileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt(t *testing.T) {
+	t.Parallel()
+	for _, swap := range unreadSwaps() {
+		t.Run(swap.name, func(t *testing.T) {
+			t.Parallel()
+			successor := refNote("Swapped", "superseded-by: [gone-name]\n", "")
+			notes, dir := newRefNotes(t, map[string]string{
+				"gone-name.md": refNote("Gone rule", "", ""),
+				"swapped.md":   successor,
+			})
+			assertRemovalSwappedAfterLoadIsUnread(t, notes, dir, "swapped.md", successor, swap)
+		})
+	}
+}
+
+func TestPlanNodeRemoval_Note_StaleIfMatch_ConflictsBeforeReadingOtherNotes(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("file permission tests do not run as root")
+	}
+	notes, dir := newRefNotes(t, map[string]string{
+		"old-rule.md":   refNote("Old rule", "", ""),
+		"unreadable.md": refNote("Unreadable", "superseded-by: [old-rule]\n", ""),
+	})
+	nodes, _, err := notes.load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	node, err := nodes.Resolve("old-rule")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	unreadable := filepath.Join(dir, "unreadable.md")
+	if err := os.Chmod(unreadable, 0o000); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(unreadable, 0o644) })
+
+	_, err = notes.planNodeRemoval(nodes, node, "0000000000000000", false)
+
+	var conflict *ConflictError
+	if !errors.As(err, &conflict) || conflict.Path != ".capcom/knowledge/old-rule.md" {
+		t.Errorf("err = %v, want a *ConflictError at old-rule.md before any other Note is read", err)
 	}
 }

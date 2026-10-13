@@ -1,10 +1,24 @@
 package nodestore
 
 import (
+	"fmt"
+	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/tree"
+)
+
+// The keys of the reference fields of both Tree kinds, as Removed.Dropped reports them.
+const (
+	// RefDeps is an issue's deps: the issues it waits for.
+	RefDeps = "deps"
+	// RefRelated is an issue's related: the issues it is linked to without waiting for them.
+	RefRelated = "related"
+	// RefSupersededBy is a Note's superseded-by: the Notes that replace it.
+	RefSupersededBy = "superseded-by"
 )
 
 // refField is one frontmatter field of a Tree kind whose entries name other nodes of the tree by
@@ -16,6 +30,9 @@ type refField[T any] struct {
 	get func(node T) []string
 	// set returns node with the field's entries replaced by entries.
 	set func(node T, entries []string) T
+	// blocksRemoval reports whether a node holding an entry of the field naming another node
+	// depends on it: the removal of that node is refused unless the entries are dropped.
+	blocksRemoval bool
 	// isSelfRefused reports whether the field may not name its own node: a rename drops the moved
 	// node's entry that names its new id.
 	isSelfRefused bool
@@ -156,4 +173,146 @@ func renameRefs(entries []string, names []string, newID string) ([]string, bool)
 		renamed = append(renamed, entry)
 	}
 	return renamed, true
+}
+
+// nodeRemoval is a removal of one node worked out by planNodeRemoval: the tree removal, with the
+// rewrites of the files whose entries it drops added.
+type nodeRemoval struct {
+	*tree.Removal
+	// dropped maps the key of each reference field to the ids of the nodes whose entries of it
+	// naming the removed node are dropped, in tree order; a field nothing is dropped from is absent.
+	dropped map[string][]string
+	// rewritten are the files of the nodes whose entries are dropped, in tree order.
+	rewritten []string
+	// unread are the files of other nodes that do not parse, or that nodefile.ReadNodeFile refuses
+	// unread, so their entries could not be checked for the removed node and were left as they are.
+	unread []string
+}
+
+// planNodeRemoval works out the removal of node, a node of nodes, reading the node files but
+// changing nothing. Every other node's entries of the kind's reference fields that name the node,
+// by its id or one of its Aliases, are dropped; every other node file of the tree is read, those
+// tree.Load left out for a repeated id included. The node's own file is read once, for its etag
+// and, when the node has no Aliases, for those rawfm still reads from it, but never parsed, so a
+// node whose file does not parse is removed like any other.
+//
+// It fails, in this order, as tree.PlanRemove does, with the *fs.PathError of the node's own file
+// when it cannot be read, with a *ConflictError when ifMatch is set and is not the node file's
+// etag, with the error of another node file it cannot read, and, unless shouldDropDeps, with a
+// *DependentsError naming the holders of a blocksRemoval field's entries, in the order of their
+// files' paths. Another node file that does not parse, or that nodefile.ReadNodeFile refuses
+// unread, joins unread instead. A node's entry naming itself is no dependent.
+func (k *Kind[T]) planNodeRemoval(nodes *tree.Tree, node tree.Node, ifMatch string, shouldDropDeps bool) (*nodeRemoval, error) {
+	planned, err := nodes.PlanRemove(node.ID, k.codec.nounPhrase)
+	if err != nil {
+		return nil, err
+	}
+	data, err := nodefile.ReadNodeFile(node.Path)
+	if err != nil {
+		return nil, err
+	}
+	if current := nodefile.ETag(data); ifMatch != "" && ifMatch != current {
+		return nil, k.conflictError(node.Path, ifMatch, current)
+	}
+
+	aliases := node.Aliases
+	if len(aliases) == 0 {
+		aliases = rawfm.Aliases(data)
+	}
+	names := slices.Concat([]string{node.ID}, aliases)
+	removal := &nodeRemoval{Removal: planned, dropped: map[string][]string{}}
+	var rewrites []tree.Rewrite
+	var dependents []tree.Node
+	for _, other := range slices.Concat(nodes.Nodes(), nodes.LeftOut()) {
+		if other.ID == node.ID {
+			continue
+		}
+		rewrite, droppedFrom, isUnread, err := k.planRefDrop(other.Path, names)
+		if err != nil {
+			return nil, err
+		}
+		if isUnread {
+			removal.unread = append(removal.unread, other.Path)
+		}
+		if rewrite == nil {
+			continue
+		}
+		for _, field := range droppedFrom {
+			removal.dropped[field.key] = append(removal.dropped[field.key], other.ID)
+		}
+		if slices.ContainsFunc(droppedFrom, func(field refField[T]) bool { return field.blocksRemoval }) {
+			dependents = append(dependents, other)
+		}
+		rewrites = append(rewrites, *rewrite)
+		removal.rewritten = append(removal.rewritten, other.Path)
+	}
+
+	if len(dependents) > 0 && !shouldDropDeps {
+		return nil, k.dependentsError(node, dependents)
+	}
+	for _, rewrite := range rewrites {
+		planned.AddRewrite(rewrite)
+	}
+	return removal, nil
+}
+
+// planRefDrop reads the node file at path, another node's than the removed one, and returns its
+// rewrite without the entries of its reference fields that are one of names, with the fields
+// those entries were dropped from, or nil when none of its entries is one of names. A file that
+// does not parse, or that nodefile.ReadNodeFile refuses unread, is reported unread instead; any
+// other read failure is returned.
+func (k *Kind[T]) planRefDrop(path string, names []string) (*tree.Rewrite, []refField[T], bool, error) {
+	data, err := nodefile.ReadNodeFile(path)
+	if isRefusedRead(err) {
+		return nil, nil, true, nil
+	}
+	if err != nil {
+		return nil, nil, false, err
+	}
+	node, err := k.codec.Parse(path, data)
+	if err != nil {
+		return nil, nil, true, nil
+	}
+
+	var droppedFrom []refField[T]
+	for _, field := range k.codec.refs {
+		entries := field.get(node)
+		kept := dropRefs(entries, names)
+		if len(kept) != len(entries) {
+			node = field.set(node, kept)
+			droppedFrom = append(droppedFrom, field)
+		}
+	}
+	if len(droppedFrom) == 0 {
+		return nil, nil, false, nil
+	}
+	return &tree.Rewrite{Path: path, Original: data, Content: k.codec.Serialize(node)}, droppedFrom, false, nil
+}
+
+// dropRefs returns a copy of entries, the entries of one reference field, without those that are
+// one of names, or nil when none is left.
+func dropRefs(entries []string, names []string) []string {
+	kept := slices.DeleteFunc(slices.Clone(entries), func(entry string) bool { return slices.Contains(names, entry) })
+	if len(kept) == 0 {
+		return nil
+	}
+	return kept
+}
+
+// dependentsError refuses the removal of node, which the nodes dependents depend on, as a
+// *DependentsError at its file naming them in the order of their files' paths.
+func (k *Kind[T]) dependentsError(node tree.Node, dependents []tree.Node) *DependentsError {
+	slices.SortStableFunc(dependents, func(first tree.Node, second tree.Node) int {
+		return strings.Compare(filepath.ToSlash(first.Path), filepath.ToSlash(second.Path))
+	})
+	ids := make([]string, 0, len(dependents))
+	for _, dependent := range dependents {
+		ids = append(ids, dependent.ID)
+	}
+	return &DependentsError{
+		Path:       k.relative(node.Path),
+		ID:         node.ID,
+		Dependents: ids,
+		Message:    fmt.Sprintf("%s %s is a dependency of %s", k.codec.Noun, node.ID, strings.Join(ids, ", ")),
+	}
 }

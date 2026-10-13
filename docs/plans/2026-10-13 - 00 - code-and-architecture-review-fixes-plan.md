@@ -1989,7 +1989,15 @@ Depends on P3.14.
 - `grep -rnE 'issue\.PlanMove|knowledge\.PlanMove|planMove|plannedMove' internal/nodestore/` prints nothing
 **Commit:** `fix(nodestore): rename references of both tree kinds through one engine`
 
-## P3.16 One drop engine and one etag check for Remove
+## P3.16 One drop engine and one etag check for Remove — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the engine is the Kind method `planNodeRemoval` (with `planRefDrop`, `dropRefs` and `dependentsError`) in refs.go, returning a `nodeRemoval` whose `dropped` map and `rewritten` paths replace `plannedRemoval`; `refField` gains `blocksRemoval`, set on `deps` only, and the field keys are the exported `RefDeps`, `RefRelated` and `RefSupersededBy`. `Removed.Dropped` only holds keys with drops.
+
+NOTES (2026-10-13): `removalPaths` now takes the rewritten files straight from the plan instead of looking the dropped ids up in the tree, so a holder the load left out for a repeated id is named too.
+
+NOTES (2026-10-13): beyond the planned swapped-after-Load ports, added `TestPlanNodeRemoval_Note_StaleIfMatch_ConflictsBeforeReadingOtherNotes`, which pins the Note side's new etag-before-drops order on the engine (a permission failure cannot reach Remove itself, because the tree load already reads every file). `issue.PlanRemove` and `knowledge.PlanRemove` stay in their packages, now unused by nodestore (P3.18, P3.19).
+
+NOTES (2026-10-13): consequential edit — internal/nodestore/doc.go: made necessary by refs.go now holding the removal planner too.
 
 **What:** Fourth part of A-04. Remove's drops, its etag check and its dependents refusal move into the engine, and drops are reported keyed by field.
 **Regression guard.** The Goal is checked by an Acceptance grep; with the old planners still wired the tests pass.
