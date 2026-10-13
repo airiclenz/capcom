@@ -235,7 +235,12 @@ NOTES (2026-10-13): the Windows tests were compiled (GOOS=windows go test -c) an
 - `GOOS=windows go vet ./internal/nodefile/`
 **Commit:** `fix(nodefile): retry the replacing rename on Windows while a reader holds the file`
 
-## 12. Exclusive create keeps its promise without hard links
+## 12. Exclusive create keeps its promise without hard links — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the seam is test-only (SetNoReplaceRename in export_test.go over a package variable renameNoReplace declared beside link in atomic.go), not an exported Swap function like SwapLink: no other package forces the rename; the seam passes the platform rename to its fn so a counting test still runs the real rename.
+NOTES (2026-10-13): placeExclusive now returns (isTempRenamed, err) and WriteFileExclusive skips removing temp after a rename placement, rather than ignoring fs.ErrNotExist from the remove.
+NOTES (2026-10-13): Windows passes the paths to MoveFileEx without os's long-path prefix; a path past MAX_PATH fails there and falls back to the in-place copy, as the regression guard allows. The Windows and darwin files were vetted (GOOS=windows/darwin/freebsd go vet) on Linux only.
+NOTES (2026-10-13): internal/tree/plan.go moveFile's link-then-checkedRename fallback could use the same no-replace rename; left alone as outside this item's files.
 
 **What:** Fix: `copyExclusive` creates the final path first and fills it after, so readers can see a partial node file and a crash leaves one.
 **Goal:** When hard links are refused, `WriteFileExclusive` places the file with a no-replace rename, so readers see no file or the whole one and an existing path fails with `fs.ErrExist`; the in-place copy runs only where the platform has no no-replace rename or the file system refuses it, and the doc comments on `WriteFileExclusive` and `placeExclusive` say exactly that.

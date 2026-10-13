@@ -22,8 +22,13 @@ const hiddenPrefix = "."
 const tempPattern = hiddenPrefix + "%s.tmp-*"
 
 // link is the hard link placeExclusive names the written file with; a test swaps it to force the
-// copy fallback.
+// no-replace rename.
 var link = os.Link
+
+// renameNoReplace is the no-replace rename placeExclusive moves the written file into place with
+// when the file system refuses the hard link; a test swaps it to count its calls or to force the
+// in-place copy.
+var renameNoReplace = noReplaceRename
 
 // Link gives the file oldPath the second name newPath with the hard link WriteFileExclusive names
 // its file with, which the file system refuses atomically, with an error wrapping fs.ErrExist,
@@ -85,10 +90,14 @@ func ReplaceFileVerbatim(path string, content io.Reader) error {
 // line endings to LF, and gives it mode 0644; unlike WriteFileAtomic it never replaces a file. It
 // creates path's directory when missing, streams into a temp file in that directory and fsyncs it,
 // hard-links the temp file to path and removes it, then fsyncs the directory (off Windows). Where
-// the file system refuses the link for any reason but an existing path, it copies the temp file
-// into path opened with O_CREATE|O_EXCL instead. Readers see no file or the whole new one. When
-// path already exists it fails with an error wrapping fs.ErrExist and leaves that file as it was;
-// on any failure the temp file is removed. Errors name path.
+// the file system refuses the link for any reason but an existing path, it renames the temp file
+// to path with a rename that refuses an existing path (renameat2 RENAME_NOREPLACE on Linux,
+// renamex_np RENAME_EXCL on macOS, MoveFileEx without MOVEFILE_REPLACE_EXISTING on Windows).
+// Either way readers see no file or the whole new one. Only where the platform has no such rename
+// or the file system refuses it for any reason but an existing path does it copy the temp file
+// into path opened with O_CREATE|O_EXCL; there a reader can see the file part-written, and a crash
+// can leave it so. When path already exists it fails with an error wrapping fs.ErrExist and
+// leaves that file as it was; on any failure the temp file is removed. Errors name path.
 func WriteFileExclusive(path string, content io.Reader) error {
 	dir := filepath.Dir(path)
 	temp, err := writeTemp(path, content, true, filePermissions, true)
@@ -96,8 +105,11 @@ func WriteFileExclusive(path string, content io.Reader) error {
 		return fmt.Errorf("%s: %w", path, err)
 	}
 
-	placeErr := placeExclusive(temp, path, filePermissions)
-	removeErr := os.Remove(temp)
+	isTempRenamed, placeErr := placeExclusive(temp, path, filePermissions)
+	var removeErr error
+	if !isTempRenamed {
+		removeErr = os.Remove(temp)
+	}
 	if placeErr != nil {
 		return fmt.Errorf("%s: %w", path, joinNonNil(placeErr, removeErr))
 	}
@@ -187,24 +199,38 @@ func writeTemp(
 	return temp.Name(), nil
 }
 
-// placeExclusive gives the written file temp a second name, path, without replacing a file there:
-// a hard link, or, when the file system refuses one for any other reason than an existing path,
-// a copy through copyExclusive. An existing path fails with fs.ErrExist itself. temp stays behind.
-func placeExclusive(temp string, path string, perm fs.FileMode) error {
-	err := link(temp, path)
+// placeExclusive puts the written file temp at path without replacing a file there, trying in
+// turn: a hard link, which leaves temp behind; when the file system refuses one for any other
+// reason than an existing path, a no-replace rename of temp, which consumes it and reports
+// isTempRenamed; when the platform has no such rename or the file system refuses it for any other
+// reason than an existing path, a copy through copyExclusive, which leaves temp behind. The link
+// and the rename place the whole file atomically; only the copy can be seen part-written. An
+// existing path fails with fs.ErrExist itself, and temp stays behind.
+func placeExclusive(temp string, path string, perm fs.FileMode) (isTempRenamed bool, err error) {
+	err = link(temp, path)
 	if err == nil {
-		return nil
+		return false, nil
 	}
 	if errors.Is(err, fs.ErrExist) {
-		return fs.ErrExist
+		return false, fs.ErrExist
 	}
-	// No hard links here (EPERM, ENOTSUP, Windows' ERROR_INVALID_FUNCTION on FAT): copy instead.
-	return copyExclusive(temp, path, perm)
+
+	// No hard links here (EPERM, ENOTSUP, Windows' ERROR_INVALID_FUNCTION on FAT): rename instead.
+	err = renameNoReplace(temp, path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, fs.ErrExist) {
+		return false, fs.ErrExist
+	}
+	// No no-replace rename here (EINVAL, ENOSYS, ENOTSUP, another platform): copy in place.
+	return false, copyExclusive(temp, path, perm)
 }
 
 // copyExclusive copies the file temp into path, created with O_CREATE|O_EXCL and given the
-// permissions perm, and fsyncs it. An existing path fails with fs.ErrExist itself; on any later
-// failure the partly written path is removed.
+// permissions perm, and fsyncs it. It is placeExclusive's last resort: path exists from the
+// create on, so a reader can see it part-written and a crash can leave it so. An existing path
+// fails with fs.ErrExist itself; on any later failure the partly written path is removed.
 func copyExclusive(temp string, path string, perm fs.FileMode) error {
 	source, err := os.Open(temp)
 	if err != nil {

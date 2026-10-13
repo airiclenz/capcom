@@ -122,11 +122,13 @@ func TestReplaceFileVerbatim_MissingPath_FailsNamingItAndCreatesNothing(t *testi
 	}
 }
 
-// The copy fallback: on a file system that refuses hard links, WriteFileExclusive copies the temp
-// file into path instead. These tests swap a package variable, so they never run in parallel.
+// Without hard links: on a file system that refuses them, WriteFileExclusive renames the temp file
+// into place with a rename that refuses an existing path, and copies it in place only where that
+// rename is refused too. These tests swap package variables, so they never run in parallel.
 
-func TestWriteFileExclusive_FreePathWithoutHardLinks_CopiesWholeFileAsLFAndLeavesNoTempFile(t *testing.T) {
+func TestWriteFileExclusive_FreePathWithoutHardLinks_RenamesWholeFileAsLFAndLeavesNoTempFile(t *testing.T) {
 	refused := refuseHardLinks(t)
+	renames := countNoReplaceRenames(t)
 	dir := filepath.Join(t.TempDir(), "login-flow")
 	path := filepath.Join(dir, "login-timeout-race.md")
 	content := strings.Repeat("retry the login\r\n", 4096) // past one 32 KiB copy buffer
@@ -136,8 +138,9 @@ func TestWriteFileExclusive_FreePathWithoutHardLinks_CopiesWholeFileAsLFAndLeave
 	if err != nil {
 		t.Fatalf("WriteFileExclusive: %v", err)
 	}
-	if *refused != 1 {
-		t.Fatalf("hard link tried %d times, want 1", *refused)
+	if *refused != 1 || renames.calls != 1 || renames.err != nil {
+		t.Fatalf("hard link tried %d times, no-replace rename %d times (last error %v), want 1 each and the rename to succeed",
+			*refused, renames.calls, renames.err)
 	}
 	want := strings.ReplaceAll(content, "\r\n", "\n")
 	if got, _ := os.ReadFile(path); string(got) != want {
@@ -148,8 +151,57 @@ func TestWriteFileExclusive_FreePathWithoutHardLinks_CopiesWholeFileAsLFAndLeave
 	}
 }
 
-func TestWriteFileExclusive_PathExistsWithoutHardLinks_FailsWithErrExistAndLeavesFileAndNoTempFile(t *testing.T) {
+func TestWriteFileExclusive_PathExistsWithoutHardLinks_RenameFailsWithErrExistAndLeavesFileAndNoTempFile(t *testing.T) {
 	refused := refuseHardLinks(t)
+	renames := countNoReplaceRenames(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "login-flow.md")
+	writeNodes(t, dir, "login-flow.md")
+
+	err := nodefile.WriteFileExclusive(path, strings.NewReader("new\ncontent\n"))
+
+	if !errors.Is(err, fs.ErrExist) || !strings.Contains(err.Error(), path) {
+		t.Fatalf("WriteFileExclusive = %v, want fs.ErrExist naming %s", err, path)
+	}
+	if *refused != 1 || renames.calls != 1 || !errors.Is(renames.err, fs.ErrExist) {
+		t.Fatalf("hard link tried %d times, no-replace rename %d times (last error %v), want 1 each and the rename to fail with fs.ErrExist",
+			*refused, renames.calls, renames.err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "x\n" {
+		t.Fatalf("existing file changed to %q", got)
+	}
+	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
+		t.Fatalf("dir holds %v, want only login-flow.md", names)
+	}
+}
+
+func TestWriteFileExclusive_FreePathWithoutHardLinksOrNoReplaceRename_CopiesWholeFileAsLFAndLeavesNoTempFile(t *testing.T) {
+	refuseHardLinks(t)
+	refused := refuseNoReplaceRenames(t)
+	dir := filepath.Join(t.TempDir(), "login-flow")
+	path := filepath.Join(dir, "login-timeout-race.md")
+	content := strings.Repeat("retry the login\r\n", 4096) // past one 32 KiB copy buffer
+
+	err := nodefile.WriteFileExclusive(path, strings.NewReader(content))
+
+	if err != nil {
+		t.Fatalf("WriteFileExclusive: %v", err)
+	}
+	if *refused != 1 {
+		t.Fatalf("no-replace rename tried %d times, want 1", *refused)
+	}
+	want := strings.ReplaceAll(content, "\r\n", "\n")
+	if got, _ := os.ReadFile(path); string(got) != want {
+		t.Fatalf("content = %d bytes, want the %d bytes written with LF endings", len(got), len(want))
+	}
+	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-timeout-race.md"}) {
+		t.Fatalf("dir holds %v, want only login-timeout-race.md", names)
+	}
+}
+
+func TestWriteFileExclusive_PathExistsWithoutHardLinksOrNoReplaceRename_FailsWithErrExistAndLeavesFileAndNoTempFile(t *testing.T) {
+	refuseHardLinks(t)
+	refused := refuseNoReplaceRenames(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "login-flow.md")
 	writeNodes(t, dir, "login-flow.md")
@@ -160,7 +212,7 @@ func TestWriteFileExclusive_PathExistsWithoutHardLinks_FailsWithErrExistAndLeave
 		t.Fatalf("WriteFileExclusive = %v, want fs.ErrExist naming %s", err, path)
 	}
 	if *refused != 1 {
-		t.Fatalf("hard link tried %d times, want 1", *refused)
+		t.Fatalf("no-replace rename tried %d times, want 1", *refused)
 	}
 	if got, _ := os.ReadFile(path); string(got) != "x\n" {
 		t.Fatalf("existing file changed to %q", got)
@@ -179,6 +231,38 @@ func refuseHardLinks(t *testing.T) *int {
 	nodefile.SetLink(t, func(oldPath string, newPath string) error {
 		refused++
 		return &os.LinkError{Op: "link", Old: oldPath, New: newPath, Err: errors.ErrUnsupported}
+	})
+	return &refused
+}
+
+// noReplaceRenames records the calls of WriteFileExclusive's no-replace rename.
+type noReplaceRenames struct {
+	calls int
+	err   error // the last call's result
+}
+
+// countNoReplaceRenames records the calls of WriteFileExclusive's no-replace rename, which still
+// runs, until t ends.
+func countNoReplaceRenames(t *testing.T) *noReplaceRenames {
+	t.Helper()
+	renames := &noReplaceRenames{}
+	nodefile.SetNoReplaceRename(t, func(platformRename func(string, string) error, oldPath string, newPath string) error {
+		renames.calls++
+		renames.err = platformRename(oldPath, newPath)
+		return renames.err
+	})
+	return renames
+}
+
+// refuseNoReplaceRenames makes WriteFileExclusive's no-replace rename fail as a platform without
+// one fails it, with an error that is not fs.ErrExist, until t ends. It returns the count of
+// renames refused.
+func refuseNoReplaceRenames(t *testing.T) *int {
+	t.Helper()
+	refused := 0
+	nodefile.SetNoReplaceRename(t, func(_ func(string, string) error, oldPath string, newPath string) error {
+		refused++
+		return &os.LinkError{Op: "rename", Old: oldPath, New: newPath, Err: errors.ErrUnsupported}
 	})
 	return &refused
 }
