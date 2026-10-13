@@ -59,9 +59,11 @@ var (
 	// ErrAmbiguous reports an id prefix that matches more than one node; see AmbiguousError.
 	ErrAmbiguous = errors.New("ambiguous id prefix")
 	// ErrNotRegular reports an entry of a store directory that is neither a regular file nor a
-	// directory: a symlink, a named pipe, a socket or a device. It is never read.
+	// directory (a symlink, a named pipe, a socket or a device), or any file read through the
+	// guarded reader that is not a regular file. It is never read.
 	ErrNotRegular = errors.New("not a regular file")
-	// ErrTooLarge reports a node file larger than maxNodeFileSize. It is never read.
+	// ErrTooLarge reports a node file, or any file read through the guarded reader, larger than
+	// maxNodeFileSize. It is never read.
 	ErrTooLarge = errors.New("file is larger than 1 MiB")
 )
 

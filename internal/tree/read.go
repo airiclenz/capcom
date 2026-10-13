@@ -6,7 +6,8 @@ import (
 	"os"
 )
 
-// maxNodeFileSize is the largest store file read, in bytes: 1 MiB. ErrTooLarge's text names it.
+// maxNodeFileSize is the largest file read through the guarded reader, ReadRegularFile, in bytes:
+// 1 MiB. The walk leaves out a larger node file too. ErrTooLarge's text names it.
 const maxNodeFileSize = 1 << 20
 
 // nonRegularModes are the mode bits of an entry that is not a regular file. ModeIrregular is left
@@ -14,16 +15,21 @@ const maxNodeFileSize = 1 << 20
 const nonRegularModes = fs.ModeSymlink | fs.ModeDir | fs.ModeNamedPipe | fs.ModeSocket |
 	fs.ModeDevice | fs.ModeCharDevice
 
-// readOp is the Op of the *fs.PathError ReadNodeFile refuses a file with.
+// readOp is the Op of the *fs.PathError ReadRegularFile refuses a file with.
 const readOp = "read"
 
-// ReadNodeFile reads the store file at path: a node file, or any other file capcom keeps under
-// .capcom/. It refuses, without opening it, an entry that is not a regular file (a symlink is not
-// followed) with ErrNotRegular, and one larger than 1 MiB with ErrTooLarge; it checks both again on
-// the opened file, and reads at most one byte past the limit, so a file swapped or grown after the
-// first check is refused too. Every error is an *fs.PathError naming path: the refusals wrap the
-// sentinel, and a failed stat, open or read is the os package's own.
-func ReadNodeFile(path string) ([]byte, error) {
+// beforeOpen, when set, is called with the path ReadRegularFile reads between its Lstat and its
+// open, so a test can swap the entry there. It is nil in production.
+var beforeOpen func(path string)
+
+// ReadRegularFile is the one guarded reader for repository-controlled files: node files, and any
+// other file capcom reads from the working tree. It refuses an entry that is not a regular file
+// with ErrNotRegular, and one larger than 1 MiB with ErrTooLarge. It never follows a symlink and
+// never blocks on a named pipe: it checks the entry by its Lstat, opens it without following a
+// link, checks the opened file again and reads at most one byte past the limit, so an entry
+// swapped or grown after the first check is refused too. Every error is an *fs.PathError naming
+// path: the refusals wrap the sentinel, and a failed stat, open or read is the os package's own.
+func ReadRegularFile(path string) ([]byte, error) {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
@@ -31,8 +37,11 @@ func ReadNodeFile(path string) ([]byte, error) {
 	if err := checkReadable(path, info); err != nil {
 		return nil, err
 	}
+	if beforeOpen != nil {
+		beforeOpen(path)
+	}
 
-	file, err := os.Open(path)
+	file, err := openNoFollow(path, info)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +62,12 @@ func ReadNodeFile(path string) ([]byte, error) {
 		return nil, &fs.PathError{Op: readOp, Path: path, Err: ErrTooLarge}
 	}
 	return data, nil
+}
+
+// ReadNodeFile reads the store file at path: a node file, or any other file capcom keeps under
+// .capcom/. It returns exactly what ReadRegularFile returns, refusals included.
+func ReadNodeFile(path string) ([]byte, error) {
+	return ReadRegularFile(path)
 }
 
 // checkReadable refuses the file at path, as info describes it, when it is not a regular file or is

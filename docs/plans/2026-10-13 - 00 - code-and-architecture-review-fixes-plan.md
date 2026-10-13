@@ -223,7 +223,13 @@ Bite check: the test panics when `Compose`'s deferred `recover` is removed.
 - `go vet ./internal/briefing/`
 **Commit:** `test(briefing): pin Compose's panic recovery`
 
-## P0.3 One guarded reader for repository-controlled files
+## P0.3 One guarded reader for repository-controlled files — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): openNoFollow takes the caller's Lstat info as a second parameter, which the unix opener ignores and the non-unix opener uses for its os.SameFile identity refusal (the regression guard keeps that check in the non-unix opener only); a SetNonblock failure after the open is returned as an *fs.PathError naming path.
+
+NOTES (2026-10-13): the ReadNodeFile and ReadRegularFile tests in read_test.go share their case tables through helpers taking the reader, instead of duplicating them; the swap test is TestReadNodeFile_SwappedBeforeOpen_RefusedNotRegular (not parallel, as it sets the beforeOpen hook).
+
+NOTES (2026-10-13): only ELOOP is mapped to ErrNotRegular at the O_NOFOLLOW open, as the plan says; FreeBSD (EMLINK) and NetBSD (EFTYPE) report a refused link differently and would surface the os error instead (not CI targets).
 
 **What:** Recast at the regression check (2026-10-13). Fixes the F-02 shared fix and F-02(e) (`guarded-file-reader`). No read site outside node files has a guarded reader to call. `tree.ReadNodeFile` itself checks the entry with `Lstat` and then opens it in a way that follows a symlink and blocks on a FIFO, so an entry swapped between the two steps is read through (review F-02(e)).
 **Regression guard.** On unix accept the opened handle when `checkReadable` passes on its `Stat` (`O_NOFOLLOW` already rules out a followed link, and a FIFO shows in the handle's mode); keep the `os.SameFile` identity refusal only in the non-unix opener. Step 4 returns `checkReadable`'s own error (`ErrTooLarge` for size, `ErrNotRegular` for mode), and `ErrNotRegular` alone for an identity mismatch. Prose guard rule: every comment in `internal/tree` naming `ErrNotRegular`, `ErrTooLarge`, `maxNodeFileSize` or `readOp` as a node-file-only limit; find them with `grep -n 'ErrNotRegular\|ErrTooLarge\|maxNodeFileSize\|readOp' internal/tree/*.go`.
