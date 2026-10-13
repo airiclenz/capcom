@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -180,7 +181,8 @@ func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 // raise raises config.yaml to the store format writing after, the node before changed, needs
 // (Codec.requiredFormat), and returns the format it raised the file to: 0 when the write needs no
 // format or the store already declares it or above. A failure is a *FileError at config.yaml: a
-// config.yaml that is not a regular file or is larger than 1 MiB is named by the refusal alone.
+// config.yaml that is not a regular file or is larger than 1 MiB is named by the refusal alone, and
+// a *config.Error, which already names config.yaml, keeps its line and message.
 func (k *Kind[T]) raise(before T, after T) (int, error) {
 	version := k.codec.requiredFormat(before, after)
 	if version == 0 {
@@ -188,6 +190,11 @@ func (k *Kind[T]) raise(before T, after T) (int, error) {
 	}
 	isRaised, err := k.raiseFormat(version)
 	if err != nil {
+		path := k.relative(k.configPath)
+		var configErr *config.Error
+		if errors.As(err, &configErr) {
+			return 0, &FileError{Path: path, Line: configErr.Line, Message: configErr.Message}
+		}
 		message := k.relativeText(err.Error())
 		for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
 			if errors.Is(err, refusal) {
@@ -195,7 +202,7 @@ func (k *Kind[T]) raise(before T, after T) (int, error) {
 				message = refusal.Error()
 			}
 		}
-		return 0, &FileError{Path: k.relative(k.configPath), Message: message}
+		return 0, &FileError{Path: path, Message: message}
 	}
 	if !isRaised {
 		return 0, nil

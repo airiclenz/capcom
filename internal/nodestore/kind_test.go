@@ -262,3 +262,26 @@ func TestErrors_NameFilesRelativeToTheWorktree(t *testing.T) {
 		})
 	}
 }
+
+func TestRaise_UnplaceableFormatKey_FailsAtTheKeyLineNamingTheConfigOnce(t *testing.T) {
+	t.Parallel()
+	issues, path := newEditedIssue(t)
+	const content = "types: [bug, feature, task, chore]\n? format\n: 1\n"
+	configPath := writeStoreConfig(t, path, content)
+
+	_, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
+
+	const want = ".capcom/config.yaml:2: format: cannot raise the store format; " +
+		"write the key as `format: <number>` at the start of a line of its own"
+	var failure *FileError
+	if !errors.As(err, &failure) || failure.Path != ".capcom/config.yaml" || failure.Line != 2 ||
+		err.Error() != want {
+		t.Errorf("err = %v, want a *FileError %q", err, want)
+	}
+	if data := readFile(t, configPath); data != content {
+		t.Errorf("config.yaml = %q, want it unchanged", data)
+	}
+	if data := readFile(t, path); data != canonicalIssue {
+		t.Errorf("issue file =\n%s\nwant it unchanged", data)
+	}
+}
