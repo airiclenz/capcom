@@ -1434,7 +1434,7 @@ Depends on P2.19; P1.1.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers and the doc map. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(cli): split know.go per subcommand`
 
-## P2.23 Split reopen out of cli/close.go
+## P2.23 Split reopen out of cli/close.go — ✅ DONE (2026-10-13)
 
 **What:** Pure move per review P2-09.
 **Goal:** `internal/cli/reopen.go` holds `capcom reopen`, and `close.go` holds `capcom close`. `doc.go` maps both, and every existing test passes unchanged.

@@ -9,7 +9,7 @@
 //
 //   - `agents.go` — capcom agents: writes, refreshes or checks the capcom block of AGENTS.md
 //   - `check.go` — capcom check: validates every config, issue and Note file of the store
-//   - `close.go` — capcom close and capcom reopen, each recording why
+//   - `close.go` — capcom close: closes issues, recording why
 //   - `create.go` — capcom create: writes a new issue file under the caller's id
 //   - `dep.go` — capcom dep add, rm, list and graph: the dependencies between issues
 //   - `doc.go` — the package comment and this file map
@@ -38,6 +38,7 @@
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first
 //   - `reindex.go` — capcom reindex: rebuilds the index from the issue and Note files
 //   - `related.go` — capcom related add and rm: the related links between issues, raising the store format
+//   - `reopen.go` — capcom reopen: moves a closed issue back to an open status, logging why
 //   - `rm.go` — capcom rm: removes an issue that has no children
 //   - `root.go` — Run, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word
