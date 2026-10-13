@@ -162,7 +162,11 @@ NOTES (2026-10-13): sidebar order within concepts/ is issues 1, dependencies 2, 
 **Acceptance:** `for f in docs/site/concepts/issues.md docs/site/concepts/dependencies.md docs/site/concepts/branches-and-merging.md; do test -f "$f" || { echo "MISSING $f"; continue; }; head -1 "$f" | grep -qx -- --- || echo "BAD $f"; awk '/^```/{f=!f} !f && /^# /{print "H1 " FILENAME; exit}' "$f"; done` prints nothing
 **Commit:** `docs(site): add concept guides for issues, dependencies and branches`
 
-## 8. Concepts: Knowledge and Tree locks
+## 8. Concepts: Knowledge and Tree locks — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "docs/format.md — ## Note files, ### Supersession, ### Refs, ## The lock record" in Read first: item 5 moved the format reference to docs/site/reference/file-format.md, so the pages read and link that file instead.
+NOTES (2026-10-13): command output captured from a freshly built binary in a scratch git repo; the stale-lock example was produced by back-dating the lock record's heartbeat, and the lock record path in the "locked" error was replaced with /home/you/your-repo.
+NOTES (2026-10-13): knowledge.md and tree-locks.md link agents/briefing.md, agents/managed-block.md and reference/json-output.md, which item 9 creates in the same batch.
 
 **What:**
 **Regression guard.** The contract check names every file of the item explicitly (`for f in <each path>; do test -f "$f" || echo "MISSING $f"; ...`) so a missing file fails, and the H1 check ignores fenced code blocks (e.g. `awk '/^```/{f=!f} !f && /^# /{print FILENAME}'`).
