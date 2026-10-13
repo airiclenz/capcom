@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 )
 
@@ -27,7 +28,7 @@ func (a *app) newReindexCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			path := index.Path(a.store)
 			indexed := a.indexReport.Indexed
-			return a.emit(cmd, Result{
+			return a.emit(cmd, output.Result{
 				Kind: "reindex",
 				Data: reindexData{Path: path, Issues: indexed},
 				Text: fmt.Sprintf("reindexed %d issues into %s\n", indexed, path),

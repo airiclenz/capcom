@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom"
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -35,7 +36,7 @@ type app struct {
 	stderr   io.Writer
 	isJSON   bool
 	isKV     bool
-	renderer Renderer
+	renderer output.Renderer
 	// store and issueIndex are set for a command annotated with annotationIndex; Run closes the
 	// index. indexReport is what opening the index did. indexWarnings are the index warnings that
 	// go with the result: the report's own, or the renamed copies a move puts in their place.
@@ -58,28 +59,28 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	err := root.Execute()
 	if closeErr := application.closeIndex(); closeErr != nil && err == nil {
-		err = asError(closeErr)
+		err = output.AsError(closeErr)
 	}
 	if err == nil {
-		return ExitOK
+		return output.ExitOK
 	}
 
-	failure, isTyped := err.(*Error)
+	failure, isTyped := err.(*output.Error)
 	if isTyped && failure.IsRendered {
 		return failure.ExitCode()
 	}
 	if !isTyped {
 		// cobra rejected the invocation before any command ran (unknown command, bad flag,
 		// wrong argument count); command failures always arrive typed via runE.
-		failure = UsageErrorf("%s", err.Error())
+		failure = output.UsageErrorf("%s", err.Error())
 	}
 	renderer := application.renderer
 	if renderer == nil {
 		// Parsing failed before the output flags were applied, so read them from args.
-		renderer = newRenderer(scanFormat(args), stdout, stderr)
+		renderer = output.NewRenderer(scanFormat(args), stdout, stderr)
 	}
 	if renderErr := renderer.RenderError(failure); renderErr != nil {
-		return ExitError
+		return output.ExitError
 	}
 	return failure.ExitCode()
 }
@@ -139,11 +140,11 @@ func (a *app) prepareIndex(cmd *cobra.Command) error {
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
-		return asError(err)
+		return output.AsError(err)
 	}
 	opened, err := store.Open(cwd)
 	if err != nil {
-		return storeFailure(err)
+		return output.StoreFailure(err)
 	}
 	indexMode := index.ModeRefresh
 	if mode == indexRebuild {
@@ -151,7 +152,7 @@ func (a *app) prepareIndex(cmd *cobra.Command) error {
 	}
 	issueIndex, err := index.Open(opened, indexMode)
 	if err != nil {
-		return asError(err)
+		return output.AsError(err)
 	}
 	a.store = opened
 	a.issueIndex = issueIndex
@@ -179,16 +180,16 @@ func (a *app) withKV(cmd *cobra.Command) *cobra.Command {
 // selectRenderer applies the output flags once cobra has parsed them.
 func (a *app) selectRenderer(_ *cobra.Command, _ []string) error {
 	if a.isJSON && a.isKV {
-		return UsageErrorf("--json and --kv cannot be combined")
+		return output.UsageErrorf("--json and --kv cannot be combined")
 	}
-	format := formatText
+	format := output.FormatText
 	switch {
 	case a.isJSON:
-		format = formatJSON
+		format = output.FormatJSON
 	case a.isKV:
-		format = formatKV
+		format = output.FormatKV
 	}
-	a.renderer = newRenderer(format, a.stdout, a.stderr)
+	a.renderer = output.NewRenderer(format, a.stdout, a.stderr)
 	return nil
 }
 
@@ -197,7 +198,7 @@ func (a *app) selectRenderer(_ *cobra.Command, _ []string) error {
 func runE(body func(cmd *cobra.Command, args []string) error) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if err := body(cmd, args); err != nil {
-			return asError(err)
+			return output.AsError(err)
 		}
 		return nil
 	}
@@ -208,9 +209,9 @@ func runE(body func(cmd *cobra.Command, args []string) error) func(*cobra.Comman
 // --kv is therefore a command's own defect, still rejected as a usage error, not output. A result
 // carrying a Failure is rendered with it, and emit then returns that failure, marked rendered, so
 // the command still exits with its code.
-func (a *app) emit(cmd *cobra.Command, result Result) error {
+func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 	if a.isKV && result.KV == nil {
-		return UsageErrorf("%s does not support --kv", cmd.CommandPath())
+		return output.UsageErrorf("%s does not support --kv", cmd.CommandPath())
 	}
 	warnings := make([]string, 0, len(a.indexWarnings)+len(result.Warnings))
 	for _, warning := range a.indexWarnings {
@@ -236,11 +237,11 @@ func (a *app) newVersionCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			version := capcom.Version()
-			return a.emit(cmd, Result{
+			return a.emit(cmd, output.Result{
 				Kind: "version",
 				Data: map[string]string{"version": version},
 				Text: "capcom " + version + "\n",
-				KV:   []KVRecord{{Pairs: []KVPair{{Key: "VERSION", Value: version}}}},
+				KV:   []output.KVRecord{{Pairs: []output.KVPair{{Key: "VERSION", Value: version}}}},
 			})
 		}),
 	})
@@ -248,16 +249,16 @@ func (a *app) newVersionCommand() *cobra.Command {
 
 // scanFormat reads the output flags straight from args, for failures cobra reports before it
 // applies them, such as --kv on a command that does not offer it. --json wins when both appear, so a JSON caller still gets an envelope.
-func scanFormat(args []string) outputFormat {
-	format := formatText
+func scanFormat(args []string) output.OutputFormat {
+	format := output.FormatText
 	for _, arg := range args {
 		switch arg {
 		case argsTerminator:
 			return format
 		case "--" + flagJSON, "--" + flagJSON + "=true":
-			return formatJSON
+			return output.FormatJSON
 		case "--" + flagKV, "--" + flagKV + "=true":
-			format = formatKV
+			format = output.FormatKV
 		}
 	}
 	return format

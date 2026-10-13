@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -54,8 +55,8 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 				return err
 			}
 			if holder.ID == other.ID {
-				return &Error{
-					Code:    CodeInvalid,
+				return &output.Error{
+					Code:    output.CodeInvalid,
 					Path:    holder.Path,
 					Message: fmt.Sprintf("%s cannot be related to itself", holder.ID),
 				}
@@ -119,7 +120,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				kept := slices.DeleteFunc(slices.Clone(target.Related), isRemoved)
 				if len(kept) == len(target.Related) {
-					return issue.Issue{}, Errorf(CodeNotFound, "%s is not related to %s", first.ID, args[1])
+					return issue.Issue{}, output.Errorf(output.CodeNotFound, "%s is not related to %s", first.ID, args[1])
 				}
 				if len(kept) == 0 {
 					kept = nil
@@ -160,8 +161,8 @@ func (a *app) relatedRemoval(first index.Entry, arg string) (index.Entry, func(s
 	if namesFirst := graph.names(first.ID); slices.ContainsFunc(other.Related, namesFirst) {
 		return other, namesFirst, nil
 	}
-	return index.Entry{}, nil, &Error{
-		Code:    CodeNotFound,
+	return index.Entry{}, nil, &output.Error{
+		Code:    output.CodeNotFound,
 		Path:    first.Path,
 		Message: fmt.Sprintf("%s and %s are not related", first.ID, other.ID),
 	}
@@ -181,7 +182,7 @@ func (a *app) raiseStoreFormat(version int) (string, error) {
 				message = refusal.Error()
 			}
 		}
-		return "", &Error{Code: CodeInvalid, Path: displayPath, Message: message}
+		return "", &output.Error{Code: output.CodeInvalid, Path: displayPath, Message: message}
 	}
 	if !isRaised {
 		return "", nil

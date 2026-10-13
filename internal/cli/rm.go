@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
@@ -68,10 +69,10 @@ func (a *app) newRmCommand() *cobra.Command {
 // and the issues whose related entries were dropped, with a warning for every tree problem that
 // concerns neither the issue nor its parent, for every issue file whose deps were not checked and
 // for an emptied parent directory left in place.
-func (a *app) removeIssue(arg string, options *rmOptions) (Result, error) {
+func (a *app) removeIssue(arg string, options *rmOptions) (output.Result, error) {
 	removed, problems, err := nodestore.Issues(a.store, nil).Remove(arg, options.ifMatch, options.shouldDropDeps)
 	if err != nil {
-		return Result{}, issueRemovalFailure(err)
+		return output.Result{}, issueRemovalFailure(err)
 	}
 
 	result := issueRemoveResult(removed.ID, removed.Path, removed.DepsDropped, removed.RelatedDropped)
@@ -93,8 +94,8 @@ func (a *app) removeIssue(arg string, options *rmOptions) (Result, error) {
 func issueRemovalFailure(err error) error {
 	var dependents *nodestore.DependentsError
 	if errors.As(err, &dependents) {
-		return &Error{
-			Code:    CodeInvalid,
+		return &output.Error{
+			Code:    output.CodeInvalid,
 			Path:    dependents.Path,
 			Message: fmt.Sprintf("%s; pass --%s to remove those deps entries", dependents.Message, flagDropDeps),
 		}
@@ -104,7 +105,7 @@ func issueRemovalFailure(err error) error {
 
 // issueRemoveResult is the result of rm: the id and path of the removed issue file and the ids of
 // the issues whose deps on it and whose related entries naming it were dropped.
-func issueRemoveResult(id string, path string, dropped []string, relatedDropped []string) Result {
+func issueRemoveResult(id string, path string, dropped []string, relatedDropped []string) output.Result {
 	data := issueRemoveData{
 		ID:             id,
 		Path:           path,
@@ -118,11 +119,11 @@ func issueRemoveResult(id string, path string, dropped []string, relatedDropped 
 	if len(relatedDropped) > 0 {
 		text += "related_dropped: " + flowList(relatedDropped) + "\n"
 	}
-	return Result{
+	return output.Result{
 		Kind: kindIssueRemove,
 		Data: data,
 		Text: text,
-		KV: []KVRecord{{Pairs: []KVPair{
+		KV: []output.KVRecord{{Pairs: []output.KVPair{
 			{Key: "ID", Value: id},
 			{Key: "PATH", Value: path},
 			{Key: "DEPS_DROPPED", Value: flowList(dropped)},

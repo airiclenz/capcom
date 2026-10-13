@@ -10,6 +10,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/lock"
 )
@@ -57,7 +58,7 @@ func (a *app) newPrimeCommand() *cobra.Command {
 // primeResult composes the Briefing of the working directory and renders it. It opens the store
 // and the index through briefing.Compose, rather than through the shared annotationIndex, so that
 // their failures are warnings too.
-func primeResult() Result {
+func primeResult() output.Result {
 	now := time.Now()
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -69,13 +70,13 @@ func primeResult() Result {
 
 // renderBriefing renders composed as prime's result, with lock ages measured back from now. A
 // section composed left out is left out of the text and the data, and each failure is one warning.
-func renderBriefing(composed briefing.Briefing, now time.Time) (result Result) {
+func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Result) {
 	warnings := primeWarnings(composed.Failures)
 	defer func() {
 		// A Briefing must never cost the session its start: even a defect becomes a warning.
 		if recovered := recover(); recovered != nil {
 			warnings = append(warnings, fmt.Sprintf("prime: internal error: %v", recovered))
-			result = Result{Kind: kindPrime, Data: primeData{}, Warnings: warnings}
+			result = output.Result{Kind: kindPrime, Data: primeData{}, Warnings: warnings}
 		}
 	}()
 
@@ -96,7 +97,7 @@ func renderBriefing(composed briefing.Briefing, now time.Time) (result Result) {
 		data.CheckProblems = &health.ProblemCount
 		addHealth(&text, *health)
 	}
-	return Result{
+	return output.Result{
 		Kind:      kindPrime,
 		Data:      data,
 		Text:      text.String(),
@@ -116,7 +117,7 @@ func primeWarnings(failures []briefing.Failure) []string {
 			warnings = append(warnings, err.Error())
 			continue
 		case briefing.SectionStore:
-			err = storeFailure(err)
+			err = output.StoreFailure(err)
 		}
 		warnings = append(warnings, string(failure.Section)+": "+flatten(err.Error()))
 	}

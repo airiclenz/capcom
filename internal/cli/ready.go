@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	readylist "github.com/airiclenz/capcom/internal/briefing"
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -58,13 +59,13 @@ func (a *app) newReadyCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			if options.limit < 0 {
-				return UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
+				return output.UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
 			}
 			listed, err := readylist.ReadyList(a.issueIndex, a.store.Config, options.listOptions())
 			if err != nil {
 				return err
 			}
-			result := Result{
+			result := output.Result{
 				Kind:     "ready",
 				Data:     readyListData(listed),
 				Text:     readyLines(listed),

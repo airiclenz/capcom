@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/airiclenz/capcom/internal/cli/output"
 )
 
 // newSearchCommand finds issues by full text: every word must appear in the title or body, as a
@@ -21,9 +23,9 @@ func (a *app) newSearchCommand() *cobra.Command {
 				return err
 			}
 			if len(entries) == 0 {
-				return Errorf(CodeNotFound, "no issue matches %q", text)
+				return output.Errorf(output.CodeNotFound, "no issue matches %q", text)
 			}
-			return a.emit(cmd, Result{
+			return a.emit(cmd, output.Result{
 				Kind: "search",
 				Data: issueListData(entries),
 				Text: issueLines(entries, ""),

@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -57,8 +58,8 @@ func (a *app) newReopenCommand() *cobra.Command {
 func (a *app) reopen(target issue.Issue, status string, reason string) (issue.Issue, error) {
 	category, _ := a.store.Config.CategoryOf(target.Status)
 	if !isClosedCategory(category) {
-		return issue.Issue{}, Errorf(
-			CodeInvalid,
+		return issue.Issue{}, output.Errorf(
+			output.CodeInvalid,
 			"status %q is in the %s category, so the issue is not closed; only a closed issue can be reopened",
 			target.Status,
 			category,
@@ -85,11 +86,11 @@ func targetStatus(
 	}
 	category, isDeclared := cfg.CategoryOf(given)
 	if !isDeclared {
-		return "", Errorf(CodeInvalid, "status %q is not declared in config", given)
+		return "", output.Errorf(output.CodeInvalid, "status %q is not declared in config", given)
 	}
 	if !slices.Contains(categories, category) {
-		return "", Errorf(
-			CodeInvalid,
+		return "", output.Errorf(
+			output.CodeInvalid,
 			"status %q is in the %s category; %s takes a status in the %v categories",
 			given,
 			category,
