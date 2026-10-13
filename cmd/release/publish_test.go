@@ -167,6 +167,22 @@ func rebuiltSums(t *testing.T) string {
 	return readTestFile(t, filepath.Join(outDir, checksumsFile))
 }
 
+// rebuiltAssetContent is every asset a rebuild of publishVersion writes — the archives and
+// SHA256SUMS — by name, as an earlier run's release carries them: a memRepo's assetContent.
+func rebuiltAssetContent(t *testing.T) map[string]string {
+	t.Helper()
+	sourceDir := t.TempDir()
+	if err := writeReleaseTree(sourceDir); err != nil {
+		t.Fatal(err)
+	}
+	outDir := runTestDist(t, fakeToolchain(), sourceDir)
+	content := map[string]string{}
+	for _, name := range releaseAssetsV02411 {
+		content[name] = readTestFile(t, filepath.Join(outDir, name))
+	}
+	return content
+}
+
 // publishRunResult is what one publish run did: the error main would turn into an exit code,
 // everything it printed, every command it ran, how many times it paused, and its notes file.
 type publishRunResult struct {
@@ -609,9 +625,10 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]struct {
-		uploaded     []string
-		wantUploads  []string
-		wantDownload bool
+		uploaded             []string
+		wantUploads          []string
+		wantDownload         bool
+		wantArchiveDownloads []string
 	}{
 		"two archives missing": {
 			uploaded:     slices.Delete(slices.Clone(releaseAssetsV02411), 4, 6),
@@ -619,8 +636,9 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 			wantDownload: true,
 		},
 		"SHA256SUMS missing": {
-			uploaded:    releaseAssetsV02411[:6],
-			wantUploads: []string{checksumsFile},
+			uploaded:             releaseAssetsV02411[:6],
+			wantUploads:          []string{checksumsFile},
+			wantArchiveDownloads: releaseAssetsV02411[:6],
 		},
 	}
 	for name, tc := range cases {
@@ -629,7 +647,7 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 			fake := newPublishFake()
 			fake.tagged()
 			fake.repo.releases[publishVersion] = tc.uploaded
-			fake.repo.assetContent[checksumsFile] = rebuiltSums(t)
+			fake.repo.assetContent = rebuiltAssetContent(t)
 
 			result := runTestPublish(t, fake, false)
 
@@ -659,8 +677,24 @@ func TestPublishPartialReleaseUploadsOnlyTheMissingAssets(t *testing.T) {
 			if isDownloaded != tc.wantDownload {
 				t.Errorf("downloaded SHA256SUMS = %t, want %t", isDownloaded, tc.wantDownload)
 			}
+			downloads := downloadedAssets(result.commands)
+			slices.Sort(downloads)
+			if !slices.Equal(downloads, tc.wantArchiveDownloads) {
+				t.Errorf("downloaded archives %q, want %q", downloads, tc.wantArchiveDownloads)
+			}
 		})
 	}
+}
+
+// downloadedAssets returns the name of each asset a run's DownloadAsset calls fetched, in order.
+func downloadedAssets(commands *fakeRunner) []string {
+	var names []string
+	for _, call := range commands.recorded(repoCallName) {
+		if call.args[0] == methodDownloadAsset {
+			names = append(names, call.args[2])
+		}
+	}
+	return names
 }
 
 // TestPublishUndraftsADraftReleaseOnce pins the run over a draft an interrupted `gh release
@@ -763,6 +797,71 @@ func TestPublishRefusesARebuildThatDoesNotMatchThePublishedSums(t *testing.T) {
 	}
 	if index := lineIndex(commandLines(result.commands), "repo UploadAssets"); index >= 0 {
 		t.Errorf("uploaded assets over a mismatched SHA256SUMS")
+	}
+}
+
+// TestPublishRefusesAMissingArchiveThePublishedSumsDoNotMatch pins the sums check over the
+// archives a release lacks: one whose published hash differs from the rebuilt one stops the run
+// before any upload, and the way out names only SHA256SUMS, the one stale asset the release holds.
+func TestPublishRefusesAMissingArchiveThePublishedSumsDoNotMatch(t *testing.T) {
+	t.Parallel()
+	const missing = "capcom_0.24.11_windows_amd64.zip"
+	fake := newPublishFake()
+	fake.tagged()
+	fake.repo.releases[publishVersion] = slices.Delete(slices.Clone(releaseAssetsV02411), 4, 6)
+	sums := rebuiltSums(t)
+	missingHash, err := checksumFor(sums, missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.repo.assetContent[checksumsFile] = strings.Replace(sums, missingHash, strings.Repeat("0", len(missingHash)), 1)
+
+	result := runTestPublish(t, fake, false)
+
+	if result.err == nil {
+		t.Fatalf("publish succeeded over a SHA256SUMS that does not match a missing archive:\n%s", result.output)
+	}
+	for _, want := range []string{missing, "gh release delete-asset v0.24.11 <name>` (" + checksumsFile + ")"} {
+		if !strings.Contains(result.err.Error(), want) {
+			t.Errorf("publish error = %v, want it to name %q", result.err, want)
+		}
+	}
+	if index := lineIndex(commandLines(result.commands), "repo UploadAssets"); index >= 0 {
+		t.Errorf("uploaded assets beside a SHA256SUMS that does not match them")
+	}
+}
+
+// TestPublishRefusesUploadedArchivesTheRebuildDoesNotMatch pins the check of a release without
+// SHA256SUMS: an uploaded archive that does not hash to the rebuilt one stops the run before the
+// rebuilt sums or any archive is uploaded, and the way out names only that archive — never
+// SHA256SUMS, which the release lacks.
+func TestPublishRefusesUploadedArchivesTheRebuildDoesNotMatch(t *testing.T) {
+	t.Parallel()
+	const stale, matching = "capcom_0.24.11_linux_amd64.tar.gz", "capcom_0.24.11_darwin_arm64.tar.gz"
+	fake := newPublishFake()
+	fake.tagged()
+	fake.repo.releases[publishVersion] = []string{matching, stale}
+	fake.repo.assetContent = rebuiltAssetContent(t)
+	fake.repo.assetContent[stale] += "an earlier build"
+
+	result := runTestPublish(t, fake, false)
+
+	if result.err == nil {
+		t.Fatalf("publish succeeded beside an uploaded archive the rebuild does not match:\n%s", result.output)
+	}
+	message := result.err.Error()
+	for _, want := range []string{stale, "gh release delete-asset v0.24.11 <name>` (" + stale + ")"} {
+		if !strings.Contains(message, want) {
+			t.Errorf("publish error = %v, want it to name %q", result.err, want)
+		}
+	}
+	for _, unwanted := range []string{matching, checksumsFile} {
+		if strings.Contains(message, unwanted) {
+			t.Errorf("publish error = %v, want it not to name %q", result.err, unwanted)
+		}
+	}
+	if index := lineIndex(commandLines(result.commands), "repo UploadAssets"); index >= 0 {
+		t.Errorf("uploaded assets beside an archive the rebuild does not match")
 	}
 }
 

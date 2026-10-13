@@ -465,11 +465,12 @@ func describeRelease(run *publishRun) string {
 }
 
 // convergeRelease builds the release's assets from the tag and creates the GitHub release, or,
-// when the release exists, uploads only the assets it lacks — after checking the rebuilt sums
-// against the SHA256SUMS it already carries, so a rebuild never mixes with assets it does not
-// match. A release without SHA256SUMS has nothing to check against; the rebuild is
-// byte-identical to any earlier one from the same tag, so its own sums are uploaded. A draft
-// release is published once it carries every asset.
+// when the release exists, uploads only the assets it lacks — after checking the rebuild against
+// what the release already carries, so a rebuild never mixes with assets it does not match. A
+// release with SHA256SUMS must list the rebuilt hash of every archive, uploaded or about to be;
+// a release without it must carry only archives that hash to the rebuilt ones before the
+// rebuild's own sums are uploaded beside them. A draft release is published once it carries
+// every asset.
 func convergeRelease(ctx context.Context, run *publishRun) error {
 	tag := run.version.String()
 	release, isFound, err := run.repo.ReleaseAssets(ctx, tag)
@@ -503,6 +504,8 @@ func convergeRelease(ctx context.Context, run *publishRun) error {
 		if err := checkPublishedSums(ctx, run, outDir, uploaded); err != nil {
 			return err
 		}
+	} else if err := checkUploadedArchives(ctx, run, outDir, uploaded); err != nil {
+		return err
 	}
 	missing := missingAssets(releaseAssetNames(run.version), uploaded)
 	// UploadAssets replaces an asset of the same name, which here is only one left in a failed
@@ -546,38 +549,101 @@ func buildReleaseAssets(ctx context.Context, run *publishRun, workDir string) (s
 	return outDir, nil
 }
 
-// checkPublishedSums downloads the release's SHA256SUMS and requires every uploaded archive's
-// published hash to equal the rebuilt one, naming the way out when one does not.
+// checkPublishedSums downloads the release's SHA256SUMS and requires the published hash of every
+// archive, uploaded or about to be, to equal the rebuilt one, naming the way out when one does
+// not: removing SHA256SUMS and the uploaded archives it vouches for wrongly.
 func checkPublishedSums(ctx context.Context, run *publishRun, outDir string, uploaded []string) error {
 	tag := run.version.String()
 	published, err := downloadReleaseSums(ctx, run)
 	if err != nil {
 		return err
 	}
-	rebuilt, err := os.ReadFile(filepath.Join(outDir, checksumsFile))
+	rebuilt, err := readRebuiltSums(outDir)
 	if err != nil {
-		return fmt.Errorf("read the rebuilt %s: %w", checksumsFile, err)
+		return err
 	}
 
 	var mismatched []string
+	stale := []string{checksumsFile}
 	for _, name := range releaseAssetNames(run.version) {
-		if name == checksumsFile || !slices.Contains(uploaded, name) {
+		if name == checksumsFile {
 			continue
 		}
-		want, err := checksumFor(string(rebuilt), name)
+		want, err := checksumFor(rebuilt, name)
 		if err != nil {
 			return fmt.Errorf("read the rebuilt %s: %w", checksumsFile, err)
 		}
 		if got, err := checksumFor(published, name); err != nil || got != want {
 			mismatched = append(mismatched, name)
+			if slices.Contains(uploaded, name) {
+				stale = append(stale, name)
+			}
 		}
 	}
 	if len(mismatched) > 0 {
 		return fmt.Errorf("the rebuilt %s does not match release %s's %s; remove the stale assets with "+
-			"`gh release delete-asset %s <name>` (SHA256SUMS and %s), then run publish again",
-			strings.Join(mismatched, ", "), tag, checksumsFile, tag, strings.Join(mismatched, ", "))
+			"`gh release delete-asset %s <name>` (%s), then run publish again",
+			strings.Join(mismatched, ", "), tag, checksumsFile, tag, strings.Join(stale, ", "))
 	}
 	return nil
+}
+
+// checkUploadedArchives downloads every archive the release already carries into the build
+// directory and requires each to hash to the rebuilt one, naming the archives to remove when one
+// does not. It is the check for a release without SHA256SUMS, whose rebuilt sums are about to be
+// uploaded beside those archives.
+func checkUploadedArchives(ctx context.Context, run *publishRun, outDir string, uploaded []string) error {
+	tag := run.version.String()
+	var archives []string
+	for _, name := range releaseAssetNames(run.version) {
+		if name != checksumsFile && slices.Contains(uploaded, name) {
+			archives = append(archives, name)
+		}
+	}
+	if len(archives) == 0 {
+		return nil
+	}
+	rebuilt, err := readRebuiltSums(outDir)
+	if err != nil {
+		return err
+	}
+	downloadDir := filepath.Join(run.buildDir, "uploaded")
+	if err := os.MkdirAll(downloadDir, 0o755); err != nil {
+		return fmt.Errorf("create the download directory: %w", err)
+	}
+
+	var mismatched []string
+	for _, name := range archives {
+		want, err := checksumFor(rebuilt, name)
+		if err != nil {
+			return fmt.Errorf("read the rebuilt %s: %w", checksumsFile, err)
+		}
+		if err := run.repo.DownloadAsset(ctx, tag, name, downloadDir); err != nil {
+			return fmt.Errorf("download %s from GitHub release %s: %w", name, tag, err)
+		}
+		got, err := fileSHA256(filepath.Join(downloadDir, name))
+		if err != nil {
+			return err
+		}
+		if got != want {
+			mismatched = append(mismatched, name)
+		}
+	}
+	if len(mismatched) > 0 {
+		return fmt.Errorf("release %s's uploaded %s does not match the rebuilt one; remove it with "+
+			"`gh release delete-asset %s <name>` (%s), then run publish again",
+			tag, strings.Join(mismatched, ", "), tag, strings.Join(mismatched, ", "))
+	}
+	return nil
+}
+
+// readRebuiltSums reads the SHA256SUMS the rebuild wrote into outDir.
+func readRebuiltSums(outDir string) (string, error) {
+	rebuilt, err := os.ReadFile(filepath.Join(outDir, checksumsFile))
+	if err != nil {
+		return "", fmt.Errorf("read the rebuilt %s: %w", checksumsFile, err)
+	}
+	return string(rebuilt), nil
 }
 
 // removeBuildDir removes the release step's build directory, if this run made one.

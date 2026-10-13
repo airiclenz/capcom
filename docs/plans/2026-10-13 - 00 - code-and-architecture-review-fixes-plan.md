@@ -1028,7 +1028,11 @@ Depends on P1.42.
 - `capcom check`
 **Commit:** `fix(release): require green CI on the tag commit while the release is pending`
 
-## P1.44 Release: never upload SHA256SUMS that the uploaded archives do not match
+## P1.44 Release: never upload SHA256SUMS that the uploaded archives do not match — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): checkPublishedSums's way out now lists SHA256SUMS plus only the mismatched archives the release already carries, comma-separated (`(SHA256SUMS, <name>, ...)` instead of `(SHA256SUMS and <names>)`), so a mismatched archive the release lacks is named as mismatched but never as an asset to delete.
+NOTES (2026-10-13): the rebuilt-SHA256SUMS read both checks share moved into a helper readRebuiltSums; the tests gained helpers rebuiltAssetContent (every rebuilt asset's bytes, beside rebuiltSums) and downloadedAssets (the names DownloadAsset fetched).
+NOTES (2026-10-13): uploaded archives download into `<buildDir>/uploaded`, removed with the build directory when the run ends.
 
 **What:** Fixes F-13 (`release-sums-check`): a release left holding archives but no SHA256SUMS gets the rebuild's sums uploaded unchecked, and archives uploaded beside an existing SHA256SUMS are never checked against it.
 **Regression guard.** `checkUploadedArchives` words its own refusal: the uploaded archive does not match the rebuilt one, and the way out names only the archives (`gh release delete-asset <tag> <name>` for <names>); it does not reuse `checkPublishedSums`'s SHA256SUMS wording, which would name an asset the release lacks.
