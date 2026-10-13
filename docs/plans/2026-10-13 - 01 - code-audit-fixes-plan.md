@@ -183,7 +183,11 @@ NOTES (2026-10-13): consequential edit — internal/index/duplicates.go: made ne
 - `GOMEMLIMIT=2GiB go test ./internal/index/`
 **Commit:** `fix(diagnose): report each claimant of a shared name once`
 
-## 9. A backtick info string with a backtick opens no fence
+## 9. A backtick info string with a backtick opens no fence — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from internal/issue/mutate.go — scanLogBounds, which item 7 removed; the Log scan now reads fences through rawfm.ClosedCodeLines, which calls codeFenceOpener, so the one opener fix covers it, pinned by a new case in internal/issue/mutate_test.go TestIssue_AppendLog_FencedCodeAroundTheLog_LandsInTheLogBounds
+NOTES (2026-10-13): consequential edit — docs/site/reference/file-format.md: made necessary by codeFenceOpener's new rule (the conflict-scan paragraph now says such a line opens no block)
+NOTES (2026-10-13): consequential edit — internal/rawfm/fence.go CodeFence.IsCode doc comment: made necessary by codeFenceOpener's new rule
 
 **What:** Fix: a body line like "```inline``` quoted" opens a fence that never closes and hides every conflict marker below it.
 **Goal:** `rawfm` treats a backtick run whose remaining text contains a backtick as plain text, per CommonMark; tilde fences are unchanged.

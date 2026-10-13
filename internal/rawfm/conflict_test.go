@@ -66,6 +66,17 @@ func TestConflictMarkers_FileContent_ReturnsTheMarkerLines(t *testing.T) {
 			want: []int{},
 		},
 		{
+			name:    "markers below a backtick line with a backtick in its info string",
+			content: frontmatter + "\n```inline``` quoted\n" + logConflict,
+			want:    []int{14, 16, 18},
+		},
+		{
+			name: "markers inside a tilde code fence with a backtick in its info string",
+			content: frontmatter +
+				"\n~~~ a`b\n<<<<<<< HEAD\n=======\n>>>>>>> other-branch\n~~~\n",
+			want: []int{},
+		},
+		{
 			name:    "markers after a closed code fence",
 			content: frontmatter + "\n```\ncode\n```\n" + logConflict,
 			want:    []int{16, 18, 20},

@@ -108,6 +108,12 @@ func TestIssue_AppendLog_FencedCodeAroundTheLog_LandsInTheLogBounds(t *testing.T
 				"- 2026-10-11 Alice: fixed\n",
 		},
 		{
+			name: "backtick line with a backtick in its info string opens no fence",
+			body: "\n```inline``` quoted\n```\n## Log\n```\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
+			want: "\n```inline``` quoted\n```\n## Log\n```\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +
+				"- 2026-10-11 Alice: fixed\n",
+		},
+		{
 			name: "tilde fence holds a backtick line",
 			body: "\n~~~\n## Log\n```\n~~~\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
 			want: "\n~~~\n## Log\n```\n~~~\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +

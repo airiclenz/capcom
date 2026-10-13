@@ -17,8 +17,9 @@ type CodeFence struct {
 
 // IsCode reports whether line, without its line ending, opens, lies inside or closes a fenced code
 // block, given the lines passed before it. A block opens on a run of three or more backticks or
-// tildes indented by up to three spaces, and closes on a run of the same character at least as
-// long followed by nothing but whitespace.
+// tildes indented by up to three spaces, unless the run is of backticks and another backtick
+// follows it on the line, and closes on a run of the same character at least as long followed by
+// nothing but whitespace.
 func (f *CodeFence) IsCode(line string) bool {
 	if f.open != "" {
 		if closesCodeFence(line, f.open) {
@@ -69,13 +70,19 @@ func longestClosersFrom(lines []string) map[byte][]int {
 }
 
 // codeFenceOpener returns the run of backticks or tildes that opens a fenced code block on line,
-// or "" when line opens none.
+// or "" when line opens none. As in CommonMark, a backtick run followed by text holding another
+// backtick, such as "```inline``` quoted", is inline code rather than a fence and opens none.
 func codeFenceOpener(line string) string {
 	trimmed := trimFenceIndent(line)
 	for _, fence := range []string{backtickFence, tildeFence} {
-		if strings.HasPrefix(trimmed, fence) {
-			return trimmed[:len(trimmed)-len(strings.TrimLeft(trimmed, fence[:1]))]
+		if !strings.HasPrefix(trimmed, fence) {
+			continue
 		}
+		info := strings.TrimLeft(trimmed, fence[:1])
+		if fence == backtickFence && strings.Contains(info, backtickFence[:1]) {
+			return ""
+		}
+		return trimmed[:len(trimmed)-len(info)]
 	}
 	return ""
 }
