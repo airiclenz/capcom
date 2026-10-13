@@ -63,6 +63,9 @@ type Moved struct {
 //     back, with no etags; any other failure a *FileError at the node's file naming the failing
 //     path and any step that could not be taken back. Once they have landed, an emptied old parent
 //     directory the move's cleanup could not remove is no failure: Moved.LeftInPlace names it.
+//
+// Once the renames and rewrites have landed, the Kind's sync hook runs (WithSync), its outcome on
+// the Moved's Effects.
 func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.Errors, error) {
 	nodes, problems, err := k.load()
 	if err != nil {
@@ -125,6 +128,7 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	for _, failure := range leftInPlace {
 		moved.LeftInPlace = append(moved.LeftInPlace, k.cleanupFailure(failure, node))
 	}
+	k.runSync(&moved.Effects)
 	return moved, warnings, nil
 }
 

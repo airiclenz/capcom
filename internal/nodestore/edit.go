@@ -38,6 +38,9 @@ var beforeRecheck = func(path string) {}
 //  9. the atomic write: a node file removed or moved since the re-check fails with a *FileError at
 //     it and is not recreated; any other failure is returned as it is. An edit landing between the
 //     re-check and this write is still overwritten: the store takes no lock.
+//
+// Once the write has landed, the Kind's sync hook runs (WithSync), its outcome on the Written's
+// Effects.
 func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (Written, error) {
 	if k.resolver == nil {
 		return Written{}, errNoResolver
@@ -81,6 +84,7 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 		return located, err
 	}
 	written.RaisedFormat = raised
+	k.runSync(&written.Effects)
 	return written, nil
 }
 

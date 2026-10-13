@@ -36,6 +36,9 @@ import (
 //     *FileError at it, creating neither the parent's children directory nor the new file; a file
 //     that appeared at the new node's path since the claim fails with the *ExistsError naming it;
 //     any other failure is returned as it is.
+//
+// Once a node written at the top of the tree has landed, the Kind's sync hook runs (WithSync), its
+// outcome on the Written's Effects; a node written below a parent runs none.
 func (k *Kind[T]) Create(
 	id string,
 	parent string,
@@ -93,6 +96,9 @@ func (k *Kind[T]) Create(
 		return Written{}, nil, err
 	}
 	written.RaisedFormat = raised
+	if parentPath == "" {
+		k.runSync(&written.Effects)
+	}
 	return written, warnings, nil
 }
 

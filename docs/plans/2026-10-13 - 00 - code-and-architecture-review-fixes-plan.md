@@ -2124,7 +2124,9 @@ Depends on P3.4; P3.19; P2.27.
 - `go vet ./internal/nodestore/ ./internal/cli/`
 **Commit:** `refactor(nodestore): raise the store format in Edit and Create, not per command`
 
-## P3.21 A Kind runs its sync hook after each write
+## P3.21 A Kind runs its sync hook after each write — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): WithSync returns a copy of the Kind carrying the hook rather than setting it on the receiver, so a Kind built once (e.g. for capcom fmt) never gains a hook by aliasing; IsSynced is false whenever the hook fails. sync_test.go covers the refused-write case for all four verbs (taken id, stale etag) rather than Edit alone, and pins that WithSync leaves the original Kind hookless.
 
 **What:** Second part of A-03. nodestore gains the hook through which the CLI's AGENTS.md re-sync will run. It is a function field supplied by the caller, so `nodestore` never imports `agents`.
 **Regression guard.** Remove deletes the node file, so its test asserts the file is already gone when the hook runs; Edit and Move (new path) assert it is on disk.

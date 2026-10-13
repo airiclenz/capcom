@@ -11,8 +11,9 @@ import (
 )
 
 // Removed is the outcome of a Remove: the removed node's id and former file, the entries of other
-// nodes the removal dropped, and what it could not check or clean up. Every path is relative to
-// the working tree root with forward slashes.
+// nodes the removal dropped, what it could not check or clean up, and the Effects of its sync hook
+// (a removal raises no store format). Every path is relative to the working tree root with forward
+// slashes.
 type Removed struct {
 	ID   string
 	Path string
@@ -26,6 +27,7 @@ type Removed struct {
 	// LeftInPlace are the emptied directories the removal's cleanup could not remove, each a
 	// *FileError at the directory saying why. The removal itself has landed.
 	LeftInPlace []*FileError
+	Effects
 }
 
 // DependentsError refuses the removal of a node other nodes depend on. Path is its file relative
@@ -70,6 +72,9 @@ func (e *DependentsError) Error() string {
 //     taken back, with no etags; any other failure a *FileError at the first file or directory of
 //     the removal its cause names, else at the node's file, naming any step that could not be
 //     taken back.
+//
+// Once the rewrites and removals have landed, the Kind's sync hook runs (WithSync), its outcome on
+// the Removed's Effects.
 func (k *Kind[T]) Remove(ref string, ifMatch string, shouldDropDeps bool) (Removed, tree.Errors, error) {
 	nodes, problems, err := k.load()
 	if err != nil {
@@ -107,6 +112,7 @@ func (k *Kind[T]) Remove(ref string, ifMatch string, shouldDropDeps bool) (Remov
 	for _, failure := range leftInPlace {
 		removed.LeftInPlace = append(removed.LeftInPlace, k.cleanupFailure(failure, node))
 	}
+	k.runSync(&removed.Effects)
 	return removed, warnings, nil
 }
 

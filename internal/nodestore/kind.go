@@ -35,7 +35,14 @@ type Kind[T any] struct {
 	raiseFormat func(version int) (bool, error)
 	// configPath is the store's config.yaml, which a failure of raiseFormat names.
 	configPath string
+	// sync is the hook WithSync sets, run once after each write that lands; nil runs none.
+	sync SyncFunc
 }
+
+// SyncFunc is a Kind's sync hook: it brings what the caller keeps in step with the tree up to date
+// after a write has landed, and reports whether it changed anything. Its failure never fails the
+// write; the write's Effects carry it.
+type SyncFunc func() (bool, error)
 
 // Resolver resolves an argument naming an existing node, its id or one of its Aliases, to that
 // node. It fails with an error the caller types itself when no node answers to the argument.
@@ -64,6 +71,12 @@ type Effects struct {
 	// RaisedFormat is the store format (ADR 0009) the write raised config.yaml to, so that the store
 	// declares the format of the key values the node gained; 0 when config.yaml was left alone.
 	RaisedFormat int
+	// IsSynced reports whether the Kind's sync hook, run once the write had landed, changed what it
+	// keeps in step with the tree; false when the Kind has no hook, it ran none or it failed.
+	IsSynced bool
+	// SyncFailure is the failure of the Kind's sync hook; the write itself has landed. It is nil
+	// when the hook succeeded or did not run.
+	SyncFailure error
 }
 
 // Issues returns the node store of the issue tree of s, whose config validates every issue;
@@ -94,6 +107,28 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		raiseFormat:  s.RaiseFormat,
 		configPath:   s.ConfigPath(),
 	}
+}
+
+// WithSync returns a copy of the Kind that runs sync once after each write that lands: a Create at
+// the top of the tree, and every Edit, Move and Remove. A Create below a parent and a failed write
+// run none. The outcome is reported on the write's Effects.
+func (k *Kind[T]) WithSync(sync SyncFunc) *Kind[T] {
+	synced := *k
+	synced.sync = sync
+	return &synced
+}
+
+// runSync runs the Kind's sync hook, when it has one, recording its outcome on effects.
+func (k *Kind[T]) runSync(effects *Effects) {
+	if k.sync == nil {
+		return
+	}
+	isSynced, err := k.sync()
+	if err != nil {
+		effects.SyncFailure = err
+		return
+	}
+	effects.IsSynced = isSynced
 }
 
 // applyMove carries out move through its Plan, returning the failures of its cleanups, the
