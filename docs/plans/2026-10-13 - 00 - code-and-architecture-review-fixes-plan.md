@@ -1692,7 +1692,10 @@ Depends on P2.13; P2.15.
 - `go vet ./internal/config/ ./internal/check/ ./internal/cli/`
 **Commit:** `refactor(config): own the store-format constants in config`
 
-## P3.2 A store without config.yaml opens at format 1
+## P3.2 A store without config.yaml opens at format 1 — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "declaredFormat and missingConfigFormat live in internal/check/check.go": at HEAD declaredFormat lives in internal/check/notes.go and missingConfigFormat no longer exists (P3.1 replaced it with config.MissingFormat), so check.go needed no change and is not in FILES.
+NOTES (2026-10-13): no CHANGELOG entry: Config.Format's only production reader is check, which already reported format 1 for such a store; the fix changes no output. missing-config-format is not listed under CLOSES because its second half (init keeping an existing store at its format) is P3.3.
 
 **What:** Fixes the first half of F-16 (`missing-config-format`). `store.loadConfig` stands `config.Default()`, at format 3, in for a missing file, and `check` compensates by statting the file again.
 **Goal:** opening a store with no `config.yaml` gives `Config.Format == config.MissingFormat` and every other key at its default. `check` takes the declared format from `Config.Format` alone and never stats `config.yaml` for it. Its `format-too-old` problems in such a store still say "the store declares format 1".

@@ -1,10 +1,7 @@
 package check
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -45,10 +42,6 @@ func (c *checker) notes() error {
 		return err
 	}
 
-	declaredFormat, err := c.declaredFormat()
-	if err != nil {
-		return err
-	}
 	nodes := loaded.Nodes()
 	isRetired := retiredSubtrees(nodes, parsed)
 	leftOut := leftOutNames(loaded)
@@ -57,26 +50,12 @@ func (c *checker) notes() error {
 		if !isParsed {
 			continue
 		}
-		c.checkSupersession(node, note, loaded, leftOut, declaredFormat)
+		c.checkSupersession(node, note, loaded, leftOut, c.store.Config.Format)
 		if err := c.checkNote(node, note, isRetired[node.ID]); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-// declaredFormat returns the store format config.yaml declares, or format 1 when the store has no
-// config.yaml (ADR 0009).
-func (c *checker) declaredFormat() (int, error) {
-	path := c.store.ConfigPath()
-	_, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return config.MissingFormat, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", c.relative(path), err)
-	}
-	return c.store.Config.Format, nil
 }
 
 // leftOutNames returns the ids and aliases of the node files Load left out of loaded for a

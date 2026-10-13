@@ -201,6 +201,28 @@ func TestOpen_FromSubdirectory_ResolvesAbsolutePaths(t *testing.T) {
 	}
 }
 
+func TestOpen_NoConfig_DeclaresFormatOneWithDefaults(t *testing.T) {
+	root := newRepo(t)
+	created, _, err := Init(root)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	if err := os.Remove(created.ConfigPath()); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	store, err := Open(root)
+
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	want := config.Default()
+	want.Format = config.MissingFormat
+	if !reflect.DeepEqual(store.Config, want) {
+		t.Errorf("Config = %+v, want %+v", store.Config, want)
+	}
+}
+
 func TestOpen_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 	root := newRepo(t)
 	if _, _, err := Init(root); err != nil {

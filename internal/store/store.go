@@ -163,11 +163,13 @@ func locate(cwd string) (*Store, error) {
 	}, nil
 }
 
-// loadConfig reads and parses config.yaml. A missing file means the default configuration.
+// loadConfig reads and parses config.yaml. A missing file means the default configuration at
+// config.MissingFormat, the format a store without config.yaml declares (ADR 0009).
 func (s *Store) loadConfig() error {
 	data, err := s.readConfig()
 	if errors.Is(err, fs.ErrNotExist) {
 		s.Config = config.Default()
+		s.Config.Format = config.MissingFormat
 		return nil
 	}
 	if err != nil {
