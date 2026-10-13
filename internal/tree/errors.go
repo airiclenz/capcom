@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // Sentinel errors, reachable through errors.Is on every error this package returns.
@@ -25,13 +27,10 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrAmbiguous reports an id prefix that matches more than one node; see AmbiguousError.
 	ErrAmbiguous = errors.New("ambiguous id prefix")
-	// ErrNotRegular reports an entry of a store directory that is neither a regular file nor a
-	// directory (a symlink, a named pipe, a socket or a device), or any file read through the
-	// guarded reader that is not a regular file. It is never read.
-	ErrNotRegular = errors.New("not a regular file")
-	// ErrTooLarge reports a node file, or any file read through the guarded reader, larger than
-	// maxNodeFileSize. It is never read.
-	ErrTooLarge = errors.New("file is larger than 1 MiB")
+	// ErrNotRegular is nodefile.ErrNotRegular, re-exported so errors.Is matches either name.
+	ErrNotRegular = nodefile.ErrNotRegular
+	// ErrTooLarge is nodefile.ErrTooLarge, re-exported so errors.Is matches either name.
+	ErrTooLarge = nodefile.ErrTooLarge
 	// ErrChanged reports a file a Plan rewrites that no longer holds the bytes the rewrite was
 	// worked out from: it changed after it was read, and the rewrite is not written over it.
 	ErrChanged = errors.New("changed since it was read")

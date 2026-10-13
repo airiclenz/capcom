@@ -1,14 +1,26 @@
-package tree
+package nodefile
 
 import (
+	"errors"
 	"io"
 	"io/fs"
 	"os"
 )
 
-// maxNodeFileSize is the largest file read through the guarded reader, ReadRegularFile, in bytes:
+// Sentinel errors, reachable through errors.Is on every refusal of the guarded reader.
+var (
+	// ErrNotRegular reports an entry of a store directory that is neither a regular file nor a
+	// directory (a symlink, a named pipe, a socket or a device), or any file read through the
+	// guarded reader that is not a regular file. It is never read.
+	ErrNotRegular = errors.New("not a regular file")
+	// ErrTooLarge reports a node file, or any file read through the guarded reader, larger than
+	// MaxNodeFileSize. It is never read.
+	ErrTooLarge = errors.New("file is larger than 1 MiB")
+)
+
+// MaxNodeFileSize is the largest file read through the guarded reader, ReadRegularFile, in bytes:
 // 1 MiB. The walk leaves out a larger node file too. ErrTooLarge's text names it.
-const maxNodeFileSize = 1 << 20
+const MaxNodeFileSize = 1 << 20
 
 // nonRegularModes are the mode bits of an entry that is not a regular file. ModeIrregular is left
 // out on purpose: Windows reports it for some ordinary files, which read like any other.
@@ -54,11 +66,11 @@ func ReadRegularFile(path string) ([]byte, error) {
 		return nil, err
 	}
 
-	data, err := io.ReadAll(io.LimitReader(file, maxNodeFileSize+1))
+	data, err := io.ReadAll(io.LimitReader(file, MaxNodeFileSize+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > maxNodeFileSize {
+	if len(data) > MaxNodeFileSize {
 		return nil, &fs.PathError{Op: readOp, Path: path, Err: ErrTooLarge}
 	}
 	return data, nil
@@ -71,18 +83,18 @@ func ReadNodeFile(path string) ([]byte, error) {
 }
 
 // checkReadable refuses the file at path, as info describes it, when it is not a regular file or is
-// larger than maxNodeFileSize.
+// larger than MaxNodeFileSize.
 func checkReadable(path string, info fs.FileInfo) error {
-	if isNotRegular(info.Mode()) {
+	if IsNotRegular(info.Mode()) {
 		return &fs.PathError{Op: readOp, Path: path, Err: ErrNotRegular}
 	}
-	if info.Size() > maxNodeFileSize {
+	if info.Size() > MaxNodeFileSize {
 		return &fs.PathError{Op: readOp, Path: path, Err: ErrTooLarge}
 	}
 	return nil
 }
 
-// isNotRegular reports whether mode is that of an entry other than a regular file.
-func isNotRegular(mode fs.FileMode) bool {
+// IsNotRegular reports whether mode is that of an entry other than a regular file.
+func IsNotRegular(mode fs.FileMode) bool {
 	return mode&nonRegularModes != 0
 }

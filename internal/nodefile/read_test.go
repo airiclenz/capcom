@@ -1,4 +1,4 @@
-package tree_test
+package nodefile_test
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // reader is a guarded reader under test: ReadRegularFile, or ReadNodeFile, which wraps it.
@@ -16,29 +16,29 @@ type reader func(path string) ([]byte, error)
 
 func TestReadRegularFile_RegularFile_ReadsUpToTheLimit(t *testing.T) {
 	t.Parallel()
-	testReadsUpToTheLimit(t, "ReadRegularFile", tree.ReadRegularFile)
+	testReadsUpToTheLimit(t, "ReadRegularFile", nodefile.ReadRegularFile)
 }
 
 func TestReadRegularFile_Refused_SentinelInPathError(t *testing.T) {
 	t.Parallel()
-	testRefusedSentinelInPathError(t, "ReadRegularFile", tree.ReadRegularFile)
+	testRefusedSentinelInPathError(t, "ReadRegularFile", nodefile.ReadRegularFile)
 }
 
 func TestReadNodeFile_RegularFile_ReadsUpToTheLimit(t *testing.T) {
 	t.Parallel()
-	testReadsUpToTheLimit(t, "ReadNodeFile", tree.ReadNodeFile)
+	testReadsUpToTheLimit(t, "ReadNodeFile", nodefile.ReadNodeFile)
 }
 
 func TestReadNodeFile_Refused_SentinelInPathError(t *testing.T) {
 	t.Parallel()
-	testRefusedSentinelInPathError(t, "ReadNodeFile", tree.ReadNodeFile)
+	testRefusedSentinelInPathError(t, "ReadNodeFile", nodefile.ReadNodeFile)
 }
 
 func TestReadNodeFile_Missing_IsErrNotExist(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "gone.md")
 
-	_, err := tree.ReadNodeFile(path)
+	_, err := nodefile.ReadNodeFile(path)
 
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("ReadNodeFile = %v, want fs.ErrNotExist", err)
@@ -90,9 +90,9 @@ func testRefusedSentinelInPathError(t *testing.T, name string, read reader) {
 				writeSizedFile(t, target, 1)
 				makeSymlink(t, target, path)
 			},
-			want: tree.ErrNotRegular,
+			want: nodefile.ErrNotRegular,
 		},
-		{name: "named pipe", make: makeFIFO, want: tree.ErrNotRegular},
+		{name: "named pipe", make: makeFIFO, want: nodefile.ErrNotRegular},
 		{
 			name: "directory",
 			make: func(t *testing.T, path string) {
@@ -100,12 +100,12 @@ func testRefusedSentinelInPathError(t *testing.T, name string, read reader) {
 					t.Fatalf("Mkdir: %v", err)
 				}
 			},
-			want: tree.ErrNotRegular,
+			want: nodefile.ErrNotRegular,
 		},
 		{
 			name: "1 MiB and one byte",
 			make: func(t *testing.T, path string) { writeSizedFile(t, path, 1<<20+1) },
-			want: tree.ErrTooLarge,
+			want: nodefile.ErrTooLarge,
 		},
 	}
 	for _, tc := range cases {

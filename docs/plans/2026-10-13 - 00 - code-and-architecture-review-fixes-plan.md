@@ -1099,7 +1099,9 @@ Depends on P1.8; P1.28.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers and the new `doc.go`/`doc_test.go`. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(tree): split tree.go into errors, ids, walk and claims`
 
-## P2.2 nodefile package, part 1: move the guarded reads out of tree
+## P2.2 nodefile package, part 1: move the guarded reads out of tree — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): tree/nodefile.go forwards both exported readers, ReadRegularFile and ReadNodeFile (the plan names ReadNodeFile "and the same for each other exported function"); tree keeps its fifo_*_test.go files because tree_test.go's walk tests still call makeFIFO, so nodefile gets copies.
 
 **What:** Recast at the regression check (2026-10-13). Part 1 of review P2-03 (`nodefile-package`). `ReadNodeFile`, the guarded reader P0.3 and the sentinels `ErrNotRegular`/`ErrTooLarge` move from `internal/tree` to a new leaf package, `internal/nodefile`. Until P2.9, `tree` forwards the moved functions so that callers compile unchanged.
 **Regression guard.** Also moves P0.3's unix/other open files (`openNoFollow`), `read_unix_test.go` and `SetBeforeOpen` from export_test.go into internal/nodefile; P2.9's tree deletion rests on that. The move-only check also allows the `nodefile.` qualifiers in the moved tests.

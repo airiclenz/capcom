@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // readDir lists a directory for the walk; a test swaps it to change the tree mid-walk.
@@ -70,7 +72,7 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 			continue
 		}
 		id, isNode := strings.CutSuffix(name, nodeExtension)
-		if !isNode && !isNotRegular(entry.Type()) {
+		if !isNode && !nodefile.IsNotRegular(entry.Type()) {
 			continue
 		}
 		path := filepath.Join(dir, name)
@@ -123,7 +125,7 @@ type leftOutFile struct {
 // by its Lstat size. It returns nil for a node file the walk keeps, and for one gone since its
 // directory was read. A failed Lstat is returned unchanged.
 func leftOutFileOf(entry fs.DirEntry, id string) (*leftOutFile, error) {
-	if isNotRegular(entry.Type()) {
+	if nodefile.IsNotRegular(entry.Type()) {
 		return &leftOutFile{problem: ErrNotRegular, reason: notRegularReason}, nil
 	}
 	if err := ValidateID(id); err != nil {
@@ -136,7 +138,7 @@ func leftOutFileOf(entry fs.DirEntry, id string) (*leftOutFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	if info.Size() > maxNodeFileSize {
+	if info.Size() > nodefile.MaxNodeFileSize {
 		return &leftOutFile{problem: ErrTooLarge, reason: tooLargeReason}, nil
 	}
 	return nil, nil

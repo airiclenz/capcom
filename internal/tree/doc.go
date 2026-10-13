@@ -16,10 +16,8 @@
 //   - `errors.go` — the sentinel errors, Error and Errors, and the problem types they wrap
 //   - `ids.go` — ValidateID, ValidateAlias, CheckAliases and RenameAliases: what an id or alias may be
 //   - `move.go` — PlanMove: renames a node or moves it below another, with its reference rewrites
-//   - `open_other.go` — openNoFollow off unix: checks the opened file against its Lstat
-//   - `open_unix.go` — openNoFollow on unix: opens without following a symlink or blocking on a pipe
+//   - `nodefile.go` — ReadRegularFile and ReadNodeFile: forwarders to internal/nodefile
 //   - `plan.go` — Plan: the steps, rewrites and cleanups of a move or removal, applied with undo
-//   - `read.go` — ReadRegularFile and ReadNodeFile: the guarded reader for repository-controlled files
 //   - `remove.go` — PlanRemove: removes a node that has no children
 //   - `resolve.go` — Lookup and Resolve: an argument to its node by id, alias or id prefix
 //   - `syncdir_other.go` — syncDir: fsyncs a directory after a rename

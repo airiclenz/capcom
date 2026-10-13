@@ -1,6 +1,6 @@
 //go:build unix
 
-package tree_test
+package nodefile_test
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // swapTimeout bounds a read whose entry was swapped before the open, so a reader that blocks on
@@ -46,7 +46,7 @@ func TestReadNodeFile_SwappedBeforeOpen_RefusedNotRegular(t *testing.T) {
 			replacement := filepath.Join(t.TempDir(), "replacement")
 			tc.make(t, replacement)
 			var swapErr error
-			tree.SetBeforeOpen(t, func(opened string) {
+			nodefile.SetBeforeOpen(t, func(opened string) {
 				if opened == path {
 					swapErr = os.Rename(replacement, path)
 				}
@@ -57,7 +57,7 @@ func TestReadNodeFile_SwappedBeforeOpen_RefusedNotRegular(t *testing.T) {
 			if swapErr != nil {
 				t.Fatalf("swap: %v", swapErr)
 			}
-			assertRefused(t, "ReadNodeFile", path, result.data, result.err, tree.ErrNotRegular)
+			assertRefused(t, "ReadNodeFile", path, result.data, result.err, nodefile.ErrNotRegular)
 		})
 	}
 }
@@ -68,7 +68,7 @@ func readWithTimeout(t *testing.T, path string) readResult {
 	t.Helper()
 	done := make(chan readResult, 1)
 	go func() {
-		data, err := tree.ReadNodeFile(path)
+		data, err := nodefile.ReadNodeFile(path)
 		done <- readResult{data: data, err: err}
 	}()
 	select {

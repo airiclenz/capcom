@@ -43,16 +43,6 @@ func SetRemoveFile(t *testing.T, fn func(path string) error) {
 	t.Cleanup(func() { removeFile = saved })
 }
 
-// SetBeforeOpen sets the hook ReadRegularFile calls between its Lstat and its open until t ends,
-// so a test can swap the entry there. It swaps a package variable: a test that calls it never runs
-// in parallel.
-func SetBeforeOpen(t *testing.T, fn func(path string)) {
-	t.Helper()
-	saved := beforeOpen
-	beforeOpen = fn
-	t.Cleanup(func() { beforeOpen = saved })
-}
-
 // SetReadDir replaces the directory listing Walk reads every directory with until t ends, so a test
 // can change the tree mid-walk. It swaps a package variable: a test that calls it never runs in
 // parallel.
