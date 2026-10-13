@@ -48,7 +48,9 @@
 - 18: guard folded (the new test pins the message)
 - 19: guard folded (literal sentinel placed to bite; Windows mode gate)
 
-## 0. File the audit's parent issue
+## 0. File the audit's parent issue — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): filed with `--plan "2026-10-13 - 01 - code-audit-fixes-plan"` as well, matching the sibling parent issue code-review-1013; the review was already committed on main (36c65de), so the "do not commit the review" step did not apply.
 
 **What:**
 **Goal:** `.capcom/issues/code-audit-1013.md` exists, open, titled for the 2026-10-13 code audit; its body lists every finding of the review (20) as bullets (severity, one line each, file) and has a `## Acceptance` section: every finding fixed or tested, `go vet ./...` and `go test ./...` pass.
