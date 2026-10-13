@@ -256,7 +256,10 @@ Depends on 11.
 - `GOOS=windows go vet ./internal/nodefile/` and `GOOS=darwin go vet ./internal/nodefile/`
 **Commit:** `fix(nodefile): place an exclusive file by no-replace rename when hard links are refused`
 
-## 13. init writes config.yaml atomically
+## 13. init writes config.yaml atomically — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): createConfig returns nodefile.WriteFileExclusive's error unwrapped (it already names the absolute config.yaml path, as RaiseFormat's writes do) instead of prefixing the relative `.capcom/config.yaml`, which would name the file twice; an Lstat failure other than not-exist is still named relative.
+NOTES (2026-10-13): after a failed first init the store directory already exists, so the repairing re-run writes config.KeylessFile (format 1), not config.DefaultFile; this is Init's existing rule for a store without config.yaml, left unchanged and pinned by the new test.
 
 **What:** Fix: `createConfig` fills an `O_EXCL` file in place, so a failed write leaves an empty or truncated `config.yaml` that a re-run of `init` will not repair.
 **Goal:** `config.yaml` is either absent or the whole template after `createConfig`, including when the write fails; an existing file is still left untouched and reported unwritten.

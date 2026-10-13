@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,9 +10,11 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -115,6 +118,95 @@ func TestInit_ExistingStoreWithoutConfig_WritesKeylessTemplateAtFormatOne(t *tes
 	}
 	if store.Config.Format != config.MissingFormat {
 		t.Errorf("Config.Format = %d, want %d", store.Config.Format, config.MissingFormat)
+	}
+}
+
+// errConfigRead is the error the reader failConfigWritePartway hands the config write fails with.
+var errConfigRead = errors.New("reading the template failed")
+
+// failConfigWritePartway makes createConfig's write fail partway through the template: it still
+// writes through nodefile.WriteFileExclusive, from a reader that yields the template's first bytes
+// and then errConfigRead. It swaps a package variable, so a test that calls it never runs in
+// parallel.
+func failConfigWritePartway(t *testing.T) {
+	t.Helper()
+	previous := writeConfigExclusive
+	writeConfigExclusive = func(path string, content io.Reader) error {
+		failing := io.MultiReader(io.LimitReader(content, 16), iotest.ErrReader(errConfigRead))
+		return nodefile.WriteFileExclusive(path, failing)
+	}
+	t.Cleanup(func() { writeConfigExclusive = previous })
+}
+
+func TestInit_ConfigWriteFailsPartway_LeavesNoConfigAndARerunWritesIt(t *testing.T) {
+	root := newRepo(t)
+	storeRoot := filepath.Join(root, ".capcom")
+	failConfigWritePartway(t)
+
+	_, _, err := Init(root)
+
+	if err == nil || !strings.Contains(err.Error(), "config.yaml") || !errors.Is(err, errConfigRead) {
+		t.Fatalf("Init err = %v, want an error naming config.yaml wrapping %v", err, errConfigRead)
+	}
+	if _, statErr := os.Lstat(filepath.Join(storeRoot, "config.yaml")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("config.yaml Lstat err = %v, want it absent", statErr)
+	}
+	entries, readErr := os.ReadDir(storeRoot)
+	if readErr != nil {
+		t.Fatalf("ReadDir: %v", readErr)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if want := []string{"issues", "knowledge"}; !reflect.DeepEqual(names, want) {
+		t.Errorf(".capcom holds %v, want %v and no temp file", names, want)
+	}
+
+	writeConfigExclusive = nodefile.WriteFileExclusive
+	store, created, err := Init(root)
+
+	if err != nil {
+		t.Fatalf("second Init: %v", err)
+	}
+	if want := []string{".capcom/config.yaml"}; !reflect.DeepEqual(created, want) {
+		t.Errorf("created = %v, want %v", created, want)
+	}
+	content, err := os.ReadFile(store.ConfigPath())
+	if err != nil || string(content) != config.KeylessFile {
+		t.Errorf("config.yaml = %q (%v), want the whole config.KeylessFile", content, err)
+	}
+}
+
+func TestInit_ReRunOnReadOnlyStore_SucceedsAndCreatesNothing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory test does not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("a read-only directory test does not run as root")
+	}
+	root := newRepo(t)
+	store, _, err := Init(root)
+	if err != nil {
+		t.Fatalf("first Init: %v", err)
+	}
+	if err := os.Chmod(store.Root, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(store.Root, 0o755); err != nil {
+			t.Errorf("Chmod back: %v", err)
+		}
+	})
+
+	_, created, err := Init(root)
+
+	if err != nil || len(created) != 0 {
+		t.Fatalf("second Init: created = %v err = %v, want success creating nothing", created, err)
+	}
+	content, err := os.ReadFile(store.ConfigPath())
+	if err != nil || string(content) != config.DefaultFile {
+		t.Errorf("config.yaml = %q (%v), want the default file untouched", content, err)
 	}
 }
 

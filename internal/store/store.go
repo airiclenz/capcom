@@ -239,26 +239,36 @@ func (s *Store) createDir(name string) (bool, error) {
 	return true, nil
 }
 
-// createConfig writes config.yaml unless one exists, and reports whether it wrote it. It writes
-// config.DefaultFile into a store created by the same Init (isNewStore), and config.KeylessFile
-// into an existing one, whose missing config.yaml declares format 1.
+// writeConfigExclusive is the write createConfig creates config.yaml with: nodefile's
+// WriteFileExclusive unless a test swapped it to fail the write partway.
+var writeConfigExclusive = nodefile.WriteFileExclusive
+
+// createConfig writes config.yaml unless anything is at its path, and reports whether it wrote it.
+// It writes config.DefaultFile into a store created by the same Init (isNewStore), and
+// config.KeylessFile into an existing one, whose missing config.yaml declares format 1. It looks
+// before it writes, so a re-run on a complete store writes nothing, even where .capcom is not
+// writable. The write is atomic: config.yaml is either absent or the whole template afterwards,
+// also when the write fails, so a re-run of Init repairs a failed one. A config.yaml that appears
+// between the look and the write is left as it is and reported unwritten.
 func (s *Store) createConfig(isNewStore bool) (bool, error) {
 	path := filepath.Join(s.Root, configFile)
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePermissions)
-	if errors.Is(err, fs.ErrExist) {
+	_, err := os.Lstat(path)
+	if err == nil {
 		return false, nil
 	}
-	if err != nil {
+	if !errors.Is(err, fs.ErrNotExist) {
 		return false, fmt.Errorf("%s: %w", s.relative(configFile), err)
 	}
 	template := config.KeylessFile
 	if isNewStore {
 		template = config.DefaultFile
 	}
-	_, writeErr := file.WriteString(template)
-	closeErr := file.Close()
-	if err := errors.Join(writeErr, closeErr); err != nil {
-		return false, fmt.Errorf("%s: %w", s.relative(configFile), err)
+	err = writeConfigExclusive(path, strings.NewReader(template))
+	if errors.Is(err, fs.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
 	}
 	return true, nil
 }
