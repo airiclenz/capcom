@@ -321,7 +321,7 @@ Depends on 15.
 - `GOMEMLIMIT=2GiB go test ./internal/nodefile/` then `./internal/nodestore/`
 **Commit:** `refactor(nodefile): delete ReadNodeFile`
 
-## 17. Pin check's AGENTS.md block stage
+## 17. Pin check's AGENTS.md block stage — ✅ DONE (2026-10-13)
 
 **What:** Test only (`internal/check/agents.go`, `agentsBlock`).
 **Files:** internal/check/agents_test.go
