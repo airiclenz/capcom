@@ -1,6 +1,8 @@
-// Package cli implements capcom's command line: the cobra command tree, the output contract
-// (plain text, the versioned --json envelope, --kv KEY=VALUE lines) and the mapping from typed
-// errors to exit codes. Run is the single entry point, used by the binary and by tests alike.
+// Package cli implements capcom's command line: the cobra command tree and the commands that
+// hand their results to internal/cli/output, which owns the output contract (plain text, the
+// versioned --json envelope, --kv KEY=VALUE lines) and decides the exit code. Run is the single
+// entry point, used by the binary and by tests alike: it only wires cobra and passes the
+// command's final error to output.Exit.
 //
 // # Files
 //

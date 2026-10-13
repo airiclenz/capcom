@@ -1,8 +1,10 @@
 package output
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -51,6 +53,59 @@ func TestError_ExitCode_MapsCodes(t *testing.T) {
 				t.Errorf("ExitCode() = %d, want %d", got, testCase.want)
 			}
 		})
+	}
+}
+
+// failingWriter rejects every write, standing in for a closed output stream.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("stream closed") }
+
+func TestExit_MapsEachOutcome(t *testing.T) {
+	notFound := Errorf(CodeNotFound, "issue x not found")
+	cases := []struct {
+		name       string
+		err        error
+		stderr     io.Writer
+		wantCode   int
+		wantStderr string
+	}{
+		{"nil", nil, nil, ExitOK, ""},
+		{"rendered not_found", Rendered(notFound), nil, ExitNotFound, ""},
+		{"untyped", errors.New(`unknown command "frob"`), nil, ExitUsage, "capcom: unknown command \"frob\"\n"},
+		{"invalid", Errorf(CodeInvalid, "bad title"), nil, ExitError, "capcom: bad title\n"},
+		{"locked", Errorf(CodeLocked, "tree held"), nil, ExitNotFound, "capcom: tree held\n"},
+		{"usage", UsageErrorf("too many args"), nil, ExitUsage, "capcom: too many args\n"},
+		{"failing renderer", Errorf(CodeNotFound, "gone"), failingWriter{}, ExitError, ""},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			errStream := testCase.stderr
+			if errStream == nil {
+				errStream = &stderr
+			}
+
+			got := Exit(NewRenderer(FormatText, &stdout, errStream), testCase.err)
+
+			if got != testCase.wantCode {
+				t.Errorf("Exit() = %d, want %d", got, testCase.wantCode)
+			}
+			if stderr.String() != testCase.wantStderr || stdout.Len() != 0 {
+				t.Errorf("stdout %q, stderr %q, want stdout empty and stderr %q", stdout.String(), stderr.String(), testCase.wantStderr)
+			}
+		})
+	}
+}
+
+func TestRendered_MarksACopy(t *testing.T) {
+	failure := Errorf(CodeInvalid, "x")
+
+	marked := Rendered(failure)
+
+	if !marked.isRendered || failure.isRendered || marked == failure {
+		t.Errorf("Rendered: marked %+v, original %+v, want only a distinct copy marked", marked, failure)
 	}
 }
 

@@ -1785,7 +1785,9 @@ Depends on P2.35; P0.11.
 - `go vet ./internal/cli/ ./internal/cli/output/`
 **Commit:** `refactor(cli): sanitise text output in the renderer, not at each call site`
 
-## P3.6 The exit-code decision lives in cli/output
+## P3.6 The exit-code decision lives in cli/output — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): added TestRendered_MarksACopy beside the planned TestExit_MapsEachOutcome, pinning that Rendered marks a distinct copy and leaves its argument unmarked
 
 **What:** Completes A-14 (`cli-output-package`). `cli.Run` still decides the exit code itself, and `emit`, `check` and `fmt` set the rendered mark on a failure directly.
 **Regression guard.** The Goal sentence and its grep cover non-test files; cli_test.go and init_test.go keep their `ExitCode()` assertions. The package comment in internal/cli/doc.go says output decides the exit code and `Run` only wires cobra and calls `output.Exit`.

@@ -47,8 +47,9 @@ type app struct {
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and
-// returns the process exit code: 0 ok, 1 error, 2 usage, 3 not_found or locked. Results go to
-// stdout; in text mode a failure goes to stderr, while --json and --kv report it on stdout.
+// returns the process exit code output.Exit decides: 0 ok, 1 error, 2 usage, 3 not_found or
+// locked. Results go to stdout; in text mode a failure goes to stderr, while --json and --kv
+// report it on stdout.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	application := &app{stdout: stdout, stderr: stderr}
 	root := application.newRootCommand()
@@ -61,28 +62,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if closeErr := application.closeIndex(); closeErr != nil && err == nil {
 		err = output.AsError(closeErr)
 	}
-	if err == nil {
-		return output.ExitOK
-	}
-
-	failure, isTyped := err.(*output.Error)
-	if isTyped && failure.IsRendered {
-		return failure.ExitCode()
-	}
-	if !isTyped {
-		// cobra rejected the invocation before any command ran (unknown command, bad flag,
-		// wrong argument count); command failures always arrive typed via runE.
-		failure = output.UsageErrorf("%s", err.Error())
-	}
 	renderer := application.renderer
 	if renderer == nil {
 		// Parsing failed before the output flags were applied, so read them from args.
 		renderer = output.NewRenderer(scanFormat(args), stdout, stderr)
 	}
-	if renderErr := renderer.RenderError(failure); renderErr != nil {
-		return output.ExitError
-	}
-	return failure.ExitCode()
+	return output.Exit(renderer, err)
 }
 
 // newRootCommand builds the command tree for one invocation.
@@ -224,9 +209,7 @@ func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 	if result.Failure == nil {
 		return nil
 	}
-	rendered := *result.Failure
-	rendered.IsRendered = true
-	return &rendered
+	return output.Rendered(result.Failure)
 }
 
 // newVersionCommand reports the embedded release version.

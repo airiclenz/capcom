@@ -93,9 +93,7 @@ func (r *formatRun) emit(cmd *cobra.Command) error {
 	if !r.isCheck || len(r.paths) == 0 {
 		return nil
 	}
-	failure := output.Errorf(output.CodeInvalid, "%d files would change", len(r.paths))
-	failure.IsRendered = true
-	return failure
+	return output.Rendered(output.Errorf(output.CodeInvalid, "%d files would change", len(r.paths)))
 }
 
 // errorStrings renders each error as its message.

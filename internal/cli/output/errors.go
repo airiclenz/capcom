@@ -38,9 +38,9 @@ type Error struct {
 	Path    string
 	Line    int
 	isUsage bool
-	// IsRendered marks a failure the output layer already wrote with its partial result; Run
-	// only maps it to the exit code.
-	IsRendered bool
+	// isRendered marks a failure the output layer already wrote with its partial result; Exit
+	// only maps it to the exit code. Rendered is the one way to set it.
+	isRendered bool
 }
 
 // Errorf builds an Error with the given code and a formatted message.
@@ -76,6 +76,36 @@ func (e *Error) ExitCode() int {
 		return ExitNotFound
 	}
 	return ExitError
+}
+
+// Rendered returns a copy of failure marked as already written with its partial result, so Exit
+// maps it to its exit code without writing it again. failure itself is left unchanged.
+func Rendered(failure *Error) *Error {
+	marked := *failure
+	marked.isRendered = true
+	return &marked
+}
+
+// Exit turns a command's final error into the process exit code, writing the failure through
+// renderer first. nil gives ExitOK. A failure marked by Rendered keeps its code and is not
+// written again. An error that is not an *Error is a malformed invocation cobra rejected before
+// any command ran, so it is written and exits with ExitUsage. Any other *Error is written and
+// maps through ExitCode. A failure renderer cannot write gives ExitError.
+func Exit(renderer Renderer, err error) int {
+	if err == nil {
+		return ExitOK
+	}
+	failure, isTyped := err.(*Error)
+	if isTyped && failure.isRendered {
+		return failure.ExitCode()
+	}
+	if !isTyped {
+		failure = UsageErrorf("%s", err.Error())
+	}
+	if renderErr := renderer.RenderError(failure); renderErr != nil {
+		return ExitError
+	}
+	return failure.ExitCode()
 }
 
 // AsError returns err as an *Error, giving an untyped failure the invalid code so every failure
