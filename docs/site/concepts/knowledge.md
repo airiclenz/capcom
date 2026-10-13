@@ -69,8 +69,8 @@ auth  How sessions and tokens work
   token-refresh  Token refresh runs on a timer that logout must stop
 ```
 
-`capcom know show --with-children <id>` prints a Note together with everything below it, for a
-decision record whose sections are child Notes.
+`capcom know show --with-children <id>` prints a Note together with the Notes directly below it,
+for a decision record whose sections are child Notes.
 
 ## Label
 
