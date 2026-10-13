@@ -217,7 +217,11 @@ NOTES (2026-10-13): beyond the planned symlink and FIFO cases the tests also cov
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run Init`
 **Commit:** `fix(hooks): read agent settings through the guard and keep an existing file's mode`
 
-## 11. Windows: retry the atomic rename while a reader holds the file
+## 11. Windows: retry the atomic rename while a reader holds the file — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): added internal/nodefile/export_windows_test.go (not in **Files:**): it exports SetBeforeRenameRetry, the windows-only test seam (beforeRenameRetry, nil in production, like read.go's beforeOpen) that lets the removed-before-retry test close and remove the target deterministically between attempts; the shared export_test.go cannot reference a windows-only variable.
+NOTES (2026-10-13): replaceRename returns errors already naming path (rename failures wrapped "<path>: ", the recheck's *fs.PathError as it is), so writeFileAtomic no longer wraps the rename error itself; the message text off Windows is unchanged.
+NOTES (2026-10-13): the Windows tests were compiled (GOOS=windows go test -c) and vetted on Linux only; they first run on CI's Windows job.
 
 **What:** Fix: on Windows `WriteFileAtomic`'s final `os.Rename` fails with access denied while another process has the file open.
 **Goal:** On Windows the replace-rename in `nodefile` retries on `ERROR_ACCESS_DENIED` and `ERROR_SHARING_VIOLATION` up to 5 attempts with backoff 10, 20, 40, 80 ms, then returns the last error; other platforms rename once.

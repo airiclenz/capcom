@@ -44,8 +44,10 @@ func SwapLink(fn func(oldPath string, newPath string) error) (restore func()) {
 // WriteFileAtomic replaces the file at path with everything read from content, converting CRLF
 // line endings to LF, and gives it mode 0644. It creates path's directory when missing, streams
 // into a temp file in that directory, fsyncs it and renames it over path, then fsyncs the
-// directory (off Windows). Readers see either the old file or the whole new one; on any failure
-// the temp file is removed and the old file is left intact. Errors name path.
+// directory (off Windows). On Windows, where a reader holding path open blocks the rename, the
+// rename is tried up to five times over about 150 ms before its last error is returned. Readers
+// see either the old file or the whole new one; on any failure the temp file is removed and the
+// old file is left intact. Errors name path.
 func WriteFileAtomic(path string, content io.Reader) error {
 	return writeFileAtomic(path, content, true, filePermissions, false)
 }
@@ -54,8 +56,8 @@ func WriteFileAtomic(path string, content io.Reader) error {
 // WriteFileAtomic does: CRLF line endings become LF, the file gets mode 0644 and readers see either
 // the old file or the whole new one. Unlike WriteFileAtomic it never creates a file or directory,
 // so a node file another session moved or removed is not brought back: when path is missing just
-// before the rename it fails with an error wrapping fs.ErrNotExist, and a missing directory fails
-// the same way. On any failure the temp file is removed. Errors name path.
+// before the rename, or before a Windows retry of it, it fails with an error wrapping
+// fs.ErrNotExist, and a missing directory fails the same way. On any failure the temp file is removed. Errors name path.
 func ReplaceFileAtomic(path string, content io.Reader) error {
 	return writeFileAtomic(path, content, true, filePermissions, true)
 }
@@ -110,8 +112,10 @@ func WriteFileExclusive(path string, content io.Reader) error {
 
 // writeFileAtomic is the atomic write of WriteFileAtomic, WriteFileAtomicVerbatim and
 // ReplaceFileAtomic: it converts CRLF to LF when isConvertingCRLF and gives the file permissions
-// perm. When isReplacing it creates no directory and renames only over a file still at path,
-// failing with a *fs.PathError (Op "replace") wrapping fs.ErrNotExist when path is gone.
+// perm. It renames through replaceRename, which retries on Windows while a reader holds path.
+// When isReplacing it creates no directory and renames only over a file still at path, checked
+// before the rename and every retry, failing with a *fs.PathError (Op "replace") wrapping
+// fs.ErrNotExist when path is gone.
 func writeFileAtomic(
 	path string,
 	content io.Reader,
@@ -130,9 +134,9 @@ func writeFileAtomic(
 			return joinNonNil(err, removeErr)
 		}
 	}
-	if err := os.Rename(temp, path); err != nil {
+	if err := replaceRename(temp, path, isReplacing); err != nil {
 		removeErr := os.Remove(temp)
-		return fmt.Errorf("%s: %w", path, joinNonNil(err, removeErr))
+		return joinNonNil(err, removeErr)
 	}
 	if err := syncDir(dir); err != nil {
 		return fmt.Errorf("%s: syncing directory: %w", path, err)
