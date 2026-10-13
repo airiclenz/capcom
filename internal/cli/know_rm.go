@@ -44,8 +44,9 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 // removeNote removes the Note arg names through the Note node store, which deletes its file
 // together with the Note's own children directory when that is empty, then the parent's children
 // directory when the removal emptied it, and drops every other Note's superseded-by entries naming
-// it. Before anything is deleted it refuses a Note with children, a children directory holding
-// other files, and an --if-match that is not the file's etag; it never parses the Note file. The
+// it. It refuses, before anything is deleted, a Note with children, a children directory holding
+// other files and an --if-match that is not the file's etag, and, taking the removal back, when a
+// Note file it rewrites changed while it ran; it never parses the Note file. The
 // result names the removed file, with a warning for every tree problem that concerns neither the
 // Note nor its parent, for every Note file whose superseded-by entries could not be checked and for
 // an emptied parent directory left in place; a stale capcom block of AGENTS.md is refreshed

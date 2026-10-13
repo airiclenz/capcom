@@ -716,7 +716,14 @@ Depends on P0.3.
 - `go vet ./internal/tree/`
 **Commit:** `fix(tree): compare-and-swap every plan rewrite and its rollback`
 
-## P1.21 mv, rm and fmt: a file changed under the command is a conflict
+## P1.21 mv, rm and fmt: a file changed under the command is a conflict — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): Move and Remove share one helper, `Kind.applyChangedFailure` (errors.go), which splits the joined Apply error, checks the first failure for `tree.ErrChanged`, `errors.As`es its `*fs.PathError` and builds `Kind.changedError` with the rest as rollback failures (newlines flattened, paths relativized, as `removalApplyFailure` does); Format's re-read lives in a new `Kind.formatRecheck` (format.go) rather than inline.
+NOTES (2026-10-13): Format refuses a changed file with `k.changedError` as the regression guard names it; the approach text's `k.staleError` is that same helper under the name the guard rejects.
+NOTES (2026-10-13): consequential edit — internal/cli/mv.go: made necessary by mv now refusing with conflict when a rewritten file changed (prose guard)
+NOTES (2026-10-13): consequential edit — internal/cli/know_mv.go: made necessary by know mv now refusing with conflict when a rewritten file changed (prose guard)
+NOTES (2026-10-13): consequential edit — internal/cli/rm.go: made necessary by rm now refusing with conflict, taking the removal back, when a rewritten file changed (prose guard)
+NOTES (2026-10-13): consequential edit — internal/cli/know_rm.go: made necessary by know rm now refusing with conflict, taking the removal back, when a rewritten file changed (prose guard)
 
 **What:** Fixes the nodestore half of F-11(a) (`stale-rewrite-cas`). `nodestore.Move` and `nodestore.Remove` turn a rewrite refused with `tree.ErrChanged` into the conflict `--if-match` already reports. `nodestore.Format` gets the same compare-and-swap for each file. No sentinel exists for `--if-match`: it is refused with the typed `*nodestore.ConflictError` (built by `Kind.conflictError`), which `cli.kindFailure` maps to `CodeConflict`. `tree` cannot import `nodestore`, so `nodestore` makes the conversion.
 **Regression guard.** Name the helper `Kind.changedError` (not `staleError`): the glossary reserves "stale" for the Tree lock. Prose rule: every comment or doc passage that says when mv, rm, know mv, know rm, fmt or `kindFailure` yield a conflict, or what `beforeRecheck` serves (`grep -rn -i 'conflict\|beforeRecheck' internal/cli/*.go internal/nodestore/*.go docs/format.md`), the `capcom fmt` passage of docs/format.md included.

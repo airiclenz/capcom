@@ -54,6 +54,28 @@ func TestFormat_UnformattedFiles_RewritesThemWithoutAResolver(t *testing.T) {
 	}
 }
 
+func TestFormat_FileChangedBeforeItsRewrite_ConflictsAndKeepsTheConcurrentBytes(t *testing.T) {
+	s := newStore(t)
+	firstPath := writeNodeFile(t, s.IssuesDir(), "fix-parser.md", unformattedIssue)
+	secondPath := writeNodeFile(t, s.IssuesDir(), "login-flow.md", unformattedIssue)
+	concurrent := strings.Replace(unformattedIssue, "Fix the parser", "Fix the parser today", 1)
+	setBeforeRecheck(t, func(path string) {
+		if path == secondPath {
+			writeNodeFile(t, s.IssuesDir(), "login-flow.md", concurrent)
+		}
+	})
+
+	_, err := Issues(s, nil).Format(false)
+
+	assertChangedConflict(t, err, ".capcom/issues/login-flow.md")
+	if got := readFile(t, secondPath); got != concurrent {
+		t.Errorf("login-flow.md =\n%s\nwant the concurrent bytes kept", got)
+	}
+	if got := readFile(t, firstPath); got != canonicalIssue {
+		t.Errorf("fix-parser.md =\n%s\nwant it rewritten before the conflict", got)
+	}
+}
+
 func TestFormat_Check_ListsTheFileAndWritesNothing(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

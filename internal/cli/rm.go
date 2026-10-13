@@ -62,8 +62,9 @@ func (a *app) newRmCommand() *cobra.Command {
 
 // removeIssue removes the issue arg names through the issue node store, which deletes its file
 // together with the issue's own children directory when that is empty, then the parent's children
-// directory when the removal emptied it. Every refusal comes before anything changes; see
-// nodestore.Kind.Remove. The result names the removed file, the dependents whose deps were dropped
+// directory when the removal emptied it. It refuses before anything changes, see
+// nodestore.Kind.Remove, and, taking the removal back, when a file it rewrites changed while it
+// ran. The result names the removed file, the dependents whose deps were dropped
 // and the issues whose related entries were dropped, with a warning for every tree problem that
 // concerns neither the issue nor its parent, for every issue file whose deps were not checked and
 // for an emptied parent directory left in place.

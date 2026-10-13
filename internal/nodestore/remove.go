@@ -84,8 +84,10 @@ type plannedRemoval struct {
 //  5. the etag check: when ifMatch is set and is not the node file's etag, a *ConflictError.
 //  6. on the issue kind, other issues depending on the node while not shouldDropDeps: a
 //     *DependentsError. A file that cannot be read on the way is a *FileError at it.
-//  7. the rewrites and removals, taken back on failure: a *FileError at the first file or directory
-//     of the removal its cause names, else at the node's file, naming any step that could not be
+//  7. the rewrites and removals, taken back on failure: a file the removal rewrites that changed
+//     since the plan read it is a *ConflictError at that file naming any step that could not be
+//     taken back, with no etags; any other failure a *FileError at the first file or directory of
+//     the removal its cause names, else at the node's file, naming any step that could not be
 //     taken back.
 func (k *Kind[T]) Remove(ref string, ifMatch string, shouldDropDeps bool) (Removed, tree.Errors, error) {
 	nodes, problems, err := k.load()
@@ -111,6 +113,9 @@ func (k *Kind[T]) Remove(ref string, ifMatch string, shouldDropDeps bool) (Remov
 	}
 	leftInPlace, err := k.applyRemoval(removal.Removal)
 	if err != nil {
+		if changed := k.applyChangedFailure(err); changed != nil {
+			return Removed{}, nil, changed
+		}
 		return Removed{}, nil, k.removalApplyFailure(err, nodes, removal)
 	}
 

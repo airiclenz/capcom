@@ -215,6 +215,26 @@ func TestRemove_ApplyFails_NamesTheFailedFileRelativeToTheWorktree(t *testing.T)
 	}
 }
 
+func TestRemove_DependentChangedBeforeApply_ConflictsAndKeepsTheConcurrentBytes(t *testing.T) {
+	t.Parallel()
+	issues, dir := newRemoveIssues(t)
+	concurrent := strings.Replace(parserDependentIssue, "Fix the parser", "Fix the parser today", 1)
+	issues.applyRemoval = func(removal *tree.Removal) ([]error, error) {
+		writeNodeFile(t, dir, "session-work.md", concurrent)
+		return removal.Apply()
+	}
+
+	_, _, err := issues.Remove("fix-parser", "", true)
+
+	assertChangedConflict(t, err, ".capcom/issues/session-work.md")
+	if got := readFile(t, filepath.Join(dir, "session-work.md")); got != concurrent {
+		t.Errorf("session-work.md =\n%s\nwant the concurrent bytes kept", got)
+	}
+	if files := nodeFiles(t, dir); !slices.Contains(files, "fix-parser.md") {
+		t.Errorf("files = %v, want fix-parser.md kept", files)
+	}
+}
+
 func TestRemove_CleanupFails_ReturnsTheDirectoryLeftInPlace(t *testing.T) {
 	t.Parallel()
 	issues, dir := newRemoveIssues(t)

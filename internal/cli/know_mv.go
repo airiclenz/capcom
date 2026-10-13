@@ -44,10 +44,11 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 
 // moveNote moves the Note args[0] names to the new id args[1], when given, and below
 // options.parent, when reparented. It refuses with conflict, before anything moves, when
-// --if-match is set and is not the Note file's etag. The result names the Note's new id, path and
-// etag, with a warning for every tree problem that concerns neither the Note, its new path nor the
-// new parent, and for every Note file whose superseded-by entries could not be checked; a stale
-// capcom block of AGENTS.md is refreshed afterwards.
+// --if-match is set and is not the Note file's etag, and, taking the move back, when a Note file
+// it rewrites changed while it ran. The result names the Note's new id, path and etag, with a
+// warning for every tree problem that concerns neither the Note, its new path nor the new parent,
+// and for every Note file whose superseded-by entries could not be checked; a stale capcom block
+// of AGENTS.md is refreshed afterwards.
 func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
 	destination, err := moveDestination(args, options.parent, options.isReparented)
 	if err != nil {

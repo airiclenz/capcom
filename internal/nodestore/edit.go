@@ -12,7 +12,8 @@ import (
 var errNoResolver = errors.New("nodestore: the kind has no resolver")
 
 // beforeRecheck runs between Edit's validation of the changed node and its re-read of the node
-// file. It does nothing in production; tests set it to change the file at that moment.
+// file, and between Format's check of a file's canonical form and its re-read before the rewrite.
+// It does nothing in production; tests set it to change the file at that moment.
 var beforeRecheck = func(path string) {}
 
 // Edit changes the existing node ref names (its id, one of its Aliases or a unique id prefix) and

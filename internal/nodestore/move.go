@@ -54,8 +54,10 @@ type Moved struct {
 //  7. on a rename, a node file that does not parse but whose raw frontmatter still lists the new
 //     id as an alias, an *ExistsError.
 //  8. the etag check: when ifMatch is set and is not the node file's etag, a *ConflictError.
-//  9. the renames and rewrites, taken back on failure: a *FileError at the node's file naming the
-//     failing path and any step that could not be taken back.
+//  9. the renames and rewrites, taken back on failure: a file the move rewrites that changed since
+//     the plan read it is a *ConflictError at that file naming any step that could not be taken
+//     back, with no etags; any other failure a *FileError at the node's file naming the failing
+//     path and any step that could not be taken back.
 func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.Errors, error) {
 	nodes, problems, err := k.load()
 	if err != nil {
@@ -105,6 +107,9 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 		return Moved{}, nil, k.conflictError(node.Path, ifMatch, current)
 	}
 	if err := k.applyMove(move.Move); err != nil {
+		if changed := k.applyChangedFailure(err); changed != nil {
+			return Moved{}, nil, changed
+		}
 		return Moved{}, nil, k.fileError(node.Path, err)
 	}
 

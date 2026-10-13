@@ -135,7 +135,8 @@ issue with children, an issue whose children directory still holds any file, and
 issues depend on (their `deps` name its id or an alias), listing those issues; `--drop-deps`
 removes their `deps` entries for it instead. A `deps` entry of the issue on itself does not count.
 Like `update` and `mv`, it takes `--if-match <etag>` and refuses with a conflict, changing
-nothing, when the file's etag differs. Other issues' `related` entries naming the issue never
+nothing, when the file's etag differs. `rm` and `mv` also refuse with a conflict, taking back what
+they changed, when an issue file they rewrite changes while they run. Other issues' `related` entries naming the issue never
 refuse it: they are always removed, and those issues are reported as `related_dropped`. capcom
 deletes the file itself and never runs git.
 
@@ -265,7 +266,8 @@ another time zone); capcom reads them and writes them back in the canonical form
 form, lists each one relative to the working tree root, then prints `formatted <n> files`; a second
 run changes nothing. A file that does not parse or validate, or that the tree cannot place, is left
 untouched and reported as a `warning:` without failing the command; `capcom check` is the
-validator. `capcom fmt --check` writes nothing, lists each file that would change, and exits 1, as
+validator. A file that changes between `capcom fmt`'s read and its rewrite fails the command with
+a conflict and keeps its new bytes; the files rewritten before it stay rewritten. `capcom fmt --check` writes nothing, lists each file that would change, and exits 1, as
 `capcom check` does on a problem, when any would. With `--json` the result is kind `fmt` with the
 data `{"paths": [...]}`.
 
@@ -437,7 +439,9 @@ write verbs are the scripted path:
 An **etag** is a hash of a Note file's bytes: `capcom know show` prints it, and `know add`,
 `know update` and `know mv` print the new one after a write. `know update`, `know mv` and
 `know rm` take `--if-match <etag>` and refuse with a conflict, changing nothing, when the file's
-etag differs, so an agent never overwrites a Note that changed since it last read it. A hand edit
+etag differs, so an agent never overwrites a Note that changed since it last read it. `know mv`
+and `know rm` also refuse with a conflict, taking back what they changed, when a Note file they
+rewrite changes while they run. A hand edit
 changes the file's bytes, and so its etag, like a write verb does: `--if-match` refuses a write
 over a Note edited by hand since the agent last read it.
 

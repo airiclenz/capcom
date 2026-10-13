@@ -96,9 +96,10 @@ func asError(err error) *Error {
 }
 
 // kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a
-// stale --if-match a conflict and an id another node answers to exists, each at the file the
-// failure names, relative to the working tree root, and its line when known. An argument that
-// resolves to no node or to several goes through resolveFailure; any other failure through asError.
+// stale --if-match, or a file changed between the command's read and its write, a conflict and an
+// id another node answers to exists, each at the file the failure names, relative to the working
+// tree root, and its line when known. An argument that resolves to no node or to several goes
+// through resolveFailure; any other failure through asError.
 func kindFailure(err error) *Error {
 	var file *nodestore.FileError
 	if errors.As(err, &file) {

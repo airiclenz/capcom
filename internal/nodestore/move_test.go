@@ -287,6 +287,38 @@ func TestMove_ApplyFails_NamesTheFilesRelativeToTheWorktree(t *testing.T) {
 	}
 }
 
+func TestMove_DependentChangedBeforeApply_ConflictsAndKeepsTheConcurrentBytes(t *testing.T) {
+	t.Parallel()
+	issues, dir := newMoveIssues(t)
+	dependentPath := filepath.Join(dir, "session-work.md")
+	concurrent := strings.Replace(dependentIssue, "Fix the parser", "Fix the parser today", 1)
+	issues.applyMove = func(move *tree.Move) error {
+		writeNodeFile(t, dir, "session-work.md", concurrent)
+		return move.Apply()
+	}
+
+	_, _, err := issues.Move("login-flow", Destination{ID: "auth-flow"}, "")
+
+	assertChangedConflict(t, err, ".capcom/issues/session-work.md")
+	if got := readFile(t, dependentPath); got != concurrent {
+		t.Errorf("session-work.md =\n%s\nwant the concurrent bytes kept", got)
+	}
+	if files := nodeFiles(t, dir); !slices.Contains(files, "login-flow.md") || slices.Contains(files, "auth-flow.md") {
+		t.Errorf("files = %v, want login-flow.md at its old path", files)
+	}
+}
+
+// assertChangedConflict asserts that err is a *ConflictError at path, the file changed under the
+// command, with no etags and the message asking to run the command again.
+func assertChangedConflict(t *testing.T, err error, path string) {
+	t.Helper()
+	var conflict *ConflictError
+	if !errors.As(err, &conflict) || conflict.Path != path || conflict.IfMatch != "" || conflict.ETag != "" ||
+		conflict.Message != "changed since this command read it; run the command again" {
+		t.Errorf("err = %#v, want a *ConflictError at %s saying it changed since the command read it", err, path)
+	}
+}
+
 // assertMoveFileError returns an assertion that err is a *FileError at the moved issue's file,
 // citing a line when hasLine.
 func assertMoveFileError(hasLine bool) func(t *testing.T, err error) {
