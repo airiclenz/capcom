@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -44,8 +45,8 @@ func (a *app) newShowCommand() *cobra.Command {
 // returns the paths of the issues found, relative to the worktree root. Each issue's fields, body
 // and etag come from one read of its file, the bytes a later --if-match is checked against;
 // readiness, dependents, child progress and reverse Related links are the index's.
-func (a *app) showResult(args []string) (Result, []string, error) {
-	result := Result{Kind: "issue", KV: []KVRecord{}}
+func (a *app) showResult(args []string) (output.Result, []string, error) {
+	result := output.Result{Kind: "issue", KV: []output.KVRecord{}}
 	data := make([]showData, 0, len(args))
 	var graph *showGraph
 	var shownPaths []string
@@ -56,14 +57,14 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 		if err != nil {
 			failure, isArgument := resolveFailure(err)
 			if !isArgument {
-				return Result{}, nil, failure
+				return output.Result{}, nil, failure
 			}
 			if result.Failure == nil {
 				result.Failure = failure
 			}
 			messages = append(messages, failure.Message)
-			result.KV = append(result.KV, KVRecord{
-				Pairs:  []KVPair{{Key: "ID", Value: arg}, {Key: kvKeyMessage, Value: failure.Message}},
+			result.KV = append(result.KV, output.KVRecord{
+				Pairs:  []output.KVPair{{Key: "ID", Value: arg}, {Key: output.KVKeyMessage, Value: failure.Message}},
 				Status: string(failure.Code),
 			})
 			continue
@@ -71,24 +72,24 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 
 		file, err := a.readIssueFile(entry.Path)
 		if err != nil {
-			return Result{}, nil, err
+			return output.Result{}, nil, err
 		}
 		entry, body, err := a.issueFromFile(entry, file)
 		if err != nil {
-			return Result{}, nil, err
+			return output.Result{}, nil, err
 		}
 		related, err := a.showLinks(entry)
 		if err != nil {
-			return Result{}, nil, err
+			return output.Result{}, nil, err
 		}
 		if graph == nil {
 			if graph, err = a.loadShowGraph(); err != nil {
-				return Result{}, nil, err
+				return output.Result{}, nil, err
 			}
 		}
 		children, err := a.childProgress(entry.ID)
 		if err != nil {
-			return Result{}, nil, err
+			return output.Result{}, nil, err
 		}
 		facts := graph.facts(entry.ID, related, children)
 		etag := nodefile.ETag(file)
@@ -196,14 +197,14 @@ func (a *app) showLinks(entry index.Entry) ([]string, error) {
 // resolveFailure types a failure to resolve an argument: no match is not_found, an ambiguous
 // prefix is invalid and names the candidates, anything else is the index failing. isArgument is
 // false for the last, which a multi-id command cannot go on from.
-func resolveFailure(err error) (failure *Error, isArgument bool) {
+func resolveFailure(err error) (failure *output.Error, isArgument bool) {
 	switch {
 	case errors.Is(err, tree.ErrNotFound):
-		return Errorf(CodeNotFound, "%s", err.Error()), true
+		return output.Errorf(output.CodeNotFound, "%s", err.Error()), true
 	case errors.Is(err, tree.ErrAmbiguous):
-		return Errorf(CodeInvalid, "%s", err.Error()), true
+		return output.Errorf(output.CodeInvalid, "%s", err.Error()), true
 	default:
-		return asError(err), false
+		return output.AsError(err), false
 	}
 }
 

@@ -1626,7 +1626,10 @@ Depends on P2.33.
 - `grep -nE "(^|[^.[:alnum:]_])(($A)([^[:alnum:]_:]|\$)|Error([^[:alnum:]_:(]|\$))" <this item's Go files> | grep -vE '^[^:]+:[0-9]+:\s*//'` prints nothing, where `$A` is the `|`-joined alias names P2.29 and P2.30 declare (at the base its only false hit is init.go's "Claude Code" string)
 **Commit:** `refactor(cli): name the output contract through internal/cli/output in prime to search`
 
-## P2.35 cli/output package, part 7: drop the aliases
+## P2.35 cli/output package, part 7: drop the aliases — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): this host's `grep` is a shell function wrapping ugrep, which rejects the `\2` backreference in the alias-assignment Acceptance grep and prints paths without the leading `./`, so the prose-rule grep's `^\./docs/...` filter never matches; both were run with `/usr/bin/grep` (GNU) and print nothing.
+NOTES (2026-10-13): the package comment in internal/cli/doc.go still says cli implements "the output contract ... and the mapping from typed errors to exit codes"; P2.29/P2.30 moved that code, not this item, so the sentence is left for the A-14 deepening.
 
 **What:** The last part of review P2-14's pure move. The remaining files switch over, and the temporary aliases are deleted. The deepening A-14 comes later, so this item closes nothing.
 **Regression guard.** P2.30 keys every unkeyed `KVPair` literal, so `go vet ./...` stays green here. `go vet` prints only the first type error, so the undefined names come from `go test -gcflags=-e -run '^$' ./internal/cli/ 2>&1 | sed -n 's/.*undefined: //p' | sort -u`. The Acceptance also checks grouped and const/var aliases, the prose rule and kindFailure's comment, which names `asError`.

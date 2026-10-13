@@ -11,72 +11,33 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Code is the temporary alias of output.Code, kept until every caller names the output package.
-type Code = output.Code
-
-// The temporary aliases of the output error codes.
-const (
-	CodeNotFound       = output.CodeNotFound
-	CodeExists         = output.CodeExists
-	CodeInvalid        = output.CodeInvalid
-	CodeConflict       = output.CodeConflict
-	CodeLocked         = output.CodeLocked
-	CodeNotInitialized = output.CodeNotInitialized
-)
-
 // nodeFileExtension ends every issue and Note file; a node's children directory is its path
 // without it.
 const nodeFileExtension = ".md"
-
-// The temporary aliases of the output exit codes.
-const (
-	ExitOK       = output.ExitOK
-	ExitError    = output.ExitError
-	ExitUsage    = output.ExitUsage
-	ExitNotFound = output.ExitNotFound
-)
-
-// Error is the temporary alias of output.Error.
-type Error = output.Error
-
-// Errorf is the temporary wrapper of output.Errorf.
-func Errorf(code Code, format string, args ...any) *Error {
-	return output.Errorf(code, format, args...)
-}
-
-// UsageErrorf is the temporary wrapper of output.UsageErrorf.
-func UsageErrorf(format string, args ...any) *Error {
-	return output.UsageErrorf(format, args...)
-}
-
-// asError is the temporary wrapper of output.AsError.
-func asError(err error) *Error {
-	return output.AsError(err)
-}
 
 // kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a
 // stale --if-match, or a file changed between the command's read and its write, a conflict and an
 // id another node answers to exists, each at the file the failure names, relative to the working
 // tree root, and its line when known. An argument that resolves to no node or to several goes
-// through resolveFailure; any other failure through asError.
-func kindFailure(err error) *Error {
+// through resolveFailure; any other failure through output.AsError.
+func kindFailure(err error) *output.Error {
 	var file *nodestore.FileError
 	if errors.As(err, &file) {
-		return &Error{Code: CodeInvalid, Path: file.Path, Line: file.Line, Message: file.Message}
+		return &output.Error{Code: output.CodeInvalid, Path: file.Path, Line: file.Line, Message: file.Message}
 	}
 	var conflict *nodestore.ConflictError
 	if errors.As(err, &conflict) {
-		return &Error{Code: CodeConflict, Path: conflict.Path, Message: conflict.Message}
+		return &output.Error{Code: output.CodeConflict, Path: conflict.Path, Message: conflict.Message}
 	}
 	var exists *nodestore.ExistsError
 	if errors.As(err, &exists) {
-		return &Error{Code: CodeExists, Path: exists.Path, Message: exists.Message}
+		return &output.Error{Code: output.CodeExists, Path: exists.Path, Message: exists.Message}
 	}
 	if errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrAmbiguous) {
 		failure, _ := resolveFailure(err) // an argument failure: the command stops here
 		return failure
 	}
-	return asError(err)
+	return output.AsError(err)
 }
 
 // worktreeRelative names path relative to the working tree root with forward slashes, or returns

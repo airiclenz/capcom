@@ -15,7 +15,7 @@
 //   - `dep_graph.go` — capcom dep graph and the Dependency graph that dep and related load from the index
 //   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
 //   - `doc.go` — the package comment and this file map
-//   - `errors.go` — the temporary aliases of the output error contract, kindFailure and the tree-problem warnings
+//   - `errors.go` — kindFailure, which types a nodestore failure, and the tree-problem warnings
 //   - `flags.go` — the flag names two or more commands share, and unlimitedDepth
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks
@@ -36,7 +36,7 @@
 //   - `mv.go` — capcom mv: renames an issue or moves it below another
 //   - `node_edit.go` — editIssue and editNode, which every issue and Note edit verb goes through, and their shared helpers
 //   - `outline.go` — the indented outline rows and their text, with the hint where --depth cut
-//   - `output.go` — the temporary aliases of the output contract, and the Elsewhere scan of a result
+//   - `output.go` — the Elsewhere scan of a result and the pathspec of the whole issue tree
 //   - `prime.go` — capcom prime: the session Briefing
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first
 //   - `reindex.go` — capcom reindex: rebuilds the index from the issue and Note files

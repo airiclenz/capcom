@@ -74,7 +74,7 @@ func (a *app) newInitCommand() *cobra.Command {
 			}
 			opened, created, err := store.Init(cwd)
 			if err != nil {
-				return storeFailure(err)
+				return output.StoreFailure(err)
 			}
 			if created == nil {
 				created = []string{}
@@ -105,7 +105,7 @@ func (a *app) newInitCommand() *cobra.Command {
 				data.GitConfig = mergeDriverConfig
 				text += line + mergeDriverConfigText()
 			}
-			return a.emit(cmd, Result{Kind: "init", Data: data, Text: text + snippet})
+			return a.emit(cmd, output.Result{Kind: "init", Data: data, Text: text + snippet})
 		}),
 	}
 	cmd.Flags().BoolVar(&isClaudeHooks, flagClaudeHooks, false,
@@ -180,7 +180,7 @@ func addMergeAttribute(worktreeRoot string) (isAdded bool, err error) {
 	content, err := os.ReadFile(path)
 	isMissing := errors.Is(err, fs.ErrNotExist)
 	if err != nil && !isMissing {
-		return false, &Error{Code: CodeInvalid, Path: gitattributesPath, Message: err.Error()}
+		return false, &output.Error{Code: output.CodeInvalid, Path: gitattributesPath, Message: err.Error()}
 	}
 	if hasMergeAttribute(content) {
 		return false, nil
@@ -188,12 +188,12 @@ func addMergeAttribute(worktreeRoot string) (isAdded bool, err error) {
 	if isMissing {
 		// A new file has no bytes, mode or line ending to keep.
 		if err := nodefile.WriteFileAtomic(path, strings.NewReader(mergeDriverAttribute+lineEndingLF)); err != nil {
-			return false, asError(err)
+			return false, output.AsError(err)
 		}
 		return true, nil
 	}
 	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(appendAttributeLine(content))); err != nil {
-		return false, &Error{Code: CodeInvalid, Path: gitattributesPath, Message: err.Error()}
+		return false, &output.Error{Code: output.CodeInvalid, Path: gitattributesPath, Message: err.Error()}
 	}
 	return true, nil
 }
@@ -235,11 +235,6 @@ func initText(root string, created []string) string {
 		text.WriteString("created " + path + "\n")
 	}
 	return text.String()
-}
-
-// storeFailure is the temporary wrapper of output.StoreFailure.
-func storeFailure(err error) *Error {
-	return output.StoreFailure(err)
 }
 
 // The Claude Code settings file init --claude-hooks merges into, relative to the working tree root.
@@ -343,7 +338,7 @@ func mergeHooks(worktreeRoot string, target hookSettings) (isAdded bool, err err
 	path := filepath.Join(worktreeRoot, filepath.FromSlash(target.path))
 	content, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return false, &Error{Code: CodeInvalid, Path: target.path, Message: err.Error()}
+		return false, &output.Error{Code: output.CodeInvalid, Path: target.path, Message: err.Error()}
 	}
 	settings, err := decodeObject(content)
 	if err != nil {
@@ -373,7 +368,7 @@ func mergeHooks(worktreeRoot string, target hookSettings) (isAdded bool, err err
 		settings = append(settings, jsonMember{settingsHooksKey, encodeObject(hooks)})
 	}
 	if err := nodefile.WriteFileAtomic(path, bytes.NewReader(indentJSON(encodeObject(settings)))); err != nil {
-		return false, asError(err)
+		return false, output.AsError(err)
 	}
 	return true, nil
 }
@@ -385,8 +380,8 @@ func addHookGroup(path string, hooks *[]jsonMember, event hookEvent) (bool, erro
 	var groups []json.RawMessage
 	if position >= 0 {
 		if err := json.Unmarshal((*hooks)[position].value, &groups); err != nil {
-			return false, &Error{
-				Code:    CodeInvalid,
+			return false, &output.Error{
+				Code:    output.CodeInvalid,
 				Path:    path,
 				Message: settingsHooksKey + "." + event.name + " must be an array of hook groups",
 			}
@@ -447,8 +442,8 @@ func decodeObject(content []byte) ([]jsonMember, error) {
 
 // settingsFailure types a settings file that cannot be read as an object: invalid at the file at
 // path, and at the line of a syntax error in content. member names the member at fault, if any.
-func settingsFailure(path string, content []byte, member string, err error) *Error {
-	failure := &Error{Code: CodeInvalid, Path: path, Message: "invalid settings: " + err.Error()}
+func settingsFailure(path string, content []byte, member string, err error) *output.Error {
+	failure := &output.Error{Code: output.CodeInvalid, Path: path, Message: "invalid settings: " + err.Error()}
 	if member != "" {
 		failure.Message = member + " " + err.Error()
 	}

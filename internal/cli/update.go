@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
@@ -42,7 +43,7 @@ func (a *app) newUpdateCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if !hasAnyFlag(cmd, flagTitle, flagStatus, flagType, flagPriority, flagPlan, flagAddLabel,
 				flagRemoveLabel, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld) {
-				return UsageErrorf("update needs at least one flag that changes the issue")
+				return output.UsageErrorf("update needs at least one flag that changes the issue")
 			}
 			appendFile := ""
 			if cmd.Flags().Changed(flagBodyAppendFile) {
@@ -110,7 +111,7 @@ func (a *app) applyUpdate(
 	if flags.Changed(flagBodyReplaceOld) {
 		replaced, err := edit.ReplaceBody(target.Body, options.replaceOld, options.replaceNew)
 		if err != nil {
-			return issue.Issue{}, Errorf(CodeInvalid, "%s", err.Error())
+			return issue.Issue{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
 		}
 		target.Body = replaced
 	}
@@ -132,10 +133,10 @@ func checkStatusChange(from string, to string, cfg config.Config) error {
 	fromCategory, _ := cfg.CategoryOf(from)
 	toCategory, _ := cfg.CategoryOf(to)
 	if isClosedCategory(fromCategory) {
-		return Errorf(CodeInvalid, "status %q is closed; use reopen to move the issue out of it", from)
+		return output.Errorf(output.CodeInvalid, "status %q is closed; use reopen to move the issue out of it", from)
 	}
 	if isClosedCategory(toCategory) {
-		return Errorf(CodeInvalid, "status %q is in the %s category; use close", to, toCategory)
+		return output.Errorf(output.CodeInvalid, "status %q is in the %s category; use close", to, toCategory)
 	}
 	return nil
 }
@@ -161,7 +162,7 @@ func hasAnyFlag(cmd *cobra.Command, names ...string) bool {
 func (a *app) readIssueFile(path string) ([]byte, error) {
 	data, err := nodefile.ReadNodeFile(a.absoluteIssuePath(path))
 	if err != nil {
-		return nil, &Error{Code: CodeInvalid, Path: path, Message: err.Error()}
+		return nil, &output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()}
 	}
 	return data, nil
 }
@@ -178,12 +179,12 @@ func (a *app) absoluteIssuePath(path string) string {
 func (a *app) frontmatterFailure(err error) error {
 	var failure *frontmatter.Error
 	if errors.As(err, &failure) {
-		return &Error{
-			Code:    CodeInvalid,
+		return &output.Error{
+			Code:    output.CodeInvalid,
 			Path:    a.worktreeRelative(failure.Path),
 			Line:    failure.Line,
 			Message: a.worktreeRelativeText(failure.Message),
 		}
 	}
-	return asError(err)
+	return output.AsError(err)
 }
