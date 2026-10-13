@@ -490,7 +490,10 @@ leave out the Refs of a retired Note and of every Note below it.
 `.capcom/config.yaml` is optional, and so is every key in it: a missing key takes the value shown
 below, which is the file `capcom init` writes, except `format`, whose missing key means 1. An
 unknown key or a bad value is an error citing its
-line.
+line. A `config.yaml` that is not a regular file (a symlink, a named pipe, a directory) is never
+followed or read: every command fails with `.capcom/config.yaml: not a regular file`, and with
+`.capcom/config.yaml: file is larger than 1 MiB` for one larger than 1 MiB, except `capcom prime`,
+which reports it as one `warning: store:` line and exits 0.
 
 ```yaml
 # The store format version. capcom refuses a store whose format is newer than it reads.

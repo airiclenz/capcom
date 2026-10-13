@@ -167,12 +167,19 @@ func (a *app) relatedRemoval(first index.Entry, arg string) (index.Entry, func(s
 
 // raiseStoreFormat raises the store format to at least version (store.RaiseFormat) and returns the
 // warning to give when it changed config.yaml, or "" when the store already declared version or
-// above. Every failure is invalid at config.yaml.
+// above. Every failure is invalid at config.yaml; a config.yaml the guarded reader refuses carries
+// the refusal's own text, since RaiseFormat's error already names the file.
 func (a *app) raiseStoreFormat(version int) (string, error) {
 	displayPath := a.worktreeRelative(a.store.ConfigPath())
 	isRaised, err := a.store.RaiseFormat(version)
 	if err != nil {
-		return "", &Error{Code: CodeInvalid, Path: displayPath, Message: err.Error()}
+		message := err.Error()
+		for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
+			if errors.Is(err, refusal) {
+				message = refusal.Error()
+			}
+		}
+		return "", &Error{Code: CodeInvalid, Path: displayPath, Message: message}
 	}
 	if !isRaised {
 		return "", nil

@@ -188,6 +188,22 @@ func TestList_NewerStoreFormat_FailsNamingTheFormatLine(t *testing.T) {
 	}
 }
 
+func TestList_OversizedConfig_FailsNamingIt(t *testing.T) {
+	root := newReadStore(t)
+	const line = "# a comment line padding config.yaml past the guarded reader's limit\n"
+	const size = 1<<20 + 1
+	content := strings.Repeat(line, size/len(line)+1)[:size]
+	if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "list")
+
+	if want := "capcom: .capcom/config.yaml: file is larger than 1 MiB\n"; exitCode != ExitError || stdout != "" || stderr != want {
+		t.Errorf("list = %d, stdout %q, stderr %q; want %d and stderr %q", exitCode, stdout, stderr, ExitError, want)
+	}
+}
+
 func TestCreate_NewerStoreFormat_FailsWithoutWriting(t *testing.T) {
 	root := newReadStore(t)
 	writeNewerFormatConfig(t, root)

@@ -344,7 +344,10 @@ Bite check: each test fails against a deliberately broken implementation, for ex
 - `go vet ./internal/store/`
 **Commit:** `test(store): pin the init and config-read error branches`
 
-## P0.7 Read config.yaml through the guarded reader
+## P0.7 Read config.yaml through the guarded reader — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): readConfig wraps every non-missing read failure with the store-relative path, so a RaiseFormat read failure other than the two refusals (for example permission denied) now leads with `.capcom/config.yaml: ` as Open's already did; raiseStoreFormat strips only the two refusals, per the regression guard.
+NOTES (2026-10-13): added TestInit_SymlinkedConfig_FailsNamingIt (a dangling config.yaml link: Init fails with the refusal and leaves the link) and a "symlink to a regular file" row in TestOpen_IrregularConfig_FailsNamingIt, to cover the Goal's Init and plain-symlink clauses; the oversized comment-only content is built inline in the cli test rather than shared, as store and cli are separate test packages.
 
 **What:** Fixes F-02(b) (`config-read-guard`). `loadConfig` and `RaiseFormat` read `.capcom/config.yaml` with `os.ReadFile`. `Open` reads it first, so a `config.yaml` linked to `/dev/zero` or a FIFO hangs every command. A link to a sensitive file gets that file parsed, and fragments of it can be echoed in parse errors.
 **Regression guard.** `cli/related.go` `raiseStoreFormat` wraps any `RaiseFormat` error with the config path as Path. When the error `errors.Is` `ErrNotRegular` or `ErrTooLarge`, it uses the sentinel's text (the error unwrapped of its path) as Message, so `related add` and `know update` print the path once.

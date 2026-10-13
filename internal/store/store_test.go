@@ -9,8 +9,10 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // setHermeticGitEnv isolates git from user and system configuration (ADR 0007) and stops git
@@ -341,5 +343,160 @@ func TestRaiseFormat_ConfigIsADirectory_FailsAndLeavesIt(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(store.ConfigPath()); len(entries) != 0 {
 		t.Errorf("config.yaml directory holds %d entries, want it empty", len(entries))
+	}
+}
+
+// oversizedConfig is a config.yaml of 1 MiB + 1 byte made only of comment lines, so it parses as
+// valid when read in full.
+func oversizedConfig() string {
+	const line = "# a comment line padding config.yaml past the guarded reader's limit\n"
+	const size = 1<<20 + 1
+	return strings.Repeat(line, size/len(line)+1)[:size]
+}
+
+// skipSymlinkTest skips a test that makes a symlink where symlink tests do not run: on Windows and
+// as root.
+func skipSymlinkTest(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+}
+
+// openWithin runs Open, failing the test when it has not returned after 5 s, as it does when it
+// blocks opening a named pipe.
+func openWithin(t *testing.T, root string) error {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() {
+		_, err := Open(root)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatal("Open did not return within 5 s")
+		return nil
+	}
+}
+
+func TestOpen_IrregularConfig_FailsNamingIt(t *testing.T) {
+	cases := []struct {
+		name     string
+		setUp    func(t *testing.T, store *Store)
+		wantText string
+		wantErr  error
+	}{
+		{
+			name: "named pipe",
+			setUp: func(t *testing.T, store *Store) {
+				removeConfig(t, store)
+				makeFIFO(t, store.ConfigPath())
+			},
+			wantText: ".capcom/config.yaml: not a regular file",
+			wantErr:  tree.ErrNotRegular,
+		},
+		{
+			name: "symlink to a named pipe",
+			setUp: func(t *testing.T, store *Store) {
+				skipSymlinkTest(t)
+				pipe := filepath.Join(store.Root, "pipe")
+				makeFIFO(t, pipe)
+				linkConfigTo(t, store, "pipe")
+			},
+			wantText: ".capcom/config.yaml: not a regular file",
+			wantErr:  tree.ErrNotRegular,
+		},
+		{
+			name: "symlink to a regular file",
+			setUp: func(t *testing.T, store *Store) {
+				skipSymlinkTest(t)
+				target := filepath.Join(store.Root, "other.yaml")
+				if err := os.WriteFile(target, []byte("types: [bug]\n"), 0o644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+				linkConfigTo(t, store, "other.yaml")
+			},
+			wantText: ".capcom/config.yaml: not a regular file",
+			wantErr:  tree.ErrNotRegular,
+		},
+		{
+			name: "larger than 1 MiB",
+			setUp: func(t *testing.T, store *Store) {
+				writeConfig(t, store.WorktreeRoot, oversizedConfig())
+			},
+			wantText: ".capcom/config.yaml: file is larger than 1 MiB",
+			wantErr:  tree.ErrTooLarge,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newRepo(t)
+			store, _, err := Init(root)
+			if err != nil {
+				t.Fatalf("Init: %v", err)
+			}
+			tc.setUp(t, store)
+
+			err = openWithin(t, root)
+
+			if err == nil || err.Error() != tc.wantText || !errors.Is(err, tc.wantErr) {
+				t.Errorf("Open err = %v, want %q wrapping %v", err, tc.wantText, tc.wantErr)
+			}
+		})
+	}
+}
+
+// removeConfig removes the store's config.yaml.
+func removeConfig(t *testing.T, store *Store) {
+	t.Helper()
+	if err := os.Remove(store.ConfigPath()); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+}
+
+// linkConfigTo replaces the store's config.yaml with a relative link to name in the store root.
+func linkConfigTo(t *testing.T, store *Store, name string) {
+	t.Helper()
+	removeConfig(t, store)
+	if err := os.Symlink(name, store.ConfigPath()); err != nil {
+		t.Skipf("Symlink: %v", err)
+	}
+}
+
+func TestInit_SymlinkedConfig_FailsNamingIt(t *testing.T) {
+	skipSymlinkTest(t)
+	root := newRepo(t)
+	store, _, err := Init(root)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	linkConfigTo(t, store, "missing.yaml")
+
+	_, _, err = Init(root)
+
+	if err == nil || err.Error() != ".capcom/config.yaml: not a regular file" || !errors.Is(err, tree.ErrNotRegular) {
+		t.Errorf("Init err = %v, want .capcom/config.yaml: not a regular file", err)
+	}
+	if target, linkErr := os.Readlink(store.ConfigPath()); linkErr != nil || target != "missing.yaml" {
+		t.Errorf("config.yaml link = %q (%v), want it left pointing at missing.yaml", target, linkErr)
+	}
+}
+
+func TestRaiseFormat_OversizedConfig_FailsAndLeavesIt(t *testing.T) {
+	content := oversizedConfig()
+	store := initStore(t, content)
+
+	isRaised, err := store.RaiseFormat(3)
+
+	if err == nil || isRaised || !strings.Contains(err.Error(), ".capcom/config.yaml") || !errors.Is(err, tree.ErrTooLarge) {
+		t.Fatalf("RaiseFormat = %v, %v, want false and an error naming .capcom/config.yaml", isRaised, err)
+	}
+	if data, readErr := os.ReadFile(store.ConfigPath()); readErr != nil || string(data) != content {
+		t.Errorf("config.yaml changed (%d bytes, %v), want its bytes unchanged", len(data), readErr)
 	}
 }
