@@ -1937,7 +1937,9 @@ Depends on P3.11; P2.11; P1.21.
 - `go vet ./internal/nodestore/`
 **Commit:** `test(nodestore): characterise move rewrites of both tree kinds`
 
-## P3.14 Characterise Remove's reference drops through Kind
+## P3.14 Characterise Remove's reference drops through Kind — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): Removed exposes no superseded-by drops (P3.17 adds that), so the Note drop test asserts exact file bytes of the holders and the untouched bystander instead of the ported SupersededByDropped list; issue files reuse move_refs_test.go's refIssue in place of the ported removeFile helper.
 
 **What:** Second part of A-04, again characterisation only. These tests pin `issue.PlanRemove`'s and `knowledge.PlanRemove`'s behaviour at `Kind.Remove` level, and pass on the pre-item tree.
 **Tests:** new `internal/nodestore/remove_refs_test.go`, ported from `internal/issue/remove_test.go`, `internal/knowledge/remove_test.go` and `knowledge_test.go`'s `TestPlanRemove_*`.
