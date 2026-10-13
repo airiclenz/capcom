@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/config"
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // Flags of close and reopen; --status is shared with list and update.
@@ -181,7 +181,7 @@ func (a *app) closeOne(
 			return closeData{}, asError(err), nil
 		}
 		outcome.Outcome = outcomeAlreadyClosed
-		outcome.ETag = edit.ETag(file)
+		outcome.ETag = nodefile.ETag(file)
 		return outcome, nil, nil
 	}
 	written, err := a.editIssue(entry.ID, "", func(target issue.Issue) (issue.Issue, error) {

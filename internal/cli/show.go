@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -91,7 +91,7 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 			return Result{}, nil, err
 		}
 		facts := graph.facts(entry.ID, related, children)
-		etag := edit.ETag(file)
+		etag := nodefile.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // writeNoteFiles writes Note files, named by slash paths below .capcom/knowledge/, creating their
@@ -34,7 +34,7 @@ func noteFileETag(t *testing.T, root string, name string) string {
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	return edit.ETag(data)
+	return nodefile.ETag(data)
 }
 
 // textETag returns the value of the etag: line of a text output, empty when it has none.
@@ -188,7 +188,7 @@ func TestKnowShow_FileRewrittenAtSameSizeAndMtime_PrintsTheBytesItsEtagNames(t *
 	mustRun(t, root, "know", "show", "stale-view")
 	newContent := "---\ntitle: New title\n---\n\nNew body.\n"
 	rewriteKeepingTimes(t, path, newContent, past)
-	want := edit.ETag([]byte(newContent))
+	want := nodefile.ETag([]byte(newContent))
 
 	textOutput := mustRun(t, root, "know", "show", "stale-view")
 	jsonData, _ := decodeEnvelope(t, mustRun(t, root, "know", "show", "stale-view", "--json"))["data"].([]any)

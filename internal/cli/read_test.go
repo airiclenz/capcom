@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // readIssue is the content of a valid issue file with the given extra frontmatter lines and body.
@@ -63,7 +63,7 @@ func writeIssueFiles(t *testing.T, root string, files map[string]string) {
 // fileETag returns the etag of the issue file at a slash path below .capcom/issues/.
 func fileETag(t *testing.T, root string, name string) string {
 	t.Helper()
-	return edit.ETag([]byte(readStoreFile(t, root, name)))
+	return nodefile.ETag([]byte(readStoreFile(t, root, name)))
 }
 
 // listIDs runs capcom list --json with args and returns the listed ids.
@@ -421,7 +421,7 @@ func TestShow_FileRewrittenAtSameSizeAndMtime_PrintsTheBytesItsEtagNames(t *test
 	mustRun(t, root, "show", "stale-view")
 	newContent := readIssue("New title", "open", "", "\nNew body.\n")
 	rewriteKeepingTimes(t, path, newContent, past)
-	want := edit.ETag([]byte(newContent))
+	want := nodefile.ETag([]byte(newContent))
 
 	textOutput := mustRun(t, root, "show", "stale-view")
 	jsonData, _ := decodeEnvelope(t, mustRun(t, root, "show", "stale-view", "--json"))["data"].([]any)

@@ -1241,7 +1241,10 @@ Depends on P2.6.
 - `grep -rnE '\b(tree|edit)\.(ReadNodeFile|ReadRegularFile|WriteFileAtomic|WriteFileAtomicVerbatim|ReplaceFileAtomic|ReplaceFileVerbatim|WriteFileExclusive|ETag)\b' --include=*.go --exclude='*_test.go' internal/nodestore` prints nothing
 **Commit:** `refactor(nodestore): import the node-file IO from internal/nodefile`
 
-## P2.8 nodefile package, part 7: cli imports nodefile
+## P2.8 nodefile package, part 7: cli imports nodefile — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): lines that gained the longer `nodefile.` qualifier were not rewrapped, to keep the diff to qualifiers and import lines (as in P2.5 to P2.7); two comment lines (init.go, update.go) and three code lines (init.go) now run to 103-110 columns.
+NOTES (2026-10-13): update.go, init.go and merge_driver.go drop the `tree` import, and close.go, show.go, know_test.go and read_test.go drop `edit` (the forwarded names were their only uses); know.go keeps `edit` for Labels, NormalizeNewlines and WithFinalNewline, and update.go keeps it for Labels, ReplaceBody and AppendBody.
 
 **What:** Part 7 of review P2-03. `internal/cli` calls the moved functions through `nodefile`.
 **Regression guard.** The Goal (code and comments) is checked by an Acceptance grep; comment-only sites such as init.go's compile either way. errors.go names only the re-exported sentinels, which the regex leaves out.

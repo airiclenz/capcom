@@ -12,7 +12,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // Arguments and output of capcom merge-driver.
@@ -98,7 +98,7 @@ func mergeIssueFile(args []string) Result {
 	if err != nil {
 		return failedMerge(&Error{Code: CodeInvalid, Path: path, Message: err.Error()})
 	}
-	if err := tree.ReplaceFileVerbatim(args[mergeArgOurs], bytes.NewReader(merged)); err != nil {
+	if err := nodefile.ReplaceFileVerbatim(args[mergeArgOurs], bytes.NewReader(merged)); err != nil {
 		return failedMerge(&Error{Code: CodeInvalid, Path: args[mergeArgOurs], Message: err.Error()})
 	}
 

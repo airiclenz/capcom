@@ -15,8 +15,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/store"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // initData is the --json data of capcom init.
@@ -173,7 +173,7 @@ func mergeDriverConfigText() string {
 // addMergeAttribute appends the merge driver line to the .gitattributes file at worktreeRoot,
 // creating the file when missing; isAdded reports whether it was written. A file that already holds
 // the line is left as it is, so a re-run changes nothing. An existing file keeps its bytes, its
-// permissions and its line ending: it is replaced byte for byte, never through tree.WriteFileAtomic,
+// permissions and its line ending: it is replaced byte for byte, never through nodefile.WriteFileAtomic,
 // which would turn CRLF into LF and reset the mode.
 func addMergeAttribute(worktreeRoot string) (isAdded bool, err error) {
 	path := filepath.Join(worktreeRoot, gitattributesPath)
@@ -187,12 +187,12 @@ func addMergeAttribute(worktreeRoot string) (isAdded bool, err error) {
 	}
 	if isMissing {
 		// A new file has no bytes, mode or line ending to keep.
-		if err := tree.WriteFileAtomic(path, strings.NewReader(mergeDriverAttribute+lineEndingLF)); err != nil {
+		if err := nodefile.WriteFileAtomic(path, strings.NewReader(mergeDriverAttribute+lineEndingLF)); err != nil {
 			return false, asError(err)
 		}
 		return true, nil
 	}
-	if err := tree.ReplaceFileVerbatim(path, bytes.NewReader(appendAttributeLine(content))); err != nil {
+	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(appendAttributeLine(content))); err != nil {
 		return false, &Error{Code: CodeInvalid, Path: gitattributesPath, Message: err.Error()}
 	}
 	return true, nil
@@ -386,7 +386,7 @@ func mergeHooks(worktreeRoot string, target hookSettings) (isAdded bool, err err
 	} else {
 		settings = append(settings, jsonMember{settingsHooksKey, encodeObject(hooks)})
 	}
-	if err := tree.WriteFileAtomic(path, bytes.NewReader(indentJSON(encodeObject(settings)))); err != nil {
+	if err := nodefile.WriteFileAtomic(path, bytes.NewReader(indentJSON(encodeObject(settings)))); err != nil {
 		return false, asError(err)
 	}
 	return true, nil

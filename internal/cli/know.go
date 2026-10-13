@@ -12,6 +12,7 @@ import (
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
@@ -268,7 +269,7 @@ func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
-		etag := edit.ETag(file)
+		etag := nodefile.ETag(file)
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}

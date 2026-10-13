@@ -14,8 +14,8 @@ import (
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags of capcom update; --status, --type, --priority and --plan are shared with list.
@@ -245,10 +245,10 @@ func (r issueResolver) Resolve(arg string) (nodestore.Target, error) {
 }
 
 // readIssueFile reads the issue file at path, relative to the working tree root with forward
-// slashes (an index Entry's Path), through tree.ReadNodeFile: a file that is not a regular file or
+// slashes (an index Entry's Path), through nodefile.ReadNodeFile: a file that is not a regular file or
 // is larger than 1 MiB is refused unread, an invalid-input error at path like any failed read.
 func (a *app) readIssueFile(path string) ([]byte, error) {
-	data, err := tree.ReadNodeFile(a.absoluteIssuePath(path))
+	data, err := nodefile.ReadNodeFile(a.absoluteIssuePath(path))
 	if err != nil {
 		return nil, &Error{Code: CodeInvalid, Path: path, Message: err.Error()}
 	}
