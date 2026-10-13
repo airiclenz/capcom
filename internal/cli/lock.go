@@ -62,11 +62,10 @@ type lockData struct {
 	Token     string `json:"token,omitempty"`
 }
 
-// lockTarget is the lock directory of the current repository and the key of this worktree.
+// lockTarget is the store of the current worktree and that worktree's lock.
 type lockTarget struct {
 	store *store.Store
-	locks *lock.Locks
-	key   string
+	lock  lock.Worktree
 }
 
 // newLockCommand groups the Tree lock commands.
@@ -101,7 +100,7 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, isResumed, err := target.locks.Acquire(target.key, claim, token, isTakeStale)
+			status, isResumed, err := target.lock.Acquire(claim, token, isTakeStale)
 			state := lockAcquired
 			if isResumed {
 				state = lockResumed
@@ -128,7 +127,7 @@ func (a *app) newLockTouchCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, err := target.locks.Touch(target.key, token)
+			status, err := target.lock.Touch(token)
 			return a.emitLock(cmd, lockHeld, status, token, err)
 		}),
 	}
@@ -148,7 +147,7 @@ func (a *app) newLockReleaseCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, err := target.locks.Release(target.key, token)
+			status, err := target.lock.Release(token)
 			return a.emitLock(cmd, endedState(status), status, token, err)
 		}),
 	}
@@ -167,9 +166,9 @@ func (a *app) newLockBreakCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, err := target.locks.Break(target.key)
+			status, err := target.lock.Break()
 			if err == nil && status.IsCorrupt {
-				return a.emitDiscardedLock(cmd, status, target.locks.RecordPath(target.key))
+				return a.emitDiscardedLock(cmd, status, target.lock.RecordPath())
 			}
 			return a.emitLock(cmd, endedState(status), status, "", err)
 		}),
@@ -187,7 +186,7 @@ func (a *app) newLockCheckCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, err := target.locks.Check(target.key, token)
+			status, err := target.lock.Check(token)
 			ownToken := ""
 			if status.IsHeld {
 				ownToken = token
@@ -211,7 +210,7 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 				return err
 			}
 			if isAll {
-				held, warnings, err := target.locks.List()
+				held, warnings, err := target.lock.List()
 				if err != nil {
 					return err
 				}
@@ -219,7 +218,7 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 				result.Warnings = errorStrings(warnings)
 				return a.emit(cmd, result)
 			}
-			status, err := target.locks.Read(target.key)
+			status, err := target.lock.Read()
 			return a.emitLock(cmd, foundState(status), status, "", err)
 		}),
 	}
@@ -227,7 +226,7 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// openLockTarget opens the store of the current worktree and its lock directory.
+// openLockTarget opens the store of the current worktree and that worktree's lock.
 func openLockTarget() (lockTarget, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -237,11 +236,7 @@ func openLockTarget() (lockTarget, error) {
 	if err != nil {
 		return lockTarget{}, output.StoreFailure(err)
 	}
-	return lockTarget{
-		store: opened,
-		locks: lock.Open(opened.GitCommonDir, opened.Config.Lock.TTL),
-		key:   lock.WorktreeKey(opened.GitDir, opened.GitCommonDir),
-	}, nil
+	return lockTarget{store: opened, lock: lock.ForWorktree(opened)}, nil
 }
 
 // emitLock renders a lock command's outcome: status in state on success. A lock held by another

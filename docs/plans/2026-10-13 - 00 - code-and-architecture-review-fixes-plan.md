@@ -2742,7 +2742,7 @@ Depends on P3.90.
 - `go vet ./internal/store/ ./internal/briefing/ ./internal/cli/`
 **Commit:** `refactor(store): name the issue-tree pathspec once`
 
-## P3.92 A worktree lock handle with its key bound
+## P3.92 A worktree lock handle with its key bound — ✅ DONE (2026-10-13)
 
 **What:** Part 3 of A-10: `lock.ForWorktree(s *store.Store) Worktree` pairs the lock directory with this worktree's key, so no caller pairs `lock.Open` and `WorktreeKey` by hand.
 **Goal:** `Worktree` has `Acquire(claim, token, isTakeStale)`, `Touch(token)`, `Release(token)`, `Break()`, `Check(token)`, `Read()`, `RecordPath()`, `Key()` and `List()`, each behaving as the `Locks` method for its key; every `capcom lock` output is byte-identical.
