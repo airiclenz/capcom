@@ -146,7 +146,11 @@ NOTES (2026-10-13): index.md and quickstart.md link pages later items create (co
 **Acceptance:** `for f in docs/site/index.md docs/site/getting-started/install.md docs/site/getting-started/quickstart.md docs/site/getting-started/migrating-from-beads.md; do test -f "$f" || { echo "MISSING $f"; continue; }; head -1 "$f" | grep -qx -- --- || echo "BAD $f"; awk '/^```/{f=!f} !f && /^# /{print "H1 " FILENAME; exit}' "$f"; done` prints nothing
 **Commit:** `docs(site): add the landing page and getting-started guides`
 
-## 7. Concepts: Issues, dependencies, branches
+## 7. Concepts: Issues, dependencies, branches — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "docs/format.md — ### Related links, ..." in Read first: item 5 moved the format reference to docs/site/reference/file-format.md, so the pages read and link that file instead.
+NOTES (2026-10-13): command output captured from a freshly built binary in a scratch git repo (including a real fix-login branch for the Elsewhere report and a real merge through the configured merge driver); the init path was replaced with /home/you/your-repo, and long outputs are cut with "..." lines.
+NOTES (2026-10-13): sidebar order within concepts/ is issues 1, dependencies 2, branches-and-merging 3, leaving 4 and 5 for item 8's knowledge and tree-locks pages.
 
 **What:**
 **Regression guard.** The contract check names every file of the item explicitly (`for f in <each path>; do test -f "$f" || echo "MISSING $f"; ...`) so a missing file fails, and the H1 check ignores fenced code blocks (e.g. `awk '/^```/{f=!f} !f && /^# /{print FILENAME}'`).
