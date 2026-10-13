@@ -215,7 +215,7 @@ func (r *publishRun) converge(ctx context.Context, gate string, steps []stepRepo
 
 // probe asks the remote where each of publish's steps stands, in publish order.
 func (r *publishRun) probe(ctx context.Context) []stepReport {
-	env := probeEnv{repo: r.repo, commands: r.commands, dir: r.options.dir}
+	env := probeEnv{repo: r.repo, channels: execChannelRepos{commands: r.commands, dir: r.options.dir}}
 	return probeSteps(ctx, env, r.version)
 }
 

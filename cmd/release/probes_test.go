@@ -220,6 +220,10 @@ func TestProbesReportEachState(t *testing.T) {
 		"winget pull request for a longer version": {probe: probeWinget, version: "v0.24.1",
 			remote:    fakeRemote{wingetListing: wingetListing("0.24.0"), wingetPulls: wingetPull(312345, "New version", "0.24.11")},
 			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.1 manifest"},
+		"winget listing unparsable": {probe: probeWinget, remote: fakeRemote{wingetListing: "not json"},
+			wantState: stateUnknown, wantDetail: "could not parse the manifests/a/AiricLenz/Capcom listing: invalid character"},
+		"winget pull requests unparsable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), wingetPulls: "not json"},
+			wantState: stateUnknown, wantDetail: "could not parse gh pr list output: invalid character"},
 		"winget pull requests unreadable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), failing: "gh pr list"},
 			wantState: stateUnknown, wantDetail: "could not list the open microsoft/winget-pkgs pull requests"},
 		"smoke": {probe: probeSmoke, repo: memRepo{remoteTags: annotated, releases: allAssets}, wantState: statePending, wantDetail: "publish runs it last"},
@@ -237,7 +241,7 @@ func TestProbesReportEachState(t *testing.T) {
 				version = "v0.24.11"
 			}
 
-			env := probeEnv{repo: tc.repo, commands: tc.remote.runner(), dir: "."}
+			env := probeEnv{repo: tc.repo, channels: execChannelRepos{commands: tc.remote.runner(), dir: "."}}
 
 			step := tc.probe(t.Context(), env, mustVersion(t, version))
 
@@ -252,7 +256,7 @@ func TestProbesReportEachState(t *testing.T) {
 func TestProbeStepsRunsEveryStepInPublishOrder(t *testing.T) {
 	t.Parallel()
 
-	env := probeEnv{repo: memRepo{}, commands: fakeRemote{}.runner(), dir: "."}
+	env := probeEnv{repo: memRepo{}, channels: execChannelRepos{commands: fakeRemote{}.runner(), dir: "."}}
 
 	steps := probeSteps(t.Context(), env, mustVersion(t, "v0.24.14"))
 
@@ -275,7 +279,7 @@ func TestProbesNeverReadAFailedCallAsDone(t *testing.T) {
 		return "", errors.New(`exec: "gh": executable file not found in $PATH`)
 	}}
 
-	env := probeEnv{repo: execRepo{commands: commands, dir: "."}, commands: commands, dir: "."}
+	env := probeEnv{repo: execRepo{commands: commands, dir: "."}, channels: execChannelRepos{commands: commands, dir: "."}}
 
 	for _, step := range probeSteps(t.Context(), env, mustVersion(t, "v0.24.11")) {
 		if step.Name == stepSmoke {

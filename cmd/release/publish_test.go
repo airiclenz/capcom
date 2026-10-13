@@ -764,7 +764,7 @@ func TestPublishUndraftsADraftReleaseOnce(t *testing.T) {
 			if !hasRow(result.output, "release  done  done by this run") {
 				t.Errorf("output lacks the release row done:\n%s", result.output)
 			}
-			env := probeEnv{repo: fake.repo, commands: result.commands, dir: t.TempDir()}
+			env := probeEnv{repo: fake.repo, channels: execChannelRepos{commands: result.commands, dir: t.TempDir()}}
 			if step := probeRelease(t.Context(), env, mustVersion(t, publishVersion)); step.State != stateDone {
 				t.Errorf("release probes %s (%s) after the run, want done", step.State, step.Detail)
 			}

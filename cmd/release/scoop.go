@@ -47,19 +47,20 @@ func parseScoopManifest(raw string) (scoopManifest, error) {
 // its manifest describes the version or a newer one. An empty bucket repository is pending, not
 // setup-pending: the repository is the one-time setup, the manifest is what publish writes.
 func probeScoop(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
-	if _, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+bucketRepo, "--jq", ".full_name"); err != nil {
-		if isNotFound(err) {
-			return stepReport{Name: stepScoop, State: stateSetupPending, Detail: fmt.Sprintf("no %s repository yet", bucketRepo)}
-		}
+	hasBucket, err := env.channels.Exists(ctx, bucketRepo)
+	if err != nil {
 		return unknownStep(stepScoop, "could not read the %s repository: %v", bucketRepo, err)
 	}
+	if !hasBucket {
+		return stepReport{Name: stepScoop, State: stateSetupPending, Detail: fmt.Sprintf("no %s repository yet", bucketRepo)}
+	}
 
-	raw, err := readRepoFile(ctx, env.commands, env.dir, bucketRepo, bucketPath)
+	raw, hasManifest, err := env.channels.ReadFile(ctx, bucketRepo, bucketPath)
 	if err != nil {
-		if isNotFound(err) {
-			return stepReport{Name: stepScoop, State: statePending, Detail: fmt.Sprintf("%s has no %s", bucketRepo, bucketPath)}
-		}
 		return unknownStep(stepScoop, "could not read %s from %s: %v", bucketPath, bucketRepo, err)
+	}
+	if !hasManifest {
+		return stepReport{Name: stepScoop, State: statePending, Detail: fmt.Sprintf("%s has no %s", bucketRepo, bucketPath)}
 	}
 	manifest, err := parseScoopManifest(raw)
 	if err != nil {

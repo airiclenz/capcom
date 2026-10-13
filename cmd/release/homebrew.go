@@ -21,19 +21,20 @@ var formulaVersionPattern = regexp.MustCompile(`(?m)^\s*version\s+"([^"]*)"`)
 // its formula pins the version or a newer one. A tap without the formula is pending: the
 // repository is the one-time setup, the formula is what publish writes.
 func probeHomebrew(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
-	if _, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+tapRepo, "--jq", ".full_name"); err != nil {
-		if isNotFound(err) {
-			return stepReport{Name: stepHomebrew, State: stateSetupPending, Detail: fmt.Sprintf("no %s repository yet", tapRepo)}
-		}
+	hasTap, err := env.channels.Exists(ctx, tapRepo)
+	if err != nil {
 		return unknownStep(stepHomebrew, "could not read the %s repository: %v", tapRepo, err)
 	}
+	if !hasTap {
+		return stepReport{Name: stepHomebrew, State: stateSetupPending, Detail: fmt.Sprintf("no %s repository yet", tapRepo)}
+	}
 
-	formula, err := readRepoFile(ctx, env.commands, env.dir, tapRepo, formulaPath)
+	formula, hasFormula, err := env.channels.ReadFile(ctx, tapRepo, formulaPath)
 	if err != nil {
-		if isNotFound(err) {
-			return stepReport{Name: stepHomebrew, State: statePending, Detail: fmt.Sprintf("%s has no %s", tapRepo, formulaPath)}
-		}
 		return unknownStep(stepHomebrew, "could not read %s from %s: %v", formulaPath, tapRepo, err)
+	}
+	if !hasFormula {
+		return stepReport{Name: stepHomebrew, State: statePending, Detail: fmt.Sprintf("%s has no %s", tapRepo, formulaPath)}
 	}
 
 	fields := formulaVersionPattern.FindStringSubmatch(formula)

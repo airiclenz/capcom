@@ -46,12 +46,11 @@ type stepReport struct {
 type stepProbe func(ctx context.Context, env probeEnv, version releaseVersion) stepReport
 
 // probeEnv is what the probes read the remotes through: capcom's own checkout and GitHub
-// repository through repo, and every other repository — the tap, the bucket, winget-pkgs —
-// through commands, run in dir.
+// repository through repo, and the package channels' repositories — the tap, the bucket,
+// winget-pkgs — through channels.
 type probeEnv struct {
 	repo     repo
-	commands runner
-	dir      string
+	channels channelRepos
 }
 
 // publishStep is one step publish runs, declared once for status and publish alike: the probe

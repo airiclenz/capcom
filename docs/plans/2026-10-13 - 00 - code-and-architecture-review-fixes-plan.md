@@ -2599,7 +2599,13 @@ Depends on P3.73.
 - `test ! -e cmd/release/probes.go`
 **Commit:** `refactor(release): one file for the winget channel`
 
-## P3.80 Release: a channel-repository seam for the reads
+## P3.80 Release: a channel-repository seam for the reads — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "probeHomebrew, probeScoop, probeWinget and readRepoFile live in cmd/release/probes.go": the probes now live in homebrew.go, scoop.go and winget.go, and readRepoFile and isNotFound in channels.go (all already in Files except channels.go)
+NOTES (2026-10-13): channels.go is edited although Files omits it: readRepoFile stays for checkScoop as the plan says, but as a one-line shim over execChannelRepos.readContents, so the contents argv lives only in execChannelRepos as the Goal requires; P3.82 deletes the shim
+NOTES (2026-10-13): consequential edit — cmd/release/publish_test.go: made necessary by probeEnv swapping commands and dir for channels (its probeRelease check builds a probeEnv literal)
+NOTES (2026-10-13): the "wraps a sentinel" parse error is unparsableAnswerError, which unwraps to the sentinel errUnparsableAnswer and to the parser's error and reads as the parser's message alone, so probeWinget's "could not parse the <dir> listing" and "could not parse gh pr list output" details stay verbatim; ReadFile's base64 decode failure wraps it too, its message unchanged ("decode <path>: ...")
+NOTES (2026-10-13): TestProbesReportEachState gains two winget cases (listing and pull-request output that are not JSON) pinning those two details through the seam
 
 **What:** First part of A-12: the tap, the bucket and winget-pkgs are read through a semantic `channelRepos` interface instead of raw `gh` argv in each probe.
 **Regression guard.** Update doc.go's file map (a `channelrepos.go` line) in the same commit, so P3.71's doc_test stays green; this holds for every item from P3.71 on that adds or removes a non-test .go file in cmd/release. probes_test.go's three `probeEnv{repo:…, commands:…, dir:"."}` literals become `channels: execChannelRepos{commands: <same runner>, dir: "."}`. The Goal holds for the three channel probes; `resolveWingetPackage` keeps its listing argv until P3.82. `probeWinget`'s unknown details ("could not parse the <dir> listing", "could not parse gh pr list output") stay verbatim: the adapter's parse error wraps a sentinel the probe words as today.

@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -25,47 +25,28 @@ const (
 // itself with `komac submit`.
 func probeWinget(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	bare := bareRelease(version)
-	isListed := true
-	listing, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+wingetRepo+"/contents/"+wingetManifestDir)
-	if err != nil {
-		if !isNotFound(err) {
-			return unknownStep(stepWinget, "could not read %s from %s: %v", wingetManifestDir, wingetRepo, err)
-		}
-		isListed = false
-	}
-	if isListed {
-		var entries []struct {
-			Name string `json:"name"`
-			Type string `json:"type"`
-		}
-		if err := json.Unmarshal([]byte(listing), &entries); err != nil {
-			return unknownStep(stepWinget, "could not parse the %s listing: %v", wingetManifestDir, err)
-		}
-		for _, entry := range entries {
-			if entry.Type == "dir" && entry.Name == bare {
-				return stepReport{Name: stepWinget, State: stateDone, Detail: fmt.Sprintf(
-					"published: %s/%s in %s", wingetManifestDir, bare, wingetRepo)}
-			}
-		}
+	versions, isListed, err := env.channels.ListDirs(ctx, wingetRepo, wingetManifestDir)
+	switch {
+	case errors.Is(err, errUnparsableAnswer):
+		return unknownStep(stepWinget, "could not parse the %s listing: %v", wingetManifestDir, err)
+	case err != nil:
+		return unknownStep(stepWinget, "could not read %s from %s: %v", wingetManifestDir, wingetRepo, err)
+	case slices.Contains(versions, bare):
+		return stepReport{Name: stepWinget, State: stateDone, Detail: fmt.Sprintf(
+			"published: %s/%s in %s", wingetManifestDir, bare, wingetRepo)}
 	}
 
-	output, err := env.commands.run(ctx, env.dir, nil, "gh", "pr", "list", "--repo", wingetRepo, "--state", "open",
-		"--search", wingetPackageID+" "+bare+" in:title", "--json", "number,title,url")
-	if err != nil {
+	pulls, err := env.channels.OpenPulls(ctx, wingetRepo, wingetPackageID+" "+bare+" in:title")
+	switch {
+	case errors.Is(err, errUnparsableAnswer):
+		return unknownStep(stepWinget, "could not parse gh pr list output: %v", err)
+	case err != nil:
 		return unknownStep(stepWinget, "could not list the open %s pull requests: %v", wingetRepo, err)
 	}
-	var pulls []struct {
-		Number int    `json:"number"`
-		Title  string `json:"title"`
-		URL    string `json:"url"`
-	}
-	if err := json.Unmarshal([]byte(output), &pulls); err != nil {
-		return unknownStep(stepWinget, "could not parse gh pr list output: %v", err)
-	}
 	for _, pull := range pulls {
-		if titleNamesRelease(pull.Title, bare) {
+		if titleNamesRelease(pull.title, bare) {
 			return stepReport{Name: stepWinget, State: stateDone, Detail: fmt.Sprintf(
-				"submitted: pull request #%d %s", pull.Number, pull.URL)}
+				"submitted: pull request #%d %s", pull.number, pull.url)}
 		}
 	}
 	if !isListed {

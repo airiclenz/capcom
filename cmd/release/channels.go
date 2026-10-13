@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -87,18 +86,11 @@ func pinnedVersionStep(name, file, pinned string, version releaseVersion) stepRe
 	return stepReport{Name: name, State: statePending, Detail: fmt.Sprintf("%s pins %q, not %s", file, pinned, bare)}
 }
 
-// readRepoFile reads one file of a GitHub repository through the contents API.
+// readRepoFile reads one file of a GitHub repository through the contents API, a 404 failing
+// like any other failed call: the smoke check's read of the bucket, which the probes make through
+// channelRepos instead.
 func readRepoFile(ctx context.Context, commands runner, dir, repo, path string) (string, error) {
-	encoded, err := commands.run(ctx, dir, nil, "gh", "api", "repos/"+repo+"/contents/"+path, "--jq", ".content")
-	if err != nil {
-		return "", err
-	}
-	// The contents API wraps its base64 at 60 columns.
-	decoded, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(encoded), ""))
-	if err != nil {
-		return "", fmt.Errorf("decode %s: %w", path, err)
-	}
-	return string(decoded), nil
+	return execChannelRepos{commands: commands, dir: dir}.readContents(ctx, repo, path)
 }
 
 // isNotFound reports whether a gh api failure is GitHub answering 404 — the path or repository

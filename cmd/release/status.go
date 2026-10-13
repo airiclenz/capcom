@@ -125,7 +125,7 @@ func runStatus(ctx context.Context, commands runner, output io.Writer, options s
 	report.Baseline = baseline
 
 	if version, isProbed := stepsVersion(report, isFromCheckout); isProbed {
-		report.Steps = probeSteps(ctx, probeEnv{repo: checkout, commands: commands, dir: options.dir}, version)
+		report.Steps = probeSteps(ctx, probeEnv{repo: checkout, channels: execChannelRepos{commands: commands, dir: options.dir}}, version)
 		for _, step := range report.Steps {
 			if step.State == stateUnknown {
 				problems = append(problems, fmt.Errorf("could not probe the %s step: %s", step.Name, step.Detail))
