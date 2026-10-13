@@ -1,8 +1,3 @@
-// Package nodestore is the node store of capcom's two Tree kinds, the issue tree and the Knowledge
-// tree: a Kind binds the kind's Codec to its directory in the store, so the verbs of both kinds
-// read, change and write node files through one module, report one set of typed failures and look
-// up Aliases the same way. It reads the files itself and never consults the index: where a verb
-// needs the index's resolution of an argument, the caller injects it as a Resolver.
 package nodestore
 
 import (

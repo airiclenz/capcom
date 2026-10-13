@@ -1282,7 +1282,7 @@ Depends on P2.8.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes nothing beyond the qualifiers, the import lines and the deletions. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(tree): drop the node-file IO forwarders`
 
-## P2.11 Split nodestore/create.go into create, load, claim and write
+## P2.11 Split nodestore/create.go into create, load, claim and write — ✅ DONE (2026-10-13)
 
 **What:** Pure move per review P2-02. The helpers that Create, Move, Remove, Edit and Format share leave `create.go`, and `nodestore` gains a `doc.go` file map pinned by a structural test.
 **Regression guard.** After the split nodestore has 12 non-test files, doc.go included. `duplicateClaimFailure`, which P1.7 added to create.go and which `claimFailure` and `Move` call, goes to claim.go beside `orphanClaimFailure`; the item depends on P1.7, not P1.8.
