@@ -122,6 +122,35 @@ func TestInit_OutsideGit_FailsNotGitRepository(t *testing.T) {
 	}
 }
 
+func TestInit_StoreDirIsAFile_FailsNamingItAndCreatesNothing(t *testing.T) {
+	root := newRepo(t)
+	storePath := filepath.Join(root, ".capcom")
+	const content = "not a store\n"
+	if err := os.WriteFile(storePath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	_, _, err := Init(root)
+
+	if err == nil || !strings.Contains(err.Error(), ".capcom: exists and is not a directory") {
+		t.Fatalf("err = %v, want .capcom: exists and is not a directory", err)
+	}
+	if got, _ := os.ReadFile(storePath); string(got) != content {
+		t.Errorf(".capcom = %q, want %q unchanged", got, content)
+	}
+	entries, readErr := os.ReadDir(root)
+	if readErr != nil {
+		t.Fatalf("ReadDir: %v", readErr)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if want := []string{".capcom", ".git"}; !reflect.DeepEqual(names, want) {
+		t.Errorf("working tree holds %v, want %v", names, want)
+	}
+}
+
 func TestOpen_WithoutStore_FailsNotInitialized(t *testing.T) {
 	root := newRepo(t)
 
@@ -185,6 +214,32 @@ func TestOpen_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 	}
 	if failure.Path != ".capcom/config.yaml" || failure.Line != 4 || !strings.Contains(failure.Message, "colour") {
 		t.Errorf("error = %v, want .capcom/config.yaml:4 naming colour", err)
+	}
+}
+
+// replaceConfigWithDir swaps the store's config.yaml for an empty directory of the same name.
+func replaceConfigWithDir(t *testing.T, store *Store) {
+	t.Helper()
+	if err := os.Remove(store.ConfigPath()); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if err := os.Mkdir(store.ConfigPath(), 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+}
+
+func TestOpen_ConfigIsADirectory_FailsNamingTheConfig(t *testing.T) {
+	root := newRepo(t)
+	store, _, err := Init(root)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	replaceConfigWithDir(t, store)
+
+	_, err = Open(root)
+
+	if err == nil || !strings.Contains(err.Error(), ".capcom/config.yaml") {
+		t.Errorf("err = %v, want an error naming .capcom/config.yaml", err)
 	}
 }
 
@@ -264,5 +319,27 @@ func TestRaiseFormat_MissingConfig_CreatesItHoldingTheFormatKey(t *testing.T) {
 	}
 	if content, _ := os.ReadFile(store.ConfigPath()); string(content) != "format: 2\n" {
 		t.Errorf("config.yaml = %q, want %q", content, "format: 2\n")
+	}
+}
+
+func TestRaiseFormat_ConfigIsADirectory_FailsAndLeavesIt(t *testing.T) {
+	root := newRepo(t)
+	store, _, err := Init(root)
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	replaceConfigWithDir(t, store)
+
+	isRaised, err := store.RaiseFormat(3)
+
+	if err == nil || isRaised {
+		t.Fatalf("RaiseFormat = %v, %v, want false and an error", isRaised, err)
+	}
+	info, statErr := os.Stat(store.ConfigPath())
+	if statErr != nil || !info.IsDir() {
+		t.Fatalf("config.yaml = %v (%v), want the directory left in place", info, statErr)
+	}
+	if entries, _ := os.ReadDir(store.ConfigPath()); len(entries) != 0 {
+		t.Errorf("config.yaml directory holds %d entries, want it empty", len(entries))
 	}
 }

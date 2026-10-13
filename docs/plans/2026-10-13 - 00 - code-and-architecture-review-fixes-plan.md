@@ -323,7 +323,9 @@ Depends on P0.2, P0.3, P0.4.
 - `go vet ./internal/agents/ ./internal/cli/`
 **Commit:** `fix(agents): read AGENTS.md through the guarded reader`
 
-## P0.6 Pin the store's init and config-read error branches
+## P0.6 Pin the store's init and config-read error branches — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): added test helper replaceConfigWithDir, shared by the Open and RaiseFormat config-is-a-directory tests; bite-checked all three tests against createDir accepting a file, loadConfig treating every read error as missing, and RaiseFormat returning (false, nil) on a read error — each fails, then store.go was restored
 
 **What:** Closes test gap T-09 (`store-init-error-tests`). Adds characterisation tests for the error branches of `createDir`, `loadConfig` and `RaiseFormat` in `store.go`, before P0.7 changes how config is read.
 **Regression guard.** The bite mutation for `TestRaiseFormat_ConfigIsADirectory_FailsAndLeavesIt` is `RaiseFormat` returning `(false, nil)` on any read error; treating every read error as a missing file does not bite, because the later rename onto the directory still fails. The test does not pin the read error's wording, which P0.7 changes to `.capcom/config.yaml: not a regular file`.
