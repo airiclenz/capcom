@@ -1,0 +1,16 @@
+Add a Note with a chosen id
+
+Usage:
+  capcom know add --id <slug> --title <title> [flags]
+
+Flags:
+      --body-file string   file holding the markdown body; - reads stdin
+  -h, --help               help for add
+      --id string          the new note's id: a kebab slug of 1 to 4 words (required)
+      --label strings      labels; repeat or separate with commas
+      --parent string      add the note below this one
+      --ref stringArray    a path or path#symbol the note depends on; repeat for more
+      --title string       the note's title (required)
+
+Global Flags:
+      --json   print a versioned JSON envelope

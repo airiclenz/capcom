@@ -1,0 +1,12 @@
+Rename a Note or move it below another
+
+Usage:
+  capcom know mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if-match <etag>] [flags]
+
+Flags:
+  -h, --help              help for mv
+      --if-match string   only move when the file's etag is this one (see know show)
+      --parent string     move the note below this one; . moves it to the top of the tree
+
+Global Flags:
+      --json   print a versioned JSON envelope

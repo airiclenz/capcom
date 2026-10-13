@@ -1,0 +1,13 @@
+Remove an issue that has no children
+
+Usage:
+  capcom rm <id|alias|prefix> [--if-match <etag>] [--drop-deps] [flags]
+
+Flags:
+      --drop-deps         remove the deps entries of the issues that depend on it instead of refusing
+  -h, --help              help for rm
+      --if-match string   only remove when the file's etag is this one (see show)
+      --kv                print KEY=VALUE lines ending in STATUS=
+
+Global Flags:
+      --json   print a versioned JSON envelope

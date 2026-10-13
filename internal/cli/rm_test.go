@@ -221,8 +221,9 @@ func TestRm_UnparseableIssue_WarnsDepsNotChecked(t *testing.T) {
 	if exitCode != ExitOK {
 		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
 	}
-	if !strings.Contains(stdout+stderr, ".capcom/issues/broken-issue.md: deps not checked for renamed-issue") {
-		t.Errorf("no deps-not-checked warning\nstdout = %q\nstderr = %q", stdout, stderr)
+	warning := "warning: .capcom/issues/broken-issue.md: deps not checked for renamed-issue: the file does not parse"
+	if !slices.Contains(strings.Split(stdout, "\n"), warning) {
+		t.Errorf("no deps-not-checked warning line %q\nstdout = %q\nstderr = %q", warning, stdout, stderr)
 	}
 }
 

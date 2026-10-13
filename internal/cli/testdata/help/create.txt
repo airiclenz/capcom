@@ -1,0 +1,21 @@
+Create an issue with a chosen id
+
+Usage:
+  capcom create --id <slug> --title <title> [flags]
+
+Flags:
+      --body-file string   file holding the markdown body; - reads stdin
+      --dep strings        issues the new one depends on; repeat or separate with commas
+  -h, --help               help for create
+      --id string          the new issue's id: a kebab slug of 1 to 4 words (required)
+      --kv                 print KEY=VALUE lines ending in STATUS=
+      --label strings      labels; repeat or separate with commas
+      --parent string      create the issue below this one
+      --plan string        basename of the plan the issue belongs to
+      --priority int       priority, 0 (most urgent) to 4 (default 2)
+      --status string      initial status, not in a closed category (default: the first todo status)
+      --title string       the issue's title (required)
+      --type string        the issue's type (default task, or the first configured type)
+
+Global Flags:
+      --json   print a versioned JSON envelope

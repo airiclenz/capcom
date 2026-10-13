@@ -1,0 +1,11 @@
+Remove a Note that has no children
+
+Usage:
+  capcom know rm <id|alias|prefix> [--if-match <etag>] [flags]
+
+Flags:
+  -h, --help              help for rm
+      --if-match string   only remove when the file's etag is this one (see know show)
+
+Global Flags:
+      --json   print a versioned JSON envelope

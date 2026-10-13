@@ -818,7 +818,13 @@ func TestShow_KV_EndsWithStatus(t *testing.T) {
 }
 
 func TestHelp_CommandsWithoutKV_OmitKV(t *testing.T) {
-	invocations := [][]string{{"--help"}, {"list", "--help"}}
+	invocations := [][]string{
+		{"--help"},
+		{"list", "--help"},
+		{"know", "mv", "--help"},
+		{"know", "rm", "--help"},
+		{"know", "add", "--help"},
+	}
 
 	for _, args := range invocations {
 		stdout := mustRun(t, "", args...)
@@ -842,6 +848,7 @@ func TestKV_SupportingCommands_ListKVAndEndWithStatus(t *testing.T) {
 		"update":  {args: []string{"update", "login-flow", "--title", "Login"}},
 		"log":     {args: []string{"log", "login-flow", "seen again"}},
 		"mv":      {args: []string{"mv", "release-checklist", "release-list"}},
+		"rm":      {args: []string{"rm", "release-checklist"}},
 		"dep add": {args: []string{"dep", "add", "login-flow", "release-checklist"}},
 		"dep rm": {
 			setup: [][]string{{"dep", "add", "login-flow", "release-checklist"}},

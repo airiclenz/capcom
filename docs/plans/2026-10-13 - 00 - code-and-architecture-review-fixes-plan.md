@@ -2262,7 +2262,9 @@ Depends on P3.43.
 - `go vet ./internal/cli/`
 **Commit:** `fix(cli): re-check a closed issue on the fresh file inside close`
 
-## P3.45 Pin the help, --kv and warnings of the node verbs
+## P3.45 Pin the help, --kv and warnings of the node verbs — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the six help goldens were written from `capcom <verb> --help` of a binary built from the pre-item tree (c2fa580); the in-process golden test matches them byte for byte. The mv and rm warning checks match the whole rendered stdout line, `warning: ` label included.
 
 **What:** Characterisation tests for A-02: the full `--help` of `mv`, `rm`, `create`, `know mv`, `know rm` and `know add`; `--kv` on the issue verbs and never on the Note verbs (closed issue `kv-flag-scope`: `--kv` only where results carry KV records; there is no Note of that name); the Unread-warning wording of all four mv and rm verbs.
 **Tests:** package `cli`, never `t.Parallel()`:
