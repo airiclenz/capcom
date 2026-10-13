@@ -2,9 +2,6 @@ package hooks
 
 import (
 	"bytes"
-	"errors"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -28,17 +25,18 @@ const (
 
 // InstallMergeAttribute appends the merge driver line to the .gitattributes file in the working tree
 // at worktreeRoot, creating the file when missing, and reports whether it wrote the file. A file that
-// already holds the line is left as it is, so a re-run changes nothing. An existing file keeps its
-// bytes, its permissions and its line ending: it is replaced byte for byte through
-// nodefile.ReplaceFileVerbatim, never through nodefile.WriteFileAtomic, which would turn CRLF into LF
-// and reset the mode. A file that cannot be read or replaced fails as *Error naming
-// GitattributesPath; a failed write of a new file returns nodefile.WriteFileAtomic's error as is.
+// already holds the line is left as it is, so a re-run changes nothing. The file is read through
+// nodefile.ReadRegularFile, so a symlink is never followed and a named pipe never blocks. An
+// existing file keeps its bytes, its permissions and its line ending: it is replaced byte for byte
+// through nodefile.ReplaceFileVerbatim, never through nodefile.WriteFileAtomic, which would turn
+// CRLF into LF and reset the mode. A file that is not a regular file, is larger than 1 MiB, or
+// cannot be read or replaced fails as *Error naming GitattributesPath; a failed write of a new file
+// returns nodefile.WriteFileAtomic's error as is.
 func InstallMergeAttribute(worktreeRoot string) (Status, error) {
 	path := filepath.Join(worktreeRoot, GitattributesPath)
-	content, err := os.ReadFile(path)
-	isMissing := errors.Is(err, fs.ErrNotExist)
-	if err != nil && !isMissing {
-		return "", &Error{Path: GitattributesPath, Message: err.Error()}
+	content, isMissing, err := readWorktreeFile(path, GitattributesPath)
+	if err != nil {
+		return "", err
 	}
 	appended, isAdded := AppendMergeAttribute(content)
 	if !isAdded {

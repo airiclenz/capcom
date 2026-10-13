@@ -2,6 +2,8 @@ package hooks_test
 
 import (
 	"bytes"
+	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/hooks"
@@ -55,5 +57,27 @@ func TestAppendMergeAttribute_SpareCapacity_LeavesContentUntouched(t *testing.T)
 	}
 	if again, isAddedAgain := hooks.AppendMergeAttribute(appended); isAddedAgain || !bytes.Equal(again, appended) {
 		t.Errorf("second AppendMergeAttribute = %v, %q; want false, unchanged", isAddedAgain, again)
+	}
+}
+
+func TestInstallMergeAttribute_UnusableFile_FailsWithPathAndStaysAsItIs(t *testing.T) {
+	for _, unusable := range unusableFiles {
+		t.Run(unusable.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := filepath.Join(root, hooks.GitattributesPath)
+			unusable.make(t, path)
+			wantType, wantSize := entryMode(t, path)
+
+			status, err := hooks.InstallMergeAttribute(root)
+
+			var failure *hooks.Error
+			want := hooks.Error{Path: hooks.GitattributesPath, Message: unusable.wantMessage}
+			if !errors.As(err, &failure) || *failure != want || status != "" {
+				t.Errorf("InstallMergeAttribute = %q, %v; want %+v", status, err, want)
+			}
+			if gotType, gotSize := entryMode(t, path); gotType != wantType || gotSize != wantSize {
+				t.Errorf(".gitattributes entry = %v, %d bytes; want %v, %d bytes untouched", gotType, gotSize, wantType, wantSize)
+			}
+		})
 	}
 }

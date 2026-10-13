@@ -200,7 +200,10 @@ NOTES (2026-10-13): consequential edit — internal/rawfm/fence.go CodeFence.IsC
 - `GOMEMLIMIT=2GiB go test ./internal/issue/`
 **Commit:** `fix(rawfm): a backtick fence never opens on an info string holding a backtick`
 
-## 10. hooks installers read through the guard and keep existing files
+## 10. hooks installers read through the guard and keep existing files — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the shared read-and-map step lives in one unexported helper, readWorktreeFile in internal/hooks/settings.go, which both installers call; the refusal message is the guard sentinel's own text ("not a regular file", "file is larger than 1 MiB"), as store.readConfig does. Install's failed replace of an existing file is now an *Error naming target.Path, as InstallMergeAttribute's already was.
+NOTES (2026-10-13): beyond the planned symlink and FIFO cases the tests also cover a file over 1 MiB per installer, and settings_test.go adds TestInstall_MissingSettings_CreatesTheFile for the Goal's "a missing file is created".
 
 **What:** Fix: `hooks.Install` and `hooks.InstallMergeAttribute` read with plain `os.ReadFile`, and `Install` rewrites an existing settings file with mode 0644.
 **Goal:** Both installers read through `nodefile.ReadRegularFile`; a symlink, non-regular or over-1-MiB file fails as `*Error` naming the target path; a missing file is created; an existing settings file keeps its bytes outside the merge and its permission bits (a 0600 file stays 0600).

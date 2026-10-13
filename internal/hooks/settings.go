@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 
@@ -129,14 +128,18 @@ func Snippet(target Target) []byte {
 }
 
 // Install merges the capcom prime hooks into target's file in the working tree at worktreeRoot,
-// creating the file and its directory when missing, and reports whether it wrote the file. A file
-// that cannot be read, or that Merge refuses, fails as *Error naming target.Path and leaves the
-// file untouched; a failed write returns nodefile.WriteFileAtomic's error as is.
+// creating the file and its directory when missing, and reports whether it wrote the file. The file
+// is read through nodefile.ReadRegularFile, so a symlink is never followed and a named pipe never
+// blocks. An existing file keeps its permission bits: it is replaced through
+// nodefile.ReplaceFileVerbatim, never through nodefile.WriteFileAtomic, which would reset the mode.
+// A file that is not a regular file, is larger than 1 MiB, cannot be read or replaced, or that
+// Merge refuses fails as *Error naming target.Path and leaves the file untouched; a failed write of
+// a new file returns nodefile.WriteFileAtomic's error as is.
 func Install(worktreeRoot string, target Target) (Status, error) {
 	path := filepath.Join(worktreeRoot, filepath.FromSlash(target.Path))
-	content, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return "", &Error{Path: target.Path, Message: err.Error()}
+	content, isMissing, err := readWorktreeFile(path, target.Path)
+	if err != nil {
+		return "", err
 	}
 	merged, isAdded, err := Merge(content, target)
 	if err != nil {
@@ -145,10 +148,37 @@ func Install(worktreeRoot string, target Target) (Status, error) {
 	if !isAdded {
 		return Present, nil
 	}
-	if err := nodefile.WriteFileAtomic(path, bytes.NewReader(merged)); err != nil {
-		return "", err
+	if isMissing {
+		// A new file has no mode to keep.
+		if err := nodefile.WriteFileAtomic(path, bytes.NewReader(merged)); err != nil {
+			return "", err
+		}
+		return Added, nil
+	}
+	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(merged)); err != nil {
+		return "", &Error{Path: target.Path, Message: err.Error()}
 	}
 	return Added, nil
+}
+
+// readWorktreeFile reads the file at path, shown as displayPath, through nodefile.ReadRegularFile.
+// A missing file is no error: it reports isMissing with no content. Every other failure is an
+// *Error naming displayPath; a file that is not a regular file or is larger than 1 MiB says so in
+// the guard's own words.
+func readWorktreeFile(path, displayPath string) (content []byte, isMissing bool, err error) {
+	content, err = nodefile.ReadRegularFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, true, nil
+	}
+	if err == nil {
+		return content, false, nil
+	}
+	for _, refusal := range []error{nodefile.ErrNotRegular, nodefile.ErrTooLarge} {
+		if errors.Is(err, refusal) {
+			return nil, false, &Error{Path: displayPath, Message: refusal.Error()}
+		}
+	}
+	return nil, false, &Error{Path: displayPath, Message: err.Error()}
 }
 
 // Merge adds the capcom prime hook group to each event of target in the settings content, which may

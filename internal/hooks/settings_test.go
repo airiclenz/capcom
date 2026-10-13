@@ -2,6 +2,9 @@ package hooks_test
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/hooks"
@@ -204,5 +207,72 @@ func TestError_Error_NamesPathAndLine(t *testing.T) {
 		if got := testCase.failure.Error(); got != testCase.want {
 			t.Errorf("Error() = %q, want %q", got, testCase.want)
 		}
+	}
+}
+
+// claudeSettingsPath returns the path of the Claude Code settings file under root, its directory
+// created.
+func claudeSettingsPath(t *testing.T, root string) string {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(hooks.Claude.Path))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	return path
+}
+
+func TestInstall_MissingSettings_CreatesTheFile(t *testing.T) {
+	root := t.TempDir()
+
+	status, err := hooks.Install(root, hooks.Claude)
+
+	content, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(hooks.Claude.Path)))
+	if err != nil || status != hooks.Added || readErr != nil || string(content) != string(hooks.Snippet(hooks.Claude)) {
+		t.Errorf("Install = %q, %v; file %v %q; want added and the snippet", status, err, readErr, content)
+	}
+}
+
+func TestInstall_ExistingSettings_KeepTheirMode(t *testing.T) {
+	root := t.TempDir()
+	path := claudeSettingsPath(t, root)
+	before := []byte("{\"model\": \"x\"}\n")
+	if err := os.WriteFile(path, before, 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	want, _, err := hooks.Merge(before, hooks.Claude)
+	if err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+
+	status, err := hooks.Install(root, hooks.Claude)
+
+	content, readErr := os.ReadFile(path)
+	if err != nil || status != hooks.Added || readErr != nil || string(content) != string(want) {
+		t.Errorf("Install = %q, %v; file %v %q; want added and %q", status, err, readErr, content, want)
+	}
+	if info, err := os.Stat(path); runtime.GOOS != "windows" && (err != nil || info.Mode().Perm() != 0o600) {
+		t.Errorf("settings mode = %v %v, want 0600 kept", info, err)
+	}
+}
+
+func TestInstall_UnusableSettings_FailWithPathAndStayAsTheyAre(t *testing.T) {
+	for _, unusable := range unusableFiles {
+		t.Run(unusable.name, func(t *testing.T) {
+			root := t.TempDir()
+			path := claudeSettingsPath(t, root)
+			unusable.make(t, path)
+			wantType, wantSize := entryMode(t, path)
+
+			status, err := hooks.Install(root, hooks.Claude)
+
+			var failure *hooks.Error
+			want := hooks.Error{Path: hooks.Claude.Path, Message: unusable.wantMessage}
+			if !errors.As(err, &failure) || *failure != want || status != "" {
+				t.Errorf("Install = %q, %v; want %+v", status, err, want)
+			}
+			if gotType, gotSize := entryMode(t, path); gotType != wantType || gotSize != wantSize {
+				t.Errorf("settings entry = %v, %d bytes; want %v, %d bytes untouched", gotType, gotSize, wantType, wantSize)
+			}
+		})
 	}
 }
