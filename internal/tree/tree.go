@@ -2,6 +2,7 @@ package tree
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -167,6 +168,17 @@ func (t *Tree) PathFor(id string, parentID string) (string, error) {
 	if !found {
 		return "", fmt.Errorf("parent id %q %w", parentID, ErrNotFound)
 	}
-	parentDir := strings.TrimSuffix(t.nodes[parent].Path, nodeExtension)
-	return filepath.Join(parentDir, id+nodeExtension), nil
+	return filepath.Join(ChildrenDir(t.nodes[parent].Path), id+nodeExtension), nil
+}
+
+// IDOf returns the id the node file at nodePath has by its name: the base name without the .md
+// extension. nodePath may use the OS separator or forward slashes, as git and the index do.
+func IDOf(nodePath string) string {
+	return strings.TrimSuffix(path.Base(filepath.ToSlash(nodePath)), nodeExtension)
+}
+
+// ChildrenDir returns the directory that holds the children of the node file at nodePath: the
+// path without the .md extension, in nodePath's own separators.
+func ChildrenDir(nodePath string) string {
+	return strings.TrimSuffix(nodePath, nodeExtension)
 }

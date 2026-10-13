@@ -1876,7 +1876,9 @@ Depends on P3.8; P2.11; P2.9; P1.23; P1.24.
 - `go vet ./internal/nodestore/`
 **Commit:** `refactor(nodestore): refuse taken ids through Tree.Claimant`
 
-## P3.10 tree exports the node-file layout
+## P3.10 tree exports the node-file layout — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from the assumption that tree's id-from-path and children-directory derivations sit only in tree.go, move.go and remove.go: P3.8 added claims.go with its own nodeIDOf and indexIDs' TrimSuffix, so nodeIDOf is replaced by IDOf (and deleted) and indexIDs uses ChildrenDir; nodestore's nodeID is already gone after P3.9, leaving isBlockingProblem as its only use.
 
 **What:** Third part of A-05. The node-file layout rules ("id = base name without `.md`", "children directory = path without `.md`") move behind `tree` exports, and tree and nodestore use them.
 **Goal:** `tree.IDOf(path string) string` and `tree.ChildrenDir(path string) string` are defined beside `PathFor` in tree.go and work on OS and forward-slash paths alike. `tree` (`PathFor`, `PlanMove`'s renames, `PlanRemove`) and `nodestore` (`isBlockingProblem` and any other id-from-path) derive the layout only through them. `nodestore` defines no `.md` constant.

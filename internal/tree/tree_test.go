@@ -829,3 +829,52 @@ func TestPathFor_Failures(t *testing.T) {
 		})
 	}
 }
+
+func TestLayout_IDOfAndChildrenDir(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	cases := []struct {
+		name         string
+		path         string
+		wantID       string
+		wantChildren string
+	}{
+		{
+			"absolute path",
+			filepath.Join(dir, "login-flow.md"),
+			"login-flow",
+			filepath.Join(dir, "login-flow"),
+		},
+		{
+			"relative forward-slash path",
+			".capcom/issues/login-flow.md",
+			"login-flow",
+			".capcom/issues/login-flow",
+		},
+		{
+			"nested path",
+			filepath.Join(dir, "login-flow", "login-timeout-race", "retry-backoff.md"),
+			"retry-backoff",
+			filepath.Join(dir, "login-flow", "login-timeout-race", "retry-backoff"),
+		},
+		{
+			"nested forward-slash path",
+			".capcom/issues/login-flow/login-timeout-race.md",
+			"login-timeout-race",
+			".capcom/issues/login-flow/login-timeout-race",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			gotID := tree.IDOf(testCase.path)
+			gotChildren := tree.ChildrenDir(testCase.path)
+
+			if gotID != testCase.wantID {
+				t.Errorf("IDOf(%s) = %q, want %q", testCase.path, gotID, testCase.wantID)
+			}
+			if gotChildren != testCase.wantChildren {
+				t.Errorf("ChildrenDir(%s) = %q, want %q", testCase.path, gotChildren, testCase.wantChildren)
+			}
+		})
+	}
+}

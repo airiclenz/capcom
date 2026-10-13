@@ -2,7 +2,6 @@ package nodestore
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -59,7 +58,7 @@ func isBlockingProblem(problem *tree.Error, targets []string) bool {
 		if problem.Path == target || problem.Other == target {
 			return true
 		}
-		childrenDir := strings.TrimSuffix(target, nodeFileExtension)
+		childrenDir := tree.ChildrenDir(target)
 		if errors.Is(problem, tree.ErrOrphanDirectory) && problem.Path == childrenDir {
 			return true
 		}

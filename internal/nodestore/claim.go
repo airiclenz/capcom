@@ -6,9 +6,6 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// nodeFileExtension ends every node file; a node's children directory is its path without it.
-const nodeFileExtension = ".md"
-
 // claimRefusal refuses id, the name Tree.Claimant found claim holding, as an *ExistsError at the
 // holding file, worded by how the file stands in the tree: a node of the tree, a node file inside
 // an orphan directory, a file left out for its repeated id, or a file that does not parse but whose

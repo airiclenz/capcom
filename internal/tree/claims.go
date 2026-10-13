@@ -64,7 +64,7 @@ func (t *Tree) indexIDs(problems *Errors) ([]droppedNode, error) {
 	for _, node := range t.nodes {
 		if id := repeated[node.ID]; id != nil {
 			dirs = append(dirs, repeatedIDDir{
-				path:     strings.TrimSuffix(node.Path, nodeExtension),
+				path:     ChildrenDir(node.Path),
 				id:       node.ID,
 				repeated: id.problem,
 			})
@@ -338,7 +338,7 @@ func (t *Tree) liveClaim(name string, except string) (Claim, bool) {
 // except, that is named name or from which Load's AliasFunc reads name.
 func (t *Tree) orphanClaim(name string, except string) (Claim, bool, error) {
 	path, dir, err := t.findOrphanFile(except, func(path string) (bool, error) {
-		if nodeIDOf(path) == name {
+		if IDOf(path) == name {
 			return true, nil
 		}
 		return holdsAlias(t.aliases, path, name)
@@ -346,7 +346,7 @@ func (t *Tree) orphanClaim(name string, except string) (Claim, bool, error) {
 	if err != nil || path == "" {
 		return Claim{}, false, err
 	}
-	holder := nodeIDOf(path)
+	holder := IDOf(path)
 	claim := Claim{Path: path, Holder: holder, IsAlias: holder != name, Kind: OrphanClaim, Dir: dir}
 	return claim, true, nil
 }
@@ -449,12 +449,7 @@ func unparsedClaimOf(path string, err error) (Claim, bool, error) {
 	if err != nil || path == "" {
 		return Claim{}, false, err
 	}
-	return Claim{Path: path, Holder: nodeIDOf(path), IsAlias: true, Kind: UnparsedClaim}, true, nil
-}
-
-// nodeIDOf is the id a node file's name gives it: its base name without the .md extension.
-func nodeIDOf(path string) string {
-	return strings.TrimSuffix(filepath.Base(path), nodeExtension)
+	return Claim{Path: path, Holder: IDOf(path), IsAlias: true, Kind: UnparsedClaim}, true, nil
 }
 
 // holdsAlias reports whether aliases reads name among the Aliases of the file at path. A nil

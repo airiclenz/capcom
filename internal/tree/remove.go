@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
 )
@@ -104,7 +103,7 @@ func (t *Tree) PlanRemove(id string, kind string) (*Removal, error) {
 	if children := t.ChildrenOf(node.ID); len(children) > 0 {
 		return nil, &ChildrenError{Node: node, Count: len(children), Kind: kind}
 	}
-	childrenDir := strings.TrimSuffix(node.Path, nodeExtension)
+	childrenDir := ChildrenDir(node.Path)
 	hasChildrenDir, err := checkChildrenDir(childrenDir, kind)
 	if err != nil {
 		return nil, err
