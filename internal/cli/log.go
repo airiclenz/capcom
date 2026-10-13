@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -21,7 +22,7 @@ func (a *app) newLogCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			text := args[1]
 			if strings.TrimSpace(text) == "" {
-				return Errorf(CodeInvalid, "the log text is empty")
+				return output.Errorf(output.CodeInvalid, "the log text is empty")
 			}
 			written, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
 				return a.appendLog(target, text)
@@ -39,7 +40,7 @@ func (a *app) newLogCommand() *cobra.Command {
 func (a *app) appendLog(target issue.Issue, text string) (issue.Issue, error) {
 	author, err := gitx.AuthorName(a.store.WorktreeRoot)
 	if err != nil {
-		return issue.Issue{}, Errorf(CodeInvalid, "%s", err.Error())
+		return issue.Issue{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
 	}
 	return target.AppendLog(time.Now(), author, text), nil
 }

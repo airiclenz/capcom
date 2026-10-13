@@ -1592,7 +1592,7 @@ Depends on P2.31.
 - `grep -nE "(^|[^.[:alnum:]_])(($A)([^[:alnum:]_:]|\$)|Error([^[:alnum:]_:(]|\$))" <this item's Go files> | grep -vE '^[^:]+:[0-9]+:\s*//'` prints nothing, where `$A` is the `|`-joined alias names P2.29 and P2.30 declare (at the base its only false hit is init.go's "Claude Code" string)
 **Commit:** `refactor(cli): name the output contract through internal/cli/output in issue_render to know_tree`
 
-## P2.33 cli/output package, part 5: commands know_update.go to node_edit.go
+## P2.33 cli/output package, part 5: commands know_update.go to node_edit.go — ✅ DONE (2026-10-13)
 
 **What:** Part 5 of review P2-14. The third batch of command files names the output contract through package `output`.
 **Regression guard.** P2.30 keys every unkeyed `KVPair` literal in `internal/cli`, so `go vet ./...` stays green here. The Goal's "use no temporary alias" is checked by an Acceptance grep.

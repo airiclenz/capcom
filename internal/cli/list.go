@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -98,35 +99,35 @@ func checkTreeFlags(cmd *cobra.Command, options *listOptions) error {
 	flags := cmd.Flags()
 	if !options.isTree {
 		if flags.Changed(flagDepth) {
-			return UsageErrorf("--%s needs --%s", flagDepth, flagTree)
+			return output.UsageErrorf("--%s needs --%s", flagDepth, flagTree)
 		}
 		return nil
 	}
 	for _, name := range treeRowFilters {
 		if flags.Changed(name) {
-			return UsageErrorf("--%s cannot be combined with --%s", name, flagTree)
+			return output.UsageErrorf("--%s cannot be combined with --%s", name, flagTree)
 		}
 	}
 	if options.depth < unlimitedDepth {
-		return UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
+		return output.UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
 	}
 	return nil
 }
 
 // listResult lists the issues options select, one line each, or with --tree their outline.
-func (a *app) listResult(options *listOptions) (Result, error) {
+func (a *app) listResult(options *listOptions) (output.Result, error) {
 	if options.isTree {
 		return a.issueTreeResult(options)
 	}
 	filter, err := a.listFilter(options)
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
 	entries, err := a.issueIndex.List(filter)
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
-	return Result{
+	return output.Result{
 		Kind: "issue-list",
 		Data: issueListData(entries),
 		Text: issueLines(entries, relativeSlashPath(a.store.WorktreeRoot, a.store.IssuesDir())),
@@ -174,26 +175,26 @@ func (a *app) checkListValues(options *listOptions) error {
 	cfg := a.store.Config
 	for _, status := range options.statuses {
 		if _, isDeclared := cfg.CategoryOf(status); !isDeclared {
-			return UsageErrorf("--%s %q: not a status declared in config.yaml", flagStatus, status)
+			return output.UsageErrorf("--%s %q: not a status declared in config.yaml", flagStatus, status)
 		}
 	}
 	for _, category := range options.categories {
 		if !slices.Contains(statusCategories, config.Category(category)) {
-			return UsageErrorf("--%s %q: must be one of %v", flagCategory, category, statusCategories)
+			return output.UsageErrorf("--%s %q: must be one of %v", flagCategory, category, statusCategories)
 		}
 	}
 	for _, issueType := range options.types {
 		if !slices.Contains(cfg.Types, issueType) {
-			return UsageErrorf("--%s %q: not a type declared in config.yaml", flagType, issueType)
+			return output.UsageErrorf("--%s %q: not a type declared in config.yaml", flagType, issueType)
 		}
 	}
 	for _, priority := range options.priorities {
 		if priority < issue.MinPriority || priority > issue.MaxPriority {
-			return UsageErrorf("--%s %d: must be %d to %d", flagPriority, priority, issue.MinPriority, issue.MaxPriority)
+			return output.UsageErrorf("--%s %d: must be %d to %d", flagPriority, priority, issue.MinPriority, issue.MaxPriority)
 		}
 	}
 	if options.limit < 0 {
-		return UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
+		return output.UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
 	}
 	return nil
 }
@@ -219,10 +220,10 @@ type issueTree struct {
 // direct children. Without --all, Closed issues and their subtrees are left out. With --parent
 // that issue prints first, at depth 0, followed by its subtree. --depth limits the levels below the
 // top (or below --parent), with a `... <n> more (--depth <d>)` line under each issue it cut.
-func (a *app) issueTreeResult(options *listOptions) (Result, error) {
+func (a *app) issueTreeResult(options *listOptions) (output.Result, error) {
 	entries, err := a.issueIndex.List(index.Filter{IsClosedIncluded: true})
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
 	tree := &issueTree{
 		children: issuesByParent(entries),
@@ -235,12 +236,12 @@ func (a *app) issueTreeResult(options *listOptions) (Result, error) {
 	} else {
 		start, err := a.resolveIssue(options.parent)
 		if err != nil {
-			return Result{}, err
+			return output.Result{}, err
 		}
 		tree.add(start, 0, 0, 0)
 		tree.visit(start.ID, 1, 1)
 	}
-	return Result{Kind: "issue-list", Data: tree.items, Text: renderOutline(tree.rows)}, nil
+	return output.Result{Kind: "issue-list", Data: tree.items, Text: renderOutline(tree.rows)}, nil
 }
 
 // issuesByParent groups entries by the id of their parent, in the order given. An entry with no

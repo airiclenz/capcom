@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/knowledge"
 )
 
@@ -38,9 +39,9 @@ func (a *app) newKnowVerifyCommand() *cobra.Command {
 				data = append(data, findingData{finding.NoteID, finding.Path, finding.Line, finding.Ref, finding.Message})
 				text.WriteString(finding.String() + "\n")
 			}
-			result := Result{Kind: "know-verify", Data: data, Text: text.String()}
+			result := output.Result{Kind: "know-verify", Data: data, Text: text.String()}
 			if len(findings) > 0 {
-				result.Failure = Errorf(CodeInvalid, "%d note refs do not resolve", len(findings))
+				result.Failure = output.Errorf(output.CodeInvalid, "%d note refs do not resolve", len(findings))
 			}
 			return a.emit(cmd, result)
 		}),
@@ -66,7 +67,7 @@ func (a *app) verifyNotes() ([]knowledge.Finding, error) {
 		}
 		found, err := knowledge.Verify(a.store.WorktreeRoot, entry.Path, entry.ID, note)
 		if err != nil {
-			return nil, asError(err)
+			return nil, output.AsError(err)
 		}
 		findings = append(findings, found...)
 	}

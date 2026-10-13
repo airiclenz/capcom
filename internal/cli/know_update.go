@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
@@ -65,7 +66,7 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 			if !hasAnyFlag(cmd, flagTitle, flagAddLabel, flagRemoveLabel, flagAddRef, flagRemoveRef,
 				flagRetire, flagUnretire, flagAddSupersededBy, flagRemoveSupersededBy,
 				flagBodyFile, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld) {
-				return UsageErrorf("know update needs at least one flag that changes the note")
+				return output.UsageErrorf("know update needs at least one flag that changes the note")
 			}
 			inputs, err := readNoteInputs(cmd, options)
 			if err != nil {
@@ -145,8 +146,8 @@ func (a *app) resolveSuccessors(arg string, successorArgs []string) (path string
 			return "", nil, failure
 		}
 		if successor.ID == holder.ID {
-			return "", nil, &Error{
-				Code:    CodeInvalid,
+			return "", nil, &output.Error{
+				Code:    output.CodeInvalid,
 				Path:    holder.Path,
 				Message: fmt.Sprintf("%s cannot be superseded by itself", holder.ID),
 			}
@@ -167,7 +168,7 @@ func (a *app) updateNote(
 	arg string,
 	options *knowUpdateOptions,
 	inputs noteInputs,
-) (Result, error) {
+) (output.Result, error) {
 	notes := nodestore.Notes(a.store, noteResolver{index: a.issueIndex})
 	warning := ""
 	written, err := editNode(notes, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
@@ -189,7 +190,7 @@ func (a *app) updateNote(
 		return edited, nil
 	})
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
 	result := noteWriteResult(written.ID, written.Path, written.ETag)
 	if warning != "" {

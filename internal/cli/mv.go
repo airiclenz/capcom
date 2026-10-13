@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -34,7 +35,7 @@ func (a *app) newMvCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			options.isReparented = cmd.Flags().Changed(flagParent)
 			if len(args) == 1 && !options.isReparented {
-				return UsageErrorf("mv needs a new id, --parent, or both")
+				return output.UsageErrorf("mv needs a new id, --parent, or both")
 			}
 			result, err := a.move(args, options)
 			if err != nil {
@@ -55,14 +56,14 @@ func (a *app) newMvCommand() *cobra.Command {
 // while it ran. The result names the issue's new id, path and etag, with a warning for every tree
 // problem that concerns neither the issue, its new path nor the new parent, for every issue file
 // whose deps could not be checked, and for an emptied old parent directory it could not remove.
-func (a *app) move(args []string, options *mvOptions) (Result, error) {
+func (a *app) move(args []string, options *mvOptions) (output.Result, error) {
 	destination, err := moveDestination(args, options.parent, options.isReparented)
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
 	moved, problems, err := nodestore.Issues(a.store, nil).Move(args[0], destination, options.ifMatch)
 	if err != nil {
-		return Result{}, kindFailure(err)
+		return output.Result{}, kindFailure(err)
 	}
 	result := writeResult(moved.ID, moved.Path, moved.ETag)
 	indexWarnings, warnings := a.movedWarnings(moved, problems)
@@ -84,7 +85,7 @@ func (a *app) move(args []string, options *mvOptions) (Result, error) {
 // whitespace-only parent, when isReparented, is a usage error: only rootParentArg moves to the top.
 func moveDestination(args []string, parent string, isReparented bool) (nodestore.Destination, error) {
 	if isReparented && strings.TrimSpace(parent) == "" {
-		return nodestore.Destination{}, UsageErrorf("--parent needs an id or %q", rootParentArg)
+		return nodestore.Destination{}, output.UsageErrorf("--parent needs an id or %q", rootParentArg)
 	}
 	destination := nodestore.Destination{Parent: parent, IsReparented: isReparented}
 	if len(args) == 2 {

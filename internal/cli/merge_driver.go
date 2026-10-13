@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -76,14 +77,14 @@ func (a *app) newMergeDriverCommand() *cobra.Command {
 // mergeIssueFile runs one merge-driver invocation on args and returns its result: a failure when
 // an input cannot be read, the merge fails or ours cannot be written (ours is then left as it was),
 // and a conflict failure, with ours written, when conflict markers remain.
-func mergeIssueFile(args []string) Result {
+func mergeIssueFile(args []string) output.Result {
 	path := args[mergeArgPath]
 	inputs := args[:mergeArgPath]
 	versions := make([][]byte, 0, len(inputs))
 	for _, input := range inputs {
 		content, err := os.ReadFile(input)
 		if err != nil {
-			return failedMerge(&Error{Code: CodeInvalid, Path: input, Message: err.Error()})
+			return failedMerge(&output.Error{Code: output.CodeInvalid, Path: input, Message: err.Error()})
 		}
 		versions = append(versions, content)
 	}
@@ -96,22 +97,22 @@ func mergeIssueFile(args []string) Result {
 		textMerge,
 	)
 	if err != nil {
-		return failedMerge(&Error{Code: CodeInvalid, Path: path, Message: err.Error()})
+		return failedMerge(&output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()})
 	}
 	if err := nodefile.ReplaceFileVerbatim(args[mergeArgOurs], bytes.NewReader(merged)); err != nil {
-		return failedMerge(&Error{Code: CodeInvalid, Path: args[mergeArgOurs], Message: err.Error()})
+		return failedMerge(&output.Error{Code: output.CodeInvalid, Path: args[mergeArgOurs], Message: err.Error()})
 	}
 
-	result := Result{Kind: kindMerge, Data: mergeDriverData{Path: path}}
+	result := output.Result{Kind: kindMerge, Data: mergeDriverData{Path: path}}
 	if hasConflict {
-		result.Failure = &Error{Code: CodeConflict, Path: path, Message: conflictMessage}
+		result.Failure = &output.Error{Code: output.CodeConflict, Path: path, Message: conflictMessage}
 	}
 	return result
 }
 
 // failedMerge is the result of a merge-driver run that wrote nothing.
-func failedMerge(failure *Error) Result {
-	return Result{Kind: kindMerge, Failure: failure}
+func failedMerge(failure *output.Error) output.Result {
+	return output.Result{Kind: kindMerge, Failure: failure}
 }
 
 // mergeLabelsFrom returns the conflict marker labels args carry, falling back to the path with

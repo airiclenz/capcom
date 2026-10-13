@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/lock"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -234,7 +235,7 @@ func openLockTarget() (lockTarget, error) {
 	}
 	opened, err := store.Open(cwd)
 	if err != nil {
-		return lockTarget{}, storeFailure(err)
+		return lockTarget{}, output.StoreFailure(err)
 	}
 	return lockTarget{
 		store: opened,
@@ -251,20 +252,20 @@ func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, tok
 	var notHeld *lock.NotHeldError
 	switch {
 	case errors.As(err, &held):
-		failure := &Error{Code: CodeLocked, Message: held.Message(), Path: held.Path}
+		failure := &output.Error{Code: output.CodeLocked, Message: held.Message(), Path: held.Path}
 		return a.emit(cmd, failedLockResult(foundState(held.Status), held.Status, failure))
 	case errors.As(err, &notHeld):
-		failure := &Error{Code: CodeNotFound, Message: lock.ErrNotHeld.Error(), Path: notHeld.Path}
+		failure := &output.Error{Code: output.CodeNotFound, Message: lock.ErrNotHeld.Error(), Path: notHeld.Path}
 		return a.emit(cmd, failedLockResult(lockFree, status, failure))
 	case err != nil:
 		return err
 	}
 	data := newLockData(state, status, token)
-	return a.emit(cmd, Result{
+	return a.emit(cmd, output.Result{
 		Kind: kindLock,
 		Data: data,
 		Text: lockText(data),
-		KV:   []KVRecord{{Pairs: lockPairs(data)}},
+		KV:   []output.KVRecord{{Pairs: lockPairs(data)}},
 	})
 }
 
@@ -272,45 +273,45 @@ func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, tok
 // now free, and a warning says the record was invalid and has been discarded.
 func (a *app) emitDiscardedLock(cmd *cobra.Command, status lock.Status, path string) error {
 	data := newLockData(lockFree, status, "")
-	return a.emit(cmd, Result{
+	return a.emit(cmd, output.Result{
 		Kind:     kindLock,
 		Data:     data,
 		Text:     lockText(data),
-		KV:       []KVRecord{{Pairs: lockPairs(data)}},
+		KV:       []output.KVRecord{{Pairs: lockPairs(data)}},
 		Warnings: []string{path + ": invalid lock record; discarded"},
 	})
 }
 
 // failedLockResult is the partial result of a failed lock command: the lock as found, and the
 // failure that explains it in place of the text.
-func failedLockResult(state string, status lock.Status, failure *Error) Result {
+func failedLockResult(state string, status lock.Status, failure *output.Error) output.Result {
 	data := newLockData(state, status, "")
-	return Result{
+	return output.Result{
 		Kind:    kindLock,
 		Data:    data,
-		KV:      []KVRecord{{Pairs: lockPairs(data), Status: string(failure.Code)}},
+		KV:      []output.KVRecord{{Pairs: lockPairs(data), Status: string(failure.Code)}},
 		Failure: failure,
 	}
 }
 
 // allLocksResult lists every held lock of the repository, one --kv record per lock led by its
 // WORKTREE line. With none held, --kv writes a lone STATUS line.
-func allLocksResult(held []lock.Status) Result {
+func allLocksResult(held []lock.Status) output.Result {
 	data := make([]lockData, 0, len(held))
-	records := make([]KVRecord, 0, len(held))
+	records := make([]output.KVRecord, 0, len(held))
 	var text strings.Builder
 	for _, status := range held {
 		entry := newLockData(foundState(status), status, "")
 		data = append(data, entry)
-		pairs := append([]KVPair{{Key: kvKeyWorktree, Value: entry.Worktree}}, lockPairs(entry)...)
-		records = append(records, KVRecord{Pairs: pairs})
+		pairs := append([]output.KVPair{{Key: kvKeyWorktree, Value: entry.Worktree}}, lockPairs(entry)...)
+		records = append(records, output.KVRecord{Pairs: pairs})
 		text.WriteString(lockText(entry))
 	}
 	if len(held) == 0 {
-		records = append(records, KVRecord{})
+		records = append(records, output.KVRecord{})
 		text.WriteString("no locks held\n")
 	}
-	return Result{Kind: kindLock, Data: data, Text: text.String(), KV: records}
+	return output.Result{Kind: kindLock, Data: data, Text: text.String(), KV: records}
 }
 
 // foundState names a lock as read: held, stale or free.
@@ -352,8 +353,8 @@ func newLockData(state string, status lock.Status, token string) lockData {
 }
 
 // lockPairs is the --kv record of data, before its STATUS line.
-func lockPairs(data lockData) []KVPair {
-	return []KVPair{
+func lockPairs(data lockData) []output.KVPair {
+	return []output.KVPair{
 		{Key: kvKeyLock, Value: data.Lock},
 		{Key: kvKeyHolder, Value: data.Holder},
 		{Key: kvKeyPurpose, Value: data.Purpose},

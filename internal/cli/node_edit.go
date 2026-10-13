@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -76,26 +77,26 @@ func readTextInput(cmd *cobra.Command, path string) (string, error) {
 	if path == stdinPath {
 		data, err := io.ReadAll(cmd.InOrStdin())
 		if err != nil {
-			return "", Errorf(CodeInvalid, "read stdin: %v", err)
+			return "", output.Errorf(output.CodeInvalid, "read stdin: %v", err)
 		}
 		return string(data), nil
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return "", &Error{Code: CodeNotFound, Path: path, Message: "no such file"}
+		return "", &output.Error{Code: output.CodeNotFound, Path: path, Message: "no such file"}
 	}
 	if err != nil {
-		return "", &Error{Code: CodeInvalid, Path: path, Message: err.Error()}
+		return "", &output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()}
 	}
 	return string(data), nil
 }
 
 // writeResult is the result of a command that wrote an issue: its id, path and new etag.
-func writeResult(id string, path string, etag string) Result {
-	return Result{
+func writeResult(id string, path string, etag string) output.Result {
+	return output.Result{
 		Kind: kindIssueWrite,
 		Data: map[string]string{"id": id, "path": path, "etag": etag},
 		Text: fmt.Sprintf("id: %s\npath: %s\netag: %s\n", id, path, etag),
-		KV:   []KVRecord{{Pairs: []KVPair{{Key: "ID", Value: id}, {Key: "PATH", Value: path}, {Key: "ETAG", Value: etag}}}},
+		KV:   []output.KVRecord{{Pairs: []output.KVPair{{Key: "ID", Value: id}, {Key: "PATH", Value: path}, {Key: "ETAG", Value: etag}}}},
 	}
 }
