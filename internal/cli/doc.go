@@ -34,6 +34,7 @@
 //   - `log.go` — capcom log: appends an entry to an issue's Log
 //   - `merge_driver.go` — capcom merge-driver: the git merge driver for issue files, Log by entry
 //   - `mv.go` — capcom mv: renames an issue or moves it below another
+//   - `node_edit.go` — editIssue and editNode, which every issue and Note edit verb goes through, and their shared helpers
 //   - `outline.go` — the indented outline rows and their text, with the hint where --depth cut
 //   - `output.go` — the output contract: Result, the --json Envelope, --kv records and Renderers
 //   - `prime.go` — capcom prime: the session Briefing
@@ -45,5 +46,5 @@
 //   - `root.go` — Run, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word
 //   - `show.go` — capcom show and the resolution of an issue argument to its index entry
-//   - `update.go` — capcom update and editIssue, which every issue edit verb goes through to the node store
+//   - `update.go` — capcom update: changes an issue's fields or body
 package cli

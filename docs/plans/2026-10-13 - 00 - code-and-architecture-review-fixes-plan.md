@@ -1479,7 +1479,7 @@ Depends on P2.23; P1.2.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers and the doc map. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(cli): split dep.go into dep, dep_list and dep_graph`
 
-## P2.27 Move the shared node-edit helpers out of cli/update.go
+## P2.27 Move the shared node-edit helpers out of cli/update.go — ✅ DONE (2026-10-13)
 
 **What:** Pure move per review P2-11. This prepares for A-02.
 **Regression guard.** After P2.19 update.go's const block holds only `stdinPath` and `kindIssueWrite`: delete the emptied block, and give each moved const a one-line comment in node_edit.go. The move-only check allows those lines.
