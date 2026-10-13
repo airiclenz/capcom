@@ -113,7 +113,7 @@ NOTES (2026-10-13): an archive whose hash could not be computed is treated the s
 - `GOMEMLIMIT=2GiB go test ./cmd/release/ -run Smoke`
 **Commit:** `fix(release): never run a smoke host binary whose hash did not match`
 
-## 4. release smoke skips Homebrew when the release lookup fails
+## 4. release smoke skips Homebrew when the release lookup fails — ✅ DONE (2026-10-13)
 
 **What:** Fix: `checkHomebrew` runs `brew upgrade capcom` when `LatestRelease` errors or reports nothing published.
 **Goal:** `checkHomebrew` upgrades only when the latest published release's tag equals the version being smoked; a lookup error and "not published" each report SKIP with a reason, as `checkStaleBucket` does.

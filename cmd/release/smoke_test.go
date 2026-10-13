@@ -443,16 +443,22 @@ func TestSmokeChecks(t *testing.T) {
 				fake.manifest = `{"version": "0.24.10"}`
 				fake.repo.failures[methodLatestRelease] = errors.New("gh: HTTP 502")
 			},
-			wantResults: [][2]string{{"SKIP", "the latest release could not be read: gh: HTTP 502"}},
-			wantTally:   "6 passed, 0 failed, 1 skipped",
+			wantResults: [][2]string{
+				{"SKIP", "the latest release could not be read: gh: HTTP 502"},
+				{"SKIP", "the latest release could not be read, so brew upgrade may not move this machine onto v0.24.11: gh: HTTP 502"},
+			},
+			wantTally: "5 passed, 0 failed, 2 skipped",
 		},
 		"no release is published": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
 				fake.manifest = `{"version": "0.24.10"}`
 				fake.repo.latestRelease = githubRelease{}
 			},
-			wantResults: [][2]string{{"SKIP", "the bucket is at \"0.24.10\", not 0.24.11, and airiclenz/capcom has no published release"}},
-			wantTally:   "6 passed, 0 failed, 1 skipped",
+			wantResults: [][2]string{
+				{"SKIP", "the bucket is at \"0.24.10\", not 0.24.11, and airiclenz/capcom has no published release"},
+				{"SKIP", "airiclenz/capcom has no published release, so brew upgrade may not move this machine onto v0.24.11"},
+			},
+			wantTally: "5 passed, 0 failed, 2 skipped",
 		},
 	}
 	for name, tc := range cases {
@@ -480,6 +486,49 @@ func TestSmokeChecks(t *testing.T) {
 			isFailing := !strings.Contains(tc.wantTally, " 0 failed")
 			if (result.err != nil) != isFailing {
 				t.Errorf("smoke error = %v, want an error: %t", result.err, isFailing)
+			}
+		})
+	}
+}
+
+// TestSmokeHomebrewSkipsUnlessTheVersionIsTheLatestRelease pins that the Homebrew check neither
+// updates nor upgrades brew unless the version is known to be the latest published release: the
+// tap pins the latest, so an unreadable latest release, none published or another tag each skip.
+func TestSmokeHomebrewSkipsUnlessTheVersionIsTheLatestRelease(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		adjust   func(fake *smokeFake)
+		wantSkip string
+	}{
+		"the latest release cannot be read": {
+			adjust:   func(fake *smokeFake) { fake.repo.failures[methodLatestRelease] = errors.New("gh: HTTP 502") },
+			wantSkip: "the latest release could not be read, so brew upgrade may not move this machine onto v0.24.11: gh: HTTP 502",
+		},
+		"no release is published": {
+			adjust:   func(fake *smokeFake) { fake.repo.latestRelease = githubRelease{} },
+			wantSkip: "airiclenz/capcom has no published release, so brew upgrade may not move this machine onto v0.24.11",
+		},
+		"another tag is the latest release": {
+			adjust:   func(fake *smokeFake) { fake.repo.latestRelease = githubRelease{Tag: "v0.24.12"} },
+			wantSkip: "v0.24.11 is not the latest release (v0.24.12); brew upgrade would move this machine onto that one",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			fake := newSmokeFake(t)
+			tc.adjust(fake)
+
+			result := runTestSmoke(t, fake, nil)
+
+			if !hasResult(result.output, "SKIP", tc.wantSkip) {
+				t.Errorf("output lacks a SKIP result containing %q:\n%s", tc.wantSkip, result.output)
+			}
+			for _, call := range result.commands.recorded("brew") {
+				if line := strings.Join(call.args, " "); line == "update" || line == "upgrade capcom" {
+					t.Errorf("ran brew %s:\n%s", line, result.output)
+				}
 			}
 		})
 	}

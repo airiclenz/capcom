@@ -70,8 +70,9 @@ func renderFormula(version, sums string) (string, error) {
 
 // checkHomebrew upgrades a Homebrew-installed capcom and requires it to report the version; a
 // host without Homebrew, or without capcom installed through it, skips. So does a version that is
-// not the latest published release: the tap pins the latest, so brew upgrade would move this
-// machine onto that one instead.
+// not known to be the latest published release: the tap pins the latest, so brew upgrade would
+// move this machine onto that one instead, and with the latest release unreadable or none
+// published there is no telling which version that is.
 func (r *smokeRun) checkHomebrew(ctx context.Context) {
 	r.step("brew upgrade moves this machine onto %s", r.version)
 	if _, err := r.commands.run(ctx, r.options.dir, nil, "brew", "list", "--formula", binaryName); err != nil {
@@ -82,7 +83,15 @@ func (r *smokeRun) checkHomebrew(ctx context.Context) {
 		r.skip("capcom is not installed through Homebrew here")
 		return
 	}
-	if latest, isPublished, err := r.repo.LatestRelease(ctx); err == nil && isPublished && latest.Tag != r.version.String() {
+	latest, isPublished, err := r.repo.LatestRelease(ctx)
+	switch {
+	case err != nil:
+		r.skip("the latest release could not be read, so brew upgrade may not move this machine onto %s: %v", r.version, err)
+		return
+	case !isPublished:
+		r.skip("%s has no published release, so brew upgrade may not move this machine onto %s", capcomRepo, r.version)
+		return
+	case latest.Tag != r.version.String():
 		r.skip("%s is not the latest release (%s); brew upgrade would move this machine onto that one", r.version, latest.Tag)
 		return
 	}
