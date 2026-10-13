@@ -130,7 +130,7 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 	if status == "" {
 		status, _ = cfg.DefaultStatus(config.CategoryTodo) // config guarantees a todo status
 	}
-	if category, _ := cfg.CategoryOf(status); isClosedCategory(category) {
+	if category, _ := cfg.CategoryOf(status); category.IsClosed() {
 		return issue.Issue{}, output.Errorf(output.CodeInvalid, "status %q is in the %s category; create the issue open, then close it", status, category)
 	}
 	issueType := options.issueType

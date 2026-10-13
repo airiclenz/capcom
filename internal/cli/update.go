@@ -132,18 +132,13 @@ func checkStatusChange(from string, to string, cfg config.Config) error {
 	}
 	fromCategory, _ := cfg.CategoryOf(from)
 	toCategory, _ := cfg.CategoryOf(to)
-	if isClosedCategory(fromCategory) {
+	if fromCategory.IsClosed() {
 		return output.Errorf(output.CodeInvalid, "status %q is closed; use reopen to move the issue out of it", from)
 	}
-	if isClosedCategory(toCategory) {
+	if toCategory.IsClosed() {
 		return output.Errorf(output.CodeInvalid, "status %q is in the %s category; use close", to, toCategory)
 	}
 	return nil
-}
-
-// isClosedCategory reports whether category is one a closed issue is in.
-func isClosedCategory(category config.Category) bool {
-	return category == config.CategoryDone || category == config.CategoryDropped
 }
 
 // hasAnyFlag reports whether any of the named flags was given.

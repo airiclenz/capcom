@@ -284,7 +284,7 @@ func (t *issueTree) shownChildren(parentID string) []index.Entry {
 	}
 	var shown []index.Entry
 	for _, child := range t.children[parentID] {
-		if !isClosedCategory(child.Category) {
+		if !child.Category.IsClosed() {
 			shown = append(shown, child)
 		}
 	}
@@ -310,7 +310,7 @@ func (t *issueTree) progress(id string) *childrenData {
 	}
 	progress := &childrenData{Total: len(children)}
 	for _, child := range children {
-		if isClosedCategory(child.Category) {
+		if child.Category.IsClosed() {
 			progress.Closed++
 		}
 	}

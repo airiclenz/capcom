@@ -57,7 +57,7 @@ func (a *app) newReopenCommand() *cobra.Command {
 // Closed is refused.
 func (a *app) reopen(target issue.Issue, status string, reason string) (issue.Issue, error) {
 	category, _ := a.store.Config.CategoryOf(target.Status)
-	if !isClosedCategory(category) {
+	if !category.IsClosed() {
 		return issue.Issue{}, output.Errorf(
 			output.CodeInvalid,
 			"status %q is in the %s category, so the issue is not closed; only a closed issue can be reopened",

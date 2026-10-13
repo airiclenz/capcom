@@ -113,7 +113,7 @@ func (a *app) childProgress(id string) (*childrenData, error) {
 	}
 	closed, err := a.issueIndex.ListIDs(index.Filter{
 		ParentID:         id,
-		Categories:       []config.Category{config.CategoryDone, config.CategoryDropped},
+		Categories:       config.ClosedCategories(),
 		IsClosedIncluded: true,
 	})
 	if err != nil {

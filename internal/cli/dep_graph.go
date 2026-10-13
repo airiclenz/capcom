@@ -108,7 +108,7 @@ func (g depGraph) names(id string) func(string) bool {
 // that is not closed is; otherwise only start and the issues its deps and dependents reach, walked
 // through closed issues too. Closed issues are nodes only with isAll, start always is.
 func (g depGraph) shownBy(start string, isAll bool) func(index.Entry) bool {
-	isOpenOrAll := func(entry index.Entry) bool { return isAll || !isClosedCategory(entry.Category) }
+	isOpenOrAll := func(entry index.Entry) bool { return isAll || !entry.Category.IsClosed() }
 	if start == "" {
 		return isOpenOrAll
 	}

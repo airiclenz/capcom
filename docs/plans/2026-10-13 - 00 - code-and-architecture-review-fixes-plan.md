@@ -2205,7 +2205,7 @@ Depends on P3.40.
 - `grep -rn 'func isClosed(' internal/issue` prints nothing
 **Commit:** `refactor(config): own the closed-category predicate`
 
-## P3.42 cli reads the closed predicate from config
+## P3.42 cli reads the closed predicate from config — ✅ DONE (2026-10-13)
 
 **What:** Part 2 of A-01: cli's `isClosedCategory` is deleted; every caller uses `config.Category.IsClosed`, and the two done-and-dropped lists use `config.ClosedCategories()`.
 **Regression guard.** The Goal's grep is in Acceptance.

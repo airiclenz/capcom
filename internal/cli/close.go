@@ -60,8 +60,7 @@ func (a *app) newCloseCommand() *cobra.Command {
 				cmd,
 				options.status,
 				a.store.Config,
-				config.CategoryDone,
-				config.CategoryDropped,
+				config.ClosedCategories()...,
 			)
 			if err != nil {
 				return err
@@ -172,7 +171,7 @@ func (a *app) closeOne(
 	}
 
 	outcome = closeData{ID: entry.ID, Path: entry.Path}
-	if isHandled[entry.ID] || isClosedCategory(entry.Category) {
+	if isHandled[entry.ID] || entry.Category.IsClosed() {
 		file, err := a.readIssueFile(entry.Path)
 		if err != nil {
 			return closeData{}, output.AsError(err), nil
