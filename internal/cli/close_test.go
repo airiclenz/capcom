@@ -177,6 +177,24 @@ func TestClose_AliasOfInvalidFile_FailsNotFoundAndLeavesThePrefixMatchOpen(t *te
 	assertIssueFilesUnchanged(t, root, files)
 }
 
+func TestClose_IDOfOversizeFile_FailsNotFoundAndLeavesThePrefixMatchOpen(t *testing.T) {
+	oversize := readIssue("Foo", "open", "", "")
+	files := map[string]string{
+		"foo.md":     oversize + strings.Repeat("x", 1<<20+1-len(oversize)),
+		"foo-bar.md": readIssue("Foo bar", "open", "", ""),
+	}
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, files)
+
+	_, stderr, exitCode := runCLI(t, root, "close", "foo", "--reason", "x")
+
+	want := `id "foo" not found: .capcom/issues/foo.md is invalid`
+	if exitCode != ExitNotFound || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want not found naming foo.md", exitCode, stderr)
+	}
+	assertIssueFilesUnchanged(t, root, files)
+}
+
 func TestClose_DuplicatedID_FailsNamingBothFilesAndLeavesThePrefixMatchOpen(t *testing.T) {
 	root, files := newDuplicateIssueStore(t)
 

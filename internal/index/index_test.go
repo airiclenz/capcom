@@ -768,6 +768,24 @@ func TestRefresh_IndexFromBeforeClaims_RebuildsWithThem(t *testing.T) {
 	}
 }
 
+func TestRefresh_WalkRefusedFileFixed_DropsItsClaim(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "foo-bar.md", issueText("Foo bar", "open", ""))
+	writeIssue(t, s, "foo.md", oversizeIssueText("Foo"))
+	x := openIndex(t, s)
+	if _, err := x.Resolve("foo"); !errors.Is(err, tree.ErrNotFound) {
+		t.Fatalf("Resolve(foo) before the fix err = %v, want not found", err)
+	}
+	writeIssue(t, s, "foo.md", issueText("Foo", "open", ""))
+
+	refresh(t, x)
+
+	if entry, err := x.Resolve("foo"); err != nil || entry.ID != "foo" {
+		t.Errorf("Resolve(foo) = %q, %v; want foo", entry.ID, err)
+	}
+}
+
 // TestRefresh_CommitFails_ReportsOnlyTheCommitError swaps the package's commitTx seam, so it
 // never runs in parallel.
 func TestRefresh_CommitFails_ReportsOnlyTheCommitError(t *testing.T) {

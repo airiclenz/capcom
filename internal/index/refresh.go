@@ -78,6 +78,9 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	if err := r.sync(found, &report); err != nil {
 		return Report{}, x.databaseError(err)
 	}
+	if err := r.replaceWalkClaims(); err != nil {
+		return Report{}, x.databaseError(err)
+	}
 	if err := r.excludeDuplicates(); err != nil {
 		return Report{}, x.databaseError(err)
 	}
@@ -97,7 +100,8 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 }
 
 // walkStore lists the node files of the issue tree and then of the Knowledge tree, each in path
-// order and marked with its kind.
+// order and marked with its kind, and keeps on r the claims of the files each walk leaves out,
+// marked with the same kind.
 func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	trees := []struct {
 		dir  string
@@ -105,14 +109,18 @@ func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	}{{s.IssuesDir(), kindIssue}, {s.KnowledgeDir(), kindNote}}
 	var found []foundFile
 	for _, current := range trees {
-		files, err := walkIssues(s.WorktreeRoot, current.dir, r)
+		files, claims, err := walkIssues(s.WorktreeRoot, current.dir, r)
 		if err != nil {
 			return nil, err
 		}
 		for i := range files {
 			files[i].kind = current.kind
 		}
+		for i := range claims {
+			claims[i].kind = current.kind
+		}
 		found = append(found, files...)
+		r.walkClaims = append(r.walkClaims, claims...)
 	}
 	return found, nil
 }
@@ -136,6 +144,8 @@ type refresher struct {
 	// refreshed is the refresh start, truncated to racyGranularity, in Unix nanoseconds.
 	refreshed int64
 	warnings  []Warning
+	// walkClaims are the names the files the walk left out claim, which replaceWalkClaims stores.
+	walkClaims []claim
 }
 
 // warn records a warning of kind about one file.
@@ -311,15 +321,34 @@ func claimedNames(file foundFile, problems []Warning, aliases []string, data []b
 	return append([]string{file.id}, aliases...)
 }
 
+// insertClaimQuery writes one claims row: a file's path, its kind and one name it claims.
+const insertClaimQuery = `INSERT INTO claims (path, kind, name) VALUES (?, ?, ?)`
+
 // insertClaims writes one claims row per name a node file with problems claims.
 func (r *refresher) insertClaims(file foundFile, names []string) error {
 	statements := make([]statement, 0, len(names))
 	for _, name := range names {
-		statements = append(statements, statement{
-			`INSERT INTO claims (path, kind, name) VALUES (?, ?, ?)`, []any{file.path, file.kind, name},
-		})
+		statements = append(statements, statement{insertClaimQuery, []any{file.path, file.kind, name}})
 	}
 	return r.exec(file, statements)
+}
+
+// replaceWalkClaims drops every claims row whose path has no files row, the claims an earlier
+// walk recorded for the files it left out, and stores this walk's instead, so such a claim holds
+// exactly as long as the walk keeps leaving its file out. It runs after sync, once the files rows
+// are current.
+func (r *refresher) replaceWalkClaims() error {
+	_, err := r.tx.ExecContext(r.ctx, `DELETE FROM claims WHERE path NOT IN (SELECT path FROM files)`)
+	if err != nil {
+		return fmt.Errorf("drop the claims of left-out files from index: %w", err)
+	}
+	for _, current := range r.walkClaims {
+		_, err := r.tx.ExecContext(r.ctx, insertClaimQuery, current.path, current.kind, current.name)
+		if err != nil {
+			return fmt.Errorf("index %s: %w", current.path, err)
+		}
+	}
+	return nil
 }
 
 // readRefusal returns the tree sentinel err wraps when tree.ReadNodeFile refused the file unread

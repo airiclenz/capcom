@@ -48,8 +48,9 @@ var (
 // carry the kind of the file each row came from; related holds the related links of issues as
 // written, in file order; refs holds the Refs of Notes in file order; supersedes holds the
 // superseded-by ids of Notes as written, in file order; claims holds, by kind, every name a file
-// with problems claims (its id and its aliases), so a resolve refuses that name instead of matching
-// it as a prefix.
+// with problems, a file the walk leaves out unread, or a node file under a directory the walk
+// leaves out claims (its id and its aliases), so a resolve refuses that name instead of matching it
+// as a prefix.
 var schemaStatements = []string{
 	`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 	`CREATE TABLE files (

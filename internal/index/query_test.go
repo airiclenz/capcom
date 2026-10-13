@@ -3,6 +3,7 @@ package index
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -174,8 +175,10 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 		return issueWith(title, "open", "aliases: ["+alias+"]\n")
 	}
 	cases := []struct {
-		name      string
-		files     map[string]string
+		name  string
+		files map[string]string
+		// symlink, when set, is the name of a symlink to foo-bar.md written beside the files.
+		symlink   string
 		isInvalid bool
 		paths     []string
 	}{
@@ -212,6 +215,30 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 			isInvalid: true,
 			paths:     []string{".capcom/issues/foo-rework.md"},
 		},
+		{
+			name:      "file over 1 MiB",
+			files:     map[string]string{"foo.md": oversizeIssueText("Huge")},
+			isInvalid: true,
+			paths:     []string{".capcom/issues/foo.md"},
+		},
+		{
+			name:      "symlinked file",
+			symlink:   "foo.md",
+			isInvalid: true,
+			paths:     []string{".capcom/issues/foo.md"},
+		},
+		{
+			name:      "file inside an orphan directory",
+			files:     map[string]string{"orphan-dir/foo.md": issueText("A", "open", "")},
+			isInvalid: true,
+			paths:     []string{".capcom/issues/orphan-dir/foo.md"},
+		},
+		{
+			name:      "alias of a file inside an orphan directory",
+			files:     map[string]string{"orphan-dir/deeper/foo-rework.md": aliasing("Rework", "foo")},
+			isInvalid: true,
+			paths:     []string{".capcom/issues/orphan-dir/deeper/foo-rework.md"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -221,6 +248,9 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 			writeIssue(t, s, "foo-bar.md", issueText("Foo bar", "open", ""))
 			for name, content := range tc.files {
 				writeIssue(t, s, name, content)
+			}
+			if tc.symlink != "" {
+				makeSymlink(t, "foo-bar.md", filepath.Join(s.IssuesDir(), tc.symlink))
 			}
 			x := openIndex(t, s)
 			refresh(t, x)

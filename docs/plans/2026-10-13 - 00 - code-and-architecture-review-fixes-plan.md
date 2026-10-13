@@ -579,7 +579,13 @@ Depends on P1.4.
 - `go vet ./internal/index/ ./internal/cli/`
 **Commit:** `fix(index): refuse the aliases of a left-out file instead of prefix matching`
 
-## P1.6 Index records the names of files the walk leaves out
+## P1.6 Index records the names of files the walk leaves out — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): walkIssues returns the walk's claims (reusing the existing `claim` type) and walkStore tags them with the tree's kind and keeps them on the refresher as `walkClaims`, rather than walkIssues writing kind-less claims onto the refresher itself; refresh then runs `replaceWalkClaims` after sync. The claims INSERT is now a shared `insertClaimQuery` constant used by insertClaims too.
+NOTES (2026-10-13): under an orphan directory a file the guarded reader refuses unread claims its id only, and any other read failure (gone, unreadable) claims nothing; WalkDir errors skip that entry; neither fails Refresh. index's `nodeFileExtension` constant (P1.5 left it unused for P3.11 to remove) is used again by the new nodeFileID, so P3.11 should keep it.
+NOTES (2026-10-13): consequential edit — internal/index/query.go: made necessary by walk claims widening what Resolve, resolveID and unusableClaim refuse (doc comments said "invalid file" / "file with problems")
+NOTES (2026-10-13): consequential edit — internal/index/notes.go: made necessary by walk claims widening what ResolveNote refuses (doc comment said "the id of an invalid Note file")
+NOTES (2026-10-13): consequential edit — internal/index/schema.go: made necessary by the claims table now also holding the walk's claims (schemaStatements comment said "every name a file with problems claims")
 
 **What:** Fixes F-09(b) (`left-out-name-claims`). A node file the walk refuses unread (a symlink, a FIFO, a file over 1 MiB) gets no row, and neither does a node file under a directory left out with it, so its id falls through to prefix matching. The outcome depends on which phase spots the problem.
 **Regression guard.** A `WalkDir` error or a failed read below an orphan directory (unreadable subdirectory, directory removed after `tree.Walk`) adds no claim and never fails `Refresh`; an orphan directory stays a warning only. Hidden names are skipped at every depth (`filepath.SkipDir` on a hidden directory), as nodestore's `findNodeFile` does.
