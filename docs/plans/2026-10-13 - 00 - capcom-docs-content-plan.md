@@ -130,7 +130,11 @@ NOTES (2026-10-13): sidebar orders chosen as file-format 2 (reference, after the
 **Acceptance:** `grep -rln -e 'docs/format.md' -e 'docs/migrating-from-beads.md' . --exclude-dir=.git --exclude-dir=plans --exclude-dir=reviews --exclude-dir=issues | grep -v CHANGELOG` prints nothing besides the stubs `./docs/format.md` and `./docs/migrating-from-beads.md`; `for f in docs/site/reference/file-format.md docs/site/getting-started/migrating-from-beads.md; do test -f "$f" || { echo "MISSING $f"; continue; }; head -1 "$f" | grep -qx -- --- || echo "BAD $f"; awk '/^```/{f=!f} !f && /^# /{print "H1 " FILENAME; exit}' "$f"; done` prints nothing; `capcom check`; `go build ./...`
 **Commit:** `docs: move the format reference and beads migration guide into docs/site`
 
-## 6. Landing page and getting started
+## 6. Landing page and getting started — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): docs/site/getting-started/migrating-from-beads.md left unchanged: item 5 already set `sidebar: { order: 3 }`, so the plan's "set in item 5's file if missing" did not apply.
+NOTES (2026-10-13): quickstart output captured from a freshly built binary in a scratch git repo; the init path was replaced with /home/you/your-repo, and the page says paths, etags, dates and author differ per machine.
+NOTES (2026-10-13): index.md and quickstart.md link pages later items create (concepts/*, agents/*, reference/cli/capcom.md); they resolve once items 7, 9 and 10 land.
 
 **What:**
 **Regression guard.** The contract check names every file of the item explicitly (`for f in <each path>; do test -f "$f" || echo "MISSING $f"; ...`) so a missing file fails, and the H1 check ignores fenced code blocks (e.g. `awk '/^```/{f=!f} !f && /^# /{print FILENAME}'`).
