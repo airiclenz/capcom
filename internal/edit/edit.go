@@ -7,9 +7,10 @@ package edit
 import (
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"slices"
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // ErrReplaceMatch reports body replacement text that does not occur exactly once in the body.
@@ -82,10 +83,5 @@ func NormalizeNewlines(text string) string {
 	return strings.ReplaceAll(text, "\r\n", "\n")
 }
 
-// ETag returns the entity tag of a file's content: its FNV-1a 64-bit hash as 16 lowercase hex
-// digits. A write can compare it to detect that the file changed since it was read.
-func ETag(data []byte) string {
-	hash := fnv.New64a()
-	hash.Write(data) // a hash.Hash never returns an error
-	return fmt.Sprintf("%016x", hash.Sum64())
-}
+// ETag forwards to nodefile.ETag until every caller imports nodefile.
+var ETag = nodefile.ETag

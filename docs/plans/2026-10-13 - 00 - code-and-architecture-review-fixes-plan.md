@@ -1156,7 +1156,9 @@ Depends on P2.2; P1.21; P1.22; P1.23; P1.24.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers, the `nodefile.` qualifiers, `hiddenPrefix`, the forwarders and the doc map. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(tree): move the atomic node-file writes to internal/nodefile`
 
-## P2.4 nodefile package, part 3: move edit.ETag
+## P2.4 nodefile package, part 3: move edit.ETag — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/nodefile/doc.go: made necessary by moving ETag into nodefile (the package comment listed only the reader and the writes).
 
 **What:** Part 3 of review P2-03. `edit.ETag` moves to `internal/nodefile`. Until P2.9, `edit` forwards it.
 **Goal:** `nodefile.ETag` returns the same etags and is pinned by the moved `TestETag_HashesContent`. `internal/nodefile` still imports nothing from `internal/`. Every caller compiles unchanged.
