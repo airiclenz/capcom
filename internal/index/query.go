@@ -2,8 +2,6 @@ package index
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -273,20 +271,6 @@ func (x *Index) resolved(arg, id string) (Entry, error) {
 		err = fmt.Errorf("id %q %w", arg, tree.ErrNotFound)
 	}
 	return entry, err
-}
-
-// Body returns the markdown body of the issue or Note file at path (an Entry's or NoteEntry's
-// Path), byte for byte.
-func (x *Index) Body(path string) (string, error) {
-	var body string
-	err := x.db.QueryRowContext(context.Background(), `SELECT body FROM fts WHERE path = ?`, path).Scan(&body)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", fmt.Errorf("%s: %w", path, tree.ErrNotFound)
-	}
-	if err != nil {
-		return "", fmt.Errorf("%s: read body of %s: %w", Path(x.store), path, err)
-	}
-	return body, nil
 }
 
 // SearchIssues returns the usable issues Search finds for text, best match first.

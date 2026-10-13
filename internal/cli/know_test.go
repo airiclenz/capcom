@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/edit"
 )
@@ -176,6 +177,29 @@ func TestKnowShow_PrintsEtag_MatchingTheFile(t *testing.T) {
 	jsonEtag, _ := jsonData[0].(map[string]any)["etag"].(string)
 	if textEtag := textETag(textOutput); textEtag != want || jsonEtag != want {
 		t.Errorf("etags = text %q json %q; want %q", textEtag, jsonEtag, want)
+	}
+}
+
+func TestKnowShow_FileRewrittenAtSameSizeAndMtime_PrintsTheBytesItsEtagNames(t *testing.T) {
+	root := newKnowStore(t)
+	path := filepath.Join(root, ".capcom", "knowledge", "stale-view.md")
+	past := time.Now().Add(-time.Hour)
+	rewriteKeepingTimes(t, path, "---\ntitle: Old title\n---\n\nOld body.\n", past)
+	mustRun(t, root, "know", "show", "stale-view")
+	newContent := "---\ntitle: New title\n---\n\nNew body.\n"
+	rewriteKeepingTimes(t, path, newContent, past)
+	want := edit.ETag([]byte(newContent))
+
+	textOutput := mustRun(t, root, "know", "show", "stale-view")
+	jsonData, _ := decodeEnvelope(t, mustRun(t, root, "know", "show", "stale-view", "--json"))["data"].([]any)
+
+	if !strings.Contains(textOutput, "title: New title\n") || !strings.HasSuffix(textOutput, "\nNew body.\n") ||
+		textETag(textOutput) != want {
+		t.Errorf("know show text = %q; want title New title, body New body. and etag %q", textOutput, want)
+	}
+	shown, _ := jsonData[0].(map[string]any)
+	if shown["title"] != "New title" || shown["body"] != "\nNew body.\n" || shown["etag"] != want {
+		t.Errorf("know show --json data = %v; want title New title, body New body. and etag %q", shown, want)
 	}
 }
 

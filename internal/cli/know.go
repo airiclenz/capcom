@@ -254,17 +254,17 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 	return cmd
 }
 
-// noteShowResult renders each Note in full, separated by a blank line. The etag comes from the
-// Note file as it is on disk, the bytes a later --if-match is checked against.
+// noteShowResult renders each Note in full, separated by a blank line. Its fields, body and etag
+// come from one read of the Note file, the bytes a later --if-match is checked against.
 func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
 	data := make([]noteData, 0, len(entries))
 	var text strings.Builder
-	for _, entry := range entries {
-		body, err := a.issueIndex.Body(entry.Path)
+	for _, indexed := range entries {
+		file, err := a.readIssueFile(indexed.Path)
 		if err != nil {
 			return Result{}, err
 		}
-		file, err := a.readIssueFile(entry.Path)
+		entry, body, err := a.noteFromFile(indexed, file)
 		if err != nil {
 			return Result{}, err
 		}
@@ -279,6 +279,28 @@ func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
 		data = append(data, shown)
 	}
 	return Result{Kind: "note", Data: data, Text: text.String()}, nil
+}
+
+// noteFromFile parses file, the bytes of the Note file entry indexes, and returns the entry with
+// every frontmatter field taken from those bytes, and the body. The entry keeps its id, path and
+// parent, which the file's place in the tree gives. A file that does not parse fails as invalid at
+// its file and line.
+func (a *app) noteFromFile(entry index.NoteEntry, file []byte) (index.NoteEntry, string, error) {
+	note, err := knowledge.Parse(entry.Path, file)
+	if err != nil {
+		return index.NoteEntry{}, "", a.frontmatterFailure(err)
+	}
+	return index.NoteEntry{
+		ID:           entry.ID,
+		Path:         entry.Path,
+		ParentID:     entry.ParentID,
+		Title:        note.Title,
+		Labels:       note.Labels,
+		Refs:         note.Refs,
+		Aliases:      note.Aliases,
+		IsRetired:    note.IsRetired,
+		SupersededBy: note.SupersededBy,
+	}, note.Body, nil
 }
 
 // newKnowSearchCommand finds Notes by full text, every word as a whole word in the title or body,

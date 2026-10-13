@@ -471,7 +471,9 @@ Depends on P0.0.
 - `go vet ./internal/cli/`
 **Commit:** `fix(cli): escape terminal control characters in text output`
 
-## P1.1 show and know show render from one read of the file
+## P1.1 show and know show render from one read of the file — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the parse-and-rebuild sits in two helpers, `issueFromFile` (show.go) and `noteFromFile` (know.go), both methods that parse and fail through `frontmatterFailure`; know.go's loop variable is renamed `indexed` so the rebuilt `entry` does not shadow it.
 
 **What:** Fixes F-05 (`show-etag-snapshot`): `show` and `know show` print fields and body from the index but the etag from a later disk read, so `--if-match` can pass against content the caller never saw.
 **Goal:** every field, the body and the etag that `show` and `know show` print (text, `--json`, `--kv`) derive from one read of the node file's bytes. Readiness, dependents, child progress and reverse Related links stay index data. A file that no longer parses fails as invalid at its file and line.

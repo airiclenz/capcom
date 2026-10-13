@@ -41,7 +41,9 @@ func (a *app) newShowCommand() *cobra.Command {
 
 // showResult looks up every argument and builds the result: the issues found, a --kv record per
 // argument closed by its own STATUS, and the joined failure of the arguments that failed. It also
-// returns the paths of the issues found, relative to the worktree root.
+// returns the paths of the issues found, relative to the worktree root. Each issue's fields, body
+// and etag come from one read of its file, the bytes a later --if-match is checked against;
+// readiness, dependents, child progress and reverse Related links are the index's.
 func (a *app) showResult(args []string) (Result, []string, error) {
 	result := Result{Kind: "issue", KV: []KVRecord{}}
 	data := make([]showData, 0, len(args))
@@ -67,11 +69,11 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 			continue
 		}
 
-		body, err := a.issueIndex.Body(entry.Path)
+		file, err := a.readIssueFile(entry.Path)
 		if err != nil {
 			return Result{}, nil, err
 		}
-		file, err := a.readIssueFile(entry.Path)
+		entry, body, err := a.issueFromFile(entry, file)
 		if err != nil {
 			return Result{}, nil, err
 		}
@@ -107,6 +109,36 @@ func (a *app) showResult(args []string) (Result, []string, error) {
 	result.Data = data
 	result.Text = text.String()
 	return result, shownPaths, nil
+}
+
+// issueFromFile parses file, the bytes of the issue file entry indexes, and returns the entry with
+// every frontmatter field taken from those bytes, and the body. The entry keeps its id, path and
+// parent, which the file's place in the tree gives. A file that does not parse fails as invalid at
+// its file and line.
+func (a *app) issueFromFile(entry index.Entry, file []byte) (index.Entry, string, error) {
+	parsed, err := issue.Parse(entry.Path, file)
+	if err != nil {
+		return index.Entry{}, "", a.frontmatterFailure(err)
+	}
+	category, _ := a.store.Config.CategoryOf(parsed.Status) // an undeclared status has none
+	return index.Entry{
+		ID:       entry.ID,
+		Path:     entry.Path,
+		ParentID: entry.ParentID,
+		Status:   parsed.Status,
+		Category: category,
+		Type:     parsed.Type,
+		Priority: parsed.Priority,
+		Plan:     parsed.Plan,
+		Created:  parsed.Created,
+		Closed:   parsed.Closed,
+		Reason:   parsed.Reason,
+		Title:    parsed.Title,
+		Labels:   parsed.Labels,
+		Deps:     parsed.Deps,
+		Related:  parsed.Related,
+		Aliases:  parsed.Aliases,
+	}, parsed.Body, nil
 }
 
 // showGraph is what show needs from the whole issue tree: the ready rules' verdict on each issue in

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/edit"
 )
@@ -397,6 +398,41 @@ func TestShow_Text_PrintsFrontmatterThenBodyVerbatim(t *testing.T) {
 		"\nBlocked by login-timeout-race; the refresh doesn't wait for config.yaml.\n\n## Log\n\n- 2026-10-11 airic: seen\n"
 	if exitCode != ExitOK || stderr != "" || stdout != want {
 		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+}
+
+// rewriteKeepingTimes writes content over the file at path and sets its access and modification
+// times to at, so a size-and-mtime check cannot tell the new content from the old.
+func rewriteKeepingTimes(t *testing.T, path string, content string, at time.Time) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Chtimes(path, at, at); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+}
+
+func TestShow_FileRewrittenAtSameSizeAndMtime_PrintsTheBytesItsEtagNames(t *testing.T) {
+	root := newReadStore(t)
+	path := filepath.Join(root, ".capcom", "issues", "stale-view.md")
+	past := time.Now().Add(-time.Hour)
+	rewriteKeepingTimes(t, path, readIssue("Old title", "open", "", "\nOld body.\n"), past)
+	mustRun(t, root, "show", "stale-view")
+	newContent := readIssue("New title", "open", "", "\nNew body.\n")
+	rewriteKeepingTimes(t, path, newContent, past)
+	want := edit.ETag([]byte(newContent))
+
+	textOutput := mustRun(t, root, "show", "stale-view")
+	jsonData, _ := decodeEnvelope(t, mustRun(t, root, "show", "stale-view", "--json"))["data"].([]any)
+
+	if !strings.Contains(textOutput, "title: New title\n") || !strings.HasSuffix(textOutput, "\nNew body.\n") ||
+		textETag(textOutput) != want {
+		t.Errorf("show text = %q; want title New title, body New body. and etag %q", textOutput, want)
+	}
+	shown, _ := jsonData[0].(map[string]any)
+	if shown["title"] != "New title" || shown["body"] != "\nNew body.\n" || shown["etag"] != want {
+		t.Errorf("show --json data = %v; want title New title, body New body. and etag %q", shown, want)
 	}
 }
 

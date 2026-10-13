@@ -247,22 +247,6 @@ func TestResolveNote_DuplicatedID_RefusesInsteadOfPrefixMatching(t *testing.T) {
 	}
 }
 
-func TestBody_IndexedIssue_ReturnsItVerbatim(t *testing.T) {
-	t.Parallel()
-	s := newStore(t)
-	body := "\nFirst line.\n\n---\n\n## Log\n\n- 2026-10-11 airic: noted\n"
-	writeIssue(t, s, "verbatim-body.md", issueText("Verbatim", "open", body))
-	x := openIndex(t, s)
-	refresh(t, x)
-	entry := mustIssue(t, x, "verbatim-body")
-
-	got, err := x.Body(entry.Path)
-
-	if err != nil || got != body {
-		t.Errorf("Body = %q, %v; want %q", got, err, body)
-	}
-}
-
 func TestSearchIssues_Punctuation_MatchesWordsLiterally(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
