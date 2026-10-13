@@ -45,7 +45,11 @@ kept current by a test; every command gains `Long` and `Example` help text.
 - 1 (re-check): guard folded — every frontmatter value YAML-quoted, yaml.v3 parse check in the test; the filePrepender looks its command up in a pre-walked map keyed by file base name
 - 10 (re-check): guard folded — Acceptance no longer needs a commit (stale-page removal checked with `test ! -e`, then `TestReferenceUpToDate`)
 
-## 1. Markdown reference generator
+## 1. Markdown reference generator — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): internal/clidoc/doc.go carries only a package comment, no file map or TestDocFileMap: the package has two non-test files, below the coding-standards ~10-file threshold for a map
+NOTES (2026-10-13): go mod tidy also added go.yaml.in/yaml/v3 v3.0.4 (indirect, required by cobra/doc's yaml_docs.go) besides go-md2man/v2 and blackfriday/v2
+NOTES (2026-10-13): `go build ./cmd/gendocs` (Acceptance) leaves an untracked `gendocs` binary at the repo root, which .gitignore does not cover; remove it before staging
 
 **What:** Recast at the regression check (2026-10-13).
 **Regression guard.** The shipped capcom binary must not link cobra/doc. `internal/cli` gains only an exported `func Command() *cobra.Command` (a fresh tree, stdout/stderr discarded, built via the unexported newRootCommand); generation lives in a new package `internal/clidoc` with `WriteReference(root *cobra.Command, dir string) error`; `cmd/gendocs` wires the two. Acceptance adds `go list -deps ./cmd/capcom | grep -c 'spf13/cobra/doc'` printing 0 and runs the whole `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ ./internal/clidoc/`; any doc.go file-map entry the repo's TestDocFileMap convention requires for new non-test files (internal/cli/doc.go and an internal/clidoc package doc) is part of the item and on its Files line. `go mod tidy` adds go-md2man/v2, blackfriday/v2 (indirect) — the item never claims no new dependencies. Emit every frontmatter value YAML-quoted (strconv.Quote or yaml.v3 Marshal), not only title — prime's Short contains `: ` and is invalid YAML unquoted. `GenMarkdownTreeCustom` hands `filePrepender` only the joined file path, so walk the tree first into a map keyed by `filepath.Base(filename)` (CommandPath with spaces as `_` plus `.md`) and look each page's command up there; never split the path on "/" (Windows CI).

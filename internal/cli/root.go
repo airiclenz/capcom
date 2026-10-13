@@ -74,6 +74,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return output.Exit(renderer, err)
 }
 
+// Command returns a fresh capcom command tree whose output is discarded, for tools that read the
+// tree's commands, flags and help text without running them, such as the CLI reference generator.
+func Command() *cobra.Command {
+	return (&app{stdout: io.Discard, stderr: io.Discard}).newRootCommand()
+}
+
 // newRootCommand builds the command tree for one invocation.
 func (a *app) newRootCommand() *cobra.Command {
 	root := &cobra.Command{

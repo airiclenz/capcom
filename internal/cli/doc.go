@@ -44,7 +44,7 @@
 //   - `related.go` — capcom related add and rm: the related links between issues, raising the store format
 //   - `reopen.go` — capcom reopen: moves a closed issue back to an open status, logging why
 //   - `rm.go` — the results, failure typing and warnings of rm and know rm, which node_verbs.go builds
-//   - `root.go` — Run, the root command, capcom version and the index lifecycle of every command
+//   - `root.go` — Run, Command, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word
 //   - `show.go` — capcom show and the resolution of an issue argument to its index entry
 //   - `update.go` — capcom update: changes an issue's fields or body
