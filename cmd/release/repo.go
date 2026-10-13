@@ -52,8 +52,9 @@ type repo interface {
 	// any other state is a failed or unfinished upload, not one the release carries — and whether
 	// the release is still a draft, and false when there is no release for tag.
 	ReleaseAssets(ctx context.Context, tag string) (githubReleaseAssets, bool, error)
-	// PushMain pushes HEAD to origin's main branch.
-	PushMain(ctx context.Context) error
+	// PushMain pushes commit — a resolved commit id, never a symbolic name — to origin's main
+	// branch.
+	PushMain(ctx context.Context, commit string) error
 	// FetchTag fetches origin's tag into the checkout's tag of the same name.
 	FetchTag(ctx context.Context, tag string) error
 	// IsAnnotated reports whether the checkout's tag is an annotated tag rather than a
@@ -330,9 +331,10 @@ func (r execRepo) ReleaseAssets(ctx context.Context, tag string) (githubReleaseA
 	return githubReleaseAssets{names: uploaded, isDraft: release.IsDraft}, true, nil
 }
 
-// PushMain pushes with `git push origin HEAD:main`.
-func (r execRepo) PushMain(ctx context.Context) error {
-	_, err := r.remote(ctx, "git", "push", remoteName, "HEAD:"+mainBranch)
+// PushMain pushes with `git push origin <commit>:refs/heads/main`: the full ref, since a
+// commit id names no branch for git to infer the destination's kind from.
+func (r execRepo) PushMain(ctx context.Context, commit string) error {
+	_, err := r.remote(ctx, "git", "push", remoteName, commit+":refs/heads/"+mainBranch)
 	return err
 }
 

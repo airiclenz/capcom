@@ -54,6 +54,10 @@ type publishRun struct {
 	version  releaseVersion
 	// repo is the checkout publish pushes from, opened from the options.
 	repo repo
+	// head is the commit HEAD resolved to when the gate judged it: VERSION is read at it, and the
+	// tag step checks, pushes and verifies it, never the symbolic HEAD. It stays empty when the
+	// gate did not run, as when the tag is already on origin, or HEAD did not resolve.
+	head string
 	// notesPath is the notes file as an absolute path, so it reads the same from any directory.
 	notesPath string
 	// buildDir is the temporary directory the release step builds in, removed when the run ends;
@@ -114,8 +118,9 @@ func newPublishCommand(commands runner, openRepo repoOpener) *cobra.Command {
 		Long: "publish converges each publish step, skipping every step its probe reports done, so\n" +
 			"a half-finished release is resumed by running it again. While the tag is not on origin\n" +
 			"it refuses unless the release gate clears and VERSION at HEAD reads the version; it\n" +
-			"then pushes HEAD to main and waits (--tag-timeout) for the CI-made annotated tag — it\n" +
-			"never creates one. The release step builds the archives in a fresh clone at the tag\n" +
+			"then pushes the commit the gate judged to main, refusing and pushing nothing if HEAD\n" +
+			"has moved since, and waits (--tag-timeout) for the CI-made annotated tag — it never\n" +
+			"creates one. The release step builds the archives in a fresh clone at the tag\n" +
 			"and creates the GitHub release, or uploads only the assets it lacks after checking the\n" +
 			"rebuilt sums against its SHA256SUMS, then publishes a draft an interrupted run left;\n" +
 			"a draft release is never done. The homebrew and scoop steps render the formula\n" +
@@ -245,11 +250,13 @@ func (r *publishRun) probe(ctx context.Context) []stepReport {
 	return steps
 }
 
-// checkPushable judges what pushing HEAD needs: the release gate, and VERSION at HEAD reading the
-// version — the bump the CI workflow tags. It returns the gate's line for the table and refusals
-// with every blocking condition added.
+// checkPushable judges what pushing the gated commit needs: the release gate, and VERSION at the
+// commit the gate resolved HEAD to reading the version — the bump the CI workflow tags. It keeps
+// that commit as the run's head, and returns the gate's line for the table and refusals with
+// every blocking condition added.
 func (r *publishRun) checkPushable(ctx context.Context, refusals []error) (string, []error) {
 	report := checkGate(ctx, r.repo)
+	r.head = report.Head
 	gate := "cleared"
 	if !report.IsOK {
 		gate = "BLOCKED"
@@ -261,7 +268,11 @@ func (r *publishRun) checkPushable(ctx context.Context, refusals []error) (strin
 		refusals = append(refusals, fmt.Errorf("gate: %s", failure))
 	}
 
-	raw, err := r.repo.ShowFile(ctx, "HEAD", versionFile)
+	// A HEAD that did not resolve is already a gate failure, and leaves no commit to read at.
+	if r.head == "" {
+		return gate, refusals
+	}
+	raw, err := r.repo.ShowFile(ctx, r.head, versionFile)
 	if err != nil {
 		return gate, append(refusals, fmt.Errorf("read %s at HEAD: %w", versionFile, err))
 	}
@@ -322,17 +333,28 @@ func describeTag(run *publishRun) string {
 		remoteMain, run.options.tagTimeout, run.version, versionFile)
 }
 
-// convergeTag pushes HEAD to main when origin/main is behind it, waits for the tag-on-version-bump
-// workflow to tag the bump, and then requires that tag annotated and on the commit that set
-// VERSION. It never creates a tag: the workflow is the one tagger.
+// convergeTag pushes the commit the gate judged to main when origin/main is behind it, waits for
+// the tag-on-version-bump workflow to tag the bump, and then requires that tag annotated and on
+// the commit that set VERSION. HEAD resolving to another commit than the gated one refuses the
+// step before anything is pushed: a commit made after the gate cleared was never judged. It never
+// creates a tag: the workflow is the one tagger.
 func convergeTag(ctx context.Context, run *publishRun) error {
-	isPushed, err := run.repo.IsAncestor(ctx, "HEAD", remoteMain)
+	current, err := run.repo.Resolve(ctx, "HEAD")
 	if err != nil {
-		return fmt.Errorf("check whether %s holds HEAD: %w", remoteMain, err)
+		return fmt.Errorf("resolve HEAD: %w", err)
+	}
+	if current != run.head {
+		return fmt.Errorf("HEAD moved from %s to %s after the gate cleared it: run publish again",
+			short(run.head), short(current))
+	}
+
+	isPushed, err := run.repo.IsAncestor(ctx, run.head, remoteMain)
+	if err != nil {
+		return fmt.Errorf("check whether %s holds %s: %w", remoteMain, short(run.head), err)
 	}
 	if !isPushed {
-		if err := run.repo.PushMain(ctx); err != nil {
-			return fmt.Errorf("push HEAD to %s: %w", remoteMain, err)
+		if err := run.repo.PushMain(ctx, run.head); err != nil {
+			return fmt.Errorf("push %s to %s: %w", short(run.head), remoteMain, err)
 		}
 	}
 	if err := waitForTag(ctx, run); err != nil {
@@ -363,7 +385,8 @@ func waitForTag(ctx context.Context, run *publishRun) error {
 }
 
 // verifyTag fetches the tag — on a first run the workflow made it after the gate's fetch, so it
-// is not local yet — and requires it annotated and on the last commit that changed VERSION.
+// is not local yet — and requires it annotated and on the last commit at or before the gated
+// commit that changed VERSION.
 func verifyTag(ctx context.Context, run *publishRun) error {
 	tag := run.version.String()
 	if err := run.repo.FetchTag(ctx, tag); err != nil {
@@ -382,7 +405,7 @@ func verifyTag(ctx context.Context, run *publishRun) error {
 	if err != nil {
 		return fmt.Errorf("resolve tag %s: %w", tag, err)
 	}
-	bump, err := run.repo.LastCommitTouching(ctx, "HEAD", versionFile)
+	bump, err := run.repo.LastCommitTouching(ctx, run.head, versionFile)
 	if err != nil {
 		return fmt.Errorf("find the %s bump commit: %w", versionFile, err)
 	}

@@ -27,6 +27,10 @@ type gateReport struct {
 	IsOK     bool     `json:"ok"`
 	Commit   string   `json:"commit"`
 	Failures []string `json:"failures"`
+	// Head is the commit HEAD resolved to when the gate judged it, empty when it did not
+	// resolve: publish reads VERSION at it, checks it against origin and pushes it, so what is
+	// pushed is what the gate cleared. It is not part of status's JSON.
+	Head string `json:"-"`
 }
 
 // checkGate judges the release gate over checkout. The gate commit G is HEAD with its trailing
@@ -58,6 +62,7 @@ func checkGate(ctx context.Context, checkout repo) gateReport {
 		fail("could not resolve HEAD: %v", err)
 		return report
 	}
+	report.Head = head
 	gate, peeled, err := peelBumps(ctx, checkout, head)
 	if err != nil {
 		fail("could not find the gate commit: %v", err)
@@ -73,7 +78,7 @@ func checkGate(ctx context.Context, checkout repo) gateReport {
 		fail("gate commit %s is not on %s: push it first", short(gate), remoteMain)
 	}
 
-	isCurrent, err := checkout.IsAncestor(ctx, remoteMain, "HEAD")
+	isCurrent, err := checkout.IsAncestor(ctx, remoteMain, head)
 	switch {
 	case err != nil:
 		fail("could not check whether HEAD contains %s: %v", remoteMain, err)

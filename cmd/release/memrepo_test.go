@@ -93,7 +93,7 @@ type memRepo struct {
 	failures map[string]error
 }
 
-// memPublish is the part of a memRepo a publish run changes: whether HEAD was pushed, the tags
+// memPublish is the part of a memRepo a publish run changes: the commit pushed, the tags
 // the CI workflow made after the push, and the tags fetched into the checkout.
 type memPublish struct {
 	// log is the runner whose ordered call record PushMain, FetchTag and the release step's
@@ -105,10 +105,17 @@ type memPublish struct {
 	// RemoteHasTag poll after the push with how many polls that makes, it returns the tag origin
 	// then holds — its kind and commit — and false while origin holds none.
 	tagAfterPush func(polls int) (memTag, bool)
+	// headAfterGate, when set, is the commit Resolve answers for HEAD after its first answer: a
+	// commit made in the checkout after the gate resolved HEAD.
+	headAfterGate string
 
 	mu       sync.Mutex
 	isPushed bool
-	polls    int
+	// pushedCommit is the commit PushMain pushed, which origin/main stands at from then on.
+	pushedCommit string
+	polls        int
+	// headResolves counts Resolve's answers for HEAD.
+	headResolves int
 	// madeTags are the tags the workflow made after the push; fetched are origin's tags
 	// fetched into the checkout. Both are by name.
 	madeTags map[string]memTag
@@ -152,12 +159,15 @@ func (r memRepo) IsClean(context.Context) (bool, error) {
 }
 
 // Resolve turns HEAD and origin/main into the commits they stand at, and accepts any commit of
-// the history as itself.
+// the history as itself. HEAD answers publish's headAfterGate after its first answer, when set.
 func (r memRepo) Resolve(_ context.Context, revision string) (string, error) {
 	if err := r.failure(methodResolve); err != nil {
 		return "", err
 	}
 	commit := r.resolve(revision)
+	if revision == "HEAD" {
+		commit = r.publish.resolveHead(commit)
+	}
 	if fetched, isFetched := r.publish.fetchedTag(revision); isFetched {
 		commit = fetched.commit
 	}
@@ -287,18 +297,20 @@ func (r memRepo) ReleaseAssets(_ context.Context, tag string) (githubReleaseAsse
 	return githubReleaseAssets{names: slices.Clone(assets), isDraft: r.drafts[tag]}, isFound, nil
 }
 
-// PushMain records the push in publish and its log; from then on origin/main is HEAD.
-func (r memRepo) PushMain(context.Context) error {
+// PushMain records the push of commit in publish and its log; from then on origin/main is
+// commit.
+func (r memRepo) PushMain(_ context.Context, commit string) error {
 	if err := r.failure(methodPushMain); err != nil {
 		return err
 	}
 	if r.publish == nil {
 		return errors.New("this memRepo pushes nothing")
 	}
-	r.publish.note("PushMain")
+	r.publish.note("PushMain", commit)
 	r.publish.mu.Lock()
 	defer r.publish.mu.Unlock()
 	r.publish.isPushed = true
+	r.publish.pushedCommit = commit
 	return nil
 }
 
@@ -510,15 +522,15 @@ func (r memRepo) remoteTag(tag string) (memTag, bool) {
 	return r.publish.madeTag(tag)
 }
 
-// resolve turns the symbolic names into commits: origin/main is HEAD once HEAD is pushed, and a
-// tag of tagCommits is its commit.
+// resolve turns the symbolic names into commits: origin/main is the pushed commit once one is
+// pushed, and a tag of tagCommits is its commit.
 func (r memRepo) resolve(revision string) string {
 	switch revision {
 	case "HEAD":
 		return r.head
 	case remoteMain:
-		if r.publish.pushed() {
-			return r.head
+		if pushed, isPushed := r.publish.pushed(); isPushed {
+			return pushed
 		}
 		return r.originMain
 	}
@@ -539,14 +551,29 @@ func (p *memPublish) note(method string, args ...string) {
 	p.log.calls = append(p.log.calls, recordedCall{name: repoCallName, args: append([]string{method}, args...)})
 }
 
-// pushed reports whether PushMain ran; a nil memPublish pushed nothing.
-func (p *memPublish) pushed() bool {
+// pushed returns the commit PushMain pushed and whether it ran; a nil memPublish pushed nothing.
+func (p *memPublish) pushed() (string, bool) {
 	if p == nil {
-		return false
+		return "", false
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.isPushed
+	return p.pushedCommit, p.isPushed
+}
+
+// resolveHead counts one answer for HEAD and returns head, or headAfterGate after the first
+// answer when it is set; a nil memPublish answers head.
+func (p *memPublish) resolveHead(head string) string {
+	if p == nil {
+		return head
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.headResolves++
+	if p.headAfterGate != "" && p.headResolves > 1 {
+		return p.headAfterGate
+	}
+	return head
 }
 
 // pollTag is one look at origin for tag after the push: it counts the poll and asks the

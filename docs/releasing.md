@@ -80,7 +80,8 @@ Keep the notes file outside the repository, so it never dirties the tree the gat
   which writes the bare `X.Y.Z` to `VERSION`. It fetches origin's `main` and its tags first, and
   refuses when that fails. It pushes nothing and refuses on a dirty tree, an empty
   `## [Unreleased]`, or a version not above the highest `vX.Y.Z` tag.
-- `publish vX.Y.Z --notes-file F [--dry-run] [--tag-timeout D]` pushes `HEAD` to `main`, waits
+- `publish vX.Y.Z --notes-file F [--dry-run] [--tag-timeout D]` pushes the commit the gate
+  cleared at `HEAD` to `main`, refusing and pushing nothing if `HEAD` has moved since, waits
   (10 minutes by default) for CI to tag the `VERSION` bump, creates the GitHub release, commits
   the rendered formula and Scoop manifest, submits to winget, and finally runs `smoke`. It never
   prompts and never reads stdin.

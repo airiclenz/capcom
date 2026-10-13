@@ -299,6 +299,45 @@ func TestPublishFirstRunConvergesTheTagThenTheRelease(t *testing.T) {
 	}
 }
 
+// TestPublishPushesTheGatedCommit pins that the push names the commit the gate resolved HEAD to,
+// never the symbolic HEAD, so what reaches origin/main is what the gate cleared.
+func TestPublishPushesTheGatedCommit(t *testing.T) {
+	t.Parallel()
+	fake := newPublishFake()
+
+	result := runTestPublish(t, fake, false)
+
+	if result.err != nil {
+		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+	}
+	want := repoCallName + " " + methodPushMain + " " + bumpCommit
+	if lines := commandLines(result.commands); !slices.Contains(lines, want) {
+		t.Errorf("commands = %q, want %q among them", lines, want)
+	}
+}
+
+// TestPublishRefusesWhenHeadMovesAfterTheGate pins the refusal of a HEAD that resolves to another
+// commit after the gate cleared it: the run fails naming both commits, pushes nothing and still
+// prints the step table.
+func TestPublishRefusesWhenHeadMovesAfterTheGate(t *testing.T) {
+	t.Parallel()
+	fake := newPublishFake()
+	fake.repo.publish.headAfterGate = rollupCommit
+
+	result := runTestPublish(t, fake, false)
+
+	wantError := "HEAD moved from 300000000000 to 400000000000 after the gate cleared it: run publish again"
+	if result.err == nil || !strings.Contains(result.err.Error(), wantError) {
+		t.Fatalf("publish error = %v, want one naming %q", result.err, wantError)
+	}
+	if index := lineIndex(commandLines(result.commands), repoCallName+" "+methodPushMain); index >= 0 {
+		t.Errorf("publish pushed after HEAD moved: %q", commandLines(result.commands))
+	}
+	if !strings.Contains(result.output, "steps") {
+		t.Errorf("the step table was not printed:\n%s", result.output)
+	}
+}
+
 // TestPublishChangesNothingWhenItHasNothingToDo pins the two runs that may change nothing: a
 // second run over a finished release, and a dry run over an unstarted one, which still prints
 // what each step would do.

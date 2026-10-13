@@ -193,9 +193,9 @@ func TestExecRepoRunsEachMethodsArgv(t *testing.T) {
 		},
 		"PushMain": {
 			call: func(ctx context.Context, checkout execRepo) (any, error) {
-				return nil, checkout.PushMain(ctx)
+				return nil, checkout.PushMain(ctx, bumpCommit)
 			},
-			wantCall: recordedCall{env: nonInteractiveEnv, name: "git", args: []string{"push", "origin", "HEAD:main"}},
+			wantCall: recordedCall{env: nonInteractiveEnv, name: "git", args: []string{"push", "origin", bumpCommit + ":refs/heads/main"}},
 		},
 		"FetchTag": {
 			call: func(ctx context.Context, checkout execRepo) (any, error) {

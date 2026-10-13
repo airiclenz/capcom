@@ -980,7 +980,12 @@ NOTES (2026-10-13): the two new probe cases sit at the end of TestProbesReportEa
 - `go vet ./cmd/release/`
 **Commit:** `fix(release): treat a draft GitHub release as pending and un-draft it`
 
-## P1.42 Release: bind publish to the commit the gate judged
+## P1.42 Release: bind publish to the commit the gate judged — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — docs/releasing.md: made necessary by publish pushing the gated commit instead of `HEAD` (its `publish` bullet said it "pushes `HEAD` to `main`").
+NOTES (2026-10-13): checkPushable skips the VERSION read when the gate could not resolve HEAD (gateReport.Head empty): the gate's "could not resolve HEAD" refusal already blocks the run and there is no commit to read at; the "VERSION at HEAD reads ..." refusal wording is unchanged (pinned by TestPublishRefusesBeforeChangingAnything).
+NOTES (2026-10-13): memRepo.PushMain now records the pushed commit and resolves origin/main to it (not to memRepo.head); memPublish.pushed() returns (commit, bool); the HEAD-moved hook is memPublish.headAfterGate.
+NOTES (2026-10-13): release-gate-binding is not listed under CLOSES: its part (a), the kept CI half, and the ADR 0008 amendment belong to P1.43.
 
 **What:** Fixes F-12(b) (`release-gate-binding`): the gate judges a resolved SHA, but `publish` reads VERSION, checks ancestry, verifies the tag and pushes through the symbolic `HEAD`.
 **Regression guard.** `checkGate` passes the resolved `head` to its `IsAncestor(ctx, remoteMain, …)` call (memRepo.resolve returns a commit id unchanged, so gate_test holds). `describeTag` keeps its `push HEAD to origin/main` wording, which `TestPublishChangesNothingWhenItHasNothingToDo` and `TestPublishDryRunWithABlockedGateFailsButPrintsThePlan` pin. The other HEAD-push prose (repo.go's two `PushMain` comments; publish.go's comment and error text around `checkPushable` and `convergeTag`) names the gated commit.
