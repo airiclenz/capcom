@@ -75,8 +75,8 @@ type Options struct {
 	// Pathspecs limit the scan to these paths, relative to WorktreeRoot with forward slashes: the
 	// issue directory, or single issue files.
 	Pathspecs []string
-	// Days is the window: a branch whose tip is older than this many days is ignored, so 0 ignores
-	// every branch.
+	// Days is the window: a branch whose tip is older than this many days is ignored. 0 turns the
+	// scan off: Scan returns an empty Report before any git call, whatever the branches' dates.
 	Days int
 	// Now is the time the window is measured back from.
 	Now time.Time
@@ -96,9 +96,13 @@ type Report struct {
 // an unparsable copy is still reported as Modified. A branch copy larger than 1 MiB is not read:
 // it becomes a warning and is not reported. The branch checked out in WorktreeRoot and its
 // remote-tracking upstream are never reported, and a local branch and a remote-tracking branch of
-// the same name that hold the same work are reported once (see withoutDuplicates).
+// the same name that hold the same work are reported once (see withoutDuplicates). With
+// options.Days 0 it runs no git command and returns an empty Report.
 func Scan(options Options) Report {
 	var report Report
+	if options.Days == 0 {
+		return report
+	}
 	branches, err := gitx.Branches(options.WorktreeRoot)
 	if err != nil {
 		report.warn("list branches: %v", err)

@@ -798,7 +798,10 @@ Depends on P1.22.
 - `go vet ./internal/tree/`
 **Commit:** `fix(tree): rename a node file without replacing one created meanwhile`
 
-## P1.25 Elsewhere scan is off when elsewhere.days is 0
+## P1.25 Elsewhere scan is off when elsewhere.days is 0 — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): docs/format.md — the `elsewhere.days` entry now says 0 turns the scan off (user-facing doc for the changed behaviour; the paragraph was rewrapped to the file's line width). The `Scan` doc comment also names the 0-days early return, beside the `Options.Days` comment the plan names.
+NOTES (2026-10-13): Bite check: with elsewhere.go restored to the pre-item tree, both new tests fail: the future-dated branch is reported as `session-refresh: done on fix-login (unmerged)`, and the plain temp directory warns `elsewhere: list branches: ...`. Tests use a helper `scanZeroDays` beside `scan`.
 
 **What:** Fixes F-18 (`elsewhere-days-zero`): with `Days: 0`, a branch whose tip is dated in the future still passes the cutoff (per review F-18). Following the review's Fix, `Scan` returns before any git call. No upper bound on tip dates is added.
 **Goal:** `elsewhere.Scan` with `Options.Days == 0` returns an empty `Report`, with no entries and no warnings, and runs no git command, whatever the branches and their dates.

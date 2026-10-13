@@ -270,6 +270,46 @@ func TestScan_FreshRepository_ReportsNothing(t *testing.T) {
 	}
 }
 
+// scanZeroDays runs Scan over the issue tree of root at the current time with a window of 0 days.
+func scanZeroDays(root string) Report {
+	return Scan(Options{
+		WorktreeRoot: root,
+		Pathspecs:    []string{issuesPathspec},
+		Days:         0,
+		Now:          time.Now(),
+	})
+}
+
+func TestScan_ZeroDays_FutureDatedBranch_ReportsNothing(t *testing.T) {
+	root := newIssueRepo(t)
+	nextYear := time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)
+	t.Setenv("GIT_AUTHOR_DATE", nextYear)
+	t.Setenv("GIT_COMMITTER_DATE", nextYear)
+	onBranch(t, root, "fix-login", map[string]string{"login-flow/session-refresh.md": issueFile("done")})
+
+	report := scanZeroDays(root)
+
+	if len(report.Entries) != 0 || len(report.Warnings) != 0 {
+		t.Errorf("report = %+v, want nothing with a window of 0 days", report)
+	}
+}
+
+func TestScan_ZeroDays_NotARepository_RunsNoGit(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(root))
+
+	report := scanZeroDays(root)
+
+	if len(report.Entries) != 0 || len(report.Warnings) != 0 {
+		t.Errorf("report = %+v, want no entries and no warnings: a window of 0 days runs no git", report)
+	}
+}
+
 // newClone creates an origin repository whose main branch holds two open issues, clones it and
 // returns both roots; the clone is on main, tracking origin/main.
 func newClone(t *testing.T) (origin, clone string) {
