@@ -7,7 +7,7 @@
 **base:** d192883
 
 **Sources:**
-- `docs/reviews/code-and-architecture-review-2026-10-13.md` (ground truth; item ids F-, U-, T-, A-, P2- are its ids; section 7 holds the capcom ids)
+- `docs/reviews/archived/code-and-architecture-review-2026-10-13.md` (ground truth; item ids F-, U-, T-, A-, P2- are its ids; section 7 holds the capcom ids)
 - `AGENTS.md`; Notes `coding-conventions`, `error-messages`, `cli-test-harness`, `issue-workflow`, `store-layout`, `release-process`
 - ADR Notes `adr-0002`, `adr-0005`, `adr-0008`, `adr-0009`, `adr-0010` (`capcom know tree decisions --depth 3`)
 - Raw audit evidence (local only, gitignored): `docs/skill-runs/code-audit/2026-10-13/`
@@ -162,12 +162,12 @@ NOTES (2026-10-13): bodies for agents-symlink-escape, terminal-control-escape, d
 **Goal:** `code-review-1013` is titled "Code and architecture review 2026-10-13" and has 35 children, the rows above, each with its section 7 id, title and deps and a body that ends in a `## Acceptance` section; the review file is tracked; `capcom check` is clean.
 **Approach (assumed at the header base):**
 - Command shape (flags checked with `capcom create --help` and `capcom dep --help`): `capcom create --id <id> --title '<section 7 title>' --parent code-review-1013 --type <type> --priority <n> --plan '<this plan's basename without .md>' --body-file <tmpdir>/<id>.md [--dep <a>,<b>]`. `--dep` must name an issue that already exists, so create in the order below. `capcom dep add <id> <dep-id>` adds an edge afterwards. The parent takes no `--parent` and no `--dep`.
-- Bodies follow Note `issue-workflow` and draw on the review item: its Problem and Trigger, its Fix Goal and its Acceptance (a table row draws on its cells). Each body says what is wrong or wanted and why (severity, trigger), then gives `## Acceptance` bullets. Name symbols, never the review's line numbers. The last line is `Source: docs/reviews/code-and-architecture-review-2026-10-13.md, <review id>.` Body files go in a `mktemp -d` directory outside the repository. The parent's body names the review and its phases, and its `## Acceptance` reads "every child issue is closed".
+- Bodies follow Note `issue-workflow` and draw on the review item: its Problem and Trigger, its Fix Goal and its Acceptance (a table row draws on its cells). Each body says what is wrong or wanted and why (severity, trigger), then gives `## Acceptance` bullets. Name symbols, never the review's line numbers. The last line is `Source: docs/reviews/archived/code-and-architecture-review-2026-10-13.md, <review id>.` Body files go in a `mktemp -d` directory outside the repository. The parent's body names the review and its phases, and its `## Acceptance` reads "every child issue is closed".
 - Type and priority (binding): `F-` rows are `bug`; `T-` rows and the parent are `task`. Priority is 1 for High, 2 for Medium and 3 for Low, from the severity the review gives the row's item or sub-point; the parent gets 2.
 - Order: the parent; the "Test gaps" rows in table order; then the "Defects" rows in table order (`guarded-file-reader` first).
 - Deps: the row's `--dep` column, plus the one review 6.3 edge the column lacks: `agents-guide-read-guard` also depends on `briefing-panic-test`.
-**Files:** .capcom/issues/code-review-1013.md; .capcom/issues/code-review-1013/<id>.md for each of the 35 ids above; docs/reviews/code-and-architecture-review-2026-10-13.md; docs/plans/2026-10-13 - 00 - code-and-architecture-review-fixes-plan.md
-**Read first:** docs/reviews/code-and-architecture-review-2026-10-13.md — 7 Suggested capcom issues (Defects, Test gaps tables), 6.3 Dependency summary, 3 Findings: test gaps (severity column); internal/check/check.go — isPlanFound, CodeMissingPlan; .capcom/config.yaml — types, plans
+**Files:** .capcom/issues/code-review-1013.md; .capcom/issues/code-review-1013/<id>.md for each of the 35 ids above; docs/reviews/archived/code-and-architecture-review-2026-10-13.md; docs/plans/2026-10-13 - 00 - code-and-architecture-review-fixes-plan.md
+**Read first:** docs/reviews/archived/code-and-architecture-review-2026-10-13.md — 7 Suggested capcom issues (Defects, Test gaps tables), 6.3 Dependency summary, 3 Findings: test gaps (severity column); internal/check/check.go — isPlanFound, CodeMissingPlan; .capcom/config.yaml — types, plans
 **Tests:** none (no code).
 **Acceptance:**
 - `capcom check` exits 0
@@ -175,7 +175,7 @@ NOTES (2026-10-13): bodies for agents-symlink-escape, terminal-control-escape, d
 - `ls .capcom/issues/code-review-1013/*.md | wc -l` prints 35
 - `capcom dep list config-read-guard` lists `guarded-file-reader` and `store-init-error-tests`; `capcom dep list agents-guide-read-guard` lists `guarded-file-reader` and `briefing-panic-test`
 - `grep -L '^## Acceptance' .capcom/issues/code-review-1013.md .capcom/issues/code-review-1013/*.md` prints nothing
-- `git ls-files --error-unmatch docs/reviews/code-and-architecture-review-2026-10-13.md` succeeds
+- `git ls-files --error-unmatch docs/reviews/archived/code-and-architecture-review-2026-10-13.md` succeeds
 - `git ls-files --error-unmatch 'docs/plans/2026-10-13 - 00 - code-and-architecture-review-fixes-plan.md'` succeeds
 **Commit:** `chore(issues): file the code and architecture review 2026-10-13 issues`
 
@@ -195,7 +195,7 @@ NOTES (2026-10-13): `ready-import-alias` depends on its sibling parent `split-la
 - Deps: the `--dep` column ("(or none)" means use the dep), plus the review 6.3 edges the column lacks. `node-layout-claims` also depends on `split-nodestore-create`, `replace-missing-target` and `rename-no-replace`; `shared-diagnostics` on `duplicate-id-subtree`; `nodestore-post-write` on `reference-rewrite-engine`; `release-step-table` on `release-sums-check`.
 Depends on P0.0.
 **Files:** .capcom/issues/code-review-1013/<id>.md for each of the 23 ids filed directly under it here; .capcom/issues/code-review-1013/split-large-files/<id>.md for its 12 children
-**Read first:** docs/reviews/code-and-architecture-review-2026-10-13.md — 7 (Pure moves, Deepening refactors, Defects from the architecture exploration), 6.3 Dependency summary, 5.2 Pure moves, 2.4 U-02/U-09; internal/check/check.go — isPlanFound
+**Read first:** docs/reviews/archived/code-and-architecture-review-2026-10-13.md — 7 (Pure moves, Deepening refactors, Defects from the architecture exploration), 6.3 Dependency summary, 5.2 Pure moves, 2.4 U-02/U-09; internal/check/check.go — isPlanFound
 **Tests:** none (no code).
 **Acceptance:**
 - `capcom check` exits 0
