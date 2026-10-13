@@ -527,7 +527,7 @@ func TestPublishConvergesFromRemoteStateOnceTheTagExists(t *testing.T) {
 		t.Errorf("output lacks %q:\n%s", want, result.output)
 	}
 	lines := commandLines(result.commands)
-	for _, unwanted := range []string{"repo PushMain", "git push"} {
+	for _, unwanted := range []string{"repo PushMain", channelsCallName + " " + methodPublishFile} {
 		if index := lineIndex(lines, unwanted); index >= 0 {
 			t.Errorf("ran %q, want no push once the tag exists", lines[index])
 		}

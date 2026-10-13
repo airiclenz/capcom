@@ -130,7 +130,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s:%d: %s", e.Path, e.Line, e.Message)
 }
 
-// Path returns the AGENTS.md of the working tree at worktreeRoot.
+// guidePath returns the AGENTS.md of the working tree at worktreeRoot.
 func guidePath(worktreeRoot string) string {
 	return filepath.Join(worktreeRoot, FileName)
 }

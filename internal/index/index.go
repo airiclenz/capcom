@@ -2,8 +2,9 @@
 // index mirrors the issue tree and the Knowledge tree and is never committed; the markdown files
 // stay the truth. Open returns the index already up to date: ModeRefresh brings it up to date
 // incrementally, re-parsing only the files whose size or mtime changed, and ModeRebuild (or
-// deleting the file) recreates it from scratch. A file that cannot be used is reported as a Warning and
-// left out while the rest stays queryable. The index only reads `.capcom/`; it never writes there.
+// deleting the file) recreates it from scratch. A file that cannot be used is reported as a
+// Warning and left out while the rest stays queryable. The index only reads `.capcom/`; it never
+// writes there.
 package index
 
 import (
@@ -176,7 +177,8 @@ func Open(s *store.Store, mode Mode, options ...Option) (*Index, error) {
 	return index, nil
 }
 
-// Report returns what the latest refresh or rebuild did: Open's own, until refresh runs again. Its slices are copies, so a caller may change them without touching the index.
+// Report returns what the latest refresh or rebuild did: Open's own, until refresh runs again.
+// Its slices are copies, so a caller may change them without touching the index.
 func (x *Index) Report() Report {
 	report := x.report
 	report.parsed = slices.Clone(report.parsed)

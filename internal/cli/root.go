@@ -41,8 +41,9 @@ type app struct {
 	isKV     bool
 	renderer output.Renderer
 	// store is set for a command annotated with annotationIndex, and issueIndex for one that
-	// asks for the index; Run closes the index. indexReport is what opening the index did. indexWarnings are the index warnings that
-	// go with the result: the report's own, or the renamed copies a move puts in their place.
+	// asks for the index; Run closes the index. indexReport is what opening the index did.
+	// indexWarnings are the index warnings that go with the result: the report's own, or the
+	// renamed copies a move puts in their place.
 	store         *store.Store
 	issueIndex    *index.Index
 	indexReport   index.Report
@@ -121,8 +122,9 @@ func (a *app) prepare(cmd *cobra.Command, args []string) error {
 
 // prepareIndex opens the store and its index, refreshed or rebuilt as the command's
 // annotationIndex asks, once per command; storeOnly opens the store alone. A storeOnly command
-// reports a missing required flag ahead of a store that does not open, as it did when its body
-// opened the store, after cobra's own flag check.
+// checks its required flags itself, ahead of cobra's own check (which runs only after this
+// hook), so a missing required flag is still reported ahead of a store that does not open, as it
+// was when the command's body opened the store.
 func (a *app) prepareIndex(cmd *cobra.Command) error {
 	mode := cmd.Annotations[annotationIndex]
 	if mode == "" {
@@ -245,7 +247,8 @@ func (a *app) newVersionCommand() *cobra.Command {
 }
 
 // scanFormat reads the output flags straight from args, for failures cobra reports before it
-// applies them, such as --kv on a command that does not offer it. --json wins when both appear, so a JSON caller still gets an envelope.
+// applies them, such as --kv on a command that does not offer it. --json wins when both appear,
+// so a JSON caller still gets an envelope.
 func scanFormat(args []string) output.OutputFormat {
 	format := output.FormatText
 	for _, arg := range args {

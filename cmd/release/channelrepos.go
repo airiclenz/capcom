@@ -14,10 +14,10 @@ import (
 
 // channelRepos is the semantic seam over the package channels' GitHub repositories — the tap,
 // the bucket and winget-pkgs: what the channel probes ask of them and what publish writes to them,
-// in their own terms rather than as gh and git argv. execChannelRepos is the production adapter. A "no" answer — a repository, file or
-// directory that does not exist, or an empty repository — is never an error; every method fails
-// with an error when its answer cannot be read, and one wrapping errUnparsableAnswer when the
-// answer came back in a shape it cannot parse.
+// in their own terms rather than as gh and git argv. execChannelRepos is the production adapter.
+// A "no" answer — a repository, file or directory that does not exist, or an empty repository —
+// is never an error; every method fails with an error when its answer cannot be read, and one
+// wrapping errUnparsableAnswer when the answer came back in a shape it cannot parse.
 type channelRepos interface {
 	// Exists reports whether the repository exists.
 	Exists(ctx context.Context, repo string) (bool, error)
@@ -62,8 +62,7 @@ func (e unparsableAnswerError) Unwrap() []error { return []error{errUnparsableAn
 
 // execChannelRepos is the production channelRepos: it owns the gh argv for the channel
 // repositories, run in dir, and the git argv of the clone PublishFile writes in, and reads
-// GitHub's 404 — a missing repository or path, or an empty
-// repository — as a "no".
+// GitHub's 404 — a missing repository or path, or an empty repository — as a "no".
 type execChannelRepos struct {
 	commands runner
 	dir      string
