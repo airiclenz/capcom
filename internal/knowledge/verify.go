@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -8,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // symbolSeparator splits a Ref into its path and the symbol text the file must contain.
@@ -58,9 +61,10 @@ func ValidateRef(ref string) error {
 // Verify checks every Ref of note, the Note with id noteID stored at notePath (relative to
 // worktreeRoot with forward slashes), and returns a Finding for each one that does not resolve: a
 // malformed Ref, one escaping the working tree (symbolic links included), a missing path (one
-// below a file included), a `path#symbol` whose file does not contain the symbol text, and a
-// Ref the disk cannot resolve (a symbolic-link loop, a name too long, a permission refused). A Note
-// without Refs has no Findings. It fails only when worktreeRoot itself cannot be resolved.
+// below a file included), a `path#symbol` whose file does not contain the symbol text or is not a
+// regular file of at most 1 MiB, and a Ref the disk cannot resolve (a symbolic-link loop, a name
+// too long, a permission refused). A Note without Refs has no Findings. It fails only when
+// worktreeRoot itself cannot be resolved.
 func Verify(worktreeRoot string, notePath string, noteID string, note Note) ([]Finding, error) {
 	root, err := filepath.EvalSymlinks(worktreeRoot)
 	if err != nil {
@@ -147,7 +151,9 @@ func isMissing(err error) bool {
 	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR)
 }
 
-// checkSymbol returns why the file at path does not hold symbol, or "" when it does.
+// checkSymbol returns why the file at path does not hold symbol, or "" when it does. It reads the
+// file only through the guarded reader, so a named pipe or other non-regular entry, or a file
+// larger than 1 MiB, is a reason rather than a hang or a large read.
 func checkSymbol(path string, symbol string) string {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -156,11 +162,16 @@ func checkSymbol(path string, symbol string) string {
 	if info.IsDir() {
 		return fmt.Sprintf("is a directory; symbol %q needs a file", symbol)
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
+	data, err := tree.ReadRegularFile(path)
+	switch {
+	case errors.Is(err, tree.ErrNotRegular):
+		return fmt.Sprintf("is not a regular file; symbol %q needs a file", symbol)
+	case errors.Is(err, tree.ErrTooLarge):
+		return fmt.Sprintf("is larger than 1 MiB; symbol %q is not searched", symbol)
+	case err != nil:
 		return unresolvable(err)
 	}
-	if !strings.Contains(string(data), symbol) {
+	if !bytes.Contains(data, []byte(symbol)) {
 		return fmt.Sprintf("symbol %q is not in the file", symbol)
 	}
 	return ""

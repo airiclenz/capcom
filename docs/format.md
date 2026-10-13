@@ -478,7 +478,9 @@ A **Ref** is either a path or `path#symbol`:
   a path that leaves the tree through a symbolic link;
 - after the first `#` comes a symbol: text the file must contain, found by a plain text search
   (`internal/lock/lock.go#func Open`). It is not parsed as code, so any text works, and a symbol
-  needs a file, not a directory.
+  needs a file, not a directory: a regular file of at most 1 MiB. A symbol whose file is a named
+  pipe or another entry that is not a regular file, or is larger than 1 MiB, is not searched, and
+  the Ref does not resolve.
 
 A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists every such Ref as
 `path:line: ref "<ref>": <why>`, citing the Ref's line in the Note file, and fails when it finds

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -367,6 +368,59 @@ func TestVerify_UnreadableSymbolFile_IsAFindingNotAnError(t *testing.T) {
 
 	if err != nil || len(findings) != 1 || findings[0].Message != "cannot be resolved: permission denied" {
 		t.Errorf("Verify = %v, %v; want the unreadable file reported", findings, err)
+	}
+}
+
+func TestVerify_FIFORef_IsAFindingNotAHang(t *testing.T) {
+	t.Parallel()
+	root := newWorktree(t)
+	makeFIFO(t, filepath.Join(root, "pipe"))
+	note := parseNote(t, "---\ntitle: Pipe\nrefs: [pipe#needle]\n---\n")
+
+	findings, err := verifyWithin(t, root, note)
+
+	want := `is not a regular file; symbol "needle" needs a file`
+	if err != nil || len(findings) != 1 || findings[0].Message != want {
+		t.Errorf("Verify = %v, %v; want one Finding %q", findings, err, want)
+	}
+}
+
+func TestVerify_OversizedRef_IsAFinding(t *testing.T) {
+	t.Parallel()
+	root := newWorktree(t)
+	content := "needle\n" + strings.Repeat("x", 1<<20+1-len("needle\n"))
+	if err := os.WriteFile(filepath.Join(root, "big.txt"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	note := parseNote(t, "---\ntitle: Big\nrefs: [big.txt#needle]\n---\n")
+
+	findings, err := Verify(root, notePath, "some-note", note)
+
+	want := `is larger than 1 MiB; symbol "needle" is not searched`
+	if err != nil || len(findings) != 1 || findings[0].Message != want {
+		t.Errorf("Verify = %v, %v; want one Finding %q", findings, err, want)
+	}
+}
+
+// verifyWithin runs Verify on note, failing the test when it has not returned after 5 s, as it
+// does when it blocks opening a named pipe.
+func verifyWithin(t *testing.T, root string, note Note) ([]Finding, error) {
+	t.Helper()
+	type result struct {
+		findings []Finding
+		err      error
+	}
+	done := make(chan result, 1)
+	go func() {
+		findings, err := Verify(root, notePath, "some-note", note)
+		done <- result{findings: findings, err: err}
+	}()
+	select {
+	case got := <-done:
+		return got.findings, got.err
+	case <-time.After(5 * time.Second):
+		t.Fatal("Verify did not return within 5 s")
+		return nil, nil
 	}
 }
 

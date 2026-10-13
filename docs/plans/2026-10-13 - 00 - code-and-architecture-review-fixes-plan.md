@@ -373,7 +373,9 @@ Depends on P0.0, P0.3, P0.6.
 - `go vet ./internal/store/ ./internal/cli/`
 **Commit:** `fix(store): read config.yaml through the guarded reader`
 
-## P0.8 Read a Ref's symbol file through the guarded reader
+## P0.8 Read a Ref's symbol file through the guarded reader — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): Verify's doc comment now lists a symbol file that is not a regular file of at most 1 MiB among the Findings, alongside the checkSymbol change.
 
 **What:** Fixes F-02(c) (`ref-symbol-read-guard`). `knowledge.checkSymbol` reads the file of a `path#symbol` Ref with `os.ReadFile` and copies it into a string. A Ref naming a huge file is therefore held in memory twice on every `prime`, and a Ref naming a local FIFO blocks `prime`, `check` and `know verify`.
 **Goal:** a symbol search reads its file only through `tree.ReadRegularFile` and searches the bytes. A Ref whose resolved file is not a regular file gives the Finding `is not a regular file; symbol "<s>" needs a file`. A Ref whose file is over 1 MiB gives `is larger than 1 MiB; symbol "<s>" is not searched`. Neither blocks. A directory keeps its existing Finding.

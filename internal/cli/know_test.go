@@ -496,6 +496,24 @@ func TestKnowVerify_RefBelowAFile_IsListedAsBroken(t *testing.T) {
 	}
 }
 
+func TestKnowVerify_OversizedRef_IsListedAsBroken(t *testing.T) {
+	root := newKnowStore(t)
+	content := "needle\n" + strings.Repeat("x", 1<<20+1-len("needle\n"))
+	if err := os.WriteFile(filepath.Join(root, "big.txt"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	writeNoteFiles(t, root, map[string]string{
+		"big-ref.md": "---\ntitle: Big ref\nrefs:\n  - big.txt#needle\n---\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "verify")
+
+	want := ".capcom/knowledge/big-ref.md:4: ref \"big.txt#needle\": is larger than 1 MiB; symbol \"needle\" is not searched\n"
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "1 note refs do not resolve") {
+		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
+	}
+}
+
 func TestKnowVerify_BrokenRefsInRetiredSubtree_AreNotListed(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{
