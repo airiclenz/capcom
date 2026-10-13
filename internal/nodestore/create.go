@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -27,7 +28,8 @@ const problemSeparator = "; "
 type writeMode int
 
 const (
-	// replaceFile replaces the file atomically, as Edit and Format do.
+	// replaceFile replaces the existing file atomically, as Edit and Format do, and never creates
+	// a missing file or directory.
 	replaceFile writeMode = iota
 	// createFile never replaces a file: one already at the path fails with an error wrapping
 	// fs.ErrExist, as Create needs.
@@ -55,9 +57,11 @@ const (
 //  6. build, whose failure is returned as it is.
 //  7. validation: a node that does not validate fails with a *FileError at the new file, listing
 //     every problem and citing the first problem's line.
-//  8. the exclusive write, which never replaces a file: a file that appeared at the new node's path
-//     since the claim refusals fails with the *ExistsError naming it; any other failure is
-//     returned as it is.
+//  8. the exclusive write, which never replaces a file: right before it the parent's node file is
+//     checked again, and a parent file another session removed or cannot be checked fails with a
+//     *FileError at it, creating neither the parent's children directory nor the new file; a file
+//     that appeared at the new node's path since the claim refusals fails with the *ExistsError
+//     naming it; any other failure is returned as it is.
 func (k *Kind[T]) Create(
 	id string,
 	parent string,
@@ -85,6 +89,13 @@ func (k *Kind[T]) Create(
 	node, err := build()
 	if err != nil {
 		return Written{}, nil, err
+	}
+	if parentPath != "" {
+		// Writing below a parent whose node file is gone would recreate its children directory
+		// with no node file.
+		if _, err := os.Lstat(parentPath); err != nil {
+			return Written{}, nil, k.fileError(parentPath, err)
+		}
 	}
 	written, err := k.write(path, id, node, createFile)
 	if errors.Is(err, fs.ErrExist) {
@@ -424,7 +435,8 @@ func (k *Kind[T]) relativeTreeError(problem *tree.Error) *tree.Error {
 }
 
 // write validates node and writes it, with LF line endings, to path, the absolute file of the node
-// id: replacing any file there atomically under replaceFile, and under createFile only where no
+// id: under replaceFile replacing the file there atomically, failing with a *FileError at it when
+// the file or its directory is missing, which it never creates; under createFile only where no
 // file is, failing with an error wrapping fs.ErrExist otherwise. A node that does not validate
 // fails with a *FileError listing every problem, citing the first problem's line, and is not
 // written.
@@ -449,11 +461,16 @@ func (k *Kind[T]) encode(path string, node T) ([]byte, error) {
 // place writes data, the bytes encode returned, to path, the absolute file of the node id, under
 // mode as write documents, and returns the node written.
 func (k *Kind[T]) place(path string, id string, data []byte, mode writeMode) (Written, error) {
-	writeFile := tree.WriteFileAtomic
+	writeFile := tree.ReplaceFileAtomic
 	if mode == createFile {
 		writeFile = tree.WriteFileExclusive
 	}
-	if err := writeFile(path, bytes.NewReader(data)); err != nil {
+	err := writeFile(path, bytes.NewReader(data))
+	if mode == replaceFile && errors.Is(err, fs.ErrNotExist) {
+		// Another session moved or removed the node file since it was read.
+		return Written{}, k.fileError(path, err)
+	}
+	if err != nil {
 		return Written{}, err
 	}
 	return Written{ID: id, Path: k.relative(path), ETag: edit.ETag(data)}, nil

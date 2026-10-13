@@ -26,8 +26,9 @@ type Formatted struct {
 // regular file, or larger than 1 MiB), fails with a *FileError at it. Right before it rewrites a
 // file it reads the file again: a read failure is a *FileError at it as before, and bytes that are
 // no longer the ones first read fail with a *ConflictError at it with no etags, leaving the newer
-// file as it is. A failed write is returned as it is. Files rewritten before a failure stay
-// rewritten; an edit landing between the re-read and the write is still overwritten.
+// file as it is. A file removed or moved between the re-read and the write fails with a *FileError
+// at it and is not recreated; any other failed write is returned as it is. Files rewritten before a
+// failure stay rewritten; an edit landing between the re-read and the write is still overwritten.
 func (k *Kind[T]) Format(isCheck bool) (Formatted, error) {
 	nodes, problems, err := k.load()
 	if err != nil {

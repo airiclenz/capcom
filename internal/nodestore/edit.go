@@ -32,8 +32,9 @@ var beforeRecheck = func(path string) {}
 //  7. the re-check, whether or not ifMatch is set: the node file is read again, a read failure
 //     being a *FileError at it as in step 2, and when its etag is no longer the one step 2 read,
 //     a *ConflictError naming that first-read etag as stale; the newer file is left as it is.
-//  8. the atomic write, whose failure is returned as it is. An edit landing between the re-check
-//     and this write is still overwritten: the store takes no lock.
+//  8. the atomic write: a node file removed or moved since the re-check fails with a *FileError at
+//     it and is not recreated; any other failure is returned as it is. An edit landing between the
+//     re-check and this write is still overwritten: the store takes no lock.
 func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (Written, error) {
 	if k.resolver == nil {
 		return Written{}, errNoResolver

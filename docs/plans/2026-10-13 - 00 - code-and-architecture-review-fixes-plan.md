@@ -758,7 +758,10 @@ Depends on P1.20.
 - `go vet ./internal/tree/`
 **Commit:** `fix(tree): refuse to recreate a removed node file or parent directory`
 
-## P1.23 Edit, Format and Create never recreate a removed node or parent
+## P1.23 Edit, Format and Create never recreate a removed node or parent — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): `place` turns any replace-mode failure wrapping `fs.ErrNotExist` into `k.fileError(path, err)`; other write failures are still returned as they are. The `writeMode` doc for `replaceFile` and `write`'s doc now say replace mode never creates a missing file or directory.
+NOTES (2026-10-13): Bite check: with create.go, edit.go and format.go restored to the pre-item tree, TestCreate_ParentRemovedBeforeTheWrite_FailsAtTheParentAndCreatesNoDirectory and both cases of TestPlace_ReplaceMissingTarget_FailsAtTheFileAndCreatesNothing fail.
 
 **What:** Fixes the nodestore half of F-11(b) (`replace-missing-target`). `nodestore.Edit` and `Format` replace through `tree.ReplaceFileAtomic`. `nodestore.Create` checks right before its exclusive write that the parent's node file is still there, because otherwise its write recreates `<parent>/` with no node file.
 **Regression guard.** The Edit/Format half is pinned in nodestore: a `create_test.go` test (package nodestore) calls `k.place(path, id, data, replaceFile)` on a missing file and on a missing directory and asserts a `*FileError` at the relative path with no file or directory created.

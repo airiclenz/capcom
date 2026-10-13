@@ -108,6 +108,69 @@ func TestCreate_ParentByAlias_WritesIntoItsChildrenDirectory(t *testing.T) {
 	}
 }
 
+func TestCreate_ParentRemovedBeforeTheWrite_FailsAtTheParentAndCreatesNoDirectory(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	parentPath := writeNodeFile(t, s.IssuesDir(), "parser-epic.md", canonicalIssue)
+	build := buildIssue(t, "open")
+	removingBuild := func() (issue.Issue, error) {
+		if err := os.Remove(parentPath); err != nil {
+			t.Fatal(err)
+		}
+		return build()
+	}
+
+	_, _, err := Issues(s, nil).Create(newIssueID, "parser-epic", removingBuild)
+
+	var failure *FileError
+	if !errors.As(err, &failure) || failure.Path != ".capcom/issues/parser-epic.md" {
+		t.Fatalf("Create error = %#v, want a *FileError at the parent's file", err)
+	}
+	if files := nodeFiles(t, s.IssuesDir()); len(files) != 0 {
+		t.Errorf("issues dir holds %v, want nothing", files)
+	}
+	_, statErr := os.Lstat(filepath.Join(s.IssuesDir(), "parser-epic"))
+	if !errors.Is(statErr, fs.ErrNotExist) {
+		t.Errorf("children directory Lstat = %v, want it missing", statErr)
+	}
+}
+
+func TestPlace_ReplaceMissingTarget_FailsAtTheFileAndCreatesNothing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		relative string
+	}{
+		{name: "missing file", relative: "gone.md"},
+		{name: "missing directory", relative: "gone-parent/gone.md"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			if err := os.MkdirAll(s.IssuesDir(), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(s.IssuesDir(), filepath.FromSlash(tt.relative))
+
+			_, err := Issues(s, nil).place(path, "gone", []byte(canonicalIssue), replaceFile)
+
+			var failure *FileError
+			if !errors.As(err, &failure) || failure.Path != ".capcom/issues/"+tt.relative {
+				t.Fatalf("place error = %#v, want a *FileError at the file", err)
+			}
+			if files := nodeFiles(t, s.IssuesDir()); len(files) != 0 {
+				t.Errorf("issues dir holds %v, want nothing", files)
+			}
+			_, statErr := os.Lstat(filepath.Join(s.IssuesDir(), "gone-parent"))
+			if !errors.Is(statErr, fs.ErrNotExist) {
+				t.Errorf("gone-parent Lstat = %v, want it missing", statErr)
+			}
+		})
+	}
+}
+
 func TestCreate_UnrelatedTreeProblem_ReturnedRelativeToTheWorktree(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
