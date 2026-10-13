@@ -449,3 +449,59 @@ func TestPlanApply_RewriteAddedAfterStep_AppliesFirst(t *testing.T) {
 		t.Errorf("the step saw %q, want the rewrite already made", seen)
 	}
 }
+
+func TestPlanApply_RewrittenFileChangedBeforeApply_FailsChangedAndTakesBackEarlierRewrites(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "first-node.md", "second-node.md")
+	first := filepath.Join(dir, "first-node.md")
+	second := filepath.Join(dir, "second-node.md")
+	var plan tree.Plan
+	plan.AddRewrite(tree.Rewrite{Path: first, Original: []byte("x\n"), Content: []byte("first rewritten\n")})
+	plan.AddRewrite(tree.Rewrite{Path: second, Original: []byte("x\n"), Content: []byte("second rewritten\n")})
+	concurrent := "written meanwhile\n"
+	if err := os.WriteFile(second, []byte(concurrent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := plan.Apply()
+
+	if !errors.Is(err, tree.ErrChanged) || !strings.Contains(err.Error(), second) {
+		t.Fatalf("Apply err = %v, want ErrChanged naming %s", err, second)
+	}
+	if content, err := os.ReadFile(first); err != nil || string(content) != "x\n" {
+		t.Errorf("first-node.md = %q %v, want its Original back", content, err)
+	}
+	if content, err := os.ReadFile(second); err != nil || string(content) != concurrent {
+		t.Errorf("second-node.md = %q %v, want the concurrent bytes kept", content, err)
+	}
+}
+
+func TestPlanApply_RewrittenFileChangedBeforeRollback_LeftAsItIsAndNamed(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "rewritten-node.md")
+	path := filepath.Join(dir, "rewritten-node.md")
+	concurrent := "written meanwhile\n"
+	var plan tree.Plan
+	plan.AddRewrite(tree.Rewrite{Path: path, Original: []byte("x\n"), Content: []byte("rewritten\n")})
+	plan.AddStep(
+		func() error {
+			if err := os.WriteFile(path, []byte(concurrent), 0o644); err != nil {
+				return err
+			}
+			return errInjected
+		},
+		func() error { return nil },
+	)
+
+	_, err := plan.Apply()
+
+	if !errors.Is(err, errInjected) || errors.Is(err, tree.ErrChanged) {
+		t.Fatalf("Apply err = %v, want the injected failure and not ErrChanged", err)
+	}
+	if !strings.Contains(err.Error(), "rolling back: "+path) {
+		t.Errorf("Apply err = %v, want %s named after rolling back", err, path)
+	}
+	if content, err := os.ReadFile(path); err != nil || string(content) != concurrent {
+		t.Errorf("rewritten-node.md = %q %v, want the concurrent bytes kept", content, err)
+	}
+}

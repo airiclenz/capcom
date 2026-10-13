@@ -698,7 +698,7 @@ Depends on P1.8.
 - `go vet ./internal/index/ ./internal/cli/`
 **Commit:** `fix(index): leave out the subtree of a repeated id`
 
-## P1.20 Plan rewrites: compare-and-swap in apply and undo
+## P1.20 Plan rewrites: compare-and-swap in apply and undo — ✅ DONE (2026-10-13)
 
 **What:** Fixes the tree half of F-11(a) (`stale-rewrite-cas`): `tree.Plan.AddRewrite` overwrites another Node's file from the planner's snapshot and restores `Original` blindly on rollback (per review F-11(a)). Ratified: local compare-and-swap only, no store-wide write lock.
 **Regression guard.** Prose rule: every doc comment that says what Apply does with a rewrite or its rollback gets the compare-and-swap clause (`grep -n 'rewrite' internal/tree/*.go`), `Move.Apply`'s (move.go) and `Removal`'s (remove.go) included.

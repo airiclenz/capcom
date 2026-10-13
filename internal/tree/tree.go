@@ -66,6 +66,9 @@ var (
 	// ErrTooLarge reports a node file, or any file read through the guarded reader, larger than
 	// maxNodeFileSize. It is never read.
 	ErrTooLarge = errors.New("file is larger than 1 MiB")
+	// ErrChanged reports a file a Plan rewrites that no longer holds the bytes the rewrite was
+	// worked out from: it changed after it was read, and the rewrite is not written over it.
+	ErrChanged = errors.New("changed since it was read")
 )
 
 // Error is a problem with one file or directory of a tree. Err wraps one of the sentinel errors.

@@ -68,7 +68,8 @@ func (e *CleanupError) Unwrap() error {
 // Removal is the removal of one node file, worked out by PlanRemove before anything on disk
 // changes, then carried out by Apply of its Plan. It knows nothing of the node files' format: a
 // caller that changes other files adds them with AddRewrite, and Apply writes those before it
-// removes anything. Its steps remove the node's empty children directory, when it has one, and
+// removes anything, each only over a file that still holds the rewrite's Original (ErrChanged
+// otherwise), and takes one back only over a file that still holds the bytes it wrote. Its steps remove the node's empty children directory, when it has one, and
 // then the node file, so no directory is ever left without its node file; its cleanup removes the
 // parent's children directory when the removal emptied it.
 type Removal struct {

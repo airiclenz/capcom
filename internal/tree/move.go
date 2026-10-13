@@ -66,7 +66,8 @@ type Destination struct {
 type Rewrite struct {
 	// Path is the file, at its path before the move.
 	Path string
-	// Original is the file's content before the move, written back to take the rewrite back.
+	// Original is the file's content before the move: Apply writes the rewrite only over a file
+	// that still holds it, and writes it back to take the rewrite back.
 	Original []byte
 	// Content is the file's content after the move.
 	Content []byte
@@ -215,9 +216,10 @@ func removeEmptyDirStep(dir string) step {
 }
 
 // Apply carries out the move through its Plan: it writes every rewrite atomically at its file's
-// current path, then makes the renames in PlanMove's fixed order. When any step fails it takes back
-// the steps already made, newest first, so the tree is as it was; the error names the failing path
-// and any step that could not be taken back. PlanMove adds no cleanups, so Apply returns no
+// current path, failing with ErrChanged on a file that no longer holds the rewrite's Original, then
+// makes the renames in PlanMove's fixed order. When any step fails it takes back the steps already
+// made, newest first, so the tree is as it was; the error names the failing path and any step that
+// could not be taken back, a rewritten file changed since its rewrite among them, left as it is. PlanMove adds no cleanups, so Apply returns no
 // warnings; a caller that adds one calls Plan.Apply to have them. Apply must run at most once.
 func (m *Move) Apply() error {
 	_, err := m.Plan.Apply()
