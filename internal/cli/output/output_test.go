@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/elsewhere"
 )
 
 func decodeEnvelope(t *testing.T, stdout string) map[string]any {
@@ -91,4 +93,146 @@ func TestSanitizeTerminal_EscapesControlsOnly(t *testing.T) {
 			}
 		})
 	}
+}
+
+// controlInput carries ESC (a screen clear), a lone byte 0x9b, the C1 control U+009B and BEL,
+// then the TAB and LF that text output keeps.
+const (
+	controlInput   = "a\x1b[2Jb\x9bc\u009bd\x07e\tf\ng"
+	controlEscaped = `a\x1b[2Jb\x9bc\x9bd\x07e` + "\tf\ng"
+)
+
+func TestTextRenderer_ControlCharacters_EscapedInEveryStream(t *testing.T) {
+	cases := []struct {
+		name       string
+		result     Result
+		wantStdout string
+		wantStderr string
+	}{
+		{
+			name:       "text",
+			result:     Result{Text: controlInput + "\n"},
+			wantStdout: controlEscaped + "\n",
+		},
+		{
+			name:       "elsewhere entry",
+			result:     Result{Elsewhere: []elsewhere.Entry{{ID: "login", Branch: controlInput, Change: elsewhere.Added}}},
+			wantStdout: textElsewhereLabel + "login: added on " + controlEscaped + " (unmerged)\n",
+		},
+		{
+			name:       "warning",
+			result:     Result{Warnings: []string{controlInput}},
+			wantStdout: textWarnLabel + controlEscaped + "\n",
+		},
+		{
+			name:       "failure",
+			result:     Result{Failure: &Error{Code: CodeNotFound, Message: controlInput}},
+			wantStderr: "capcom: " + controlEscaped + "\n",
+		},
+	}
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+
+			err := NewRenderer(FormatText, &stdout, &stderr).Render(current.result)
+
+			if err != nil {
+				t.Fatalf("Render: %v", err)
+			}
+			if stdout.String() != current.wantStdout {
+				t.Errorf("stdout = %q, want %q", stdout.String(), current.wantStdout)
+			}
+			if stderr.String() != current.wantStderr {
+				t.Errorf("stderr = %q, want %q", stderr.String(), current.wantStderr)
+			}
+		})
+	}
+
+	t.Run("RenderError", func(t *testing.T) {
+		var stderr bytes.Buffer
+
+		err := NewRenderer(FormatText, nil, &stderr).RenderError(&Error{Code: CodeInvalid, Message: controlInput})
+
+		if err != nil {
+			t.Fatalf("RenderError: %v", err)
+		}
+		if want := "capcom: " + controlEscaped + "\n"; stderr.String() != want {
+			t.Errorf("stderr = %q, want %q", stderr.String(), want)
+		}
+	})
+}
+
+func TestJSONAndKVRenderers_ControlCharacters_PassedVerbatim(t *testing.T) {
+	// rawValue is valid UTF-8, so the JSON round trip can carry it unchanged; it has no LF, which
+	// --kv folds onto one line.
+	const rawValue = "a\x1b[2Jb\u009bc\x07d\te"
+	result := Result{
+		Kind:      "issue",
+		Data:      map[string]string{"title": rawValue},
+		Text:      rawValue,
+		KV:        []KVRecord{{Pairs: []KVPair{{Key: "TITLE", Value: rawValue}}}},
+		Elsewhere: []elsewhere.Entry{{ID: "login", Branch: rawValue, Change: elsewhere.Added, Path: "login.md"}},
+		Warnings:  []string{rawValue},
+	}
+	failure := &Error{Code: CodeInvalid, Message: rawValue}
+
+	t.Run("json result", func(t *testing.T) {
+		var stdout bytes.Buffer
+
+		err := NewRenderer(FormatJSON, &stdout, nil).Render(result)
+
+		if err != nil {
+			t.Fatalf("Render: %v", err)
+		}
+		envelope := decodeEnvelope(t, stdout.String())
+		if title := envelope["data"].(map[string]any)["title"]; title != rawValue {
+			t.Errorf("data.title = %q, want %q", title, rawValue)
+		}
+		if branch := envelope["elsewhere"].([]any)[0].(map[string]any)["branch"]; branch != rawValue {
+			t.Errorf("elsewhere[0].branch = %q, want %q", branch, rawValue)
+		}
+		if warning := envelope["warnings"].([]any)[0]; warning != rawValue {
+			t.Errorf("warnings[0] = %q, want %q", warning, rawValue)
+		}
+	})
+
+	t.Run("json failure", func(t *testing.T) {
+		var stdout bytes.Buffer
+
+		err := NewRenderer(FormatJSON, &stdout, nil).RenderError(failure)
+
+		if err != nil {
+			t.Fatalf("RenderError: %v", err)
+		}
+		if message := decodeEnvelope(t, stdout.String())["error"].(map[string]any)["message"]; message != rawValue {
+			t.Errorf("error.message = %q, want %q", message, rawValue)
+		}
+	})
+
+	t.Run("kv result", func(t *testing.T) {
+		var stdout bytes.Buffer
+
+		err := NewRenderer(FormatKV, &stdout, nil).Render(result)
+
+		if err != nil {
+			t.Fatalf("Render: %v", err)
+		}
+		want := "WARNING=" + rawValue + "\nTITLE=" + rawValue + "\nSTATUS=ok\n"
+		if stdout.String() != want {
+			t.Errorf("stdout = %q, want %q", stdout.String(), want)
+		}
+	})
+
+	t.Run("kv failure", func(t *testing.T) {
+		var stdout bytes.Buffer
+
+		err := NewRenderer(FormatKV, &stdout, nil).RenderError(failure)
+
+		if err != nil {
+			t.Fatalf("RenderError: %v", err)
+		}
+		if want := "MESSAGE=" + rawValue + "\nSTATUS=invalid\n"; stdout.String() != want {
+			t.Errorf("stdout = %q, want %q", stdout.String(), want)
+		}
+	})
 }

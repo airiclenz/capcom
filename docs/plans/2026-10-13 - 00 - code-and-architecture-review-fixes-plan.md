@@ -1760,7 +1760,11 @@ Depends on P3.2.
 **Closes:** check-related-format; config-owns-format
 **Commit:** `fix(check): report a related key in a store below format 2`
 
-## P3.5 The text renderer sanitises everything it writes
+## P3.5 The text renderer sanitises everything it writes — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from the assumption that P0.11 left sanitiser calls in flatten (issue_render.go) and the body writes of show and know show — P0.11 landed the single call at textRenderer.Render/RenderError and P2.30 moved it, unexported, into internal/cli/output, so no call site existed to remove and output.go, issue_render.go, show.go and know_show.go needed no change; the item reduces to its two named tests.
+
+NOTES (2026-10-13): the text test feeds both a lone byte 0x9b and the rune U+009B; the JSON/KV test feeds only U+009B (valid UTF-8, so a JSON round trip can carry it), per the plan's rejected regression finding. Removing sanitizeTerminal from Render/RenderError makes all six text subtests fail.
 
 **What:** First part of A-14 (`cli-output-package`). After P0.11 and P2.35, the terminal sanitiser lives in `internal/cli/output`, but command files call it site by site. This item makes sanitising part of the text renderer's interface. Ratified F-07 (binding): text output replaces a control character with a visible escape (the `\x1b` form); `--json` and `--kv` stay byte-for-byte unchanged.
 **Regression guard.** There is no sanitiser alias to remove (see P2.30); the item's remaining scope stands.
