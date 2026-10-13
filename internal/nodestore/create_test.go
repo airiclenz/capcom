@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -65,7 +65,7 @@ func TestCreate_FreeIDAtTheTop_WritesTheNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Written{ID: newIssueID, Path: ".capcom/issues/parser-fix.md", ETag: edit.ETag(data)}
+	want := Written{ID: newIssueID, Path: ".capcom/issues/parser-fix.md", ETag: nodefile.ETag(data)}
 	if written != want {
 		t.Errorf("Written = %+v, want %+v", written, want)
 	}

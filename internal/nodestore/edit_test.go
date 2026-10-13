@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -67,13 +67,13 @@ func TestEdit_ThroughAnAlias_WritesTheChangeAndReturnsTheNewETag(t *testing.T) {
 	issues, path := newEditedIssue(t)
 	calls := 0
 
-	written, err := issues.Edit("old-parser", edit.ETag([]byte(canonicalIssue)), retitle("Fix the lexer", &calls))
+	written, err := issues.Edit("old-parser", nodefile.ETag([]byte(canonicalIssue)), retitle("Fix the lexer", &calls))
 
 	if err != nil {
 		t.Fatalf("Edit: %v", err)
 	}
 	content := readFile(t, path)
-	want := Written{ID: editedIssueID, Path: editedIssuePath, ETag: edit.ETag([]byte(content))}
+	want := Written{ID: editedIssueID, Path: editedIssuePath, ETag: nodefile.ETag([]byte(content))}
 	if written != want {
 		t.Errorf("Written = %+v, want %+v", written, want)
 	}
@@ -201,7 +201,7 @@ func TestEdit_FileChangedBeforeTheWrite_FailsWithAConflictAndKeepsTheNewerBytes(
 		ifMatch string
 	}{
 		{name: "without an etag", ifMatch: ""},
-		{name: "with the matching etag", ifMatch: edit.ETag([]byte(canonicalIssue))},
+		{name: "with the matching etag", ifMatch: nodefile.ETag([]byte(canonicalIssue))},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -215,8 +215,8 @@ func TestEdit_FileChangedBeforeTheWrite_FailsWithAConflictAndKeepsTheNewerBytes(
 
 			var conflict *ConflictError
 			if !errors.As(err, &conflict) || conflict.Path != editedIssuePath ||
-				conflict.IfMatch != edit.ETag([]byte(canonicalIssue)) ||
-				conflict.ETag != edit.ETag([]byte(newer)) {
+				conflict.IfMatch != nodefile.ETag([]byte(canonicalIssue)) ||
+				conflict.ETag != nodefile.ETag([]byte(newer)) {
 				t.Errorf("err = %v, want a *ConflictError naming the first-read etag as stale", err)
 			}
 			if content := readFile(t, path); content != newer {
@@ -257,7 +257,7 @@ func assertConflict(ifMatch string) func(t *testing.T, err error) {
 		t.Helper()
 		var conflict *ConflictError
 		if !errors.As(err, &conflict) || conflict.Path != editedIssuePath || conflict.IfMatch != ifMatch ||
-			conflict.ETag != edit.ETag([]byte(canonicalIssue)) {
+			conflict.ETag != nodefile.ETag([]byte(canonicalIssue)) {
 			t.Errorf("err = %v, want a *ConflictError at %s refusing %s", err, editedIssuePath, ifMatch)
 		}
 	}

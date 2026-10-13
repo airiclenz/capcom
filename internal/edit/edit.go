@@ -1,7 +1,6 @@
 // Package edit holds the text edits that issue and Note writes share: label merging, appending a
-// block to a markdown body, replacing one exact passage of it, and the entity tag a write compares
-// to detect that a file changed since it was read. Every function is pure; none reads or writes a
-// file.
+// block to a markdown body and replacing one exact passage of it. Every function is pure; none
+// reads or writes a file.
 package edit
 
 import (
@@ -9,8 +8,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-
-	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // ErrReplaceMatch reports body replacement text that does not occur exactly once in the body.
@@ -82,6 +79,3 @@ func WithFinalNewline(text string) string {
 func NormalizeNewlines(text string) string {
 	return strings.ReplaceAll(text, "\r\n", "\n")
 }
-
-// ETag forwards to nodefile.ETag until every caller imports nodefile.
-var ETag = nodefile.ETag

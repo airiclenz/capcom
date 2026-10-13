@@ -1261,7 +1261,9 @@ Depends on P2.7; P1.1.
 - `grep -rnE '\b(tree|edit)\.(ReadNodeFile|ReadRegularFile|WriteFileAtomic|WriteFileAtomicVerbatim|ReplaceFileAtomic|ReplaceFileVerbatim|WriteFileExclusive|ETag)\b' --include=*.go internal/cli` prints nothing
 **Commit:** `refactor(cli): import the node-file IO from internal/nodefile`
 
-## P2.9 nodefile package, part 8: drop the forwarders
+## P2.9 nodefile package, part 8: drop the forwarders — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the edit package comment no longer names the entity tag, which left the package with the ETag forwarder (same file as the forwarder, listed in Files).
 
 **What:** The last part of review P2-03. The `nodestore` tests switch over, and the temporary forwarders in `tree` and `edit` are deleted.
 **Regression guard.** The Acceptance regex names every former forwarder in full, `ReadRegularFile` (P0.3) and `ReplaceFileAtomic` (P1.22) included.

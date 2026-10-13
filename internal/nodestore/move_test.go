@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -47,7 +47,7 @@ func TestMove_RenameIssue_RewritesItsDependentsAndReturnsTheMove(t *testing.T) {
 	}
 	data := readFile(t, filepath.Join(dir, "auth-flow.md"))
 	want := Moved{
-		Written: Written{ID: "auth-flow", Path: ".capcom/issues/auth-flow.md", ETag: edit.ETag([]byte(data))},
+		Written: Written{ID: "auth-flow", Path: ".capcom/issues/auth-flow.md", ETag: nodefile.ETag([]byte(data))},
 		OldID:   "login-flow",
 		OldPath: movedIssuePath,
 	}
@@ -70,7 +70,7 @@ func TestMove_IfMatchCurrent_Moves(t *testing.T) {
 	t.Parallel()
 	issues, dir := newMoveIssues(t)
 
-	_, _, err := issues.Move("login-flow", Destination{ID: "auth-flow"}, edit.ETag([]byte(plainIssue)))
+	_, _, err := issues.Move("login-flow", Destination{ID: "auth-flow"}, nodefile.ETag([]byte(plainIssue)))
 
 	if err != nil {
 		t.Fatalf("Move = %v, want the move", err)
@@ -122,7 +122,7 @@ func TestMove_NoteBelowAnotherThenToTheTop(t *testing.T) {
 		t.Errorf("Move to the top = %+v, %v", top, err)
 	}
 	data := readFile(t, filepath.Join(dir, "release-flow.md"))
-	if top.ETag != edit.ETag([]byte(data)) || data != canonicalNote {
+	if top.ETag != nodefile.ETag([]byte(data)) || data != canonicalNote {
 		t.Errorf("release-flow.md =\n%s\nwant it unchanged, etag %s", data, top.ETag)
 	}
 }
@@ -242,7 +242,7 @@ func TestMove_Refusals_MoveNothing(t *testing.T) {
 				t.Helper()
 				var conflict *ConflictError
 				if !errors.As(err, &conflict) || conflict.Path != movedIssuePath || conflict.IfMatch != "stale" ||
-					conflict.ETag != edit.ETag([]byte(plainIssue)) {
+					conflict.ETag != nodefile.ETag([]byte(plainIssue)) {
 					t.Errorf("err = %v, want a *ConflictError at %s refusing stale", err, movedIssuePath)
 				}
 			},

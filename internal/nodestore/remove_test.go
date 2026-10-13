@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -56,7 +56,7 @@ func TestRemove_LastChild_RemovesItAndTheEmptiedDirectory(t *testing.T) {
 func TestRemove_DropDeps_RemovesTheIssueAndItsDependentsDeps(t *testing.T) {
 	t.Parallel()
 	issues, dir := newRemoveIssues(t)
-	etag := edit.ETag([]byte(plainIssue))
+	etag := nodefile.ETag([]byte(plainIssue))
 
 	removed, _, err := issues.Remove("fix-parser", etag, true)
 

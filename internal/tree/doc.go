@@ -15,7 +15,6 @@
 //   - `errors.go` — the sentinel errors, Error and Errors, and the problem types they wrap
 //   - `ids.go` — ValidateID, ValidateAlias, CheckAliases and RenameAliases: what an id or alias may be
 //   - `move.go` — PlanMove: renames a node or moves it below another, with its reference rewrites
-//   - `nodefile.go` — the guarded reads and the atomic writes: forwarders to internal/nodefile
 //   - `plan.go` — Plan: the steps, rewrites and cleanups of a move or removal, applied with undo
 //   - `remove.go` — PlanRemove: removes a node that has no children
 //   - `resolve.go` — Lookup and Resolve: an argument to its node by id, alias or id prefix
