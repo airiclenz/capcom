@@ -86,11 +86,11 @@ func (p *Plan) AddRewrite(rewrite Rewrite) {
 	})
 }
 
-// checkUnchanged reads the file at path through nodefile.ReadNodeFile and fails with a
+// checkUnchanged reads the file at path through nodefile.ReadRegularFile and fails with a
 // *fs.PathError naming path that wraps ErrChanged when it does not hold expected byte for byte. A
 // failed read is returned as it is.
 func checkUnchanged(path string, expected []byte) error {
-	current, err := nodefile.ReadNodeFile(path)
+	current, err := nodefile.ReadRegularFile(path)
 	if err != nil {
 		return err
 	}

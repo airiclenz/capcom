@@ -289,7 +289,9 @@ NOTES (2026-10-13): the "[release, release-steps] with Note release deleted" tes
 - `GOMEMLIMIT=2GiB go test ./internal/clidoc/`
 **Commit:** `fix(cli): resolve aliases in know update --remove-superseded-by`
 
-## 15. ReadNodeFile removal, part 1: callers outside nodestore
+## 15. ReadNodeFile removal, part 1: callers outside nodestore — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): ReadRegularFile takes no limit argument; it applies the same MaxNodeFileSize guard ReadNodeFile delegated to, so each call is a straight rename. Doc comments naming nodefile.ReadNodeFile in these files now name ReadRegularFile, rewrapped to stay within 100 columns.
 
 **What:** Switch every `nodefile.ReadNodeFile` call outside `internal/nodestore` and `internal/nodefile` to `nodefile.ReadRegularFile` with the same limit; behaviour unchanged.
 **Goal:** `grep -rn ReadNodeFile internal --include=*.go | grep -v -e internal/nodestore/ -e internal/nodefile/` prints nothing.

@@ -137,13 +137,13 @@ func guidePath(worktreeRoot string) string {
 
 // topNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
 // the files. A retired Note is left out, and with it its whole subtree, and so is a Note labelled
-// knowledge.LabelBackground. A Note file that does not parse, that nodefile.ReadNodeFile refuses
+// knowledge.LabelBackground. A Note file that does not parse, that nodefile.ReadRegularFile refuses
 // unread, or that a load problem names (a duplicate id or alias, an invalid or repeated alias) is
 // left out; `capcom check` reports it. It fails only when the tree or a Note file cannot be read.
 func topNotes(knowledgeDir string) ([]Note, error) {
 	parsed := map[string]knowledge.Note{}
 	readAliases := func(path string) ([]string, error) {
-		data, err := nodefile.ReadNodeFile(path)
+		data, err := nodefile.ReadRegularFile(path)
 		if errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge) {
 			return nil, nil
 		}

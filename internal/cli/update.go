@@ -184,10 +184,11 @@ func hasAnyFlag(cmd *cobra.Command, names ...string) bool {
 }
 
 // readIssueFile reads the issue file at path, relative to the working tree root with forward
-// slashes (an index Entry's Path), through nodefile.ReadNodeFile: a file that is not a regular file or
-// is larger than 1 MiB is refused unread, an invalid-input error at path like any failed read.
+// slashes (an index Entry's Path), through nodefile.ReadRegularFile: a file that is not a regular
+// file or is larger than 1 MiB is refused unread, an invalid-input error at path like any failed
+// read.
 func (a *app) readIssueFile(path string) ([]byte, error) {
-	data, err := nodefile.ReadNodeFile(a.absoluteIssuePath(path))
+	data, err := nodefile.ReadRegularFile(a.absoluteIssuePath(path))
 	if err != nil {
 		return nil, &output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()}
 	}

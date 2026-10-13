@@ -57,7 +57,7 @@ func TreeKind(problem *tree.Error) (Kind, bool) {
 	return "", false
 }
 
-// ReadRefusal returns the tree sentinel err wraps when nodefile.ReadNodeFile refused a file
+// ReadRefusal returns the tree sentinel err wraps when nodefile.ReadRegularFile refused a file
 // unread, tree.ErrNotRegular or tree.ErrTooLarge, or nil for any other err. The sentinel's text is
 // the message a NotRegular problem carries, worded as the walk words the same problem.
 func ReadRefusal(err error) error {

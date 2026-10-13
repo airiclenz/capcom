@@ -227,8 +227,8 @@ func problemClaims(worktreeRoot string, problem *tree.Error) []claim {
 
 // orphanDirectoryClaims returns the names claimed by every node file at any depth below dir, a
 // directory the walk left out: each file's id, plus the Aliases rawfm.Aliases reads from its bytes
-// through nodefile.ReadNodeFile. A file the guarded reader refuses unread claims its id only. Hidden
-// names are skipped at every depth.
+// through nodefile.ReadRegularFile. A file the guarded reader refuses unread claims its id only.
+// Hidden names are skipped at every depth.
 //
 // The walk has already warned about dir itself, so an entry below it that cannot be read (an
 // unreadable directory, dir or a file removed since the walk, a failed read) only leaves its names
@@ -250,7 +250,7 @@ func orphanDirectoryClaims(worktreeRoot, dir string) []claim {
 			return nil
 		}
 		names := []string{id}
-		data, err := nodefile.ReadNodeFile(current)
+		data, err := nodefile.ReadRegularFile(current)
 		switch {
 		case diagnose.ReadRefusal(err) != nil:
 		case err != nil:

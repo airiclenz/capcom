@@ -29,7 +29,7 @@ var commitTx = (*sql.Tx).Commit
 
 // readNodeFile reads a node file the walk found. It is a variable so a test can change the file
 // between the walk and its read.
-var readNodeFile = nodefile.ReadNodeFile
+var readNodeFile = nodefile.ReadRegularFile
 
 // refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
 // IMMEDIATE transaction, and records its report as the one Report returns. It re-parses only the
@@ -253,9 +253,9 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 // indexFile reads and parses one file and replaces its rows. A file with problems keeps only its
 // files row, which carries the problems so the next refresh reports them again, and its claims
 // rows, one per name claimedNames gives it. The file is read
-// through nodefile.ReadNodeFile: one that is no longer a regular file, or has grown past 1 MiB, since
-// the walk kept it is left out unread with a WarningNotRegular, never failing the refresh. A file
-// removed since the walk kept it is left without rows, and isGone reports it.
+// through nodefile.ReadRegularFile: one that is no longer a regular file, or has grown past 1 MiB,
+// since the walk kept it is left out unread with a WarningNotRegular, never failing the refresh. A
+// file removed since the walk kept it is left without rows, and isGone reports it.
 func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	if err := r.forget(file.path); err != nil {
 		return false, err

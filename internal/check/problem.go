@@ -123,12 +123,12 @@ func kindCode(kind diagnose.Kind) string {
 	return string(kind)
 }
 
-// readFile reads the issue or Note file at path through nodefile.ReadNodeFile. A file it refuses
+// readFile reads the issue or Note file at path through nodefile.ReadRegularFile. A file it refuses
 // unread, one no longer a regular file or grown past 1 MiB since the walk, is recorded as a
 // not-regular problem, as the walk records one, and isRead is false with no error. Any other
 // failed read is an error naming the file.
 func (c *checker) readFile(path string) (data []byte, isRead bool, err error) {
-	data, err = nodefile.ReadNodeFile(path)
+	data, err = nodefile.ReadRegularFile(path)
 	if refusal := diagnose.ReadRefusal(err); refusal != nil {
 		c.add(path, 0, CodeNotRegular, refusal.Error())
 		return nil, false, nil
