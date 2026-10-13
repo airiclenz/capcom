@@ -160,6 +160,23 @@ func TestClose_IDOfInvalidFile_FailsNotFoundAndLeavesThePrefixMatchOpen(t *testi
 	assertIssueFilesUnchanged(t, root, files)
 }
 
+func TestClose_AliasOfInvalidFile_FailsNotFoundAndLeavesThePrefixMatchOpen(t *testing.T) {
+	files := map[string]string{
+		"auth-rework.md": readIssue("Auth rework", "bogus", "aliases: [auth]\n", ""),
+		"auth-tests.md":  readIssue("Auth tests", "open", "", ""),
+	}
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, files)
+
+	_, stderr, exitCode := runCLI(t, root, "close", "auth", "--reason", "x")
+
+	want := `id "auth" not found: .capcom/issues/auth-rework.md is invalid`
+	if exitCode != ExitNotFound || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want not found naming auth-rework.md", exitCode, stderr)
+	}
+	assertIssueFilesUnchanged(t, root, files)
+}
+
 func TestClose_DuplicatedID_FailsNamingBothFilesAndLeavesThePrefixMatchOpen(t *testing.T) {
 	root, files := newDuplicateIssueStore(t)
 

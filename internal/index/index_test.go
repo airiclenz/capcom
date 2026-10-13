@@ -17,6 +17,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // newStore returns a store in a temp dir with the default config and an empty issue tree. The
@@ -733,6 +734,37 @@ func TestRefresh_IndexFromBeforeRelatedLinks_RebuildsWithThem(t *testing.T) {
 	}
 	if holders := mustRelatedBy(t, x, "target-issue"); !slices.Equal(holders, []string{"holder-issue"}) {
 		t.Errorf("RelatedBy(target-issue) = %v, want [holder-issue]", holders)
+	}
+}
+
+func TestRefresh_IndexFromBeforeClaims_RebuildsWithThem(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "foo-bar.md", issueText("Foo bar", "open", ""))
+	writeIssue(t, s, "foo-rework.md", issueWith("Rework", "bogus", "aliases: [foo]\n"))
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+	db, err := sql.Open(driverName, Path(s))
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	// An index of the previous schema version has no claims table.
+	_, err = db.Exec(`DROP TABLE claims`)
+	if err == nil {
+		_, err = db.Exec(`UPDATE meta SET value = ? WHERE key = ?`, schemaVersion-1, metaSchemaVersion)
+	}
+	if closeErr := db.Close(); err != nil || closeErr != nil {
+		t.Fatalf("downgrade the index: %v, %v", err, closeErr)
+	}
+
+	report := refresh(t, x)
+
+	if !report.Rebuilt {
+		t.Errorf("report = %+v, want a rebuild", report)
+	}
+	if _, err := x.Resolve("foo"); !errors.Is(err, tree.ErrNotFound) ||
+		!strings.Contains(err.Error(), ".capcom/issues/foo-rework.md is invalid") {
+		t.Errorf("Resolve(foo) err = %v, want not found naming foo-rework.md", err)
 	}
 }
 

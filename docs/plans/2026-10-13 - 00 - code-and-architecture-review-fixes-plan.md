@@ -557,7 +557,10 @@ NOTES (2026-10-13): indexFile's new result is `isGone bool` (true only on the fs
 - `go vet ./internal/index/`
 **Commit:** `fix(index): keep a file gone before its read out of the refresh's parsed list`
 
-## P1.5 Index records the names a file with problems claims
+## P1.5 Index records the names a file with problems claims — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — docs/format.md: made necessary by unusableClaim now refusing an alias of a file with problems as well as its id ("Naming a node" said "the id of a file with problems"); P1.6 widens the sentence further.
+NOTES (2026-10-13): a frontmatter that does not parse is detected by a WarningFrontmatter problem (claimedNames), the only kind parseIssue/parseNote emit on a parse failure; index's nodeFileExtension constant is now unused and left in place for P3.11, which removes it.
 
 **What:** Fixes F-09(a) (`left-out-name-claims`): an Alias of a file the index leaves out for problems is never stored, so `Resolve` of that Alias falls through to a unique-prefix match and a write lands on the wrong Issue.
 **Goal:** every name a node file with problems claims (its id, and the Aliases its parse gives, or `rawfm.Aliases` reads when it does not parse) makes `Index.Resolve` and `Index.ResolveNote` fail with `tree.ErrNotFound` as `id "<arg>" not found: <file> is invalid`, never a prefix match. A file refused unread at read time claims its id only.

@@ -200,6 +200,18 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 			isInvalid: true,
 			paths:     []string{".capcom/issues/foo.md"},
 		},
+		{
+			name:      "alias of an invalid file",
+			files:     map[string]string{"foo-rework.md": issueWith("Rework", "bogus", "aliases: [foo]\n")},
+			isInvalid: true,
+			paths:     []string{".capcom/issues/foo-rework.md"},
+		},
+		{
+			name:      "alias of an unparseable file",
+			files:     map[string]string{"foo-rework.md": "---\naliases: [foo]\ntitle: [unclosed\n---\n"},
+			isInvalid: true,
+			paths:     []string{".capcom/issues/foo-rework.md"},
+		},
 	}
 
 	for _, tc := range cases {

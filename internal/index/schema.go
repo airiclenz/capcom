@@ -14,7 +14,7 @@ import (
 
 // schemaVersion identifies the table layout below. Bump it whenever the layout or the meaning of a
 // column changes: an index recorded under another version is dropped and rebuilt.
-const schemaVersion = 5
+const schemaVersion = 6
 
 // Keys of the meta table.
 const (
@@ -47,7 +47,9 @@ var (
 // retired flag, never its ancestors'. labels, aliases and fts are shared by issues and Notes and
 // carry the kind of the file each row came from; related holds the related links of issues as
 // written, in file order; refs holds the Refs of Notes in file order; supersedes holds the
-// superseded-by ids of Notes as written, in file order.
+// superseded-by ids of Notes as written, in file order; claims holds, by kind, every name a file
+// with problems claims (its id and its aliases), so a resolve refuses that name instead of matching
+// it as a prefix.
 var schemaStatements = []string{
 	`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 	`CREATE TABLE files (
@@ -98,11 +100,13 @@ var schemaStatements = []string{
 	`CREATE INDEX refs_by_path ON refs (path)`,
 	`CREATE TABLE supersedes (path TEXT NOT NULL, from_id TEXT NOT NULL, to_id TEXT NOT NULL)`,
 	`CREATE INDEX supersedes_by_path ON supersedes (path)`,
+	`CREATE TABLE claims (path TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL)`,
+	`CREATE INDEX claims_by_kind_name ON claims (kind, name)`,
 	`CREATE VIRTUAL TABLE fts USING fts5 (path UNINDEXED, kind UNINDEXED, title, body)`,
 }
 
 // rowTables are the tables holding one file's rows, cleared by path when the file changes or goes.
-var rowTables = []string{"files", "issues", "notes", "labels", "deps", "related", "aliases", "refs", "supersedes", "fts"}
+var rowTables = []string{"files", "issues", "notes", "labels", "deps", "related", "aliases", "refs", "supersedes", "claims", "fts"}
 
 // configHash fingerprints the parts of the config the indexed rows depend on: the status map
 // (each status's category is stored, ADR 0003) and the declared types (Validate decides which

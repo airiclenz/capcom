@@ -3,7 +3,6 @@ package index
 import (
 	"context"
 	"fmt"
-	"path"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -128,7 +127,8 @@ func (f Filter) sql() (string, []any) {
 // prefix of. It fails with an error matching tree.ErrNotFound
 // when nothing matches, and with a *tree.AmbiguousError when the prefix matches several ids. A name
 // only a node left out as a duplicate answers to fails with a *tree.Error wrapping
-// tree.ErrDuplicate, and the id of an invalid file with tree.ErrNotFound, never as a prefix.
+// tree.ErrDuplicate, and the id or an alias of an invalid file with tree.ErrNotFound, never as a
+// prefix.
 func (x *Index) Resolve(arg string) (Entry, error) {
 	id, err := x.resolveID(issueNodes, arg)
 	if err != nil {
@@ -139,8 +139,8 @@ func (x *Index) Resolve(arg string) (Entry, error) {
 
 // resolveID finds the id of the usable node of one kind that arg names, the way Resolve does. Its
 // errors quote arg as given, not its normalised name. A name no usable node has as its id or an
-// alias, but that a node left out as a duplicate claims or an invalid file is named for, fails as
-// unusableClaim says and is never matched as a prefix.
+// alias, but that a node left out as a duplicate or an invalid file claims, fails as unusableClaim
+// says and is never matched as a prefix.
 func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 	ctx := context.Background()
 	name := tree.NormalizeArg(arg)
@@ -180,8 +180,9 @@ func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 // unusableClaim returns why name, which no usable node of the kind answers to, still must not be
 // matched as a prefix, or nil when nothing else claims it. A node left out as a duplicate that has
 // name as its id or an alias fails with a *tree.Error wrapping tree.ErrDuplicate, naming its file
-// and the other file of a name they share; a file of the kind named name+".md" that has problems
-// fails with an error wrapping tree.ErrNotFound that quotes arg and names the file.
+// and the other file of a name they share; a name a file of the kind with problems claims (its id
+// or an alias, as the claims table records them) fails with an error wrapping tree.ErrNotFound
+// that quotes arg and names the first such file in path order.
 func (x *Index) unusableClaim(ctx context.Context, nodes nodeTable, arg, name string) error {
 	duplicate, err := x.duplicateClaim(ctx, nodes, name)
 	if err != nil {
@@ -191,17 +192,12 @@ func (x *Index) unusableClaim(ctx context.Context, nodes nodeTable, arg, name st
 		return duplicate
 	}
 
-	invalid, err := x.strings(ctx, `SELECT path FROM files
-		WHERE kind = ? AND problems IS NOT NULL ORDER BY path`, nodes.kind)
-	if err != nil {
+	invalid, err := x.strings(ctx, `SELECT path FROM claims
+		WHERE kind = ? AND name = ? ORDER BY path LIMIT 1`, nodes.kind, name)
+	if err != nil || len(invalid) == 0 {
 		return err
 	}
-	for _, filePath := range invalid {
-		if path.Base(filePath) == name+nodeFileExtension {
-			return fmt.Errorf("id %q %w: %s is invalid", arg, tree.ErrNotFound, filePath)
-		}
-	}
-	return nil
+	return fmt.Errorf("id %q %w: %s is invalid", arg, tree.ErrNotFound, invalid[0])
 }
 
 // duplicateClaim returns the duplicate that left out a node of the kind having name as its id or
