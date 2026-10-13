@@ -1330,7 +1330,9 @@ Depends on P2.5.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(check): split check.go into problem, issues, notes and agents`
 
-## P2.15 Split config/config.go into config, format and parse
+## P2.15 Split config/config.go into config, format and parse — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): format.go also takes the regexp var block's documentStartLine and the helpers documentStart and insertLine (format-line rewrite is their only user); parse.go also takes the categories var (only parser.statuses and isCategory use it), per the item's "file of its only user" rule.
 
 **What:** Pure move per review P2-05.
 **Goal:** `internal/config/config.go` keeps the types, every constant, `DefaultFile`, `Default` and the lookups. `format.go` holds the format-line rewrite, and `parse.go` holds the strict parser. Note `store-config`'s Ref `internal/config/config.go#FormatVersion` still resolves, and every existing test passes unchanged.
