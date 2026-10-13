@@ -265,6 +265,19 @@ const (
 	duplicateReason  = "has a duplicate id"
 )
 
+// DuplicateIDError returns the problem of path, a node file whose id other, an earlier node file,
+// also has: an *Error wrapping ErrDuplicate, as Load reports a repeated id.
+func DuplicateIDError(path, other, id string) *Error {
+	return &Error{Path: path, Other: other, Err: fmt.Errorf("%w id %q, also at", ErrDuplicate, id)}
+}
+
+// DuplicateIDDirectoryError returns the problem of dir, the directory beside a node file of the
+// repeated id id: an *Error wrapping ErrOrphanDirectory, worded as Load reports the directory left
+// out with its whole subtree.
+func DuplicateIDDirectoryError(dir, id string) *Error {
+	return &Error{Path: dir, Err: &invalidIDDirectoryError{name: id, reason: duplicateReason}}
+}
+
 // invalidIDDirectoryError is the problem of a child directory whose node file is there but left
 // out: named by an invalid id, not a regular file, larger than 1 MiB, or of a repeated id. It wraps
 // ErrOrphanDirectory, since the directory is left out like one without its node file, while its
@@ -463,11 +476,7 @@ func (t *Tree) repeatedIDs(problems *Errors) map[string]*repeatedID {
 			firstPaths[node.ID] = node.Path
 			continue
 		}
-		problem := &Error{
-			Path:  node.Path,
-			Other: first,
-			Err:   fmt.Errorf("%w id %q, also at", ErrDuplicate, node.ID),
-		}
+		problem := DuplicateIDError(node.Path, first, node.ID)
 		*problems = append(*problems, problem)
 		t.recordDuplicate(node.ID, problem)
 		if repeated[node.ID] == nil {
@@ -507,10 +516,7 @@ func addRepeatedIDDirs(dirs []repeatedIDDir, problems *Errors) error {
 		if !info.IsDir() {
 			continue
 		}
-		*problems = append(*problems, &Error{
-			Path: dir.path,
-			Err:  &invalidIDDirectoryError{name: dir.id, reason: duplicateReason},
-		})
+		*problems = append(*problems, DuplicateIDDirectoryError(dir.path, dir.id))
 	}
 	return nil
 }

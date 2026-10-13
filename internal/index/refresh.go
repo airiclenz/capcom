@@ -96,12 +96,13 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line), cmp.Compare(a.Message, b.Message))
 	})
 	x.report = report
+	x.leftOut = r.leftOut
 	return report, nil
 }
 
 // walkStore lists the node files of the issue tree and then of the Knowledge tree, each in path
-// order and marked with its kind, and keeps on r the claims of the files each walk leaves out,
-// marked with the same kind.
+// order and marked with its kind, and keeps on r the claims of the files each walk leaves out and
+// the node files it leaves out below a repeated id, marked with the same kind.
 func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	trees := []struct {
 		dir  string
@@ -109,7 +110,7 @@ func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	}{{s.IssuesDir(), kindIssue}, {s.KnowledgeDir(), kindNote}}
 	var found []foundFile
 	for _, current := range trees {
-		files, claims, err := walkIssues(s.WorktreeRoot, current.dir, r)
+		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, r)
 		if err != nil {
 			return nil, err
 		}
@@ -119,8 +120,12 @@ func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 		for i := range claims {
 			claims[i].kind = current.kind
 		}
+		for i := range leftOut {
+			leftOut[i].kind = current.kind
+		}
 		found = append(found, files...)
 		r.walkClaims = append(r.walkClaims, claims...)
+		r.leftOut = append(r.leftOut, leftOut...)
 	}
 	return found, nil
 }
@@ -146,6 +151,9 @@ type refresher struct {
 	warnings  []Warning
 	// walkClaims are the names the files the walk left out claim, which replaceWalkClaims stores.
 	walkClaims []claim
+	// leftOut are the node files the walk left out below a repeated id, which the Index keeps once
+	// the refresh commits.
+	leftOut []leftOutNode
 }
 
 // warn records a warning of kind about one file.

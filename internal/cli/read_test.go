@@ -878,6 +878,24 @@ func TestKV_SupportingCommands_ListKVAndEndWithStatus(t *testing.T) {
 	}
 }
 
+func TestShow_NodeBelowDuplicatedID_FailsNamingBothFiles(t *testing.T) {
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, map[string]string{
+		"a.md":      readIssue("A", "open", "", ""),
+		"a/x.md":    readIssue("X one", "open", "", ""),
+		"b.md":      readIssue("B", "open", "", ""),
+		"b/x.md":    readIssue("X two", "open", "", ""),
+		"b/x/c2.md": readIssue("C2", "open", "", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "c2")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/a/x.md", ".capcom/issues/b/x.md")
+	if stdout != "" {
+		t.Errorf("stdout = %q, want nothing shown", stdout)
+	}
+}
+
 func TestShow_DuplicatedID_FailsNamingBothFiles(t *testing.T) {
 	root, _ := newDuplicateIssueStore(t)
 

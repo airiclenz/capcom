@@ -3,6 +3,7 @@ package index
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -126,9 +127,10 @@ func (f Filter) sql() (string, []any) {
 // citation spelling into a name: an exact id first, then an Alias, then the one id the name is a
 // prefix of. It fails with an error matching tree.ErrNotFound
 // when nothing matches, and with a *tree.AmbiguousError when the prefix matches several ids. A name
-// only a node left out as a duplicate answers to fails with a *tree.Error wrapping
-// tree.ErrDuplicate, and the id or an alias of an invalid file, a file the walk leaves out unread
-// or a node file under a directory the walk leaves out with tree.ErrNotFound, never as a prefix.
+// only a node left out as a duplicate answers to, or the id or an alias of a node file under the
+// directory of a repeated id, fails with a *tree.Error wrapping tree.ErrDuplicate, and the id or an
+// alias of an invalid file, a file the walk leaves out unread or a node file under another
+// directory the walk leaves out with tree.ErrNotFound, never as a prefix.
 func (x *Index) Resolve(arg string) (Entry, error) {
 	id, err := x.resolveID(issueNodes, arg)
 	if err != nil {
@@ -140,7 +142,10 @@ func (x *Index) Resolve(arg string) (Entry, error) {
 // resolveID finds the id of the usable node of one kind that arg names, the way Resolve does. Its
 // errors quote arg as given, not its normalised name. A name no usable node has as its id or an
 // alias, but that a node left out as a duplicate or a file the claims table records claims, fails
-// as unusableClaim says and is never matched as a prefix.
+// as unusableClaim says and is never matched as a prefix. The ids of the node files the latest
+// refresh left out below a repeated id count as prefix candidates, as tree.Resolve counts them: a
+// prefix one of them shares with another id stays ambiguous, and a prefix of one of them alone
+// fails with its duplicate problem.
 func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 	ctx := context.Background()
 	name := tree.NormalizeArg(arg)
@@ -166,11 +171,18 @@ func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		candidates = append(candidates, x.leftOutPrefixCandidates(nodes.kind, name)...)
+		slices.Sort(candidates)
 	}
 	switch len(candidates) {
 	case 0:
 		return "", fmt.Errorf("id %q %w", arg, tree.ErrNotFound)
 	case 1:
+		if problem := x.leftOutProblem(nodes.kind, func(node leftOutNode) bool {
+			return node.id == candidates[0]
+		}); problem != nil {
+			return "", problem
+		}
 		return candidates[0], nil
 	default:
 		return "", &tree.AmbiguousError{Arg: arg, Candidates: candidates}
@@ -183,7 +195,9 @@ func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 // and the other file of a name they share; a name a file of the kind with problems, a file the walk
 // leaves out unread, or a node file under a directory the walk leaves out claims (its id or an
 // alias, as the claims table records them) fails with an error wrapping tree.ErrNotFound
-// that quotes arg and names the first such file in path order.
+// that quotes arg and names the first such file in path order, unless that file is a node file the
+// latest refresh left out below a repeated id: then it fails with that id's duplicate problem,
+// naming both of its files.
 func (x *Index) unusableClaim(ctx context.Context, nodes nodeTable, arg, name string) error {
 	duplicate, err := x.duplicateClaim(ctx, nodes, name)
 	if err != nil {
@@ -198,7 +212,37 @@ func (x *Index) unusableClaim(ctx context.Context, nodes nodeTable, arg, name st
 	if err != nil || len(invalid) == 0 {
 		return err
 	}
+	if problem := x.leftOutProblem(nodes.kind, func(node leftOutNode) bool {
+		return node.path == invalid[0]
+	}); problem != nil {
+		return problem
+	}
 	return fmt.Errorf("id %q %w: %s is invalid", arg, tree.ErrNotFound, invalid[0])
+}
+
+// leftOutProblem returns a copy of the duplicate problem of the first node file of the kind the
+// latest refresh left out below a repeated id that isMatch accepts, or nil when it accepts none.
+func (x *Index) leftOutProblem(kind string, isMatch func(leftOutNode) bool) *tree.Error {
+	for _, node := range x.leftOut {
+		if node.kind == kind && isMatch(node) {
+			problem := *node.problem
+			return &problem
+		}
+	}
+	return nil
+}
+
+// leftOutPrefixCandidates returns the ids of the node files of the kind the latest refresh left
+// out below a repeated id that name is a prefix of. Such an id is unique among the walk's node
+// files, so it is never also the id of a row.
+func (x *Index) leftOutPrefixCandidates(kind, name string) []string {
+	var candidates []string
+	for _, node := range x.leftOut {
+		if node.kind == kind && strings.HasPrefix(node.id, name) {
+			candidates = append(candidates, node.id)
+		}
+	}
+	return candidates
 }
 
 // duplicateClaim returns the duplicate that left out a node of the kind having name as its id or
