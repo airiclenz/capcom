@@ -2044,7 +2044,11 @@ Depends on P3.16; P2.21.
 **Closes:** know-rm-report-drops
 **Commit:** `fix(cli): report the superseded-by entries know rm dropped`
 
-## P3.18 Delete the issue move and remove planners
+## P3.18 Delete the issue move and remove planners — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): test mapping, issue -> nodestore/tree: TestPlanMove_RenameTwice_KeepsAliasChain -> nodestore TestMove_RenameIssueTwice_KeepsTheAliasChain; TestPlanMove_RenameBackToOwnAlias_SwapsIt -> TestMove_RenameIssueBackToItsOwnAlias_SwapsIt; TestPlanMove_Rename_RewritesDepsInOtherFiles -> TestMove_RenameIssue_RewritesOtherIssuesDepsNamingTheIdOrAnAlias; TestPlanMove_Rename_RewritesRelatedInOtherFiles -> TestMove_RenameIssue_RewritesOtherIssuesRelatedNamingTheIdOrAnAlias; TestPlanMove_UnparseableIssueFile_DestinationCheckedFirst -> TestMove_UnparseableMovedIssue_DestinationCheckedFirst; TestPlanMove_Rename_NodeFileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt -> TestPlanNodeMove_RenameIssue_FileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt; TestPlanRemove_DropDeps_DropsDepsAndRelatedNamingIdOrAlias -> TestRemove_DropDeps_DropsDepsAndRelatedNamingTheIdOrAnAlias; TestPlanRemove_Dependents_RefusedInPathOrderAndNothingChanges -> TestRemove_Dependents_RefusedInPathOrderAndNothingChanges; TestPlanRemove_StaleIfMatch_ComesBeforeTheDependentsRefusal -> TestRemove_StaleIfMatch_ConflictsBeforeTheDependentsRefusal; TestPlanRemove_UnparseableFiles_RemovesOwnAndListsOthersAsUnread -> TestRemove_UnparseableIssueFiles_RemovesOwnAndListsOthersAsUnread; TestPlanRemove_NodeFileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt -> TestPlanNodeRemoval_Issue_FileSwappedAfterLoad_ListsItAsUnreadAndLeavesIt; TestPlanRemove_ApplyFails_RestoresRewritesChildrenDirAndFile -> tree TestRemovalApply_FileRemovalFails_RestoresChildrenDirAndRewrite + TestRemovalApply_LaterStepFails_RestoresFileBytesAndMode (the regression guard's cited pair; the deleted test's 0600 mode check on the restored dependent rewrite has no exact counterpart there).
+
+NOTES (2026-10-13): no doc comment in internal/issue named the deleted planners and nothing outside the package called them; no other file needed editing.
 
 **What:** Fifth part of A-04. With both engines in `nodestore`, the issue planners and their tests have no caller.
 **Regression guard.** The NOTES mapping cites tree/remove_test.go `TestRemovalApply_FileRemovalFails_RestoresChildrenDirAndRewrite` and `TestRemovalApply_LaterStepFails_RestoresFileBytesAndMode` for `TestPlanRemove_ApplyFails_RestoresRewritesChildrenDirAndFile`, which no P3.13–P3.16 item ports.
