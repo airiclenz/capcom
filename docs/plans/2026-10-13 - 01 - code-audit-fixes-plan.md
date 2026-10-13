@@ -125,7 +125,10 @@ NOTES (2026-10-13): an archive whose hash could not be computed is treated the s
 - `GOMEMLIMIT=2GiB go test ./cmd/release/ -run 'Smoke|Homebrew'`
 **Commit:** `fix(release): skip the Homebrew smoke check when the latest release is unknown`
 
-## 5. Pin the token redaction of a failed komac update
+## 5. Pin the token redaction of a failed komac update — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the token-echoing error of the existing `submitManifests` fake moved into a shared `komacCredentialError(call)` helper so the new `isKomacUpdateFailing` knob reuses it; `submitManifests` behaves as before.
+NOTES (2026-10-13): confirmed the new TestPublishWingetUpdateFailureRedactsTheToken fails when convergeWinget's strings.ReplaceAll redaction is removed (reverted after the check).
 
 **What:** Test only (`cmd/release/winget.go`, the `komac update` error path).
 **Regression guard.** `respondTools` answers every non-submit komac call with success, and `convergeWinget` drops stdout, so add a `fakeChannels` knob (e.g. `isKomacUpdateFailing`) whose error text carries the token from `call.env`, as `submitManifests` does. `describeWinget` already prints the manifest-update line, so assert `result.err` contains "the winget step failed: submit the AiricLenz.Capcom 0.24.11 manifest update" and the sentinel token is in neither `result.err` nor `result.output`.

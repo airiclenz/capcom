@@ -30,10 +30,12 @@ var testWingetManifests = []string{
 }
 
 // fakeChannels is what the winget step meets beyond winget-pkgs: whether komac is installed,
-// whether `komac submit` fails, and the token gh is signed in with ("" for none).
+// whether `komac submit` or `komac update` fails, and the token gh is signed in with ("" for
+// none).
 type fakeChannels struct {
 	isKomacMissing       bool
 	isKomacSubmitFailing bool
+	isKomacUpdateFailing bool
 	ghToken              string
 	// submitted lists the files the manifest directory held when `komac submit` ran.
 	submitted []string
@@ -57,6 +59,8 @@ func (f *publishFake) respondTools(call recordedCall) (string, error) {
 		return "komac 2.11.2\n", nil
 	case call.name == "komac" && len(args) == 3 && args[0] == "submit":
 		return f.submitManifests(call)
+	case call.name == "komac" && len(args) > 0 && args[0] == "update" && f.channels.isKomacUpdateFailing:
+		return "", komacCredentialError(call)
 	case call.name == "komac":
 		return "", nil
 	case command == "gh auth token":
@@ -82,13 +86,19 @@ func (f *publishFake) submitManifests(call recordedCall) (string, error) {
 	if !f.channels.isKomacSubmitFailing {
 		return "", nil
 	}
+	return "", komacCredentialError(call)
+}
+
+// komacCredentialError is a failing komac call's error echoing the token from its environment,
+// as a credential error might.
+func komacCredentialError(call recordedCall) error {
 	var token string
 	for _, variable := range call.env {
 		if value, isToken := strings.CutPrefix(variable, githubTokenVariable+"="); isToken {
 			token = value
 		}
 	}
-	return "", fmt.Errorf("komac %s: exit status 1: bad credentials %s", strings.Join(call.args, " "), token)
+	return fmt.Errorf("komac %s: exit status 1: bad credentials %s", strings.Join(call.args, " "), token)
 }
 
 // testReleaseSums is a SHA256SUMS body listing every archive of v0.24.11, one fixture hash each.
@@ -224,6 +234,31 @@ func TestPublishWingetSubmitsWithTheTokenInKomacsEnvironment(t *testing.T) {
 				t.Errorf("the winget row does not report the release submitted:\n%s", result.output)
 			}
 		})
+	}
+}
+
+// TestPublishWingetUpdateFailureRedactsTheToken pins a failed `komac update` whose error echoes
+// the token: the winget step fails naming the manifest update, and the token reaches neither the
+// error nor the output.
+func TestPublishWingetUpdateFailureRedactsTheToken(t *testing.T) {
+	t.Parallel()
+	fake := releasedFake()
+	fake.channels.isKomacUpdateFailing = true
+
+	result := runChannelPublish(t, fake, false, sentinelToken)
+
+	if result.err == nil {
+		t.Fatalf("publish succeeded with komac update failing:\n%s", result.output)
+	}
+	const want = "the winget step failed: submit the AiricLenz.Capcom 0.24.11 manifest update"
+	if !strings.Contains(result.err.Error(), want) {
+		t.Errorf("publish error = %v, want it to contain %q", result.err, want)
+	}
+	if strings.Contains(result.err.Error(), sentinelToken) {
+		t.Errorf("publish error carries the token: %v", result.err)
+	}
+	if strings.Contains(result.output, sentinelToken) {
+		t.Errorf("publish printed the token:\n%s", result.output)
 	}
 }
 
