@@ -18,18 +18,11 @@ import (
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
-// Flags of capcom update; --status, --type, --priority and --plan are shared with list.
+// stdinPath is the file path that makes readTextInput read standard input; kindIssueWrite is the
+// --json kind of every command that writes an issue.
 const (
-	flagTitle          = "title"
-	flagAddLabel       = "add-label"
-	flagRemoveLabel    = "remove-label"
-	flagBodyAppend     = "body-append"
-	flagBodyAppendFile = "body-append-file"
-	flagBodyReplaceOld = "body-replace-old"
-	flagBodyReplaceNew = "body-replace-new"
-	flagIfMatch        = "if-match"
-	stdinPath          = "-"
-	kindIssueWrite     = "issue-write"
+	stdinPath      = "-"
+	kindIssueWrite = "issue-write"
 )
 
 // updateOptions holds the flags of one capcom update.

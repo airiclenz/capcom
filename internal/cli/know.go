@@ -16,10 +16,8 @@ import (
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
-// Flags of the know subcommands; --id, --title, --parent, --label and --body-file are shared with
-// the issue commands.
+// Flags of the know subcommands.
 const (
-	flagDepth        = "depth"
 	flagWithChildren = "with-children"
 	flagRef          = "ref"
 	flagRetired      = "retired"
@@ -32,9 +30,6 @@ const retiredFlagUsage = "include retired notes and everything below them"
 
 // backgroundFlagUsage is the help of the --background flag of know tree.
 const backgroundFlagUsage = "include notes labelled background and everything below them"
-
-// unlimitedDepth is the --depth of know tree that prints every level.
-const unlimitedDepth = 0
 
 // noteData is one Note in the --json data of the know commands. Lists are always present, empty
 // when the file has none; retired is left out when false; ETag and Body are set by know show only.

@@ -1375,7 +1375,9 @@ Depends on P2.5; P1.6.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(index): split refresh.go into refresh, problems and duplicates`
 
-## P2.19 Collect the shared cli flag constants in flags.go
+## P2.19 Collect the shared cli flag constants in flags.go — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): flags.go groups the moved constants by their former file (list, update, create, know blocks, then flagNoElsewhere, flagCheck, unlimitedDepth); the block comments read "Flags of capcom <cmd> that other commands share"; the left-behind block comments in list.go, create.go and know.go are cut to "Flags of capcom list." / "Flags of capcom create." / "Flags of the know subcommands."; update.go's comment now describes stdinPath (readTextInput's stdin path) and kindIssueWrite (the --json kind of every command that writes an issue); flagCheck's comment widened to name capcom fmt --check.
 
 **What:** Pure move per review P2-07. A command no longer takes its flag names from a sibling command's file.
 **Regression guard.** `flagCheck` (agents.go, used by agents.go and fmt.go) moves too; its comment, which names only `capcom agents`, is widened to name `fmt --check`. update.go's block comment ("Flags of capcom update; --status, ... shared with list.") is rewritten to describe what remains (`stdinPath`, `kindIssueWrite`). The move-only check allows both comment lines.

@@ -13,19 +13,8 @@ import (
 
 // Flags of capcom list.
 const (
-	flagStatus    = "status"
-	flagCategory  = "category"
-	flagLabel     = "label"
-	flagNoLabel   = "no-label"
-	flagType      = "type"
-	flagPriority  = "priority"
-	flagParent    = "parent"
-	flagPlan      = "plan"
-	flagPlanned   = "planned"
-	flagUnplanned = "unplanned"
-	flagAll       = "all"
-	flagLimit     = "limit"
-	flagTree      = "tree"
+	flagCategory = "category"
+	flagTree     = "tree"
 )
 
 // treeRowFilters are the flags of capcom list that pick rows and so cannot be combined with

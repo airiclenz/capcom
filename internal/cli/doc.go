@@ -14,6 +14,7 @@
 //   - `dep.go` — capcom dep add, rm, list and graph: the dependencies between issues
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — the typed Error, its Codes and their exit codes
+//   - `flags.go` — the flag names two or more commands share, and unlimitedDepth
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search

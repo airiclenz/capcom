@@ -14,12 +14,9 @@ import (
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
-// Flags of capcom create; --title, --status, --type, --priority, --label, --parent and --plan are
-// shared with list and update.
+// Flags of capcom create.
 const (
-	flagID       = "id"
-	flagBodyFile = "body-file"
-	flagDep      = "dep"
+	flagDep = "dep"
 )
 
 // preferredDefaultType is the type a new issue gets without --type, when the config declares it;

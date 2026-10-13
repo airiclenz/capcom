@@ -24,8 +24,6 @@ const (
 	textWarnLabel = "warning: "
 	// textElsewhereLabel starts each Elsewhere line in text mode.
 	textElsewhereLabel = "elsewhere: "
-	// flagNoElsewhere skips the Elsewhere scan of the commands that run one.
-	flagNoElsewhere = "no-elsewhere"
 )
 
 // Result is what a successful command hands to the output layer. Text is written in text mode

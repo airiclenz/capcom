@@ -10,9 +10,6 @@ import (
 	"github.com/airiclenz/capcom/internal/store"
 )
 
-// flagCheck makes capcom agents report the block's state instead of writing it.
-const flagCheck = "check"
-
 // What capcom agents found or did, as the block value of its --json data.
 const (
 	blockAbsent    = "absent"
