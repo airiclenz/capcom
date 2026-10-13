@@ -209,7 +209,7 @@ NOTES (2026-10-13): TestReferenceUpToDate compares every file in docs/site/refer
 **Acceptance:** `touch docs/site/reference/cli/capcom_stale.md && go run ./cmd/gendocs && test ! -e docs/site/reference/cli/capcom_stale.md && GOMEMLIMIT=2GiB go test -count=1 -run TestReferenceUpToDate ./internal/clidoc/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `docs(site): commit the generated CLI reference and guard it with a test`
 
-## 11. Document the docs layout
+## 11. Document the docs layout — ✅ DONE (2026-10-13)
 
 **What:** Depends on items 5, 9, 10.
 **Regression guard.** Acceptance runs `capcom know verify` with no argument: the command takes `cobra.NoArgs` and checks every Note's refs, docs-layout's included. Keep the Note's `title:` unchanged — it is copied into AGENTS.md's Managed block ("Knowledge tree, top level"), so a new title would need AGENTS.md on Files, a `capcom agents` refresh and `capcom agents --check` in Acceptance.

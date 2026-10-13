@@ -190,7 +190,10 @@ capcom prime                    # the session-start briefing
 capcom reindex                  # rebuild the index from scratch
 ```
 
-`capcom <command> --help` lists every flag. The file formats are described in
+`capcom <command> --help` lists every flag. The full manual, with concept guides, agent
+workflows and a reference page for every command, is at
+[airiclenz.com/capcom](https://airiclenz.com/capcom/); its source is [docs/site/](docs/site/).
+The file formats are described in
 [docs/site/reference/file-format.md](docs/site/reference/file-format.md); moving a repository off
 beads is described in
 [docs/site/getting-started/migrating-from-beads.md](docs/site/getting-started/migrating-from-beads.md).

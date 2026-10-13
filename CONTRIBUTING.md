@@ -28,6 +28,10 @@ memory, such as a Raspberry Pi, test one package at a time with `GOMEMLIMIT=2GiB
 - Where the glossary, design decisions, plans and handoffs live: Note
   [`docs-layout`](.capcom/knowledge/docs-layout.md). Use the glossary's terms in code, docs and
   messages.
+- The user manual lives in [`docs/site/`](docs/site/). Its CLI reference under
+  [`docs/site/reference/cli/`](docs/site/reference/cli/) is generated: after changing a command,
+  a flag or its help text, run `go run ./cmd/gendocs` and commit the result.
+  `TestReferenceUpToDate` fails while the committed reference is stale.
 
 ## Issues
 
