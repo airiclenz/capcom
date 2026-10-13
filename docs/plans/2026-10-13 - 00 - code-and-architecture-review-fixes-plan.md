@@ -447,7 +447,7 @@ Depends on P0.0, P0.9.
 - `go vet ./internal/gitx/ ./internal/elsewhere/`
 **Commit:** `fix(elsewhere): refuse other-branch issue copies larger than 1 MiB`
 
-## P0.11 Escape terminal control characters in text output
+## P0.11 Escape terminal control characters in text output — ✅ DONE (2026-10-13)
 
 **What:** Fixes F-07 (`terminal-control-escape`). Text output writes titles, field values and bodies from repository files to the terminal unfiltered. An Issue titled `"\e[2J\e[31mx"`, or a body that carries OSC sequences, can clear or rewrite the screen, set the window title, or write to the clipboard.
 **Goal:** in text mode, stdout and stderr carry no C0 control other than TAB and LF, no DEL, no C1 control and no invalid UTF-8 byte. Each is written as a visible `\xHH` escape (ratified design call). `--json` and `--kv` output is byte-for-byte unchanged.

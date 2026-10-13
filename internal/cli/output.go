@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/airiclenz/capcom/internal/elsewhere"
 )
@@ -27,8 +28,8 @@ const (
 	flagNoElsewhere = "no-elsewhere"
 )
 
-// Result is what a successful command hands to the output layer. Text is written verbatim in
-// text mode (the command owns its trailing newline); Kind and Data form the --json envelope;
+// Result is what a successful command hands to the output layer. Text is written in text mode
+// with control characters escaped by sanitizeTerminal (the command owns its trailing newline); Kind and Data form the --json envelope;
 // KV holds the --kv records, and a command that leaves KV nil does not support --kv. Failure,
 // when set, is a failure that goes with a partial result (a multi-id command missing one id): text
 // writes it to stderr after the result, --json sets it as the envelope's error next to its data,
@@ -123,7 +124,7 @@ func (r textRenderer) Render(result Result) error {
 	for _, warning := range result.Warnings {
 		out.WriteString(textWarnLabel + warning + "\n")
 	}
-	if _, err := io.WriteString(r.stdout, out.String()); err != nil {
+	if _, err := io.WriteString(r.stdout, sanitizeTerminal(out.String())); err != nil {
 		return err
 	}
 	if result.Failure == nil {
@@ -133,8 +134,48 @@ func (r textRenderer) Render(result Result) error {
 }
 
 func (r textRenderer) RenderError(failure *Error) error {
-	_, err := fmt.Fprintf(r.stderr, "capcom: %s\n", failure.Error())
+	_, err := fmt.Fprintf(r.stderr, "capcom: %s\n", sanitizeTerminal(failure.Error()))
 	return err
+}
+
+// C0 and C1 control ranges escaped by sanitizeTerminal.
+const (
+	firstPrintableRune = 0x20
+	deleteRune         = 0x7f
+	firstC1Rune        = 0x80
+	lastC1Rune         = 0x9f
+)
+
+// sanitizeTerminal returns text with every byte a terminal could act on written as a visible
+// \xHH escape: C0 controls other than TAB and LF, DEL, C1 controls (U+0080 to U+009F) and each
+// byte of invalid UTF-8. Repository files are untrusted, and a raw escape sequence in a title or
+// body could clear the screen, set the window title or write to the clipboard. Everything else
+// is returned unchanged.
+func sanitizeTerminal(text string) string {
+	var out strings.Builder
+	out.Grow(len(text))
+	for position := 0; position < len(text); {
+		character, width := utf8.DecodeRuneInString(text[position:])
+		switch {
+		case character == utf8.RuneError && width == 1:
+			fmt.Fprintf(&out, "\\x%02x", text[position])
+		case isTerminalControl(character):
+			fmt.Fprintf(&out, "\\x%02x", character)
+		default:
+			out.WriteString(text[position : position+width])
+		}
+		position += width
+	}
+	return out.String()
+}
+
+// isTerminalControl reports whether character is a control sanitizeTerminal escapes.
+func isTerminalControl(character rune) bool {
+	if character == '\t' || character == '\n' {
+		return false
+	}
+	return character < firstPrintableRune || character == deleteRune ||
+		(character >= firstC1Rune && character <= lastC1Rune)
 }
 
 // jsonRenderer writes one Envelope per command to stdout, failures included, so a caller parses
