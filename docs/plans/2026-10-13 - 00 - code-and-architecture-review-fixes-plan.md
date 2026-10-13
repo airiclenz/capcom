@@ -2244,7 +2244,9 @@ Depends on P3.42; P2.23; P2.27.
 - `grep -rn 'checkStatusChange' internal/cli` prints nothing
 **Commit:** `refactor(issue): own the close, reopen and status-change rules`
 
-## P3.44 close re-checks the fresh file inside the guarded edit
+## P3.44 close re-checks the fresh file inside the guarded edit — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the two already_closed paths (index short-cut and the in-edit re-check) share a new helper `alreadyClosed` in close.go instead of duplicating the etag read; the test is a table over text, `--kv` and `--json`, a fresh store each, rather than one `--json` run, so the Goal's three outputs are all pinned.
 
 **What:** Fixes F-11(d), close half (`dep-close-race`), and completes A-01: `closeOne` calls `issue.Close` on the freshly read Issue inside `Kind.Edit`'s change callback, so a close another session made after this command's index snapshot is reported, not overwritten. Binding (ratified F-11 call): the dep-cycle half stays unfixed; concurrent `dep add a b` and `dep add b a` can still store a cycle, which `check` reports as `cycle`; no store-wide write lock.
 **Regression guard.** The test adds a todo issue with `deps: [login-flow]`, so the `now_ready` `[]` assertion bites: with the re-check removed that dependent is reported.

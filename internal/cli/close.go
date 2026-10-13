@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -152,7 +153,14 @@ func (a *app) issueNodes() ([]issue.Node, error) {
 	return nodes, nil
 }
 
-// closeOne closes the issue arg names. failure is set when arg names no usable issue or its file
+// beforeCloseEdit runs in closeOne between the resolve of an argument to an issue that is not
+// Closed and the edit that closes it. It is nil in production; tests set it to change the file at
+// that moment.
+var beforeCloseEdit func(entry index.Entry)
+
+// closeOne closes the issue arg names. An issue already Closed, by its index entry or, re-checked on
+// the file read inside the edit, by another session since the index was read, is reported
+// already_closed and left as it is. failure is set when arg names no usable issue or its file
 // cannot be written; err is set only when the index fails, which stops the command.
 func (a *app) closeOne(
 	arg string,
@@ -172,26 +180,42 @@ func (a *app) closeOne(
 
 	outcome = closeData{ID: entry.ID, Path: entry.Path}
 	if isHandled[entry.ID] || entry.Category.IsClosed() {
-		file, err := a.readIssueFile(entry.Path)
-		if err != nil {
-			return closeData{}, output.AsError(err), nil
-		}
-		outcome.Outcome = outcomeAlreadyClosed
-		outcome.ETag = nodefile.ETag(file)
-		return outcome, nil, nil
+		return a.alreadyClosed(outcome)
 	}
+	if beforeCloseEdit != nil {
+		beforeCloseEdit(entry)
+	}
+	// The index entry may be older than the file: the change re-checks the Issue as read now, and
+	// one another session closed since is reported, not closed again. editNode types the failure,
+	// so the flag, not the error, tells that refusal apart.
+	isClosedMeanwhile := false
 	written, err := a.editIssue(entry.ID, "", func(target issue.Issue) (issue.Issue, error) {
-		target.Status = status
-		target.Closed = closedAt
-		target.Reason = reason
-		return target, nil
+		closed, err := issue.Close(target, a.store.Config, status, reason, closedAt)
+		if errors.Is(err, issue.ErrAlreadyClosed) {
+			isClosedMeanwhile = true
+		}
+		return closed, err
 	})
+	if isClosedMeanwhile {
+		return a.alreadyClosed(outcome)
+	}
 	if err != nil {
 		return closeData{}, output.AsError(err), nil
 	}
 	isHandled[entry.ID] = true
 	outcome.Outcome = outcomeClosed
 	outcome.ETag = written.ETag
+	return outcome, nil, nil
+}
+
+// alreadyClosed reports outcome's issue as already_closed, with the etag of its file as read now.
+func (a *app) alreadyClosed(outcome closeData) (closeData, *output.Error, error) {
+	file, err := a.readIssueFile(outcome.Path)
+	if err != nil {
+		return closeData{}, output.AsError(err), nil
+	}
+	outcome.Outcome = outcomeAlreadyClosed
+	outcome.ETag = nodefile.ETag(file)
 	return outcome, nil, nil
 }
 

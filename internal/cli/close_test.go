@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/index"
 )
 
 // closedPrefix matches the closed time capcom writes: RFC3339 UTC to the second.
@@ -321,5 +323,63 @@ func TestClose_HiddenDependent_IsNotReported(t *testing.T) {
 
 	if got := lastLine(stdout); got != "now ready: build-pipeline" {
 		t.Errorf("last line = %q, want deploy-prod left out", got)
+	}
+}
+
+// setBeforeCloseEdit installs hook as beforeCloseEdit for the rest of the test.
+func setBeforeCloseEdit(t *testing.T, hook func(entry index.Entry)) {
+	t.Helper()
+	previous := beforeCloseEdit
+	beforeCloseEdit = hook
+	t.Cleanup(func() { beforeCloseEdit = previous })
+}
+
+func TestClose_ClosedByAnotherSessionAfterResolve_ReportsAlreadyClosedAndKeepsTheFile(t *testing.T) {
+	closedElsewhere := "---\ntitle: Login flow\nstatus: done\ntype: task\npriority: 2\n" +
+		"created: 2026-10-11T09:00:00Z\nclosed: 2026-01-01T00:00:00Z\nreason: elsewhere\n---\n"
+	tests := []struct {
+		name   string
+		format []string
+		want   string
+	}{
+		{name: "text", want: "login-flow  already_closed\n"},
+		{name: "kv", format: []string{"--kv"}, want: "ID=login-flow\nSTATUS=already_closed\n"},
+		{name: "json", format: []string{"--json"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := newWriteStore(t)
+			writeIssueFiles(t, root, map[string]string{
+				"follow-up.md": readIssue("Follow up", "open", "deps: [login-flow]\n", ""),
+			})
+			setBeforeCloseEdit(t, func(entry index.Entry) {
+				writeIssueFiles(t, root, map[string]string{entry.ID + ".md": closedElsewhere})
+			})
+			args := append([]string{"close"}, test.format...)
+			args = append(args, "login-flow", "--reason", "shipped")
+
+			stdout, stderr, exitCode := runCLI(t, root, args...)
+
+			if exitCode != ExitOK || stderr != "" {
+				t.Fatalf("exit = %d stderr = %q stdout = %q", exitCode, stderr, stdout)
+			}
+			if test.want != "" && stdout != test.want {
+				t.Errorf("stdout = %q, want %q", stdout, test.want)
+			}
+			if test.want == "" {
+				data, _ := decodeEnvelope(t, stdout)["data"].([]any)
+				if len(data) != 1 {
+					t.Fatalf("data = %v, want one record", data)
+				}
+				record, _ := data[0].(map[string]any)
+				nowReady, isList := record["now_ready"].([]any)
+				if record["outcome"] != outcomeAlreadyClosed || !isList || len(nowReady) != 0 {
+					t.Errorf("data = %v, want outcome already_closed and now_ready []", data)
+				}
+			}
+			if after := readStoreFile(t, root, "login-flow.md"); after != closedElsewhere {
+				t.Errorf("login-flow.md =\n%s\nwant the file the other session wrote\n%s", after, closedElsewhere)
+			}
+		})
 	}
 }
