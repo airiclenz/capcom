@@ -266,6 +266,33 @@ func TestOpen_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 	}
 }
 
+func TestIssuesPathspec_InsideTheWorktree_IsTheRelativeSlashPath(t *testing.T) {
+	store, _, err := Init(newRepo(t))
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	pathspecs := store.IssuesPathspec()
+
+	if want := []string{".capcom/issues"}; !reflect.DeepEqual(pathspecs, want) {
+		t.Errorf("IssuesPathspec() = %q, want %q", pathspecs, want)
+	}
+}
+
+func TestIssuesPathspec_OutsideTheWorktree_IsNil(t *testing.T) {
+	base := t.TempDir()
+	store := &Store{
+		Root:         filepath.Join(base, "elsewhere", ".capcom"),
+		WorktreeRoot: filepath.Join(base, "worktree"),
+	}
+
+	pathspecs := store.IssuesPathspec()
+
+	if pathspecs != nil {
+		t.Errorf("IssuesPathspec() = %q, want nil", pathspecs)
+	}
+}
+
 // replaceConfigWithDir swaps the store's config.yaml for an empty directory of the same name.
 func replaceConfigWithDir(t *testing.T, store *Store) {
 	t.Helper()

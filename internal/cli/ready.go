@@ -71,7 +71,7 @@ func (a *app) newReadyCommand() *cobra.Command {
 				Text:     readyLines(listed),
 				Warnings: droppedDepWarnings(listed),
 			}
-			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.issuesPathspec()))
+			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.store.IssuesPathspec()))
 		}),
 	}
 	flags := cmd.Flags()

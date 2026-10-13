@@ -68,7 +68,7 @@ func (a *app) newListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.issuesPathspec()))
+			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.store.IssuesPathspec()))
 		}),
 	}
 	flags := cmd.Flags()

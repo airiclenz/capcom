@@ -25,13 +25,3 @@ func (a *app) addElsewhere(result output.Result, isSkipped bool, pathspecs []str
 	result.Warnings = append(result.Warnings, report.Warnings...)
 	return result
 }
-
-// issuesPathspec is the pathspec of the whole issue tree, or none when the store lies outside the
-// worktree.
-func (a *app) issuesPathspec() []string {
-	relative := relativeSlashPath(a.store.WorktreeRoot, a.store.IssuesDir())
-	if relative == "" {
-		return nil
-	}
-	return []string{relative}
-}

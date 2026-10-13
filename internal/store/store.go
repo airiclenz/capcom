@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/gitx"
@@ -112,6 +113,17 @@ func Init(cwd string) (*Store, []string, error) {
 // IssuesDir returns the directory that holds the issue tree.
 func (s *Store) IssuesDir() string {
 	return filepath.Join(s.Root, issuesDir)
+}
+
+// IssuesPathspec returns the git pathspec of the whole issue tree: IssuesDir relative to
+// WorktreeRoot, with forward slashes. It returns nil when the issue tree lies outside the worktree,
+// where no pathspec can name it.
+func (s *Store) IssuesPathspec() []string {
+	relative, err := filepath.Rel(s.WorktreeRoot, s.IssuesDir())
+	if err != nil || strings.HasPrefix(relative, "..") {
+		return nil
+	}
+	return []string{filepath.ToSlash(relative)}
 }
 
 // KnowledgeDir returns the directory that holds the Knowledge tree.

@@ -2726,7 +2726,7 @@ Depends on P3.63; P3.4.
 - `go vet ./internal/check/ ./internal/cli/ ./internal/briefing/`
 **Commit:** `refactor(check): take the opened store instead of cwd`
 
-## P3.91 The store names its issue-tree pathspec
+## P3.91 The store names its issue-tree pathspec — ✅ DONE (2026-10-13)
 
 **What:** Part 2 of A-10: `(*store.Store).IssuesPathspec()` replaces cli's `issuesPathspec` and briefing's own computation for the Elsewhere scan.
 **Goal:** `IssuesPathspec() []string` returns the issue tree's path relative to the worktree root with forward slashes, or nil when it lies outside the worktree; `list`, `ready` and `prime` Elsewhere output is byte-identical.

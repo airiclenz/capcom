@@ -3,8 +3,6 @@ package briefing
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
@@ -179,13 +177,13 @@ func (b *Briefing) readHealth(s *store.Store) {
 // scanElsewhere sets Elsewhere from a scan of the issue tree on other branches, within the
 // store's Elsewhere window. A store outside its worktree has no pathspec, so nothing is scanned.
 func (b *Briefing) scanElsewhere(s *store.Store, now time.Time) {
-	relative, err := filepath.Rel(s.WorktreeRoot, s.IssuesDir())
-	if err != nil || strings.HasPrefix(relative, "..") {
+	pathspecs := s.IssuesPathspec()
+	if pathspecs == nil {
 		return
 	}
 	report := elsewhere.Scan(elsewhere.Options{
 		WorktreeRoot: s.WorktreeRoot,
-		Pathspecs:    []string{filepath.ToSlash(relative)},
+		Pathspecs:    pathspecs,
 		Days:         s.Config.Elsewhere.Days,
 		Now:          now,
 	})
