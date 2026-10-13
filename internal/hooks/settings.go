@@ -1,7 +1,9 @@
-// Package hooks edits the agent-settings files whose hooks run capcom prime: the Claude Code
-// settings and the Codex hooks file, which share one hooks shape. Merge is the pure JSON edit;
-// Install reads, merges and writes one Target in a working tree. Only the hooks member is ever
-// rewritten: every other member keeps its key order and its value its bytes.
+// Package hooks edits the files capcom init hooks capcom into. The agent-settings files run capcom
+// prime: the Claude Code settings and the Codex hooks file, which share one hooks shape. Merge is
+// the pure JSON edit; Install reads, merges and writes one Target in a working tree. Only the hooks
+// member is ever rewritten: every other member keeps its key order and its value its bytes. The
+// .gitattributes file hands issue files to the capcom-log merge driver: AppendMergeAttribute is the
+// pure line edit, InstallMergeAttribute reads, appends and writes it in a working tree.
 package hooks
 
 import (
@@ -41,9 +43,10 @@ const (
 	Present Status = "present"
 )
 
-// Error is a settings file that cannot be read or is not shaped as Claude Code and Codex read it.
-// Path is the file relative to the working tree root, slash-separated; Line is the 1-based line of
-// a JSON syntax error, or 0 when no single line is to blame.
+// Error is a file that cannot be read, a .gitattributes that cannot be replaced, or a settings file
+// that is not shaped as Claude Code and Codex read it. Path is the file relative to the working tree
+// root, slash-separated; Line is the 1-based line of a JSON syntax error, or 0 when no single line is
+// to blame.
 type Error struct {
 	Path    string
 	Line    int

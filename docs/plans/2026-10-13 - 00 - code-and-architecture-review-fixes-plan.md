@@ -2399,7 +2399,13 @@ Depends on P2.9; P3.6.
 - `! go list -deps ./internal/hooks/ | grep -qE 'capcom/internal/(cli|agents)$'`
 **Commit:** `refactor(hooks): move the agent-settings editor out of init`
 
-## P3.56 The .gitattributes editor moves to internal/hooks
+## P3.56 The .gitattributes editor moves to internal/hooks — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/hooks/settings.go: made necessary by adding the .gitattributes editor to internal/hooks (the package comment named only the agent-settings files, and the Error doc only settings files; both now cover .gitattributes)
+
+NOTES (2026-10-13): cli's *hooks.Error mapping is one helper, hooksFailure, which installHooks and installMergeDriver both call, instead of two copies of the P3.55 switch; init text, --json and failures are unchanged (init_test.go untouched)
+
+NOTES (2026-10-13): AppendMergeAttribute copies content before appending, so a caller's spare capacity is never written; gitattributes_test.go pins that besides the plan's table (which also covers a CRLF file without a final line ending and a present line without one)
 
 **What:** Part 2 of A-09: the merge-driver `.gitattributes` editor moves into `internal/hooks`; `init.go` keeps the command, its texts and `mergeDriverConfig`.
 **Regression guard.** The Goal is checked by an Acceptance grep.

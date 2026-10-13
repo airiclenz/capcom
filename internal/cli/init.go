@@ -1,19 +1,14 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
-	"io/fs"
 	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/hooks"
-	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -111,7 +106,7 @@ func (a *app) newInitCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&isCodexHooks, flagCodexHooks, false,
 		"also add SessionStart and PreCompact hooks running capcom prime to "+codexHooksPath)
 	cmd.Flags().BoolVar(&isMergeDriver, flagMergeDriver, false,
-		"also hand issue files to the capcom-log merge driver in "+gitattributesPath)
+		"also hand issue files to the capcom-log merge driver in "+hooks.GitattributesPath)
 	return cmd
 }
 
@@ -120,17 +115,9 @@ func (a *app) newInitCommand() *cobra.Command {
 // and line.
 func installHooks(worktreeRoot string, target hooks.Target) (status string, line string, err error) {
 	installed, err := hooks.Install(worktreeRoot, target)
-	var settingsFailure *hooks.Error
 	switch {
-	case errors.As(err, &settingsFailure):
-		return "", "", &output.Error{
-			Code:    output.CodeInvalid,
-			Path:    settingsFailure.Path,
-			Line:    settingsFailure.Line,
-			Message: settingsFailure.Message,
-		}
 	case err != nil:
-		return "", "", output.AsError(err)
+		return "", "", hooksFailure(err)
 	case installed == hooks.Added:
 		return claudeHooksAdded, "added the " + primeCommand + " hooks to " + target.Path + "\n", nil
 	default:
@@ -138,12 +125,20 @@ func installHooks(worktreeRoot string, target hooks.Target) (status string, line
 	}
 }
 
-// The .gitattributes file init --merge-driver adds to, relative to the working tree root.
-const gitattributesPath = ".gitattributes"
-
-// mergeDriverAttribute is the .gitattributes line that hands issue files to the capcom-log merge
-// driver.
-const mergeDriverAttribute = ".capcom/issues/**/*.md merge=capcom-log"
+// hooksFailure types a failure of an internal/hooks editor: a *hooks.Error is invalid at its path
+// and line, anything else goes through output.AsError.
+func hooksFailure(err error) error {
+	var failure *hooks.Error
+	if errors.As(err, &failure) {
+		return &output.Error{
+			Code:    output.CodeInvalid,
+			Path:    failure.Path,
+			Line:    failure.Line,
+			Message: failure.Message,
+		}
+	}
+	return output.AsError(err)
+}
 
 // mergeDriverConfig are the git config commands that define the capcom-log merge driver. capcom
 // never writes .git/config, so init --merge-driver prints them for the user to run.
@@ -152,23 +147,19 @@ var mergeDriverConfig = []string{
 	`git config merge.capcom-log.driver "capcom merge-driver %O %A %B %P %S %X %Y"`,
 }
 
-// Line endings of a .gitattributes file.
-const (
-	lineEndingLF   = "\n"
-	lineEndingCRLF = "\r\n"
-)
-
 // installMergeDriver adds the capcom-log merge driver line to .gitattributes in the working tree at
-// worktreeRoot and returns the initData value and the text line saying what it did.
+// worktreeRoot and returns the initData value and the text line saying what it did. A .gitattributes
+// that cannot be read or replaced is invalid at its path.
 func installMergeDriver(worktreeRoot string) (status string, line string, err error) {
-	isAdded, err := addMergeAttribute(worktreeRoot)
-	if err != nil {
-		return "", "", err
+	installed, err := hooks.InstallMergeAttribute(worktreeRoot)
+	switch {
+	case err != nil:
+		return "", "", hooksFailure(err)
+	case installed == hooks.Added:
+		return claudeHooksAdded, "added the capcom-log merge driver to " + hooks.GitattributesPath + "\n", nil
+	default:
+		return claudeHooksPresent, hooks.GitattributesPath + " already sets the capcom-log merge driver\n", nil
 	}
-	if isAdded {
-		return claudeHooksAdded, "added the capcom-log merge driver to " + gitattributesPath + "\n", nil
-	}
-	return claudeHooksPresent, gitattributesPath + " already sets the capcom-log merge driver\n", nil
 }
 
 // mergeDriverConfigText is what init --merge-driver prints in text mode: git runs the driver only
@@ -176,61 +167,6 @@ func installMergeDriver(worktreeRoot string) (status string, line string, err er
 func mergeDriverConfigText() string {
 	return "git uses the capcom-log merge driver only once it is configured; run:\n  " +
 		strings.Join(mergeDriverConfig, "\n  ") + "\n"
-}
-
-// addMergeAttribute appends the merge driver line to the .gitattributes file at worktreeRoot,
-// creating the file when missing; isAdded reports whether it was written. A file that already holds
-// the line is left as it is, so a re-run changes nothing. An existing file keeps its bytes, its
-// permissions and its line ending: it is replaced byte for byte, never through nodefile.WriteFileAtomic,
-// which would turn CRLF into LF and reset the mode.
-func addMergeAttribute(worktreeRoot string) (isAdded bool, err error) {
-	path := filepath.Join(worktreeRoot, gitattributesPath)
-	content, err := os.ReadFile(path)
-	isMissing := errors.Is(err, fs.ErrNotExist)
-	if err != nil && !isMissing {
-		return false, &output.Error{Code: output.CodeInvalid, Path: gitattributesPath, Message: err.Error()}
-	}
-	if hasMergeAttribute(content) {
-		return false, nil
-	}
-	if isMissing {
-		// A new file has no bytes, mode or line ending to keep.
-		if err := nodefile.WriteFileAtomic(path, strings.NewReader(mergeDriverAttribute+lineEndingLF)); err != nil {
-			return false, output.AsError(err)
-		}
-		return true, nil
-	}
-	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(appendAttributeLine(content))); err != nil {
-		return false, &output.Error{Code: output.CodeInvalid, Path: gitattributesPath, Message: err.Error()}
-	}
-	return true, nil
-}
-
-// hasMergeAttribute reports whether the .gitattributes content holds the merge driver line, however
-// its fields are spaced.
-func hasMergeAttribute(content []byte) bool {
-	want := strings.Fields(mergeDriverAttribute)
-	for line := range strings.Lines(string(content)) {
-		if slices.Equal(strings.Fields(line), want) {
-			return true
-		}
-	}
-	return false
-}
-
-// appendAttributeLine returns the .gitattributes content with the merge driver line appended, ended
-// as the file's lines are: CRLF when the file holds a CRLF, LF otherwise. A last line without a line
-// ending gets one first.
-func appendAttributeLine(content []byte) []byte {
-	ending := lineEndingLF
-	if bytes.Contains(content, []byte(lineEndingCRLF)) {
-		ending = lineEndingCRLF
-	}
-	if len(content) > 0 && !bytes.HasSuffix(content, []byte(lineEndingLF)) {
-		content = append(content, ending...)
-	}
-	content = append(content, mergeDriverAttribute...)
-	return append(content, ending...)
 }
 
 func initText(root string, created []string) string {
