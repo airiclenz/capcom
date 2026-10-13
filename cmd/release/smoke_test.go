@@ -375,6 +375,11 @@ func TestSmokeChecks(t *testing.T) {
 			wantResults: [][2]string{{"SKIP", "capcom is not installed through Homebrew here"}},
 			wantTally:   "6 passed, 0 failed, 1 skipped",
 		},
+		"Homebrew skips a version that is not the latest release": {
+			adjust:      func(fake *smokeFake, _ *smokeOptions) { fake.repo.latestRelease = githubRelease{Tag: "v0.24.12"} },
+			wantResults: [][2]string{{"SKIP", "v0.24.11 is not the latest release (v0.24.12); brew upgrade would move this machine onto that one"}},
+			wantTally:   "6 passed, 0 failed, 1 skipped",
+		},
 		"brew upgrade leaves the old version": {
 			adjust:      func(fake *smokeFake, _ *smokeOptions) { fake.brewReports = "capcom 0.24.10" },
 			wantResults: [][2]string{{"FAIL", "brew's capcom reports \"capcom 0.24.10\", not \"capcom 0.24.11\""}},
@@ -419,7 +424,7 @@ func TestSmokeChecks(t *testing.T) {
 				fake.repo.latestRelease = githubRelease{Tag: "v0.24.12"}
 			},
 			wantResults: [][2]string{{"SKIP", "v0.24.11 is not the latest release (v0.24.12)"}},
-			wantTally:   "6 passed, 0 failed, 1 skipped",
+			wantTally:   "5 passed, 0 failed, 2 skipped",
 		},
 		"the latest release cannot be read": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {

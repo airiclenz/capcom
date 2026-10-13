@@ -107,11 +107,11 @@ func newSmokeCommand(commands runner, openRepo repoOpener) *cobra.Command {
 			"with --dist-dir, that build's SHA256SUMS equals the published one; the six archives\n" +
 			"download and match SHA256SUMS; every binary's build stamp names the tagged commit; the\n" +
 			"host's archive holds a binary reporting the version; where capcom is installed with\n" +
-			"Homebrew, `brew upgrade capcom` moves it onto the version; and the Scoop bucket's\n" +
-			"manifest names the version and both Windows archives' hashes. A check whose tool or\n" +
-			"input is missing prints SKIP and never counts as a pass. The version defaults to\n" +
-			"VERSION; a bare X.Y.Z reads as vX.Y.Z. It exits 1 when any check fails. publish runs\n" +
-			"it as its last step.",
+			"Homebrew and the version is the latest release, `brew upgrade capcom` moves it onto\n" +
+			"the version; and the Scoop bucket's manifest names the version and both Windows\n" +
+			"archives' hashes. A check whose tool or input is missing prints SKIP and never counts\n" +
+			"as a pass. The version defaults to VERSION; a bare X.Y.Z reads as vX.Y.Z. It exits 1\n" +
+			"when any check fails. publish runs it as its last step.",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) > 1 {
 				return fmt.Errorf("smoke takes at most one version, got %d arguments", len(args))
@@ -388,7 +388,9 @@ func (r *smokeRun) checkHostBinary(ctx context.Context) {
 }
 
 // checkHomebrew upgrades a Homebrew-installed capcom and requires it to report the version; a
-// host without Homebrew, or without capcom installed through it, skips.
+// host without Homebrew, or without capcom installed through it, skips. So does a version that is
+// not the latest published release: the tap pins the latest, so brew upgrade would move this
+// machine onto that one instead.
 func (r *smokeRun) checkHomebrew(ctx context.Context) {
 	r.step("brew upgrade moves this machine onto %s", r.version)
 	if _, err := r.commands.run(ctx, r.options.dir, nil, "brew", "list", "--formula", binaryName); err != nil {
@@ -397,6 +399,10 @@ func (r *smokeRun) checkHomebrew(ctx context.Context) {
 			return
 		}
 		r.skip("capcom is not installed through Homebrew here")
+		return
+	}
+	if latest, isPublished, err := r.repo.LatestRelease(ctx); err == nil && isPublished && latest.Tag != r.version.String() {
+		r.skip("%s is not the latest release (%s); brew upgrade would move this machine onto that one", r.version, latest.Tag)
 		return
 	}
 	for _, args := range [][]string{{"update"}, {"upgrade", binaryName}} {

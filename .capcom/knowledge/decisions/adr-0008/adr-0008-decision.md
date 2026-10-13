@@ -46,10 +46,11 @@ info and requires the tagged commit.
 
 **`publish` converges.** Before each step it asks the remote whether that step is already done
 and skips it if so: the tag exists; the release has all seven assets; the formula pins the
-version; the bucket manifest is at the version; a winget pull request for the version is open or
-merged. A half-finished release is resumed by running `publish` again. There is no local state
-file, because the remote is the truth, and a second run cannot duplicate a commit or a pull
-request. `status` reports the same probes.
+version or a newer one; the bucket manifest is at the version or a newer one; a winget pull
+request for the version is open or merged. A tap or bucket already on a newer release reads done,
+so a rerun for an older version never moves it back. A half-finished release is resumed by
+running `publish` again. There is no local state file, because the remote is the truth, and a
+second run cannot duplicate a commit or a pull request. `status` reports the same probes.
 
 **The gate is green CI on the gated commit.** The gate commit is `HEAD` with its trailing
 first-parent commits that touch only `CHANGELOG.md` and/or `VERSION` peeled off; the peel stops at

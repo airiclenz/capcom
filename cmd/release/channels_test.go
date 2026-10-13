@@ -642,6 +642,37 @@ func TestPublishLeavesASubmittedWingetReleaseAlone(t *testing.T) {
 	}
 }
 
+// TestPublishLeavesAChannelPinnedToANewerVersionAlone pins the no-downgrade rule: a rerun of
+// publish for an older release finds the tap and the bucket already on a newer one, reports both
+// done, and never clones, commits to or pushes either.
+func TestPublishLeavesAChannelPinnedToANewerVersionAlone(t *testing.T) {
+	t.Parallel()
+	fake := releasedFake()
+	newerFormula := strings.Replace(testFormula, "0.24.11", "0.24.12", 1)
+	newerManifest := `{"version": "0.24.12"}`
+	fake.remote.formula = newerFormula
+	fake.remote.bucketManifest = newerManifest
+	fake.channels.tap.file = newerFormula
+	fake.channels.bucket.file = newerManifest + "\n"
+
+	result := runChannelPublish(t, fake, false, sentinelToken)
+
+	if result.err != nil {
+		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+	}
+	lines := commandLines(result.commands)
+	for _, unwanted := range []string{"gh repo clone", "git commit", "git push"} {
+		if index := lineIndex(lines, unwanted); index >= 0 {
+			t.Errorf("ran %q over a channel pinned to a newer version", lines[index])
+		}
+	}
+	for step, detail := range map[string]string{stepHomebrew: "formula pins newer 0.24.12", stepScoop: "manifest pins newer 0.24.12"} {
+		if !hasRow(result.output, step, "done", detail) {
+			t.Errorf("the %s row does not report %q as done:\n%s", step, detail, result.output)
+		}
+	}
+}
+
 // TestPublishWingetConvergesFromRemoteStateOnceTheTagExists pins item 6's resume for the channel
 // steps: days later, with VERSION moved on and a dirty tree — either of which refuses a run that
 // consults them — publish still submits the pending winget manifest without consulting the gate

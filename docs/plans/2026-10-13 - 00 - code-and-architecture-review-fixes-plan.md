@@ -930,7 +930,11 @@ Depends on P1.30; P1.21.
 - `go vet ./internal/nodestore/ ./internal/cli/`
 **Commit:** `fix(nodestore): warn about the old parent directory a move left in place`
 
-## P1.40 Release: never downgrade a channel pinned to a newer version
+## P1.40 Release: never downgrade a channel pinned to a newer version — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): smoke's checkHomebrew skips only when the latest release is published and is another tag; when the latest release cannot be read or none is published it runs brew upgrade as before, so the existing "latest release cannot be read" and "no release is published" smoke cases keep their tallies.
+NOTES (2026-10-13): TestSmokeChecks "the bucket has moved past an older release" (latest v0.24.12) now also skips Homebrew, so its tally moves from 6 passed/1 skipped to 5 passed/2 skipped, as the item's checkHomebrew rule requires.
+NOTES (2026-10-13): smoke's `Long` help text now says the brew upgrade check applies when the version is the latest release (paragraph rewrapped); docs/releasing.md's Homebrew line stays true and is unchanged.
 
 **What:** Fixes F-03 (`release-no-downgrade`): a rerun of `publish` for an older version rewrites the tap's formula and the bucket's manifest when they pin a newer release.
 **Regression guard.** A newer pin also reads done, superseding adr-0008-decision's done test ("the formula pins the version; the bucket manifest is at the version"): this item edits that "publish converges" paragraph through `capcom know update` (P1.43 then rewrites it as this item leaves it) and the doc comments of `probeHomebrew`, `probeScoop` and `pinnedVersionStep`. Rule: every comment or document that defines when the homebrew or scoop step is done (`grep -rn 'pins the version\|at the version\|describes the version' cmd/release .capcom/knowledge docs`). `smoke.go` `checkHomebrew` skips when the version is not the latest release, as `checkStaleBucket` does for Scoop, so a rerun for an older version never `brew upgrade`s onto the newer formula.

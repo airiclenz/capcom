@@ -171,8 +171,8 @@ func releaseAssetNames(version releaseVersion) []string {
 }
 
 // probeHomebrew reports the tap setup-pending while its repository does not exist, and done when
-// its formula pins the version. A tap without the formula is pending: the repository is the
-// one-time setup, the formula is what publish writes.
+// its formula pins the version or a newer one. A tap without the formula is pending: the
+// repository is the one-time setup, the formula is what publish writes.
 func probeHomebrew(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	if _, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+tapRepo, "--jq", ".full_name"); err != nil {
 		if isNotFound(err) {
@@ -197,8 +197,8 @@ func probeHomebrew(ctx context.Context, env probeEnv, version releaseVersion) st
 }
 
 // probeScoop reports the bucket setup-pending while its repository does not exist, and done when
-// its manifest describes the version. An empty bucket repository is pending, not setup-pending:
-// the repository is the one-time setup, the manifest is what publish writes.
+// its manifest describes the version or a newer one. An empty bucket repository is pending, not
+// setup-pending: the repository is the one-time setup, the manifest is what publish writes.
 func probeScoop(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	if _, err := env.commands.run(ctx, env.dir, nil, "gh", "api", "repos/"+bucketRepo, "--jq", ".full_name"); err != nil {
 		if isNotFound(err) {
@@ -300,11 +300,15 @@ func titleNamesRelease(title, bare string) bool {
 }
 
 // pinnedVersionStep reports a channel file done when the version it pins is the release's bare
-// version, pending otherwise.
+// version or a newer release — publish never moves a channel back onto an older version — and
+// pending when it pins an older version or one that does not parse.
 func pinnedVersionStep(name, file, pinned string, version releaseVersion) stepReport {
 	bare := bareRelease(version)
 	if pinned == bare {
 		return stepReport{Name: name, State: stateDone, Detail: fmt.Sprintf("%s pins %s", file, bare)}
+	}
+	if pinnedVersion, err := parseReleaseVersion(pinned); err == nil && pinnedVersion.compare(version) > 0 {
+		return stepReport{Name: name, State: stateDone, Detail: fmt.Sprintf("%s pins newer %s", file, pinned)}
 	}
 	return stepReport{Name: name, State: statePending, Detail: fmt.Sprintf("%s pins %q, not %s", file, pinned, bare)}
 }

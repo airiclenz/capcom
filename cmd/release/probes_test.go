@@ -172,6 +172,7 @@ func TestProbesReportEachState(t *testing.T) {
 	sixAssets := map[string][]string{"v0.24.11": releaseAssetsV02411[:6]}
 	allAssets := map[string][]string{"v0.24.11": releaseAssetsV02411}
 	olderFormula := strings.Replace(testFormula, `version "0.24.11"`, `version "0.24.10"`, 1)
+	newerFormula := strings.Replace(testFormula, `version "0.24.11"`, `version "0.24.12"`, 1)
 
 	cases := map[string]struct {
 		probe      stepProbe
@@ -195,6 +196,7 @@ func TestProbesReportEachState(t *testing.T) {
 		"formula absent":        {probe: probeHomebrew, remote: fakeRemote{hasTap: true}, wantState: statePending, wantDetail: "has no Formula/capcom.rb"},
 		"formula older":         {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: olderFormula}, wantState: statePending, wantDetail: `formula pins "0.24.10", not 0.24.11`},
 		"formula current":       {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: testFormula}, wantState: stateDone, wantDetail: "formula pins 0.24.11"},
+		"formula newer":         {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: newerFormula}, wantState: stateDone, wantDetail: "formula pins newer 0.24.12"},
 		"tap repo unreadable":   {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: testFormula, failing: "gh api"}, wantState: stateUnknown, wantDetail: "could not read the airiclenz/homebrew-tap repository"},
 		"formula unreadable": {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: testFormula, failing: "gh api repos/airiclenz/homebrew-tap/contents"},
 			wantState: stateUnknown, wantDetail: "could not read Formula/capcom.rb"},
@@ -202,6 +204,7 @@ func TestProbesReportEachState(t *testing.T) {
 		"bucket repo empty":  {probe: probeScoop, remote: fakeRemote{hasBucket: true}, wantState: statePending, wantDetail: "has no bucket/capcom.json"},
 		"bucket older":       {probe: probeScoop, remote: fakeRemote{hasBucket: true, bucketManifest: `{"version": "0.24.10"}`}, wantState: statePending, wantDetail: `manifest pins "0.24.10", not 0.24.11`},
 		"bucket current":     {probe: probeScoop, remote: fakeRemote{hasBucket: true, bucketManifest: `{"version": "0.24.11"}`}, wantState: stateDone, wantDetail: "manifest pins 0.24.11"},
+		"bucket newer":       {probe: probeScoop, remote: fakeRemote{hasBucket: true, bucketManifest: `{"version": "0.24.12"}`}, wantState: stateDone, wantDetail: "manifest pins newer 0.24.12"},
 		"bucket unreadable":  {probe: probeScoop, remote: fakeRemote{hasBucket: true, failing: "gh api"}, wantState: stateUnknown, wantDetail: "could not read the airiclenz/scoop-bucket repository"},
 		"winget not set up": {probe: probeWinget, wantState: statePending,
 			wantDetail: "AiricLenz.Capcom is not in microsoft/winget-pkgs yet and no open pull request submits 0.24.11"},
