@@ -1305,7 +1305,9 @@ Depends on P2.9; P1.7; P1.23.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers and the new `doc.go`/`doc_test.go`. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(nodestore): split create.go into create, load, claim and write`
 
-## P2.13 Split check/check.go into problem, issues, notes and agents
+## P2.13 Split check/check.go into problem, issues, notes and agents — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): placed the declarations the Approach does not name by their only user: planExtension in issues.go; refSymbolSeparator, the supersession format const block, the keyRetired/keySupersededBy const block and leftOutNames in notes.go; checkConflictMarkers and addParseFailure stay in check.go (used by issues and notes)
 
 **What:** Pure move per review P2-04.
 **Goal:** `internal/check/check.go` keeps `Run` and the `checker` core. `problem.go`, `issues.go`, `notes.go` and `agents.go` hold the rest. Every existing test passes unchanged.
