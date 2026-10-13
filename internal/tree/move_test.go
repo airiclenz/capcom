@@ -326,6 +326,90 @@ func TestMoveApply_FileAtTarget_RefusedLeavingBothInPlace(t *testing.T) {
 	}
 }
 
+func TestMoveApply_FileCreatedAtTargetDuringRename_RefusedKeepingBoth(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "moved-node.md")
+	source := filepath.Join(dir, "moved-node.md")
+	target := filepath.Join(dir, "renamed-node.md")
+	move, err := mustLoad(t, dir, nil).PlanMove("moved-node", tree.Destination{ID: "renamed-node"}, issueKind)
+	if err != nil {
+		t.Fatalf("PlanMove: %v", err)
+	}
+	planted := "written by another session\n"
+	tree.SetLink(t, func(oldPath string, newPath string) error {
+		if err := os.WriteFile(newPath, []byte(planted), 0o644); err != nil {
+			return err
+		}
+		return os.Link(oldPath, newPath)
+	})
+
+	err = move.Apply()
+
+	if !errors.Is(err, tree.ErrMoveTarget) {
+		t.Fatalf("Apply err = %v, want tree.ErrMoveTarget", err)
+	}
+	if !strings.Contains(err.Error(), target) {
+		t.Errorf("Apply err = %v, want it to name %s", err, target)
+	}
+	if content, err := os.ReadFile(target); err != nil || string(content) != planted {
+		t.Errorf("renamed-node.md = %q %v, want the planted %q", content, err, planted)
+	}
+	if content, err := os.ReadFile(source); err != nil || string(content) != "x\n" {
+		t.Errorf("moved-node.md = %q %v, want %q", content, err, "x\n")
+	}
+}
+
+func TestMoveApply_NoHardLinks_RenamesThroughTheFallback(t *testing.T) {
+	refused := refuseHardLinks(t)
+	dir := t.TempDir()
+	writeNodes(t, dir, "moved-node.md", "moved-node/kid-one.md", "new-parent.md")
+
+	moveNode(t, dir, "moved-node", tree.Destination{ID: "renamed-node", ParentID: "new-parent"})
+
+	if *refused != 1 {
+		t.Errorf("hard link tried %d times, want 1", *refused)
+	}
+	want := map[string]string{
+		"new-parent.md":                      "x\n",
+		"new-parent/":                        "",
+		"new-parent/renamed-node.md":         "x\n",
+		"new-parent/renamed-node/":           "",
+		"new-parent/renamed-node/kid-one.md": "x\n",
+	}
+	if after := snapshotDir(t, dir); !reflect.DeepEqual(after, want) {
+		t.Errorf("tree after the move:\n%v\nwant\n%v", after, want)
+	}
+}
+
+func TestMoveApply_OldPathUnremovableAfterLink_RemovesTheNewName(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "moved-node.md")
+	source := filepath.Join(dir, "moved-node.md")
+	before := snapshotDir(t, dir)
+	move, err := mustLoad(t, dir, nil).PlanMove("moved-node", tree.Destination{ID: "renamed-node"}, issueKind)
+	if err != nil {
+		t.Fatalf("PlanMove: %v", err)
+	}
+	tree.SetRemoveFile(t, func(path string) error {
+		if path == source {
+			return errInjected
+		}
+		return os.Remove(path)
+	})
+
+	err = move.Apply()
+
+	if !errors.Is(err, errInjected) {
+		t.Fatalf("Apply err = %v, want the injected failure", err)
+	}
+	if !strings.Contains(err.Error(), source) {
+		t.Errorf("Apply err = %v, want it to name %s", err, source)
+	}
+	if after := snapshotDir(t, dir); !reflect.DeepEqual(after, before) {
+		t.Errorf("tree changed:\n%v\nwant\n%v", after, before)
+	}
+}
+
 func TestMoveApply_ChildrenDirAtTarget_RefusedRenamingNodeFileBack(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "moved-node.md", "moved-node/kid-one.md")

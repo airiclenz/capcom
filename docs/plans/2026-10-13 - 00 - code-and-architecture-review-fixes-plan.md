@@ -778,7 +778,10 @@ Depends on P1.22.
 - `go vet ./internal/nodestore/`
 **Commit:** `fix(nodestore): never recreate a node or parent another session removed`
 
-## P1.24 Node-file rename never replaces a file created meanwhile
+## P1.24 Node-file rename never replaces a file created meanwhile — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): The node-file step (`Plan.fileRenameStep` / `Plan.moveFile`) hard-links through the package `link` var, then removes the old name through a new package var `removeFile` (seam `tree.SetRemoveFile` in export_test.go, used by test (3)); undo is the same move reversed, so an undo onto a path that appeared meanwhile is refused too instead of replaced. The directory step and the link-refused fallback share a new `Plan.checkedRename` (today's `Lstat` + `doRename`); the directory undo still renames back unchecked as before.
+NOTES (2026-10-13): Bite check: with plan.go and move.go restored to the pre-item tree (plus a stub `removeFile` so the tests build), all three new tests fail; TestMoveApply_FileCreatedAtTargetDuringRename_RefusedKeepingBoth fails with `Apply err = <nil>`.
 
 **What:** Fixes F-11(c) (`rename-no-replace`). `Plan.renameStep` checks the target with `os.Lstat` and then calls `os.Rename`, so a file created in between is silently replaced (per review F-11(c)).
 **Regression guard.** When removing the old path fails after the link landed, the file step removes the new path before returning the error, so no duplicate node file is left. The Goal's "at any moment" holds on a file system with hard links; without them the fallback keeps today's `Lstat` check.

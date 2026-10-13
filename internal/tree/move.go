@@ -190,7 +190,7 @@ func (m *Move) planRenames(nodes *Tree) {
 		})
 	}
 
-	m.steps = append(m.steps, m.renameStep(node.Path, m.NewPath))
+	m.steps = append(m.steps, m.fileRenameStep(node.Path, m.NewPath))
 	childrenDir := strings.TrimSuffix(node.Path, nodeExtension)
 	if info, err := os.Stat(childrenDir); err == nil && info.IsDir() {
 		newChildrenDir := strings.TrimSuffix(m.NewPath, nodeExtension)

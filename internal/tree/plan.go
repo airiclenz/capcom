@@ -27,6 +27,7 @@ type Plan struct {
 	steps    []step
 	cleanups []func() error
 	// rename renames a file or directory, os.Rename when nil; tests swap it to inject a failure.
+	// While it is swapped, a node file is renamed with it too, instead of hard-linked.
 	rename func(oldPath string, newPath string) error
 }
 
@@ -121,18 +122,60 @@ func (p *Plan) Apply() (warnings []error, err error) {
 	return warnings, nil
 }
 
-// renameStep renames oldPath to newPath, refusing to replace anything already at newPath, and
-// renames it back to undo it.
+// removeFile removes a node file the file rename step leaves behind; a test swaps it to make the
+// removal fail.
+var removeFile = os.Remove
+
+// renameStep renames the directory oldPath to newPath, refusing to replace anything already at
+// newPath, and renames it back to undo it.
 func (p *Plan) renameStep(oldPath string, newPath string) step {
 	return step{
-		apply: func() error {
-			if _, err := os.Lstat(newPath); !errors.Is(err, fs.ErrNotExist) {
-				return fmt.Errorf("%s: %w", newPath, ErrMoveTarget)
-			}
-			return p.doRename(oldPath, newPath)
-		},
-		undo: func() error { return p.doRename(newPath, oldPath) },
+		apply: func() error { return p.checkedRename(oldPath, newPath) },
+		undo:  func() error { return p.doRename(newPath, oldPath) },
 	}
+}
+
+// fileRenameStep moves the node file oldPath to newPath without replacing a file there, however
+// late that file appeared, and moves it back the same way to undo it. See moveFile.
+func (p *Plan) fileRenameStep(oldPath string, newPath string) step {
+	return step{
+		apply: func() error { return p.moveFile(oldPath, newPath) },
+		undo:  func() error { return p.moveFile(newPath, oldPath) },
+	}
+}
+
+// moveFile gives the file oldPath the name newPath with a hard link, which the file system refuses
+// atomically when newPath exists, then removes oldPath. An existing newPath fails with an error
+// naming it that wraps ErrMoveTarget, and both files stay as they are. When removing oldPath fails
+// the link is taken back, so no second name is left, and the error names oldPath. Where the file
+// system refuses the link for any other reason, or a test swapped the plan's rename, it falls back
+// to checkedRename, which only checks newPath before renaming.
+func (p *Plan) moveFile(oldPath string, newPath string) error {
+	if p.rename != nil {
+		return p.checkedRename(oldPath, newPath)
+	}
+	err := link(oldPath, newPath)
+	if errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("%s: %w", newPath, ErrMoveTarget)
+	}
+	if err != nil {
+		// No hard links here (EPERM, ENOTSUP, Windows' ERROR_INVALID_FUNCTION on FAT).
+		return p.checkedRename(oldPath, newPath)
+	}
+	if err := removeFile(oldPath); err != nil {
+		return fmt.Errorf("%s: %w", oldPath, joinNonNil(err, removeFile(newPath)))
+	}
+	return nil
+}
+
+// checkedRename renames oldPath to newPath unless something is already at newPath, which fails
+// with an error naming it that wraps ErrMoveTarget. A path that appears between the check and the
+// rename is replaced.
+func (p *Plan) checkedRename(oldPath string, newPath string) error {
+	if _, err := os.Lstat(newPath); !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("%s: %w", newPath, ErrMoveTarget)
+	}
+	return p.doRename(oldPath, newPath)
 }
 
 // doRename renames oldPath to newPath with the plan's rename, os.Rename unless a test swapped it.
