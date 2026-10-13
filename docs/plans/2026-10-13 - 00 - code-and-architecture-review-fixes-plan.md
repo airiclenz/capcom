@@ -2221,7 +2221,9 @@ Depends on P3.41.
 - `grep -rn 'isClosedCategory' internal/` prints nothing
 **Commit:** `refactor(cli): use config's closed-category predicate`
 
-## P3.43 The Issue lifecycle rules live in package issue
+## P3.43 The Issue lifecycle rules live in package issue — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the cli helper is `statusChangeFailure` in update.go; it maps ErrLeavesClosed, ErrEntersClosed and ErrNotClosed to today's three messages and any other error (the author failure, or ErrAlreadyClosed, which no cli caller can get yet) to invalid with `err.Error()`; cli's `reopen` method is deleted, its body now `issue.Reopen` in the change callback. `issue.Close` has no cli caller until P3.44.
 
 **What:** Part 3 of A-01: `issue.SetStatus`, `issue.Close` and `issue.Reopen` own the status-category state machine (ADR 0003, reinforced); `update` and `reopen` call them and keep only flag handling and the mapping to Codes.
 **Regression guard.** `Reopen` returns `*StatusError{Status: i.Status, Category: <its category>, Err: ErrNotClosed}`, and the cli helper maps it inside the change callback (after `editNode` the chain is flattened by `kindFailure`). cli passes `time.Now()` (local, not UTC-truncated) as `at`, and `Reopen` returns the author func's error unwrapped (invalid Code, message `err.Error()`, at the file).

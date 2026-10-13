@@ -1,10 +1,12 @@
 package issue
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/rawfm"
 )
@@ -121,4 +123,111 @@ func scanLogBounds(
 		unclosed = -1
 	}
 	return start, len(lines), unclosed
+}
+
+// reopenLogPrefix opens the Log entry Reopen writes, ahead of the reason.
+const reopenLogPrefix = "reopened: "
+
+// The refusals of the status-category state machine (ADR 0003). Each reaches the caller wrapped in
+// a *StatusError naming the status it is about.
+var (
+	// ErrAlreadyClosed refuses Close of an issue whose status is already in a Closed category.
+	ErrAlreadyClosed = errors.New("the issue is already closed")
+	// ErrNotClosed refuses Reopen of an issue that is not Closed, and Close to a status that is
+	// not in a Closed category.
+	ErrNotClosed = errors.New("the status is not in a closed category")
+	// ErrEntersClosed refuses a status change into a Closed category, which only Close makes.
+	ErrEntersClosed = errors.New("only close moves an issue into a closed category")
+	// ErrLeavesClosed refuses a status change out of a Closed category, which only Reopen makes.
+	ErrLeavesClosed = errors.New("only reopen moves an issue out of a closed category")
+)
+
+// StatusError is a refusal of SetStatus, Close or Reopen: Err is one of the sentinels above, and
+// Status and Category name the status the rule was judged on and the category config gives it
+// (empty for an undeclared status).
+type StatusError struct {
+	Status   string
+	Category config.Category
+	Err      error
+}
+
+// Error names the status, its category and the rule that refused it.
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("status %q is in the %s category: %v", e.Status, e.Category, e.Err)
+}
+
+// Unwrap returns the sentinel, so errors.Is matches it.
+func (e *StatusError) Unwrap() error {
+	return e.Err
+}
+
+// SetStatus returns a copy of i moved to status to. The same status is a no-op. A move out of a
+// Closed category is ErrLeavesClosed, judged on i's status; a move into one is ErrEntersClosed,
+// judged on to: close and reopen own those moves, with the closed time, reason and Log entry they
+// bring. On a refusal i is returned unchanged.
+func SetStatus(i Issue, cfg config.Config, to string) (Issue, error) {
+	if i.Status == to {
+		return i, nil
+	}
+	from, _ := cfg.CategoryOf(i.Status)
+	if from.IsClosed() {
+		return i, &StatusError{Status: i.Status, Category: from, Err: ErrLeavesClosed}
+	}
+	target, _ := cfg.CategoryOf(to)
+	if target.IsClosed() {
+		return i, &StatusError{Status: to, Category: target, Err: ErrEntersClosed}
+	}
+	i.Status = to
+	return i, nil
+}
+
+// Close returns a copy of i moved to status, closed at at for reason. An issue already Closed is
+// ErrAlreadyClosed, judged on i's status; a status outside the Closed categories is ErrNotClosed.
+// at is stored as given, so the caller decides its precision and location. On a refusal i is
+// returned unchanged.
+func Close(i Issue, cfg config.Config, status string, reason string, at time.Time) (Issue, error) {
+	current, _ := cfg.CategoryOf(i.Status)
+	if current.IsClosed() {
+		return i, &StatusError{Status: i.Status, Category: current, Err: ErrAlreadyClosed}
+	}
+	target, _ := cfg.CategoryOf(status)
+	if !target.IsClosed() {
+		return i, &StatusError{Status: status, Category: target, Err: ErrNotClosed}
+	}
+	i.Status = status
+	i.Closed = at
+	i.Reason = reason
+	return i, nil
+}
+
+// Reopen returns a copy of i moved out of its Closed category to status, with its closed time and
+// reason cleared and the Log entry "reopened: <reason>" appended, dated at and attributed to the
+// name author returns. An issue that is not Closed is ErrNotClosed, judged on i's status, and a
+// status in a Closed category is ErrEntersClosed; both are checked before author runs. An error
+// from author is returned as it is. On any failure i is returned unchanged.
+func Reopen(
+	i Issue,
+	cfg config.Config,
+	status string,
+	reason string,
+	author func() (string, error),
+	at time.Time,
+) (Issue, error) {
+	current, _ := cfg.CategoryOf(i.Status)
+	if !current.IsClosed() {
+		return i, &StatusError{Status: i.Status, Category: current, Err: ErrNotClosed}
+	}
+	target, _ := cfg.CategoryOf(status)
+	if target.IsClosed() {
+		return i, &StatusError{Status: status, Category: target, Err: ErrEntersClosed}
+	}
+	name, err := author()
+	if err != nil {
+		return i, err
+	}
+	reopened := i
+	reopened.Status = status
+	reopened.Closed = time.Time{}
+	reopened.Reason = ""
+	return reopened.AppendLog(at, name, reopenLogPrefix+reason), nil
 }

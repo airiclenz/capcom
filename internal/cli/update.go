@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -90,10 +89,11 @@ func (a *app) applyUpdate(
 ) (issue.Issue, error) {
 	flags := cmd.Flags()
 	if flags.Changed(flagStatus) {
-		if err := checkStatusChange(target.Status, options.status, a.store.Config); err != nil {
-			return issue.Issue{}, err
+		changed, err := issue.SetStatus(target, a.store.Config, options.status)
+		if err != nil {
+			return issue.Issue{}, statusChangeFailure(err)
 		}
-		target.Status = options.status
+		target = changed
 	}
 	if flags.Changed(flagTitle) {
 		target.Title = options.title
@@ -124,21 +124,37 @@ func (a *app) applyUpdate(
 	return target, nil
 }
 
-// checkStatusChange refuses a move into or out of a closed category (done or dropped, ADR 0003):
-// close and reopen own those, with the closed time, reason and Log entry they bring.
-func checkStatusChange(from string, to string, cfg config.Config) error {
-	if from == to {
-		return nil
+// statusChangeFailure types a refusal from issue.SetStatus or issue.Reopen as invalid, worded for
+// the commands: the wording stays here because it names the update, close and reopen verbs. Any
+// other error, such as a failure to name the Log entry's author, is invalid with its own message.
+func statusChangeFailure(err error) error {
+	var refusal *issue.StatusError
+	if !errors.As(err, &refusal) {
+		return output.Errorf(output.CodeInvalid, "%s", err.Error())
 	}
-	fromCategory, _ := cfg.CategoryOf(from)
-	toCategory, _ := cfg.CategoryOf(to)
-	if fromCategory.IsClosed() {
-		return output.Errorf(output.CodeInvalid, "status %q is closed; use reopen to move the issue out of it", from)
+	switch {
+	case errors.Is(refusal, issue.ErrLeavesClosed):
+		return output.Errorf(
+			output.CodeInvalid,
+			"status %q is closed; use reopen to move the issue out of it",
+			refusal.Status,
+		)
+	case errors.Is(refusal, issue.ErrEntersClosed):
+		return output.Errorf(
+			output.CodeInvalid,
+			"status %q is in the %s category; use close",
+			refusal.Status,
+			refusal.Category,
+		)
+	case errors.Is(refusal, issue.ErrNotClosed):
+		return output.Errorf(
+			output.CodeInvalid,
+			"status %q is in the %s category, so the issue is not closed; only a closed issue can be reopened",
+			refusal.Status,
+			refusal.Category,
+		)
 	}
-	if toCategory.IsClosed() {
-		return output.Errorf(output.CodeInvalid, "status %q is in the %s category; use close", to, toCategory)
-	}
-	return nil
+	return output.Errorf(output.CodeInvalid, "%s", err.Error())
 }
 
 // hasAnyFlag reports whether any of the named flags was given.

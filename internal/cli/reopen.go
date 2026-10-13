@@ -8,11 +8,9 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
 )
-
-// reopenLogPrefix opens the Log entry reopen writes, ahead of the reason.
-const reopenLogPrefix = "reopened: "
 
 // newReopenCommand moves a Closed issue back to a status in the todo category (or the one --status
 // names), clears its closed time and reason, and appends the reason to its Log.
@@ -38,8 +36,20 @@ func (a *app) newReopenCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			author := func() (string, error) { return gitx.AuthorName(a.store.WorktreeRoot) }
 			written, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
-				return a.reopen(target, status, options.reason)
+				reopened, err := issue.Reopen(
+					target,
+					a.store.Config,
+					status,
+					options.reason,
+					author,
+					time.Now(),
+				)
+				if err != nil {
+					return issue.Issue{}, statusChangeFailure(err)
+				}
+				return reopened, nil
 			})
 			if err != nil {
 				return err
@@ -51,24 +61,6 @@ func (a *app) newReopenCommand() *cobra.Command {
 	flags.StringVar(&options.reason, flagReason, "", "why the issue is reopened (required)")
 	flags.StringVar(&options.status, flagStatus, "", "status that is not closed (default: the first todo status)")
 	return a.withKV(cmd)
-}
-
-// reopen moves target out of its closed category to status and logs reason. An issue that is not
-// Closed is refused.
-func (a *app) reopen(target issue.Issue, status string, reason string) (issue.Issue, error) {
-	category, _ := a.store.Config.CategoryOf(target.Status)
-	if !category.IsClosed() {
-		return issue.Issue{}, output.Errorf(
-			output.CodeInvalid,
-			"status %q is in the %s category, so the issue is not closed; only a closed issue can be reopened",
-			target.Status,
-			category,
-		)
-	}
-	target.Status = status
-	target.Closed = time.Time{}
-	target.Reason = ""
-	return a.appendLog(target, reopenLogPrefix+reason)
 }
 
 // targetStatus returns the status close or reopen moves issues to: the --status given, which must
