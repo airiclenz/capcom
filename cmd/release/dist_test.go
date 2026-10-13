@@ -18,9 +18,9 @@ import (
 	"testing"
 )
 
-// The source tree every dist test builds from.
+// The source tree every dist test builds from: VERSION holds a bare X.Y.Z, as capcom's own does.
 const (
-	testVersion     = "v1.2.3\n"
+	testVersion     = "1.2.3\n"
 	testBareVersion = "1.2.3"
 	testLicense     = "the license\n"
 	testReadme      = "the readme\n"
@@ -131,6 +131,27 @@ func TestDistNamesArchivesAfterTheBareVersion(t *testing.T) {
 	}
 	if !slices.Contains(listed, "capcom_0.0.0_windows_arm64.zip") {
 		t.Errorf("output directory holds %v, want capcom_0.0.0_windows_arm64.zip", listed)
+	}
+}
+
+// TestDistRefusesAVersionWithALeadingV pins VERSION's one spelling: a "v1.2.3" VERSION is a run
+// failure naming the VERSION file and the leading v, and no archive is written.
+func TestDistRefusesAVersionWithALeadingV(t *testing.T) {
+	t.Parallel()
+	sourceDir := testSourceTreeAt(t, "v1.2.3\n")
+	outDir := filepath.Join(t.TempDir(), "out")
+
+	_, err := execute(t, fakeToolchain(), "dist", "--src", sourceDir, "--out", outDir)
+
+	if code := exitCodeFor(err); err == nil || code != exitRunFailed {
+		t.Fatalf("err = %v (exit %d), want a run failure", err, code)
+	}
+	want := filepath.Join(sourceDir, versionFile) + `:1: "v1.2.3" has a leading v`
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("err = %q, want it to contain %q", err, want)
+	}
+	if _, statErr := os.Stat(outDir); !errors.Is(statErr, fs.ErrNotExist) {
+		t.Errorf("stat %s: %v, want no output directory", outDir, statErr)
 	}
 }
 

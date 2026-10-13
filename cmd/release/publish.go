@@ -319,9 +319,12 @@ func (r *publishRun) checkPushable(ctx context.Context, refusals []error) (strin
 	if err != nil {
 		return gate, append(refusals, fmt.Errorf("read %s at HEAD: %w", versionFile, err))
 	}
-	// VERSION holds the bare X.Y.Z; a leading "v" is tolerated, as dist tolerates it.
 	bare := bareRelease(r.version)
-	if current := strings.TrimSpace(raw); strings.TrimPrefix(current, "v") != bare {
+	current := strings.TrimSpace(raw)
+	if strings.HasPrefix(current, "v") {
+		return gate, append(refusals, fmt.Errorf("%s reads %q: %s holds a bare X.Y.Z, with no leading v", versionFile, current, versionFile))
+	}
+	if current != bare {
 		return gate, append(refusals, fmt.Errorf("%s at HEAD reads %q, not %s: run prepare first", versionFile, current, bare))
 	}
 	return gate, refusals

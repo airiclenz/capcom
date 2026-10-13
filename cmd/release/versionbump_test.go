@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -82,9 +83,20 @@ func (repo bumpRepo) commit(t *testing.T, name, content string) string {
 	return repo.git(t, "rev-parse", "HEAD")
 }
 
-// runVersionBump runs the script on the range before..after and returns what it wrote to
-// $GITHUB_OUTPUT and to stderr.
+// runVersionBump runs the script on the range before..after, requires it to succeed, and
+// returns what it wrote to $GITHUB_OUTPUT and to stderr.
 func (repo bumpRepo) runVersionBump(t *testing.T, before, after string) (output, stderr string) {
+	t.Helper()
+	output, stderr, exitCode := repo.runVersionBumpStatus(t, before, after)
+	if exitCode != 0 {
+		t.Fatalf("version-bump.sh %s %s: exit status %d: %s", before, after, exitCode, stderr)
+	}
+	return output, stderr
+}
+
+// runVersionBumpStatus runs the script on the range before..after and returns what it wrote
+// to $GITHUB_OUTPUT and to stderr, and its exit status.
+func (repo bumpRepo) runVersionBumpStatus(t *testing.T, before, after string) (output, stderr string, exitCode int) {
 	t.Helper()
 	script, err := filepath.Abs(filepath.Join("..", "..", ".github", "scripts", "version-bump.sh"))
 	if err != nil {
@@ -97,13 +109,17 @@ func (repo bumpRepo) runVersionBump(t *testing.T, before, after string) (output,
 	var errBuffer bytes.Buffer
 	command.Stderr = &errBuffer
 	if err := command.Run(); err != nil {
-		t.Fatalf("version-bump.sh %s %s: %v: %s", before, after, err, errBuffer.String())
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("version-bump.sh %s %s: %v: %s", before, after, err, errBuffer.String())
+		}
+		exitCode = exitErr.ExitCode()
 	}
 	written, err := os.ReadFile(outputFile)
 	if err != nil {
 		t.Fatalf("ReadFile %s: %v", outputFile, err)
 	}
-	return string(written), errBuffer.String()
+	return string(written), errBuffer.String(), exitCode
 }
 
 func TestVersionBumpTagsTheBumpCommitNotThePushHead(t *testing.T) {
@@ -155,13 +171,58 @@ func TestVersionBumpRefusesAVersionThatIsNotBareXYZ(t *testing.T) {
 	before := repo.commit(t, "VERSION", "1.0.0\n")
 	after := repo.commit(t, "VERSION", "1.2\n")
 
-	output, stderr := repo.runVersionBump(t, before, after)
+	output, stderr, exitCode := repo.runVersionBumpStatus(t, before, after)
 
+	if exitCode == 0 {
+		t.Errorf("exit status = 0, want non-zero for a refused bump")
+	}
 	if want := "bumps=\n"; output != want {
 		t.Errorf("output = %q, want %q", output, want)
 	}
 	if !strings.Contains(stderr, "refusing to tag") {
 		t.Errorf("stderr = %q, want it to contain %q", stderr, "refusing to tag")
+	}
+}
+
+// TestVersionBumpExitsNonZeroOnALeadingV pins VERSION's one spelling at the tagger: a
+// "v0.6.0" bump is refused and fails the step, after the valid bump is still listed.
+func TestVersionBumpExitsNonZeroOnALeadingV(t *testing.T) {
+	t.Parallel()
+	repo := newBumpRepo(t)
+	before := repo.commit(t, "VERSION", "0.5.0\n")
+	valid := repo.commit(t, "VERSION", "0.5.1\n")
+	after := repo.commit(t, "VERSION", "v0.6.0\n")
+
+	output, stderr, exitCode := repo.runVersionBumpStatus(t, before, after)
+
+	if exitCode == 0 {
+		t.Errorf("exit status = 0, want non-zero for VERSION v0.6.0")
+	}
+	if want := "bumps=" + valid + "=v0.5.1\n"; output != want {
+		t.Errorf("output = %q, want %q", output, want)
+	}
+	if want := "reads 'v0.6.0', not a bare X.Y.Z value"; !strings.Contains(stderr, want) {
+		t.Errorf("stderr = %q, want it to contain %q", stderr, want)
+	}
+}
+
+// TestVersionBumpFallsBackToTheNewestReleaseTag pins the fallback for a `before` the clone
+// does not hold: the range starts at the newest release tag reachable from `after`, so a bump
+// buried under a later commit is still tagged.
+func TestVersionBumpFallsBackToTheNewestReleaseTag(t *testing.T) {
+	t.Parallel()
+	repo := newBumpRepo(t)
+	repo.commit(t, "VERSION", "1.0.0\n")
+	repo.git(t, "tag", "v1.0.0")
+	repo.commit(t, "README.md", "work after the release\n")
+	bump := repo.commit(t, "VERSION", "1.1.0\n")
+	after := repo.commit(t, "README.md", "work after the bump\n")
+	missing := strings.Repeat("ab", 20)
+
+	output, _ := repo.runVersionBump(t, missing, after)
+
+	if want := "bumps=" + bump + "=v1.1.0\n"; output != want {
+		t.Errorf("output = %q, want %q", output, want)
 	}
 }
 

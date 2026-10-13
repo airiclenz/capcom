@@ -462,17 +462,19 @@ func TestPublishRefusesBeforeChangingAnything(t *testing.T) {
 	}
 }
 
-// TestPublishAcceptsAVersionFileWithALeadingV pins the VERSION check's spelling: VERSION holds the
-// bare X.Y.Z, and a leading "v" — which dist tolerates too — still reads as the version.
-func TestPublishAcceptsAVersionFileWithALeadingV(t *testing.T) {
+// TestPublishRefusesAVersionFileWithALeadingV pins the VERSION check's spelling: VERSION holds the
+// bare X.Y.Z, and a "v0.24.11" VERSION — even one naming the release — is refused, as dist
+// refuses it.
+func TestPublishRefusesAVersionFileWithALeadingV(t *testing.T) {
 	t.Parallel()
 	fake := newPublishFake()
 	fake.repo.files[versionFile] = publishVersion + "\n"
 
 	result := runTestPublish(t, fake, true)
 
-	if result.err != nil {
-		t.Fatalf("publish refused VERSION %q: %v\n%s", publishVersion, result.err, result.output)
+	want := `VERSION reads "v0.24.11": VERSION holds a bare X.Y.Z, with no leading v`
+	if result.err == nil || !strings.Contains(result.err.Error(), want) {
+		t.Fatalf("publish error = %v, want one containing %q\n%s", result.err, want, result.output)
 	}
 }
 

@@ -185,8 +185,8 @@ func isWithin(path, directory string) bool {
 	return relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)))
 }
 
-// readBareVersion reads the source tree's VERSION — bare `X.Y.Z`, a leading "v" tolerated — and
-// returns it without the "v": an archive name reads capcom_0.11.0_darwin_arm64, never
+// readBareVersion reads the source tree's VERSION — a bare `X.Y.Z` — and refuses one with a
+// leading "v": an archive name reads capcom_0.11.0_darwin_arm64, never
 // capcom_v0.11.0_darwin_arm64.
 func readBareVersion(sourceDir string) (string, error) {
 	versionPath := filepath.Join(sourceDir, versionFile)
@@ -194,9 +194,12 @@ func readBareVersion(sourceDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", versionPath, err)
 	}
-	bareVersion := strings.TrimPrefix(strings.TrimSpace(string(raw)), "v")
+	bareVersion := strings.TrimSpace(string(raw))
 	if bareVersion == "" {
 		return "", fmt.Errorf("%s:1: no version", versionPath)
+	}
+	if strings.HasPrefix(bareVersion, "v") {
+		return "", fmt.Errorf("%s:1: %q has a leading v; %s holds a bare X.Y.Z", versionPath, bareVersion, versionFile)
 	}
 	return bareVersion, nil
 }

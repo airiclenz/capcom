@@ -1050,7 +1050,10 @@ Depends on P1.41.
 - `go vet ./cmd/release/`
 **Commit:** `fix(release): check uploaded archives before uploading SHA256SUMS beside them`
 
-## P1.45 Release: bare X.Y.Z everywhere, and the tagger fails loudly
+## P1.45 Release: bare X.Y.Z everywhere, and the tagger fails loudly — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): TestVersionBumpExitsNonZeroOnALeadingV also commits a valid bump (0.5.1) before the `v0.6.0` one, pinning that the valid bump is still listed in `bumps` when the script exits 1.
+NOTES (2026-10-13): channels_test.go's TestPublishWingetConvergesFromRemoteStateOnceTheTagExists still sets VERSION to "v0.24.12" as a moved-on value publish never reads once the tag exists; left untouched since it passes and is out of this item's Files.
 
 **What:** Recast at the regression check (2026-10-13). Fixes F-15 (`tagger-silent-pass`): the tagger misses a bump buried under later commits when `before` is unusable, and refuses a `v`-prefixed VERSION while exiting 0, which `publish` and `dist` accept.
 **Regression guard.** Files adds .github/workflows/tag-on-version-bump.yml; the tag step becomes `if: ${{ !cancelled() && steps.detect.outputs.bumps != '' }}` so valid bumps are still tagged while the job goes red. Tests: dist_test.go `testVersion` becomes `"1.2.3\n"` (and its comment); the new leading-v refusal test uses `testSourceTreeAt(t, "v1.2.3\n")`.

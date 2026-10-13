@@ -35,8 +35,10 @@ jobs:
       - id: detect
         name: Decide whether VERSION changed
         run: .github/scripts/version-bump.sh "${{ github.event.before }}" "${{ github.sha }}"
+      # A refused bump fails the detect step after it writes `bumps`; the valid bumps
+      # are still tagged, and the job stays red.
       - name: Create the annotated tags
-        if: steps.detect.outputs.bumps != ''
+        if: ${{ !cancelled() && steps.detect.outputs.bumps != '' }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           BUMPS: ${{ steps.detect.outputs.bumps }}
