@@ -179,6 +179,23 @@ func TestCompose_BrokenIndexAndLocks_FailInOrderAndKeepTheRest(t *testing.T) {
 	}
 }
 
+func TestCompose_PanickingSource_IsOneInternalFailureAndNoSection(t *testing.T) {
+	original := runCheck
+	t.Cleanup(func() { runCheck = original })
+	runCheck = func(string) ([]check.Problem, error) { panic("check exploded") }
+	root := newBriefingRepo(t, briefingStore())
+
+	got := Compose(root, time.Now())
+
+	if len(got.Failures) != 1 || got.Failures[0].Section != SectionInternal ||
+		got.Failures[0].Err.Error() != "internal error: check exploded" {
+		t.Errorf("Failures = %+v; want one internal failure reading \"internal error: check exploded\"", got.Failures)
+	}
+	if got.Work != nil || got.Locks != nil || got.Health != nil || got.Elsewhere != nil {
+		t.Errorf("Compose = %+v; want every section left out", got)
+	}
+}
+
 func TestCompose_IssueChangedOnAnotherBranch_ReportsItElsewhere(t *testing.T) {
 	root := newBriefingRepo(t, briefingStore())
 	runGit(t, root, "add", "-A")

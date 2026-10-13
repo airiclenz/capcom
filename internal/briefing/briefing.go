@@ -15,6 +15,9 @@ import (
 	"github.com/airiclenz/capcom/internal/store"
 )
 
+// runCheck is the check readHealth runs, a seam so a test can make a source panic.
+var runCheck = check.Run
+
 // Section names the source of one Failure of the Briefing.
 type Section string
 
@@ -159,7 +162,7 @@ func (b *Briefing) readLocks(s *store.Store) {
 
 // readHealth sets Health from a check of the store cwd belongs to.
 func (b *Briefing) readHealth(cwd string) {
-	problems, err := check.Run(cwd)
+	problems, err := runCheck(cwd)
 	if err != nil {
 		b.fail(SectionCheck, err)
 		return

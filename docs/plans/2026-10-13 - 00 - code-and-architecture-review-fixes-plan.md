@@ -206,7 +206,7 @@ Depends on P0.0.
 - `grep -rL '^## Acceptance' .capcom/issues/code-review-1013/` prints nothing
 **Commit:** `chore(issues): file the code and architecture review 2026-10-13 refactor issues`
 
-## P0.2 Pin Compose's panic recovery
+## P0.2 Pin Compose's panic recovery — ✅ DONE (2026-10-13)
 
 **What:** Closes test gap T-02 (`briefing-panic-test`). In `internal/briefing/briefing.go`, add a source seam: an unexported package variable `runCheck = check.Run`, which `readHealth` calls in place of `check.Run`. Nothing else changes. A new test makes the seam panic.
 Depends on P0.0.
