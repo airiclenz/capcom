@@ -2661,7 +2661,14 @@ Depends on P3.81.
 - `go vet ./cmd/release/`
 **Commit:** `refactor(release): publish channel files through the channel seam`
 
-## P3.83 Release: inject the channel seam, with an in-memory adapter
+## P3.83 Release: inject the channel seam, with an in-memory adapter — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): channelReposOrExec (nil options.channels -> execChannelRepos over the run's runner in options.dir), the one helper status, publish and smoke share, sits in cmd/release/channelrepos.go beside execChannelRepos, a file the item's Files did not list; main passes execChannelRepos{commands, dir: "."}, the dir every verb used before
+NOTES (2026-10-13): convergeSmoke now forwards publish's options.channels to the smoke run, as it already forwards openRepo
+NOTES (2026-10-13): TestProbeWingetFindsAPullRequestSearchHasNotIndexed is deleted from probes_test.go without editing channelrepos_test.go: TestExecChannelReposOpenPullsReadsTheViewersPullsBesideTheSearch already holds the OpenPulls merge cases it moves to ("the viewer's pull request search has not indexed": search empty, viewer list holding it; and the other-repository case); its title cases (first submission, another version) are TestProbesReportEachState cases over memChannelRepos
+NOTES (2026-10-13): memChannelRepos answers a missing repository with "no" on every read (OpenPulls included, an empty list) and refuses PublishFile there; OpenPulls ignores the query and returns every open pull request held, since the probe judges titles itself; failures are keyed by (method, repository), and an unparsable answer is stated as a failure wrapping errUnparsableAnswer
+NOTES (2026-10-13): the probes table drops the exec-only "winget viewer's pull requests unreadable" case (channelrepos_test.go's "OpenPulls on a broken viewer query" pins it) and gains "winget listing unreadable" and "winget pull request for another version"; TestProbeStepsRunsEveryStepInPublishOrder also moves onto memChannelRepos
+NOTES (2026-10-13): statusCheckout's runner now refuses every command, since its repo and channel repositories answer everything status asks; fakeRemote stays in probes_test.go for publishFake and the exec adapter's tests until P3.84
 
 **What:** Third part of A-12: every verb takes its `channelRepos` from outside, and the tests gain `memChannelRepos`, the second adapter; the probe and status tests move onto it.
 **Regression guard.** prepare_test.go and smoke_test.go call `executeWith`; they pass nil, keeping the exec adapter over their runner. `memChannelRepos` records every read (method, repository), and `TestStatusProbesTheVersionFileOnlyAboveTheBaseline` asserts none at the baseline. P3.81's `TestProbeWingetFindsAPullRequestSearchHasNotIndexed` moves into channelrepos_test.go as an `OpenPulls` merge test (search empty, viewer list holding the pull request).

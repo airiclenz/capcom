@@ -60,20 +60,21 @@ func (f *fakeRunner) recorded(name string) []recordedCall {
 	return matching
 }
 
-// execute runs the program's command tree over commands with args, the checkout's repo the
-// execRepo over commands as in production, returning the error main would turn into an exit code
-// and everything the command printed.
+// execute runs the program's command tree over commands with args, the checkout's repo and the
+// channel repositories the exec adapters over commands as in production, returning the error main
+// would turn into an exit code and everything the command printed.
 func execute(t *testing.T, commands runner, args ...string) (string, error) {
 	t.Helper()
-	return executeWith(t, commands, execRepos(commands), args...)
+	return executeWith(t, commands, execRepos(commands), nil, args...)
 }
 
 // executeWith runs the program's command tree as execute does, every verb opening its repo with
-// openRepo.
-func executeWith(t *testing.T, commands runner, openRepo repoOpener, args ...string) (string, error) {
+// openRepo and reading the channel repositories through channels — nil for the execChannelRepos
+// over commands.
+func executeWith(t *testing.T, commands runner, openRepo repoOpener, channels channelRepos, args ...string) (string, error) {
 	t.Helper()
 	var output bytes.Buffer
-	root := newRootCommand(commands, openRepo)
+	root := newRootCommand(commands, openRepo, channels)
 	root.SetArgs(args)
 	root.SetOut(&output)
 	root.SetErr(&output)
@@ -120,10 +121,11 @@ func TestBadCommandLineIsAUsageError(t *testing.T) {
 	}
 }
 
-// TestCommandTreeOpensTheInjectedRepo pins the repo factory's wiring: a verb run through the
-// command tree reads the checkout through the repo newRootCommand was handed, never through
+// TestCommandTreeOpensTheInjectedRepo pins the repo factory's and the channel seam's wiring: a
+// verb run through the command tree reads the checkout through the repo newRootCommand was
+// handed, and the channel repositories through the channelRepos it was handed, never through
 // argv of its own — here status's gate, judged from a memRepo whose tree is dirty while every
-// runner command fails.
+// runner command fails, and its channel probes, answered by a memChannelRepos.
 func TestCommandTreeOpensTheInjectedRepo(t *testing.T) {
 	t.Parallel()
 	checkout := memRepo{commits: linearHistory(), head: bumpCommit, originMain: bumpCommit,
@@ -136,8 +138,9 @@ func TestCommandTreeOpensTheInjectedRepo(t *testing.T) {
 	commands := &fakeRunner{respond: func(call recordedCall) (string, error) {
 		return "", errors.New(call.name + ": unavailable")
 	}}
+	channels := memChannelRepos{}.recording()
 
-	output, err := executeWith(t, commands, openRepo, "status", "--json", "v0.1.0")
+	output, err := executeWith(t, commands, openRepo, channels, "status", "--json", "v0.1.0")
 
 	if err == nil {
 		t.Fatal("status succeeded over a dirty tree")
@@ -152,6 +155,9 @@ func TestCommandTreeOpensTheInjectedRepo(t *testing.T) {
 	}
 	if openedDir != "." {
 		t.Errorf("repo opened at %q, want the checkout %q", openedDir, ".")
+	}
+	if !slices.Contains(channels.reads(), memChannelCall{method: methodExists, repo: tapRepo}) {
+		t.Errorf("channel reads = %+v, want the homebrew probe's through the injected channelRepos", channels.reads())
 	}
 	gateCommands := []string{"git fetch", "git status", "git rev-parse", "git rev-list --parents",
 		"git diff-tree", "git merge-base", "gh run list"}

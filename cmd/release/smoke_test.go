@@ -553,7 +553,7 @@ func TestSmokeVersion(t *testing.T) {
 				fake := newSmokeFake(t)
 				commands := &fakeRunner{respond: fake.respond}
 
-				output, err := executeWith(t, commands, fake.openRepo, tc.args...)
+				output, err := executeWith(t, commands, fake.openRepo, nil, tc.args...)
 
 				if tc.wantError != "" {
 					var failed runError
@@ -598,7 +598,7 @@ func TestSmokeFailureIsARunFailure(t *testing.T) {
 	fake := newSmokeFake(t)
 	fake.repo.remoteTags = map[string]string{}
 
-	output, err := executeWith(t, &fakeRunner{respond: fake.respond}, fake.openRepo, "smoke", publishVersion)
+	output, err := executeWith(t, &fakeRunner{respond: fake.respond}, fake.openRepo, nil, "smoke", publishVersion)
 
 	if err == nil || exitCodeFor(err) != exitRunFailed {
 		t.Errorf("smoke error = %v (exit %d), want a run failure (exit %d)", err, exitCodeFor(err), exitRunFailed)

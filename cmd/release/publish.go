@@ -44,6 +44,9 @@ type publishOptions struct {
 	smoke func(ctx context.Context, output io.Writer, options smokeOptions) error
 	// openRepo opens the checkout's repo; nil opens the execRepo over the run's runner.
 	openRepo repoOpener
+	// channels is the package channels' repositories; nil is the execChannelRepos over the run's
+	// runner in dir.
+	channels channelRepos
 }
 
 // publishRun is one publish run: what every step reads.
@@ -75,7 +78,7 @@ type publishRun struct {
 }
 
 // newPublishCommand builds the publish verb.
-func newPublishCommand(commands runner, openRepo repoOpener) *cobra.Command {
+func newPublishCommand(commands runner, openRepo repoOpener, channels channelRepos) *cobra.Command {
 	options := publishOptions{
 		dir:          ".",
 		tagTimeout:   defaultTagTimeout,
@@ -83,6 +86,7 @@ func newPublishCommand(commands runner, openRepo repoOpener) *cobra.Command {
 		sleep:        sleepContext,
 		getenv:       os.Getenv,
 		openRepo:     openRepo,
+		channels:     channels,
 	}
 	options.smoke = func(ctx context.Context, output io.Writer, smoke smokeOptions) error {
 		return runSmoke(ctx, commands, output, smoke)
@@ -142,7 +146,7 @@ func runPublish(ctx context.Context, commands runner, output io.Writer, options 
 	run := &publishRun{
 		commands: commands,
 		repo:     options.openRepo.open(commands, options.dir),
-		channels: execChannelRepos{commands: commands, dir: options.dir},
+		channels: channelReposOrExec(options.channels, commands, options.dir),
 		output:   output,
 		options:  options,
 		version:  version,

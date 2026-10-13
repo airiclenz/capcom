@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -13,18 +14,19 @@ import (
 )
 
 // statusCheckout is a checkout status reports on: capcom's own repository held in repo, the
-// channel repositories the probes read through the runner in remote.
+// channel repositories the probes read held in channels.
 type statusCheckout struct {
-	repo   memRepo
-	remote fakeRemote
+	repo     memRepo
+	channels memChannelRepos
 }
 
 // clearedCheckout is a checkout whose gate clears: HEAD is a VERSION bump over a feature commit,
 // both pushed, with CI green on the bump. Bare tags newer than the latest release exist, as every
 // pushed VERSION bump tags one. The latest release is seven commits back, the whole history
 // twelve; nothing is published for any newer version, and no channel's one-time setup has landed.
+// The channel repositories record every read.
 func clearedCheckout() statusCheckout {
-	return statusCheckout{repo: memRepo{
+	return statusCheckout{channels: memChannelRepos{}.recording(), repo: memRepo{
 		commits:       linearHistory(),
 		head:          bumpCommit,
 		originMain:    bumpCommit,
@@ -40,15 +42,18 @@ func (c statusCheckout) opener() repoOpener {
 	return func(string) repo { return c.repo }
 }
 
-// runner returns a recording runner over the channel repositories.
+// runner returns a recording runner refusing every command: the checkout's repo and channel
+// repositories answer everything status asks.
 func (c statusCheckout) runner() *fakeRunner {
-	return c.remote.runner()
+	return &fakeRunner{respond: func(call recordedCall) (string, error) {
+		return "", fmt.Errorf("unexpected command %s %s", call.name, strings.Join(call.args, " "))
+	}}
 }
 
 // run runs the program's command tree over the checkout with args.
 func (c statusCheckout) run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	return executeWith(t, c.runner(), c.opener(), args...)
+	return executeWith(t, c.runner(), c.opener(), c.channels, args...)
 }
 
 // statusJSON runs status over checkout with args and decodes its JSON report, returning the error
@@ -155,7 +160,7 @@ func TestStatusJSONKeysArePinned(t *testing.T) {
 
 // TestStatusProbesTheVersionFileOnlyAboveTheBaseline pins when status probes the publish steps
 // for the checkout's VERSION: above the baseline a release is in progress and every step is
-// probed; at the baseline none is, and no probe command reaches the runner; with no published
+// probed; at the baseline none is, and no probe reads a channel repository; with no published
 // release, and so no baseline tag, the first release is in progress and every step is probed.
 func TestStatusProbesTheVersionFileOnlyAboveTheBaseline(t *testing.T) {
 	t.Parallel()
@@ -183,7 +188,8 @@ func TestStatusProbesTheVersionFileOnlyAboveTheBaseline(t *testing.T) {
 			commands := checkout.runner()
 			var output bytes.Buffer
 
-			err := runStatus(t.Context(), commands, &output, statusOptions{dir: dir, isJSON: true, openRepo: checkout.opener()})
+			err := runStatus(t.Context(), commands, &output,
+				statusOptions{dir: dir, isJSON: true, openRepo: checkout.opener(), channels: checkout.channels})
 
 			if err != nil {
 				t.Fatalf("status failed: %v\n%s", err, output.String())
@@ -195,8 +201,8 @@ func TestStatusProbesTheVersionFileOnlyAboveTheBaseline(t *testing.T) {
 			if len(report.Steps) != tc.wantSteps {
 				t.Errorf("steps = %d, want %d", len(report.Steps), tc.wantSteps)
 			}
-			if tc.wantSteps == 0 && len(commands.calls) != 0 {
-				t.Errorf("runner was called %d times, want none: no probe", len(commands.calls))
+			if reads := checkout.channels.reads(); tc.wantSteps == 0 && len(reads) != 0 {
+				t.Errorf("channel repositories read %+v, want none: no probe", reads)
 			}
 		})
 	}
@@ -212,7 +218,7 @@ func TestStatusBaselineWithNoPublishedRelease(t *testing.T) {
 	var output bytes.Buffer
 
 	err := runStatus(t.Context(), checkout.runner(), &output,
-		statusOptions{dir: ".", version: "v0.1.0", isJSON: true, openRepo: checkout.opener()})
+		statusOptions{dir: ".", version: "v0.1.0", isJSON: true, openRepo: checkout.opener(), channels: checkout.channels})
 
 	if err != nil {
 		t.Fatalf("status failed with no published release: %v\n%s", err, output.String())
@@ -243,7 +249,7 @@ func TestStatusBaselineWithNoPublishedRelease(t *testing.T) {
 func TestStatusFailsOnAStepItCouldNotProbe(t *testing.T) {
 	t.Parallel()
 	checkout := clearedCheckout()
-	checkout.remote.failing = "gh api repos/" + tapRepo
+	checkout.channels = checkout.channels.withFailure(methodExists, tapRepo, errors.New("cannot run"))
 
 	report, err := statusJSON(t, checkout, "v0.24.14")
 
@@ -318,7 +324,8 @@ func TestStatusDefaultsToTheVersionFile(t *testing.T) {
 	checkout := clearedCheckout()
 	var output bytes.Buffer
 
-	err := runStatus(t.Context(), checkout.runner(), &output, statusOptions{dir: dir, isJSON: true, openRepo: checkout.opener()})
+	err := runStatus(t.Context(), checkout.runner(), &output,
+		statusOptions{dir: dir, isJSON: true, openRepo: checkout.opener(), channels: checkout.channels})
 
 	if err != nil {
 		t.Fatalf("status failed: %v\n%s", err, output.String())

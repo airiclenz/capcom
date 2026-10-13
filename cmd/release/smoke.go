@@ -54,6 +54,9 @@ type smokeOptions struct {
 	readBuildInfo func(path string) (*buildinfo.BuildInfo, error)
 	// openRepo opens the checkout's repo; nil opens the execRepo over the run's runner.
 	openRepo repoOpener
+	// channels is the package channels' repositories; nil is the execChannelRepos over the run's
+	// runner in dir.
+	channels channelRepos
 }
 
 // defaultSmokeOptions checks the checkout at dir from this host, reading build stamps with
@@ -87,9 +90,10 @@ type smokeRun struct {
 }
 
 // newSmokeCommand builds the smoke verb.
-func newSmokeCommand(commands runner, openRepo repoOpener) *cobra.Command {
+func newSmokeCommand(commands runner, openRepo repoOpener, channels channelRepos) *cobra.Command {
 	options := defaultSmokeOptions(".")
 	options.openRepo = openRepo
+	options.channels = channels
 
 	cmd := &cobra.Command{
 		Use:   "smoke [vX.Y.Z] [--dist-dir D]",
@@ -140,7 +144,7 @@ func runSmoke(ctx context.Context, commands runner, output io.Writer, options sm
 	run := &smokeRun{
 		commands: commands,
 		repo:     options.openRepo.open(commands, options.dir),
-		channels: execChannelRepos{commands: commands, dir: options.dir},
+		channels: channelReposOrExec(options.channels, commands, options.dir),
 		output:   output,
 		options:  options,
 		version:  version,
@@ -543,6 +547,7 @@ func describeSmoke(run *publishRun) string {
 func convergeSmoke(ctx context.Context, run *publishRun) error {
 	options := defaultSmokeOptions(run.options.dir)
 	options.openRepo = run.options.openRepo
+	options.channels = run.options.channels
 	options.version = run.version.String()
 	options.distDir = run.distDir
 	return run.options.smoke(ctx, run.output, options)

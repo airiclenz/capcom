@@ -457,7 +457,7 @@ func TestPrepareRefusalIsARunFailure(t *testing.T) {
 
 	for _, version := range []string{"v0.25", "v0.24.11"} {
 		commands := refusingRunner()
-		_, err := executeWith(t, commands, checkout.opener(), "prepare", version)
+		_, err := executeWith(t, commands, checkout.opener(), nil, "prepare", version)
 		if code := exitCodeFor(err); err == nil || code != exitRunFailed {
 			t.Errorf("prepare %s = %v (exit %d), want exit %d", version, err, code, exitRunFailed)
 		}
@@ -466,7 +466,7 @@ func TestPrepareRefusalIsARunFailure(t *testing.T) {
 		}
 	}
 
-	_, err := executeWith(t, refusingRunner(), checkout.opener(), "prepare")
+	_, err := executeWith(t, refusingRunner(), checkout.opener(), nil, "prepare")
 	if code := exitCodeFor(err); err == nil || code != exitBadUsage {
 		t.Errorf("prepare with no version = %v (exit %d), want exit %d", err, code, exitBadUsage)
 	}

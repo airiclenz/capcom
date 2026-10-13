@@ -180,9 +180,50 @@ func TestReleaseAssetNamesMatchAPublishedRelease(t *testing.T) {
 	}
 }
 
+// tapHolding is channel repositories where the tap holds formula as its formula, and no formula
+// when it is "".
+func tapHolding(formula string) memChannelRepos {
+	return memChannelRepos{repos: map[string]memChannelRepo{tapRepo: {files: fileHolding(formulaPath, formula)}}}
+}
+
+// bucketHolding is channel repositories where the bucket holds manifest as its manifest, and is
+// an empty repository when it is "".
+func bucketHolding(manifest string) memChannelRepos {
+	return memChannelRepos{repos: map[string]memChannelRepo{bucketRepo: {files: fileHolding(bucketPath, manifest)}}}
+}
+
+// wingetHolding is channel repositories where winget-pkgs holds one manifest directory per
+// version — none of the package's at all when versions is nil — and the open pull requests pulls.
+func wingetHolding(versions []string, pulls ...pullRequest) memChannelRepos {
+	winget := memChannelRepo{pulls: pulls}
+	if versions != nil {
+		winget.dirs = map[string][]string{wingetManifestDir: versions}
+	}
+	return memChannelRepos{repos: map[string]memChannelRepo{wingetRepo: winget}}
+}
+
+// fileHolding is a repository's files holding content at path, or no file when content is "".
+func fileHolding(path, content string) map[string]string {
+	if content == "" {
+		return nil
+	}
+	return map[string]string{path: content}
+}
+
+// komacPull is an open komac pull request titled kind ("New version", or "New package" for the
+// first submission) for version.
+func komacPull(number int, kind, version string) pullRequest {
+	return pullRequest{number: number, title: fmt.Sprintf("%s: AiricLenz.Capcom version %s", kind, version),
+		url: fmt.Sprintf("https://github.com/microsoft/winget-pkgs/pull/%d", number)}
+}
+
+// unparsable is a channel repository answer the adapter could not parse, as a listing that is not
+// JSON gives.
+var unparsable = unparsableAnswerError{cause: errors.New("invalid character 'o' in literal null (expecting 'u')")}
+
 // TestProbesReportEachState pins every probe's done, pending, setup-pending and unknown branches:
-// the tag and release probes over the state a memRepo holds, the channel probes over canned
-// remote answers.
+// the tag and release probes over the state a memRepo holds, the channel probes over the state a
+// memChannelRepos holds.
 func TestProbesReportEachState(t *testing.T) {
 	t.Parallel()
 
@@ -193,11 +234,12 @@ func TestProbesReportEachState(t *testing.T) {
 	draft := map[string]bool{"v0.24.11": true}
 	olderFormula := strings.Replace(testFormula, `version "0.24.11"`, `version "0.24.10"`, 1)
 	newerFormula := strings.Replace(testFormula, `version "0.24.11"`, `version "0.24.12"`, 1)
+	cannotRun := errors.New("cannot run")
 
 	cases := map[string]struct {
 		probe      stepProbe
 		repo       memRepo
-		remote     fakeRemote
+		channels   memChannelRepos
 		version    string
 		wantState  stepState
 		wantDetail string
@@ -213,39 +255,43 @@ func TestProbesReportEachState(t *testing.T) {
 		"release complete":      {probe: probeRelease, repo: memRepo{releases: allAssets}, wantState: stateDone, wantDetail: "all 7 assets"},
 		"release unreadable":    {probe: probeRelease, repo: memRepo{releases: allAssets, failing: methodReleaseAssets}, wantState: stateUnknown, wantDetail: "could not read GitHub release v0.24.11"},
 		"tap repo absent":       {probe: probeHomebrew, wantState: stateSetupPending, wantDetail: "no airiclenz/homebrew-tap repository yet"},
-		"formula absent":        {probe: probeHomebrew, remote: fakeRemote{hasTap: true}, wantState: statePending, wantDetail: "has no Formula/capcom.rb"},
-		"formula older":         {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: olderFormula}, wantState: statePending, wantDetail: `formula pins "0.24.10", not 0.24.11`},
-		"formula current":       {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: testFormula}, wantState: stateDone, wantDetail: "formula pins 0.24.11"},
-		"formula newer":         {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: newerFormula}, wantState: stateDone, wantDetail: "formula pins newer 0.24.12"},
-		"tap repo unreadable":   {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: testFormula, failing: "gh api"}, wantState: stateUnknown, wantDetail: "could not read the airiclenz/homebrew-tap repository"},
-		"formula unreadable": {probe: probeHomebrew, remote: fakeRemote{hasTap: true, formula: testFormula, failing: "gh api repos/airiclenz/homebrew-tap/contents"},
+		"formula absent":        {probe: probeHomebrew, channels: tapHolding(""), wantState: statePending, wantDetail: "has no Formula/capcom.rb"},
+		"formula older":         {probe: probeHomebrew, channels: tapHolding(olderFormula), wantState: statePending, wantDetail: `formula pins "0.24.10", not 0.24.11`},
+		"formula current":       {probe: probeHomebrew, channels: tapHolding(testFormula), wantState: stateDone, wantDetail: "formula pins 0.24.11"},
+		"formula newer":         {probe: probeHomebrew, channels: tapHolding(newerFormula), wantState: stateDone, wantDetail: "formula pins newer 0.24.12"},
+		"tap repo unreadable": {probe: probeHomebrew, channels: tapHolding(testFormula).withFailure(methodExists, tapRepo, cannotRun),
+			wantState: stateUnknown, wantDetail: "could not read the airiclenz/homebrew-tap repository"},
+		"formula unreadable": {probe: probeHomebrew, channels: tapHolding(testFormula).withFailure(methodReadFile, tapRepo, cannotRun),
 			wantState: stateUnknown, wantDetail: "could not read Formula/capcom.rb"},
 		"bucket repo absent": {probe: probeScoop, wantState: stateSetupPending, wantDetail: "no airiclenz/scoop-bucket repository yet"},
-		"bucket repo empty":  {probe: probeScoop, remote: fakeRemote{hasBucket: true}, wantState: statePending, wantDetail: "has no bucket/capcom.json"},
-		"bucket older":       {probe: probeScoop, remote: fakeRemote{hasBucket: true, bucketManifest: `{"version": "0.24.10"}`}, wantState: statePending, wantDetail: `manifest pins "0.24.10", not 0.24.11`},
-		"bucket current":     {probe: probeScoop, remote: fakeRemote{hasBucket: true, bucketManifest: `{"version": "0.24.11"}`}, wantState: stateDone, wantDetail: "manifest pins 0.24.11"},
-		"bucket newer":       {probe: probeScoop, remote: fakeRemote{hasBucket: true, bucketManifest: `{"version": "0.24.12"}`}, wantState: stateDone, wantDetail: "manifest pins newer 0.24.12"},
-		"bucket unreadable":  {probe: probeScoop, remote: fakeRemote{hasBucket: true, failing: "gh api"}, wantState: stateUnknown, wantDetail: "could not read the airiclenz/scoop-bucket repository"},
+		"bucket repo empty":  {probe: probeScoop, channels: bucketHolding(""), wantState: statePending, wantDetail: "has no bucket/capcom.json"},
+		"bucket older":       {probe: probeScoop, channels: bucketHolding(`{"version": "0.24.10"}`), wantState: statePending, wantDetail: `manifest pins "0.24.10", not 0.24.11`},
+		"bucket current":     {probe: probeScoop, channels: bucketHolding(`{"version": "0.24.11"}`), wantState: stateDone, wantDetail: "manifest pins 0.24.11"},
+		"bucket newer":       {probe: probeScoop, channels: bucketHolding(`{"version": "0.24.12"}`), wantState: stateDone, wantDetail: "manifest pins newer 0.24.12"},
+		"bucket unreadable": {probe: probeScoop, channels: bucketHolding("").withFailure(methodExists, bucketRepo, cannotRun),
+			wantState: stateUnknown, wantDetail: "could not read the airiclenz/scoop-bucket repository"},
 		"winget not set up": {probe: probeWinget, wantState: statePending,
 			wantDetail: "AiricLenz.Capcom is not in microsoft/winget-pkgs yet and no open pull request submits 0.24.11"},
-		"winget first submission open": {probe: probeWinget, remote: fakeRemote{wingetPulls: wingetPull(312345, "New package", "0.24.11")},
-			wantState: stateDone, wantDetail: "submitted: pull request #312345"},
-		"winget absent": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10")},
+		"winget first submission open": {probe: probeWinget, channels: wingetHolding(nil, komacPull(312345, "New package", "0.24.11")),
+			wantState: stateDone, wantDetail: "submitted: pull request #312345 https://github.com/microsoft/winget-pkgs/pull/312345"},
+		"winget absent": {probe: probeWinget, channels: wingetHolding([]string{"0.24.10"}),
 			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.11 manifest or open pull request"},
-		"winget pull request open": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), wingetPulls: wingetPull(312345, "New version", "0.24.11")},
+		"winget pull request open": {probe: probeWinget, channels: wingetHolding([]string{"0.24.10"}, komacPull(312345, "New version", "0.24.11")),
 			wantState: stateDone, wantDetail: "submitted: pull request #312345"},
-		"winget merged": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10", "0.24.11")},
+		"winget pull request for another version": {probe: probeWinget, channels: wingetHolding([]string{"0.24.10"}, komacPull(312345, "New version", "0.24.10")),
+			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.11 manifest or open pull request"},
+		"winget merged": {probe: probeWinget, channels: wingetHolding([]string{"0.24.10", "0.24.11"}),
 			wantState: stateDone, wantDetail: "published: manifests/a/AiricLenz/Capcom/0.24.11"},
 		"winget pull request for a longer version": {probe: probeWinget, version: "v0.24.1",
-			remote:    fakeRemote{wingetListing: wingetListing("0.24.0"), wingetPulls: wingetPull(312345, "New version", "0.24.11")},
+			channels:  wingetHolding([]string{"0.24.0"}, komacPull(312345, "New version", "0.24.11")),
 			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.1 manifest"},
-		"winget listing unparsable": {probe: probeWinget, remote: fakeRemote{wingetListing: "not json"},
+		"winget listing unreadable": {probe: probeWinget, channels: wingetHolding(nil).withFailure(methodListDirs, wingetRepo, cannotRun),
+			wantState: stateUnknown, wantDetail: "could not read manifests/a/AiricLenz/Capcom from microsoft/winget-pkgs"},
+		"winget listing unparsable": {probe: probeWinget, channels: wingetHolding(nil).withFailure(methodListDirs, wingetRepo, unparsable),
 			wantState: stateUnknown, wantDetail: "could not parse the manifests/a/AiricLenz/Capcom listing: invalid character"},
-		"winget pull requests unparsable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), wingetPulls: "not json"},
+		"winget pull requests unparsable": {probe: probeWinget, channels: wingetHolding([]string{"0.24.10"}).withFailure(methodOpenPulls, wingetRepo, unparsable),
 			wantState: stateUnknown, wantDetail: "could not parse gh pr list output: invalid character"},
-		"winget pull requests unreadable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), failing: "gh pr list"},
-			wantState: stateUnknown, wantDetail: "could not list the open microsoft/winget-pkgs pull requests"},
-		"winget viewer's pull requests unreadable": {probe: probeWinget, remote: fakeRemote{wingetListing: wingetListing("0.24.10"), failing: "gh api graphql"},
+		"winget pull requests unreadable": {probe: probeWinget, channels: wingetHolding([]string{"0.24.10"}).withFailure(methodOpenPulls, wingetRepo, cannotRun),
 			wantState: stateUnknown, wantDetail: "could not list the open microsoft/winget-pkgs pull requests"},
 		"smoke": {probe: probeSmoke, repo: memRepo{remoteTags: annotated, releases: allAssets}, wantState: statePending, wantDetail: "publish runs it last"},
 		// A draft an interrupted `gh release create` left is never done: its download URLs 404.
@@ -262,44 +308,9 @@ func TestProbesReportEachState(t *testing.T) {
 				version = "v0.24.11"
 			}
 
-			env := probeEnv{repo: tc.repo, channels: execChannelRepos{commands: tc.remote.runner(), dir: "."}}
+			env := probeEnv{repo: tc.repo, channels: tc.channels}
 
 			step := tc.probe(t.Context(), env, mustVersion(t, version))
-
-			if step.State != tc.wantState || !strings.Contains(step.Detail, tc.wantDetail) {
-				t.Errorf("step = %s %q, want %s containing %q", step.State, step.Detail, tc.wantState, tc.wantDetail)
-			}
-		})
-	}
-}
-
-// TestProbeWingetFindsAPullRequestSearchHasNotIndexed pins that the winget probe reads done on a
-// pull request the signed-in account just opened, which GitHub search does not list yet — so an
-// immediate rerun does not submit it again — and only on one against winget-pkgs.
-func TestProbeWingetFindsAPullRequestSearchHasNotIndexed(t *testing.T) {
-	t.Parallel()
-
-	cases := map[string]struct {
-		viewerPulls string
-		wantState   stepState
-		wantDetail  string
-	}{
-		"in winget-pkgs": {viewerPulls: wingetViewerPull(312345, "New version", "0.24.11", wingetRepo),
-			wantState: stateDone, wantDetail: "submitted: pull request #312345 https://github.com/microsoft/winget-pkgs/pull/312345"},
-		"first submission in winget-pkgs": {viewerPulls: wingetViewerPull(312345, "New package", "0.24.11", wingetRepo),
-			wantState: stateDone, wantDetail: "submitted: pull request #312345"},
-		"in another repository": {viewerPulls: wingetViewerPull(312345, "New version", "0.24.11", "airiclenz/winget-pkgs"),
-			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.11 manifest or open pull request"},
-		"for another version": {viewerPulls: wingetViewerPull(312345, "New version", "0.24.10", wingetRepo),
-			wantState: statePending, wantDetail: "no AiricLenz.Capcom 0.24.11 manifest or open pull request"},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			remote := fakeRemote{wingetListing: wingetListing("0.24.10"), wingetViewerPulls: tc.viewerPulls}
-			env := probeEnv{repo: memRepo{}, channels: execChannelRepos{commands: remote.runner(), dir: "."}}
-
-			step := probeWinget(t.Context(), env, mustVersion(t, "v0.24.11"))
 
 			if step.State != tc.wantState || !strings.Contains(step.Detail, tc.wantDetail) {
 				t.Errorf("step = %s %q, want %s containing %q", step.State, step.Detail, tc.wantState, tc.wantDetail)
@@ -312,7 +323,7 @@ func TestProbeWingetFindsAPullRequestSearchHasNotIndexed(t *testing.T) {
 func TestProbeStepsRunsEveryStepInPublishOrder(t *testing.T) {
 	t.Parallel()
 
-	env := probeEnv{repo: memRepo{}, channels: execChannelRepos{commands: fakeRemote{}.runner(), dir: "."}}
+	env := probeEnv{repo: memRepo{}, channels: memChannelRepos{}}
 
 	steps := probeSteps(t.Context(), env, mustVersion(t, "v0.24.14"))
 
@@ -326,16 +337,30 @@ func TestProbeStepsRunsEveryStepInPublishOrder(t *testing.T) {
 	}
 }
 
-// TestProbesNeverReadAFailedCallAsDone pins that a probe whose every command cannot run — gh
+// failingChannels is channel repositories every one of whose methods fails with err on the tap,
+// the bucket and winget-pkgs alike.
+func failingChannels(err error) memChannelRepos {
+	var channels memChannelRepos
+	for _, repo := range []string{tapRepo, bucketRepo, wingetRepo} {
+		for _, method := range []string{methodExists, methodReadFile, methodListDirs, methodOpenPulls, methodPublishFile} {
+			channels = channels.withFailure(method, repo, err)
+		}
+	}
+	return channels
+}
+
+// TestProbesNeverReadAFailedCallAsDone pins that a probe whose every call cannot run — gh
 // missing, git unauthenticated — reports unknown, never done (smoke, which runs nothing, aside):
-// capcom's own repository is the production execRepo over the same failing runner.
+// capcom's own repository is the production execRepo over a runner failing every command, the
+// channel repositories a memChannelRepos failing every method with the same error.
 func TestProbesNeverReadAFailedCallAsDone(t *testing.T) {
 	t.Parallel()
+	ghMissing := errors.New(`exec: "gh": executable file not found in $PATH`)
 	commands := &fakeRunner{respond: func(recordedCall) (string, error) {
-		return "", errors.New(`exec: "gh": executable file not found in $PATH`)
+		return "", ghMissing
 	}}
 
-	env := probeEnv{repo: execRepo{commands: commands, dir: "."}, channels: execChannelRepos{commands: commands, dir: "."}}
+	env := probeEnv{repo: execRepo{commands: commands, dir: "."}, channels: failingChannels(ghMissing)}
 
 	for _, step := range probeSteps(t.Context(), env, mustVersion(t, "v0.24.11")) {
 		if step.Name == stepSmoke {

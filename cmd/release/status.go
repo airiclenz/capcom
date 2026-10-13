@@ -27,6 +27,9 @@ type statusOptions struct {
 	isJSON  bool
 	// openRepo opens the checkout's repo; nil opens the execRepo over the run's runner.
 	openRepo repoOpener
+	// channels is the package channels' repositories; nil is the execChannelRepos over the run's
+	// runner in dir.
+	channels channelRepos
 }
 
 // statusReport is everything status prints. Its JSON keys are a contract: the release skills
@@ -54,8 +57,8 @@ type baselineReport struct {
 }
 
 // newStatusCommand builds the status verb.
-func newStatusCommand(commands runner, openRepo repoOpener) *cobra.Command {
-	options := statusOptions{dir: ".", openRepo: openRepo}
+func newStatusCommand(commands runner, openRepo repoOpener, channels channelRepos) *cobra.Command {
+	options := statusOptions{dir: ".", openRepo: openRepo, channels: channels}
 
 	cmd := &cobra.Command{
 		Use:   "status [vX.Y.Z]",
@@ -125,7 +128,8 @@ func runStatus(ctx context.Context, commands runner, output io.Writer, options s
 	report.Baseline = baseline
 
 	if version, isProbed := stepsVersion(report, isFromCheckout); isProbed {
-		report.Steps = probeSteps(ctx, probeEnv{repo: checkout, channels: execChannelRepos{commands: commands, dir: options.dir}}, version)
+		env := probeEnv{repo: checkout, channels: channelReposOrExec(options.channels, commands, options.dir)}
+		report.Steps = probeSteps(ctx, env, version)
 		for _, step := range report.Steps {
 			if step.State == stateUnknown {
 				problems = append(problems, fmt.Errorf("could not probe the %s step: %s", step.Name, step.Detail))

@@ -69,6 +69,16 @@ type execChannelRepos struct {
 	dir      string
 }
 
+// channelReposOrExec returns channels, or, when it is nil — a verb's run options built without
+// one, as a test driving a run function directly builds them — the execChannelRepos over commands
+// in dir.
+func channelReposOrExec(channels channelRepos, commands runner, dir string) channelRepos {
+	if channels == nil {
+		return execChannelRepos{commands: commands, dir: dir}
+	}
+	return channels
+}
+
 // gh runs one gh command in dir.
 func (r execChannelRepos) gh(ctx context.Context, args ...string) (string, error) {
 	return r.commands.run(ctx, r.dir, nil, "gh", args...)

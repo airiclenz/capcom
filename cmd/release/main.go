@@ -18,19 +18,21 @@ const (
 
 func main() {
 	commands := execRunner{}
-	if err := newRootCommand(commands, execRepos(commands)).ExecuteContext(context.Background()); err != nil {
+	channels := execChannelRepos{commands: commands, dir: "."}
+	if err := newRootCommand(commands, execRepos(commands), channels).ExecuteContext(context.Background()); err != nil {
 		fmt.Fprintln(os.Stderr, "release:", err)
 		os.Exit(exitCodeFor(err))
 	}
 }
 
 // newRootCommand builds the command tree over commands, the runner every verb executes its
-// external commands through, and openRepo, which every verb that reads the capcom checkout
-// opens its repo with. Errors are printed by main, not by Cobra, so a failure reads the
+// external commands through; openRepo, which every verb that reads the capcom checkout opens its
+// repo with; and channels, the package channels' repositories status, publish and smoke read and
+// publish write — nil for the execChannelRepos over commands in the verb's checkout. Errors are printed by main, not by Cobra, so a failure reads the
 // same whichever verb produced it; usage still prints for a bad command line, because that is the
 // one failure the usage text actually answers. The root declares no Args, so Cobra's own check
 // refuses an unknown verb instead of printing help and exiting 0.
-func newRootCommand(commands runner, openRepo repoOpener) *cobra.Command {
+func newRootCommand(commands runner, openRepo repoOpener, channels channelRepos) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "release",
 		Short: "Build and publish a capcom release",
@@ -42,10 +44,10 @@ func newRootCommand(commands runner, openRepo repoOpener) *cobra.Command {
 		SilenceErrors: true,
 	}
 	cmd.AddCommand(newDistCommand(commands))
-	cmd.AddCommand(newStatusCommand(commands, openRepo))
+	cmd.AddCommand(newStatusCommand(commands, openRepo, channels))
 	cmd.AddCommand(newPrepareCommand(commands, openRepo))
-	cmd.AddCommand(newPublishCommand(commands, openRepo))
-	cmd.AddCommand(newSmokeCommand(commands, openRepo))
+	cmd.AddCommand(newPublishCommand(commands, openRepo, channels))
+	cmd.AddCommand(newSmokeCommand(commands, openRepo, channels))
 	return cmd
 }
 
