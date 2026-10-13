@@ -76,12 +76,6 @@ func ReadRegularFile(path string) ([]byte, error) {
 	return data, nil
 }
 
-// ReadNodeFile reads the store file at path: a node file, or any other file capcom keeps under
-// .capcom/. It returns exactly what ReadRegularFile returns, refusals included.
-func ReadNodeFile(path string) ([]byte, error) {
-	return ReadRegularFile(path)
-}
-
 // checkReadable refuses the file at path, as info describes it, when it is not a regular file or is
 // larger than MaxNodeFileSize.
 func checkReadable(path string, info fs.FileInfo) error {

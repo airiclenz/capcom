@@ -21,10 +21,10 @@ type readResult struct {
 	err  error
 }
 
-// TestReadNodeFile_SwappedBeforeOpen_RefusedNotRegular swaps the regular file the reader checked
+// TestReadRegularFile_SwappedBeforeOpen_RefusedNotRegular swaps the regular file the reader checked
 // for another entry between its Lstat and its open. It swaps a package variable, so it never runs
 // in parallel.
-func TestReadNodeFile_SwappedBeforeOpen_RefusedNotRegular(t *testing.T) {
+func TestReadRegularFile_SwappedBeforeOpen_RefusedNotRegular(t *testing.T) {
 	cases := []struct {
 		name string
 		make func(t *testing.T, path string)
@@ -57,25 +57,25 @@ func TestReadNodeFile_SwappedBeforeOpen_RefusedNotRegular(t *testing.T) {
 			if swapErr != nil {
 				t.Fatalf("swap: %v", swapErr)
 			}
-			assertRefused(t, "ReadNodeFile", path, result.data, result.err, nodefile.ErrNotRegular)
+			assertRefused(t, path, result.data, result.err, nodefile.ErrNotRegular)
 		})
 	}
 }
 
-// readWithTimeout calls ReadNodeFile on path in a goroutine and fails t when it has not returned
+// readWithTimeout calls ReadRegularFile on path in a goroutine and fails t when it has not returned
 // within swapTimeout.
 func readWithTimeout(t *testing.T, path string) readResult {
 	t.Helper()
 	done := make(chan readResult, 1)
 	go func() {
-		data, err := nodefile.ReadNodeFile(path)
+		data, err := nodefile.ReadRegularFile(path)
 		done <- readResult{data: data, err: err}
 	}()
 	select {
 	case result := <-done:
 		return result
 	case <-time.After(swapTimeout):
-		t.Fatalf("ReadNodeFile(%s) did not return within %s", path, swapTimeout)
+		t.Fatalf("ReadRegularFile(%s) did not return within %s", path, swapTimeout)
 		return readResult{}
 	}
 }

@@ -46,9 +46,9 @@ type nodeMove struct {
 	original []byte
 	// content is the moved node file's content after the move.
 	content []byte
-	// unread are the files of other nodes that do not parse, or that nodefile.ReadNodeFile refuses
-	// unread, so the references in them to the moved node could not be checked and were left as
-	// they are.
+	// unread are the files of other nodes that do not parse, or that nodefile.ReadRegularFile
+	// refuses unread, so the references in them to the moved node could not be checked and were
+	// left as they are.
 	unread []string
 }
 
@@ -65,15 +65,15 @@ type nodeMove struct {
 // dropped. Body text is never rewritten, and a re-parent alone rewrites no file.
 //
 // It checks the destination before it reads any file, failing as tree.PlanMove does, then fails
-// with the error of the node's own file when nodefile.ReadNodeFile refuses it or it does not
+// with the error of the node's own file when nodefile.ReadRegularFile refuses it or it does not
 // parse, and with the error of another node file it cannot read; another node file that does not
-// parse, or that nodefile.ReadNodeFile refuses unread, joins unread instead.
+// parse, or that nodefile.ReadRegularFile refuses unread, joins unread instead.
 func (k *Kind[T]) planNodeMove(nodes *tree.Tree, node tree.Node, to tree.Destination) (*nodeMove, error) {
 	planned, err := nodes.PlanMove(node.ID, to, k.codec.nounPhrase)
 	if err != nil {
 		return nil, err
 	}
-	data, err := nodefile.ReadNodeFile(node.Path)
+	data, err := nodefile.ReadRegularFile(node.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -125,10 +125,10 @@ func (k *Kind[T]) renameOwnRefs(own T, names []string, newID string) T {
 
 // planRefRewrite reads the node file at path, another node's than the renamed one, and returns its
 // rewrite with its reference fields renamed from names to newID, or nil when none of its entries
-// is one of names. A file that does not parse, or that nodefile.ReadNodeFile refuses unread, is
+// is one of names. A file that does not parse, or that nodefile.ReadRegularFile refuses unread, is
 // reported unread instead; any other read failure is returned.
 func (k *Kind[T]) planRefRewrite(path string, names []string, newID string) (*tree.Rewrite, bool, error) {
-	data, err := nodefile.ReadNodeFile(path)
+	data, err := nodefile.ReadRegularFile(path)
 	if isRefusedRead(err) {
 		return nil, true, nil
 	}
@@ -184,8 +184,9 @@ type nodeRemoval struct {
 	dropped map[string][]string
 	// rewritten are the files of the nodes whose entries are dropped, in tree order.
 	rewritten []string
-	// unread are the files of other nodes that do not parse, or that nodefile.ReadNodeFile refuses
-	// unread, so their entries could not be checked for the removed node and were left as they are.
+	// unread are the files of other nodes that do not parse, or that nodefile.ReadRegularFile
+	// refuses unread, so their entries could not be checked for the removed node and were left as
+	// they are.
 	unread []string
 }
 
@@ -200,14 +201,14 @@ type nodeRemoval struct {
 // when it cannot be read, with a *ConflictError when ifMatch is set and is not the node file's
 // etag, with the error of another node file it cannot read, and, unless shouldDropDeps, with a
 // *DependentsError naming the holders of a blocksRemoval field's entries, in the order of their
-// files' paths. Another node file that does not parse, or that nodefile.ReadNodeFile refuses
+// files' paths. Another node file that does not parse, or that nodefile.ReadRegularFile refuses
 // unread, joins unread instead. A node's entry naming itself is no dependent.
 func (k *Kind[T]) planNodeRemoval(nodes *tree.Tree, node tree.Node, ifMatch string, shouldDropDeps bool) (*nodeRemoval, error) {
 	planned, err := nodes.PlanRemove(node.ID, k.codec.nounPhrase)
 	if err != nil {
 		return nil, err
 	}
-	data, err := nodefile.ReadNodeFile(node.Path)
+	data, err := nodefile.ReadRegularFile(node.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -259,10 +260,10 @@ func (k *Kind[T]) planNodeRemoval(nodes *tree.Tree, node tree.Node, ifMatch stri
 // planRefDrop reads the node file at path, another node's than the removed one, and returns its
 // rewrite without the entries of its reference fields that are one of names, with the fields
 // those entries were dropped from, or nil when none of its entries is one of names. A file that
-// does not parse, or that nodefile.ReadNodeFile refuses unread, is reported unread instead; any
+// does not parse, or that nodefile.ReadRegularFile refuses unread, is reported unread instead; any
 // other read failure is returned.
 func (k *Kind[T]) planRefDrop(path string, names []string) (*tree.Rewrite, []refField[T], bool, error) {
-	data, err := nodefile.ReadNodeFile(path)
+	data, err := nodefile.ReadRegularFile(path)
 	if isRefusedRead(err) {
 		return nil, nil, true, nil
 	}

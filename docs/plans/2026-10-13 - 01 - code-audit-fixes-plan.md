@@ -304,7 +304,10 @@ NOTES (2026-10-13): ReadRegularFile takes no limit argument; it applies the same
 - `GOMEMLIMIT=2GiB go test ./internal/tree/` then `./internal/index/` then `./internal/agents/`
 **Commit:** `refactor: read node files through ReadRegularFile outside nodestore`
 
-## 16. ReadNodeFile removal, part 2: nodestore and the deletion
+## 16. ReadNodeFile removal, part 2: nodestore and the deletion — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): ReadNodeFile's tests were folded in: the limit and refusal tests already ran against ReadRegularFile, so their shared helpers (and the `reader` type) were inlined into the ReadRegularFile tests; the missing-file and swapped-before-open tests, which asserted something ReadRegularFile's did not, now call ReadRegularFile under ReadRegularFile names. assertRefused drops its name parameter.
+NOTES (2026-10-13): Comments renamed to nodefile.ReadRegularFile were rewrapped to stay within 100 columns; nodefile's package doc was rewrapped after dropping "its store-file form, ReadNodeFile". Historical mentions in .capcom/issues and docs/ were left as records.
 
 **What:** Switch `internal/nodestore` to `ReadRegularFile`, delete `ReadNodeFile`, and fix every comment naming it (`grep -rn ReadNodeFile internal`).
 **Goal:** `grep -rn ReadNodeFile internal` prints nothing; `nodefile`'s doc names `ReadRegularFile` as the one guarded reader.

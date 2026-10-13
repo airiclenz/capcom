@@ -64,15 +64,16 @@ func TestRenameRefs(t *testing.T) {
 	}
 }
 
-// unreadSwap is one way of swapping a node file after the tree load for one nodefile.ReadNodeFile
-// refuses unread: swap replaces the regular node file at path, whose content is content.
+// unreadSwap is one way of swapping a node file after the tree load for one
+// nodefile.ReadRegularFile refuses unread: swap replaces the regular node file at path, whose
+// content is content.
 type unreadSwap struct {
 	name string
 	swap func(t *testing.T, path string, content string)
 }
 
-// unreadSwaps are the swaps nodefile.ReadNodeFile refuses: a symlink to a regular file holding the
-// same content, a named pipe, and a regular file over 1 MiB written in place.
+// unreadSwaps are the swaps nodefile.ReadRegularFile refuses: a symlink to a regular file holding
+// the same content, a named pipe, and a regular file over 1 MiB written in place.
 func unreadSwaps() []unreadSwap {
 	return []unreadSwap{
 		{name: "symlink", swap: func(t *testing.T, path string, content string) {

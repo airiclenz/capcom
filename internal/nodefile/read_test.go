@@ -11,44 +11,8 @@ import (
 	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
-// reader is a guarded reader under test: ReadRegularFile, or ReadNodeFile, which wraps it.
-type reader func(path string) ([]byte, error)
-
 func TestReadRegularFile_RegularFile_ReadsUpToTheLimit(t *testing.T) {
 	t.Parallel()
-	testReadsUpToTheLimit(t, "ReadRegularFile", nodefile.ReadRegularFile)
-}
-
-func TestReadRegularFile_Refused_SentinelInPathError(t *testing.T) {
-	t.Parallel()
-	testRefusedSentinelInPathError(t, "ReadRegularFile", nodefile.ReadRegularFile)
-}
-
-func TestReadNodeFile_RegularFile_ReadsUpToTheLimit(t *testing.T) {
-	t.Parallel()
-	testReadsUpToTheLimit(t, "ReadNodeFile", nodefile.ReadNodeFile)
-}
-
-func TestReadNodeFile_Refused_SentinelInPathError(t *testing.T) {
-	t.Parallel()
-	testRefusedSentinelInPathError(t, "ReadNodeFile", nodefile.ReadNodeFile)
-}
-
-func TestReadNodeFile_Missing_IsErrNotExist(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "gone.md")
-
-	_, err := nodefile.ReadNodeFile(path)
-
-	if !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("ReadNodeFile = %v, want fs.ErrNotExist", err)
-	}
-}
-
-// testReadsUpToTheLimit checks that read, called name in failures, returns a regular file's bytes
-// up to and including 1 MiB.
-func testReadsUpToTheLimit(t *testing.T, name string, read reader) {
-	t.Helper()
 	cases := []struct {
 		name string
 		data []byte
@@ -64,20 +28,20 @@ func testReadsUpToTheLimit(t *testing.T, name string, read reader) {
 				t.Fatalf("WriteFile: %v", err)
 			}
 
-			data, err := read(path)
+			data, err := nodefile.ReadRegularFile(path)
 
 			if err != nil || !bytes.Equal(data, tc.data) {
-				t.Errorf("%s = %d bytes, %v; want the %d bytes written", name, len(data), err, len(tc.data))
+				t.Errorf("ReadRegularFile = %d bytes, %v; want the %d bytes written",
+					len(data), err, len(tc.data))
 			}
 		})
 	}
 }
 
-// testRefusedSentinelInPathError checks that read, called name in failures, refuses a symlink, a
-// named pipe, a directory and a file over 1 MiB with the sentinel in an *fs.PathError naming the
-// path.
-func testRefusedSentinelInPathError(t *testing.T, name string, read reader) {
-	t.Helper()
+// TestReadRegularFile_Refused_SentinelInPathError checks that a symlink, a named pipe, a directory
+// and a file over 1 MiB are refused with the sentinel in an *fs.PathError naming the path.
+func TestReadRegularFile_Refused_SentinelInPathError(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		make func(t *testing.T, path string)
@@ -114,19 +78,31 @@ func testRefusedSentinelInPathError(t *testing.T, name string, read reader) {
 			path := filepath.Join(t.TempDir(), "node.md")
 			tc.make(t, path)
 
-			data, err := read(path)
+			data, err := nodefile.ReadRegularFile(path)
 
-			assertRefused(t, name, path, data, err, tc.want)
+			assertRefused(t, path, data, err, tc.want)
 		})
 	}
 }
 
-// assertRefused fails t unless the read called name returned no data and an error wrapping want in
-// an *fs.PathError naming path.
-func assertRefused(t *testing.T, name string, path string, data []byte, err error, want error) {
+func TestReadRegularFile_Missing_IsErrNotExist(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "gone.md")
+
+	_, err := nodefile.ReadRegularFile(path)
+
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("ReadRegularFile = %v, want fs.ErrNotExist", err)
+	}
+}
+
+// assertRefused fails t unless ReadRegularFile returned no data and an error wrapping want in an
+// *fs.PathError naming path.
+func assertRefused(t *testing.T, path string, data []byte, err error, want error) {
 	t.Helper()
 	var pathErr *fs.PathError
 	if data != nil || !errors.Is(err, want) || !errors.As(err, &pathErr) || pathErr.Path != path {
-		t.Errorf("%s = %d bytes, %v; want %v in an *fs.PathError naming %s", name, len(data), err, want, path)
+		t.Errorf("ReadRegularFile = %d bytes, %v; want %v in an *fs.PathError naming %s",
+			len(data), err, want, path)
 	}
 }

@@ -22,8 +22,8 @@ type Formatted struct {
 //
 // A tree problem, and a file that does not parse or validate, is a warning and the file is left
 // alone. A tree that cannot be loaded at all fails as it is, its files relative to the working
-// tree root; a node file that cannot be read, or that nodefile.ReadNodeFile refuses unread (not a
-// regular file, or larger than 1 MiB), fails with a *FileError at it. Right before it rewrites a
+// tree root; a node file that cannot be read, or that nodefile.ReadRegularFile refuses unread (not
+// a regular file, or larger than 1 MiB), fails with a *FileError at it. Right before it rewrites a
 // file it reads the file again: a read failure is a *FileError at it as before, and bytes that are
 // no longer the ones first read fail with a *ConflictError at it with no etags, leaving the newer
 // file as it is. A file removed or moved between the re-read and the write fails with a *FileError
@@ -41,7 +41,7 @@ func (k *Kind[T]) Format(isCheck bool) (Formatted, error) {
 
 	for _, node := range nodes.Nodes() {
 		path := k.relative(node.Path)
-		data, err := nodefile.ReadNodeFile(node.Path)
+		data, err := nodefile.ReadRegularFile(node.Path)
 		if err != nil {
 			return Formatted{}, k.fileError(node.Path, err)
 		}
@@ -76,7 +76,7 @@ func (k *Kind[T]) Format(isCheck bool) (Formatted, error) {
 // Format documents when it cannot be read or no longer holds data, the bytes Format first read.
 func (k *Kind[T]) formatRecheck(path string, data []byte) error {
 	beforeRecheck(path)
-	current, err := nodefile.ReadNodeFile(path)
+	current, err := nodefile.ReadRegularFile(path)
 	if err != nil {
 		return k.fileError(path, err)
 	}
