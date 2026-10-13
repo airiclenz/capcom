@@ -2777,7 +2777,7 @@ Depends on P3.92.
 - `grep -n 'store.Open' internal/cli/agents.go internal/cli/fmt.go internal/cli/lock.go` prints nothing
 **Commit:** `refactor(cli): open the store in the root for agents, fmt and lock`
 
-## P3.94 A generic frontmatter field table, used by issues
+## P3.94 A generic frontmatter field table, used by issues — ✅ DONE (2026-10-13)
 
 **What:** Part 1 of A-13: `frontmatter.Schema[T]` with `Text`, `List` and `Raw` field builders replaces the issue package's field-table plumbing.
 **Regression guard.** The Goal's "no old helpers" clause is checked by an Acceptance grep.
