@@ -48,16 +48,15 @@ type Moved struct {
 //     or, for a name two files claim, a *tree.Error wrapping tree.ErrDuplicate naming both files.
 //  3. the plan: an id another node holds is an *ExistsError; the node file that does not parse, or
 //     any other refusal (an invalid id, a parent inside the node's own subtree), a *FileError.
-//  4. on a rename, a node file inside an orphan directory named the new id or recording it among
-//     its Aliases, an *ExistsError.
-//  5. on a rename, a file a repeated-id problem of the load names, named the new id or recording
-//     it among its Aliases, an *ExistsError.
-//  6. triage: a tree problem naming the node's file, its new file, the new parent's file or one of
+//  4. on a rename, the claim: a file other than the node's own that holds the new id, as
+//     tree.Tree.Claimant finds it with RecoverAliases, is an *ExistsError at that file worded by
+//     how it holds the id: a node file inside an orphan directory, a file left out for its repeated
+//     id, or a node file that does not parse but whose raw frontmatter still lists the new id as an
+//     alias. It runs before triage, so such a file is refused even where triage would block.
+//  5. triage: a tree problem naming the node's file, its new file, the new parent's file or one of
 //     their children directories blocks the move and comes back as the failure, a tree.Errors.
-//  7. on a rename, a node file that does not parse but whose raw frontmatter still lists the new
-//     id as an alias, an *ExistsError.
-//  8. the etag check: when ifMatch is set and is not the node file's etag, a *ConflictError.
-//  9. the renames and rewrites, taken back on failure: a file the move rewrites that changed since
+//  6. the etag check: when ifMatch is set and is not the node file's etag, a *ConflictError.
+//  7. the renames and rewrites, taken back on failure: a file the move rewrites that changed since
 //     the plan read it is a *ConflictError at that file naming any step that could not be taken
 //     back, with no etags; any other failure a *FileError at the node's file naming the failing
 //     path and any step that could not be taken back. Once they have landed, an emptied old parent
@@ -90,22 +89,17 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	}
 	isRenamed := move.NewID != node.ID
 	if isRenamed {
-		if err := k.orphanClaimFailure(problems, move.NewID); err != nil {
+		claim, isTaken, err := nodes.Claimant(move.NewID, node.Path, k.RecoverAliases)
+		if err != nil {
 			return Moved{}, nil, err
 		}
-		if err := k.duplicateClaimFailure(problems, move.NewID); err != nil {
-			return Moved{}, nil, err
+		if isTaken {
+			return Moved{}, nil, k.claimRefusal(move.NewID, claim)
 		}
 	}
 	warnings, err := k.triage(problems, k.relative(node.Path), k.relative(move.NewPath), k.relative(parentPath))
 	if err != nil {
 		return Moved{}, nil, err
-	}
-	if isRenamed {
-		// The plan has parsed the moved node's file, so the holder found is another node's.
-		if err := k.unparsedClaimFailure(nodes, problems, move.NewID); err != nil {
-			return Moved{}, nil, err
-		}
 	}
 	if current := nodefile.ETag(move.original); ifMatch != "" && ifMatch != current {
 		return Moved{}, nil, k.conflictError(node.Path, ifMatch, current)

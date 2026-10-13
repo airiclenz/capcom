@@ -1845,7 +1845,13 @@ Depends on P2.1; P1.8.
 - `go vet ./internal/tree/`
 **Commit:** `refactor(tree): add Tree.Claimant for every file that holds a name`
 
-## P3.9 nodestore claims names through Tree.Claimant
+## P3.9 nodestore claims names through Tree.Claimant — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): claimRefusal takes the refused id as well as the Claim (`claimRefusal(id string, claim tree.Claim) *ExistsError`), since a Claim does not carry the name it holds; Create and Move each call nodes.Claimant inline, with no claimFailure wrapper left.
+
+NOTES (2026-10-13): the acceptance grep `grep -rn 'filepath.WalkDir' internal/nodestore/` still prints one line, the pre-existing test helper `nodeFiles` in internal/nodestore/create_test.go (it snapshots a directory for the write-nothing tests); production code has none (`grep -rn --exclude='*_test.go' 'filepath.WalkDir' internal/nodestore/` prints nothing). The helper is outside the item's Files and was left as it is.
+
+NOTES (2026-10-13): Move now refuses a rename onto an id an unparseable file holds before triage, so such a holder in a tree whose triage would block is reported as the *ExistsError rather than the blocking tree.Errors, as the regression guard states; Move's doc step list says so and is renumbered (the claim is step 4, triage 5).
 
 **What:** Second part of A-05. Create and Move shrink to load, resolve, claim, triage and write.
 **Regression guard.** `claimRefusal` keeps four wordings: the duplicate Kind uses P1.7's "left out for the duplicate id" text with Holder the duplicate id, so P1.7's `TestCreate_AliasOfDroppedDuplicateIDFile_FailsNamingTheFile` stays green. The dropped-duplicate scan and its test are P1.7's (`duplicateClaimFailure`). Move's one Claimant call runs before triage, as stated: an unparsed holder in a tree with triage problems is now refused as `ExistsError` before triage's tree.Errors; Move's doc step list says so. Per P3.8, `except` is the moved node's file path.

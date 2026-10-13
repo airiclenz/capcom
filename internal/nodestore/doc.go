@@ -9,7 +9,7 @@
 // Every non-test file of the package, with its responsibility. TestDocFileMap_MatchesDirectory
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
-//   - `claim.go` — the refusals of a new id that a node, or a file the tree leaves out, holds
+//   - `claim.go` — the refusal of a new id that a node, or a file the tree leaves out, holds
 //   - `codec.go` — Codec: how one Tree kind parses, validates, serializes and plans moves of its nodes
 //   - `create.go` — Create: writes a new node below its parent
 //   - `doc.go` — the package comment and this file map

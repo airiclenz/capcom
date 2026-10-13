@@ -16,12 +16,11 @@ import (
 // It runs, in this order, stopping at the first failure:
 //  1. id validation: an invalid id fails with an error wrapping tree.ErrInvalidID.
 //  2. the Tree load: a tree that cannot be loaded at all fails with its *tree.Error or tree.Errors.
-//  3. the claim refusals, each an *ExistsError: a node of the tree answering to id, as its id or
-//     one of its Aliases; then a node file inside an orphan directory named id or recording id
-//     among its Aliases, which the tree leaves out; then a file a repeated-id problem of the load
-//     names, named id or recording id among its Aliases, which the tree may leave out too; then a
-//     node file that does not parse but whose raw frontmatter still lists id as an alias. Each
-//     later refusal relies on the earlier ones having passed.
+//  3. the claim: a file that holds id, as tree.Tree.Claimant finds it with RecoverAliases, is an
+//     *ExistsError at that file worded by how it holds id: a node of the tree answering to id, as
+//     its id or one of its Aliases; a node file inside an orphan directory, which the tree leaves
+//     out; a file left out for its repeated id; or a node file that does not parse but whose raw
+//     frontmatter still lists id as an alias.
 //  4. the --parent resolution: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped, or, for a name
 //     two files claim, a *tree.Error wrapping tree.ErrDuplicate that names both files.
 //  5. triage: a tree problem naming the new file, the parent's file or the parent's children
@@ -32,8 +31,8 @@ import (
 //  8. the exclusive write, which never replaces a file: right before it the parent's node file is
 //     checked again, and a parent file another session removed or cannot be checked fails with a
 //     *FileError at it, creating neither the parent's children directory nor the new file; a file
-//     that appeared at the new node's path since the claim refusals fails with the *ExistsError
-//     naming it; any other failure is returned as it is.
+//     that appeared at the new node's path since the claim fails with the *ExistsError naming it;
+//     any other failure is returned as it is.
 func (k *Kind[T]) Create(
 	id string,
 	parent string,
@@ -46,8 +45,12 @@ func (k *Kind[T]) Create(
 	if err != nil {
 		return Written{}, nil, err
 	}
-	if err := k.claimFailure(nodes, problems, id); err != nil {
+	claim, isTaken, err := nodes.Claimant(id, "", k.RecoverAliases)
+	if err != nil {
 		return Written{}, nil, err
+	}
+	if isTaken {
+		return Written{}, nil, k.claimRefusal(id, claim)
 	}
 	path, parentPath, err := newNodePath(nodes, id, parent)
 	if err != nil {
@@ -71,7 +74,7 @@ func (k *Kind[T]) Create(
 	}
 	written, err := k.write(path, id, node, createFile)
 	if errors.Is(err, fs.ErrExist) {
-		// Another writer placed the file after the claim refusals passed.
+		// Another writer placed the file after the claim passed.
 		return Written{}, nil, k.existsError(id, tree.Node{ID: id, Path: path})
 	}
 	if err != nil {
