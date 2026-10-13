@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	readylist "github.com/airiclenz/capcom/internal/briefing"
+	"github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -61,7 +61,7 @@ func (a *app) newReadyCommand() *cobra.Command {
 			if options.limit < 0 {
 				return output.UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
 			}
-			listed, err := readylist.ReadyList(a.issueIndex, a.store.Config, options.listOptions())
+			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions())
 			if err != nil {
 				return err
 			}
@@ -88,7 +88,7 @@ func (a *app) newReadyCommand() *cobra.Command {
 }
 
 // listOptions converts the flags to the options of the Ready-list.
-func (o *readyOptions) listOptions() readylist.ReadyOptions {
+func (o *readyOptions) listOptions() briefing.ReadyOptions {
 	plan := index.PlanAny
 	switch {
 	case o.isPlanned:
@@ -96,7 +96,7 @@ func (o *readyOptions) listOptions() readylist.ReadyOptions {
 	case o.isUnplanned:
 		plan = index.PlanUnset
 	}
-	return readylist.ReadyOptions{
+	return briefing.ReadyOptions{
 		Labels:             o.labels,
 		NoLabels:           o.noLabels,
 		Plan:               plan,
@@ -107,7 +107,7 @@ func (o *readyOptions) listOptions() readylist.ReadyOptions {
 }
 
 // readyListData converts the listed issues to their --json form, an empty list when there are none.
-func readyListData(listed []readylist.ReadyItem) []readyData {
+func readyListData(listed []briefing.ReadyItem) []readyData {
 	data := make([]readyData, 0, len(listed))
 	for _, current := range listed {
 		item := readyData{
@@ -128,7 +128,7 @@ func readyListData(listed []readylist.ReadyItem) []readyData {
 // readyLines renders one issue line per listed issue, as list does but without indentation; a
 // Ready issue that unblocks others ends with how many, and an issue that is not Ready ends with
 // what keeps it back.
-func readyLines(listed []readylist.ReadyItem) string {
+func readyLines(listed []briefing.ReadyItem) string {
 	var text strings.Builder
 	for _, current := range listed {
 		line := strings.TrimSuffix(issueLines([]index.Entry{current.Entry}, ""), "\n")
@@ -166,7 +166,7 @@ func notReadyReasons(verdict issue.Readiness) string {
 
 // droppedDepWarnings warns, for every listed issue, about each dependency counted as satisfied
 // only because it was dropped.
-func droppedDepWarnings(listed []readylist.ReadyItem) []string {
+func droppedDepWarnings(listed []briefing.ReadyItem) []string {
 	var warnings []string
 	for _, current := range listed {
 		for _, dep := range current.Readiness.DroppedDeps {

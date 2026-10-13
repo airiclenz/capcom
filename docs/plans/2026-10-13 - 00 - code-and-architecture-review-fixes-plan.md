@@ -1655,7 +1655,7 @@ Depends on P2.34.
 - `grep -rln 'internal/cli/output\.go\|internal/cli/errors\.go' --include=*.md . | grep -v '^\./docs/\(reviews\|skill-runs\|plans\|handoffs\)\|^\./\.capcom/issues/'` prints nothing
 **Commit:** `refactor(cli): drop the output aliases from package cli`
 
-## P2.37 Import internal/briefing under its own name in cli/ready.go
+## P2.37 Import internal/briefing under its own name in cli/ready.go — ✅ DONE (2026-10-13)
 
 **What:** Fixes U-09 (`ready-import-alias`), a cosmetic issue per review 2.4. Package `cli` imports `internal/briefing` as `briefing` in `prime.go` but as `readylist` in `ready.go`. This is the last item of the Phase 2 moves.
 **Goal:** `grep -rn readylist internal/` finds nothing. `ready.go` names `briefing.ReadyList`, `briefing.ReadyOptions` and `briefing.ReadyItem`.
