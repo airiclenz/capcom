@@ -740,7 +740,11 @@ Depends on P1.20.
 - `go vet ./internal/nodestore/`
 **Commit:** `fix(nodestore): refuse a file changed under mv, rm or fmt as a conflict`
 
-## P1.22 Replace-mode writes refuse a missing target; Move checks its new parent
+## P1.22 Replace-mode writes refuse a missing target; Move checks its new parent — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): `writeFileAtomic` and `writeTemp` each gained a trailing bool (`isReplacing`, `isCreatingDir`); the replace path's Lstat lives in a new helper `checkReplaceTarget`, which returns any non-missing Lstat failure as it is. A missing directory fails at `os.CreateTemp` (an error naming path that wraps fs.ErrNotExist), not at the Lstat.
+NOTES (2026-10-13): no CLOSES: `replace-missing-target` also wants the Create/Edit/Format half, which P1.23 owns and closes.
+NOTES (2026-10-13): Bite check: with ReplaceFileAtomic routed through the create-directory path and the pre-item move.go restored, TestReplaceFileAtomic_MissingPath_FailsNotExistCreatingNothing and TestMoveApply_NewParentRemovedBeforeApply_FailsCreatingNoDirectory both fail.
 
 **What:** Fixes the tree half of F-11(b) (`replace-missing-target`): a replace-mode write recreates a node file, or its directory, that another session moved or removed. The Move `Mkdir` step can also recreate the children directory of a removed parent (per review F-11(b)).
 **Goal:** `tree.ReplaceFileAtomic(path, content)` writes like `WriteFileAtomic` (CRLF to LF, mode 0644, atomic). It never creates a directory, and it fails with an error wrapping `fs.ErrNotExist` and naming `path` when `path` is missing just before the rename, leaving no temp file. `AddRewrite`'s apply writes through it. A Move that creates the new parent's children directory first checks that the parent's node file still exists. If it does not, the move fails, creates no directory and leaves the tree as it was.

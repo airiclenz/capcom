@@ -113,6 +113,32 @@ func TestPlanMove_ReparentWithChildren_MovesSubtreeAndRemovesEmptyDir(t *testing
 	}
 }
 
+func TestMoveApply_NewParentRemovedBeforeApply_FailsCreatingNoDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "moved-node.md", "new-parent.md")
+	move, err := mustLoad(t, dir, nil).PlanMove(
+		"moved-node",
+		tree.Destination{ID: "moved-node", ParentID: "new-parent"},
+		issueKind,
+	)
+	if err != nil {
+		t.Fatalf("PlanMove: %v", err)
+	}
+	if err := os.Remove(filepath.Join(dir, "new-parent.md")); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	before := snapshotDir(t, dir)
+
+	err = move.Apply()
+
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("Apply = %v, want fs.ErrNotExist for the removed new parent", err)
+	}
+	if got := snapshotDir(t, dir); !reflect.DeepEqual(got, before) {
+		t.Errorf("tree = %v, want it unchanged: %v", got, before)
+	}
+}
+
 func TestPlanMove_ToTopOfTree_KeepsOldDirWithOtherChildren(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "old-parent.md", "old-parent/moved-node.md", "old-parent/staying-child.md")

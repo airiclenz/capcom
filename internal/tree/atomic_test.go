@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -46,6 +47,59 @@ func TestWriteFileExclusive_PathExists_FailsWithErrExistAndLeavesFileAndNoTempFi
 	}
 	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
 		t.Fatalf("dir holds %v, want only login-flow.md", names)
+	}
+}
+
+func TestReplaceFileAtomic_ExistingFile_ReplacesAsLFAndLeavesNoTempFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "login-flow.md")
+	writeNodes(t, dir, "login-flow.md")
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+
+	err := tree.ReplaceFileAtomic(path, strings.NewReader("new\r\ncontent\n"))
+
+	if err != nil {
+		t.Fatalf("ReplaceFileAtomic: %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new\ncontent\n" {
+		t.Fatalf("content = %q", got)
+	}
+	if info, err := os.Stat(path); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o644) {
+		t.Fatalf("Stat = %v, %v; want mode 0644", info, err)
+	}
+	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
+		t.Fatalf("dir holds %v, want only login-flow.md", names)
+	}
+}
+
+func TestReplaceFileAtomic_MissingPath_FailsNotExistCreatingNothing(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		// relativePath is the missing file, below a fresh empty directory.
+		relativePath string
+	}{
+		{name: "missing file in an existing directory", relativePath: "login-flow.md"},
+		{name: "missing directory", relativePath: filepath.Join("login-flow", "login-timeout-race.md")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			path := filepath.Join(dir, test.relativePath)
+
+			err := tree.ReplaceFileAtomic(path, strings.NewReader("new\ncontent\n"))
+
+			if !errors.Is(err, fs.ErrNotExist) || !strings.Contains(err.Error(), path) {
+				t.Fatalf("ReplaceFileAtomic = %v, want fs.ErrNotExist naming %s", err, path)
+			}
+			if names := dirEntries(t, dir); len(names) != 0 {
+				t.Fatalf("dir holds %v, want nothing: no file, no directory, no temp file", names)
+			}
+		})
 	}
 }
 

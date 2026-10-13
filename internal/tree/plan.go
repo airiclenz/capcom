@@ -12,7 +12,7 @@ import (
 // rewriteOp is the Op of the *fs.PathError a rewrite fails with when its file changed.
 const rewriteOp = "rewrite"
 
-// crlf and lf are the line endings WriteFileAtomic converts from and to.
+// crlf and lf are the line endings ReplaceFileAtomic converts from and to.
 const (
 	crlf = "\r\n"
 	lf   = "\n"
@@ -46,13 +46,14 @@ func (p *Plan) AddStep(apply func() error, undo func() error) {
 // the file's current path, in the order added, before any other step, however late the rewrite was
 // added, and only over a file that still holds Original byte for byte: a file read again as other
 // bytes fails Apply with a *fs.PathError naming it that wraps ErrChanged, before anything is
-// written to it. Taking a rewrite back writes Original byte for byte, CRLF included, with the
+// written to it. The write never recreates a file or directory: a file gone just before it fails
+// Apply with an error naming it that wraps fs.ErrNotExist. Taking a rewrite back writes Original byte for byte, CRLF included, with the
 // permissions the file had just before Apply overwrote it, and only over a file that still holds
 // the bytes the rewrite wrote; a file changed since is left as it is and named as a failure to
 // take the rewrite back, which does not wrap ErrChanged.
 func (p *Plan) AddRewrite(rewrite Rewrite) {
 	var mode fs.FileMode
-	// WriteFileAtomic turns every CRLF of Content into LF, so these are the bytes it leaves.
+	// ReplaceFileAtomic turns every CRLF of Content into LF, so these are the bytes it leaves.
 	written := bytes.ReplaceAll(rewrite.Content, []byte(crlf), []byte(lf))
 	p.rewrites = append(p.rewrites, step{
 		apply: func() error {
@@ -64,7 +65,7 @@ func (p *Plan) AddRewrite(rewrite Rewrite) {
 			if err := checkUnchanged(rewrite.Path, rewrite.Original); err != nil {
 				return err
 			}
-			return WriteFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Content))
+			return ReplaceFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Content))
 		},
 		undo: func() error {
 			if err := checkUnchanged(rewrite.Path, written); err != nil {

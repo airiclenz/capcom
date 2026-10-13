@@ -170,14 +170,23 @@ func RenameAliases(aliases []string, oldID string, newID string) []string {
 // planRenames adds the steps that carry m.Node to m.NewPath, in this fixed order: create the
 // destination directory when the new parent has no children yet, rename the node file, rename its
 // children directory when it has one, and remove the old parent's directory when the move left it
-// empty.
+// empty. Creating the destination directory first checks that the new parent's node file is still
+// there, so a parent removed since PlanMove fails the move instead of getting a children directory
+// again.
 func (m *Move) planRenames(nodes *Tree) {
 	node := m.Node
 	newDir := filepath.Dir(m.NewPath)
 	if _, err := os.Stat(newDir); errors.Is(err, fs.ErrNotExist) {
 		m.steps = append(m.steps, step{
-			apply: func() error { return os.Mkdir(newDir, movedDirPermissions) },
-			undo:  func() error { return os.Remove(newDir) },
+			apply: func() error {
+				// The step exists only when the new parent had no children, so the parent has a
+				// node file; without it the parent was removed meanwhile.
+				if _, err := os.Lstat(newDir + nodeExtension); err != nil {
+					return err
+				}
+				return os.Mkdir(newDir, movedDirPermissions)
+			},
+			undo: func() error { return os.Remove(newDir) },
 		})
 	}
 

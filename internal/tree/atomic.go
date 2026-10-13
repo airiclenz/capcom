@@ -28,14 +28,24 @@ var link = os.Link
 // directory (off Windows). Readers see either the old file or the whole new one; on any failure
 // the temp file is removed and the old file is left intact. Errors name path.
 func WriteFileAtomic(path string, content io.Reader) error {
-	return writeFileAtomic(path, content, true, filePermissions)
+	return writeFileAtomic(path, content, true, filePermissions, false)
+}
+
+// ReplaceFileAtomic replaces the existing file at path with everything read from content, as
+// WriteFileAtomic does: CRLF line endings become LF, the file gets mode 0644 and readers see either
+// the old file or the whole new one. Unlike WriteFileAtomic it never creates a file or directory,
+// so a node file another session moved or removed is not brought back: when path is missing just
+// before the rename it fails with an error wrapping fs.ErrNotExist, and a missing directory fails
+// the same way. On any failure the temp file is removed. Errors name path.
+func ReplaceFileAtomic(path string, content io.Reader) error {
+	return writeFileAtomic(path, content, true, filePermissions, true)
 }
 
 // WriteFileAtomicVerbatim replaces the file at path with everything read from content, byte for
 // byte, and gives it the permission bits of mode. It writes as atomically as WriteFileAtomic and
 // fails the same way; it is the write that puts a file back exactly as it was read.
 func WriteFileAtomicVerbatim(path string, content io.Reader, mode fs.FileMode) error {
-	return writeFileAtomic(path, content, false, mode.Perm())
+	return writeFileAtomic(path, content, false, mode.Perm(), false)
 }
 
 // ReplaceFileVerbatim replaces the existing file at path with everything read from content, byte
@@ -60,7 +70,7 @@ func ReplaceFileVerbatim(path string, content io.Reader) error {
 // on any failure the temp file is removed. Errors name path.
 func WriteFileExclusive(path string, content io.Reader) error {
 	dir := filepath.Dir(path)
-	temp, err := writeTemp(path, content, true, filePermissions)
+	temp, err := writeTemp(path, content, true, filePermissions, true)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
 	}
@@ -79,13 +89,27 @@ func WriteFileExclusive(path string, content io.Reader) error {
 	return nil
 }
 
-// writeFileAtomic is the atomic write of WriteFileAtomic and WriteFileAtomicVerbatim: it converts
-// CRLF to LF when isConvertingCRLF and gives the file permissions perm.
-func writeFileAtomic(path string, content io.Reader, isConvertingCRLF bool, perm fs.FileMode) error {
+// writeFileAtomic is the atomic write of WriteFileAtomic, WriteFileAtomicVerbatim and
+// ReplaceFileAtomic: it converts CRLF to LF when isConvertingCRLF and gives the file permissions
+// perm. When isReplacing it creates no directory and renames only over a file still at path,
+// failing with a *fs.PathError (Op "replace") wrapping fs.ErrNotExist when path is gone.
+func writeFileAtomic(
+	path string,
+	content io.Reader,
+	isConvertingCRLF bool,
+	perm fs.FileMode,
+	isReplacing bool,
+) error {
 	dir := filepath.Dir(path)
-	temp, err := writeTemp(path, content, isConvertingCRLF, perm)
+	temp, err := writeTemp(path, content, isConvertingCRLF, perm, !isReplacing)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
+	}
+	if isReplacing {
+		if err := checkReplaceTarget(path); err != nil {
+			removeErr := os.Remove(temp)
+			return joinNonNil(err, removeErr)
+		}
 	}
 	if err := os.Rename(temp, path); err != nil {
 		removeErr := os.Remove(temp)
@@ -97,18 +121,31 @@ func writeFileAtomic(path string, content io.Reader, isConvertingCRLF bool, perm
 	return nil
 }
 
-// writeTemp creates path's directory when missing and writes content, filled as fillTemp fills it,
-// to a new closed temp file in that directory, whose name it returns. On any failure the temp file
-// is removed.
+// checkReplaceTarget fails with a *fs.PathError (Op "replace") naming path that wraps
+// fs.ErrNotExist when nothing is at path; any other Lstat failure is returned as it is.
+func checkReplaceTarget(path string) error {
+	_, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &fs.PathError{Op: "replace", Path: path, Err: fs.ErrNotExist}
+	}
+	return err
+}
+
+// writeTemp writes content, filled as fillTemp fills it, to a new closed temp file in path's
+// directory, whose name it returns; it creates that directory first when isCreatingDir and it is
+// missing. On any failure the temp file is removed.
 func writeTemp(
 	path string,
 	content io.Reader,
 	isConvertingCRLF bool,
 	perm fs.FileMode,
+	isCreatingDir bool,
 ) (string, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, dirPermissions); err != nil {
-		return "", err
+	if isCreatingDir {
+		if err := os.MkdirAll(dir, dirPermissions); err != nil {
+			return "", err
+		}
 	}
 	temp, err := os.CreateTemp(dir, fmt.Sprintf(tempPattern, filepath.Base(path)))
 	if err != nil {
