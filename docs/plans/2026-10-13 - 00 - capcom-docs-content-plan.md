@@ -178,7 +178,11 @@ NOTES (2026-10-13): knowledge.md and tree-locks.md link agents/briefing.md, agen
 **Acceptance:** `for f in docs/site/concepts/knowledge.md docs/site/concepts/tree-locks.md; do test -f "$f" || { echo "MISSING $f"; continue; }; head -1 "$f" | grep -qx -- --- || echo "BAD $f"; awk '/^```/{f=!f} !f && /^# /{print "H1 " FILENAME; exit}' "$f"; done` prints nothing
 **Commit:** `docs(site): add concept guides for knowledge and tree locks`
 
-## 9. Agent workflows and JSON reference
+## 9. Agent workflows and JSON reference — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "docs/format.md — ### Errors, ## The Managed block in AGENTS.md" and "internal/cli/output.go — SchemaVersion, Envelope" in Read first: the format reference now lives at docs/site/reference/file-format.md (item 5) and SchemaVersion/Envelope live in internal/cli/output/output.go; the pages read and link those.
+NOTES (2026-10-13): all command output, the hook JSON and the Managed block text were captured from a freshly built binary in scratch git repos; the init path was replaced with /home/you/your-repo. prime --json is described as a key table rather than pasted, to keep the machine's host and user names out.
+NOTES (2026-10-13): sidebar order: agent-setup 1, briefing 2, managed-block 3 under agents/; json-output 3 under reference/ (file-format is 2). json-output.md links reference/cli/capcom.md, which item 10 generates.
 
 **What:**
 **Regression guard.** The contract check names every file of the item explicitly (`for f in <each path>; do test -f "$f" || echo "MISSING $f"; ...`) so a missing file fails, and the H1 check ignores fenced code blocks (e.g. `awk '/^```/{f=!f} !f && /^# /{print FILENAME}'`); json-output.md links to the file-format reference's Errors section and the README for the --kv / WARNING rules instead of restating them. The agent-setup worked example is built from `capcom init --claude-hooks` and the snippet plain `init` prints (`claudeHooksSnippet`): both `SessionStart` and `PreCompact` hooks, never SessionStart alone; it also covers `--codex-hooks` and its `[features] hooks = true` note (`codexFeatureNote`).
