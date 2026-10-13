@@ -525,10 +525,10 @@ func TestIndexFile_FileGrownPastTheLimitSinceTheWalk_WarnsAndKeepsItOut(t *testi
 		size:     10,
 	}
 
-	err = r.indexFile(file)
+	isGone, err := r.indexFile(file)
 
-	if err != nil {
-		t.Fatalf("indexFile: %v, want a warning instead", err)
+	if err != nil || isGone {
+		t.Fatalf("indexFile = gone %v, err %v; want a warning instead", isGone, err)
 	}
 	want := []string{".capcom/issues/huge-issue.md: file is larger than 1 MiB"}
 	if got := warningStrings(Report{Warnings: r.warnings}); !slices.Equal(got, want) {
@@ -764,6 +764,85 @@ func TestRefresh_CommitFails_ReportsOnlyTheCommitError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "commit refresh: disk I/O error") {
 		t.Errorf("Refresh error = %q, want it to name the commit failure", err)
+	}
+}
+
+// TestRefresh_FileGoneBeforeItsRead_IsDroppedAndNotParsed swaps the package's readNodeFile seam,
+// so it never runs in parallel.
+func TestRefresh_FileGoneBeforeItsRead_IsDroppedAndNotParsed(t *testing.T) {
+	s := newStore(t)
+	path := writeIssue(t, s, "gone-issue.md", issueText("Gone", "open", "unique word\n"))
+	x := openIndex(t, s, laterClock())
+	writeIssue(t, s, "gone-issue.md", issueText("Gone", "open", "unique word, longer now\n"))
+	original := readNodeFile
+	t.Cleanup(func() { readNodeFile = original })
+	readNodeFile = func(name string) ([]byte, error) {
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+		return original(name)
+	}
+
+	report := refresh(t, x)
+
+	found, err := x.Search("unique")
+	if isIndexed(t, x, "gone-issue") || err != nil || len(found) != 0 {
+		t.Errorf("gone-issue still indexed: search = %v, err %v", found, err)
+	}
+	if len(report.Parsed) != 0 {
+		t.Errorf("Parsed = %v, want nothing", report.Parsed)
+	}
+	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.Removed, want) {
+		t.Errorf("Removed = %v, want %v", report.Removed, want)
+	}
+}
+
+// TestRefresh_FileGoneBeforeItsStat_IsRemoved swaps the package's lstat seam, so it never runs in
+// parallel.
+func TestRefresh_FileGoneBeforeItsStat_IsRemoved(t *testing.T) {
+	s := newStore(t)
+	path := writeIssue(t, s, "gone-issue.md", issueText("Gone", "open", ""))
+	writeIssue(t, s, "kept-issue.md", issueText("Kept", "open", ""))
+	x := openIndex(t, s, laterClock())
+	original := lstat
+	t.Cleanup(func() { lstat = original })
+	lstat = func(name string) (os.FileInfo, error) {
+		if name == path {
+			if err := os.Remove(path); err != nil {
+				t.Fatalf("Remove: %v", err)
+			}
+		}
+		return original(name)
+	}
+
+	report := refresh(t, x)
+
+	if want := []string{".capcom/issues/gone-issue.md"}; !slices.Equal(report.Removed, want) || report.Indexed != 1 {
+		t.Errorf("report = %+v, want %v removed and 1 indexed", report, want)
+	}
+	if isIndexed(t, x, "gone-issue") {
+		t.Errorf("gone-issue still indexed")
+	}
+}
+
+func TestRefresh_BadStoredProblems_FailsNamingTheFile(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "broken-issue.md", "---\ntitle: Broken\nstatus: open\nno closing fence\n")
+	x := openIndex(t, s, laterClock())
+	db, err := sql.Open(driverName, Path(s))
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	_, err = db.Exec(`UPDATE files SET problems = '{' WHERE path = ?`, ".capcom/issues/broken-issue.md")
+	if closeErr := db.Close(); err != nil || closeErr != nil {
+		t.Fatalf("corrupt the stored problems: %v, %v", err, closeErr)
+	}
+
+	_, err = x.Refresh()
+
+	if err == nil || !strings.Contains(err.Error(), ".capcom/issues/broken-issue.md") {
+		t.Errorf("Refresh error = %v, want one naming .capcom/issues/broken-issue.md", err)
 	}
 }
 

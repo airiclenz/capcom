@@ -25,6 +25,10 @@ const racyGranularity = time.Second
 // commitTx commits a refresh transaction. It is a variable so a test can make the commit fail.
 var commitTx = (*sql.Tx).Commit
 
+// readNodeFile reads a node file the walk found. It is a variable so a test can change the file
+// between the walk and its read.
+var readNodeFile = tree.ReadNodeFile
+
 // Refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
 // IMMEDIATE transaction, and records its report as the one Report returns. Open has already
 // refreshed or rebuilt the index; Refresh is for a caller that changed the tree since.
@@ -180,8 +184,15 @@ func (r *refresher) sync(found []foundFile, report *Report) error {
 			}
 			continue
 		}
-		if err := r.indexFile(file); err != nil {
+		isGone, err := r.indexFile(file)
+		if err != nil {
 			return err
+		}
+		if isGone {
+			if isKnown {
+				report.Removed = append(report.Removed, file.path)
+			}
+			continue
 		}
 		report.Parsed = append(report.Parsed, file.path)
 	}
@@ -233,15 +244,15 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 // indexFile reads and parses one file and replaces its rows. A file with problems keeps only its
 // files row, which carries the problems so the next refresh reports them again. The file is read
 // through tree.ReadNodeFile: one that is no longer a regular file, or has grown past 1 MiB, since
-// the walk kept it is left out unread with a WarningNotRegular, never failing the refresh.
-func (r *refresher) indexFile(file foundFile) error {
+// the walk kept it is left out unread with a WarningNotRegular, never failing the refresh. A file
+// removed since the walk kept it is left without rows, and isGone reports it.
+func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	if err := r.forget(file.path); err != nil {
-		return err
+		return false, err
 	}
-	data, err := tree.ReadNodeFile(file.absolute)
+	data, err := readNodeFile(file.absolute)
 	if errors.Is(err, fs.ErrNotExist) {
-		// Removed since the walk saw it; the next refresh no longer finds it.
-		return nil
+		return true, nil
 	}
 
 	var problems []Warning
@@ -251,7 +262,7 @@ func (r *refresher) indexFile(file foundFile) error {
 	case refusal != nil:
 		problems = []Warning{{Kind: WarningNotRegular, Path: file.path, Message: refusal.Error()}}
 	case err != nil:
-		return fmt.Errorf("%s: %w", file.path, err)
+		return false, fmt.Errorf("%s: %w", file.path, err)
 	case file.kind == kindNote:
 		note, noteProblems := parseNote(file, data)
 		problems, insert = noteProblems, func() error { return r.insertNote(file, note) }
@@ -263,7 +274,7 @@ func (r *refresher) indexFile(file foundFile) error {
 	if len(problems) > 0 {
 		encoded, err := json.Marshal(problems)
 		if err != nil {
-			return fmt.Errorf("%s: encode problems: %w", file.path, err)
+			return false, fmt.Errorf("%s: encode problems: %w", file.path, err)
 		}
 		stored = sql.NullString{String: string(encoded), Valid: true}
 		r.warnings = append(r.warnings, problems...)
@@ -274,12 +285,12 @@ func (r *refresher) indexFile(file foundFile) error {
 		file.path, file.kind, file.size, file.mtime, r.refreshed, stored,
 	)
 	if err != nil {
-		return fmt.Errorf("index %s: %w", file.path, err)
+		return false, fmt.Errorf("index %s: %w", file.path, err)
 	}
 	if len(problems) > 0 {
-		return nil
+		return false, nil
 	}
-	return insert()
+	return false, insert()
 }
 
 // readRefusal returns the tree sentinel err wraps when tree.ReadNodeFile refused the file unread

@@ -12,6 +12,10 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
+// lstat stats a node file the walk found. It is a variable so a test can remove the file between
+// the walk and its stat.
+var lstat = os.Lstat
+
 // walkIssues lists the node files of the tree in issuesDir (the issue tree, or the Knowledge
 // tree), in path order, with paths relative to worktreeRoot. It adapts tree.Walk, the one directory
 // walk: each node file is stat'ed for the refresh to compare, and each walk problem — a file whose
@@ -33,7 +37,7 @@ func walkIssues(worktreeRoot, issuesDir string, r *refresher) ([]foundFile, erro
 
 	found := make([]foundFile, 0, len(nodes))
 	for _, node := range nodes {
-		info, err := os.Lstat(node.Path)
+		info, err := lstat(node.Path)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}

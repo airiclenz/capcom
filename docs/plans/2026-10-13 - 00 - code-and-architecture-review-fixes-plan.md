@@ -535,7 +535,9 @@ NOTES (2026-10-13): pre-existing, not changed: RaiseFormat still prepends `forma
 - `go vet ./internal/frontmatter/ ./internal/config/ ./internal/cli/`
 **Commit:** `fix(config): refuse a second YAML document in config.yaml and front matter`
 
-## P1.4 Index refresh: cover files changed under the walk
+## P1.4 Index refresh: cover files changed under the walk — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): indexFile's new result is `isGone bool` (true only on the fs.ErrNotExist branch) rather than "whether it read the file", so a file refused unread (WarningNotRegular) stays in Parsed as the regression guard requires; no CHANGELOG entry, since no command prints Report.Parsed or Report.Removed.
 
 **What:** Closes test gap T-04 (`refresh-race-tests`). It also fixes the drift it exposes: a file gone between the walk and its read is listed in `Report.Parsed`, which documents "the files read and parsed again".
 **Regression guard.** `TestIndexFile_FileGrownPastTheLimitSinceTheWalk_WarnsAndKeepsItOut` (`err = r.indexFile(file)`) is updated to `indexFile`'s new signature. A file refused unread at read time (WarningNotRegular, files row written) stays in `Parsed`; only the `fs.ErrNotExist` branch leaves `Parsed`.
