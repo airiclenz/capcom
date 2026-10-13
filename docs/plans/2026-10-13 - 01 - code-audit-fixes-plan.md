@@ -98,7 +98,9 @@ NOTES (2026-10-13): the recast `TestEdit_GainsRelatedBelowFormatTwo_RaisesBefore
 - `GOMEMLIMIT=2GiB go test ./internal/nodestore/`
 **Commit:** `fix(nodestore): raise the store format only once the write can no longer fail its checks`
 
-## 3. release smoke never runs a host binary that failed its hash
+## 3. release smoke never runs a host binary that failed its hash — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): an archive whose hash could not be computed is treated the same way (deleted, reason "could not be hashed"); the never-downloaded SKIP keeps "the host's archive <name> did not download" and now ends ", so its binary is not run", which TestSmokeChecks' "the release has no SHA256SUMS" case still matches unchanged.
 
 **What:** Fix: `checkAssets` leaves a mismatched download in `workDir` and `checkHostBinary` extracts and runs it.
 **Goal:** `release smoke` runs the host binary only when its archive matched `SHA256SUMS`; otherwise the host-binary check reports SKIP naming the archive and why, and nothing is extracted or executed.

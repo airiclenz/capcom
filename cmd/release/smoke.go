@@ -83,6 +83,11 @@ type smokeRun struct {
 	isSumsRead bool
 	// isDownloaded is set once all six archives downloaded and matched SHA256SUMS.
 	isDownloaded bool
+	// verified names the archives that downloaded and matched SHA256SUMS: the only ones a check
+	// may extract or run. rejected says, by archive name, why one that downloaded was deleted
+	// unverified.
+	verified map[string]bool
+	rejected map[string]string
 
 	passed  int
 	failed  int
@@ -305,17 +310,41 @@ func (r *smokeRun) checkAssets(ctx context.Context) {
 		got, err := fileSHA256(filepath.Join(r.workDir, name))
 		if err != nil {
 			r.fail("asset %s: %v", name, err)
+			r.reject(name, "could not be hashed")
 			isComplete = false
 			continue
 		}
 		if got != want {
 			r.fail("asset %s hashes to %s, not the %s the release's %s lists", name, got, want, checksumsFile)
+			r.reject(name, "does not match the release's "+checksumsFile)
 			isComplete = false
+			continue
 		}
+		r.markVerified(name)
 	}
 	if isComplete {
 		r.isDownloaded = true
 		r.pass("%d assets downloaded, all checksums match", len(distTargets))
+	}
+}
+
+// markVerified records that the downloaded archive name matched SHA256SUMS.
+func (r *smokeRun) markVerified(name string) {
+	if r.verified == nil {
+		r.verified = make(map[string]bool, len(distTargets))
+	}
+	r.verified[name] = true
+}
+
+// reject deletes the downloaded archive name, which failed its hash, so no later check can
+// extract it, and records why.
+func (r *smokeRun) reject(name, why string) {
+	if r.rejected == nil {
+		r.rejected = make(map[string]string)
+	}
+	r.rejected[name] = why
+	if err := os.Remove(filepath.Join(r.workDir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		r.warn("asset %s could not be deleted: %v", name, err)
 	}
 }
 
@@ -365,8 +394,8 @@ func (r *smokeRun) checkBuildStamps(ctx context.Context) {
 	}
 }
 
-// checkHostBinary runs the binary from the host's own archive and requires it to report the
-// version.
+// checkHostBinary runs the binary from the host's own archive, only when that archive matched
+// SHA256SUMS, and requires it to report the version.
 func (r *smokeRun) checkHostBinary(ctx context.Context) {
 	r.step("the host's archive holds a binary reporting %s", r.version)
 	host := distTarget{goos: r.options.goos, goarch: r.options.goarch}
@@ -375,8 +404,12 @@ func (r *smokeRun) checkHostBinary(ctx context.Context) {
 		return
 	}
 	name := host.archiveName(bareRelease(r.version))
-	if _, err := os.Stat(filepath.Join(r.workDir, name)); err != nil {
-		r.skip("the host's archive %s did not download", name)
+	if !r.verified[name] {
+		why, isRejected := r.rejected[name]
+		if !isRejected {
+			why = "did not download"
+		}
+		r.skip("the host's archive %s %s, so its binary is not run", name, why)
 		return
 	}
 	binary, err := r.extractBinary(host, filepath.Join(r.workDir, "host"))

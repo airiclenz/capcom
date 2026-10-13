@@ -304,6 +304,18 @@ func TestSmokeChecks(t *testing.T) {
 			},
 			wantTally: "5 passed, 1 failed, 1 skipped",
 		},
+		"the host's archive does not match SHA256SUMS": {
+			adjust: func(fake *smokeFake, options *smokeOptions) {
+				options.distDir = ""
+				fake.repo.assetContent[checksumsFile] = mismatchedSums(t, fake.releaseDir, smokeHostArchive)
+			},
+			wantResults: [][2]string{
+				{"FAIL", "asset capcom_0.24.11_linux_amd64.tar.gz hashes to"},
+				{"SKIP", "the assets did not all download and verify"},
+				{"SKIP", "the host's archive capcom_0.24.11_linux_amd64.tar.gz does not match the release's SHA256SUMS"},
+			},
+			wantTally: "3 passed, 1 failed, 3 skipped",
+		},
 		"the release has no SHA256SUMS": {
 			adjust: func(fake *smokeFake, _ *smokeOptions) {
 				fake.repo.releases[publishVersion] = releaseAssetsV02411[:len(distTargets)]
@@ -471,6 +483,68 @@ func TestSmokeChecks(t *testing.T) {
 			}
 		})
 	}
+}
+
+// smokeHostArchive is the archive of runTestSmoke's linux/amd64 host.
+const smokeHostArchive = "capcom_0.24.11_linux_amd64.tar.gz"
+
+// mismatchedSums is releaseDir's SHA256SUMS with name's hash changed, so the intact archive no
+// longer matches the line the release lists for it.
+func mismatchedSums(t *testing.T, releaseDir, name string) string {
+	t.Helper()
+	return readTestFile(t, filepath.Join(otherBuild(t, releaseDir, name), checksumsFile))
+}
+
+// TestSmokeNeverRunsAHostBinaryThatFailedItsHash pins the host check's gate: an intact host
+// archive whose SHA256SUMS line is wrong is deleted, never extracted, and its binary never run.
+func TestSmokeNeverRunsAHostBinaryThatFailedItsHash(t *testing.T) {
+	t.Parallel()
+
+	t.Run("smoke runs no released binary", func(t *testing.T) {
+		t.Parallel()
+		fake := newSmokeFake(t)
+		fake.repo.assetContent[checksumsFile] = mismatchedSums(t, fake.releaseDir, smokeHostArchive)
+
+		result := runTestSmoke(t, fake, func(options *smokeOptions) { options.distDir = "" })
+
+		for _, call := range result.commands.calls {
+			if len(call.args) == 1 && call.args[0] == versionArgument && !strings.HasPrefix(call.name, filepath.FromSlash(smokeBrewPrefix)) {
+				t.Errorf("ran the released binary %s:\n%s", call.name, result.output)
+			}
+		}
+	})
+
+	t.Run("the work dir keeps neither the archive nor an extract", func(t *testing.T) {
+		t.Parallel()
+		fake := newSmokeFake(t)
+		fake.repo.assetContent[checksumsFile] = mismatchedSums(t, fake.releaseDir, smokeHostArchive)
+		version, err := parseReleaseVersion(publishVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workDir := t.TempDir()
+		var output bytes.Buffer
+		run := &smokeRun{
+			commands: &fakeRunner{respond: fake.respond},
+			repo:     fake.repo,
+			output:   &output,
+			options:  smokeOptions{dir: t.TempDir(), goos: "linux", goarch: "amd64", readBuildInfo: fake.readBuildInfo},
+			version:  version,
+			workDir:  workDir,
+		}
+
+		run.checkAssets(t.Context())
+		run.checkHostBinary(t.Context())
+
+		for _, name := range []string{smokeHostArchive, "host"} {
+			if _, err := os.Stat(filepath.Join(workDir, name)); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("the work dir holds %s: %v\n%s", name, err, output.String())
+			}
+		}
+		if !hasResult(output.String(), "SKIP", "does not match the release's SHA256SUMS, so its binary is not run") {
+			t.Errorf("output lacks the hash-mismatch skip:\n%s", output.String())
+		}
+	})
 }
 
 // otherBuild copies releaseDir's SHA256SUMS into a new directory with name's hash changed, as a
