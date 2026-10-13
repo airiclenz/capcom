@@ -2578,7 +2578,10 @@ Depends on P3.72.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`): changed lines only in the manifest parse, the step record, `runSmoke`'s loop and `doc.go`. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(release): one file each for the Homebrew and Scoop channels`
 
-## P3.74 Release: winget in one file, and publish.go for orchestration only
+## P3.74 Release: winget in one file, and publish.go for orchestration only — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — cmd/release/steps.go: made necessary by moving the winget step out of channels.go (the publishSteps comment named channels.go as a channel step's file; it now names winget.go).
+NOTES (2026-10-13): `setupPendingError` stays in channels.go (not on the move list: it is the generic step contract the publish loop reads, though only winget returns it today), and `removeBuildDir`, `sleepContext` and the publishRun's `isWingetPackageListed` field stay in publish.go as part of the run and the verb's defaults; probes_test.go keeps its name (tests unchanged).
 
 **What:** Last part of A-11, a pure move: the winget channel and the smoke step leave `channels.go`, `probes.go`, `render.go` and `publish.go`; `probes.go` goes.
 **Regression guard.** With P3.71's step-name consts in steps.go and P3.73's helpers in channels.go, probes.go is empty after this move list and is deleted; Acceptance checks it is gone. The winget template names and `packageData` methods stay in render.go.

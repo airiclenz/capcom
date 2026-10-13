@@ -72,7 +72,7 @@ type publishStep struct {
 
 // publishSteps are the steps publish runs, in the order it runs them. status and publish both
 // read this one table, so what status reports done is exactly what publish skips. The channel
-// steps (homebrew.go, scoop.go, channels.go) run after the release, whose SHA256SUMS they render
+// steps (homebrew.go, scoop.go, winget.go) run after the release, whose SHA256SUMS they render
 // from, and the smoke step (smoke.go) runs last, over everything the others published; the smoke
 // verb runs the channels' smoke checks in this table's order.
 var publishSteps = []publishStep{

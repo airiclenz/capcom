@@ -71,9 +71,6 @@ type publishRun struct {
 	isWingetPackageListed bool
 }
 
-// smokePassedDetail is the step table's line for a smoke test that passed.
-const smokePassedDetail = "passed by this run: no check failed"
-
 // newPublishCommand builds the publish verb.
 func newPublishCommand(commands runner, openRepo repoOpener) *cobra.Command {
 	options := publishOptions{
@@ -349,22 +346,6 @@ func (r *publishRun) removeBuildDir() {
 	if r.buildDir != "" {
 		_ = os.RemoveAll(r.buildDir)
 	}
-}
-
-// describeSmoke says what the smoke step does.
-func describeSmoke(run *publishRun) string {
-	return fmt.Sprintf("smoke-test %s as published, comparing its %s with this run's build when it made one",
-		run.version, checksumsFile)
-}
-
-// convergeSmoke runs the smoke verb over the published release, handing it this run's build
-// directory so the published SHA256SUMS is compared against what the run itself built.
-func convergeSmoke(ctx context.Context, run *publishRun) error {
-	options := defaultSmokeOptions(run.options.dir)
-	options.openRepo = run.options.openRepo
-	options.version = run.version.String()
-	options.distDir = run.distDir
-	return run.options.smoke(ctx, run.output, options)
 }
 
 // sleepContext waits for duration or until ctx is done, whichever is first.

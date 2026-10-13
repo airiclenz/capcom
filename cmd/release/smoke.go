@@ -519,3 +519,28 @@ func buildSetting(info *buildinfo.BuildInfo, key string) string {
 func isMissingTool(err error) bool {
 	return errors.Is(err, exec.ErrNotFound)
 }
+
+// smokePassedDetail is the step table's line for a smoke test that passed.
+const smokePassedDetail = "passed by this run: no check failed"
+
+// probeSmoke reports the smoke test pending always: it is an action publish takes last, not a
+// state any remote holds.
+func probeSmoke(context.Context, probeEnv, releaseVersion) stepReport {
+	return stepReport{Name: stepSmoke, State: statePending, Detail: "an action, not a remote state: publish runs it last"}
+}
+
+// describeSmoke says what the smoke step does.
+func describeSmoke(run *publishRun) string {
+	return fmt.Sprintf("smoke-test %s as published, comparing its %s with this run's build when it made one",
+		run.version, checksumsFile)
+}
+
+// convergeSmoke runs the smoke verb over the published release, handing it this run's build
+// directory so the published SHA256SUMS is compared against what the run itself built.
+func convergeSmoke(ctx context.Context, run *publishRun) error {
+	options := defaultSmokeOptions(run.options.dir)
+	options.openRepo = run.options.openRepo
+	options.version = run.version.String()
+	options.distDir = run.distDir
+	return run.options.smoke(ctx, run.output, options)
+}

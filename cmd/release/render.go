@@ -45,21 +45,6 @@ type renderedFile struct {
 	content string
 }
 
-// wingetManifest is one manifest of a winget submission: the file name komac reads it under and
-// the template it renders from.
-type wingetManifest struct {
-	name     string
-	template string
-}
-
-// wingetManifests are the three manifests a winget submission carries, in komac's file naming:
-// the version manifest, the installer manifest and the en-US default-locale manifest.
-var wingetManifests = []wingetManifest{
-	{name: wingetPackageID + ".yaml", template: wingetVersionTemplate},
-	{name: wingetPackageID + ".installer.yaml", template: wingetInstallerTemplate},
-	{name: wingetPackageID + ".locale.en-US.yaml", template: wingetDefaultLocaleTemplate},
-}
-
 // checksumPattern is the one hash shape SHA256SUMS may list for an archive: 64 lower-case hex
 // digits, after lower-casing.
 var checksumPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -151,21 +136,6 @@ func checksumFor(sums, name string) (string, error) {
 		return hash, nil
 	}
 	return "", fmt.Errorf("%w for %s", errNoChecksum, name)
-}
-
-// renderWingetManifests renders the three winget manifests for version (vX.Y.Z or a bare X.Y.Z),
-// reading the two Windows archive hashes from the release's SHA256SUMS body, and returns them in
-// wingetManifests' order under the file names a `komac submit` directory holds them by.
-func renderWingetManifests(version, sums string) ([]renderedFile, error) {
-	rendered := make([]renderedFile, 0, len(wingetManifests))
-	for _, manifest := range wingetManifests {
-		content, err := renderPackageFile(manifest.template, version, sums)
-		if err != nil {
-			return nil, err
-		}
-		rendered = append(rendered, renderedFile{name: manifest.name, content: content})
-	}
-	return rendered, nil
 }
 
 // renderPackageFile executes the named template for version against the SHA256SUMS body sums.
