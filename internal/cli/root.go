@@ -65,7 +65,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	failure, isTyped := err.(*Error)
-	if isTyped && failure.isRendered {
+	if isTyped && failure.IsRendered {
 		return failure.ExitCode()
 	}
 	if !isTyped {
@@ -224,7 +224,7 @@ func (a *app) emit(cmd *cobra.Command, result Result) error {
 		return nil
 	}
 	rendered := *result.Failure
-	rendered.isRendered = true
+	rendered.IsRendered = true
 	return &rendered
 }
 

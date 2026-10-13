@@ -40,7 +40,7 @@ func (a *app) newCheckCommand() *cobra.Command {
 			// The problems are the result, so the failure only sets the exit code: --json keeps
 			// kind check without an error member, and text mode writes nothing to stderr.
 			failure := Errorf(CodeInvalid, "%d problems found", len(problems))
-			failure.isRendered = true
+			failure.IsRendered = true
 			return failure
 		}),
 	}

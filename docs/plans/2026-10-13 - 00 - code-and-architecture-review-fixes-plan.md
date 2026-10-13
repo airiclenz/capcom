@@ -1500,7 +1500,11 @@ Depends on P2.25.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers and the doc map. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(cli): move the shared node-edit helpers to node_edit.go`
 
-## P2.29 cli/output package, part 1: the error contract
+## P2.29 cli/output package, part 1: the error contract — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): internal/cli/output/doc.go added (not in Files) to carry the new package's doc comment, per the Go convention that a package documents itself in doc.go; it holds no code.
+NOTES (2026-10-13): consequential edit — internal/cli/doc.go: made necessary by moving Error, Code and the exit codes out of cli/errors.go (its file-map line now says the file holds the temporary aliases, kindFailure and the tree-problem warnings)
+NOTES (2026-10-13): consequential edit — .agents/skills/release-notes-capcom/prompts/_capcom.md: made necessary by moving the exit codes to internal/cli/output/errors.go (the "Output modes & exit codes" row named internal/cli/errors.go)
 
 **What:** Part 1 of review P2-14, the pure move half of A-14. The typed error and the exit codes move from `internal/cli/errors.go` to a new package, `internal/cli/output`. Until P2.35, `cli` keeps temporary aliases under the old spellings.
 **Goal:** `internal/cli/output/errors.go` declares `Code` and its constants, `ExitOK`, `ExitError`, `ExitUsage`, `ExitNotFound`, `Error` with `Error()` and `ExitCode()`, `Errorf`, `UsageErrorf` and `AsError`. `output` never imports `internal/cli`. Every code, exit code and message is byte-for-byte unchanged. Note `error-messages` names the new file, and `capcom check` passes.

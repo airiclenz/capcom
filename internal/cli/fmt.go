@@ -93,7 +93,7 @@ func (r *formatRun) emit(cmd *cobra.Command) error {
 		return nil
 	}
 	failure := Errorf(CodeInvalid, "%d files would change", len(r.paths))
-	failure.isRendered = true
+	failure.IsRendered = true
 	return failure
 }
 

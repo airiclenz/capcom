@@ -15,7 +15,7 @@
 //   - `dep_graph.go` — capcom dep graph and the Dependency graph that dep and related load from the index
 //   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
 //   - `doc.go` — the package comment and this file map
-//   - `errors.go` — the typed Error, its Codes and their exit codes
+//   - `errors.go` — the temporary aliases of the output error contract, kindFailure and the tree-problem warnings
 //   - `flags.go` — the flag names two or more commands share, and unlimitedDepth
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks

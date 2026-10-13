@@ -2,97 +2,56 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Code is the machine-readable class of a failed command. It appears as error.code in the
-// --json envelope and as the STATUS value in --kv output.
-type Code string
+// Code is the temporary alias of output.Code, kept until every caller names the output package.
+type Code = output.Code
 
-// The closed set of error codes capcom reports.
+// The temporary aliases of the output error codes.
 const (
-	CodeNotFound       Code = "not_found"
-	CodeExists         Code = "exists"
-	CodeInvalid        Code = "invalid"
-	CodeConflict       Code = "conflict"
-	CodeLocked         Code = "locked"
-	CodeNotInitialized Code = "not_initialized"
+	CodeNotFound       = output.CodeNotFound
+	CodeExists         = output.CodeExists
+	CodeInvalid        = output.CodeInvalid
+	CodeConflict       = output.CodeConflict
+	CodeLocked         = output.CodeLocked
+	CodeNotInitialized = output.CodeNotInitialized
 )
 
 // nodeFileExtension ends every issue and Note file; a node's children directory is its path
 // without it.
 const nodeFileExtension = ".md"
 
-// Process exit codes.
+// The temporary aliases of the output exit codes.
 const (
-	ExitOK       = 0
-	ExitError    = 1
-	ExitUsage    = 2
-	ExitNotFound = 3
+	ExitOK       = output.ExitOK
+	ExitError    = output.ExitError
+	ExitUsage    = output.ExitUsage
+	ExitNotFound = output.ExitNotFound
 )
 
-// Error is a typed command failure. Path and Line, when set, locate the file (and line within it)
-// the failure is about; Line is meaningful only together with Path.
-type Error struct {
-	Code    Code
-	Message string
-	Path    string
-	Line    int
-	isUsage bool
-	// isRendered marks a failure the output layer already wrote with its partial result; Run
-	// only maps it to the exit code.
-	isRendered bool
-}
+// Error is the temporary alias of output.Error.
+type Error = output.Error
 
-// Errorf builds an Error with the given code and a formatted message.
+// Errorf is the temporary wrapper of output.Errorf.
 func Errorf(code Code, format string, args ...any) *Error {
-	return &Error{Code: code, Message: fmt.Sprintf(format, args...)}
+	return output.Errorf(code, format, args...)
 }
 
-// UsageErrorf builds an invalid-code Error for a malformed invocation (unknown command, bad flag,
-// wrong argument count); it exits with ExitUsage instead of ExitError.
+// UsageErrorf is the temporary wrapper of output.UsageErrorf.
 func UsageErrorf(format string, args ...any) *Error {
-	return &Error{Code: CodeInvalid, Message: fmt.Sprintf(format, args...), isUsage: true}
+	return output.UsageErrorf(format, args...)
 }
 
-// Error renders the message prefixed by "path:" or "path:line:" when a location is known.
-func (e *Error) Error() string {
-	switch {
-	case e.Path != "" && e.Line > 0:
-		return fmt.Sprintf("%s:%d: %s", e.Path, e.Line, e.Message)
-	case e.Path != "":
-		return fmt.Sprintf("%s: %s", e.Path, e.Message)
-	default:
-		return e.Message
-	}
-}
-
-// ExitCode maps the error to the process exit code: usage errors 2, not_found and locked 3,
-// everything else 1.
-func (e *Error) ExitCode() int {
-	if e.isUsage {
-		return ExitUsage
-	}
-	if e.Code == CodeNotFound || e.Code == CodeLocked {
-		return ExitNotFound
-	}
-	return ExitError
-}
-
-// asError returns err as an *Error, giving an untyped failure the invalid code so every failure
-// reaches the output layer with a code from the closed set.
+// asError is the temporary wrapper of output.AsError.
 func asError(err error) *Error {
-	var typed *Error
-	if errors.As(err, &typed) {
-		return typed
-	}
-	return &Error{Code: CodeInvalid, Message: err.Error()}
+	return output.AsError(err)
 }
 
 // kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a

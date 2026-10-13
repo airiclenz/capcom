@@ -57,7 +57,7 @@ live in `docs/plans/`, decision records in `.capcom/knowledge/decisions/`.
 | Surface | Paths |
 |---|---|
 | CLI commands & flags | `internal/cli/root.go`, `internal/cli/*.go` (one file per command; skip `_test.go`) |
-| Output modes & exit codes | `internal/cli/output.go`, `internal/cli/errors.go` |
+| Output modes & exit codes | `internal/cli/output.go`, `internal/cli/output/errors.go` |
 | Config keys & defaults | `internal/config/config.go` (`Default()`, the `.capcom/config.yaml` that `capcom init` writes) |
 | File formats | `docs/format.md` (issue files, Note files, the tree, `config.yaml`, the lock record, the Managed block) |
 | Agent integration | `internal/agents/block.go` (the AGENTS.md Managed block `capcom agents` writes), `internal/cli/prime.go` (the `capcom prime` Briefing), `internal/cli/init.go` (the Claude Code hooks `--claude-hooks` adds) |
