@@ -37,8 +37,8 @@ const (
 	CodeMissingRelated = "missing-related"
 	// CodeMissingSupersededBy is a superseded-by link that names no Note.
 	CodeMissingSupersededBy = "missing-superseded-by"
-	// CodeFormatTooOld is a Note key the store's declared format does not hold yet: retired or
-	// superseded-by in a store below format 3.
+	// CodeFormatTooOld is an issue or Note key the store's declared format does not hold yet:
+	// related in a store below format 2, retired or superseded-by in a store below format 3.
 	CodeFormatTooOld = "format-too-old"
 	// CodeCycle is a dependency cycle.
 	CodeCycle = "cycle"
@@ -66,6 +66,20 @@ func (p Problem) String() string {
 		return fmt.Sprintf("%s:%d: %s", p.Path, p.Line, p.Message)
 	}
 	return fmt.Sprintf("%s: %s", p.Path, p.Message)
+}
+
+// addFormatTooOld records a format-too-old problem at line, the line of key, a key that needs
+// store format needed in a store declaring format declared.
+func (c *checker) addFormatTooOld(path string, line int, key string, needed int, declared int) {
+	c.add(path, line, CodeFormatTooOld, fmt.Sprintf(
+		"%s needs store format %d, but the store declares format %d: set format: %d in %s, "+
+			"or run a capcom write verb that raises it",
+		key,
+		needed,
+		declared,
+		needed,
+		c.relative(c.store.ConfigPath()),
+	))
 }
 
 // loadTree loads the tree in dir, recording each of its load problems with every file it names

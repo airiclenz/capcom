@@ -108,15 +108,7 @@ func (c *checker) checkSupersession(
 		if keyLine.line == 0 {
 			continue
 		}
-		c.add(path, keyLine.line, CodeFormatTooOld, fmt.Sprintf(
-			"%s needs store format %d, but the store declares format %d: set format: %d in %s, "+
-				"or run a capcom write verb that raises it",
-			keyLine.key,
-			config.FormatSupersession,
-			declaredFormat,
-			config.FormatSupersession,
-			c.relative(c.store.ConfigPath()),
-		))
+		c.addFormatTooOld(path, keyLine.line, keyLine.key, config.FormatSupersession, declaredFormat)
 	}
 }
 

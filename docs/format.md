@@ -166,7 +166,8 @@ Both commands take `--if-match <etag>`, checked against the file they write, and
 entries in file order, then the ids of the issues whose links name it, in id order, each once. A
 renaming `capcom mv` rewrites every `related` entry naming the old id or one of its aliases, as it
 does `deps`. `capcom check` reports a `related` entry that names no issue (`missing-related`) or
-names the issue itself (`field`), at the `related` line.
+names the issue itself (`field`), and a `related` key in a store declaring a format below 2
+(`format-too-old`), at the `related` line.
 
 ### Dependency output
 

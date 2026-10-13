@@ -164,19 +164,28 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 			want:  issues + "login-flow.md:8:" + check.CodeMissingDep,
 		},
 		{
-			name:  "related resolving to nothing",
-			files: map[string]string{issues + "login-flow.md": issueFile("labels: [auth]\nrelated: [no-such-issue]\n")},
-			want:  issues + "login-flow.md:8:" + check.CodeMissingRelated,
+			name: "related resolving to nothing",
+			files: map[string]string{
+				".capcom/config.yaml":    "format: 2\n",
+				issues + "login-flow.md": issueFile("labels: [auth]\nrelated: [no-such-issue]\n"),
+			},
+			want: issues + "login-flow.md:8:" + check.CodeMissingRelated,
 		},
 		{
-			name:  "related naming the issue itself",
-			files: map[string]string{issues + "login-flow.md": issueFile("related: [login-flow]\n")},
-			want:  issues + "login-flow.md:7:" + check.CodeField,
+			name: "related naming the issue itself",
+			files: map[string]string{
+				".capcom/config.yaml":    "format: 2\n",
+				issues + "login-flow.md": issueFile("related: [login-flow]\n"),
+			},
+			want: issues + "login-flow.md:7:" + check.CodeField,
 		},
 		{
-			name:  "related naming the issue itself by its alias",
-			files: map[string]string{issues + "login-flow.md": issueFile("aliases: [old-flow]\nrelated: [old-flow]\n")},
-			want:  issues + "login-flow.md:8:" + check.CodeField,
+			name: "related naming the issue itself by its alias",
+			files: map[string]string{
+				".capcom/config.yaml":    "format: 2\n",
+				issues + "login-flow.md": issueFile("aliases: [old-flow]\nrelated: [old-flow]\n"),
+			},
+			want: issues + "login-flow.md:8:" + check.CodeField,
 		},
 		{
 			name: "closed without closed",
@@ -262,6 +271,7 @@ func TestRun_RetiredSubtree_SkipsRefChecksButStillValidatesFields(t *testing.T) 
 func TestRun_RelatedNamingAnAlias_ReportsNothing(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml":         "format: 2\n",
 		issues + "login-flow.md":      issueFile("related: [apogee-kk0.4]\n"),
 		issues + "session-timeout.md": issueFile("aliases: [apogee-kk0.4]\n"),
 	})
@@ -270,6 +280,44 @@ func TestRun_RelatedNamingAnAlias_ReportsNothing(t *testing.T) {
 
 	if len(problems) != 0 {
 		t.Fatalf("problems = %v, want none", problems)
+	}
+}
+
+func TestRun_RelatedBelowFormatTwo_ReportsFormatTooOldAtTheRelatedLine(t *testing.T) {
+	cases := []struct {
+		name  string
+		files map[string]string
+	}{
+		{name: "no config", files: map[string]string{}},
+		{
+			name:  "keyless config",
+			files: map[string]string{".capcom/config.yaml": "types: [bug, feature, task, chore]\n"},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newRepo(t)
+			writeFiles(t, root, testCase.files)
+			writeFiles(t, root, map[string]string{
+				issues + "login-flow.md":      issueFile("labels: [auth]\nrelated: [session-timeout]\n"),
+				issues + "session-timeout.md": issueFile(""),
+			})
+
+			problems := runCheck(t, root)
+
+			var got []string
+			for _, problem := range problems {
+				got = append(got, problem.Code+" "+problem.String())
+			}
+			want := []string{
+				check.CodeFormatTooOld + " " + issues + "login-flow.md:8: related needs store format 2, " +
+					"but the store declares format 1: set format: 2 in .capcom/config.yaml, " +
+					"or run a capcom write verb that raises it",
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("problems = %q\nwant %q", got, want)
+			}
+		})
 	}
 }
 

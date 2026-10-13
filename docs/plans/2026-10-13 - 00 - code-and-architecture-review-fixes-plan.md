@@ -1738,7 +1738,9 @@ Depends on P3.2.
 - `capcom check`
 **Commit:** `fix(store): keep an existing store at its format when init writes config.yaml`
 
-## P3.4 check gates the Issue related key on the store format
+## P3.4 check gates the Issue related key on the store format — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "checkIssue, checkRelated, checkSupersession and CodeFormatTooOld live in internal/check/check.go" — after P2.13 they sit in issues.go, notes.go and problem.go, the files the item already lists; the shared message helper is checker.addFormatTooOld in problem.go.
 
 **What:** Fixes F-17 (`check-related-format`), and completes A-07. A `related` key in a store declaring format 1 passes `check`, although every format-1 binary rejects it. This item emits the existing code `format-too-old` in one more place. No `check` JSON code changes.
 **Regression guard.** The prose rule is every sentence listing what `capcom check` reports at an issue or Note key, the related section's sentence (which never says "format-too-old") included.

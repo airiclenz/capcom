@@ -7,12 +7,16 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // planExtension is the extension a plan basename is looked up with, besides the bare name.
 const planExtension = ".md"
+
+// keyRelated is the issue key a store needs format 2 for, as a Problem names it.
+const keyRelated = "related"
 
 // parsedIssue is one issue file of the tree with what parsing it gave.
 type parsedIssue struct {
@@ -80,7 +84,7 @@ func graphNodes(entries []parsedIssue) []issue.Node {
 }
 
 // checkIssue checks one parsed issue: its fields against the config, its plan, its deps and its
-// related links.
+// related links, and that its related key, however it is set, sits in a store declaring format 2.
 func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	path := entry.node.Path
 	for _, problem := range issue.Validate(c.relative(path), entry.issue, c.store.Config) {
@@ -102,6 +106,9 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 		}
 	}
 	c.checkRelated(entry, graph)
+	if line := entry.issue.RelatedLine(); line > 0 && c.store.Config.Format < config.FormatRelated {
+		c.addFormatTooOld(path, line, keyRelated, config.FormatRelated, c.store.Config.Format)
+	}
 }
 
 // checkRelated checks the related links of one parsed issue: each must resolve to an issue other
