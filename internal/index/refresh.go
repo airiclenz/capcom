@@ -13,6 +13,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -28,7 +29,7 @@ var commitTx = (*sql.Tx).Commit
 
 // readNodeFile reads a node file the walk found. It is a variable so a test can change the file
 // between the walk and its read.
-var readNodeFile = tree.ReadNodeFile
+var readNodeFile = nodefile.ReadNodeFile
 
 // Refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
 // IMMEDIATE transaction, and records its report as the one Report returns. Open has already
@@ -263,7 +264,7 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 // indexFile reads and parses one file and replaces its rows. A file with problems keeps only its
 // files row, which carries the problems so the next refresh reports them again, and its claims
 // rows, one per name claimedNames gives it. The file is read
-// through tree.ReadNodeFile: one that is no longer a regular file, or has grown past 1 MiB, since
+// through nodefile.ReadNodeFile: one that is no longer a regular file, or has grown past 1 MiB, since
 // the walk kept it is left out unread with a WarningNotRegular, never failing the refresh. A file
 // removed since the walk kept it is left without rows, and isGone reports it.
 func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
@@ -359,7 +360,7 @@ func (r *refresher) replaceWalkClaims() error {
 	return nil
 }
 
-// readRefusal returns the tree sentinel err wraps when tree.ReadNodeFile refused the file unread
+// readRefusal returns the tree sentinel err wraps when nodefile.ReadNodeFile refused the file unread
 // (tree.ErrNotRegular or tree.ErrTooLarge), worded as the walk words the same problem, or nil.
 func readRefusal(err error) error {
 	for _, sentinel := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {

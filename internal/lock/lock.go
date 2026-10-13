@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // Layout of the lock directory under the git common dir.
@@ -418,7 +418,7 @@ func (l *Locks) write(key string, record Record) error {
 		return fmt.Errorf("%s: %w", l.RecordPath(key), err)
 	}
 	data = append(data, '\n')
-	return tree.WriteFileAtomic(l.RecordPath(key), bytes.NewReader(data))
+	return nodefile.WriteFileAtomic(l.RecordPath(key), bytes.NewReader(data))
 }
 
 // remove deletes key's record. The caller holds the guard.

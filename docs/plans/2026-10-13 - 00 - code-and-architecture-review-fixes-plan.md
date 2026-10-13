@@ -1175,7 +1175,10 @@ Depends on P2.3.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers and the forwarder. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(edit): move ETag to internal/nodefile`
 
-## P2.5 nodefile package, part 4: lock, store, agents, check and index import nodefile
+## P2.5 nodefile package, part 4: lock, store, agents, check and index import nodefile — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): internal/index/index_test.go is unchanged: P1.4's readNodeFile seam is the package variable in index/refresh.go (now `= nodefile.ReadNodeFile`), and the test only swaps that variable, naming no forwarder.
+NOTES (2026-10-13): comments that gained the longer `nodefile.` qualifier were not rewrapped, to keep the diff to qualifiers and import lines; store.go's Open comment now runs to 106 columns.
 
 **What:** Part 4 of review P2-03. The `lock`, `store`, `agents`, `check` and `index` packages call the moved functions through `nodefile`.
 **Regression guard.** The Goal is checked by an Acceptance grep. P1.6's `tree.ReadNodeFile` call in index/walk.go and P1.4's `readNodeFile` seam in index_test.go switch too.

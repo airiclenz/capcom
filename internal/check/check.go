@@ -25,6 +25,7 @@ import (
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -220,12 +221,12 @@ func treeCode(err error) string {
 	}
 }
 
-// readFile reads the issue or Note file at path through tree.ReadNodeFile. A file it refuses
+// readFile reads the issue or Note file at path through nodefile.ReadNodeFile. A file it refuses
 // unread, one no longer a regular file or grown past 1 MiB since the walk, is recorded as a
 // not-regular problem, as the walk records one, and isRead is false with no error. Any other
 // failed read is an error naming the file.
 func (c *checker) readFile(path string) (data []byte, isRead bool, err error) {
-	data, err = tree.ReadNodeFile(path)
+	data, err = nodefile.ReadNodeFile(path)
 	for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
 		if errors.Is(err, refusal) {
 			c.add(path, 0, CodeNotRegular, refusal.Error())

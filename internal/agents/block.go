@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -137,13 +138,13 @@ func Path(worktreeRoot string) string {
 
 // TopNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
 // the files. A retired Note is left out, and with it its whole subtree, and so is a Note labelled
-// knowledge.LabelBackground. A Note file that does not parse, that tree.ReadNodeFile refuses
+// knowledge.LabelBackground. A Note file that does not parse, that nodefile.ReadNodeFile refuses
 // unread, or that a load problem names (a duplicate id or alias, an invalid or repeated alias) is
 // left out; `capcom check` reports it. It fails only when the tree or a Note file cannot be read.
 func TopNotes(knowledgeDir string) ([]Note, error) {
 	parsed := map[string]knowledge.Note{}
 	readAliases := func(path string) ([]string, error) {
-		data, err := tree.ReadNodeFile(path)
+		data, err := nodefile.ReadNodeFile(path)
 		if errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge) {
 			return nil, nil
 		}
@@ -262,7 +263,7 @@ func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 		return status, nil
 	}
 	spliced := splice(content, span, Render(notes))
-	err = tree.WriteFileAtomicVerbatim(guide.path, bytes.NewReader(spliced), guide.perm)
+	err = nodefile.WriteFileAtomicVerbatim(guide.path, bytes.NewReader(spliced), guide.perm)
 	if err != nil {
 		return status, fmt.Errorf("%s: %w", FileName, err)
 	}
@@ -360,7 +361,7 @@ func statusOf(content []byte, span blockSpan, notes []Note) Status {
 	return Status{State: StateStale, Line: span.line}
 }
 
-// readGuide reads the file guide resolved to through tree.ReadRegularFile, returning nil content
+// readGuide reads the file guide resolved to through nodefile.ReadRegularFile, returning nil content
 // when the guide is missing or its file no longer exists. A file that is not a regular file, or is
 // larger than 1 MiB, is refused with an *Error naming the guide, without blocking or reading it
 // whole.
@@ -368,7 +369,7 @@ func readGuide(guide guideFile) ([]byte, error) {
 	if guide.isMissing {
 		return nil, nil
 	}
-	content, err := tree.ReadRegularFile(guide.path)
+	content, err := nodefile.ReadRegularFile(guide.path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil, nil

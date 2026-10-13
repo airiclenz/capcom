@@ -14,7 +14,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/gitx"
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // Layout of a store, relative to the working tree root.
@@ -53,7 +53,7 @@ type Store struct {
 // Open finds the store of the git working tree containing cwd, from any directory inside it, and
 // loads its config. It fails with ErrNotGitRepository outside a working tree, ErrNotInitialized
 // when the tree has no store, a *config.Error when config.yaml is invalid, and an error wrapping
-// tree.ErrNotRegular or tree.ErrTooLarge when config.yaml is not a regular file or is larger than
+// nodefile.ErrNotRegular or nodefile.ErrTooLarge when config.yaml is not a regular file or is larger than
 // 1 MiB.
 func Open(cwd string) (*Store, error) {
 	store, err := locate(cwd)
@@ -136,9 +136,9 @@ func (s *Store) RaiseFormat(version int) (bool, error) {
 		return false, nil
 	}
 	if isMissing {
-		err = tree.WriteFileAtomicVerbatim(path, bytes.NewReader(raised), filePermissions)
+		err = nodefile.WriteFileAtomicVerbatim(path, bytes.NewReader(raised), filePermissions)
 	} else {
-		err = tree.ReplaceFileVerbatim(path, bytes.NewReader(raised))
+		err = nodefile.ReplaceFileVerbatim(path, bytes.NewReader(raised))
 	}
 	if err != nil {
 		return false, err
@@ -184,15 +184,15 @@ func (s *Store) loadConfig() error {
 // readConfig reads config.yaml through the guarded reader, so a symlink, a named pipe or a device
 // in its place is never followed or read. A missing file is the reader's own fs.ErrNotExist error,
 // for the caller's missing-file branch. Every other failure names the file relative to the working
-// tree root: an entry that is not a regular file wraps tree.ErrNotRegular, one larger than 1 MiB
-// wraps tree.ErrTooLarge, and any other failure wraps the reader's error.
+// tree root: an entry that is not a regular file wraps nodefile.ErrNotRegular, one larger than 1 MiB
+// wraps nodefile.ErrTooLarge, and any other failure wraps the reader's error.
 func (s *Store) readConfig() ([]byte, error) {
-	data, err := tree.ReadRegularFile(s.ConfigPath())
+	data, err := nodefile.ReadRegularFile(s.ConfigPath())
 	if err == nil || errors.Is(err, fs.ErrNotExist) {
 		return data, err
 	}
 	displayPath := s.relative(configFile)
-	for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
+	for _, refusal := range []error{nodefile.ErrNotRegular, nodefile.ErrTooLarge} {
 		if errors.Is(err, refusal) {
 			return nil, fmt.Errorf("%s: %w", displayPath, refusal)
 		}

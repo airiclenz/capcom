@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -222,7 +223,7 @@ func problemClaims(worktreeRoot string, problem *tree.Error) []claim {
 
 // orphanDirectoryClaims returns the names claimed by every node file at any depth below dir, a
 // directory the walk left out: each file's id, plus the Aliases rawfm.Aliases reads from its bytes
-// through tree.ReadNodeFile. A file the guarded reader refuses unread claims its id only. Hidden
+// through nodefile.ReadNodeFile. A file the guarded reader refuses unread claims its id only. Hidden
 // names are skipped at every depth.
 //
 // The walk has already warned about dir itself, so an entry below it that cannot be read (an
@@ -245,7 +246,7 @@ func orphanDirectoryClaims(worktreeRoot, dir string) []claim {
 			return nil
 		}
 		names := []string{id}
-		data, err := tree.ReadNodeFile(current)
+		data, err := nodefile.ReadNodeFile(current)
 		switch {
 		case readRefusal(err) != nil:
 		case err != nil:
