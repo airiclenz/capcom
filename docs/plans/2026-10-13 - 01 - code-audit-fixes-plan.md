@@ -168,7 +168,10 @@ NOTES (2026-10-13): item 9's Read first anchor "internal/issue/mutate.go — sca
 - `GOMEMLIMIT=2GiB go test ./internal/issue/`
 **Commit:** `fix(issue): find the Log section in one linear pass`
 
-## 8. NameClashes reports each claimant once
+## 8. NameClashes reports each claimant once — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): an identical claim repeated (a file listing the same alias twice) now counts once, so it yields one finding per file instead of one per copy; before, the pairwise loop already skipped identical claims against each other but repeated each finding per copy. The table test pins it ("an identical claim repeated counts once").
+NOTES (2026-10-13): consequential edit — internal/index/duplicates.go: made necessary by NameClashes naming the first other claimant (excludeDuplicates' doc comment said it warns "naming the other file").
 
 **What:** Fix: k files sharing a name yield k×(k−1) findings on every index refresh.
 **Goal:** `diagnose.NameClashes` yields exactly one finding per claimant of a shared name. With two claimants the message is unchanged (`...: also the <kind> of <path>; both are left out`); with k > 2 it names the first other claimant and ends `... and <k-2> more; all are left out`.

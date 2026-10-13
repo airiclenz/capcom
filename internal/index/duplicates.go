@@ -15,7 +15,7 @@ type claim struct {
 }
 
 // excludeDuplicates keeps every node that shares an id or alias with another file of its own tree
-// out of the queries and warns about each, naming the other file (ADR 0002: names are unique
+// out of the queries and warns about each once, naming another claimant (ADR 0002: names are unique
 // across the tree). An issue and a Note never clash. It runs on every refresh, so a node comes
 // back once its rival is gone.
 func (r *refresher) excludeDuplicates() error {

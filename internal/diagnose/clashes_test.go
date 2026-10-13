@@ -1,6 +1,7 @@
 package diagnose_test
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -62,27 +63,35 @@ func TestNameClashes_Claims_FindsEveryClaimantOfASharedName(t *testing.T) {
 			want: []diagnose.Finding{
 				{
 					Kind: diagnose.Duplicate, Path: "a.md",
-					Message: `duplicate id "alpha": also the alias of b.md; both are left out`,
-				},
-				{
-					Kind: diagnose.Duplicate, Path: "a.md",
-					Message: `duplicate id "alpha": also the alias of c.md; both are left out`,
+					Message: `duplicate id "alpha": also the alias of b.md and 1 more; all are left out`,
 				},
 				{
 					Kind: diagnose.Duplicate, Path: "b.md",
-					Message: `duplicate alias "alpha": also the id of a.md; both are left out`,
+					Message: `duplicate alias "alpha": also the id of a.md and 1 more; all are left out`,
 				},
+				{
+					Kind: diagnose.Duplicate, Path: "c.md",
+					Message: `duplicate alias "alpha": also the id of a.md and 1 more; all are left out`,
+				},
+			},
+		},
+		{
+			name: "an identical claim repeated counts once",
+			claims: []diagnose.Claim{
+				{Name: "alpha", Path: "a.md", Kind: "alias"},
+				{Name: "alpha", Path: "a.md", Kind: "alias"},
+				{Name: "beta", Path: "b.md", Kind: "alias"},
+				{Name: "beta", Path: "b.md", Kind: "alias"},
+				{Name: "beta", Path: "c.md", Kind: "id"},
+			},
+			want: []diagnose.Finding{
 				{
 					Kind: diagnose.Duplicate, Path: "b.md",
-					Message: `duplicate alias "alpha": also the alias of c.md; both are left out`,
+					Message: `duplicate alias "beta": also the id of c.md; both are left out`,
 				},
 				{
 					Kind: diagnose.Duplicate, Path: "c.md",
-					Message: `duplicate alias "alpha": also the id of a.md; both are left out`,
-				},
-				{
-					Kind: diagnose.Duplicate, Path: "c.md",
-					Message: `duplicate alias "alpha": also the alias of b.md; both are left out`,
+					Message: `duplicate id "beta": also the alias of b.md; both are left out`,
 				},
 			},
 		},
@@ -122,5 +131,35 @@ func TestNameClashes_Claims_FindsEveryClaimantOfASharedName(t *testing.T) {
 				t.Errorf("NameClashes() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestNameClashes_ManyClaimants_FindsOnePerClaimant(t *testing.T) {
+	const claimantCount = 1000
+	claims := make([]diagnose.Claim, 0, claimantCount)
+	for position := range claimantCount {
+		path := fmt.Sprintf("%04d.md", position)
+		claims = append(claims, diagnose.Claim{Name: "alpha", Path: path, Kind: "alias"})
+	}
+
+	got := diagnose.NameClashes(claims)
+
+	if len(got) != claimantCount {
+		t.Fatalf("NameClashes() returned %d findings, want %d", len(got), claimantCount)
+	}
+	for position, finding := range got {
+		other := "0000.md"
+		if position == 0 {
+			other = "0001.md"
+		}
+		want := diagnose.Finding{
+			Kind: diagnose.Duplicate,
+			Path: claims[position].Path,
+			Message: `duplicate alias "alpha": also the alias of ` + other +
+				" and 998 more; all are left out",
+		}
+		if finding != want {
+			t.Errorf("finding %d = %v, want %v", position, finding, want)
+		}
 	}
 }
