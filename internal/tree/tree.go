@@ -47,6 +47,13 @@ type Tree struct {
 	// below a repeated id claims, and each alias the first file of a repeated id lists, to the
 	// problem of that repeated id.
 	duplicates map[string]*Error
+	// aliases is the AliasFunc Load read the Aliases with; nil when the kind has none.
+	aliases AliasFunc
+	// repeatedFiles index the files of leftOut that carry a repeated id, in leftOut's order.
+	repeatedFiles []int
+	// orphanDirs are the Paths of the ErrOrphanDirectory problems Load reported that lie under no
+	// other such directory, ordered by path.
+	orphanDirs []string
 }
 
 // Load reads the tree stored in dir. A missing dir loads as an empty tree. Names starting with a
@@ -74,6 +81,7 @@ type Tree struct {
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	tree := &Tree{
 		dir:        dir,
+		aliases:    aliases,
 		byID:       map[string]int{},
 		byAlias:    map[string]int{},
 		children:   map[string][]int{},
@@ -102,6 +110,7 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	}
 	if len(problems) > 0 {
 		sort.SliceStable(problems, func(i, j int) bool { return problems[i].Path < problems[j].Path })
+		tree.orphanDirs = outermostOrphanDirs(problems)
 		return tree, problems
 	}
 	return tree, nil

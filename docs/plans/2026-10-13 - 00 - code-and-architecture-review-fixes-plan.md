@@ -1811,7 +1811,13 @@ Depends on P3.5.
 **Closes:** cli-output-package
 **Commit:** `refactor(cli): decide the exit code behind the cli/output interface`
 
-## P3.8 Tree.Claimant names any file holding a name
+## P3.8 Tree.Claimant names any file holding a name — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/tree/doc.go: made necessary by claims.go now holding Claimant; its file-map line names it.
+
+NOTES (2026-10-13): where orphan directories nest (an orphan inside a repeated id's directory), Claim.Dir is the outermost reported one, matching the first problem nodestore's orphanClaimFailure names today; an orphan directory gone since Load lists as empty instead of failing as findNodeFile's WalkDir does.
+
+NOTES (2026-10-13): ClaimKind constants are LiveClaim, OrphanClaim, DuplicateClaim and UnparsedClaim, starting at 1 so the zero Claim has no kind; repeated-id files are tried in LeftOut order (id, then path) rather than nodestore's problem order.
 
 **What:** Recast at the regression check (2026-10-13). First part of A-05 (`node-layout-claims`). Per review A-05, the claim concept moves into `tree`, generalising F-10(b). A name may be held by a live Node, a dropped duplicate, a file inside an orphan directory or an unparseable file, and today each nodestore verb scans for these itself.
 **Regression guard.** `except` names the moved node's file path (not its id), so an orphan or unparseable file with the same id still claims; add a claims_test case for it. Precedence lists orphan before duplicate, matching P1.7's `claimFailure` order (message unchanged for users). `Claim.Dir` is the Path of the `ErrOrphanDirectory` problem the file lies under; add a nested-orphan claims_test case. `tree.Load`'s signature stays unchanged; `Claimant` takes the recovering AliasFunc.

@@ -64,7 +64,7 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 	var childDirs []string
 	for _, entry := range entries {
 		name := entry.Name()
-		if strings.HasPrefix(name, hiddenPrefix) {
+		if isSkippedEntry(entry) {
 			continue
 		}
 		if entry.IsDir() {
@@ -72,9 +72,6 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 			continue
 		}
 		id, isNode := strings.CutSuffix(name, nodeExtension)
-		if !isNode && !nodefile.IsNotRegular(entry.Type()) {
-			continue
-		}
 		path := filepath.Join(dir, name)
 		leftOut, err := leftOutFileOf(entry, id)
 		if err != nil {
@@ -111,6 +108,20 @@ func (w *treeWalker) walk(dir string, parentID string) error {
 		}
 	}
 	return nil
+}
+
+// isSkippedEntry reports whether a walk passes over entry without a word: an entry whose name
+// starts with a dot, or a regular file whose name does not end in .md. A directory, a node file by
+// its name and an entry that is not a regular file are not skipped.
+func isSkippedEntry(entry fs.DirEntry) bool {
+	name := entry.Name()
+	if strings.HasPrefix(name, hiddenPrefix) {
+		return true
+	}
+	if entry.IsDir() {
+		return false
+	}
+	return !strings.HasSuffix(name, nodeExtension) && !nodefile.IsNotRegular(entry.Type())
 }
 
 // leftOutFile is why a walk leaves a file out: the problem reported at the file, and the reason

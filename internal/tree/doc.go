@@ -10,7 +10,8 @@
 // Every non-test file of the package, with its responsibility. TestDocFileMap_MatchesDirectory
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
-//   - `claims.go` — the ids and aliases Load maps, and the repeated ids and duplicates it records
+//   - `claims.go` — the ids and aliases Load maps, the repeated ids and duplicates it records, and
+//     Claimant: the file that holds a name, live, orphan, duplicate or unparsed
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — the sentinel errors, Error and Errors, and the problem types they wrap
 //   - `ids.go` — ValidateID, ValidateAlias, CheckAliases and RenameAliases: what an id or alias may be
