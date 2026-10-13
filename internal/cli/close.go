@@ -146,11 +146,7 @@ func (a *app) issueNodes() ([]issue.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	nodes := make([]issue.Node, 0, len(entries))
-	for _, entry := range entries {
-		nodes = append(nodes, entry.Node())
-	}
-	return nodes, nil
+	return index.Nodes(entries), nil
 }
 
 // beforeCloseEdit runs in closeOne between the resolve of an argument to an issue that is not

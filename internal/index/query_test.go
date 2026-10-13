@@ -172,6 +172,35 @@ func TestEntryNode_IndexedIssue_CarriesWhatTheReadyRulesRead(t *testing.T) {
 	}
 }
 
+func TestNodes_KeepsOrderAndFields(t *testing.T) {
+	t.Parallel()
+	entries := []Entry{
+		{ID: "token-store", Category: config.CategoryTodo, Deps: []string{"login-flow"}},
+		{
+			ID: "session-refresh", ParentID: "login-flow", Category: config.CategoryWaiting,
+			Labels: []string{"auth"}, Aliases: []string{"apogee-kk0.2"},
+		},
+		{ID: "login-flow", Category: config.CategoryDone},
+	}
+
+	got := Nodes(entries)
+
+	want := []issue.Node{
+		{ID: "token-store", Category: config.CategoryTodo, Deps: []string{"login-flow"}},
+		{
+			ID: "session-refresh", ParentID: "login-flow", Category: config.CategoryWaiting,
+			Labels: []string{"auth"}, Aliases: []string{"apogee-kk0.2"},
+		},
+		{ID: "login-flow", Category: config.CategoryDone},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Nodes = %+v; want %+v", got, want)
+	}
+	if empty := Nodes(nil); empty == nil || len(empty) != 0 {
+		t.Errorf("Nodes(nil) = %#v; want an empty, non-nil slice", empty)
+	}
+}
+
 func TestResolve_IDAliasAndPrefix_FindTheIssue(t *testing.T) {
 	t.Parallel()
 	x := listFixture(t)

@@ -87,13 +87,11 @@ func (a *app) loadDepGraph() (depGraph, error) {
 	if err != nil {
 		return depGraph{}, err
 	}
-	nodes := make([]issue.Node, 0, len(entries))
 	byID := make(map[string]index.Entry, len(entries))
 	for _, entry := range entries {
-		nodes = append(nodes, entry.Node())
 		byID[entry.ID] = entry
 	}
-	return depGraph{graph: issue.NewDepGraph(nodes), entries: byID, ordered: entries}, nil
+	return depGraph{graph: issue.NewDepGraph(index.Nodes(entries)), entries: byID, ordered: entries}, nil
 }
 
 // names returns a test of whether a dep, as a file writes it, names the issue with id.

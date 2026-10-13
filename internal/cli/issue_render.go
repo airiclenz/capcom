@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -102,24 +101,28 @@ type childrenData struct {
 }
 
 // childProgress counts the direct children of the issue with id, Closed ones included, and how
-// many of them are Closed (category done or dropped). It returns nil for an issue without children.
+// many of them are Closed, as progressOf does. It returns nil for an issue without children.
 func (a *app) childProgress(id string) (*childrenData, error) {
-	children, err := a.issueIndex.ListIDs(index.Filter{ParentID: id, IsClosedIncluded: true})
+	children, err := a.issueIndex.List(index.Filter{ParentID: id, IsClosedIncluded: true})
 	if err != nil {
 		return nil, err
 	}
+	return progressOf(children), nil
+}
+
+// progressOf counts children, an issue's direct children with Closed ones included, and how many
+// of them are Closed (category done or dropped). It returns nil when there are none.
+func progressOf(children []index.Entry) *childrenData {
 	if len(children) == 0 {
-		return nil, nil
+		return nil
 	}
-	closed, err := a.issueIndex.ListIDs(index.Filter{
-		ParentID:         id,
-		Categories:       config.ClosedCategories(),
-		IsClosedIncluded: true,
-	})
-	if err != nil {
-		return nil, err
+	progress := &childrenData{Total: len(children)}
+	for _, child := range children {
+		if child.Category.IsClosed() {
+			progress.Closed++
+		}
 	}
-	return &childrenData{Total: len(children), Closed: len(closed)}, nil
+	return progress
 }
 
 // showFacts is what show tells about an issue beyond its file: its Related links as showLinks

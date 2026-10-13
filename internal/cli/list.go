@@ -291,25 +291,9 @@ func (t *issueTree) shownChildren(parentID string) []index.Entry {
 // add appends the line of entry at indent, cutting more children that --depth moreDepth would show.
 func (t *issueTree) add(entry index.Entry, indent int, more int, moreDepth int) {
 	text := strings.TrimSuffix(issueLines([]index.Entry{entry}, ""), "\n")
-	if progress := t.progress(entry.ID); progress != nil {
+	if progress := progressOf(t.children[entry.ID]); progress != nil {
 		text += "  (" + childrenText(progress) + ")"
 	}
 	t.rows = append(t.rows, outlineRow{depth: indent, text: text, more: more, moreDepth: moreDepth})
 	t.items = append(t.items, issueTreeItem{issueData: newIssueData(entry), Depth: indent})
-}
-
-// progress counts the direct children of the issue with id, Closed ones included, and how many of
-// them are Closed, as childProgress does; it returns nil for an issue without children.
-func (t *issueTree) progress(id string) *childrenData {
-	children := t.children[id]
-	if len(children) == 0 {
-		return nil
-	}
-	progress := &childrenData{Total: len(children)}
-	for _, child := range children {
-		if child.Category.IsClosed() {
-			progress.Closed++
-		}
-	}
-	return progress
 }

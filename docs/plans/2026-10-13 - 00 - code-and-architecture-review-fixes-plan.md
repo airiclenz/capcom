@@ -2355,7 +2355,9 @@ Depends on P3.42; P2.19; P2.21.
 - `grep -nE 'func \(t \*issueTree\) visit|var visit func' internal/cli/*.go` prints nothing
 **Commit:** `refactor(cli): walk list --tree and know tree with one outline walker`
 
-## P3.51 One child-progress count and one issue-node conversion
+## P3.51 One child-progress count and one issue-node conversion — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): issueTree.progress is removed rather than kept as a wrapper; issueTree.add calls progressOf(t.children[entry.ID]) directly, so progressOf is the one cli function counting progress for show and list --tree.
 
 **What:** Part 2 of A-08: `show` and `list --tree` count a parent's closed children with one function, and "every issue, closed included, as `[]issue.Node`" is converted in `index`.
 **Regression guard.** `Index.List` is `ListIDs` plus one `Issue` read per child, so the Goal reads "`childProgress` makes one `issueIndex.List` call and counts through `progressOf`".

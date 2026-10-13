@@ -311,6 +311,15 @@ func (e Entry) Node() issue.Node {
 	}
 }
 
+// Nodes returns the Node of each of entries, in their order.
+func Nodes(entries []Entry) []issue.Node {
+	nodes := make([]issue.Node, 0, len(entries))
+	for _, entry := range entries {
+		nodes = append(nodes, entry.Node())
+	}
+	return nodes
+}
+
 // firstOf returns the first value, or "" when there is none.
 func firstOf(values []string) string {
 	if len(values) == 0 {

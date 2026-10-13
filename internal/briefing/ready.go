@@ -58,10 +58,9 @@ func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]Ready
 		selected[id] = true
 	}
 
-	nodes := make([]issue.Node, 0, len(entries))
+	nodes := index.Nodes(entries)
 	byID := make(map[string]index.Entry, len(entries))
 	for _, entry := range entries {
-		nodes = append(nodes, entry.Node())
 		byID[entry.ID] = entry
 	}
 	verdicts := issue.Ready(nodes, cfg)
