@@ -41,6 +41,19 @@ type depListItem struct {
 	Via   string `json:"via"`
 }
 
+// The help text of capcom dep list.
+const (
+	depListLong = "List the Issues the given Issue depends on and the Issues that depend on it, under a deps: " +
+		"and a dependents: heading. Without --depth only the direct ones print; --depth n walks n " +
+		"levels, each indented one step further, and --depth 0 walks every level. A dep that names no " +
+		"Issue is marked missing, and an Issue already printed in its section prints again as " +
+		"(see above) without its branch. With --depth given, a branch it cut ends in a " +
+		"\"... <n> more\" line."
+	depListExample = "  capcom dep list login-timeout-race              # its direct deps and dependents\n" +
+		"  capcom dep list --depth 2 login-timeout-race    # two levels deep\n" +
+		"  capcom dep list --depth 0 login-timeout-race    # every level"
+)
+
 // newDepListCommand lists an issue's dependencies and the issues that depend on it, each as an
 // indented tree --depth levels deep (0 for every level). A given --depth also prints a
 // `... <n> more (--depth <d>)` line under each issue whose branch it cut; without one the output
@@ -50,6 +63,8 @@ func (a *app) newDepListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "list <id|alias|prefix>",
 		Short:       "List an issue's dependencies and dependents",
+		Long:        depListLong,
+		Example:     depListExample,
 		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

@@ -79,7 +79,12 @@ NOTES (2026-10-13): every example was run as shown against a scratch store holdi
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run HelpText ./internal/cli/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`; `go run ./cmd/capcom ready --help` shows an `Examples:` section
 **Commit:** `docs(cli): add long help and examples to the issue commands`
 
-## 3. Help text: graph, coordination and agent commands
+## 3. Help text: graph, coordination and agent commands — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "dep's subcommand constructors all live in dep.go": newDepListCommand is in dep_list.go and newDepGraphCommand in dep_graph.go, so their help constants sit in those files
+NOTES (2026-10-13): help text follows item 2's shape, per-file `<cmd>Long`/`<cmd>Example` constants referenced from the cobra literal; gofmt realigned the `Args:` field of the four group/prime literals that gained the longer `Example:` key
+NOTES (2026-10-13): help_text_test.go gained graphAndAgentCommandPaths and TestHelpText_GraphAndAgentCommands_SetLongAndExample; the shared table check moved into an assertLongAndExample helper both tests call, and commandsWithoutKV now also lists dep, related, lock, prime and agents (none registers --kv)
+NOTES (2026-10-13): every example was run against a scratch store; dep rm's dangling-dep example needs a hand-edited deps entry (rm refuses or drops deps naming a removed Issue), and acquire --take-stale fails locked, as documented, unless the lock is actually stale
 
 **What:** Depends on item 2 (shared test file).
 **Regression guard.** Acceptance also runs `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/` (whole package, catches the doc file map).

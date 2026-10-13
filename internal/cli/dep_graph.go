@@ -50,6 +50,18 @@ type depGraph struct {
 	ordered []index.Entry
 }
 
+// The help text of capcom dep graph.
+const (
+	depGraphLong = "Print the Dependency graph as a Mermaid flowchart: one node per Issue, labelled with its id and " +
+		"status, and one arrow per Dependency, from the Issue depended on to the Issue that waits for " +
+		"it. Without an argument it shows every Issue that is not closed; with one, that Issue and " +
+		"every Issue its deps and dependents reach, transitively. --all adds the closed Issues. A dep " +
+		"that names no Issue draws no arrow. Paste the output into a mermaid code block to render it."
+	depGraphExample = "  capcom dep graph                       # the open Issues' dependencies\n" +
+		"  capcom dep graph login-timeout-race    # only the Issues connected to it\n" +
+		"  capcom dep graph --all                 # closed Issues too"
+)
+
 // newDepGraphCommand prints the Dependency graph as a Mermaid flowchart: every issue that is not
 // closed, or with an id that issue and its transitive deps and dependents. --all adds closed
 // issues; the named issue itself is always a node. A dep naming no issue has no edge.
@@ -58,6 +70,8 @@ func (a *app) newDepGraphCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "graph [id|alias|prefix]",
 		Short:       "Print the dependencies as a Mermaid flowchart",
+		Long:        depGraphLong,
+		Example:     depGraphExample,
 		Args:        cobra.MaximumNArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

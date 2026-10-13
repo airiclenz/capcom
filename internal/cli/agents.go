@@ -29,6 +29,18 @@ type agentsData struct {
 	Line int `json:"line,omitempty"`
 }
 
+// The help text of capcom agents.
+const (
+	agentsLong = "Write or refresh capcom's Managed block in the AGENTS.md at the working tree root: the " +
+		"section between <!-- BEGIN CAPCOM --> and <!-- END CAPCOM --> that tells agents how to use " +
+		"capcom and lists the top level of the Knowledge tree. A stale block is replaced, an absent " +
+		"one appended and a missing AGENTS.md created; the rest of the file is left alone. --check " +
+		"writes nothing: it reports whether the block is current, and fails invalid when it is stale, " +
+		"so CI catches a block that has drifted; a file without the block passes."
+	agentsExample = "  capcom agents           # write or refresh the capcom block of AGENTS.md\n" +
+		"  capcom agents --check   # fail when the block is out of date"
+)
+
 // newAgentsCommand writes or refreshes the capcom Managed block of AGENTS.md, or with --check
 // reports whether it is current. --check fails on a stale block only: an AGENTS.md without the
 // block, or no AGENTS.md, is fine.
@@ -37,6 +49,8 @@ func (a *app) newAgentsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "agents",
 		Short:       "Write or refresh the capcom block of AGENTS.md",
+		Long:        agentsLong,
+		Example:     agentsExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

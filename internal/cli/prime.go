@@ -40,15 +40,29 @@ type primeListData struct {
 	Issues []issueData `json:"issues"`
 }
 
+// The help text of capcom prime.
+const (
+	primeLong = "Print the Briefing an agent session starts with: the Ready Issues, split into those with a " +
+		"plan and those without, each list capped at 15; the Issues in progress; the Tree locks held " +
+		"in every worktree; changes to Issues on other branches that are not merged yet; Note refs that no longer " +
+		"resolve; and the number of problems capcom check finds. It never fails: a part that cannot be " +
+		"read becomes a warning line, and the command exits 0. init --claude-hooks and " +
+		"init --codex-hooks run it at session start and before compaction."
+	primeExample = "  capcom prime          # the session-start Briefing\n" +
+		"  capcom prime --json   # the same Briefing as a JSON envelope"
+)
+
 // newPrimeCommand prints the Briefing an agent session starts with: Ready work split planned and
 // unplanned, the issues in progress, every worktree's Tree lock, issue changes on other branches,
 // broken Note refs and the count of check problems. It never fails: a source that cannot be read
 // becomes one warning line, and the command exits 0.
 func (a *app) newPrimeCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "prime",
-		Short: "Print the session Briefing: ready work, locks, other branches and store health",
-		Args:  cobra.NoArgs,
+		Use:     "prime",
+		Short:   "Print the session Briefing: ready work, locks, other branches and store health",
+		Long:    primeLong,
+		Example: primeExample,
+		Args:    cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			return a.emit(cmd, primeResult())
 		}),

@@ -67,12 +67,68 @@ type lockTarget struct {
 	lock  lock.Worktree
 }
 
+// The help text of capcom lock and its subcommands.
+const (
+	lockLong = "Manage this worktree's Tree lock: the advisory claim one agent session holds on one working " +
+		"tree while it edits. acquire claims it and prints a Lock token, touch renews its heartbeat with " +
+		"that token, and release frees it. A lock whose heartbeat is older than the TTL (lock.ttl in " +
+		"config.yaml, two hours by default) is stale: it stays held until its holder resumes it, " +
+		"another session takes it over with acquire --take-stale, or someone breaks it. Each git " +
+		"worktree has a lock of its own, and capcom installs no git hooks: the lock binds only the " +
+		"sessions that check it."
+	lockExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints the token to keep\n" +
+		"  capcom lock touch --token <token>     # renew the heartbeat\n" +
+		"  capcom lock status --all              # every worktree's lock\n" +
+		"  capcom lock release --token <token>   # free it when the work is done"
+	lockAcquireLong = "Claim this worktree's Tree lock for --purpose, which is required. A free lock gets a new " +
+		"Lock token, printed on a token line: keep it, since touch and release need it. Your --token " +
+		"from an earlier acquire resumes your lock, even a stale one, and refreshes its heartbeat. A " +
+		"lock another session holds fails locked, exit code 3, unless it is stale and --take-stale is " +
+		"given, which takes it over with a new token. --holder names the holder, user@host by default."
+	lockAcquireExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints the token to keep\n" +
+		"  capcom lock acquire --purpose \"implementing the release plan\" --token <token>   # resume after a restart\n" +
+		"  capcom lock acquire --purpose \"finishing the release\" --take-stale   # take over a stale lock"
+	lockTouchLong = "Refresh the heartbeat of the Tree lock you hold, so that it does not go stale; --token, the " +
+		"Lock token acquire printed, is required. Touch it more often than the lock TTL while the work " +
+		"goes on. It prints the lock as it now stands. It fails not_found when nobody holds the lock " +
+		"and locked when another session holds it, both with exit code 3."
+	lockTouchExample = "  capcom lock touch --token <token>\n" +
+		"  capcom lock touch --token <token> --kv   # KEY=VALUE lines ending in STATUS="
+	lockReleaseLong = "Free the Tree lock you hold; --token, the Lock token acquire printed, is required. " +
+		"Releasing a lock that is already free succeeds and changes nothing, so it is safe on every " +
+		"exit path. It prints the worktree and released, or free when there was nothing to release. A " +
+		"lock another session holds fails locked, exit code 3; break frees a lock whose holder is gone."
+	lockReleaseExample = "  capcom lock release --token <token>\n" +
+		"  capcom lock release --token <token> --kv   # KEY=VALUE lines ending in STATUS="
+	lockBreakLong = "Free this worktree's Tree lock whoever holds it, without its Lock token. Use it when the " +
+		"holder is gone, for a stale lock nobody will resume, or when the lock record itself is " +
+		"invalid: such a record is discarded, with a warning. The session that held the lock is not " +
+		"told; its next touch fails not_found. It prints the worktree and released, or free when " +
+		"nobody held the lock."
+	lockBreakExample = "  capcom lock break        # free the lock whoever holds it\n" +
+		"  capcom lock break --kv   # KEY=VALUE lines ending in STATUS="
+	lockCheckLong = "Exit 0 when this worktree's Tree lock is free or held by your --token, and fail locked, " +
+		"exit code 3, when another session holds it, stale or not. Without --token any held lock " +
+		"counts as another's. It prints the lock's state, free, held or stale, with the holder, " +
+		"purpose, since time and heartbeat of a held lock. A script or hook runs it before it edits " +
+		"the working tree."
+	lockCheckExample = "  capcom lock check                   # exit 3 when any session holds the lock\n" +
+		"  capcom lock check --token <token>   # exit 0 when the lock is free or yours"
+	lockStatusLong = "Show this worktree's Tree lock: free, or held or stale with its holder, purpose, since " +
+		"time and heartbeat. --all shows every held lock in the repository, one per worktree, or " +
+		"\"no locks held\". It only reads the lock, and it never prints a Lock token."
+	lockStatusExample = "  capcom lock status         # this worktree's lock\n" +
+		"  capcom lock status --all   # every worktree's lock"
+)
+
 // newLockCommand groups the Tree lock commands.
 func (a *app) newLockCommand() *cobra.Command {
 	lockCommand := &cobra.Command{
-		Use:   "lock",
-		Short: "Acquire, refresh, release and inspect this worktree's Tree lock",
-		Args:  cobra.NoArgs,
+		Use:     "lock",
+		Short:   "Acquire, refresh, release and inspect this worktree's Tree lock",
+		Long:    lockLong,
+		Example: lockExample,
+		Args:    cobra.NoArgs,
 	}
 	lockCommand.AddCommand(a.newLockAcquireCommand())
 	lockCommand.AddCommand(a.newLockBreakCommand())
@@ -89,6 +145,8 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "acquire",
 		Short:       "Acquire this worktree's lock, or resume it with your own token",
+		Long:        lockAcquireLong,
+		Example:     lockAcquireExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
@@ -118,6 +176,8 @@ func (a *app) newLockTouchCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "touch",
 		Short:       "Refresh the heartbeat of the lock you hold",
+		Long:        lockTouchLong,
+		Example:     lockTouchExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
@@ -136,6 +196,8 @@ func (a *app) newLockReleaseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "release",
 		Short:       "Release the lock you hold; releasing a free lock does nothing",
+		Long:        lockReleaseLong,
+		Example:     lockReleaseExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
@@ -153,6 +215,8 @@ func (a *app) newLockBreakCommand() *cobra.Command {
 	return a.withKV(&cobra.Command{
 		Use:         "break",
 		Short:       "Free this worktree's lock whoever holds it",
+		Long:        lockBreakLong,
+		Example:     lockBreakExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
@@ -171,6 +235,8 @@ func (a *app) newLockCheckCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "check",
 		Short:       "Exit 0 when this worktree's lock is free or yours, 3 when another holds it",
+		Long:        lockCheckLong,
+		Example:     lockCheckExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
@@ -192,6 +258,8 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "status",
 		Short:       "Show this worktree's lock, or with --all every worktree's",
+		Long:        lockStatusLong,
+		Example:     lockStatusExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
