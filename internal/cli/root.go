@@ -99,7 +99,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newReindexCommand())
 	root.AddCommand(a.newRelatedCommand())
 	root.AddCommand(a.newReopenCommand())
-	root.AddCommand(a.newRmCommand())
+	root.AddCommand(newRmCommand(a, issueVerbs))
 	root.AddCommand(a.newSearchCommand())
 	root.AddCommand(a.newShowCommand())
 	root.AddCommand(a.newUpdateCommand())

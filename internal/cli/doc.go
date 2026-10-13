@@ -24,7 +24,6 @@
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search
 //   - `know.go` — capcom know and the Note data, resolution and grouping its subcommands share
 //   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and AGENTS.md refresh
-//   - `know_rm.go` — capcom know rm: removes a Note that has no children
 //   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word
 //   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
 //   - `know_tree.go` — capcom know tree: the outline of Note ids and titles
@@ -36,7 +35,7 @@
 //   - `merge_driver.go` — capcom merge-driver: the git merge driver for issue files, Log by entry
 //   - `mv.go` — the destination, warnings and flags of mv and know mv, which node_verbs.go builds
 //   - `node_edit.go` — editIssue and editNode, which every issue and Note edit verb goes through, and their shared helpers
-//   - `node_verbs.go` — nodeVerbs, the descriptor of a Tree kind, and the mv command built from it for both kinds
+//   - `node_verbs.go` — nodeVerbs, the descriptor of a Tree kind, and the mv and rm commands built from it for both kinds
 //   - `outline.go` — the indented outline rows and their text, with the hint where --depth cut
 //   - `output.go` — the Elsewhere scan of a result and the pathspec of the whole issue tree
 //   - `prime.go` — capcom prime: the session Briefing
@@ -44,7 +43,7 @@
 //   - `reindex.go` — capcom reindex: rebuilds the index from the issue and Note files
 //   - `related.go` — capcom related add and rm: the related links between issues, raising the store format
 //   - `reopen.go` — capcom reopen: moves a closed issue back to an open status, logging why
-//   - `rm.go` — capcom rm: removes an issue that has no children
+//   - `rm.go` — the results, failure typing and warnings of rm and know rm, which node_verbs.go builds
 //   - `root.go` — Run, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word
 //   - `show.go` — capcom show and the resolution of an issue argument to its index entry

@@ -2296,7 +2296,10 @@ Depends on P3.44, P3.45; P3.22; P3.19; P2.19; P2.21; P2.27.
 - `grep -c 'func newMvCommand\[' internal/cli/node_verbs.go` prints 1
 **Commit:** `refactor(cli): build mv and know mv from one generic command`
 
-## P3.47 One rm command for both Tree kinds
+## P3.47 One rm command for both Tree kinds — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): issueRemoveResult and noteRemoveResult now take the nodestore.Removed directly and read their drop lists from it, so they serve as the descriptor's removeResult without adapters; the Note descriptor's removeFailure wraps kindFailure in a closure because kindFailure returns *output.Error, not error.
+NOTES (2026-10-13): know rm's knowRmOptions is gone; both commands share rmOptions, where know rm never registers --drop-deps so shouldDropDeps stays false. The unused issueNoun and noteNoun constants were deleted, as the item allows.
 
 **What:** Part 2 of A-02: a generic `newRmCommand[T]` builds `rm` and `know rm`; `--drop-deps` and the dependents hint are an optional extension of the issue descriptor; `know_rm.go` is deleted.
 **Regression guard.** `hasDropDeps` also appends ` [--drop-deps]` to Use (rm's Use ends with it, know rm's does not). `kindNoteRemove` and P3.17's `noteRemoveData` move into rm.go with `noteRemoveResult`; `noteNoun` and `issueNoun`, which have no user, may go. `afterWrite` gets `removed.Effects` (P3.46).
