@@ -204,3 +204,14 @@ func TestAgents_GuideLinkedOutsideTheTree_FailsNamingTheLink(t *testing.T) {
 		t.Errorf("outside file = %q, %v; want it untouched", content, readErr)
 	}
 }
+
+func TestCheck_OversizedAgentsGuide_ReportsAnAgentsBlockProblem(t *testing.T) {
+	root := newKnowStore(t)
+	writeAgentsGuide(t, root, strings.Repeat("x", 1<<20+1))
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	if exitCode != ExitError || !strings.Contains(stdout, "AGENTS.md: file is larger than 1 MiB\n") {
+		t.Errorf("check = %d, stdout:\n%s\nwant 1 and the line %q", exitCode, stdout, "AGENTS.md: file is larger than 1 MiB")
+	}
+}

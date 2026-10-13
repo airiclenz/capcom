@@ -103,7 +103,8 @@ func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 }
 
 // agentsFailure types tangled markers as invalid at AGENTS.md and its line, and an AGENTS.md that
-// links outside the working tree as invalid at AGENTS.md; nil stays nil.
+// cannot be read (not a regular file, or larger than 1 MiB) or that links outside the working tree
+// as invalid at AGENTS.md; nil stays nil.
 func agentsFailure(err error) error {
 	var tangled *agents.Error
 	if errors.As(err, &tangled) {

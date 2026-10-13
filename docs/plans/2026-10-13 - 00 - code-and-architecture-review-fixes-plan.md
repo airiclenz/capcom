@@ -290,7 +290,13 @@ Depends on P0.0, P0.3.
 - `go vet ./internal/agents/ ./internal/cli/`
 **Commit:** `fix(agents): refuse an AGENTS.md link that leaves the working tree`
 
-## P0.5 Read AGENTS.md through the guarded reader
+## P0.5 Read AGENTS.md through the guarded reader — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/check/check.go: made necessary by agents.Error now also carrying an unreadable guide; only the package doc and the CodeAgentsBlock doc comment changed, no code.
+
+NOTES (2026-10-13): docs/format.md extends P0.4's bullet with its own sentence rather than "treated the same way": an outside link reads as no block in check, while a guide that is not a regular file or is over 1 MiB is an error in every mode (an agents-block problem in check), as the Goal line binds.
+
+NOTES (2026-10-13): the refusal is built by a small unreadableError helper beside outsideError; block_test.go gains skipSymlinkTest, linkGuideTo, writeSizedFile, syncWithin (the 5 s goroutine guard, applied to every case) and assertDanglingGuideRead for the dangling-link rows, which run in every mode (ModeWrite writes the block; the others leave the link alone).
 
 **What:** Fixes F-02(a) (`agents-guide-read-guard`). `readGuide` reads `AGENTS.md` with `os.ReadFile`. An in-tree FIFO or a huge file behind it therefore hangs, or runs out of memory in, `capcom prime`, `check`, `agents` and every Note write. A directory in its place fails `check.Run` as a whole.
 **Regression guard.** A dangling `AGENTS.md` link still reads as no content: `readGuide` reads nothing when `resolveGuide` reports the guide missing (dangling link included), so ModeWrite still writes the block. The two link cases (`AGENTS.md ->` an in-tree FIFO, `->` a file of 1 MiB + 1 byte) skip on Windows and as root, as `TestWrite_SymlinkedGuide_StaysALinkAndItsTargetGetsTheBlock` does; the FIFO cases skip through `makeFIFO`. The `Error` doc in block.go and `agentsFailure`'s doc in cli/agents.go, which describe the error as tangled markers only, are superseded: widen both to a guide that cannot be read.

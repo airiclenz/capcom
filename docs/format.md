@@ -634,6 +634,9 @@ the same block.
   points to, but only when that file lies inside the working tree (`AGENTS.md -> CLAUDE.md`). An
   `AGENTS.md` link that resolves outside the working tree is neither read nor written.
   `capcom agents` fails on it; `capcom check`, `agents --check` and Note writes treat it as having
-  no block.
+  no block. An `AGENTS.md` that is not a regular file (a named pipe or a directory, or a link to
+  one), or is larger than 1 MiB, is never read either, but is an error for `agents`,
+  `agents --check` and `check` alike (an `agents-block` problem in `check`); a Note write warns
+  that the block was not refreshed.
 
 Edits inside the markers are overwritten on the next refresh; write anything else outside them.

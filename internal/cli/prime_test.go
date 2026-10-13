@@ -211,6 +211,21 @@ func TestPrime_UnparseableIssue_CountsItInCheckWithoutAWarningLine(t *testing.T)
 	}
 }
 
+func TestPrime_OversizedAgentsGuide_ExitsZeroCountingIt(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
+	guide := filepath.Join(root, "AGENTS.md")
+	if err := os.WriteFile(guide, []byte(strings.Repeat("x", 1<<20+1)), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+	if exitCode != ExitOK || stderr != "" || !strings.Contains(stdout, "check: 1 problem; run capcom check\n") {
+		t.Errorf("prime = %d, stderr %q, stdout:\n%s\nwant 0 and the oversized guide counted in the check line",
+			exitCode, stderr, stdout)
+	}
+}
+
 func TestPrime_WithoutStore_ExitsZeroWithAWarning(t *testing.T) {
 	root := newGitRepo(t)
 

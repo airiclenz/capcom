@@ -114,8 +114,8 @@ type Status struct {
 
 // Error is an AGENTS.md whose markers cannot be told apart: a marker repeated, an end marker
 // before the begin marker, or a begin marker never closed. Line is the offending marker's line.
-// It is also an AGENTS.md a write refuses because it links outside the working tree; Line is 0
-// then.
+// It is also an AGENTS.md that cannot be read, being not a regular file or larger than 1 MiB, and
+// one a write refuses because it links outside the working tree; Line is 0 then.
 type Error struct {
 	Path    string
 	Line    int
@@ -190,8 +190,8 @@ func Render(notes []Note) string {
 // Inspect reads the AGENTS.md of worktreeRoot and reports whether its block is absent, current or
 // stale against notes. A missing file is StateAbsent, and so is one that links outside the working
 // tree, which is not read. Line endings are ignored in the comparison, so a CRLF file holding the
-// current block is current. It fails with an *Error on markers that cannot be told apart, and when
-// the file cannot be read.
+// current block is current. It fails with an *Error on markers that cannot be told apart and on a
+// file that is not a regular file or is larger than 1 MiB, and when the file cannot be read.
 func Inspect(worktreeRoot string, notes []Note) (Status, error) {
 	return reconcile(worktreeRoot, notes, ModeInspect)
 }
@@ -347,20 +347,32 @@ func statusOf(content []byte, span blockSpan, notes []Note) Status {
 	return Status{State: StateStale, Line: span.line}
 }
 
-// readGuide reads the file guide resolved to, returning nil content when the guide is missing or
-// its file no longer exists.
+// readGuide reads the file guide resolved to through tree.ReadRegularFile, returning nil content
+// when the guide is missing or its file no longer exists. A file that is not a regular file, or is
+// larger than 1 MiB, is refused with an *Error naming the guide, without blocking or reading it
+// whole.
 func readGuide(guide guideFile) ([]byte, error) {
 	if guide.isMissing {
 		return nil, nil
 	}
-	content, err := os.ReadFile(guide.path)
-	if errors.Is(err, fs.ErrNotExist) {
+	content, err := tree.ReadRegularFile(guide.path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
 		return nil, nil
-	}
-	if err != nil {
+	case errors.Is(err, tree.ErrNotRegular):
+		return nil, unreadableError(tree.ErrNotRegular)
+	case errors.Is(err, tree.ErrTooLarge):
+		return nil, unreadableError(tree.ErrTooLarge)
+	case err != nil:
 		return nil, fmt.Errorf("%s: %w", FileName, err)
 	}
 	return content, nil
+}
+
+// unreadableError is the refusal of a guide that the guarded reader refused with refusal, its
+// message the refusal's own text.
+func unreadableError(refusal error) *Error {
+	return &Error{Path: FileName, Message: refusal.Error()}
 }
 
 // blockSpan locates the block in a file: from the start of the begin marker to the end of the end

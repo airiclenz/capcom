@@ -5,8 +5,9 @@
 // the tree loader, the issue and Note parsers and validators, the git conflict-marker scan of
 // package rawfm, the dependency cycle search and the Ref verifier report, each as a
 // Problem citing the file and, when known, the line (ADR 0006). It also reports an AGENTS.md whose
-// capcom Managed block is out of date or whose markers are tangled; an AGENTS.md without the block,
-// or no AGENTS.md at all, is no problem.
+// capcom Managed block is out of date or whose markers are tangled, and one that cannot be read,
+// being not a regular file or larger than 1 MiB; an AGENTS.md without the block, or no AGENTS.md
+// at all, is no problem.
 package check
 
 import (
@@ -67,7 +68,8 @@ const (
 	CodeMissingPlan = "missing-plan"
 	// CodeBrokenRef is a Note Ref that does not resolve in the working tree.
 	CodeBrokenRef = "broken-ref"
-	// CodeAgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled.
+	// CodeAgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled,
+	// or one that is not a regular file or is larger than 1 MiB.
 	CodeAgentsBlock = "agents-block"
 )
 

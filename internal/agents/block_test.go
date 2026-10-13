@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // goldenNotes is the Knowledge top level of the golden block.
@@ -660,5 +661,150 @@ func TestSync_GuideLinkedOutsideTheTree_FailsAndLeavesTheTargetAlone(t *testing.
 				t.Errorf("outside file = %q, %v; want it untouched", content, readErr)
 			}
 		})
+	}
+}
+
+// oversizedGuideSize is one byte past the largest guide the guarded reader reads, 1 MiB.
+const oversizedGuideSize = 1<<20 + 1
+
+// skipSymlinkTest skips a test that makes a symlink where symlink tests do not run: on Windows and
+// as root.
+func skipSymlinkTest(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+}
+
+// linkGuideTo makes the AGENTS.md of root a relative link to name, in root too, skipping where
+// os.Symlink fails.
+func linkGuideTo(t *testing.T, root string, name string) {
+	t.Helper()
+	if err := os.Symlink(name, Path(root)); err != nil {
+		t.Skipf("Symlink: %v", err)
+	}
+}
+
+// writeSizedFile writes size bytes of text to path.
+func writeSizedFile(t *testing.T, path string, size int) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", size)), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+// syncWithin runs Sync, failing the test when it has not returned after 5 s, as it does when it
+// blocks opening a named pipe.
+func syncWithin(t *testing.T, root, knowledgeDir string, mode Mode) (Status, error) {
+	t.Helper()
+	type outcome struct {
+		status Status
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		status, err := Sync(root, knowledgeDir, mode)
+		done <- outcome{status, err}
+	}()
+	select {
+	case result := <-done:
+		return result.status, result.err
+	case <-time.After(5 * time.Second):
+		t.Fatal("Sync did not return within 5 s")
+		return Status{}, nil
+	}
+}
+
+// assertDanglingGuideRead checks what Sync in mode did to a working tree whose AGENTS.md is a
+// dangling link: it reads as no content, so every mode finds StateAbsent without an error,
+// ModeWrite replaces the link with the block for notes, and the other modes leave the link alone.
+func assertDanglingGuideRead(t *testing.T, root string, notes []Note, mode Mode, status Status, err error) {
+	t.Helper()
+	if err != nil || status.State != StateAbsent {
+		t.Fatalf("Sync = %+v, %v; want StateAbsent and no error", status, err)
+	}
+	if mode == ModeWrite {
+		if got, want := readGuideText(t, root), Render(notes)+"\n"; got != want {
+			t.Errorf("AGENTS.md =\n%q\nwant\n%q", got, want)
+		}
+		return
+	}
+	if info, statErr := os.Lstat(Path(root)); statErr != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("Lstat AGENTS.md = %v, %v; want the dangling link left alone", info, statErr)
+	}
+}
+
+func TestSync_IrregularGuide_FailsAsAnAgentsError(t *testing.T) {
+	t.Parallel()
+	const notRegular = "not a regular file"
+	const tooLarge = "file is larger than 1 MiB"
+	guides := []struct {
+		name        string
+		setUp       func(t *testing.T, root string)
+		wantMessage string
+	}{
+		{"named pipe", func(t *testing.T, root string) {
+			makeFIFO(t, Path(root))
+		}, notRegular},
+		{"link to an in-tree named pipe", func(t *testing.T, root string) {
+			skipSymlinkTest(t)
+			makeFIFO(t, filepath.Join(root, "pipe"))
+			linkGuideTo(t, root, "pipe")
+		}, notRegular},
+		{"link to an in-tree file over 1 MiB", func(t *testing.T, root string) {
+			skipSymlinkTest(t)
+			writeSizedFile(t, filepath.Join(root, "CLAUDE.md"), oversizedGuideSize)
+			linkGuideTo(t, root, "CLAUDE.md")
+		}, tooLarge},
+		{"directory", func(t *testing.T, root string) {
+			if err := os.Mkdir(Path(root), 0o755); err != nil {
+				t.Fatalf("Mkdir: %v", err)
+			}
+		}, notRegular},
+		{"dangling link", func(t *testing.T, root string) {
+			skipSymlinkTest(t)
+			linkGuideTo(t, root, "missing.md")
+		}, ""},
+	}
+	modes := []struct {
+		name string
+		mode Mode
+	}{
+		{"inspect", ModeInspect},
+		{"refresh", ModeRefresh},
+		{"write", ModeWrite},
+	}
+	for _, guide := range guides {
+		for _, mode := range modes {
+			t.Run(guide.name+"/"+mode.name, func(t *testing.T) {
+				t.Parallel()
+				knowledgeDir, notes := writeKnowledge(t)
+				root := t.TempDir()
+				guide.setUp(t, root)
+				before, err := os.Lstat(Path(root))
+				if err != nil {
+					t.Fatalf("Lstat: %v", err)
+				}
+
+				status, err := syncWithin(t, root, knowledgeDir, mode.mode)
+
+				if guide.wantMessage == "" {
+					assertDanglingGuideRead(t, root, notes, mode.mode, status, err)
+					return
+				}
+				want := FileName + ": " + guide.wantMessage
+				var failure *Error
+				if !errors.As(err, &failure) || failure.Path != FileName || failure.Line != 0 || err.Error() != want {
+					t.Errorf("Sync err = %v, want an *Error %q", err, want)
+				}
+				after, err := os.Lstat(Path(root))
+				if err != nil || after.Mode().Type() != before.Mode().Type() || !os.SameFile(before, after) {
+					t.Errorf("AGENTS.md after Sync = %v, %v; want it untouched", after, err)
+				}
+			})
+		}
 	}
 }
