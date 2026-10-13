@@ -78,51 +78,23 @@ func isSectionBoundary(line string) bool {
 // line ending, and the index of the line that ends it: the first LogHeading line outside a fenced
 // code block, and the first level-one or level-two heading after it outside one, or len(lines).
 // start is -1 when lines hold no Log section. Fenced code blocks are followed from line bodyStart
-// on; a fence still open at the end of lines hides nothing, so its opening line counts as plain
-// text.
+// on, as rawfm.ClosedCodeLines finds them: a fence no later line closes hides nothing, so its
+// opening line counts as plain text.
 func logBounds(lines []string, bodyStart int) (start int, end int) {
-	isPlain := make([]bool, len(lines))
-	for {
-		start, end, unclosed := scanLogBounds(lines, bodyStart, isPlain)
-		if unclosed < 0 {
-			return start, end
-		}
-		isPlain[unclosed] = true
-	}
-}
-
-// scanLogBounds is one pass of logBounds over lines, treating the lines isPlain marks as plain
-// text rather than fence openers. unclosed is the index of the line that opened a fenced code
-// block still open at the end of lines, and -1 when the pass found the section's end or no block
-// is left open.
-func scanLogBounds(
-	lines []string,
-	bodyStart int,
-	isPlain []bool,
-) (start int, end int, unclosed int) {
-	var fence rawfm.CodeFence
-	start, unclosed = -1, -1
+	isCode := rawfm.ClosedCodeLines(lines, bodyStart)
+	start = -1
 	for index, line := range lines {
-		if index >= bodyStart && !isPlain[index] {
-			wasOpen := fence.IsOpen()
-			if fence.IsCode(line) {
-				if !wasOpen {
-					unclosed = index
-				}
-				continue
-			}
+		if isCode[index] {
+			continue
 		}
 		switch {
 		case start < 0 && strings.TrimRight(line, " \t") == LogHeading:
 			start = index
 		case start >= 0 && isSectionBoundary(line):
-			return start, index, -1
+			return start, index
 		}
 	}
-	if !fence.IsOpen() {
-		unclosed = -1
-	}
-	return start, len(lines), unclosed
+	return start, len(lines)
 }
 
 // reopenLogPrefix opens the Log entry Reopen writes, ahead of the reason.

@@ -3,6 +3,7 @@ package issue_test
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,6 +80,90 @@ func TestIssue_AppendLog_AddsEntryToLogSection(t *testing.T) {
 				t.Errorf("body = %q\nwant   %q", changed.Body, tc.want)
 			}
 		})
+	}
+}
+
+func TestIssue_AppendLog_FencedCodeAroundTheLog_LandsInTheLogBounds(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "nested fences hide a Log above the real one",
+			body: "\n````markdown\n```\n## Log\n```\n````\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
+			want: "\n````markdown\n```\n## Log\n```\n````\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +
+				"- 2026-10-11 Alice: fixed\n",
+		},
+		{
+			name: "unclosed longer opener above a closed fence",
+			body: "\n````\n```\n## Log\n```\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
+			want: "\n````\n```\n## Log\n```\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +
+				"- 2026-10-11 Alice: fixed\n",
+		},
+		{
+			name: "longer closer closes the fence",
+			body: "\n```\n## Log\n`````\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
+			want: "\n```\n## Log\n`````\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +
+				"- 2026-10-11 Alice: fixed\n",
+		},
+		{
+			name: "tilde fence holds a backtick line",
+			body: "\n~~~\n## Log\n```\n~~~\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
+			want: "\n~~~\n## Log\n```\n~~~\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +
+				"- 2026-10-11 Alice: fixed\n",
+		},
+		{
+			name: "unclosed tilde opener above a backtick fence",
+			body: "\n~~~\n```\n## Log\n```\n\n## Log\n\n- 2026-10-10 Bob: seen\n",
+			want: "\n~~~\n```\n## Log\n```\n\n## Log\n\n- 2026-10-10 Bob: seen\n" +
+				"- 2026-10-11 Alice: fixed\n",
+		},
+		{
+			name: "unclosed opener inside the Log hides no section end",
+			body: "\n## Log\n\n- 2026-10-10 Bob: seen\n\n```x\n\n## Notes\n\nKeep.\n",
+			want: "\n## Log\n\n- 2026-10-10 Bob: seen\n\n```x\n- 2026-10-11 Alice: fixed\n" +
+				"\n## Notes\n\nKeep.\n",
+		},
+		{
+			name: "fence spanning the next heading keeps the Log open",
+			body: "\n## Log\n\n- 2026-10-10 Bob: seen\n\n```\n## Notes\n```\n\n## Notes\n",
+			want: "\n## Log\n\n- 2026-10-10 Bob: seen\n\n```\n## Notes\n```\n" +
+				"- 2026-10-11 Alice: fixed\n\n## Notes\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			changed := issue.Issue{Body: tc.body}.AppendLog(logDate, "Alice", "fixed")
+
+			if changed.Body != tc.want {
+				t.Errorf("body = %q\nwant   %q", changed.Body, tc.want)
+			}
+		})
+	}
+}
+
+// unclosedOpenerCount is how many unclosed fence openers precede the Log in the linear-time test:
+// enough that a pass per opener takes seconds.
+const unclosedOpenerCount = 50_000
+
+// linearTimeBound is the time the linear-time test allows AppendLog, far above a single pass.
+const linearTimeBound = time.Second
+
+func TestIssue_AppendLog_ManyUnclosedOpeners_FindsTheLogInLinearTime(t *testing.T) {
+	openers := strings.Repeat("```x\n", unclosedOpenerCount)
+	body := openers + "\n## Log\n\n- 2026-10-10 Bob: seen\n"
+	want := body + "- 2026-10-11 Alice: fixed\n"
+
+	began := time.Now()
+	changed := issue.Issue{Body: body}.AppendLog(logDate, "Alice", "fixed")
+	elapsed := time.Since(began)
+
+	if changed.Body != want {
+		t.Errorf("body ends %q\nwant      %q", changed.Body[len(openers):], want[len(openers):])
+	}
+	if elapsed > linearTimeBound {
+		t.Errorf("AppendLog took %v, want at most %v", elapsed, linearTimeBound)
 	}
 }
 

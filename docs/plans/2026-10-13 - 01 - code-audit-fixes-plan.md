@@ -150,7 +150,12 @@ NOTES (2026-10-13): confirmed the new TestPublishWingetUpdateFailureRedactsTheTo
 - `GOMEMLIMIT=2GiB go test ./cmd/release/ -run 'Publish.*Winget|Winget'`
 **Commit:** `test(release): pin the winget listing-read failure`
 
-## 7. Issue Log bounds in one linear pass
+## 7. Issue Log bounds in one linear pass — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): rawfm exports ClosedCodeLines(lines, from), the one linear pass (suffix maxima of the longest backtick and tilde closer, then a single CodeFence scan that skips an opener no later line closes); logBounds calls it and package issue holds no fence rule. closesCodeFence now delegates to a new closingRunLength helper, which the suffix maxima share, so item 9's opener change moves the Log bounds too.
+NOTES (2026-10-13): CodeFence.IsOpen deleted as dead code; scanLogBounds was its only caller.
+NOTES (2026-10-13): checked by a throwaway differential test (not committed) of the old retry loop against the new logBounds on 200,000 random line mixes of fences, headings and text with bodyStart 0-2: identical bounds every time. The new 50,000-opener test took 57 s on the old code and 0.01 s on the new.
+NOTES (2026-10-13): item 9's Read first anchor "internal/issue/mutate.go — scanLogBounds" no longer exists; the Log scan's fence rules now live in rawfm.ClosedCodeLines.
 
 **What:** Fix: `logBounds` rescans the file once per unclosed fence opener (quadratic), reachable from the git merge driver and `capcom log`.
 **Goal:** `logBounds` returns the same bounds as before for every input and runs in linear time: a body of 50,000 unclosed "```x" lines followed by a Log section finishes well under a second.

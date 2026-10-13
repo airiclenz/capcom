@@ -30,9 +30,42 @@ func (f *CodeFence) IsCode(line string) bool {
 	return f.open != ""
 }
 
-// IsOpen reports whether the lines passed so far leave a fenced code block open.
-func (f *CodeFence) IsOpen() bool {
-	return f.open != ""
+// ClosedCodeLines reports, for each of lines without its line ending, whether it opens, lies
+// inside or closes a fenced code block that a later line closes, following blocks from line from
+// on; lines before from are never code. A block opens and closes as IsCode has it, except that an
+// opening line no later line closes is plain text, so a block left open hides nothing. It runs in
+// time linear in the number of lines.
+func ClosedCodeLines(lines []string, from int) []bool {
+	longestClosers := longestClosersFrom(lines)
+	isCode := make([]bool, len(lines))
+	var fence CodeFence
+	for index := from; index < len(lines); index++ {
+		line := lines[index]
+		if fence.open == "" {
+			opener := codeFenceOpener(line)
+			if opener == "" || longestClosers[opener[0]][index+1] < len(opener) {
+				continue
+			}
+		}
+		isCode[index] = fence.IsCode(line)
+	}
+	return isCode
+}
+
+// longestClosersFrom returns, for backticks and for tildes, the longest run of the character any
+// line of lines from index i on could close a fenced code block with, at index i. Each slice holds
+// len(lines)+1 entries, the last 0.
+func longestClosersFrom(lines []string) map[byte][]int {
+	longest := make(map[byte][]int, 2)
+	for _, fence := range []string{backtickFence, tildeFence} {
+		char := fence[0]
+		runs := make([]int, len(lines)+1)
+		for index := len(lines) - 1; index >= 0; index-- {
+			runs[index] = max(runs[index+1], closingRunLength(lines[index], char))
+		}
+		longest[char] = runs
+	}
+	return longest
 }
 
 // codeFenceOpener returns the run of backticks or tildes that opens a fenced code block on line,
@@ -50,9 +83,19 @@ func codeFenceOpener(line string) string {
 // closesCodeFence reports whether line closes the fenced code block opened by fence: a run of the
 // same character at least as long, followed by nothing but whitespace.
 func closesCodeFence(line string, fence string) bool {
+	return closingRunLength(line, fence[0]) >= len(fence)
+}
+
+// closingRunLength returns the length of the run of char that opens line after its fence indent
+// when nothing but whitespace follows the run, and 0 otherwise: the longest fence of char that
+// line closes.
+func closingRunLength(line string, char byte) int {
 	trimmed := trimFenceIndent(line)
-	rest := strings.TrimLeft(trimmed, fence[:1])
-	return len(trimmed)-len(rest) >= len(fence) && strings.TrimSpace(rest) == ""
+	rest := strings.TrimLeft(trimmed, string(char))
+	if strings.TrimSpace(rest) != "" {
+		return 0
+	}
+	return len(trimmed) - len(rest)
 }
 
 // trimFenceIndent removes the up to three leading spaces a code fence may be indented by.
