@@ -1894,7 +1894,9 @@ Depends on P3.9.
 - `go vet ./internal/tree/ ./internal/nodestore/`
 **Commit:** `refactor(tree): export the node-file layout as IDOf and ChildrenDir`
 
-## P3.11 cli, index and knowledge use the tree layout
+## P3.11 cli, index and knowledge use the tree layout — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): index's leaveOutRepeatedIDSubtrees derives a children directory, not an id, so it uses tree.ChildrenDir rather than the regression guard's tree.IDOf; nodeFileID keeps its "is a node file" test by comparing tree.IDOf of the base name with the base name itself. internal/index/refresh.go and problems.go held no hand derivation and are unchanged.
 
 **What:** Completes A-05 (`node-layout-claims`). Its nodefile half, the guarded reader and the P1.23/P1.24 primitives, landed with P2.9.
 **Regression guard.** P1.5 replaced `unusableClaim`'s file-name test with a claims lookup, so the rule is: every use of index's `nodeFileExtension` (`grep -rn nodeFileExtension internal/index`), P1.6's walk.go claims and P1.5's refused-file id included, goes through `tree.IDOf`.

@@ -11,9 +11,6 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// nodeFileExtension ends the name of every node file: a node's file is its id plus this.
-const nodeFileExtension = ".md"
-
 // PlanState selects issues by whether they are Planned (have a plan).
 type PlanState int
 

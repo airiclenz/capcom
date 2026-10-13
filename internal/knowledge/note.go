@@ -8,7 +8,6 @@ package knowledge
 
 import (
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -36,9 +35,6 @@ const (
 // rejected options: know tree and the Managed block in AGENTS.md leave it out, with its whole
 // subtree, unless asked for.
 const LabelBackground = "background"
-
-// noteExtension ends every Note file name; the rest of the name is the Note's id.
-const noteExtension = ".md"
 
 // noteKind is the Note kind of frontmatter file: the noun its failures use and every key it knows,
 // in the order Serialize writes them.
@@ -269,7 +265,7 @@ func Validate(path string, note Note) []*Error {
 // line of each entry it reports.
 func validateSupersededBy(path string, note Note) []*Error {
 	var problems []*Error
-	ownID := strings.TrimSuffix(filepath.Base(path), noteExtension)
+	ownID := tree.IDOf(path)
 	for i, successor := range note.SupersededBy {
 		var message string
 		switch {

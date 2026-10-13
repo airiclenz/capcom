@@ -118,7 +118,7 @@ func leaveOutRepeatedIDSubtrees(worktreeRoot string, nodes []tree.Node) ([]tree.
 		}
 		slices.Sort(paths)
 		directories = append(directories, repeatedIDDirectory{
-			path: strings.TrimSuffix(node.Path, nodeFileExtension),
+			path: tree.ChildrenDir(node.Path),
 			id:   node.ID,
 			problem: tree.DuplicateIDError(
 				worktreeRelative(worktreeRoot, paths[1]),
@@ -271,8 +271,9 @@ func orphanDirectoryClaims(worktreeRoot, dir string) []claim {
 // nodeFileID returns the id a node file at path is named by, and whether its name is a node file's
 // with a valid id.
 func nodeFileID(path string) (string, bool) {
-	id, isNode := strings.CutSuffix(filepath.Base(path), nodeFileExtension)
-	return id, isNode && tree.ValidateID(id) == nil
+	name := filepath.Base(path)
+	id := tree.IDOf(name)
+	return id, id != name && tree.ValidateID(id) == nil
 }
 
 // walkWarningKind is the warning kind of a tree.Walk problem: an invalid id, an entry left out

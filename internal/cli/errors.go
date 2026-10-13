@@ -11,10 +11,6 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// nodeFileExtension ends every issue and Note file; a node's children directory is its path
-// without it.
-const nodeFileExtension = ".md"
-
 // kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a
 // stale --if-match, or a file changed between the command's read and its write, a conflict and an
 // id another node answers to exists, each at the file the failure names, relative to the working

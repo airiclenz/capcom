@@ -113,8 +113,8 @@ func (a *app) movedWarnings(
 			warned = append(warned, problem)
 		}
 	}
-	oldDir := strings.TrimSuffix(moved.OldPath, nodeFileExtension) + "/"
-	newDir := strings.TrimSuffix(moved.Path, nodeFileExtension) + "/"
+	oldDir := tree.ChildrenDir(moved.OldPath) + "/"
+	newDir := tree.ChildrenDir(moved.Path) + "/"
 	indexWarnings = make([]index.Warning, 0, len(a.indexReport.Warnings))
 	for _, warning := range a.indexReport.Warnings {
 		warning.Path = movedPath(warning.Path, oldDir, newDir)
