@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/diagnose"
 )
 
 // claim is one name a node answers to: its id or one of its Aliases.
@@ -34,18 +34,14 @@ func (r *refresher) excludeDuplicatesOf(nodes nodeTable) error {
 	if err != nil {
 		return fmt.Errorf("read indexed names: %w", err)
 	}
-	byName := map[string][]claim{}
-	var names []string
+	var claims []diagnose.Claim
 	for rows.Next() {
-		var current claim
-		if err := rows.Scan(&current.name, &current.path, &current.kind); err != nil {
+		var current diagnose.Claim
+		if err := rows.Scan(&current.Name, &current.Path, &current.Kind); err != nil {
 			rows.Close()
 			return fmt.Errorf("read indexed names: %w", err)
 		}
-		if _, isSeen := byName[current.name]; !isSeen {
-			names = append(names, current.name)
-		}
-		byName[current.name] = append(byName[current.name], current)
+		claims = append(claims, current)
 	}
 	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
 		return fmt.Errorf("read indexed names: %w", err)
@@ -54,31 +50,20 @@ func (r *refresher) excludeDuplicatesOf(nodes nodeTable) error {
 	if _, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = 0`); err != nil {
 		return fmt.Errorf("reset excluded %s: %w", nodes.table, err)
 	}
-	for _, name := range names {
-		if err := r.excludeClaims(nodes, byName[name]); err != nil {
-			return err
-		}
-	}
-	return nil
+	return r.excludeClaims(nodes, diagnose.NameClashes(claims))
 }
 
-// excludeClaims excludes and warns about every claimant of one name when there is more than one.
-func (r *refresher) excludeClaims(nodes nodeTable, claims []claim) error {
-	if len(claims) < 2 {
-		return nil
-	}
-	for _, current := range claims {
-		for _, other := range claims {
-			if other == current {
-				continue
-			}
-			r.warn(WarningDuplicate, current.path, 0, fmt.Sprintf(
-				"%v %s %q: also the %s of %s; both are left out",
-				tree.ErrDuplicate, current.kind, current.name, other.kind, other.path,
-			))
+// excludeClaims warns about every name clash and excludes each file it names, once.
+func (r *refresher) excludeClaims(nodes nodeTable, clashes []Warning) error {
+	r.warnings = append(r.warnings, clashes...)
+	excluded := map[string]bool{}
+	for _, clash := range clashes {
+		if excluded[clash.Path] {
+			continue
 		}
-		if _, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = 1 WHERE path = ?`, current.path); err != nil {
-			return fmt.Errorf("exclude %s: %w", current.path, err)
+		excluded[clash.Path] = true
+		if _, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = 1 WHERE path = ?`, clash.Path); err != nil {
+			return fmt.Errorf("exclude %s: %w", clash.Path, err)
 		}
 	}
 	return nil

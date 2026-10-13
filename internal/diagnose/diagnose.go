@@ -1,7 +1,8 @@
 // Package diagnose classifies the problems capcom finds in a store's files, for check, the index
 // refresh and the cli alike: one Kind per problem, the one mapping from a tree sentinel error to
-// its Kind, and the Findings of parsing, validating and alias-checking one issue or Note file. It
-// never reads the index, so check, which never does either, may import it.
+// its Kind, the Findings of parsing, validating and alias-checking one issue or Note file, and the
+// names two or more files of one tree claim. It never reads the index, so check, which never does
+// either, may import it.
 package diagnose
 
 import (

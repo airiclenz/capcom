@@ -2488,7 +2488,11 @@ Depends on P3.61.
 - `! grep -nE '(issue|knowledge)\.(Parse|Validate)\(' internal/check/*.go internal/index/*.go | grep -v _test.go`
 **Commit:** `refactor(diagnose): share per-file findings between check and the index`
 
-## P3.63 Name clashes found by one pure function
+## P3.63 Name clashes found by one pure function — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/diagnose/diagnose.go: made necessary by adding NameClashes to diagnose (the package comment listed the package's contents and did not name clash detection)
+
+NOTES (2026-10-13): the index's unexported claim type stays in duplicates.go, because walk.go and query.go still use it; only excludeDuplicatesOf now scans its rows into diagnose.Claim. excludeClaims now takes the findings, adds them to the refresh's warnings and excludes each path they name, once per path instead of once per claimant per name; the warnings and the excluded set are unchanged.
 
 **What:** Part 3 of A-06: the index's duplicate-name detection over claims becomes `diagnose.NameClashes`, a pure function unit-tested without SQL.
 **Regression guard.** `NameClashes`' input is exactly today's SQL rows (indexed ids plus `aliases` rows, ORDER BY name, path), never the `claims` table, whose kind column is the tree kind (P1.5). The Goal is checked by an Acceptance grep.
