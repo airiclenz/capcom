@@ -97,7 +97,9 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 
 // newRelatedRmCommand removes the link between two issues from the issue that holds it: every
 // related entry of the first naming the second, or failing that, every entry of the second naming
-// the first. An entry naming no issue at all is removed from the first by its exact text.
+// the first. An argument that is not exactly an issue's id or Alias removes the entry of the first
+// that is its text, before it is matched as a prefix; one naming no issue at all is matched only
+// by its text.
 func (a *app) newRelatedRmCommand() *cobra.Command {
 	var ifMatch string
 	cmd := &cobra.Command{
@@ -138,19 +140,19 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 // relatedRemoval finds the issue holding the link between first and the issue arg names, and the
 // test its related entries must pass to be removed. first holds it when one of its entries names
 // that issue, else that issue holds it when one of its entries names first; neither is not_found.
-// When arg names no issue, first holds it and the entry is matched by its exact text.
+// When isRemovedByText says so, first holds it and the entry is matched by its text (isEntryText).
 func (a *app) relatedRemoval(first index.Entry, arg string) (index.Entry, func(string) bool, error) {
+	graph, err := a.loadDepGraph()
+	if err != nil {
+		return index.Entry{}, nil, err
+	}
 	other, err := a.issueIndex.Resolve(arg)
-	if errors.Is(err, tree.ErrNotFound) {
-		return first, func(related string) bool { return related == arg }, nil
+	if graph.isRemovedByText(first.Related, arg, err) {
+		return first, isEntryText(arg), nil
 	}
 	if err != nil {
 		failure, _ := resolveFailure(err) // either way the command stops here
 		return index.Entry{}, nil, failure
-	}
-	graph, err := a.loadDepGraph()
-	if err != nil {
-		return index.Entry{}, nil, err
 	}
 	if namesOther := graph.names(other.ID); slices.ContainsFunc(first.Related, namesOther) {
 		return first, namesOther, nil

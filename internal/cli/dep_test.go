@@ -304,6 +304,59 @@ func TestDepRm_DanglingDep_RemovesItByItsText(t *testing.T) {
 	}
 }
 
+func TestDepRm_DanglingDepPrefixingOneIssue_RemovesItByItsText(t *testing.T) {
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "deps: [db, release-notes]\n", ""),
+	})
+
+	mustRun(t, root, "dep", "rm", "login-flow", "db")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [release-notes]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestDepRm_DanglingDepPrefixingTwoIssues_RemovesItByItsText(t *testing.T) {
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md":   readIssue("Login flow", "open", "deps: [rel, db-schema]\n", ""),
+		"release-plan.md": readIssue("Release plan", "open", "", ""),
+	})
+
+	mustRun(t, root, "dep", "rm", "login-flow", "rel")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestDepRm_DanglingDepBesideTheIssueItPrefixes_RemovesOnlyTheDanglingOne(t *testing.T) {
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "deps: [db, db-schema]\n", ""),
+	})
+
+	mustRun(t, root, "dep", "rm", "login-flow", "db")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestDepRm_ExactIDBesideADanglingPrefix_RemovesTheDepNamingTheIssue(t *testing.T) {
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "deps: [apogee-kk0.4, db]\n", ""),
+	})
+
+	mustRun(t, root, "dep", "rm", "login-flow", "db-schema")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
 func TestDepRm_IDOfInvalidFile_RemovesTheExactEntry(t *testing.T) {
 	root, _ := newInvalidFooStore(t)
 	writeIssueFiles(t, root, map[string]string{

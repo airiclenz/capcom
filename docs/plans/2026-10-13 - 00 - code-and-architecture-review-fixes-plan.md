@@ -491,7 +491,10 @@ NOTES (2026-10-13): the parse-and-rebuild sits in two helpers, `issueFromFile` (
 - `go vet ./internal/cli/ ./internal/index/`
 **Commit:** `fix(cli): render show and know show from the bytes their etag names`
 
-## P1.2 dep rm and related rm remove a dangling entry by its text before prefix matching
+## P1.2 dep rm and related rm remove a dangling entry by its text before prefix matching — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the text test (new isEntryText in internal/cli/dep.go) matches an entry equal to the argument as typed or as tree.NormalizeArg spells it, per the Goal line, and is used in the not-found path too, where the old test matched the argument as typed only; the plan's Approach said "keeps today's exact-text test" there.
+NOTES (2026-10-13): the three branches the Approach describes live in one shared helper, depGraph.isRemovedByText (internal/cli/dep.go), called by both depRemoval and relatedRemoval; docs/format.md has no dep rm paragraph, so only the related rm paragraph changed.
 
 **What:** Fixes F-06 (`dangling-ref-removal`): a dangling `deps` or `related` entry whose text is a prefix of a live id resolves to that Issue, so the dangling entry cannot be removed (or a valid entry is removed instead).
 **Goal:** when the holder's list has an entry equal to the argument (as typed or as `tree.NormalizeArg` spells it) and the argument is not exactly the id or an Alias of a usable Issue, that entry is removed by its text, whether the argument would otherwise prefix-match one Issue, several, or none. An argument that is exactly a usable Issue's id or Alias, and a name a duplicate leaves out, behave as before.

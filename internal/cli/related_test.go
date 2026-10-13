@@ -232,6 +232,59 @@ func TestRelatedRm_DanglingEntry_RemovesItByItsText(t *testing.T) {
 	}
 }
 
+func TestRelatedRm_DanglingEntryPrefixingOneIssue_RemovesItByItsText(t *testing.T) {
+	root := newRelatedStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "related: [db, build-pipeline]\n", ""),
+	})
+
+	mustRun(t, root, "related", "rm", "login-flow", "db")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [build-pipeline]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestRelatedRm_DanglingEntryPrefixingTwoIssues_RemovesItByItsText(t *testing.T) {
+	root := newRelatedStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "related: [b, db-schema]\n", ""),
+		"build-plan.md": readIssue("Build plan", "open", "", ""),
+	})
+
+	mustRun(t, root, "related", "rm", "login-flow", "b")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestRelatedRm_DanglingEntryBesideTheIssueItPrefixes_RemovesOnlyTheDanglingOne(t *testing.T) {
+	root := newRelatedStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "related: [db, db-schema]\n", ""),
+	})
+
+	mustRun(t, root, "related", "rm", "login-flow", "db")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestRelatedRm_ExactIDBesideADanglingPrefix_RemovesTheEntryNamingTheIssue(t *testing.T) {
+	root := newRelatedStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "related: [apogee-kk0.4, db]\n", ""),
+	})
+
+	mustRun(t, root, "related", "rm", "login-flow", "db-schema")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
 func TestRelatedRm_StaleIfMatchOnTheHolder_FailsConflict(t *testing.T) {
 	root := newRelatedStore(t)
 	mustRun(t, root, "related", "add", "login-flow", "db-schema")

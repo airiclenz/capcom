@@ -152,7 +152,9 @@ func (a *app) newDepAddCommand() *cobra.Command {
 }
 
 // newDepRmCommand removes every dep of an issue that names the given one, whether the file writes
-// it as the id or as an Alias. A dep naming no issue at all is removed by its exact text.
+// it as the id or as an Alias. An argument that is not exactly an issue's id or Alias removes the
+// dep that is its text, before it is matched as a prefix; one naming no issue at all is matched
+// only by its text.
 func (a *app) newDepRmCommand() *cobra.Command {
 	return a.withKV(&cobra.Command{
 		Use:         "rm <id|alias|prefix> <dep-id|alias|prefix>",
@@ -168,7 +170,7 @@ func (a *app) newDepRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			isRemoved, err := a.depRemoval(graph, args[1])
+			isRemoved, err := a.depRemoval(graph, dependent.Deps, args[1])
 			if err != nil {
 				return err
 			}
@@ -192,11 +194,11 @@ func (a *app) newDepRmCommand() *cobra.Command {
 }
 
 // depRemoval returns the test a dep of the dependent must pass to be removed by dep rm: it names
-// the issue arg resolves to, or, when arg names no issue, it is arg exactly.
-func (a *app) depRemoval(graph depGraph, arg string) (func(string) bool, error) {
+// the issue arg resolves to, or it is arg's text (isEntryText) when isRemovedByText says so.
+func (a *app) depRemoval(graph depGraph, deps []string, arg string) (func(string) bool, error) {
 	dependency, err := a.issueIndex.Resolve(arg)
-	if errors.Is(err, tree.ErrNotFound) {
-		return func(dep string) bool { return dep == arg }, nil
+	if graph.isRemovedByText(deps, arg, err) {
+		return isEntryText(arg), nil
 	}
 	if err != nil {
 		failure, _ := resolveFailure(err) // either way the command stops here
@@ -300,6 +302,33 @@ func (g depGraph) names(id string) func(string) bool {
 		resolved, isFound := g.graph.Resolve(dep)
 		return isFound && resolved == id
 	}
+}
+
+// isEntryText returns a test of whether an entry of a deps or related list is arg's text: arg as
+// typed or as tree.NormalizeArg spells it.
+func isEntryText(arg string) func(string) bool {
+	name := tree.NormalizeArg(arg)
+	return func(entry string) bool { return entry == arg || entry == name }
+}
+
+// isRemovedByText reports whether dep rm or related rm removes the entries of a holder's list that
+// are arg's text (isEntryText), given resolveErr, what issueIndex.Resolve made of arg. It does when
+// arg names no issue. When arg is a prefix, of one issue's id or of several, it does when one of
+// entries is arg's text, so a dangling entry is never mistaken for the issue it prefixes. An arg
+// that is exactly a usable issue's id or Alias, and a name a duplicate leaves out, never are.
+func (g depGraph) isRemovedByText(entries []string, arg string, resolveErr error) bool {
+	switch {
+	case errors.Is(resolveErr, tree.ErrNotFound):
+		return true
+	case errors.Is(resolveErr, tree.ErrAmbiguous):
+		return slices.ContainsFunc(entries, isEntryText(arg))
+	case resolveErr != nil:
+		return false
+	}
+	if _, isExact := g.graph.Resolve(tree.NormalizeArg(arg)); isExact {
+		return false
+	}
+	return slices.ContainsFunc(entries, isEntryText(arg))
 }
 
 // shownBy returns the test of whether an issue is a node of dep graph. With start "" every issue

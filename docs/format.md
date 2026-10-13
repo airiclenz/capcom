@@ -149,9 +149,11 @@ warning: .capcom/config.yaml: store format raised to 2; capcom releases that rea
 
 `capcom related rm <a> <b>` removes the link from whichever issue holds it: the entries of `a`
 naming `b`, or failing that, the entries of `b` naming `a`. Two issues that are not linked are
-`not_found`. A `b` that names no issue is matched by its exact text among the entries of `a`, so a
-link to an issue that no longer exists can still be removed. Both commands take `--if-match <etag>`,
-checked against the file they write, and `--kv`.
+`not_found`. A `b` that is not exactly an issue's id or Alias removes the entries of `a` that are
+its text (as typed or as a citation spelling normalises it) when there are any, before it is
+matched as a prefix, and a `b` that names no issue is matched only that way: a link to an issue
+that no longer exists can still be removed, even when its text is a prefix of another issue's id.
+Both commands take `--if-match <etag>`, checked against the file they write, and `--kv`.
 
 `capcom show` lists an issue's links on both issues: a `related: [...]` line after the `deps:`,
 `dependents:` and `children:` lines in the text (see Dependency output), and `"related": [...]` in
