@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -88,14 +87,12 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 	var purpose, holder, token string
 	var isTakeStale bool
 	cmd := &cobra.Command{
-		Use:   "acquire",
-		Short: "Acquire this worktree's lock, or resume it with your own token",
-		Args:  cobra.NoArgs,
+		Use:         "acquire",
+		Short:       "Acquire this worktree's lock, or resume it with your own token",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			target, err := openLockTarget()
-			if err != nil {
-				return err
-			}
+			target := a.openLockTarget()
 			claim, err := lock.CurrentClaim(target.store.WorktreeRoot, purpose, holder)
 			if err != nil {
 				return err
@@ -119,14 +116,12 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 func (a *app) newLockTouchCommand() *cobra.Command {
 	var token string
 	cmd := &cobra.Command{
-		Use:   "touch",
-		Short: "Refresh the heartbeat of the lock you hold",
-		Args:  cobra.NoArgs,
+		Use:         "touch",
+		Short:       "Refresh the heartbeat of the lock you hold",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			target, err := openLockTarget()
-			if err != nil {
-				return err
-			}
+			target := a.openLockTarget()
 			status, err := target.lock.Touch(token)
 			return a.emitLock(cmd, lockHeld, status, token, err)
 		}),
@@ -139,14 +134,12 @@ func (a *app) newLockTouchCommand() *cobra.Command {
 func (a *app) newLockReleaseCommand() *cobra.Command {
 	var token string
 	cmd := &cobra.Command{
-		Use:   "release",
-		Short: "Release the lock you hold; releasing a free lock does nothing",
-		Args:  cobra.NoArgs,
+		Use:         "release",
+		Short:       "Release the lock you hold; releasing a free lock does nothing",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			target, err := openLockTarget()
-			if err != nil {
-				return err
-			}
+			target := a.openLockTarget()
 			status, err := target.lock.Release(token)
 			return a.emitLock(cmd, endedState(status), status, token, err)
 		}),
@@ -158,14 +151,12 @@ func (a *app) newLockReleaseCommand() *cobra.Command {
 
 func (a *app) newLockBreakCommand() *cobra.Command {
 	return a.withKV(&cobra.Command{
-		Use:   "break",
-		Short: "Free this worktree's lock whoever holds it",
-		Args:  cobra.NoArgs,
+		Use:         "break",
+		Short:       "Free this worktree's lock whoever holds it",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			target, err := openLockTarget()
-			if err != nil {
-				return err
-			}
+			target := a.openLockTarget()
 			status, err := target.lock.Break()
 			if err == nil && status.IsCorrupt {
 				return a.emitDiscardedLock(cmd, status, target.lock.RecordPath())
@@ -178,14 +169,12 @@ func (a *app) newLockBreakCommand() *cobra.Command {
 func (a *app) newLockCheckCommand() *cobra.Command {
 	var token string
 	cmd := &cobra.Command{
-		Use:   "check",
-		Short: "Exit 0 when this worktree's lock is free or yours, 3 when another holds it",
-		Args:  cobra.NoArgs,
+		Use:         "check",
+		Short:       "Exit 0 when this worktree's lock is free or yours, 3 when another holds it",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			target, err := openLockTarget()
-			if err != nil {
-				return err
-			}
+			target := a.openLockTarget()
 			status, err := target.lock.Check(token)
 			ownToken := ""
 			if status.IsHeld {
@@ -201,14 +190,12 @@ func (a *app) newLockCheckCommand() *cobra.Command {
 func (a *app) newLockStatusCommand() *cobra.Command {
 	var isAll bool
 	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "Show this worktree's lock, or with --all every worktree's",
-		Args:  cobra.NoArgs,
+		Use:         "status",
+		Short:       "Show this worktree's lock, or with --all every worktree's",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			target, err := openLockTarget()
-			if err != nil {
-				return err
-			}
+			target := a.openLockTarget()
 			if isAll {
 				held, warnings, err := target.lock.List()
 				if err != nil {
@@ -226,17 +213,9 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// openLockTarget opens the store of the current worktree and that worktree's lock.
-func openLockTarget() (lockTarget, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return lockTarget{}, err
-	}
-	opened, err := store.Open(cwd)
-	if err != nil {
-		return lockTarget{}, output.StoreFailure(err)
-	}
-	return lockTarget{store: opened, lock: lock.ForWorktree(opened)}, nil
+// openLockTarget pairs the store the root opened with the current worktree's lock.
+func (a *app) openLockTarget() lockTarget {
+	return lockTarget{store: a.store, lock: lock.ForWorktree(a.store)}
 }
 
 // emitLock renders a lock command's outcome: status in state on success. A lock held by another

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -36,22 +35,15 @@ type agentsData struct {
 func (a *app) newAgentsCommand() *cobra.Command {
 	isCheck := false
 	cmd := &cobra.Command{
-		Use:   "agents",
-		Short: "Write or refresh the capcom block of AGENTS.md",
-		Args:  cobra.NoArgs,
+		Use:         "agents",
+		Short:       "Write or refresh the capcom block of AGENTS.md",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-			opened, err := store.Open(cwd)
-			if err != nil {
-				return output.StoreFailure(err)
-			}
 			if isCheck {
-				return a.checkAgentsBlock(cmd, opened)
+				return a.checkAgentsBlock(cmd, a.store)
 			}
-			return a.writeAgentsBlock(cmd, opened)
+			return a.writeAgentsBlock(cmd, a.store)
 		}),
 	}
 	cmd.Flags().BoolVar(&isCheck, flagCheck, false, "report whether the block is current; fail when it is stale")

@@ -19,14 +19,17 @@ const (
 	argsTerminator = "--"
 )
 
-// annotationIndex is the cobra annotation a command sets to have the index ready before its body
-// runs: indexRefresh brings it up to date, indexRebuild recreates it. Commands without it never
-// open the store or the index here; prime goes without it on purpose and opens both itself, so
-// that their failures become warnings instead of failing the session it briefs.
+// annotationIndex is the cobra annotation a command sets to have the store, and with it the index,
+// ready before its body runs: indexRefresh brings the index up to date, indexRebuild recreates it,
+// and storeOnly opens the store without the index. Commands without it never open the store or
+// the index here; prime goes without it on purpose and opens both itself, so that their failures
+// become warnings instead of failing the session it briefs. init and check open the store
+// themselves too: init creates it, and check reports a config failure as one of its problems.
 const (
 	annotationIndex = "capcom-index"
 	indexRefresh    = "refresh"
 	indexRebuild    = "rebuild"
+	storeOnly       = "store"
 )
 
 // app carries one invocation's output streams and the renderer its output flags select. Run builds a
@@ -37,8 +40,8 @@ type app struct {
 	isJSON   bool
 	isKV     bool
 	renderer output.Renderer
-	// store and issueIndex are set for a command annotated with annotationIndex; Run closes the
-	// index. indexReport is what opening the index did. indexWarnings are the index warnings that
+	// store is set for a command annotated with annotationIndex, and issueIndex for one that
+	// asks for the index; Run closes the index. indexReport is what opening the index did. indexWarnings are the index warnings that
 	// go with the result: the report's own, or the renamed copies a move puts in their place.
 	store         *store.Store
 	issueIndex    *index.Index
@@ -117,11 +120,18 @@ func (a *app) prepare(cmd *cobra.Command, args []string) error {
 }
 
 // prepareIndex opens the store and its index, refreshed or rebuilt as the command's
-// annotationIndex asks, once per command.
+// annotationIndex asks, once per command; storeOnly opens the store alone. A storeOnly command
+// reports a missing required flag ahead of a store that does not open, as it did when its body
+// opened the store, after cobra's own flag check.
 func (a *app) prepareIndex(cmd *cobra.Command) error {
 	mode := cmd.Annotations[annotationIndex]
 	if mode == "" {
 		return nil
+	}
+	if mode == storeOnly {
+		if err := cmd.ValidateRequiredFlags(); err != nil {
+			return err
+		}
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -130,6 +140,10 @@ func (a *app) prepareIndex(cmd *cobra.Command) error {
 	opened, err := store.Open(cwd)
 	if err != nil {
 		return output.StoreFailure(err)
+	}
+	if mode == storeOnly {
+		a.store = opened
+		return nil
 	}
 	indexMode := index.ModeRefresh
 	if mode == indexRebuild {

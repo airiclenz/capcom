@@ -2,14 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/store"
 )
 
 // kindFmt is the --json kind of capcom fmt.
@@ -38,24 +36,16 @@ type formatRun struct {
 func (a *app) newFmtCommand() *cobra.Command {
 	var isCheck bool
 	cmd := &cobra.Command{
-		Use:   "fmt [--check]",
-		Short: "Rewrite every issue and Note file in canonical form",
-		Args:  cobra.NoArgs,
+		Use:         "fmt [--check]",
+		Short:       "Rewrite every issue and Note file in canonical form",
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-			opened, err := store.Open(cwd)
-			if err != nil {
-				return output.StoreFailure(err)
-			}
-			a.store = opened
-			issues, err := nodestore.Issues(opened, nil).Format(isCheck)
+			issues, err := nodestore.Issues(a.store, nil).Format(isCheck)
 			if err != nil {
 				return kindFailure(err)
 			}
-			notes, err := nodestore.Notes(opened, nil).Format(isCheck)
+			notes, err := nodestore.Notes(a.store, nil).Format(isCheck)
 			if err != nil {
 				return kindFailure(err)
 			}

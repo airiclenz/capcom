@@ -2757,7 +2757,10 @@ Depends on P3.91.
 - `go vet ./internal/lock/ ./internal/cli/`
 **Commit:** `refactor(lock): bind the worktree key in a lock handle`
 
-## P3.93 Commands get the opened store from the root
+## P3.93 Commands get the opened store from the root — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): openLockTarget becomes an app method returning lockTarget without an error, since the root has already opened the store; its name is kept.
+NOTES (2026-10-13): TestStoreCommands_OutsideAStore_FailAsBefore also covers a bad config.yaml (the Goal's third failure), besides outside git and no store; it passed on the pre-item tree before any code change.
 
 **What:** Part 4 of A-10: the root opens the store, through the command annotation, for `agents`, `fmt` and every `lock` subcommand, which drop their own `store.Open`.
 **Regression guard.** Keep today's precedence for the storeOnly commands: a missing required flag is still reported before a store-open failure. For storeOnly, `prepareIndex` calls `cmd.ValidateRequiredFlags()` before `store.Open`; no user-visible change. Each wanted stderr is built from the test's dir (`"capcom: " + dir + ": " + store.ErrNotGitRepository.Error() + "\n"`, and from `filepath.Join(root, ".capcom")` for the not-initialised case), not captured once. The Goal's "read `a.store`" is checked by Acceptance.

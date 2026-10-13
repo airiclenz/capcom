@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -189,4 +190,67 @@ func TestUpdate_FrontmatterFailure_RelativizesOnlyAnAbsolutePath(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
+	commands := [][]string{{"agents"}, {"fmt"}, {"lock", "status"}}
+	badConfig := "statuses:\n  open: todo\n  review: reviewing\n  done: done\n"
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T) string
+		wantFail func(dir string) string
+	}{
+		{
+			name:  "outside git",
+			setup: outsideGitDir,
+			wantFail: func(dir string) string {
+				return "capcom: " + dir + ": " + store.ErrNotGitRepository.Error() + "\n"
+			},
+		},
+		{
+			name:  "no store",
+			setup: newGitRepo,
+			wantFail: func(root string) string {
+				return "capcom: " + filepath.Join(root, ".capcom") + ": " + store.ErrNotInitialized.Error() + "\n"
+			},
+		},
+		{
+			name: "bad config",
+			setup: func(t *testing.T) string {
+				root := newGitRepo(t)
+				runCLI(t, root, "init")
+				if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(badConfig), 0o644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+				return root
+			},
+			wantFail: func(string) string {
+				return "capcom: .capcom/config.yaml:3: status \"review\": category must be one of [todo doing waiting done dropped]\n"
+			},
+		},
+	}
+	for _, test := range tests {
+		for _, args := range commands {
+			t.Run(test.name+"/"+strings.Join(args, " "), func(t *testing.T) {
+				dir := test.setup(t)
+
+				stdout, stderr, exitCode := runCLI(t, dir, args...)
+
+				if want := test.wantFail(dir); exitCode != ExitError || stdout != "" || stderr != want {
+					t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and %q", exitCode, stdout, stderr, ExitError, want)
+				}
+			})
+		}
+	}
+
+	t.Run("lock acquire without --purpose outside a store", func(t *testing.T) {
+		dir := outsideGitDir(t)
+
+		stdout, stderr, exitCode := runCLI(t, dir, "lock", "acquire")
+
+		want := "capcom: required flag(s) \"" + flagPurpose + "\" not set\n"
+		if exitCode != ExitUsage || stdout != "" || stderr != want {
+			t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and %q", exitCode, stdout, stderr, ExitUsage, want)
+		}
+	})
 }
