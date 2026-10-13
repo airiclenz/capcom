@@ -1353,7 +1353,9 @@ Depends on P1.3.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(config): split config.go into config, format and parse`
 
-## P2.17 Split index/refresh.go into refresh, problems and duplicates
+## P2.17 Split index/refresh.go into refresh, problems and duplicates — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the claim type moves to duplicates.go as the approach names it, though walk.go, query.go and the refresher struct also use it; claimedNames, insertClaimQuery, insertClaims and replaceWalkClaims (P1.5/P1.6) stay in refresh.go, their only user; statement, sharedListStatements and exec stay in refresh.go (shared with notes.go). internal/index has no doc.go file map, so none is updated.
 
 **What:** Pure move per review P2-06.
 **Goal:** `internal/index/refresh.go` keeps the refresh orchestration, `indexFile`, the inserts, `forget` and `rewarn`. `problems.go` maps file problems to Warnings, and `duplicates.go` holds the duplicate and claim exclusion. Every existing test passes unchanged.

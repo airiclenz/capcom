@@ -16,7 +16,6 @@ import (
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // racyGranularity is the coarsest file mtime resolution the racy-clean rule allows for: a file
@@ -360,51 +359,6 @@ func (r *refresher) replaceWalkClaims() error {
 	return nil
 }
 
-// readRefusal returns the tree sentinel err wraps when nodefile.ReadNodeFile refused the file unread
-// (tree.ErrNotRegular or tree.ErrTooLarge), worded as the walk words the same problem, or nil.
-func readRefusal(err error) error {
-	for _, sentinel := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
-		if errors.Is(err, sentinel) {
-			return sentinel
-		}
-	}
-	return nil
-}
-
-// parseIssue parses and validates one issue file and returns every problem that keeps it out of
-// the index.
-func parseIssue(file foundFile, data []byte, cfg config.Config) (issue.Issue, []Warning) {
-	parsed, err := issue.Parse(file.path, data)
-	if err != nil {
-		var failure *issue.Error
-		if errors.As(err, &failure) {
-			return issue.Issue{}, []Warning{{Kind: WarningFrontmatter, Path: failure.Path, Line: failure.Line, Message: failure.Message}}
-		}
-		return issue.Issue{}, []Warning{{Kind: WarningFrontmatter, Path: file.path, Message: err.Error()}}
-	}
-
-	var problems []Warning
-	for _, failure := range issue.Validate(file.path, parsed, cfg) {
-		problems = append(problems, Warning{Kind: WarningField, Path: failure.Path, Line: failure.Line, Message: failure.Message})
-	}
-	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
-}
-
-// aliasProblems returns a problem for every alias of the node file that tree.CheckAliases rejects:
-// one that is invalid, repeats the node's own id or is listed twice.
-func aliasProblems(file foundFile, aliases []string) []Warning {
-	_, rejected := tree.CheckAliases(file.path, file.kind, file.id, aliases)
-	var problems []Warning
-	for _, problem := range rejected {
-		kind := WarningRepeatedAlias
-		if errors.Is(problem, tree.ErrInvalidAlias) {
-			kind = WarningInvalidAlias
-		}
-		problems = append(problems, Warning{Kind: kind, Path: problem.Path, Message: problem.Message()})
-	}
-	return problems
-}
-
 // statement is one SQL statement with its arguments.
 type statement struct {
 	query string
@@ -471,83 +425,6 @@ func (r *refresher) forget(path string) error {
 	for _, table := range rowTables {
 		if _, err := r.tx.ExecContext(r.ctx, `DELETE FROM `+table+` WHERE path = ?`, path); err != nil {
 			return fmt.Errorf("drop %s from index: %w", path, err)
-		}
-	}
-	return nil
-}
-
-// claim is one name a node answers to: its id or one of its Aliases.
-type claim struct {
-	name string
-	path string
-	kind string
-}
-
-// excludeDuplicates keeps every node that shares an id or alias with another file of its own tree
-// out of the queries and warns about each, naming the other file (ADR 0002: names are unique
-// across the tree). An issue and a Note never clash. It runs on every refresh, so a node comes
-// back once its rival is gone.
-func (r *refresher) excludeDuplicates() error {
-	for _, nodes := range []nodeTable{issueNodes, noteNodes} {
-		if err := r.excludeDuplicatesOf(nodes); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// excludeDuplicatesOf runs excludeDuplicates over the nodes of one kind.
-func (r *refresher) excludeDuplicatesOf(nodes nodeTable) error {
-	rows, err := r.tx.QueryContext(r.ctx, `SELECT id, path, 'id' FROM `+nodes.table+`
-		UNION ALL SELECT alias, path, 'alias' FROM aliases WHERE kind = ? ORDER BY 1, 2`, nodes.kind)
-	if err != nil {
-		return fmt.Errorf("read indexed names: %w", err)
-	}
-	byName := map[string][]claim{}
-	var names []string
-	for rows.Next() {
-		var current claim
-		if err := rows.Scan(&current.name, &current.path, &current.kind); err != nil {
-			rows.Close()
-			return fmt.Errorf("read indexed names: %w", err)
-		}
-		if _, isSeen := byName[current.name]; !isSeen {
-			names = append(names, current.name)
-		}
-		byName[current.name] = append(byName[current.name], current)
-	}
-	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
-		return fmt.Errorf("read indexed names: %w", err)
-	}
-
-	if _, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = 0`); err != nil {
-		return fmt.Errorf("reset excluded %s: %w", nodes.table, err)
-	}
-	for _, name := range names {
-		if err := r.excludeClaims(nodes, byName[name]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// excludeClaims excludes and warns about every claimant of one name when there is more than one.
-func (r *refresher) excludeClaims(nodes nodeTable, claims []claim) error {
-	if len(claims) < 2 {
-		return nil
-	}
-	for _, current := range claims {
-		for _, other := range claims {
-			if other == current {
-				continue
-			}
-			r.warn(WarningDuplicate, current.path, 0, fmt.Sprintf(
-				"%v %s %q: also the %s of %s; both are left out",
-				tree.ErrDuplicate, current.kind, current.name, other.kind, other.path,
-			))
-		}
-		if _, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = 1 WHERE path = ?`, current.path); err != nil {
-			return fmt.Errorf("exclude %s: %w", current.path, err)
 		}
 	}
 	return nil
