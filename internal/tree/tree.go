@@ -125,11 +125,6 @@ const (
 	duplicateReason  = "has a duplicate id"
 )
 
-// Dir returns the directory the tree was loaded from.
-func (t *Tree) Dir() string {
-	return t.dir
-}
-
 // Nodes returns every node, ordered by id.
 func (t *Tree) Nodes() []Node {
 	return append([]Node(nil), t.nodes...)

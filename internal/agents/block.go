@@ -1,11 +1,10 @@
 // Package agents owns the Managed block of AGENTS.md: the part of the hand-written agent guide
-// between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes. Render produces the
-// block deterministically from the top level of the Knowledge tree; Inspect tells whether the file
-// holds it and whether it is current; Write splices it in by its markers, or appends it when
-// absent, keeping every byte outside the markers and the file's line ending. Sync is the one way
-// callers reconcile the block with the Knowledge tree: it reads the top level and inspects,
-// refreshes or writes in one pass. The block is read and written only in a file inside the working
-// tree: an AGENTS.md that links outside it is never read or written.
+// between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes. The block is
+// rendered deterministically from the top level of the Knowledge tree, and a write splices it in by
+// its markers, or appends it when absent, keeping every byte outside the markers and the file's
+// line ending. Sync is the one way callers reconcile the block with the Knowledge tree: it reads the
+// top level and inspects, refreshes or writes in one pass. The block is read and written only in a
+// file inside the working tree: an AGENTS.md that links outside it is never read or written.
 package agents
 
 import (
@@ -79,16 +78,16 @@ type Note struct {
 	Title string
 }
 
-// State is what Inspect found in AGENTS.md.
+// State is what Sync found in AGENTS.md.
 type State int
 
 const (
 	// StateAbsent is an AGENTS.md without the block, no AGENTS.md at all, or an AGENTS.md that links
 	// outside the working tree when the mode does not write.
 	StateAbsent State = iota
-	// StateCurrent is a block equal to what Render produces now.
+	// StateCurrent is a block equal to what render produces now.
 	StateCurrent
-	// StateStale is a block that differs from what Render produces now.
+	// StateStale is a block that differs from what render produces now.
 	StateStale
 )
 
@@ -132,16 +131,16 @@ func (e *Error) Error() string {
 }
 
 // Path returns the AGENTS.md of the working tree at worktreeRoot.
-func Path(worktreeRoot string) string {
+func guidePath(worktreeRoot string) string {
 	return filepath.Join(worktreeRoot, FileName)
 }
 
-// TopNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
+// topNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
 // the files. A retired Note is left out, and with it its whole subtree, and so is a Note labelled
 // knowledge.LabelBackground. A Note file that does not parse, that nodefile.ReadNodeFile refuses
 // unread, or that a load problem names (a duplicate id or alias, an invalid or repeated alias) is
 // left out; `capcom check` reports it. It fails only when the tree or a Note file cannot be read.
-func TopNotes(knowledgeDir string) ([]Note, error) {
+func topNotes(knowledgeDir string) ([]Note, error) {
 	parsed := map[string]knowledge.Note{}
 	readAliases := func(path string) ([]string, error) {
 		data, err := nodefile.ReadNodeFile(path)
@@ -183,9 +182,9 @@ func TopNotes(knowledgeDir string) ([]Note, error) {
 	return notes, nil
 }
 
-// Render returns the block for notes, the begin and end markers included, with LF line endings
+// render returns the block for notes, the begin and end markers included, with LF line endings
 // and no line ending after the end marker. Titles are flattened onto one line.
-func Render(notes []Note) string {
+func render(notes []Note) string {
 	var block strings.Builder
 	block.WriteString(BeginMarker + lineFeed)
 	block.WriteString(blockIntro)
@@ -201,34 +200,34 @@ func Render(notes []Note) string {
 	return block.String()
 }
 
-// Inspect reads the AGENTS.md of worktreeRoot and reports whether its block is absent, current or
+// inspect reads the AGENTS.md of worktreeRoot and reports whether its block is absent, current or
 // stale against notes. A missing file is StateAbsent, and so is one that links outside the working
 // tree, which is not read. Line endings are ignored in the comparison, so a CRLF file holding the
 // current block is current. It fails with an *Error on markers that cannot be told apart and on a
 // file that is not a regular file or is larger than 1 MiB, and when the file cannot be read.
-func Inspect(worktreeRoot string, notes []Note) (Status, error) {
+func inspect(worktreeRoot string, notes []Note) (Status, error) {
 	return reconcile(worktreeRoot, notes, ModeInspect)
 }
 
-// Write brings the block of the AGENTS.md of worktreeRoot up to date with notes and returns the
+// write brings the block of the AGENTS.md of worktreeRoot up to date with notes and returns the
 // Status found before writing. A stale block is replaced in place, an absent one is appended after
 // a blank line, and a missing file is created holding the block alone; a current block leaves the
 // file untouched. Every byte outside the markers is kept, and the block takes the file's line
-// ending (CRLF when the file has any). It fails as Inspect does, and when the file cannot be
+// ending (CRLF when the file has any). It fails as inspect does, and when the file cannot be
 // written. An AGENTS.md that links outside the working tree fails it with an *Error, the file it
 // links to neither read nor written.
-func Write(worktreeRoot string, notes []Note) (Status, error) {
+func write(worktreeRoot string, notes []Note) (Status, error) {
 	return reconcile(worktreeRoot, notes, ModeWrite)
 }
 
 // Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
 // tree in knowledgeDir, as mode says, and returns the Status found before any write. It reads the
-// file once: the Status it reports is the one it acted on. It fails as TopNotes does, as Inspect
+// file once: the Status it reports is the one it acted on. It fails as topNotes does, as inspect
 // does, and, when mode writes, when the file cannot be written. An AGENTS.md that links outside the
-// working tree is never read: ModeWrite fails as Write does, and the other modes report
+// working tree is never read: ModeWrite fails as write does, and the other modes report
 // StateAbsent.
 func Sync(worktreeRoot, knowledgeDir string, mode Mode) (Status, error) {
-	notes, err := TopNotes(knowledgeDir)
+	notes, err := topNotes(knowledgeDir)
 	if err != nil {
 		return Status{}, err
 	}
@@ -236,7 +235,7 @@ func Sync(worktreeRoot, knowledgeDir string, mode Mode) (Status, error) {
 }
 
 // reconcile resolves the AGENTS.md of worktreeRoot, reads it, finds its block's Status against
-// notes and, when mode calls for it, writes the block Render produces for notes to the same file.
+// notes and, when mode calls for it, writes the block render produces for notes to the same file.
 // A guide that links outside the working tree is neither read nor written.
 func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 	guide, err := resolveGuide(worktreeRoot)
@@ -262,7 +261,7 @@ func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 	if !mode.writes(status.State) {
 		return status, nil
 	}
-	spliced := splice(content, span, Render(notes))
+	spliced := splice(content, span, render(notes))
 	err = nodefile.WriteFileAtomicVerbatim(guide.path, bytes.NewReader(spliced), guide.perm)
 	if err != nil {
 		return status, fmt.Errorf("%s: %w", FileName, err)
@@ -287,7 +286,7 @@ type guideFile struct {
 // A missing guide, or one whose link dangles, is the guide's own path with newFilePermissions. A
 // target outside the working tree is marked isOutside and is not touched.
 func resolveGuide(worktreeRoot string) (guideFile, error) {
-	path := Path(worktreeRoot)
+	path := guidePath(worktreeRoot)
 	target, err := filepath.EvalSymlinks(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return guideFile{path: path, perm: newFilePermissions, isMissing: true}, nil
@@ -348,14 +347,14 @@ func (m Mode) writes(state State) bool {
 	}
 }
 
-// statusOf compares the block span locates in content with the block Render produces for notes,
+// statusOf compares the block span locates in content with the block render produces for notes,
 // carriage returns stripped.
 func statusOf(content []byte, span blockSpan, notes []Note) Status {
 	if !span.isFound {
 		return Status{State: StateAbsent}
 	}
 	existing := strings.ReplaceAll(string(content[span.start:span.end]), carriageReturn, "")
-	if existing == Render(notes) {
+	if existing == render(notes) {
 		return Status{State: StateCurrent, Line: span.line}
 	}
 	return Status{State: StateStale, Line: span.line}

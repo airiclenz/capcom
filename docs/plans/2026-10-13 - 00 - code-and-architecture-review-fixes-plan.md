@@ -2830,7 +2830,15 @@ Depends on P3.95.
 - `grep -rnE 'index\.WithClock|\.(Refresh|Rebuild)\(\)|\.(Parsed|Removed|Rebuilt)\b' --include=*.go . | grep -v '^\./internal/index/' | grep -v 'nodestore\.Removed'` prints nothing
 **Commit:** `refactor(index): unexport refresh internals used only by tests`
 
-## P3.98 agents and tree export only their production interface
+## P3.98 agents and tree export only their production interface — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): `agents.Path` became `guidePath`, not `path`, since `resolveGuide` and `topNotes` hold locals named `path`; `TopNotes`, `Render`, `Inspect` and `Write` became `topNotes`, `render`, `inspect` and `write`. The package doc and the `State` comment now describe the block through `Sync`. Failure messages in block_test.go use the new names, and the test function names stay as they were.
+
+NOTES (2026-10-13): internal/knowledge/knowledge_test.go is unchanged: no `.Dir()` caller is left there (P3.19 removed `successorsIn`).
+
+NOTES (2026-10-13): the cli stale-block test writes `# Guide\n`, runs `capcom agents`, then renames the `release-flow` entry's title inside the block to "Release steps".
+
+NOTES (2026-10-13): the open issue `.capcom/issues/agents-source-link.md` still says `agents.Inspect` in its body. It was left alone because implementers never edit tickets.
 
 **What:** Part 2 of A-15: `agents.Inspect`, `Write`, `Render`, `TopNotes` and `Path`, used outside `agents` only by a cli test, are unexported, and `tree.(*Tree).Dir`, which has no production caller, is deleted.
 **Regression guard.** Drop the `successorsIn` edit (P3.19 has removed it); the rest stands. The Goal's grep is copied into Acceptance as a command with its expected result.

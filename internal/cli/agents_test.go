@@ -90,7 +90,9 @@ func TestAgents_CRLFGuide_StaysCRLFAndIsNotStale(t *testing.T) {
 
 func TestAgentsCheck_StaleBlock_FailsAtTheMarkerLine(t *testing.T) {
 	root := newKnowStore(t)
-	writeAgentsGuide(t, root, "# Guide\n\n"+agents.Render(nil)+"\n")
+	writeAgentsGuide(t, root, "# Guide\n")
+	mustRun(t, root, "agents")
+	writeAgentsGuide(t, root, strings.Replace(readAgentsGuide(t, root), "`: Release flow\n", "`: Release steps\n", 1))
 
 	stdout, stderr, exitCode := runCLI(t, root, "agents", "--check")
 
