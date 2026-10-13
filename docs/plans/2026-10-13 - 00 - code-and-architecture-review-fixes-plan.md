@@ -610,7 +610,12 @@ Depends on P1.5.
 - `go vet ./internal/index/ ./internal/cli/`
 **Commit:** `fix(index): refuse the names of files the walk leaves out instead of prefix matching`
 
-## P1.7 Create and rename refuse an id a dropped duplicate-id file claims
+## P1.7 Create and rename refuse an id a dropped duplicate-id file claims — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): duplicateClaimFailure shares a `claimOf` helper (named id → "taken by", ReadAliases lists id → "an alias of") and a `duplicateIDFiles` helper (repeated-id problems: ErrDuplicate with an empty Alias; Path then Other, each once) that findUnparsedAliasHolder also scans with RecoverAliases; the repeated id in the message is the base name of the problem's Path.
+NOTES (2026-10-13): Move's doc comment gains the duplicate refusal as a new step 5 (steps 5-8 renumbered 6-9); Create's step 3 lists it between the orphan and unparsed refusals.
+NOTES (2026-10-13): move_test.go's existing "duplicate of the moved issue" case already writes its second file below session-work/, whose session-work.md newMoveIssues writes, so it needed no extra parent file; the new create/move fixtures write sub.md beside sub/foo.md via writeDuplicateIDFiles.
+NOTES (2026-10-13): added a create_test case beyond the plan's list, "id maybe an alias of an unparseable dropped duplicate-id file", pinning the findUnparsedAliasHolder scan the Approach adds; it bites on the pre-item tree.
 
 **What:** Fixes F-10(b) (`duplicate-id-subtree`): `create --id` and a renaming `mv`/`know mv` read no Aliases of a file left out for a repeated id, so they write a second holder of a name (ADR 0002). This lands before P1.8, so a duplicated id stays refused once `tree.Load` drops both of its files.
 **Regression guard.** The create and move fixtures write `sub.md` beside `sub/foo.md`, as `newDuplicateIssueStore` writes `sub-issue.md`; without it `sub/` is an orphan directory, `tree.Walk` never reaches `sub/foo.md`, and the orphan refusal fires first. The item's CHANGELOG entry (via its sidecar) says create and mv now refuse an alias only a left-out file lists, superseding the CHANGELOG entry "An alias only a left-out file lists is unaffected".

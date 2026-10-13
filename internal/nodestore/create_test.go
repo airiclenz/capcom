@@ -168,6 +168,41 @@ func TestCreate_Refusals_WriteNothing(t *testing.T) {
 			),
 		},
 		{
+			name: "id an alias of a dropped duplicate-id file",
+			id:   "old-bar",
+			setup: func(t *testing.T, dir string) {
+				writeDuplicateIDFiles(t, dir, droppedIssue("aliases: [old-bar]\n"))
+			},
+			assert: assertExists(
+				".capcom/issues/sub/foo.md",
+				"foo",
+				`id "old-bar" is already an alias of this file, left out for the duplicate id "foo"`,
+			),
+		},
+		{
+			name: "id maybe an alias of an unparseable dropped duplicate-id file",
+			id:   "old-bar",
+			setup: func(t *testing.T, dir string) {
+				writeDuplicateIDFiles(t, dir, unparseable(droppedIssue("aliases: [old-bar]\n")))
+			},
+			assert: assertExists(".capcom/issues/sub/foo.md", "foo", "may be an alias of issue foo, whose file does not parse"),
+		},
+		{
+			name: "duplicated id",
+			id:   "foo",
+			setup: func(t *testing.T, dir string) {
+				writeDuplicateIDFiles(t, dir, plainIssue)
+			},
+			assert: func(t *testing.T, err error) {
+				t.Helper()
+				var failure *ExistsError
+				if !errors.As(err, &failure) || failure.Holder != "foo" ||
+					(failure.Path != ".capcom/issues/foo.md" && failure.Path != ".capcom/issues/sub/foo.md") {
+					t.Errorf("err = %v, want an *ExistsError naming either file of foo", err)
+				}
+			},
+		},
+		{
 			name: "id maybe an alias of an unparseable node",
 			id:   "old-parser",
 			setup: func(t *testing.T, dir string) {
@@ -256,6 +291,21 @@ func TestCreate_NoteIDMaybeAnAliasOfAnUnparseableNote_NamesANote(t *testing.T) {
 	_, _, err := Notes(s, nil).Create("old-rule", "", build)
 
 	assertExists(".capcom/knowledge/broken-rule.md", "broken-rule", "may be an alias of note broken-rule")(t, err)
+}
+
+// droppedIssue is plainIssue with extra lines added to its frontmatter.
+func droppedIssue(extra string) string {
+	return strings.Replace(plainIssue, "---\n", "---\n"+extra, 1)
+}
+
+// writeDuplicateIDFiles writes foo.md and sub.md below dir, and sub/foo.md with content, so that
+// the id foo is repeated and tree.Load leaves sub/foo.md out for it. sub.md keeps sub/ from being an
+// orphan directory, which would be refused first.
+func writeDuplicateIDFiles(t *testing.T, dir string, content string) {
+	t.Helper()
+	writeNodeFile(t, dir, "foo.md", plainIssue)
+	writeNodeFile(t, dir, "sub.md", plainIssue)
+	writeNodeFile(t, filepath.Join(dir, "sub"), "foo.md", content)
 }
 
 // assertIs returns an assertion that err wraps target.

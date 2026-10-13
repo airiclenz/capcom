@@ -196,6 +196,19 @@ func TestMove_Refusals_MoveNothing(t *testing.T) {
 			assert: assertExists(".capcom/issues/stray-dir/auth-flow.md", "auth-flow", "inside the orphan directory"),
 		},
 		{
+			name: "new id an alias of a dropped duplicate-id file",
+			ref:  "login-flow",
+			to:   Destination{ID: "old-bar"},
+			setup: func(t *testing.T, dir string) {
+				writeDuplicateIDFiles(t, dir, droppedIssue("aliases: [old-bar]\n"))
+			},
+			assert: assertExists(
+				".capcom/issues/sub/foo.md",
+				"foo",
+				`id "old-bar" is already an alias of this file, left out for the duplicate id "foo"`,
+			),
+		},
+		{
 			name: "new id an alias of an unparseable issue",
 			ref:  "login-flow",
 			to:   Destination{ID: "old-parser"},

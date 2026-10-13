@@ -761,6 +761,27 @@ func TestCreate_AliasInsideOrphanDirectory_FailsNamingTheFile(t *testing.T) {
 	}
 }
 
+func TestCreate_AliasOfDroppedDuplicateIDFile_FailsNamingTheFile(t *testing.T) {
+	root := newWriteStore(t)
+	files := map[string]string{
+		"foo.md":           readIssue("Foo", "open", "", ""),
+		"sub-issue.md":     readIssue("Sub issue", "open", "", ""),
+		"sub-issue/foo.md": readIssue("Foo too", "open", "aliases: [old-bar]\n", ""),
+	}
+	writeIssueFiles(t, root, files)
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "old-bar", "--title", "Old bar")
+
+	want := `.capcom/issues/sub-issue/foo.md: id "old-bar" is already an alias of this file, left out for the duplicate id "foo"`
+	if exitCode != ExitError || !strings.Contains(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want it to contain %q", exitCode, stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "old-bar.md")); err == nil {
+		t.Error("old-bar.md was written although a file left out for a duplicate id has it as an alias")
+	}
+	assertIssueFilesUnchanged(t, root, files)
+}
+
 func TestCreate_OrphanDirectoryWithOtherAlias_WritesAndWarns(t *testing.T) {
 	root := newWriteStore(t)
 	writeIssueFiles(t, root, map[string]string{

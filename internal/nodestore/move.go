@@ -47,12 +47,14 @@ type Moved struct {
 //     any other refusal (an invalid id, a parent inside the node's own subtree), a *FileError.
 //  4. on a rename, a node file inside an orphan directory named the new id or recording it among
 //     its Aliases, an *ExistsError.
-//  5. triage: a tree problem naming the node's file, its new file, the new parent's file or one of
+//  5. on a rename, a file a repeated-id problem of the load names, named the new id or recording
+//     it among its Aliases, an *ExistsError.
+//  6. triage: a tree problem naming the node's file, its new file, the new parent's file or one of
 //     their children directories blocks the move and comes back as the failure, a tree.Errors.
-//  6. on a rename, a node file that does not parse but whose raw frontmatter still lists the new
+//  7. on a rename, a node file that does not parse but whose raw frontmatter still lists the new
 //     id as an alias, an *ExistsError.
-//  7. the etag check: when ifMatch is set and is not the node file's etag, a *ConflictError.
-//  8. the renames and rewrites, taken back on failure: a *FileError at the node's file naming the
+//  8. the etag check: when ifMatch is set and is not the node file's etag, a *ConflictError.
+//  9. the renames and rewrites, taken back on failure: a *FileError at the node's file naming the
 //     failing path and any step that could not be taken back.
 func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.Errors, error) {
 	nodes, problems, err := k.load()
@@ -83,6 +85,9 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	isRenamed := move.NewID != node.ID
 	if isRenamed {
 		if err := k.orphanClaimFailure(problems, move.NewID); err != nil {
+			return Moved{}, nil, err
+		}
+		if err := k.duplicateClaimFailure(problems, move.NewID); err != nil {
 			return Moved{}, nil, err
 		}
 	}
