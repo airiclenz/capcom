@@ -2423,7 +2423,11 @@ Depends on P3.55.
 - `! grep -nE 'func (addMergeAttribute|hasMergeAttribute|appendAttributeLine)\(|lineEndingCRLF' internal/cli/*.go`
 **Commit:** `refactor(hooks): move the .gitattributes editor out of init`
 
-## P3.60 Pin the per-file problem wording of check and the index
+## P3.60 Pin the per-file problem wording of check and the index — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the pins record where check and the index differ today, and P3.61–P3.63 must keep those differences byte for byte. Check gives alias problems line 7, while the index gives them no line. Check says "repeats the node's own id", the index "repeats the issue's own id". For a repeated id, check reports only the file it leaves out ("also at <kept file>"), while the index warns on both files ("both are left out").
+
+NOTES (2026-10-13): the symlinked issue file points at a regular file outside the store (outside.md at the worktree root); check's makeSymlink helper lives in check_test.go, beside the other shared helpers, not in a unix-only file, because it carries its own Windows skip.
 
 **What:** Characterisation tests for A-06: the code or kind, path, line and message every per-file problem gets from `check` and from the index refresh, pinned on one fixture so P3.61–P3.63 merge the mappings without a byte changing.
 **Tests:** both pass on the pre-item tree; the existing worded-as tests (`TestRun_DirectoryProblems_WordedAsTheIndexWarnsThem`, `TestRefresh_DirectoryWarnings_WordedAsTheTreeWalk`, `TestRun_RepeatedAliases_WordedByTheSharedAliasCheck`) stay.

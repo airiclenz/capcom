@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -508,6 +509,59 @@ func TestRun_RepeatedAliases_WordedByTheSharedAliasCheck(t *testing.T) {
 	want := []string{
 		check.CodeDuplicate + " " + issues + `login-flow.md:7: alias "login-flow" repeats the node's own id`,
 		check.CodeDuplicate + " " + issues + `login-flow.md:7: alias "old-name" is listed twice`,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+// makeSymlink creates link pointing at target, skipping the test on Windows and as root.
+func makeSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("Symlink(%s): %v", link, err)
+	}
+}
+
+// The index pins the same fixture's warnings in TestRefresh_FileProblems_PinKindsAndWording.
+func TestRun_FileProblems_PinCodesAndWording(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		issues + "unknown-key.md":         issueFile("estimate: 3\n"),
+		issues + "bad-status.md":          strings.Replace(issueFile(""), "status: open", "status: wip", 1),
+		issues + "bad-alias.md":           issueFile("aliases: [Bad_Alias]\n"),
+		issues + "own-alias.md":           issueFile("aliases: [own-alias]\n"),
+		issues + "top-issue.md":           issueFile(""),
+		issues + "top-issue/dup-issue.md": issueFile(""),
+		issues + "dup-issue.md":           issueFile(""),
+		"outside.md":                      issueFile(""),
+	})
+	link := filepath.Join(root, filepath.FromSlash(issues+"link-issue.md"))
+	makeSymlink(t, filepath.Join(root, "outside.md"), link)
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.Code+" "+problem.String())
+	}
+	want := []string{
+		check.CodeInvalidAlias + " " + issues + `bad-alias.md:7: invalid alias "Bad_Alias": ` +
+			"must use only a-z, 0-9, dots and hyphens",
+		check.CodeField + " " + issues + `bad-status.md:3: status "wip" is not declared in config; ` +
+			"use one of [open active parked done dropped]",
+		check.CodeNotRegular + " " + issues + "link-issue.md: not a regular file",
+		check.CodeDuplicate + " " + issues + `own-alias.md:7: alias "own-alias" repeats the node's own id`,
+		check.CodeDuplicate + " " + issues + `top-issue/dup-issue.md: duplicate id "dup-issue", also at ` +
+			issues + "dup-issue.md",
+		check.CodeFrontmatter + " " + issues + `unknown-key.md:7: unknown key "estimate"; an issue has ` +
+			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %q\nwant %q", got, want)

@@ -629,6 +629,70 @@ func TestRefresh_EachProducer_SetsTheWarningKindAndReplaysIt(t *testing.T) {
 	}
 }
 
+// The check package pins the same fixture's problems in TestRun_FileProblems_PinCodesAndWording.
+func TestRefresh_FileProblems_PinKindsAndWording(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "unknown-key.md", relatedIssueText("Some issue", "estimate: 3\n"))
+	writeIssue(t, s, "bad-status.md", issueText("Some issue", "wip", ""))
+	writeIssue(t, s, "bad-alias.md", relatedIssueText("Some issue", "aliases: [Bad_Alias]\n"))
+	writeIssue(t, s, "own-alias.md", relatedIssueText("Some issue", "aliases: [own-alias]\n"))
+	writeIssue(t, s, "top-issue.md", issueText("Some issue", "open", ""))
+	writeIssue(t, s, "top-issue/dup-issue.md", issueText("Some issue", "open", ""))
+	writeIssue(t, s, "dup-issue.md", issueText("Some issue", "open", ""))
+	outside := filepath.Join(s.WorktreeRoot, "outside.md")
+	if err := os.WriteFile(outside, []byte(issueText("Some issue", "open", "")), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	makeSymlink(t, outside, filepath.Join(s.IssuesDir(), "link-issue.md"))
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	const dir = ".capcom/issues/"
+	want := []Warning{
+		{
+			Kind:    WarningInvalidAlias,
+			Path:    dir + "bad-alias.md",
+			Message: `invalid alias "Bad_Alias": must use only a-z, 0-9, dots and hyphens`,
+		},
+		{
+			Kind:    WarningField,
+			Path:    dir + "bad-status.md",
+			Line:    3,
+			Message: `status "wip" is not declared in config; use one of [open active parked done dropped]`,
+		},
+		{
+			Kind: WarningDuplicate,
+			Path: dir + "dup-issue.md",
+			Message: `duplicate id "dup-issue": also the id of ` + dir + "top-issue/dup-issue.md; " +
+				"both are left out",
+		},
+		{Kind: WarningNotRegular, Path: dir + "link-issue.md", Message: "not a regular file"},
+		{
+			Kind:    WarningRepeatedAlias,
+			Path:    dir + "own-alias.md",
+			Message: `alias "own-alias" repeats the issue's own id`,
+		},
+		{
+			Kind: WarningDuplicate,
+			Path: dir + "top-issue/dup-issue.md",
+			Message: `duplicate id "dup-issue": also the id of ` + dir + "dup-issue.md; " +
+				"both are left out",
+		},
+		{
+			Kind: WarningFrontmatter,
+			Path: dir + "unknown-key.md",
+			Line: 7,
+			Message: `unknown key "estimate"; an issue has title, status, type, priority, labels, deps, ` +
+				"related, plan, aliases, created, closed and reason",
+		},
+	}
+	if !slices.Equal(report.Warnings, want) {
+		t.Errorf("warnings = %#v\nwant %#v", report.Warnings, want)
+	}
+}
+
 // relatedIssueText is the content of a valid open issue whose frontmatter ends with extra lines.
 func relatedIssueText(title, extra string) string {
 	return strings.Replace(issueText(title, "open", ""), "\n---\n", "\n"+extra+"---\n", 1)
