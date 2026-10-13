@@ -279,6 +279,42 @@ func TestConfig_CategoryOf_LooksUpConfiguredStatus(t *testing.T) {
 	}
 }
 
+func TestCategory_IsClosed_OnlyDoneAndDropped(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		category Category
+		want     bool
+	}{
+		{CategoryTodo, false},
+		{CategoryDoing, false},
+		{CategoryWaiting, false},
+		{CategoryDone, true},
+		{CategoryDropped, true},
+		{Category("reviewing"), false},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.category), func(t *testing.T) {
+			t.Parallel()
+
+			got := tc.category.IsClosed()
+
+			if got != tc.want {
+				t.Errorf("Category(%q).IsClosed() = %v, want %v", tc.category, got, tc.want)
+			}
+		})
+	}
+
+	closed := ClosedCategories()
+
+	if want := []Category{CategoryDone, CategoryDropped}; !reflect.DeepEqual(closed, want) {
+		t.Errorf("ClosedCategories() = %v, want %v", closed, want)
+	}
+	closed[0] = CategoryTodo
+	if again := ClosedCategories(); again[0] != CategoryDone {
+		t.Errorf("ClosedCategories() after the caller changed its slice = %v, want a fresh slice", again)
+	}
+}
+
 func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

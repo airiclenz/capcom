@@ -117,8 +117,11 @@ func (f Filter) sql() (string, []any) {
 		conditions = append(conditions, "plan = ''")
 	}
 	if !f.IsClosedIncluded {
-		conditions = append(conditions, "category NOT IN (?, ?)")
-		args = append(args, string(config.CategoryDone), string(config.CategoryDropped))
+		closed := config.ClosedCategories()
+		conditions = append(conditions, "category NOT IN ("+placeholders(len(closed))+")")
+		for _, category := range closed {
+			args = append(args, string(category))
+		}
 	}
 
 	query := "SELECT id FROM issues WHERE " + strings.Join(conditions, " AND ") + " ORDER BY path"

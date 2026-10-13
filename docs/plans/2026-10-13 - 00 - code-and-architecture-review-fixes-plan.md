@@ -2184,7 +2184,10 @@ NOTES (2026-10-13): the reopen refusal pinned is the tree's full text, `status "
 - `go vet ./internal/cli/`
 **Commit:** `test(cli): pin the issue lifecycle refusals word for word`
 
-## P3.41 One closed-category predicate, owned by config
+## P3.41 One closed-category predicate, owned by config — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): judgeDeps in internal/issue/ready.go also reads IsClosed (an open target blocks; a dropped one is counted as satisfied by dropping) instead of comparing to done and dropped separately; same verdicts, so the ready rules state "closed" once.
+NOTES (2026-10-13): the index Filter passes ClosedCategories as plain string args (converted in a loop) rather than through toAny, so the SQL driver never sees the named Category type.
 
 **What:** Part 1 of A-01: `config.Category.IsClosed()` and `config.ClosedCategories()` become the one statement of "done or dropped is closed"; `issue` and `index` call them.
 **Regression guard.** The Goal's grep is in Acceptance.

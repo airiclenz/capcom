@@ -48,7 +48,7 @@ func Validate(path string, issue Issue, cfg config.Config) []*Error {
 	if issue.Created.IsZero() {
 		v.add(keyCreated, "%s is required", keyCreated)
 	}
-	if category == config.CategoryDone || category == config.CategoryDropped {
+	if category.IsClosed() {
 		v.requireClosing(issue.Status, category)
 	}
 	return v.problems

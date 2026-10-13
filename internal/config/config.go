@@ -22,6 +22,18 @@ const (
 	CategoryDropped Category = "dropped"
 )
 
+// IsClosed reports whether c is a Closed category: done or dropped. It is the one statement of
+// which categories close an issue; ClosedCategories lists the same set.
+func (c Category) IsClosed() bool {
+	return c == CategoryDone || c == CategoryDropped
+}
+
+// ClosedCategories returns the categories IsClosed is true for, done then dropped, in a fresh
+// slice the caller may change.
+func ClosedCategories() []Category {
+	return []Category{CategoryDone, CategoryDropped}
+}
+
 // FormatVersion is the highest store format this capcom reads, and the one `capcom init` writes
 // (ADR 0009). Format 2 adds the related key to issue files; format 3 adds the retired and
 // superseded-by keys to Notes.

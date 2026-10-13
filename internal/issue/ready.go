@@ -101,7 +101,7 @@ func newReadyTree(nodes []Node) readyTree {
 			}
 			tree.byAlias[alias] = node
 		}
-		if node.ParentID != "" && !isClosed(node.Category) {
+		if node.ParentID != "" && !node.Category.IsClosed() {
 			tree.openChildren[node.ParentID] = append(tree.openChildren[node.ParentID], node.ID)
 		}
 	}
@@ -126,10 +126,10 @@ func (t readyTree) judgeDeps(deps []string) (blocking []Blocker, dropped []strin
 		switch {
 		case !isFound:
 			blocking = append(blocking, Blocker{Dep: dep, Reason: BlockMissing})
+		case !target.Category.IsClosed():
+			blocking = append(blocking, Blocker{Dep: dep, Reason: string(target.Category)})
 		case target.Category == config.CategoryDropped:
 			dropped = append(dropped, dep)
-		case target.Category != config.CategoryDone:
-			blocking = append(blocking, Blocker{Dep: dep, Reason: string(target.Category)})
 		}
 	}
 	return blocking, dropped
@@ -152,11 +152,6 @@ func (t readyTree) holdingAncestor(node Node) string {
 		parentID = parent.ParentID
 	}
 	return ""
-}
-
-// isClosed reports whether category is a Closed one: done or dropped.
-func isClosed(category config.Category) bool {
-	return category == config.CategoryDone || category == config.CategoryDropped
 }
 
 // hasAny reports whether values holds at least one of wanted.
