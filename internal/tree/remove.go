@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // ChildrenError refuses the removal of a node that has children in the tree.
@@ -167,8 +169,8 @@ func (r *Removal) removeDirStep(dir string) step {
 	}
 }
 
-// removeFileStep removes the file at path, read through ReadNodeFile, and writes its bytes back
-// with its permissions to undo that.
+// removeFileStep removes the file at path, read through nodefile.ReadNodeFile, and writes its bytes
+// back with its permissions to undo that.
 func (r *Removal) removeFileStep(path string) step {
 	var original []byte
 	var mode fs.FileMode
@@ -178,7 +180,7 @@ func (r *Removal) removeFileStep(path string) step {
 			if err != nil {
 				return err
 			}
-			data, err := ReadNodeFile(path)
+			data, err := nodefile.ReadNodeFile(path)
 			if err != nil {
 				return err
 			}
@@ -186,7 +188,7 @@ func (r *Removal) removeFileStep(path string) step {
 			return r.doRemove(path)
 		},
 		undo: func() error {
-			return WriteFileAtomicVerbatim(path, bytes.NewReader(original), mode)
+			return nodefile.WriteFileAtomicVerbatim(path, bytes.NewReader(original), mode)
 		},
 	}
 }

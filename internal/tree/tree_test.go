@@ -2,7 +2,6 @@ package tree_test
 
 import (
 	"errors"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -828,106 +827,5 @@ func TestPathFor_Failures(t *testing.T) {
 				t.Fatalf("PathFor = %v, want %v", err, testCase.want)
 			}
 		})
-	}
-}
-
-// failingReader returns its content, then fails, so a write breaks after the temp file opens.
-type failingReader struct {
-	content io.Reader
-}
-
-var errReaderFailed = errors.New("reader failed")
-
-func (r *failingReader) Read(p []byte) (int, error) {
-	n, err := r.content.Read(p)
-	if err == io.EOF {
-		return n, errReaderFailed
-	}
-	return n, err
-}
-
-// dirEntries returns the names in dir.
-func dirEntries(t *testing.T, dir string) []string {
-	t.Helper()
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("ReadDir: %v", err)
-	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		names = append(names, entry.Name())
-	}
-	return names
-}
-
-func TestWriteFileAtomic_Success_ReplacesFileAndLeavesNoTempFile(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "login-flow.md")
-	writeNodes(t, dir, "login-flow.md")
-
-	err := tree.WriteFileAtomic(path, strings.NewReader("new\ncontent\n"))
-
-	if err != nil {
-		t.Fatalf("WriteFileAtomic: %v", err)
-	}
-	got, _ := os.ReadFile(path)
-	if string(got) != "new\ncontent\n" {
-		t.Fatalf("content = %q", got)
-	}
-	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
-		t.Fatalf("dir holds %v, want only login-flow.md", names)
-	}
-}
-
-func TestWriteFileAtomic_MissingDirectory_IsCreated(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "login-flow", "login-timeout-race.md")
-
-	err := tree.WriteFileAtomic(path, strings.NewReader("x\n"))
-
-	if err != nil {
-		t.Fatalf("WriteFileAtomic: %v", err)
-	}
-	if got, _ := os.ReadFile(path); string(got) != "x\n" {
-		t.Fatalf("content = %q", got)
-	}
-}
-
-func TestWriteFileAtomic_CRLF_WrittenAsLF(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "login-flow.md")
-	content := io.MultiReader(
-		strings.NewReader("a\r\nb\r"),
-		strings.NewReader("\nlone\rcr\r"),
-	)
-
-	err := tree.WriteFileAtomic(path, content)
-
-	if err != nil {
-		t.Fatalf("WriteFileAtomic: %v", err)
-	}
-	if got, _ := os.ReadFile(path); string(got) != "a\nb\nlone\rcr\r" {
-		t.Fatalf("content = %q", got)
-	}
-}
-
-func TestWriteFileAtomic_ReaderFails_OldFileIntactNoTempFile(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "login-flow.md")
-	writeNodes(t, dir, "login-flow.md")
-	reader := &failingReader{content: strings.NewReader(strings.Repeat("partial\n", 10000))}
-
-	err := tree.WriteFileAtomic(path, reader)
-
-	if !errors.Is(err, errReaderFailed) || !strings.Contains(err.Error(), path) {
-		t.Fatalf("WriteFileAtomic = %v, want the reader failure naming %s", err, path)
-	}
-	if got, _ := os.ReadFile(path); string(got) != "x\n" {
-		t.Fatalf("old file changed to %q", got)
-	}
-	if names := dirEntries(t, dir); !reflect.DeepEqual(names, []string{"login-flow.md"}) {
-		t.Fatalf("dir holds %v, want only login-flow.md", names)
 	}
 }

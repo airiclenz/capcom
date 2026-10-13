@@ -7,12 +7,14 @@ import (
 	"io/fs"
 	"os"
 	"slices"
+
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // rewriteOp is the Op of the *fs.PathError a rewrite fails with when its file changed.
 const rewriteOp = "rewrite"
 
-// crlf and lf are the line endings ReplaceFileAtomic converts from and to.
+// crlf and lf are the line endings nodefile.ReplaceFileAtomic converts from and to.
 const (
 	crlf = "\r\n"
 	lf   = "\n"
@@ -57,7 +59,8 @@ func (p *Plan) AddStep(apply func() error, undo func() error) {
 // take the rewrite back, which does not wrap ErrChanged.
 func (p *Plan) AddRewrite(rewrite Rewrite) {
 	var mode fs.FileMode
-	// ReplaceFileAtomic turns every CRLF of Content into LF, so these are the bytes it leaves.
+	// nodefile.ReplaceFileAtomic turns every CRLF of Content into LF, so these are the bytes it
+	// leaves.
 	written := bytes.ReplaceAll(rewrite.Content, []byte(crlf), []byte(lf))
 	p.rewrites = append(p.rewrites, step{
 		apply: func() error {
@@ -69,7 +72,7 @@ func (p *Plan) AddRewrite(rewrite Rewrite) {
 			if err := checkUnchanged(rewrite.Path, rewrite.Original); err != nil {
 				return err
 			}
-			return ReplaceFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Content))
+			return nodefile.ReplaceFileAtomic(rewrite.Path, bytes.NewReader(rewrite.Content))
 		},
 		undo: func() error {
 			if err := checkUnchanged(rewrite.Path, written); err != nil {
@@ -78,16 +81,16 @@ func (p *Plan) AddRewrite(rewrite Rewrite) {
 				}
 				return err
 			}
-			return WriteFileAtomicVerbatim(rewrite.Path, bytes.NewReader(rewrite.Original), mode)
+			return nodefile.WriteFileAtomicVerbatim(rewrite.Path, bytes.NewReader(rewrite.Original), mode)
 		},
 	})
 }
 
-// checkUnchanged reads the file at path through ReadNodeFile and fails with a *fs.PathError naming
-// path that wraps ErrChanged when it does not hold expected byte for byte. A failed read is
-// returned as it is.
+// checkUnchanged reads the file at path through nodefile.ReadNodeFile and fails with a
+// *fs.PathError naming path that wraps ErrChanged when it does not hold expected byte for byte. A
+// failed read is returned as it is.
 func checkUnchanged(path string, expected []byte) error {
-	current, err := ReadNodeFile(path)
+	current, err := nodefile.ReadNodeFile(path)
 	if err != nil {
 		return err
 	}
@@ -157,7 +160,7 @@ func (p *Plan) moveFile(oldPath string, newPath string) error {
 	if p.rename != nil {
 		return p.checkedRename(oldPath, newPath)
 	}
-	err := link(oldPath, newPath)
+	err := nodefile.Link(oldPath, newPath)
 	if errors.Is(err, fs.ErrExist) {
 		return fmt.Errorf("%s: %w", newPath, ErrMoveTarget)
 	}
@@ -207,4 +210,14 @@ func rollBack(applied []step, cause error) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// joinNonNil returns the first error wrapped, with any later cleanup errors appended to its text.
+func joinNonNil(first error, cleanup ...error) error {
+	for _, err := range cleanup {
+		if err != nil {
+			first = fmt.Errorf("%w (cleanup: %v)", first, err)
+		}
+	}
+	return first
 }

@@ -1125,7 +1125,14 @@ Depends on P2.1; P0.3.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers, the capitalised names, the re-exported sentinels, the forwarders and the doc maps. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(tree): move the guarded node-file reads to internal/nodefile`
 
-## P2.3 nodefile package, part 2: move the atomic writes out of tree
+## P2.3 nodefile package, part 2: move the atomic writes out of tree — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): nodefile's export_test.go is invisible to tree's tests, so the regression guard's "nodefile-side test hook" is two new exports in nodefile/atomic.go: `Link` (the hard link through the moved `link` seam, which Plan.moveFile now calls) and `SwapLink(fn) (restore func())`; tree.SetLink in tree/export_test.go stays (move_test.go compiles unchanged) and swaps nodefile's seam through `t.Cleanup(nodefile.SwapLink(fn))`; nodefile/export_test.go gets its own SetLink for the moved tests.
+NOTES (2026-10-13): `joinNonNil` moved with atomic.go, and Plan.moveFile still needs it, so tree/plan.go keeps an unexported copy; the `removeFile` seam and tree.SetRemoveFile stay in tree (code with a *Plan receiver stays in plan.go).
+NOTES (2026-10-13): `refuseHardLinks` moved with atomic_test.go and is copied into tree/move_test.go for TestMoveApply_NoHardLinks_RenamesThroughTheFallback; `writeNodes` is copied into nodefile/helpers_test.go; `failingReader`, `errReaderFailed` and `dirEntries` moved with the TestWriteFileAtomic_* tests, as tree has no other user; tree_test.go drops its now unused `io` import.
+NOTES (2026-10-13): plan.go and remove.go also call `nodefile.ReadNodeFile` directly instead of the P2.2 forwarder, so tree's own files name no forwarder (the Goal's "Tree's own files call nodefile. directly").
+NOTES (2026-10-13): consequential edit — internal/tree/tree.go: made necessary by moving WriteFileAtomic (hiddenPrefix's comment names it, now `nodefile.WriteFileAtomic`).
+NOTES (2026-10-13): consequential edit — internal/nodefile/doc.go: made necessary by moving the atomic writes into nodefile (the package comment described the reader only).
 
 **What:** Part 2 of review P2-03. The atomic writes, `lfWriter`, `syncDir`, the refuse-missing replace `ReplaceFileAtomic` (P1.22) and the no-replace rename P1.24 move from `internal/tree` to `internal/nodefile`.
 **Regression guard.** P1.24's no-replace rename (tree/plan.go) uses the `link` seam that P2.3 moves to nodefile; P2.3 makes tree's Plan call the nodefile primitive and tree's move tests reach the seam through nodefile's `SetLink` (export_test re-export or a nodefile-side test hook), so tree/move_test.go keeps compiling; list tree/move_test.go in Files if it changes. The refuse-missing replace is P1.22's `ReplaceFileAtomic` (atomic.go, with its `TestReplaceFileAtomic_*` tests); it gets a forwarder, and the item depends on P1.22.

@@ -60,6 +60,18 @@ func snapshotDir(t *testing.T, dir string) map[string]string {
 	return snapshot
 }
 
+// refuseHardLinks makes a Move's hard link fail as a file system without hard links fails it, with
+// an error that is not fs.ErrExist, until t ends. It returns the count of links refused.
+func refuseHardLinks(t *testing.T) *int {
+	t.Helper()
+	refused := 0
+	tree.SetLink(t, func(oldPath string, newPath string) error {
+		refused++
+		return &os.LinkError{Op: "link", Old: oldPath, New: newPath, Err: errors.ErrUnsupported}
+	})
+	return &refused
+}
+
 func TestPlanMove_RenameWithChildren_RenamesChildrenDirAndRewritesFirst(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "moved-node.md", "moved-node/child-one.md")

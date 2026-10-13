@@ -2,6 +2,7 @@ package nodefile_test
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 )
@@ -25,5 +26,19 @@ func writeSizedFile(t *testing.T, path string, size int) {
 	t.Helper()
 	if err := os.WriteFile(path, make([]byte, size), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+// writeNodes creates every relative path under dir as a file, making parent directories.
+func writeNodes(t *testing.T, dir string, paths ...string) {
+	t.Helper()
+	for _, relative := range paths {
+		path := filepath.Join(dir, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("x\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
 	}
 }

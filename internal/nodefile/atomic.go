@@ -1,4 +1,4 @@
-package tree
+package nodefile
 
 import (
 	"errors"
@@ -15,12 +15,31 @@ const (
 	dirPermissions  = 0o755
 )
 
+// hiddenPrefix starts the name of every temp file, so tree's Load skips it as a dotfile.
+const hiddenPrefix = "."
+
 // tempPattern names a temp file `.<file name>.tmp-<random>`, which Load skips as a dotfile.
 const tempPattern = hiddenPrefix + "%s.tmp-*"
 
 // link is the hard link placeExclusive names the written file with; a test swaps it to force the
 // copy fallback.
 var link = os.Link
+
+// Link gives the file oldPath the second name newPath with the hard link WriteFileExclusive names
+// its file with, which the file system refuses atomically, with an error wrapping fs.ErrExist,
+// when newPath exists. It is os.Link unless a test swapped it with SwapLink.
+func Link(oldPath string, newPath string) error {
+	return link(oldPath, newPath)
+}
+
+// SwapLink replaces the hard link Link and WriteFileExclusive use with fn and returns the function
+// that puts the previous one back. It is a test hook for the packages whose tests force a hard
+// link to fail: it swaps a package variable, so a test that calls it never runs in parallel.
+func SwapLink(fn func(oldPath string, newPath string) error) (restore func()) {
+	saved := link
+	link = fn
+	return func() { link = saved }
+}
 
 // WriteFileAtomic replaces the file at path with everything read from content, converting CRLF
 // line endings to LF, and gives it mode 0644. It creates path's directory when missing, streams

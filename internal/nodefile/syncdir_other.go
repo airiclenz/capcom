@@ -1,6 +1,6 @@
 //go:build !windows
 
-package tree
+package nodefile
 
 import "os"
 

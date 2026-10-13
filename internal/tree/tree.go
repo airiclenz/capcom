@@ -10,7 +10,8 @@ import (
 // nodeExtension is the file extension of every node file.
 const nodeExtension = ".md"
 
-// hiddenPrefix marks file and directory names Load skips, including WriteFileAtomic's temp files.
+// hiddenPrefix marks file and directory names Load skips, including nodefile.WriteFileAtomic's
+// temp files.
 const hiddenPrefix = "."
 
 // rootParentID is the ParentID of a top-level node.
