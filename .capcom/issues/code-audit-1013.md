@@ -1,10 +1,12 @@
 ---
 title: "Code audit 2026-10-13: fix the findings"
-status: open
+status: done
 type: task
 priority: 1
 plan: 2026-10-13 - 01 - code-audit-fixes-plan
 created: 2026-10-13T20:24:39Z
+closed: 2026-10-13T21:32:37Z
+reason: "Resolved by plan 2026-10-13 - 01 - code-audit-fixes-plan (archived in dd98799): all 20 audit findings fixed or pinned by tests"
 ---
 
 The code audit of 2026-10-13 (`docs/reviews/code-audit-2026-10-13.md`) found 20 Medium
