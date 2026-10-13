@@ -1,6 +1,7 @@
 package briefing
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/elsewhere"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/store"
@@ -177,6 +179,75 @@ func TestCompose_BrokenIndexAndLocks_FailInOrderAndKeepTheRest(t *testing.T) {
 	}
 	if len(got.Failures) > 0 && !strings.HasSuffix(got.Failures[0].Err.Error(), "; run capcom reindex") {
 		t.Errorf("index failure = %v; want it to end with the reindex hint", got.Failures[0].Err)
+	}
+}
+
+func TestCompose_ReadyOrDoingFails_FailsThatSectionAndKeepsTheRest(t *testing.T) {
+	cases := []struct {
+		name string
+		fail func(error)
+		want Section
+	}{
+		{
+			name: "ready",
+			fail: func(err error) {
+				readyList = func(*index.Index, config.Config, ReadyOptions) ([]ReadyItem, error) { return nil, err }
+			},
+			want: SectionReady,
+		},
+		{
+			name: "doing",
+			fail: func(err error) {
+				listIssues = func(*index.Index, index.Filter) ([]index.Entry, error) { return nil, err }
+			},
+			want: SectionDoing,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			originalReady, originalList := readyList, listIssues
+			t.Cleanup(func() { readyList, listIssues = originalReady, originalList })
+			sourceErr := errors.New(tc.name + " exploded")
+			tc.fail(sourceErr)
+			root := newBriefingRepo(t, briefingStore())
+
+			got := Compose(root, time.Now())
+
+			if sections := failedSections(got.Failures); !slices.Equal(sections, []Section{tc.want}) {
+				t.Errorf("failed sections = %v, want [%s]", sections, tc.want)
+			}
+			if len(got.Failures) > 0 && !errors.Is(got.Failures[0].Err, sourceErr) {
+				t.Errorf("failure = %v, want the %s error", got.Failures[0].Err, tc.name)
+			}
+			if got.Work != nil || got.Locks == nil || got.Health == nil {
+				t.Errorf("Compose = %+v; want Work left out and Locks and Health kept", got)
+			}
+		})
+	}
+}
+
+func TestCompose_CheckFailsAndElsewhereWarns_FailInOrderAndKeepTheRest(t *testing.T) {
+	original := runCheck
+	t.Cleanup(func() { runCheck = original })
+	checkErr := errors.New("check exploded")
+	runCheck = func(*store.Store) ([]check.Problem, error) { return nil, checkErr }
+	files := briefingStore()
+	files[".git/refs/heads/ghost"] = strings.Repeat("0123456789", 4) + "\n"
+	root := newBriefingRepo(t, files)
+
+	got := Compose(root, time.Now())
+
+	if sections := failedSections(got.Failures); !slices.Equal(sections, []Section{SectionCheck, SectionElsewhere}) {
+		t.Fatalf("failed sections = %v (failures %v), want [check elsewhere]", sections, got.Failures)
+	}
+	if !errors.Is(got.Failures[0].Err, checkErr) {
+		t.Errorf("check failure = %v, want the check error", got.Failures[0].Err)
+	}
+	if warning := got.Failures[1].Err.Error(); !strings.HasPrefix(warning, "elsewhere: list branches: ") {
+		t.Errorf("Elsewhere warning = %q, want it to start with \"elsewhere: list branches: \"", warning)
+	}
+	if got.Health != nil || got.Work == nil || got.Locks == nil {
+		t.Errorf("Compose = %+v; want Health left out and Work and Locks kept", got)
 	}
 }
 

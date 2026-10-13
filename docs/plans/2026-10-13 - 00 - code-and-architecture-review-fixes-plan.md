@@ -2875,7 +2875,9 @@ Depends on P3.98.
 - `grep -rn 'edit\.Labels' internal/` prints nothing
 **Commit:** `refactor(edit): rename Labels to List for every frontmatter list`
 
-## P4.1 Briefing failure order beyond index and locks
+## P4.1 Briefing failure order beyond index and locks — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the existing runCheck seam (P0.2) is reused; the new readyList and listIssues (the method expression `(*index.Index).List`, the doing query's filter stays in readWork) join it in one commented var block, and runCheck's comment now covers all three.
 
 **What:** Covers T-03 (`briefing-failure-order-test`): the ready, doing, check and Elsewhere failure branches of `Compose` and the documented failure order (store, index, ready, doing, locks, check, then Elsewhere warnings).
 **Regression guard.** P0.9 deletes a branch tip's tree object, and a ref naming a missing commit fails `for-each-ref` as a whole, so this test does not reuse P0.9's setup or depend on it: it writes `.git/refs/heads/<b>` holding 40 hex digits of no object through the files map passed to `newBriefingRepo`, and the one warning starts `elsewhere: list branches: `.

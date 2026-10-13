@@ -13,8 +13,15 @@ import (
 	"github.com/airiclenz/capcom/internal/store"
 )
 
-// runCheck is the check readHealth runs, a seam so a test can make a source panic.
-var runCheck = check.Run
+// The sources Compose reads through a seam, so a test can make one fail or panic.
+var (
+	// readyList is the Ready-list readWork reads.
+	readyList = ReadyList
+	// listIssues is the index query readWork reads the doing issues with.
+	listIssues = (*index.Index).List
+	// runCheck is the check readHealth runs.
+	runCheck = check.Run
+)
 
 // Section names the source of one Failure of the Briefing.
 type Section string
@@ -123,12 +130,12 @@ func (b *Briefing) readWork(s *store.Store) {
 		}
 	}()
 
-	ready, err := ReadyList(opened, s.Config, ReadyOptions{})
+	ready, err := readyList(opened, s.Config, ReadyOptions{})
 	if err != nil {
 		b.fail(SectionReady, err)
 		return
 	}
-	doing, err := opened.List(index.Filter{Categories: []config.Category{config.CategoryDoing}})
+	doing, err := listIssues(opened, index.Filter{Categories: []config.Category{config.CategoryDoing}})
 	if err != nil {
 		b.fail(SectionDoing, err)
 		return
