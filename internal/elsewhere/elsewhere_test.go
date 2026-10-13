@@ -209,6 +209,27 @@ func TestScan_UnparsableCopy_ReportsModifiedWithAWarning(t *testing.T) {
 	}
 }
 
+func TestScan_OversizedBranchCopy_WarnsOnceAndReportsNoEntry(t *testing.T) {
+	root := newIssueRepo(t)
+	front := issueFile("done")
+	oversized := front + strings.Repeat("x", int(maxBranchCopySize)+1-len(front))
+	onBranch(t, root, "big", map[string]string{
+		"login-flow.md":                 oversized,
+		"login-flow/session-refresh.md": issueFile("done"),
+	})
+
+	report := scan(root)
+
+	wantEntries := []string{"session-refresh: done on big (unmerged)"}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, wantEntries) {
+		t.Errorf("entries = %q, want %q", lines, wantEntries)
+	}
+	wantWarnings := []string{"elsewhere: branch big: .capcom/issues/login-flow.md: file is larger than 1 MiB"}
+	if !reflect.DeepEqual(report.Warnings, wantWarnings) {
+		t.Errorf("warnings = %q, want %q", report.Warnings, wantWarnings)
+	}
+}
+
 func TestScan_SingleFilePathspec_LimitsTheReport(t *testing.T) {
 	root := newIssueRepo(t)
 	onBranch(t, root, "both", map[string]string{

@@ -1,12 +1,14 @@
 // Package elsewhere finds the issue changes that exist on other branches but not in HEAD (ADR
 // 0004). It reads git only, never fetches and never merges: each local or remote-tracking branch
 // whose tip is recent and that holds commits HEAD lacks contributes one Entry per issue file it
-// added, modified or removed since its merge base with HEAD. A remote-tracking branch is as fresh
-// as the last fetch. Branches checked out in other worktrees are local branches too and are
-// scanned like any other; uncommitted changes in other worktrees are not.
+// added, modified or removed since its merge base with HEAD, except a modified file whose branch
+// copy is larger than 1 MiB, which is never read and gets a warning instead. A remote-tracking
+// branch is as fresh as the last fetch. Branches checked out in other worktrees are local branches
+// too and are scanned like any other; uncommitted changes in other worktrees are not.
 package elsewhere
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 const (
@@ -24,6 +27,9 @@ const (
 	// hiddenPrefix marks file names the issue tree skips, temp files included.
 	hiddenPrefix = "."
 	day          = 24 * time.Hour
+	// maxBranchCopySize is the largest branch copy of an issue file the scan reads, in bytes:
+	// 1 MiB, the size the issue tree reads a node file up to.
+	maxBranchCopySize int64 = 1 << 20
 )
 
 // Change is how a branch changed an issue file relative to its merge base with HEAD.
@@ -87,7 +93,8 @@ type Report struct {
 
 // Scan reports the issue files changed on other local and remote-tracking branches. It never
 // fails: a git error, an unborn HEAD or a branch copy that does not parse becomes a warning, and
-// an unparsable copy is still reported as Modified. The branch checked out in WorktreeRoot and its
+// an unparsable copy is still reported as Modified. A branch copy larger than 1 MiB is not read:
+// it becomes a warning and is not reported. The branch checked out in WorktreeRoot and its
 // remote-tracking upstream are never reported, and a local branch and a remote-tracking branch of
 // the same name that hold the same work are reported once (see withoutDuplicates).
 func Scan(options Options) Report {
@@ -228,26 +235,41 @@ func (r *Report) scanBranch(options Options, branch gitx.Branch) {
 		// gitx names its change kinds exactly as Change does.
 		entry := Entry{ID: id, Branch: branch.Name, Change: Change(change.Kind), Path: change.Path}
 		if entry.Change == Modified {
-			entry.Status = r.branchStatus(options.WorktreeRoot, branch, change.Path)
+			status, isKept := r.branchStatus(options.WorktreeRoot, branch, change.Path)
+			if !isKept {
+				continue
+			}
+			entry.Status = status
 		}
 		r.Entries = append(r.Entries, entry)
 	}
 }
 
 // branchStatus reads the status of the branch copy of the issue file at filePath, or "" with a
-// warning when the copy cannot be read or parsed.
-func (r *Report) branchStatus(worktreeRoot string, branch gitx.Branch, filePath string) string {
-	data, err := gitx.ShowFile(worktreeRoot, branch.Ref, filePath)
+// warning when the copy cannot be read or parsed. It reads the copy from branch.Commit, the tip
+// Branches listed, so the size probe and the read see the same blob. A copy larger than
+// maxBranchCopySize is never read: it gets one warning, and isKept is false so the caller reports
+// no entry for the file; every other copy is kept.
+func (r *Report) branchStatus(
+	worktreeRoot string,
+	branch gitx.Branch,
+	filePath string,
+) (status string, isKept bool) {
+	data, err := gitx.ShowFile(worktreeRoot, branch.Commit, filePath, maxBranchCopySize)
+	if errors.Is(err, gitx.ErrBlobTooLarge) {
+		r.warn("branch %s: %s: %v", branch.Name, filePath, tree.ErrTooLarge)
+		return "", false
+	}
 	if err != nil {
 		r.warn("branch %s: %v", branch.Name, err)
-		return ""
+		return "", true
 	}
 	parsed, err := issue.Parse(branch.Name+":"+filePath, data)
 	if err != nil {
 		r.warn("branch %s: %v", branch.Name, err)
-		return ""
+		return "", true
 	}
-	return parsed.Status
+	return parsed.Status, true
 }
 
 // warn records one warning, prefixed so a reader knows it comes from the Elsewhere scan.

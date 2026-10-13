@@ -553,7 +553,8 @@ elsewhere:
 - **lock.ttl** — a positive duration (`2h`, `90m`).
 - **elsewhere.days** — a whole number of days, 0 to 36500. The Elsewhere scan reads local and
   remote-tracking branches whose tip is newer than this. capcom never fetches, so a
-  remote-tracking branch is as fresh as the last `git fetch`.
+  remote-tracking branch is as fresh as the last `git fetch`. A branch copy of an issue file
+  larger than 1 MiB is not read: the scan reports no entry for it and a warning names it.
 
 ## The lock record
 

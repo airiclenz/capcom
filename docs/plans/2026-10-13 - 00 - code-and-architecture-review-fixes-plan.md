@@ -418,7 +418,7 @@ Bite check: each test fails against a deliberately broken implementation, for ex
 - `go vet ./internal/elsewhere/`
 **Commit:** `test(elsewhere): pin the scan's failure warnings and file filter`
 
-## P0.10 Cap the size of other-branch issue copies
+## P0.10 Cap the size of other-branch issue copies — ✅ DONE (2026-10-13)
 
 **What:** Fixes F-02(d) (`branch-blob-size-cap`). `elsewhere.branchStatus` reads a branch's copy of a modified issue with `gitx.ShowFile`, which buffers the whole blob, and `gitx.run` then copies it twice more. A fetched branch that commits a multi-GB issue file makes every reading command and `prime` run out of memory.
 **Regression guard.** Drop the premise that `internal/tree` imports only the standard library (P0.3 adds `golang.org/x/sys/unix`, already in go.mod); the approach is otherwise unchanged. Accepted cost: each Modified entry of a recent unmerged branch now spawns two git processes (`cat-file -s`, then `cat-file blob`) on every list, ready, show and prime that scans Elsewhere. Prose guard: every comment in internal/elsewhere/elsewhere.go stating that each changed issue file yields an Entry names the oversized-copy exception (`grep -n 'Entry per\|still reported\|branchStatus reads' internal/elsewhere/elsewhere.go`).
