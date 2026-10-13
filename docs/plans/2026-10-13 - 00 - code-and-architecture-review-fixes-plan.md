@@ -1073,7 +1073,9 @@ Depends on P1.42.
 - `go vet ./cmd/release/`
 **Commit:** `fix(release): require a bare VERSION and fail the tagger on a refusal`
 
-## P2.1 Split tree/tree.go into errors, ids, walk and claims
+## P2.1 Split tree/tree.go into errors, ids, walk and claims — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): placement of unnamed symbols by the only-user rule — maxIDLength and idPattern/aliasPattern to ids.go; readDir to walk.go; idClaim/aliasClaim, DuplicateIDError, DuplicateIDDirectoryError, droppedNode, repeatedID, repeatedIDDir, repeatedIDs, enclosingDir and addRepeatedIDDirs to claims.go; nodeExtension, hiddenPrefix, rootParentID, LeftOut and the left-out reasons const block (used by walk.go and claims.go) stay in tree.go.
 
 **What:** Pure move per review P2-01. `internal/tree/tree.go` is split into four files, and the package gains a `doc.go` file map, pinned by a structural test.
 **Goal:** `internal/tree` holds `errors.go`, `ids.go`, `walk.go`, `claims.go` and `doc.go` beside `tree.go`, which keeps `Tree`, `Load`, the accessors and `PathFor`. `doc.go` maps every non-test file, and `TestDocFileMap_MatchesDirectory` passes. Every existing test passes unchanged.

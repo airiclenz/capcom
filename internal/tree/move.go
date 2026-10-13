@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 )
 
@@ -157,19 +156,6 @@ func (t *Tree) checkDestination(node Node, to Destination, kind string) error {
 		ancestor = parent.ParentID
 	}
 	return nil
-}
-
-// RenameAliases returns the Aliases of a node renamed from oldID to newID: newID leaves them (it
-// may have been a former id) and oldID joins them at the end. aliases is returned unchanged when
-// the two ids agree.
-func RenameAliases(aliases []string, oldID string, newID string) []string {
-	if oldID == newID {
-		return aliases
-	}
-	kept := slices.DeleteFunc(slices.Clone(aliases), func(alias string) bool {
-		return alias == newID
-	})
-	return append(kept, oldID)
 }
 
 // planRenames adds the steps that carry m.Node to m.NewPath, in this fixed order: create the
