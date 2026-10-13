@@ -2795,7 +2795,7 @@ Depends on P3.93; P1.3.
 - `grep -nE 'type field |func (textField|listField|fieldKeys)\(|unreachable' internal/issue/file.go` prints nothing
 **Commit:** `refactor(frontmatter): add a generic field table and use it for issues`
 
-## P3.95 Notes use the generic frontmatter field table
+## P3.95 Notes use the generic frontmatter field table — ✅ DONE (2026-10-13)
 
 **What:** Part 2 of A-13: `internal/knowledge/note.go` declares its keys as one `frontmatter.Schema[Note]`.
 **Regression guard.** The Goal's "no old helpers" clause is checked by an Acceptance grep.

@@ -36,72 +36,42 @@ const (
 // subtree, unless asked for.
 const LabelBackground = "background"
 
-// noteKind is the Note kind of frontmatter file: the noun its failures use and every key it knows,
-// in the order Serialize writes them.
-var noteKind = frontmatter.Kind{Noun: "a note", Keys: fieldKeys()}
-
-// field is one frontmatter key of a Note: how Parse reads it into a Note and how Serialize writes
-// it back.
-type field struct {
-	key    string
-	decode func(value frontmatter.Field, note *Note) error
-	encode func(note Note, out *frontmatter.Encoder)
-}
-
-// fields is the Note field table: every frontmatter key, in the order Serialize writes them.
-var fields = []field{
-	{
-		key: keyTitle,
-		decode: func(value frontmatter.Field, note *Note) (err error) {
-			note.Title, err = value.Text()
-			return err
-		},
-		encode: func(note Note, out *frontmatter.Encoder) { out.Text(keyTitle, note.Title) },
-	},
-	listField(keyLabels, func(note *Note) *[]string { return &note.Labels }),
-	{
-		key: keyRefs,
-		decode: func(value frontmatter.Field, note *Note) (err error) {
+// noteSchema is the Note field table: every frontmatter key, how Parse reads it into a Note and
+// how Serialize writes it back, in the order Serialize writes them.
+var noteSchema = frontmatter.NewSchema(
+	"a note",
+	frontmatter.Text(keyTitle, func(note *Note) *string { return &note.Title }),
+	frontmatter.List(keyLabels, func(note *Note) *[]string { return &note.Labels }),
+	frontmatter.Raw(
+		keyRefs,
+		func(value frontmatter.Field, note *Note) (err error) {
 			note.Refs, note.refLines, err = value.List()
 			return err
 		},
-		encode: func(note Note, out *frontmatter.Encoder) { out.List(keyRefs, note.Refs) },
-	},
-	{
-		key: keyRetired,
-		decode: func(value frontmatter.Field, note *Note) (err error) {
+		func(note Note, out *frontmatter.Encoder) { out.List(keyRefs, note.Refs) },
+	),
+	frontmatter.Raw(
+		keyRetired,
+		func(value frontmatter.Field, note *Note) (err error) {
 			note.IsRetired, err = retired(value)
 			return err
 		},
-		encode: func(note Note, out *frontmatter.Encoder) {
+		func(note Note, out *frontmatter.Encoder) {
 			if note.IsRetired {
 				out.Raw(keyRetired, retiredTrue)
 			}
 		},
-	},
-	{
-		key: keySupersededBy,
-		decode: func(value frontmatter.Field, note *Note) (err error) {
+	),
+	frontmatter.Raw(
+		keySupersededBy,
+		func(value frontmatter.Field, note *Note) (err error) {
 			note.SupersededBy, note.supersededByLines, err = value.List()
 			return err
 		},
-		encode: func(note Note, out *frontmatter.Encoder) { out.List(keySupersededBy, note.SupersededBy) },
-	},
-	listField(keyAliases, func(note *Note) *[]string { return &note.Aliases }),
-}
-
-// listField is a list key held in the Note field at returns, whose entry lines the Note does not
-// keep.
-func listField(key string, at func(note *Note) *[]string) field {
-	return field{
-		key: key,
-		decode: func(value frontmatter.Field, note *Note) (err error) {
-			*at(note), _, err = value.List()
-			return err
-		},
-		encode: func(note Note, out *frontmatter.Encoder) { out.List(key, *at(&note)) },
-	}
-}
+		func(note Note, out *frontmatter.Encoder) { out.List(keySupersededBy, note.SupersededBy) },
+	),
+	frontmatter.List(keyAliases, func(note *Note) *[]string { return &note.Aliases }),
+)
 
 // retired reads the retired key, which takes true or false only; an empty value reads as false.
 func retired(value frontmatter.Field) (bool, error) {
@@ -113,15 +83,6 @@ func retired(value frontmatter.Field) (bool, error) {
 		return false, nil
 	}
 	return false, value.Errorf("%s: expected %s or %s", keyRetired, retiredTrue, retiredFalse)
-}
-
-// fieldKeys lists the keys of the field table, in its order.
-func fieldKeys() []string {
-	keys := make([]string, 0, len(fields))
-	for _, entry := range fields {
-		keys = append(keys, entry.key)
-	}
-	return keys
 }
 
 // Note is one parsed Note file. Its id is the file name and is never stored in the file. Empty
@@ -206,14 +167,7 @@ func (n Note) SupersededByLine(i int) int {
 // instead, in the words `capcom check` reports it with.
 func Parse(path string, data []byte) (Note, error) {
 	var note Note
-	document, err := frontmatter.Decode(path, data, noteKind, func(value frontmatter.Field) error {
-		for _, entry := range fields {
-			if entry.key == value.Key {
-				return entry.decode(value, &note)
-			}
-		}
-		return nil // unreachable: Decode hands over only the keys of noteKind
-	})
+	document, err := noteSchema.Decode(path, data, &note)
 	if err != nil {
 		return Note{}, err
 	}
@@ -287,9 +241,5 @@ func validateSupersededBy(path string, note Note) []*Error {
 // labels, refs, retired, superseded-by, aliases; empty fields and a false retired left out; lists in flow style; text plain where YAML reads it
 // back unchanged and double-quoted otherwise; then the body verbatim.
 func (n Note) Serialize() []byte {
-	var out frontmatter.Encoder
-	for _, entry := range fields {
-		entry.encode(n, &out)
-	}
-	return out.File(n.Body)
+	return noteSchema.Encode(n, n.Body)
 }
