@@ -2024,7 +2024,7 @@ Depends on P3.15.
 - `grep -rnE 'issue\.(PlanRemove|RemoveOptions|ETagMismatchError|DependentsError)|knowledge\.PlanRemove|planRemove|plannedRemoval' internal/nodestore/` prints nothing
 **Commit:** `refactor(nodestore): drop references and check the etag through one engine`
 
-## P3.17 know rm reports the superseded-by entries it dropped
+## P3.17 know rm reports the superseded-by entries it dropped — ✅ DONE (2026-10-13)
 
 **What:** Fixes F-24 (`know-rm-report-drops`). `know rm adr-0011` rewrites other Notes' `superseded-by` silently, and `--json` consumers cannot see it.
 **Regression guard.** `noteRemoveResult` stores `Data: &noteRemoveData{...}` (a pointer) and `refreshAgentsAfterWrite` asserts `*noteRemoveData` beside its map branch, which know add/mv/update keep. This supersedes the archived plan "2026-10-12 - 02 - glossary-and-decision-notes-plan.md" item 10 note that know rm's output keeps its id/path shape: the change is additive.

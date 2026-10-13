@@ -9,7 +9,8 @@ import (
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
-// kindNoteRemove is the --json kind of know rm: the id and path of the removed Note file.
+// kindNoteRemove is the --json kind of know rm: the id and path of the removed Note file and the
+// ids of the Notes whose superseded-by entries naming it were dropped.
 const kindNoteRemove = "note-remove"
 
 // noteNoun names a Note in the messages know rm shares with rm.
@@ -58,7 +59,7 @@ func (a *app) removeNote(arg string, options *knowRmOptions) (output.Result, err
 		return output.Result{}, kindFailure(err)
 	}
 
-	result := noteRemoveResult(removed.ID, removed.Path)
+	result := noteRemoveResult(removed.ID, removed.Path, removed.Dropped[nodestore.RefSupersededBy])
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	result.Warnings = append(result.Warnings, supersededByUnreadWarnings(removed.Unread, removed.ID)...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
@@ -86,11 +87,30 @@ func supersededByUnreadWarnings(unread []string, id string) []string {
 	return warnings
 }
 
-// noteRemoveResult is the result of know rm: the id and path of the removed Note file.
-func noteRemoveResult(id string, path string) output.Result {
+// noteRemoveData is the --json data of know rm: the removed Note's id and path, the ids of the
+// Notes whose superseded-by entries naming it were dropped, and whether the capcom block of
+// AGENTS.md was refreshed.
+type noteRemoveData struct {
+	ID                  string   `json:"id"`
+	Path                string   `json:"path"`
+	SupersededByDropped []string `json:"superseded_by_dropped"`
+	Agents              string   `json:"agents,omitempty"`
+}
+
+// noteRemoveResult is the result of know rm: the id and path of the removed Note file and the ids
+// of the Notes whose superseded-by entries naming it were dropped.
+func noteRemoveResult(id string, path string, supersededByDropped []string) output.Result {
+	text := fmt.Sprintf("id: %s\npath: %s\n", id, path)
+	if len(supersededByDropped) > 0 {
+		text += "superseded_by_dropped: " + flowList(supersededByDropped) + "\n"
+	}
 	return output.Result{
 		Kind: kindNoteRemove,
-		Data: map[string]string{"id": id, "path": path},
-		Text: fmt.Sprintf("id: %s\npath: %s\n", id, path),
+		Data: &noteRemoveData{
+			ID:                  id,
+			Path:                path,
+			SupersededByDropped: append([]string{}, supersededByDropped...),
+		},
+		Text: text,
 	}
 }

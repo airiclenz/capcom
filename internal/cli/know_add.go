@@ -97,8 +97,8 @@ func noteWriteResult(id string, path string, etag string) output.Result {
 // refreshAgentsAfterWrite refreshes the capcom block of AGENTS.md after a Note write that may have
 // changed the Knowledge top level, so check stays green. Only a stale block is rewritten; an
 // AGENTS.md without the block is left alone. The Note is already written, so a failure here is a
-// warning, not a failed command. A refresh is reported in the text of result, a noteWriteResult,
-// and as an agents key in its --json data.
+// warning, not a failed command. A refresh is reported in the text of result, a noteWriteResult
+// or a noteRemoveResult, and as an agents key in its --json data.
 func (a *app) refreshAgentsAfterWrite(result *output.Result) {
 	status, err := agents.Sync(a.store.WorktreeRoot, a.store.KnowledgeDir(), agents.ModeRefresh)
 	if err != nil {
@@ -109,8 +109,11 @@ func (a *app) refreshAgentsAfterWrite(result *output.Result) {
 	if status.State != agents.StateStale {
 		return
 	}
-	if data, isMap := result.Data.(map[string]string); isMap {
+	switch data := result.Data.(type) {
+	case map[string]string:
 		data["agents"] = blockRefreshed
+	case *noteRemoveData:
+		data.Agents = blockRefreshed
 	}
 	result.Text += "refreshed: " + agents.FileName + "\n"
 }

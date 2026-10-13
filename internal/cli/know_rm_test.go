@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -242,6 +243,60 @@ func TestKnowRm_SupersededByTarget_DropsTheLinks(t *testing.T) {
 		if got := readNoteFile(t, root, name); got != content {
 			t.Errorf("%s = %q; want %q", name, got, content)
 		}
+	}
+}
+
+func TestKnowRm_SupersededByTarget_ReportsTheDroppedHolders(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\nsuperseded-by: [release-flow, cli-tests]\n---\n",
+		"testing-rules.md":              "---\ntitle: Testing rules\nsuperseded-by: [release-flow]\n---\n",
+	})
+	rewritten := map[string]string{
+		"testing-rules/git-fixtures.md": readNoteFile(t, root, "testing-rules/git-fixtures.md"),
+		"testing-rules.md":              readNoteFile(t, root, "testing-rules.md"),
+	}
+	releaseFlow := readNoteFile(t, root, "release-flow.md")
+
+	stdout := mustRun(t, root, "know", "rm", "release-flow")
+
+	wantText := "id: release-flow\npath: .capcom/knowledge/release-flow.md\n" +
+		"superseded_by_dropped: [git-fixtures, testing-rules]\n"
+	if stdout != wantText {
+		t.Errorf("know rm stdout = %q; want %q", stdout, wantText)
+	}
+
+	writeNoteFiles(t, root, rewritten)
+	writeNoteFiles(t, root, map[string]string{"release-flow.md": releaseFlow})
+
+	envelope := decodeEnvelope(t, mustRun(t, root, "know", "rm", "--json", "release-flow"))
+
+	data, _ := envelope["data"].(map[string]any)
+	dropped, _ := data["superseded_by_dropped"].([]any)
+	if envelope["kind"] != kindNoteRemove || data["id"] != "release-flow" ||
+		!slices.Equal(dropped, []any{"git-fixtures", "testing-rules"}) {
+		t.Errorf("know rm --json = %v", envelope)
+	}
+}
+
+func TestKnowRm_NoSuccessorLinks_ReportsAnEmptyList(t *testing.T) {
+	root := newKnowStore(t)
+	releaseFlow := readNoteFile(t, root, "release-flow.md")
+
+	stdout := mustRun(t, root, "know", "rm", "release-flow")
+
+	if strings.Contains(stdout, "superseded_by_dropped") {
+		t.Errorf("know rm stdout = %q; want no superseded_by_dropped line", stdout)
+	}
+
+	writeNoteFiles(t, root, map[string]string{"release-flow.md": releaseFlow})
+
+	envelope := decodeEnvelope(t, mustRun(t, root, "know", "rm", "--json", "release-flow"))
+
+	data, _ := envelope["data"].(map[string]any)
+	dropped, isList := data["superseded_by_dropped"].([]any)
+	if !isList || len(dropped) != 0 {
+		t.Errorf("know rm --json superseded_by_dropped = %#v; want []", data["superseded_by_dropped"])
 	}
 }
 

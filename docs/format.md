@@ -435,7 +435,8 @@ write verbs are the scripted path:
   tree), or both. A rename keeps the old id as an alias, and the Note's children move with it.
   It rewrites every other Note's `superseded-by` entry naming the old id or one of its aliases.
 - `capcom know rm` deletes a Note file together with its aliases, and drops every other Note's
-  `superseded-by` entries naming it. A Note with children is refused; move or remove them first.
+  `superseded-by` entries naming it; those Notes are reported as `superseded_by_dropped`. A Note
+  with children is refused; move or remove them first.
 
 An **etag** is a hash of a Note file's bytes: `capcom know show` prints it, and `know add`,
 `know update` and `know mv` print the new one after a write. `know update`, `know mv` and
