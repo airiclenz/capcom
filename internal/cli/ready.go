@@ -45,6 +45,20 @@ type readyData struct {
 	HeldBy       string        `json:"held_by,omitempty"`
 }
 
+// The help text of capcom ready.
+const (
+	readyLong = "List the Ready Issues, most urgent first: Issues in the todo category whose dependencies are " +
+		"all closed, with no open children and no waiting or dropped ancestor. Each line gives the id, " +
+		"status, priority and title, and how many Issues closing it would make Ready. --all also lists " +
+		"the todo Issues that are not Ready, with what holds each one back. Issues carrying a label " +
+		"listed under ready.hide in the config stay out unless --show-hidden is given. Changes to " +
+		"Issues on other branches are reported as Elsewhere unless --no-elsewhere is given."
+	readyExample = "  capcom ready                               # what to work on next\n" +
+		"  capcom ready --limit 1                     # only the most urgent\n" +
+		"  capcom ready --all                         # also the todo issues that are not ready, and why\n" +
+		"  capcom ready --label owner-run --unplanned # filtered by label and plan"
+)
+
 // newReadyCommand lists the Ready issues, most urgent first, then the one that unblocks more
 // issues first, then in tree order.
 // A dependency counted as satisfied only because it was dropped is reported as a warning. Issue
@@ -55,6 +69,8 @@ func (a *app) newReadyCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "ready",
 		Short:       "List the issues ready to work on, most urgent first",
+		Long:        readyLong,
+		Example:     readyExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

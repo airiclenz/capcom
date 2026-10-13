@@ -46,6 +46,15 @@ type nodeVerbs[T any] struct {
 	// hasDropDeps reports whether the kind's rm takes --drop-deps, which removes the deps entries
 	// of the nodes that depend on the removed one instead of refusing the removal.
 	hasDropDeps bool
+	// mvHelp and rmHelp are the Long and Example help text of the kind's mv and rm.
+	mvHelp commandHelp
+	rmHelp commandHelp
+}
+
+// commandHelp is the Long and Example help text of a command built from a nodeVerbs.
+type commandHelp struct {
+	long    string
+	example string
 }
 
 // issueVerbs describes the issue Tree: capcom create, mv and rm.
@@ -63,6 +72,8 @@ var issueVerbs = nodeVerbs[issue.Issue]{
 	removeFailure: issueRemovalFailure,
 	hasKV:         true,
 	hasDropDeps:   true,
+	mvHelp:        issueMvHelp,
+	rmHelp:        issueRmHelp,
 }
 
 // noteVerbs describes the Knowledge tree: capcom know add, know mv and know rm. Its node store refreshes the
@@ -95,6 +106,8 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if-match <etag>]",
 		Short:       "Rename " + verbs.nounPhrase + " or move it below another",
+		Long:        verbs.mvHelp.long,
+		Example:     verbs.mvHelp.example,
 		Args:        cobra.RangeArgs(1, 2),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
@@ -176,6 +189,8 @@ func newRmCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         use,
 		Short:       "Remove " + verbs.nounPhrase + " that has no children",
+		Long:        verbs.rmHelp.long,
+		Example:     verbs.rmHelp.example,
 		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

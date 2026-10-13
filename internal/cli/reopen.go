@@ -12,6 +12,15 @@ import (
 	"github.com/airiclenz/capcom/internal/issue"
 )
 
+// The help text of capcom reopen.
+const (
+	reopenLong = "Reopen a closed Issue and append the reason to its Log; --reason is required. The Issue moves " +
+		"to the first todo status, or to the todo, doing or waiting status --status names. It prints " +
+		"the Issue's id, path and new etag."
+	reopenExample = "  capcom reopen login-timeout-race --reason \"Came back on Safari\"\n" +
+		"  capcom reopen login-timeout-race --status active --reason \"Picking it up again now\""
+)
+
 // newReopenCommand moves a Closed issue back to a status in the todo category (or the one --status
 // names), clears its closed time and reason, and appends the reason to its Log.
 func (a *app) newReopenCommand() *cobra.Command {
@@ -19,6 +28,8 @@ func (a *app) newReopenCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "reopen <id|alias|prefix> --reason <text>",
 		Short:       "Reopen a closed issue, logging why",
+		Long:        reopenLong,
+		Example:     reopenExample,
 		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

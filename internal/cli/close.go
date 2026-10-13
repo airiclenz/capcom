@@ -42,6 +42,18 @@ type closeData struct {
 	NowReady []string `json:"now_ready"`
 }
 
+// The help text of capcom close.
+const (
+	closeLong = "Close one or more Issues, recording the reason on each; --reason is required. Each Issue moves " +
+		"to the first done status, or to the done or dropped status --status names. It prints one line " +
+		"per Issue with what happened to it, then a \"now ready:\" line naming the Issues the close made " +
+		"Ready. An argument that names no Issue is reported and fails the command; the other Issues " +
+		"are still closed."
+	closeExample = "  capcom close login-timeout-race --reason \"Fixed in 3f2a1c9\"   # names the issues it made ready\n" +
+		"  capcom close refresh-retry login-copy --reason \"Shipped with the login rework\"\n" +
+		"  capcom close cache-warmup --status dropped --reason \"The CDN warms it now\""
+)
+
 // newCloseCommand closes each named issue: it moves the issue to a status in the done or dropped
 // category and records the closed time and the reason. Every argument is handled on its own; an
 // issue already Closed is reported and left as it is, and an argument that names no issue does not
@@ -51,6 +63,8 @@ func (a *app) newCloseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "close <id|alias|prefix>... --reason <text>",
 		Short:       "Close issues, recording why",
+		Long:        closeLong,
+		Example:     closeExample,
 		Args:        cobra.MinimumNArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

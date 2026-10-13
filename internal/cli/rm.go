@@ -17,6 +17,17 @@ const (
 	flagDropDeps   = "drop-deps"
 )
 
+// issueRmHelp is the help text of capcom rm.
+var issueRmHelp = commandHelp{
+	long: "Remove an Issue's file. An Issue with children is refused, so no orphan directory is left " +
+		"behind, and so is an Issue other Issues depend on, unless --drop-deps removes their deps entries " +
+		"naming it. Every other reference to the Issue is dropped, and its Aliases go with the file. " +
+		"capcom deletes the file itself and never runs git. It prints the removed Issue's id and path, " +
+		"and the Issues whose deps entries were dropped.",
+	example: "  capcom rm login-copy                       # refused while it has children or dependents\n" +
+		"  capcom rm login-timeout-race --drop-deps   # also drops the deps entries that name it",
+}
+
 // rmOptions holds the flags of one capcom rm or know rm; know rm has no --drop-deps, so
 // shouldDropDeps stays false there.
 type rmOptions struct {

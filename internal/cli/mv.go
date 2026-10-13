@@ -12,6 +12,17 @@ import (
 // rootParentArg is the --parent value of mv and know mv that moves a node to the top of its tree.
 const rootParentArg = "."
 
+// issueMvHelp is the help text of capcom mv.
+var issueMvHelp = commandHelp{
+	long: "Rename an Issue, move it below another Issue, or both; --parent . moves it to the top of the " +
+		"tree. A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every " +
+		"deps entry that named the Issue. Its children move with it. capcom renames the files itself and " +
+		"never runs git. It prints the Issue's new id, path and etag.",
+	example: "  capcom mv refresh-retry token-refresh-retry          # the old id stays an alias\n" +
+		"  capcom mv login-timeout-race --parent login-flow     # file it below login-flow\n" +
+		"  capcom mv login-timeout-race --parent .              # back to the top of the tree",
+}
+
 // mvOptions holds the flags of one capcom mv or know mv.
 type mvOptions struct {
 	parent       string

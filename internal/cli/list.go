@@ -49,6 +49,20 @@ type listOptions struct {
 	depth              int
 }
 
+// The help text of capcom list.
+const (
+	listLong = "List Issues one per line with id, status, priority and title, each child indented below its " +
+		"Parent. Without flags it lists every Issue that is not closed; --all includes closed ones, and " +
+		"the filters (--status, --category, --label, --type, --priority, --parent, --plan and more) " +
+		"narrow the list. --tree prints the Issue outline instead: each Parent with its closed/total " +
+		"children, --depth levels deep. Changes to Issues on other branches are reported as Elsewhere " +
+		"unless --no-elsewhere is given."
+	listExample = "  capcom list                     # every issue that is not closed\n" +
+		"  capcom list --label owner-run   # open issues carrying a label\n" +
+		"  capcom list --all --type bug    # every bug, closed ones included\n" +
+		"  capcom list --tree --depth 2    # the outline, two levels deep"
+)
+
 // newListCommand lists issues in tree order, one line each. Without flags it lists every issue
 // that is not Closed. With --tree it prints the issue outline instead (see issueTreeResult).
 // Issue changes on other local and remote-tracking branches are reported apart from the list
@@ -58,6 +72,8 @@ func (a *app) newListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "list",
 		Short:       "List issues; without flags, every issue that is not closed",
+		Long:        listLong,
+		Example:     listExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

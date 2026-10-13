@@ -17,6 +17,18 @@ import (
 // failureSeparator joins the messages of several failed lookups into one failure.
 const failureSeparator = "; "
 
+// The help text of capcom show.
+const (
+	showLong = "Print one or more Issues in full: their fields, readiness, dependencies and dependents, child " +
+		"progress, Related links, body and Log. Name an Issue by its id, an Alias or a unique id prefix. " +
+		"The etag printed is the value --if-match takes on update, mv and rm. Changes to these Issues " +
+		"on other branches are reported as Elsewhere unless --no-elsewhere is given."
+	showExample = "  capcom show login-timeout-race\n" +
+		"  capcom show login-timeout-race refresh-retry   # several at once\n" +
+		"  capcom show login-ti                           # a unique id prefix\n" +
+		"  capcom show login-timeout-race --json          # the versioned JSON envelope"
+)
+
 // newShowCommand prints each named issue in full. Every argument is resolved on its own; the
 // issues found are printed even when another argument fails, and the command then exits with the
 // first failure's code. Changes to the shown issues on other local and remote-tracking branches
@@ -26,6 +38,8 @@ func (a *app) newShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "show <id|alias|prefix>...",
 		Short:       "Show issues in full",
+		Long:        showLong,
+		Example:     showExample,
 		Args:        cobra.MinimumNArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

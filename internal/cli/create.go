@@ -41,12 +41,28 @@ type createOptions struct {
 	deps      []string
 }
 
+// The help text of capcom create.
+const (
+	createLong = "Create an Issue under the id you choose: a kebab-case slug of 1 to 4 words that names the " +
+		"work. --parent files it below another Issue, and --dep makes it wait for the Issues named; a " +
+		"--dep that names no Issue fails the create before anything is written. The body comes from " +
+		"--body-file (- reads stdin) and states what is wrong or wanted, why, and a \"## Acceptance\" " +
+		"section; an Issue created without a body draws a warning. It prints the new Issue's id, path " +
+		"and etag."
+	createExample = "  capcom create --id login-timeout-race --title \"Session refresh races the login timeout\" --type bug\n" +
+		"  capcom create --id refresh-retry --title \"Retry a failed token refresh\" --dep login-timeout-race   # waits for it\n" +
+		"  capcom create --id login-copy --title \"Reword the login errors\" --parent login-flow --priority 1\n" +
+		"  capcom create --id cache-warmup --title \"Warm the cache on deploy\" --body-file - < body.md   # body from stdin"
+)
+
 // newCreateCommand writes a new issue file. The id is always the caller's choice, never generated.
 func (a *app) newCreateCommand() *cobra.Command {
 	options := &createOptions{}
 	cmd := &cobra.Command{
 		Use:         "create --id <slug> --title <title>",
 		Short:       "Create an issue with a chosen id",
+		Long:        createLong,
+		Example:     createExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {

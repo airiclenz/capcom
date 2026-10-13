@@ -62,7 +62,12 @@ internal/cli/doc.go — package file map; internal/cli/doc_test.go — TestDocFi
 **Acceptance:** `go build ./cmd/gendocs`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ ./internal/clidoc/`; `go list -deps ./cmd/capcom | grep -c 'spf13/cobra/doc'` prints 0; `go vet ./internal/cli/ ./internal/clidoc/ ./cmd/gendocs/`
 **Commit:** `feat(gendocs): generate a Markdown CLI reference from the command tree`
 
-## 2. Help text: issue commands
+## 2. Help text: issue commands — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "every constructor lives in its own file, reopen's in close.go": newReopenCommand is in reopen.go, and mv/rm are the generic newMvCommand/newRmCommand in node_verbs.go shared with know mv/rm; nodeVerbs gained mvHelp/rmHelp (a commandHelp of long and example), set only on issueVerbs from issueMvHelp (mv.go) and issueRmHelp (rm.go), so know mv/rm stay empty for item 4 to fill through noteVerbs
+NOTES (2026-10-13): the help text sits in per-file `<cmd>Long`/`<cmd>Example` constants referenced from the cobra literal, so gofmt does not realign the literal's existing fields
+NOTES (2026-10-13): regenerated testdata/help/create.txt, mv.txt and rm.txt from the built binary: TestHelp_NodeVerbs_MatchGolden pins the whole --help byte for byte, and cobra prints Long in place of Short plus an Examples: section; the know-* goldens are unchanged
+NOTES (2026-10-13): every example was run as shown against a scratch store holding the Issues it names (the update replace example follows the append above it); the HelpText test also asserts that list, ready and search help never names --kv
 
 **What:**
 **Regression guard.** Acceptance also runs `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/` (whole package, catches the doc file map). `--kv` appears in Long/Example only for commands registered through `withKV` (root.go); `list`, `ready` and `search` do not use it, so their help text never contains the string "--kv" (`TestHelp_CommandsWithoutKV_OmitKV` pins `list --help`).

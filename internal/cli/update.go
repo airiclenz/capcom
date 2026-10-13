@@ -29,6 +29,20 @@ type updateOptions struct {
 	ifMatch        string
 }
 
+// The help text of capcom update.
+const (
+	updateLong = "Change an Issue's fields, labels or body in place; at least one flag that changes the Issue " +
+		"is required. --status moves it between statuses that are not closed: close and reopen cross into " +
+		"and out of the closed categories. --body-append and --body-append-file (- reads stdin) add to " +
+		"the end of the body, and --body-replace-old with --body-replace-new replaces text that must " +
+		"occur exactly once. --if-match refuses the write when the file no longer has the etag show " +
+		"printed. It prints the Issue's id, path and new etag."
+	updateExample = "  capcom update login-timeout-race --priority 1 --add-label owner-run\n" +
+		"  capcom update login-timeout-race --status active   # claim it: a status in the doing category\n" +
+		"  capcom update login-timeout-race --body-append \"Seen on Safari only.\"\n" +
+		"  capcom update login-timeout-race --body-replace-old \"Safari only\" --body-replace-new \"Safari and Firefox\""
+)
+
 // newUpdateCommand changes the fields and body of one issue. Only the flags given change
 // anything; a status change into or out of a closed category is refused, since close and reopen
 // own those moves.
@@ -37,6 +51,8 @@ func (a *app) newUpdateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "update <id|alias|prefix>",
 		Short:       "Change an issue's fields or body",
+		Long:        updateLong,
+		Example:     updateExample,
 		Args:        cobra.ExactArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
