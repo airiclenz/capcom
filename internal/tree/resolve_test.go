@@ -312,7 +312,64 @@ func TestResolve_DuplicatedName_LeavesOtherNamesAndLookupAlone(t *testing.T) {
 
 	node, found := loaded.Lookup("foo")
 
-	if !found || node.Path != filepath.Join(dir, "foo.md") {
-		t.Errorf("Lookup(foo) = %+v, %v; want the first file of the id", node, found)
+	if found {
+		t.Errorf("Lookup(foo) = %+v, want nothing: both files of the id are left out", node)
+	}
+}
+
+func TestResolve_NodeBelowDuplicatedID_FailsNamingBothFiles(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "a.md", "a/x.md", "b.md", "b/x.md", "b/x/c2.md")
+	loaded := loadWithDuplicates(t, dir, aliasesByPath(dir, map[string][]string{
+		"b/x/c2.md": {"legacy-c2"},
+	}))
+
+	for _, arg := range []string{"c2", "c", "legacy-c2"} {
+		node, err := loaded.Resolve(arg)
+
+		var problem *tree.Error
+		if !errors.As(err, &problem) || !errors.Is(err, tree.ErrDuplicate) {
+			t.Fatalf("Resolve(%q) = %q, %v; want an *Error wrapping ErrDuplicate", arg, node.ID, err)
+		}
+		for _, file := range []string{"a/x.md", "b/x.md"} {
+			path := filepath.Join(dir, filepath.FromSlash(file))
+			if problem.Path != path && problem.Other != path {
+				t.Errorf("Resolve(%q) = %v, want it to name %s", arg, err, path)
+			}
+		}
+	}
+}
+
+func TestResolve_AliasOfTheFirstFileOfADuplicatedID_FailsInsteadOfPrefixMatching(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "foo.md", "sub.md", "sub/foo.md", "auth-tests.md")
+	loaded := loadWithDuplicates(t, dir, aliasesByPath(dir, map[string][]string{
+		"foo.md": {"auth"},
+	}))
+
+	node, err := loaded.Resolve("auth")
+
+	var problem *tree.Error
+	if !errors.As(err, &problem) || !errors.Is(err, tree.ErrDuplicate) {
+		t.Fatalf("Resolve(auth) = %q, %v; want the duplicate problem of foo, not auth-tests", node.ID, err)
+	}
+	if problem.Other != filepath.Join(dir, "foo.md") {
+		t.Errorf("Resolve(auth) = %v, want it to name foo.md", err)
+	}
+}
+
+func TestResolve_PrefixOfADuplicatedIDAndAKeptID_StaysAmbiguous(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "foo.md", "sub-issue.md", "sub-issue/foo.md", "foo-bar.md")
+	loaded := loadWithDuplicates(t, dir, nil)
+
+	node, err := loaded.Resolve("fo")
+
+	var ambiguous *tree.AmbiguousError
+	if !errors.As(err, &ambiguous) || !reflect.DeepEqual(ambiguous.Candidates, []string{"foo", "foo-bar"}) {
+		t.Errorf("Resolve(fo) = %q, %v; want ambiguous between foo and foo-bar", node.ID, err)
 	}
 }

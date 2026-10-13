@@ -334,6 +334,38 @@ func TestLoad_DuplicateIDInTwoSubtrees_FailsNamingBoth(t *testing.T) {
 	}
 }
 
+func TestLoad_DuplicateIDWithChildren_LeavesBothFilesAndTheSubtreeOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNodes(t, dir, "a.md", "a/x.md", "b.md", "b/x.md", "b/x/c2.md")
+
+	loaded, err := tree.Load(dir, nil)
+
+	var problems tree.Errors
+	if !errors.As(err, &problems) || loaded == nil {
+		t.Fatalf("Load = %v, %v; want a tree and tree.Errors", loaded, err)
+	}
+	if got := ids(loaded.Nodes()); !reflect.DeepEqual(got, []string{"a", "b"}) {
+		t.Errorf("Nodes = %v, want [a b]: no file of x and nothing below one", got)
+	}
+	if children := loaded.ChildrenOf("x"); len(children) != 0 {
+		t.Errorf("ChildrenOf(x) = %v, want none", children)
+	}
+	if got := ids(loaded.LeftOut()); !reflect.DeepEqual(got, []string{"c2", "x", "x"}) {
+		t.Errorf("LeftOut = %v, want [c2 x x]", got)
+	}
+	var directoryProblems []*tree.Error
+	for _, problem := range problems {
+		if errors.Is(problem, tree.ErrOrphanDirectory) {
+			directoryProblems = append(directoryProblems, problem)
+		}
+	}
+	want := filepath.Join(dir, "b", "x") + ": directory left out: its node file x.md has a duplicate id"
+	if len(directoryProblems) != 1 || directoryProblems[0].Error() != want {
+		t.Errorf("directory problems = %v, want one: %q", directoryProblems, want)
+	}
+}
+
 func TestLoad_AliasConflicts_Fail(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -620,6 +652,7 @@ func TestLoad_ManyProblems_AllReportedWithTheRestOfTheTree(t *testing.T) {
 	}
 	want := []string{
 		filepath.Join(dir, "export-csv.md"),
+		filepath.Join(dir, "login-flow"),
 		filepath.Join(dir, "login-flow.md"),
 		filepath.Join(dir, "login-flow", "Bad_Name.md"),
 		filepath.Join(dir, "orphan-dir"),
@@ -632,7 +665,7 @@ func TestLoad_ManyProblems_AllReportedWithTheRestOfTheTree(t *testing.T) {
 			t.Errorf("Load error does not wrap %v", sentinel)
 		}
 	}
-	if got := ids(loaded.Nodes()); !reflect.DeepEqual(got, []string{"export-csv", "login-flow"}) {
+	if got := ids(loaded.Nodes()); !reflect.DeepEqual(got, []string{"export-csv"}) {
 		t.Errorf("Nodes = %v, want the placeable nodes", got)
 	}
 }

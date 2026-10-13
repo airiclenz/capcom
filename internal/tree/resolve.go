@@ -2,6 +2,7 @@ package tree
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -48,9 +49,12 @@ func NormalizeArg(arg string) string {
 // none; both quote the argument as given.
 //
 // Before any of that, a name that two or more files claim as their id or an alias fails with an
-// *Error wrapping ErrDuplicate that names two of those files, the problem Load reported for it:
-// Load keeps the first file of such a name, but a write must not act on a node another file also
-// answers to.
+// *Error wrapping ErrDuplicate that names two of those files, the problem Load reported for it, so
+// a write never acts on a node another file also answers to. The id or an alias of a node file Load
+// left out below a repeated id, and an alias of the first file of a repeated id, fail the same way
+// with the problem of that repeated id, naming both its files. The ids of the files LeftOut returns
+// count as prefix candidates, so a prefix one of them shares with another id stays ambiguous, and
+// a prefix of one of them alone fails with its duplicate problem.
 func (t *Tree) Resolve(arg string) (Node, error) {
 	name := NormalizeArg(arg)
 	if problem, isDuplicate := t.duplicates[name]; isDuplicate {
@@ -61,21 +65,33 @@ func (t *Tree) Resolve(arg string) (Node, error) {
 		return node, nil
 	}
 
-	var candidates []string
-	if name != "" {
-		for _, node := range t.nodes {
-			if strings.HasPrefix(node.ID, name) {
-				candidates = append(candidates, node.ID)
-			}
-		}
-	}
-
+	candidates := t.prefixCandidates(name)
 	switch len(candidates) {
 	case 0:
 		return Node{}, fmt.Errorf("id %q %w", arg, ErrNotFound)
 	case 1:
-		return t.nodes[t.byID[candidates[0]]], nil
+		if i, isKept := t.byID[candidates[0]]; isKept {
+			return t.nodes[i], nil
+		}
+		duplicate := *t.duplicates[candidates[0]]
+		return Node{}, &duplicate
 	default:
 		return Node{}, &AmbiguousError{Arg: arg, Candidates: candidates}
 	}
+}
+
+// prefixCandidates returns the ids name is a prefix of, each once and in order: the ids of the
+// nodes and of the node files Load left out for a repeated id. An empty name has none.
+func (t *Tree) prefixCandidates(name string) []string {
+	if name == "" {
+		return nil
+	}
+	var candidates []string
+	for _, node := range slices.Concat(t.nodes, t.leftOut) {
+		if strings.HasPrefix(node.ID, name) {
+			candidates = append(candidates, node.ID)
+		}
+	}
+	slices.Sort(candidates)
+	return slices.Compact(candidates)
 }

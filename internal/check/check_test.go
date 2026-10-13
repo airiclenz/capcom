@@ -333,6 +333,30 @@ func TestRun_SupersededByNamingOnlyAnIDPrefix_ReportsMissingSupersededBy(t *test
 	}
 }
 
+func TestRun_SupersededByNamingALeftOutNote_ReportsNoMissingSupersededBy(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml": "format: 3\n",
+		knowledge + "old-flow.md": "---\ntitle: Old flow\nretired: true\n" +
+			"superseded-by: [new-flow, step-one, legacy-step]\n---\n",
+		knowledge + "new-flow.md":          "---\ntitle: New flow\n---\n",
+		knowledge + "new-flow/step-one.md": "---\ntitle: Step one\naliases: [legacy-step]\n---\n",
+		knowledge + "zz-other.md":          "---\ntitle: Other\n---\n",
+		knowledge + "zz-other/new-flow.md": "---\ntitle: New flow too\n---\n",
+	})
+
+	problems := runCheck(t, root)
+
+	got := locations(t, problems)
+	want := []string{
+		knowledge + "new-flow:0:" + check.CodeOrphanDirectory,
+		knowledge + "zz-other/new-flow.md:0:" + check.CodeDuplicate,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %v, want %v", problems, want)
+	}
+}
+
 func TestRun_DuplicateIDAndAlias_NameBothFilesRelativeToTheWorktree(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{

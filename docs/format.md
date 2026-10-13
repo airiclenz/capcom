@@ -25,6 +25,9 @@ The directory tree is the hierarchy (ADR 0001). The same rules hold in `issues/`
   never read: it is left out with a `not a regular file` warning, whatever its name. A node file
   larger than 1 MiB is left out with a `file is larger than 1 MiB` warning. Both are `not-regular`
   problems in `capcom check`, and a directory beside such a node file is left out with it.
+- Every node file of an id two or more files share is left out, each file after the first with a
+  `duplicate id` problem naming the first. A directory beside any of them is left out with its
+  whole subtree, as a `directory left out: its node file <id>.md has a duplicate id` problem.
 
 ```text
 .capcom/issues/
@@ -63,8 +66,8 @@ Renaming a node adds its old id to its aliases: `capcom mv` does so for an issue
 
 A command argument resolves to a node by, in order: an exact id, an exact alias, then the one id
 the argument is a prefix of. A prefix matching several ids is an error that lists them. An
-argument that is exactly the id or an alias of a node left out as a duplicate is an error naming
-the two files that clash, and one that is exactly a name claimed by a file with problems, a file
+argument that is exactly the id or an alias of a node left out as a duplicate, or of a node file
+under the directory of a duplicate id, is an error naming the two files that clash, and one that is exactly a name claimed by a file with problems, a file
 left out unread (not a regular file, or over 1 MiB) or a node file under a directory left out (its
 id or an alias) is not found; neither is matched as a prefix. Before any of these, the argument is trimmed, lowercased and
 each run of whitespace becomes one hyphen, so a citation spelling resolves as typed (`"ADR 0076"`
@@ -623,7 +626,8 @@ in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its ch
 directory `.capcom/issues/<id>/` beside it, Notes the same under `.capcom/knowledge/`; prefer capcom
 commands, and run `capcom check` after a hand edit), and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
-`background` left out. It is rendered from the Note files alone, so the same tree always yields
+`background` left out, and so is one whose file a load problem names (a duplicate id or alias, an
+invalid or repeated alias). It is rendered from the Note files alone, so the same tree always yields
 the same block.
 
 - `capcom agents` writes the block: it replaces the lines between the markers, or appends the

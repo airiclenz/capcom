@@ -111,15 +111,16 @@ func PlanRemove(issues *tree.Tree, id string, options RemoveOptions) (*Removal, 
 	return removal, nil
 }
 
-// planDrops reads every other issue file of issues through tree.ReadNodeFile and returns the files whose content the
-// removal changes, without the deps and related entries that are one of names, in tree order,
-// and the ids of the dependents, in the order of their files' paths. It sets r.DepsDropped,
-// r.RelatedDropped and r.Unread.
+// planDrops reads every other issue file of issues, those tree.Load left out for a repeated id
+// included, through tree.ReadNodeFile and returns the files whose content the removal changes,
+// without the deps and related entries that are one of names, in tree order, and the ids of the
+// dependents, in the order of their files' paths. It sets r.DepsDropped, r.RelatedDropped and
+// r.Unread.
 func (r *Removal) planDrops(issues *tree.Tree, names []string) ([]tree.Rewrite, []string, error) {
 	isDropped := func(entry string) bool { return slices.Contains(names, entry) }
 	var rewrites []tree.Rewrite
 	var dependents []tree.Node
-	for _, other := range issues.Nodes() {
+	for _, other := range slices.Concat(issues.Nodes(), issues.LeftOut()) {
 		if other.ID == r.Node.ID {
 			continue
 		}

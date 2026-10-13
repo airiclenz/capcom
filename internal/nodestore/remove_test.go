@@ -134,11 +134,27 @@ func TestRemove_Refusals_RemoveNothing(t *testing.T) {
 			},
 			assert: func(t *testing.T, err error) {
 				t.Helper()
-				var problems tree.Errors
-				if !errors.As(err, &problems) || !strings.Contains(err.Error(), `duplicate id "login-flow"`) {
-					t.Errorf("err = %v, want the duplicate parent as tree.Errors", err)
+				var duplicate *tree.Error
+				if !errors.As(err, &duplicate) || !errors.Is(err, tree.ErrDuplicate) ||
+					!strings.Contains(err.Error(), `duplicate id "login-flow"`) {
+					t.Fatalf("err = %v, want a *tree.Error wrapping tree.ErrDuplicate for the parent", err)
+				}
+				for _, path := range []string{".capcom/issues/login-flow.md", ".capcom/issues/zz-other/login-flow.md"} {
+					if duplicate.Path != path && duplicate.Other != path {
+						t.Errorf("err = %v, want it to name %s", err, path)
+					}
 				}
 			},
+		},
+		{
+			name: "dependent left out for a repeated id",
+			ref:  "fix-parser",
+			setup: func(t *testing.T, dir string) {
+				writeNodeFile(t, dir, "foo.md", plainIssue)
+				writeNodeFile(t, dir, "sub-issue.md", plainIssue)
+				writeNodeFile(t, filepath.Join(dir, "sub-issue"), "foo.md", parserDependentIssue)
+			},
+			assert: assertDependents(removedIssuePath, "session-work", "foo"),
 		},
 		{
 			name: "duplicated id",

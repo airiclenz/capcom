@@ -61,12 +61,13 @@ func PlanRemove(notes *tree.Tree, id string) (*Removal, error) {
 	return removal, nil
 }
 
-// planDrops reads every other Note file of notes through tree.ReadNodeFile and returns, in tree order, the files whose
-// superseded-by entries are one of names, without those entries. It sets r.SupersededByDropped and
+// planDrops reads every other Note file of notes, those tree.Load left out for a repeated id
+// included, through tree.ReadNodeFile and returns, in tree order, the files whose superseded-by
+// entries are one of names, without those entries. It sets r.SupersededByDropped and
 // r.Unread.
 func (r *Removal) planDrops(notes *tree.Tree, names []string) ([]tree.Rewrite, error) {
 	var rewrites []tree.Rewrite
-	for _, other := range notes.Nodes() {
+	for _, other := range slices.Concat(notes.Nodes(), notes.LeftOut()) {
 		if other.ID == r.Node.ID {
 			continue
 		}

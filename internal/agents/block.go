@@ -137,34 +137,47 @@ func Path(worktreeRoot string) string {
 
 // TopNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
 // the files. A retired Note is left out, and with it its whole subtree, and so is a Note labelled
-// knowledge.LabelBackground. A Note file that does not parse, or that tree.ReadNodeFile refuses
-// unread, is left out; `capcom check` reports it. It fails only when the tree or a Note file cannot
-// be read.
+// knowledge.LabelBackground. A Note file that does not parse, that tree.ReadNodeFile refuses
+// unread, or that a load problem names (a duplicate id or alias, an invalid or repeated alias) is
+// left out; `capcom check` reports it. It fails only when the tree or a Note file cannot be read.
 func TopNotes(knowledgeDir string) ([]Note, error) {
-	noAliases := func(string) ([]string, error) { return nil, nil }
-	loaded, err := tree.Load(knowledgeDir, noAliases)
+	parsed := map[string]knowledge.Note{}
+	readAliases := func(path string) ([]string, error) {
+		data, err := tree.ReadNodeFile(path)
+		if errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
+		}
+		note, err := knowledge.Parse(path, data)
+		if err != nil {
+			return nil, nil
+		}
+		parsed[path] = note
+		return note.Aliases, nil
+	}
+	loaded, err := tree.Load(knowledgeDir, readAliases)
 	var problems tree.Errors
 	if err != nil && !errors.As(err, &problems) {
 		return nil, err
 	}
+	isNamed := map[string]bool{}
+	for _, problem := range problems {
+		isNamed[problem.Path] = true
+		isNamed[problem.Other] = true
+	}
 
 	var notes []Note
 	for _, node := range loaded.Nodes() {
-		if node.ParentID != "" {
+		if node.ParentID != "" || isNamed[node.Path] {
 			continue
 		}
-		data, err := tree.ReadNodeFile(node.Path)
-		if errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge) {
+		note, isParsed := parsed[node.Path]
+		if !isParsed || note.IsRetired || knowledge.IsBackground(note.Labels) {
 			continue
 		}
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", node.Path, err)
-		}
-		parsed, err := knowledge.Parse(node.Path, data)
-		if err != nil || parsed.IsRetired || knowledge.IsBackground(parsed.Labels) {
-			continue
-		}
-		notes = append(notes, Note{ID: node.ID, Title: parsed.Title})
+		notes = append(notes, Note{ID: node.ID, Title: note.Title})
 	}
 	return notes, nil
 }

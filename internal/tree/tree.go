@@ -52,7 +52,8 @@ var (
 	// own file. Every error that wraps it also wraps ErrDuplicate.
 	ErrRepeatedAlias = errors.New("repeated alias")
 	// ErrOrphanDirectory reports a child directory without the node file of the same name, or
-	// whose node file has an invalid id.
+	// whose node file is left out: named by an invalid id, not a regular file, larger than 1 MiB,
+	// or of an id another node file also has.
 	ErrOrphanDirectory = errors.New("directory without its node file")
 	// ErrNotFound reports an argument that matches no id, alias or id prefix.
 	ErrNotFound = errors.New("not found")
@@ -141,8 +142,12 @@ type Tree struct {
 	byID     map[string]int
 	byAlias  map[string]int
 	children map[string][]int
+	// leftOut are the node files Load left out for a repeated id, ordered by id, then path.
+	leftOut []Node
 	// duplicates maps every id or alias two or more files claim to the first problem Load reported
-	// for it, which names two of those files.
+	// for it, which names two of those files. It also maps each id and alias a node file left out
+	// below a repeated id claims, and each alias the first file of a repeated id lists, to the
+	// problem of that repeated id.
 	duplicates map[string]*Error
 }
 
@@ -179,13 +184,19 @@ func ValidateAlias(alias string) error {
 // every entry Walk leaves out (an entry that is not a regular file, a node file over 1 MiB, a child
 // directory without its node file), as Walk words it. It finds every such problem in one pass and
 // returns them all as Errors, together with the tree of what it could place: a file with an invalid
-// id, a directory without its node file (with its whole subtree), a repeated id after its first
-// file and an invalid or repeated alias are left out. A directory that cannot be read and an
-// AliasFunc error stop the load and return no tree; the AliasFunc error comes back unchanged.
+// id, a directory without its node file (with its whole subtree), every file of a repeated id and
+// an invalid or repeated alias are left out.
 //
-// aliases is called for every node file, one left out for a repeated id included. Such a file's
-// aliases are checked as any other file's and never mapped; one that a kept file also claims as its
-// id or an alias, or that an earlier such file lists, is a duplicate, which Resolve refuses.
+// A repeated id is one problem per file after the first, naming the first in Other. Every node file
+// under a directory beside a file of a repeated id is left out too, and each such directory is an
+// *Error wrapping ErrOrphanDirectory, its message naming the node file and its duplicate id. LeftOut
+// returns the node files left out for a repeated id. A directory that cannot be read or Lstat and
+// an AliasFunc error stop the load and return no tree; the AliasFunc error comes back unchanged.
+//
+// aliases is called for every node file, one left out for a repeated id or below one included. Such
+// a file's aliases are checked as any other file's and never mapped; one that a kept file also
+// claims as its id or an alias, or that an earlier such file lists, is a duplicate, which Resolve
+// refuses.
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	tree := &Tree{
 		dir:        dir,
@@ -205,7 +216,10 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 		}
 		return tree.nodes[i].Path < tree.nodes[j].Path
 	})
-	dropped := tree.indexIDs(&problems)
+	dropped, err := tree.indexIDs(&problems)
+	if err != nil {
+		return nil, err
+	}
 	if err := tree.indexAliases(aliases, &problems); err != nil {
 		return nil, err
 	}
@@ -248,10 +262,11 @@ const (
 	invalidIDReason  = "has an invalid id"
 	notRegularReason = "is not a regular file"
 	tooLargeReason   = "is larger than 1 MiB"
+	duplicateReason  = "has a duplicate id"
 )
 
 // invalidIDDirectoryError is the problem of a child directory whose node file is there but left
-// out: named by an invalid id, not a regular file, or larger than 1 MiB. It wraps
+// out: named by an invalid id, not a regular file, larger than 1 MiB, or of a repeated id. It wraps
 // ErrOrphanDirectory, since the directory is left out like one without its node file, while its
 // text names the node file and why it was left out.
 type invalidIDDirectoryError struct {
@@ -369,22 +384,60 @@ func leftOutFileOf(entry fs.DirEntry, id string) (*leftOutFile, error) {
 	return nil, nil
 }
 
-// indexIDs maps every id to its node and every parent to its children. A repeated id is added to
-// problems and recorded as a duplicate, and its node dropped, so the first file of the id keeps it.
-// It returns the dropped nodes, in order.
-func (t *Tree) indexIDs(problems *Errors) []Node {
-	var dropped []Node
+// droppedNode is a node file Load leaves out for a repeated id, with the problem of the repeated id
+// its aliases stand for: set for the first file of the id and for a node file below one of its
+// files, and nil for a file of the id after the first, whose aliases stay its own.
+type droppedNode struct {
+	node     Node
+	repeated *Error
+}
+
+// repeatedID is an id two or more node files share: the first of its files, by path, and the
+// problem of its second file, which names both.
+type repeatedID struct {
+	first   string
+	problem *Error
+}
+
+// repeatedIDDir is a directory beside a file of a repeated id, the id, and that id's problem.
+type repeatedIDDir struct {
+	path     string
+	id       string
+	repeated *Error
+}
+
+// indexIDs maps every id to its node and every parent to its children. Every file of a repeated id
+// is dropped, and so is every node file under a directory beside one of them, whose id is recorded
+// as a duplicate with the repeated id's problem. Each directory beside a file of a repeated id that
+// exists is added to problems as left out. It returns the dropped nodes, in order, and fails only
+// when such a directory cannot be Lstat.
+func (t *Tree) indexIDs(problems *Errors) ([]droppedNode, error) {
+	repeated := t.repeatedIDs(problems)
+	var dirs []repeatedIDDir
+	for _, node := range t.nodes {
+		if id := repeated[node.ID]; id != nil {
+			dirs = append(dirs, repeatedIDDir{
+				path:     strings.TrimSuffix(node.Path, nodeExtension),
+				id:       node.ID,
+				repeated: id.problem,
+			})
+		}
+	}
+
+	var dropped []droppedNode
 	kept := t.nodes[:0]
 	for _, node := range t.nodes {
-		if first, taken := t.byID[node.ID]; taken {
-			problem := &Error{
-				Path:  node.Path,
-				Other: kept[first].Path,
-				Err:   fmt.Errorf("%w id %q, also at", ErrDuplicate, node.ID),
+		if id := repeated[node.ID]; id != nil {
+			entry := droppedNode{node: node}
+			if node.Path == id.first {
+				entry.repeated = id.problem
 			}
-			*problems = append(*problems, problem)
-			t.recordDuplicate(node.ID, problem)
-			dropped = append(dropped, node)
+			dropped = append(dropped, entry)
+			continue
+		}
+		if dir := enclosingDir(dirs, node.Path); dir != nil {
+			t.recordDuplicate(node.ID, dir.repeated)
+			dropped = append(dropped, droppedNode{node: node, repeated: dir.repeated})
 			continue
 		}
 		t.byID[node.ID] = len(kept)
@@ -392,7 +445,74 @@ func (t *Tree) indexIDs(problems *Errors) []Node {
 		kept = append(kept, node)
 	}
 	t.nodes = kept
-	return dropped
+	for _, entry := range dropped {
+		t.leftOut = append(t.leftOut, entry.node)
+	}
+	return dropped, addRepeatedIDDirs(dirs, problems)
+}
+
+// repeatedIDs finds the ids two or more of the tree's nodes share, which are ordered by id, then
+// path. It adds one problem per file of such an id after the first, naming the first in Other, and
+// records the id as a duplicate with the first such problem.
+func (t *Tree) repeatedIDs(problems *Errors) map[string]*repeatedID {
+	repeated := map[string]*repeatedID{}
+	firstPaths := map[string]string{}
+	for _, node := range t.nodes {
+		first, isSeen := firstPaths[node.ID]
+		if !isSeen {
+			firstPaths[node.ID] = node.Path
+			continue
+		}
+		problem := &Error{
+			Path:  node.Path,
+			Other: first,
+			Err:   fmt.Errorf("%w id %q, also at", ErrDuplicate, node.ID),
+		}
+		*problems = append(*problems, problem)
+		t.recordDuplicate(node.ID, problem)
+		if repeated[node.ID] == nil {
+			repeated[node.ID] = &repeatedID{first: first, problem: problem}
+		}
+	}
+	return repeated
+}
+
+// enclosingDir returns the innermost of dirs that path lies under, or nil when it lies under none.
+func enclosingDir(dirs []repeatedIDDir, path string) *repeatedIDDir {
+	var enclosing *repeatedIDDir
+	for i := range dirs {
+		dir := &dirs[i]
+		if !strings.HasPrefix(path, dir.path+string(filepath.Separator)) {
+			continue
+		}
+		if enclosing == nil || len(dir.path) > len(enclosing.path) {
+			enclosing = dir
+		}
+	}
+	return enclosing
+}
+
+// addRepeatedIDDirs adds to problems each of dirs that is a directory on disk, as left out for the
+// duplicate id of its node file. A dir that is gone, or is no directory, is no problem; any other
+// failed Lstat is returned unchanged.
+func addRepeatedIDDirs(dirs []repeatedIDDir, problems *Errors) error {
+	for _, dir := range dirs {
+		info, err := os.Lstat(dir.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			continue
+		}
+		*problems = append(*problems, &Error{
+			Path: dir.path,
+			Err:  &invalidIDDirectoryError{name: dir.id, reason: duplicateReason},
+		})
+	}
+	return nil
 }
 
 // CheckAliases checks the aliases of the one node file at path on their own: each must be a valid
@@ -485,20 +605,25 @@ func (t *Tree) indexAlias(i int, alias string) *Error {
 }
 
 // checkDroppedAliases reads the Aliases of every node indexIDs dropped for a repeated id, once the
-// kept nodes' aliases are mapped, and checks them without mapping any. An alias CheckAliases
-// rejects is added to problems; one a kept node has as its id or an alias, or an earlier dropped
-// node lists, is added to problems and recorded as a duplicate, so Resolve refuses it. An alias
-// only one dropped node lists is left alone. It fails only when aliases does.
-func (t *Tree) checkDroppedAliases(aliases AliasFunc, dropped []Node, problems *Errors) error {
+// kept nodes' aliases are mapped, and checks them without mapping any; LeftOut returns them with
+// their Aliases. An alias CheckAliases rejects is added to problems; one a kept node has as its id
+// or an alias, or an earlier dropped node lists, is added to problems and recorded as a duplicate,
+// so Resolve refuses it. Any other alias of a dropped node that stands for a repeated id (the first
+// file of the id, or a node file below one of its files) is recorded as a duplicate with that id's
+// problem, so it never falls to prefix matching; one only a later file of the id lists is left
+// alone. It fails only when aliases does.
+func (t *Tree) checkDroppedAliases(aliases AliasFunc, dropped []droppedNode, problems *Errors) error {
 	if aliases == nil {
 		return nil
 	}
 	droppedOwners := map[string]string{}
-	for _, node := range dropped {
+	for i, entry := range dropped {
+		node := entry.node
 		names, err := aliases(node.Path)
 		if err != nil {
 			return err
 		}
+		t.leftOut[i].Aliases = names
 		kept, rejected := CheckAliases(node.Path, "node", node.ID, names)
 		*problems = append(*problems, rejected...)
 		for _, alias := range kept {
@@ -508,6 +633,9 @@ func (t *Tree) checkDroppedAliases(aliases AliasFunc, dropped []Node, problems *
 			}
 			if problem == nil {
 				droppedOwners[alias] = node.Path
+				if entry.repeated != nil {
+					t.recordDuplicate(alias, entry.repeated)
+				}
 				continue
 			}
 			*problems = append(*problems, problem)
@@ -556,6 +684,14 @@ func (t *Tree) Dir() string {
 // Nodes returns every node, ordered by id.
 func (t *Tree) Nodes() []Node {
 	return append([]Node(nil), t.nodes...)
+}
+
+// LeftOut returns the node files Load left out for a repeated id, ordered by id, then path: every
+// file of the id, and every node file under a directory beside one of them. Their Aliases are as
+// the AliasFunc returned them. They are not nodes of the tree: Nodes, Lookup, ChildrenOf and
+// PathFor never see them, and Resolve refuses their names as duplicates.
+func (t *Tree) LeftOut() []Node {
+	return append([]Node(nil), t.leftOut...)
 }
 
 // ChildrenOf returns the nodes directly below the node id, ordered by id; id "" returns the

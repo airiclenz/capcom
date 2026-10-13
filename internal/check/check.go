@@ -246,7 +246,9 @@ type parsedIssue struct {
 }
 
 // issues checks the issue tree: its load problems, each file's frontmatter and fields, its plan,
-// its deps and the dependency cycles.
+// its deps and the dependency cycles. The dependency graph holds the issue files Load left out for
+// a repeated id too, so a dep on one of them is no missing dep and a cycle through one is reported,
+// but only the loaded issues are checked one by one.
 func (c *checker) issues() error {
 	parsed := map[string]issue.Issue{}
 	readAliases := func(path string) ([]string, error) {
@@ -269,13 +271,15 @@ func (c *checker) issues() error {
 		return err
 	}
 
-	entries := make([]parsedIssue, 0, len(loaded.Nodes()))
-	for _, node := range loaded.Nodes() {
+	loadedCount := len(loaded.Nodes())
+	nodes := slices.Concat(loaded.Nodes(), loaded.LeftOut())
+	entries := make([]parsedIssue, 0, len(nodes))
+	for _, node := range nodes {
 		found, isParsed := parsed[node.Path]
 		entries = append(entries, parsedIssue{node: node, issue: found, isParsed: isParsed})
 	}
 	graph := issue.NewDepGraph(graphNodes(entries))
-	for _, entry := range entries {
+	for _, entry := range entries[:loadedCount] {
 		if entry.isParsed {
 			c.checkIssue(entry, graph)
 		}
@@ -386,11 +390,14 @@ func (c *checker) isPlanFound(plan string) bool {
 	return false
 }
 
-// checkCycles records each dependency cycle once, at the deps line of the issue it starts with.
+// checkCycles records each dependency cycle once, at the deps line of the issue it starts with:
+// the first of entries with that id.
 func (c *checker) checkCycles(entries []parsedIssue, graph issue.DepGraph) {
 	byID := make(map[string]parsedIssue, len(entries))
 	for _, entry := range entries {
-		byID[entry.node.ID] = entry
+		if _, isSeen := byID[entry.node.ID]; !isSeen {
+			byID[entry.node.ID] = entry
+		}
 	}
 	for _, cycle := range graph.Cycles() {
 		first := byID[cycle[0]]
@@ -431,12 +438,13 @@ func (c *checker) notes() error {
 	}
 	nodes := loaded.Nodes()
 	isRetired := retiredSubtrees(nodes, parsed)
+	leftOut := leftOutNames(loaded)
 	for _, node := range nodes {
 		note, isParsed := parsed[node.Path]
 		if !isParsed {
 			continue
 		}
-		c.checkSupersession(node, note, loaded, declaredFormat)
+		c.checkSupersession(node, note, loaded, leftOut, declaredFormat)
 		if err := c.checkNote(node, note, isRetired[node.ID]); err != nil {
 			return err
 		}
@@ -458,18 +466,33 @@ func (c *checker) declaredFormat() (int, error) {
 	return c.store.Config.Format, nil
 }
 
+// leftOutNames returns the ids and aliases of the node files Load left out of loaded for a
+// repeated id.
+func leftOutNames(loaded *tree.Tree) map[string]bool {
+	names := map[string]bool{}
+	for _, node := range loaded.LeftOut() {
+		names[node.ID] = true
+		for _, alias := range node.Aliases {
+			names[alias] = true
+		}
+	}
+	return names
+}
+
 // checkSupersession checks the supersession keys of one parsed Note: each superseded-by entry must
-// name a Note by id or by an alias, and the retired and superseded-by keys need a store declaring
-// format 3, however they are set. An entry Validate rejects as no id is left to Validate.
+// name a Note by id or by an alias, or one of leftOut, the names of the Note files Load left out
+// for a repeated id, and the retired and superseded-by keys need a store declaring format 3,
+// however they are set. An entry Validate rejects as no id is left to Validate.
 func (c *checker) checkSupersession(
 	node tree.Node,
 	note knowledge.Note,
 	notes *tree.Tree,
+	leftOut map[string]bool,
 	declaredFormat int,
 ) {
 	path := node.Path
 	for i, successor := range note.SupersededBy {
-		if tree.ValidateAlias(successor) != nil {
+		if tree.ValidateAlias(successor) != nil || leftOut[successor] {
 			continue
 		}
 		if _, isFound := notes.Lookup(successor); !isFound {

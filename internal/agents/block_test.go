@@ -452,6 +452,54 @@ func TestTopNotes_BackgroundTopLevelNote_IsLeftOut(t *testing.T) {
 	}
 }
 
+func TestTopNotes_DuplicatedTopLevelID_IsLeftOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNoteFiles(t, dir, map[string]string{
+		"zeta.md":     "---\ntitle: Zeta\n---\n",
+		"zoo.md":      "---\ntitle: Zoo\n---\n",
+		"zoo/zeta.md": "---\ntitle: Zeta too\n---\n",
+	})
+
+	notes, err := TopNotes(dir)
+
+	want := Note{ID: "zoo", Title: "Zoo"}
+	if err != nil || len(notes) != 1 || notes[0] != want {
+		t.Errorf("TopNotes = %v, %v; want [%v]", notes, err, want)
+	}
+}
+
+func TestTopNotes_SharedAlias_LeavesBothOut(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeNoteFiles(t, dir, map[string]string{
+		"alpha-flow.md":   "---\ntitle: Alpha flow\naliases: [old-flow]\n---\n",
+		"beta-flow.md":    "---\ntitle: Beta flow\naliases: [old-flow]\n---\n",
+		"release-flow.md": "---\ntitle: Release flow\n---\n",
+	})
+
+	notes, err := TopNotes(dir)
+
+	want := Note{ID: "release-flow", Title: "Release flow"}
+	if err != nil || len(notes) != 1 || notes[0] != want {
+		t.Errorf("TopNotes = %v, %v; want [%v]", notes, err, want)
+	}
+}
+
+// writeNoteFiles writes each of files, a slash-separated path below dir mapped to its content.
+func writeNoteFiles(t *testing.T, dir string, files map[string]string) {
+	t.Helper()
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+}
+
 func TestTopNotes_SymlinkedTopLevelNote_IsLeftOutWithoutError(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

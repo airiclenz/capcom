@@ -36,6 +36,26 @@ func TestCheck_Problems_ListedOnePerLineAndExitOne(t *testing.T) {
 	}
 }
 
+func TestCheck_DuplicateIDWithChildren_ReportsTheDirectoryLeftOut(t *testing.T) {
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, map[string]string{
+		"a.md":        validIssue,
+		"a/x.md":      validIssue,
+		"b.md":        validIssue,
+		"b/x.md":      validIssue,
+		"b/x/c2.md":   validIssue,
+		"depender.md": strings.Replace(validIssue, "priority: 2\n", "priority: 2\ndeps: [c2, x]\n", 1),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "check")
+
+	want := ".capcom/issues/b/x: directory left out: its node file x.md has a duplicate id\n" +
+		".capcom/issues/b/x.md: duplicate id \"x\", also at .capcom/issues/a/x.md\n"
+	if exitCode != ExitError || stdout != want || stderr != "" {
+		t.Fatalf("check = %d, stdout:\n%s\nstderr %q; want 1 and\n%s", exitCode, stdout, stderr, want)
+	}
+}
+
 func TestCheck_JSONWithProblems_IsKindCheckWithProblemList(t *testing.T) {
 	root := newIssueStore(t, map[string]string{
 		"valid-issue.md": strings.Replace(validIssue, "status: open", "status: wip", 1),
