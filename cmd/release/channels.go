@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -28,42 +29,6 @@ const komacInstallHint = "install it with `cargo install --locked komac`, `brew 
 // publish returns.
 const wingetSubmittedDetail = "submitted by this run: the pull request merges in " + wingetRepo +
 	" after its validation and review"
-
-// describeHomebrew says what the homebrew step does.
-func describeHomebrew(run *publishRun) string {
-	return describePackageFile(run, tapRepo, formulaPath)
-}
-
-// convergeHomebrew renders the formula from the release's SHA256SUMS and commits it to the tap.
-func convergeHomebrew(ctx context.Context, run *publishRun) error {
-	sums, err := downloadReleaseSums(ctx, run)
-	if err != nil {
-		return err
-	}
-	formula, err := renderFormula(run.version.String(), sums)
-	if err != nil {
-		return err
-	}
-	return publishPackageFile(ctx, run, tapRepo, formulaPath, formula)
-}
-
-// describeScoop says what the scoop step does.
-func describeScoop(run *publishRun) string {
-	return describePackageFile(run, bucketRepo, bucketPath)
-}
-
-// convergeScoop renders the manifest from the release's SHA256SUMS and commits it to the bucket.
-func convergeScoop(ctx context.Context, run *publishRun) error {
-	sums, err := downloadReleaseSums(ctx, run)
-	if err != nil {
-		return err
-	}
-	manifest, err := renderScoopManifest(run.version.String(), sums)
-	if err != nil {
-		return err
-	}
-	return publishPackageFile(ctx, run, bucketRepo, bucketPath, manifest)
-}
 
 // describePackageFile says what a step that publishes one generated file to a channel repository
 // does.
@@ -127,6 +92,40 @@ func publishPackageFile(ctx context.Context, run *publishRun, repo, path, conten
 // packageCommitSubject is the subject of the commit a tap or bucket takes for a release.
 func packageCommitSubject(version releaseVersion) string {
 	return binaryName + " " + bareRelease(version)
+}
+
+// pinnedVersionStep reports a channel file done when the version it pins is the release's bare
+// version or a newer release — publish never moves a channel back onto an older version — and
+// pending when it pins an older version or one that does not parse.
+func pinnedVersionStep(name, file, pinned string, version releaseVersion) stepReport {
+	bare := bareRelease(version)
+	if pinned == bare {
+		return stepReport{Name: name, State: stateDone, Detail: fmt.Sprintf("%s pins %s", file, bare)}
+	}
+	if pinnedVersion, err := parseReleaseVersion(pinned); err == nil && pinnedVersion.compare(version) > 0 {
+		return stepReport{Name: name, State: stateDone, Detail: fmt.Sprintf("%s pins newer %s", file, pinned)}
+	}
+	return stepReport{Name: name, State: statePending, Detail: fmt.Sprintf("%s pins %q, not %s", file, pinned, bare)}
+}
+
+// readRepoFile reads one file of a GitHub repository through the contents API.
+func readRepoFile(ctx context.Context, commands runner, dir, repo, path string) (string, error) {
+	encoded, err := commands.run(ctx, dir, nil, "gh", "api", "repos/"+repo+"/contents/"+path, "--jq", ".content")
+	if err != nil {
+		return "", err
+	}
+	// The contents API wraps its base64 at 60 columns.
+	decoded, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(encoded), ""))
+	if err != nil {
+		return "", fmt.Errorf("decode %s: %w", path, err)
+	}
+	return string(decoded), nil
+}
+
+// isNotFound reports whether a gh api failure is GitHub answering 404 — the path or repository
+// does not exist, or the repository is empty — as opposed to a call that could not be made.
+func isNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "(HTTP 404)")
 }
 
 // setupPendingError is a step's converge reporting, without failing, that the step cannot finish

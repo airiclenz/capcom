@@ -27,18 +27,20 @@
 // Every non-test file of the package, with its responsibility. TestDocFileMap_MatchesDirectory
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
-//   - `channels.go` — the homebrew, scoop and winget publish steps: describe and converge each channel
+//   - `channels.go` — the helpers the package channels share — publishing a generated file to a channel repository, reading one, judging the version it pins — and the winget publish step: describe and converge
 //   - `dist.go` — release dist: builds the archives for every release platform and SHA256SUMS
 //   - `doc.go` — the package comment and this file map
 //   - `gate.go` — the release gate: a clean, pushed checkout whose commit passed CI
 //   - `githubrelease.go` — the GitHub release step: probe, describe and converge, the asset build and the checks against what the release already carries
+//   - `homebrew.go` — the homebrew channel: its probe, describe, converge, formula rendering and smoke check
 //   - `main.go` — main, the root command and the exit code a run failure maps to
 //   - `prepare.go` — release prepare: the CHANGELOG rollup and VERSION bump commits
-//   - `probes.go` — the read-only probes that tell where each package channel and the smoke step stand on the remotes
+//   - `probes.go` — the read-only probes that tell where the winget channel and the smoke step stand on the remotes
 //   - `publish.go` — release publish: the gate, the step loop and the smoke step
-//   - `render.go` — renders the Homebrew formula, the Scoop manifest and the winget manifests from templates
+//   - `render.go` — the package-channel templates, the SHA256SUMS reading they render from, and the winget manifests' rendering
 //   - `repo.go` — the repo seam over the capcom checkout and its GitHub repository, and execRepo
 //   - `runner.go` — the runner seam every external command goes through
+//   - `scoop.go` — the scoop channel: its probe, describe, converge, manifest parsing and rendering, and smoke checks
 //   - `smoke.go` — release smoke: checks a published release from the outside
 //   - `status.go` — release status: the gate, the baseline and each publish step's probed state
 //   - `steps.go` — the publish step table status and publish both read, and the step states

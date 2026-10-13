@@ -57,7 +57,8 @@ type probeEnv struct {
 // publishStep is one step publish runs, declared once for status and publish alike: the probe
 // that asks the remote, read-only, whether the step is done; what a dry run says the step would
 // do; the work itself, run only while the probe reports the step pending; and what the step
-// table says once it has run ("done by this run" when empty). A converge that returns a
+// table says once it has run ("done by this run" when empty); and, for a package channel, the
+// check the smoke verb runs on what the channel serves (nil for none). A converge that returns a
 // setupPendingError has not failed: the step is reported setup-pending and the run goes on.
 // No function an entry names may read publishSteps: that would be an initialisation cycle.
 type publishStep struct {
@@ -66,17 +67,21 @@ type publishStep struct {
 	describe   func(run *publishRun) string
 	converge   func(ctx context.Context, run *publishRun) error
 	doneDetail string
+	smoke      func(ctx context.Context, run *smokeRun)
 }
 
 // publishSteps are the steps publish runs, in the order it runs them. status and publish both
 // read this one table, so what status reports done is exactly what publish skips. The channel
-// steps (channels.go) run after the release, whose SHA256SUMS they render from, and the smoke
-// step (smoke.go) runs last, over everything the others published.
+// steps (homebrew.go, scoop.go, channels.go) run after the release, whose SHA256SUMS they render
+// from, and the smoke step (smoke.go) runs last, over everything the others published; the smoke
+// verb runs the channels' smoke checks in this table's order.
 var publishSteps = []publishStep{
 	{name: stepTag, probe: probeTag, describe: describeTag, converge: convergeTag},
 	{name: stepRelease, probe: probeRelease, describe: describeRelease, converge: convergeRelease},
-	{name: stepHomebrew, probe: probeHomebrew, describe: describeHomebrew, converge: convergeHomebrew},
-	{name: stepScoop, probe: probeScoop, describe: describeScoop, converge: convergeScoop},
+	{name: stepHomebrew, probe: probeHomebrew, describe: describeHomebrew, converge: convergeHomebrew,
+		smoke: func(ctx context.Context, run *smokeRun) { run.checkHomebrew(ctx) }},
+	{name: stepScoop, probe: probeScoop, describe: describeScoop, converge: convergeScoop,
+		smoke: func(ctx context.Context, run *smokeRun) { run.checkScoop(ctx) }},
 	{name: stepWinget, probe: probeWinget, describe: describeWinget, converge: convergeWinget,
 		doneDetail: wingetSubmittedDetail},
 	{name: stepSmoke, probe: probeSmoke, describe: describeSmoke, converge: convergeSmoke,

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -152,27 +151,6 @@ func checksumFor(sums, name string) (string, error) {
 		return hash, nil
 	}
 	return "", fmt.Errorf("%w for %s", errNoChecksum, name)
-}
-
-// renderFormula renders the whole Homebrew formula for version (vX.Y.Z or a bare X.Y.Z), reading
-// the four macOS and Linux archive hashes from the release's SHA256SUMS body.
-func renderFormula(version, sums string) (string, error) {
-	return renderPackageFile(formulaTemplate, version, sums)
-}
-
-// renderScoopManifest renders the whole Scoop manifest for version (vX.Y.Z or a bare X.Y.Z),
-// reading the two Windows archive hashes from the release's SHA256SUMS body. The result is
-// checked to parse as JSON, so a template edit that breaks it fails here rather than in the
-// bucket.
-func renderScoopManifest(version, sums string) (string, error) {
-	manifest, err := renderPackageFile(scoopTemplate, version, sums)
-	if err != nil {
-		return "", err
-	}
-	if !json.Valid([]byte(manifest)) {
-		return "", fmt.Errorf("render %s: the manifest is not valid JSON", scoopTemplate)
-	}
-	return manifest, nil
 }
 
 // renderWingetManifests renders the three winget manifests for version (vX.Y.Z or a bare X.Y.Z),

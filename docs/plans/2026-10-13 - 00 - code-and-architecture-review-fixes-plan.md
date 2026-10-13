@@ -2558,7 +2558,11 @@ Depends on P3.71.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`): no changed lines beyond package and import headers, apart from `doc.go`'s map. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(release): move the tag and release steps into their own files`
 
-## P3.73 Release: Homebrew and Scoop in one file each, smoke looping over them
+## P3.73 Release: Homebrew and Scoop in one file each, smoke looping over them — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the step table's smoke entries are one-line closures (`func(ctx, run) { run.checkHomebrew(ctx) }`) so the field keeps the plan's context-first `func(context.Context, *smokeRun)` while `checkHomebrew`/`checkScoop` stay methods, moved unchanged.
+NOTES (2026-10-13): the shared `scoopManifest` also decodes `architecture`, so the probe now reads a manifest whose `architecture` is not an object of `{hash}` objects as pending ("not a readable manifest") where it used to read only `version`; the smoke check's behaviour is unchanged.
+NOTES (2026-10-13): the winget consts stay in probes.go in their own const block (they move with P3.74); `formulaTemplate`/`scoopTemplate` stay in render.go with the other template names.
 
 **What:** Third part of A-11: each of Homebrew and Scoop gets one file holding its probe, describe, converge, render and smoke check; the step record gains a smoke check that the smoke verb loops over.
 **Regression guard.** `readRepoFile`, `pinnedVersionStep` and `isNotFound` live in probes.go at the base; P3.73 moves them (to channels.go) so probes.go is empty by P3.74.

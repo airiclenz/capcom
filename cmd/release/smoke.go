@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"debug/buildinfo"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -38,16 +37,6 @@ const (
 	vcsRevisionSetting = "vcs.revision"
 	vcsModifiedSetting = "vcs.modified"
 )
-
-// scoopArchitectures pairs each Scoop manifest architecture key with the Windows archive's
-// GOARCH whose hash it carries.
-var scoopArchitectures = []struct {
-	key    string
-	goarch string
-}{
-	{key: "64bit", goarch: "amd64"},
-	{key: "arm64", goarch: "arm64"},
-}
 
 // smokeOptions is what the smoke verb was asked to check.
 type smokeOptions struct {
@@ -133,7 +122,8 @@ func newSmokeCommand(commands runner, openRepo repoOpener) *cobra.Command {
 	return cmd
 }
 
-// runSmoke runs every check in order, prints the tally, and fails when any check failed.
+// runSmoke runs every check in order — the package channels' checks in the publish step table's
+// order — prints the tally, and fails when any check failed.
 func runSmoke(ctx context.Context, commands runner, output io.Writer, options smokeOptions) error {
 	version, err := smokeVersion(options)
 	if err != nil {
@@ -159,8 +149,11 @@ func runSmoke(ctx context.Context, commands runner, output io.Writer, options sm
 	run.checkAssets(ctx)
 	run.checkBuildStamps(ctx)
 	run.checkHostBinary(ctx)
-	run.checkHomebrew(ctx)
-	run.checkScoop(ctx)
+	for _, step := range publishSteps {
+		if step.smoke != nil {
+			step.smoke(ctx, run)
+		}
+	}
 
 	_, _ = fmt.Fprintf(output, "\nsmoke: %s: %d passed, %d failed, %d skipped\n", version, run.passed, run.failed, run.skipped)
 	if run.failed > 0 {
@@ -385,106 +378,6 @@ func (r *smokeRun) checkHostBinary(ctx context.Context) {
 		return
 	}
 	r.checkReportsVersion(ctx, binary, "the released binary")
-}
-
-// checkHomebrew upgrades a Homebrew-installed capcom and requires it to report the version; a
-// host without Homebrew, or without capcom installed through it, skips. So does a version that is
-// not the latest published release: the tap pins the latest, so brew upgrade would move this
-// machine onto that one instead.
-func (r *smokeRun) checkHomebrew(ctx context.Context) {
-	r.step("brew upgrade moves this machine onto %s", r.version)
-	if _, err := r.commands.run(ctx, r.options.dir, nil, "brew", "list", "--formula", binaryName); err != nil {
-		if isMissingTool(err) {
-			r.skip("Homebrew is not installed on this host")
-			return
-		}
-		r.skip("capcom is not installed through Homebrew here")
-		return
-	}
-	if latest, isPublished, err := r.repo.LatestRelease(ctx); err == nil && isPublished && latest.Tag != r.version.String() {
-		r.skip("%s is not the latest release (%s); brew upgrade would move this machine onto that one", r.version, latest.Tag)
-		return
-	}
-	for _, args := range [][]string{{"update"}, {"upgrade", binaryName}} {
-		if _, err := r.commands.run(ctx, r.options.dir, nil, "brew", args...); err != nil {
-			r.fail("brew %s: %v", strings.Join(args, " "), err)
-			return
-		}
-	}
-	prefix, err := r.commands.run(ctx, r.options.dir, nil, "brew", "--prefix")
-	if err != nil {
-		r.fail("brew --prefix: %v", err)
-		return
-	}
-	r.checkReportsVersion(ctx, filepath.Join(strings.TrimSpace(prefix), "bin", binaryName), "brew's capcom")
-}
-
-// checkScoop requires the bucket's manifest to name the version and both Windows archives'
-// published hashes. An unreadable manifest skips; a manifest at another version fails only when
-// the version is the latest release, the only one the bucket can be expected to hold.
-func (r *smokeRun) checkScoop(ctx context.Context) {
-	bare := bareRelease(r.version)
-	r.step("the Scoop bucket's manifest names %s and its %s hashes", r.version, checksumsFile)
-	sums, err := r.publishedSums(ctx)
-	if err != nil {
-		r.skip("the release's %s did not download — nothing to check the bucket's hashes against", checksumsFile)
-		return
-	}
-	raw, err := readRepoFile(ctx, r.commands, r.options.dir, bucketRepo, bucketPath)
-	if err != nil {
-		r.skip("the bucket's manifest %s in %s is unreadable: %v", bucketPath, bucketRepo, err)
-		return
-	}
-	var manifest struct {
-		Version      string `json:"version"`
-		Architecture map[string]struct {
-			Hash string `json:"hash"`
-		} `json:"architecture"`
-	}
-	if err := json.Unmarshal([]byte(raw), &manifest); err != nil {
-		r.fail("the bucket's manifest %s is not valid JSON: %v", bucketPath, err)
-		return
-	}
-
-	if manifest.Version != bare {
-		r.checkStaleBucket(ctx, manifest.Version)
-		return
-	}
-	matched := 0
-	for _, architecture := range scoopArchitectures {
-		name := distTarget{goos: "windows", goarch: architecture.goarch}.archiveName(bare)
-		published, err := checksumFor(sums, name)
-		if err != nil {
-			r.fail("the release's %s lists no hash for %s: %v", checksumsFile, name, err)
-			continue
-		}
-		listed := strings.TrimPrefix(strings.ToLower(manifest.Architecture[architecture.key].Hash), "sha256:")
-		if listed != published {
-			r.fail("the bucket's %s hash is %q, not %s's %s", architecture.key, listed, name, published)
-			continue
-		}
-		matched++
-	}
-	if matched == len(scoopArchitectures) {
-		r.pass("bucket at %s, both Windows hashes match %s", bare, checksumsFile)
-	}
-}
-
-// checkStaleBucket judges a bucket manifest at another version: a failure when the version is
-// the latest release, a skip otherwise, when no release is published or when the latest release
-// cannot be read.
-func (r *smokeRun) checkStaleBucket(ctx context.Context, bucketVersion string) {
-	latest, isPublished, err := r.repo.LatestRelease(ctx)
-	switch {
-	case err != nil:
-		r.skip("the bucket is at %q, not %s, and the latest release could not be read: %v", bucketVersion, bareRelease(r.version), err)
-	case !isPublished:
-		r.skip("the bucket is at %q, not %s, and %s has no published release", bucketVersion, bareRelease(r.version), capcomRepo)
-	case latest.Tag == r.version.String():
-		r.fail("the bucket is at %q, not the latest release %s — run publish %s", bucketVersion, bareRelease(r.version), r.version)
-	default:
-		r.skip("the bucket is at %q; %s is not the latest release (%s)", bucketVersion, r.version, latest.Tag)
-	}
 }
 
 // checkReportsVersion runs `binary version` and requires its output to open with
