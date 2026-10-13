@@ -139,7 +139,7 @@ NOTES (2026-10-13): confirmed the new TestPublishWingetUpdateFailureRedactsTheTo
 - `GOMEMLIMIT=2GiB go test ./cmd/release/ -run Winget`
 **Commit:** `test(release): pin the token redaction when komac update fails`
 
-## 6. Pin the winget listing-read error
+## 6. Pin the winget listing-read error — ✅ DONE (2026-10-13)
 
 **What:** Test only (`resolveWingetPackage`'s "could not tell whether" error).
 **Regression guard.** `memChannelRepos` failures are fixed per (method, repo), and `withFailure` would fail the probe instead. Add, in publish_test.go, a `channelRepos` wrapper embedding `memChannelRepos` that fails `ListDirs` from its second call (pointer counter), passed through `publishOptions.channels`. Base it on `channelReposOf(tapHolding(testFormula), wingetHolding(nil))` with no open pull, so winget is pending and unlisted and `resolveWingetPackage`'s `ListDirs` is the second call.

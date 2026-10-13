@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -863,6 +864,55 @@ func TestPublishRefusesUploadedArchivesTheRebuildDoesNotMatch(t *testing.T) {
 	}
 	if index := lineIndex(commandLines(result.commands), "repo UploadAssets"); index >= 0 {
 		t.Errorf("uploaded assets beside an archive the rebuild does not match")
+	}
+}
+
+// laterListingFailing is channel repositories whose ListDirs answers its first call and fails
+// with err from its second on: the winget probe's listing reads, and the package lookup's read
+// after it does not, which a memChannelRepos' per-repository failure cannot tell apart.
+type laterListingFailing struct {
+	memChannelRepos
+	err   error
+	calls *atomic.Int32
+}
+
+// ListDirs fails with err once it has been called before, and reads through otherwise.
+func (c laterListingFailing) ListDirs(ctx context.Context, repo, path string) ([]string, bool, error) {
+	if c.calls.Add(1) > 1 {
+		return nil, false, c.err
+	}
+	return c.memChannelRepos.ListDirs(ctx, repo, path)
+}
+
+// TestPublishWingetRefusesAnUnreadablePackageListing pins resolveWingetPackage's error: with the
+// winget step pending and the package unlisted, a listing read that fails after the probe's
+// succeeded refuses the run, naming the listing it could not read, and runs no komac command.
+func TestPublishWingetRefusesAnUnreadablePackageListing(t *testing.T) {
+	t.Parallel()
+	listingErr := errors.New("listing unreadable")
+	fake := newPublishFake()
+	channels := laterListingFailing{
+		memChannelRepos: channelReposOf(tapHolding(testFormula), wingetHolding(nil)),
+		err:             listingErr,
+		calls:           &atomic.Int32{},
+	}
+	notesPath := filepath.Join(t.TempDir(), "notes.md")
+	writeTestFile(t, notesPath, "## What's new\n\n- A release.\n")
+
+	result := runTestPublishWith(t, fake, publishOptions{notesFile: notesPath, channels: channels})
+
+	if !errors.Is(result.err, listingErr) {
+		t.Fatalf("publish error = %v, want it to wrap %v\n%s", result.err, listingErr, result.output)
+	}
+	const want = "could not tell whether " + wingetRepo + " has " + wingetManifestDir
+	if !strings.Contains(result.err.Error(), want) {
+		t.Errorf("publish error = %v, want it to contain %q", result.err, want)
+	}
+	if calls := channels.calls.Load(); calls != 2 {
+		t.Errorf("ListDirs called %d times, want 2: the probe's, then the package lookup's", calls)
+	}
+	if calls := result.commands.recorded("komac"); len(calls) > 0 {
+		t.Errorf("ran komac %v after the listing failed", calls)
 	}
 }
 
