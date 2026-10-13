@@ -1454,7 +1454,9 @@ Depends on P2.21.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers and the doc map. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(cli): split reopen out of close.go`
 
-## P2.25 Split cli/dep.go into dep, dep_list and dep_graph
+## P2.25 Split cli/dep.go into dep, dep_list and dep_graph — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): isEntryText and isRemovedByText stay in dep.go: their users are dep.go (depRemoval) and related.go, so neither has a single user among the three files.
 
 **What:** Pure move per review P2-10.
 **Regression guard.** The "Text of capcom dep list." const block splits: `depsHeading`, `dependentsHeading`, `depMissingLabel` and `depSeeAboveLabel` go to dep_list.go under the block comment; `cycleArrow` (dep add only) stays in dep.go with its own one-line comment. The move-only check allows that comment and the const wrapper lines.

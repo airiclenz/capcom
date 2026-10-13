@@ -11,7 +11,9 @@
 //   - `check.go` — capcom check: validates every config, issue and Note file of the store
 //   - `close.go` — capcom close: closes issues, recording why
 //   - `create.go` — capcom create: writes a new issue file under the caller's id
-//   - `dep.go` — capcom dep add, rm, list and graph: the dependencies between issues
+//   - `dep.go` — capcom dep add and rm: adds and removes the dependencies between issues
+//   - `dep_graph.go` — capcom dep graph and the Dependency graph that dep and related load from the index
+//   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — the typed Error, its Codes and their exit codes
 //   - `flags.go` — the flag names two or more commands share, and unlimitedDepth
