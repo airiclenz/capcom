@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -60,6 +61,40 @@ func TestMv_Parent_MovesBelowThenToTop(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "login-flow", "child-issue")); !os.IsNotExist(err) {
 		t.Errorf("emptied child-issue directory: stat error = %v, want it removed", err)
+	}
+}
+
+func TestMv_EmptiedOldParentNotRemovable_MovesAndWarns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory does not stop directory removal on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root removes from a read-only directory")
+	}
+	root := newIssueStore(t, nil)
+	mustRun(t, root, "create", "--id", "old-parent", "--title", "Old parent")
+	mustRun(t, root, "create", "--id", "moved-child", "--title", "Moved child", "--parent", "old-parent")
+	mustRun(t, root, "create", "--id", "new-parent", "--title", "New parent")
+	mustRun(t, root, "create", "--id", "kept-child", "--title", "Kept child", "--parent", "new-parent")
+	readOnlyDir := filepath.Join(root, ".capcom", "issues")
+	if err := os.Chmod(readOnlyDir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnlyDir, 0o755) })
+
+	stdout, stderr, exitCode := runCLI(t, root, "mv", "--json", "moved-child", "--parent", "new-parent")
+
+	if exitCode != ExitOK {
+		t.Fatalf("mv = %d\n%s%s; want it to succeed", exitCode, stdout, stderr)
+	}
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	want := ".capcom/issues/old-parent: remove .capcom/issues/old-parent: permission denied; " +
+		"the empty directory was not removed"
+	if len(warnings) != 1 || warnings[0] != want {
+		t.Errorf("warnings = %q; want [%q]", warnings, want)
+	}
+	if _, err := os.Stat(filepath.Join(readOnlyDir, "new-parent", "moved-child.md")); err != nil {
+		t.Errorf("moved-child.md below new-parent: %v", err)
 	}
 }
 

@@ -908,7 +908,12 @@ NOTES (2026-10-13): The command-level warning (`mv`, `know mv`) is P1.31's, whic
 - `grep -rn removeEmptyDirStep internal/` prints nothing
 **Commit:** `fix(tree): make the emptied old parent's removal a move cleanup`
 
-## P1.31 mv and know mv warn about the old parent left in place
+## P1.31 mv and know mv warn about the old parent left in place — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from "step 8 of Move's doc" — the renames-and-rewrites step is now step 9 (P1.21 added a step); its text gains the LeftInPlace sentence.
+NOTES (2026-10-13): The default `applyMove` is a package-level func `applyMove` in kind.go (calls `move.Plan.Apply()`), used by both `Issues` and `Notes`. `movedEqual` in nodestore/move_test.go now also compares `LeftInPlace`, so the existing Move tests assert no directory was left in place. The nodestore test is `TestMove_CleanupFails_ReturnsTheDirectoryLeftInPlace`.
+NOTES (2026-10-13): consequential edit — internal/cli/know_rm.go: made necessary by `cleanupWarnings` now rendering a move's cleanup failures too (its doc said removal only).
+NOTES (2026-10-13): Bite check: with the two `cleanupWarnings(moved.LeftInPlace)` lines removed from cli/mv.go and cli/know_mv.go, both new CLI tests fail; the new nodestore test does not compile against the pre-item `applyMove` signature.
 
 **What:** Fixes the rest of F-25 (`move-dir-cleanup`). `nodestore.Move` collects the cleanup warnings of P1.30's move, and `mv` and `know mv` print them the way `rm` and `know rm` do.
 **Regression guard.** Rule: every `applyMove =` assignment in internal/nodestore/*_test.go (`grep -n 'applyMove =' internal/nodestore/`), P1.21's new swap included, takes the new signature and calls `move.Plan.Apply()`. `cleanupFailure`'s doc in nodestore/remove.go is widened to cover a move.

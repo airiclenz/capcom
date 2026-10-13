@@ -270,8 +270,8 @@ func TestMove_Refusals_MoveNothing(t *testing.T) {
 func TestMove_ApplyFails_NamesTheFilesRelativeToTheWorktree(t *testing.T) {
 	t.Parallel()
 	issues, dir := newMoveIssues(t)
-	issues.applyMove = func(move *tree.Move) error {
-		return &os.LinkError{Op: "rename", Old: move.Node.Path, New: move.NewPath, Err: fs.ErrPermission}
+	issues.applyMove = func(move *tree.Move) ([]error, error) {
+		return nil, &os.LinkError{Op: "rename", Old: move.Node.Path, New: move.NewPath, Err: fs.ErrPermission}
 	}
 
 	_, _, err := issues.Move("login-flow", Destination{ID: "auth-flow"}, "")
@@ -292,9 +292,9 @@ func TestMove_DependentChangedBeforeApply_ConflictsAndKeepsTheConcurrentBytes(t 
 	issues, dir := newMoveIssues(t)
 	dependentPath := filepath.Join(dir, "session-work.md")
 	concurrent := strings.Replace(dependentIssue, "Fix the parser", "Fix the parser today", 1)
-	issues.applyMove = func(move *tree.Move) error {
+	issues.applyMove = func(move *tree.Move) ([]error, error) {
 		writeNodeFile(t, dir, "session-work.md", concurrent)
-		return move.Apply()
+		return move.Plan.Apply()
 	}
 
 	_, _, err := issues.Move("login-flow", Destination{ID: "auth-flow"}, "")
@@ -305,6 +305,33 @@ func TestMove_DependentChangedBeforeApply_ConflictsAndKeepsTheConcurrentBytes(t 
 	}
 	if files := nodeFiles(t, dir); !slices.Contains(files, "login-flow.md") || slices.Contains(files, "auth-flow.md") {
 		t.Errorf("files = %v, want login-flow.md at its old path", files)
+	}
+}
+
+func TestMove_CleanupFails_ReturnsTheDirectoryLeftInPlace(t *testing.T) {
+	t.Parallel()
+	issues, dir := newMoveIssues(t)
+	oldParentDir := filepath.Join(dir, "login-flow")
+	issues.applyMove = func(move *tree.Move) ([]error, error) {
+		if _, err := move.Plan.Apply(); err != nil {
+			return nil, err
+		}
+		cause := &fs.PathError{Op: "remove", Path: oldParentDir, Err: fs.ErrPermission}
+		return []error{&tree.CleanupError{Path: oldParentDir, Err: cause}}, nil
+	}
+
+	moved, _, err := issues.Move("child-issue", Destination{IsReparented: true}, "")
+
+	if err != nil || len(moved.LeftInPlace) != 1 {
+		t.Fatalf("Move = %+v, %v; want one directory left in place", moved, err)
+	}
+	left := moved.LeftInPlace[0]
+	wantMessage := "remove " + filepath.Join(".capcom", "issues", "login-flow") + ": permission denied"
+	if left.Path != ".capcom/issues/login-flow" || left.Message != wantMessage {
+		t.Errorf("LeftInPlace = %+v, want the old parent directory relative to the worktree", left)
+	}
+	if moved.Path != ".capcom/issues/child-issue.md" {
+		t.Errorf("Moved.Path = %q, want the node moved to the top", moved.Path)
 	}
 }
 
@@ -333,7 +360,8 @@ func assertMoveFileError(hasLine bool) func(t *testing.T, err error) {
 
 // movedEqual reports whether a and b are the same move.
 func movedEqual(a Moved, b Moved) bool {
-	return a.Written == b.Written && a.OldID == b.OldID && a.OldPath == b.OldPath && slices.Equal(a.Unread, b.Unread)
+	return a.Written == b.Written && a.OldID == b.OldID && a.OldPath == b.OldPath && slices.Equal(a.Unread, b.Unread) &&
+		slices.EqualFunc(a.LeftInPlace, b.LeftInPlace, func(x *FileError, y *FileError) bool { return *x == *y })
 }
 
 // treeContent returns the content of every file below dir, by its path relative to dir.

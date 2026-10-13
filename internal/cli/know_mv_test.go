@@ -340,6 +340,42 @@ func TestKnowMv_UnparseableBystander_WarnsAndMoves(t *testing.T) {
 	}
 }
 
+func TestKnowMv_EmptiedOldParentNotRemovable_MovesAndWarns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory does not stop directory removal on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root removes from a read-only directory")
+	}
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"old-parent.md":            "---\ntitle: Old parent\n---\n",
+		"old-parent/moved-note.md": "---\ntitle: Moved note\n---\n",
+		"new-parent.md":            "---\ntitle: New parent\n---\n",
+		"new-parent/kept-note.md":  "---\ntitle: Kept note\n---\n",
+	})
+	readOnlyDir := knowledgePath(root, "")
+	if err := os.Chmod(readOnlyDir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(readOnlyDir, 0o755) })
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "mv", "--json", "moved-note", "--parent", "new-parent")
+
+	if exitCode != ExitOK {
+		t.Fatalf("know mv = %d\n%s%s; want it to succeed", exitCode, stdout, stderr)
+	}
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	want := ".capcom/knowledge/old-parent: remove .capcom/knowledge/old-parent: permission denied; " +
+		"the empty directory was not removed"
+	if len(warnings) != 1 || warnings[0] != want {
+		t.Errorf("warnings = %q; want [%q]", warnings, want)
+	}
+	if !noteFileExists(t, root, "new-parent/moved-note.md") {
+		t.Errorf("moved-note.md is not below new-parent")
+	}
+}
+
 func TestKnowMv_DependentWriteFails_RollsEveryFileBack(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("a read-only directory does not stop file creation on Windows")

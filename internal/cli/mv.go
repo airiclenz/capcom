@@ -53,8 +53,8 @@ func (a *app) newMvCommand() *cobra.Command {
 // when reparented. It refuses with conflict, before anything moves, when --if-match is set and is
 // not the issue file's etag, and, taking the move back, when an issue file it rewrites changed
 // while it ran. The result names the issue's new id, path and etag, with a warning for every tree
-// problem that concerns neither the issue, its new path nor the new parent, and for every issue
-// file whose deps could not be checked.
+// problem that concerns neither the issue, its new path nor the new parent, for every issue file
+// whose deps could not be checked, and for an emptied old parent directory it could not remove.
 func (a *app) move(args []string, options *mvOptions) (Result, error) {
 	destination, err := moveDestination(args, options.parent, options.isReparented)
 	if err != nil {
@@ -75,6 +75,7 @@ func (a *app) move(args []string, options *mvOptions) (Result, error) {
 			moved.OldID,
 		))
 	}
+	result.Warnings = append(result.Warnings, cleanupWarnings(moved.LeftInPlace)...)
 	return result, nil
 }
 

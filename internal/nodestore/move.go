@@ -29,6 +29,9 @@ type Moved struct {
 	// Unread are the files of other nodes that do not parse, so the references in them to the
 	// moved node could not be checked and were left as they are.
 	Unread []string
+	// LeftInPlace are the emptied old parent directories the move's cleanup could not remove, each
+	// a *FileError at the directory saying why. The move itself has landed.
+	LeftInPlace []*FileError
 }
 
 // Move renames the node ref names (its id, one of its Aliases or a unique id prefix), moves it
@@ -57,7 +60,8 @@ type Moved struct {
 //  9. the renames and rewrites, taken back on failure: a file the move rewrites that changed since
 //     the plan read it is a *ConflictError at that file naming any step that could not be taken
 //     back, with no etags; any other failure a *FileError at the node's file naming the failing
-//     path and any step that could not be taken back.
+//     path and any step that could not be taken back. Once they have landed, an emptied old parent
+//     directory the move's cleanup could not remove is no failure: Moved.LeftInPlace names it.
 func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.Errors, error) {
 	nodes, problems, err := k.load()
 	if err != nil {
@@ -106,7 +110,8 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	if current := edit.ETag(move.original); ifMatch != "" && ifMatch != current {
 		return Moved{}, nil, k.conflictError(node.Path, ifMatch, current)
 	}
-	if err := k.applyMove(move.Move); err != nil {
+	leftInPlace, err := k.applyMove(move.Move)
+	if err != nil {
 		if changed := k.applyChangedFailure(err); changed != nil {
 			return Moved{}, nil, changed
 		}
@@ -120,6 +125,9 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	}
 	for _, unread := range move.unread {
 		moved.Unread = append(moved.Unread, k.relative(unread))
+	}
+	for _, failure := range leftInPlace {
+		moved.LeftInPlace = append(moved.LeftInPlace, k.cleanupFailure(failure, node))
 	}
 	return moved, warnings, nil
 }

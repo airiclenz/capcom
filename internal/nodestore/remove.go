@@ -250,9 +250,9 @@ func removalPaths(nodes *tree.Tree, removal *plannedRemoval) []string {
 	return append(paths, removal.Node.Path)
 }
 
-// cleanupFailure types failure, a cleanup of the removal of node that left an emptied directory in
-// place, as a *FileError at that directory, the *tree.CleanupError's, else the node's parent
-// directory.
+// cleanupFailure types failure, a cleanup of the removal or the move of node that left an emptied
+// directory in place, as a *FileError at that directory, the *tree.CleanupError's, else the node's
+// parent directory.
 func (k *Kind[T]) cleanupFailure(failure error, node tree.Node) *FileError {
 	var cleanup *tree.CleanupError
 	if errors.As(failure, &cleanup) {

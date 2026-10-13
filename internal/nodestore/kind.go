@@ -28,9 +28,9 @@ type Kind[T any] struct {
 	// resolver resolves an argument naming an existing node; it may be nil for a caller that
 	// never resolves one.
 	resolver Resolver
-	// applyMove carries out a planned move; a test swaps it to inject a failure of the renames and
-	// rewrites Apply makes.
-	applyMove func(move *tree.Move) error
+	// applyMove carries out a planned move, returning its cleanup failures as warnings; a test
+	// swaps it to inject a failure of the renames and rewrites Apply makes.
+	applyMove func(move *tree.Move) ([]error, error)
 	// applyRemoval carries out a planned removal, returning its cleanup failures as warnings; a
 	// test swaps it to inject a failure of the rewrites and removals Apply makes.
 	applyRemoval func(removal *tree.Removal) ([]error, error)
@@ -65,7 +65,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		dir:          s.IssuesDir(),
 		worktreeRoot: s.WorktreeRoot,
 		resolver:     resolver,
-		applyMove:    (*tree.Move).Apply,
+		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
 	}
 }
@@ -78,9 +78,15 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		dir:          s.KnowledgeDir(),
 		worktreeRoot: s.WorktreeRoot,
 		resolver:     resolver,
-		applyMove:    (*tree.Move).Apply,
+		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
 	}
+}
+
+// applyMove carries out move through its Plan, returning the failures of its cleanups, the
+// removal of the emptied old parent directory, as warnings.
+func applyMove(move *tree.Move) ([]error, error) {
+	return move.Plan.Apply()
 }
 
 // ReadAliases is the tree.AliasFunc of the kind's tree: the Aliases the node file at path records.

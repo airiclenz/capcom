@@ -65,8 +65,8 @@ func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
 	return result, nil
 }
 
-// cleanupWarnings renders each of leftInPlace, an emptied directory a removal's cleanup left in
-// place, as a warning naming the directory, why it was left, and that it was left.
+// cleanupWarnings renders each of leftInPlace, an emptied directory the cleanup of a removal or a
+// move left in place, as a warning naming the directory, why it was left, and that it was left.
 func cleanupWarnings(leftInPlace []*nodestore.FileError) []string {
 	warnings := make([]string, 0, len(leftInPlace))
 	for _, failure := range leftInPlace {
