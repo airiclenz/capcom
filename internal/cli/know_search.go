@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/airiclenz/capcom/internal/cli/output"
 )
 
 // newKnowSearchCommand finds Notes by full text, every word as a whole word in the title or body,
@@ -24,7 +26,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 				return err
 			}
 			if len(entries) == 0 {
-				return Errorf(CodeNotFound, "no note matches %q", text)
+				return output.Errorf(output.CodeNotFound, "no note matches %q", text)
 			}
 			data := make([]noteData, 0, len(entries))
 			var lines strings.Builder
@@ -32,7 +34,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 				data = append(data, newNoteData(entry))
 				lines.WriteString(entry.ID + "  " + flatten(entry.Title) + "\n")
 			}
-			return a.emit(cmd, Result{Kind: "know-search", Data: data, Text: lines.String()})
+			return a.emit(cmd, output.Result{Kind: "know-search", Data: data, Text: lines.String()})
 		}),
 	}
 	cmd.Flags().StringSliceVar(&labels, flagLabel, nil, "only notes with every one of these labels; repeat or separate with commas")

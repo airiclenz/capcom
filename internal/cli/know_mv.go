@@ -3,6 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
@@ -27,7 +28,7 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			options.isReparented = cmd.Flags().Changed(flagParent)
 			if len(args) == 1 && !options.isReparented {
-				return UsageErrorf("know mv needs a new id, --parent, or both")
+				return output.UsageErrorf("know mv needs a new id, --parent, or both")
 			}
 			result, err := a.moveNote(args, options)
 			if err != nil {
@@ -49,14 +50,14 @@ func (a *app) newKnowMvCommand() *cobra.Command {
 // warning for every tree problem that concerns neither the Note, its new path nor the new parent,
 // for every Note file whose superseded-by entries could not be checked, and for an emptied old
 // parent directory it could not remove; a stale capcom block of AGENTS.md is refreshed afterwards.
-func (a *app) moveNote(args []string, options *knowMvOptions) (Result, error) {
+func (a *app) moveNote(args []string, options *knowMvOptions) (output.Result, error) {
 	destination, err := moveDestination(args, options.parent, options.isReparented)
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
 	moved, problems, err := nodestore.Notes(a.store, nil).Move(args[0], destination, options.ifMatch)
 	if err != nil {
-		return Result{}, kindFailure(err)
+		return output.Result{}, kindFailure(err)
 	}
 	result := noteWriteResult(moved.ID, moved.Path, moved.ETag)
 	indexWarnings, warnings := a.movedWarnings(moved, problems)

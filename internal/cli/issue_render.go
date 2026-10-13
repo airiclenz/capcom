@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -155,7 +156,7 @@ func newShowData(entry index.Entry, facts showFacts) showData {
 // them; after deps come the issue's dependents, `<closed>/<total> closed` for its direct children,
 // and its Related links as facts carries them. Empty fields are left out, except priority.
 func issueText(entry index.Entry, etag string, facts showFacts, body string) string {
-	fields := []KVPair{
+	fields := []output.KVPair{
 		{Key: "id", Value: entry.ID},
 		{Key: "path", Value: entry.Path},
 		{Key: "etag", Value: etag},
@@ -220,8 +221,8 @@ func readyText(verdict *issue.Readiness) string {
 
 // issueKV is the --kv record of one issue. STATUS is the outcome of looking it up; the issue's own
 // status is ISSUE_STATUS. ETAG is the file's etag, for update --if-match.
-func issueKV(entry index.Entry, etag string) KVRecord {
-	return KVRecord{Pairs: []KVPair{
+func issueKV(entry index.Entry, etag string) output.KVRecord {
+	return output.KVRecord{Pairs: []output.KVPair{
 		{Key: "ID", Value: entry.ID},
 		{Key: "ETAG", Value: etag},
 		{Key: "ISSUE_STATUS", Value: entry.Status},
@@ -258,7 +259,7 @@ func formatTimestamp(value time.Time) string {
 
 // flatten keeps a value on one line.
 func flatten(value string) string {
-	return kvLineBreaks.Replace(value)
+	return output.KVLineBreaks.Replace(value)
 }
 
 // nonNil returns values, or an empty list in place of nil so --json writes [].

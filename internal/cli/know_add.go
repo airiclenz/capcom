@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/agents"
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -62,10 +63,10 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 // bytes written, with a warning for every tree problem that concerns neither the Note's path nor
 // its parent, unless the index refresh already warned about it. A malformed --ref is refused
 // before the Note's id is weighed against the tree.
-func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, error) {
+func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (output.Result, error) {
 	for _, ref := range options.refs {
 		if err := knowledge.ValidateRef(ref); err != nil {
-			return Result{}, Errorf(CodeInvalid, "%s", err.Error())
+			return output.Result{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
 		}
 	}
 	written, problems, err := nodestore.Notes(a.store, nil).Create(
@@ -74,7 +75,7 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 		func() (knowledge.Note, error) { return newNote(cmd, options) },
 	)
 	if err != nil {
-		return Result{}, kindFailure(err)
+		return output.Result{}, kindFailure(err)
 	}
 	result := noteWriteResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
@@ -85,8 +86,8 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (Result, erro
 }
 
 // noteWriteResult is the result of a command that wrote a Note: its id, path and new etag.
-func noteWriteResult(id string, path string, etag string) Result {
-	return Result{
+func noteWriteResult(id string, path string, etag string) output.Result {
+	return output.Result{
 		Kind: kindNoteWrite,
 		Data: map[string]string{"id": id, "path": path, "etag": etag},
 		Text: fmt.Sprintf("id: %s\npath: %s\netag: %s\n", id, path, etag),
@@ -98,7 +99,7 @@ func noteWriteResult(id string, path string, etag string) Result {
 // AGENTS.md without the block is left alone. The Note is already written, so a failure here is a
 // warning, not a failed command. A refresh is reported in the text of result, a noteWriteResult,
 // and as an agents key in its --json data.
-func (a *app) refreshAgentsAfterWrite(result *Result) {
+func (a *app) refreshAgentsAfterWrite(result *output.Result) {
 	status, err := agents.Sync(a.store.WorktreeRoot, a.store.KnowledgeDir(), agents.ModeRefresh)
 	if err != nil {
 		warning := flatten(agentsFailure(err).Error()) + "; the capcom block was not refreshed"

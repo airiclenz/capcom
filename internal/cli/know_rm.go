@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
@@ -51,10 +52,10 @@ func (a *app) newKnowRmCommand() *cobra.Command {
 // Note nor its parent, for every Note file whose superseded-by entries could not be checked and for
 // an emptied parent directory left in place; a stale capcom block of AGENTS.md is refreshed
 // afterwards.
-func (a *app) removeNote(arg string, options *knowRmOptions) (Result, error) {
+func (a *app) removeNote(arg string, options *knowRmOptions) (output.Result, error) {
 	removed, problems, err := nodestore.Notes(a.store, nil).Remove(arg, options.ifMatch, false)
 	if err != nil {
-		return Result{}, kindFailure(err)
+		return output.Result{}, kindFailure(err)
 	}
 
 	result := noteRemoveResult(removed.ID, removed.Path)
@@ -86,8 +87,8 @@ func supersededByUnreadWarnings(unread []string, id string) []string {
 }
 
 // noteRemoveResult is the result of know rm: the id and path of the removed Note file.
-func noteRemoveResult(id string, path string) Result {
-	return Result{
+func noteRemoveResult(id string, path string) output.Result {
+	return output.Result{
 		Kind: kindNoteRemove,
 		Data: map[string]string{"id": id, "path": path},
 		Text: fmt.Sprintf("id: %s\npath: %s\n", id, path),

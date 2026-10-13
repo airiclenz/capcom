@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 )
@@ -43,7 +44,7 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if depth < unlimitedDepth {
-				return UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
+				return output.UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
 			}
 			lines, err := a.outline(args, depth, isRetiredIncluded, isBackgroundIncluded)
 			if err != nil {
@@ -57,7 +58,7 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 				})
 				rows = append(rows, line.outlineRow)
 			}
-			return a.emit(cmd, Result{Kind: "know-tree", Data: data, Text: renderOutline(rows)})
+			return a.emit(cmd, output.Result{Kind: "know-tree", Data: data, Text: renderOutline(rows)})
 		}),
 	}
 	cmd.Flags().IntVar(&depth, flagDepth, unlimitedDepth,

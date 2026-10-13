@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -53,17 +54,17 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 
 // noteShowResult renders each Note in full, separated by a blank line. Its fields, body and etag
 // come from one read of the Note file, the bytes a later --if-match is checked against.
-func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
+func (a *app) noteShowResult(entries []index.NoteEntry) (output.Result, error) {
 	data := make([]noteData, 0, len(entries))
 	var text strings.Builder
 	for _, indexed := range entries {
 		file, err := a.readIssueFile(indexed.Path)
 		if err != nil {
-			return Result{}, err
+			return output.Result{}, err
 		}
 		entry, body, err := a.noteFromFile(indexed, file)
 		if err != nil {
-			return Result{}, err
+			return output.Result{}, err
 		}
 		etag := nodefile.ETag(file)
 		if text.Len() > 0 {
@@ -75,7 +76,7 @@ func (a *app) noteShowResult(entries []index.NoteEntry) (Result, error) {
 		shown.Body = &body
 		data = append(data, shown)
 	}
-	return Result{Kind: "note", Data: data, Text: text.String()}, nil
+	return output.Result{Kind: "note", Data: data, Text: text.String()}, nil
 }
 
 // noteFromFile parses file, the bytes of the Note file entry indexes, and returns the entry with
@@ -103,7 +104,7 @@ func (a *app) noteFromFile(entry index.NoteEntry, file []byte) (index.NoteEntry,
 // noteText renders one Note in full: its id, location, etag and frontmatter as `key: value`
 // lines, a blank line, then the body byte for byte. Empty fields are left out.
 func noteText(entry index.NoteEntry, etag string, body string) string {
-	fields := []KVPair{
+	fields := []output.KVPair{
 		{Key: "id", Value: entry.ID},
 		{Key: "path", Value: entry.Path},
 		{Key: "etag", Value: etag},
