@@ -151,7 +151,11 @@
 - P3.97: guard folded (decision, round 2)
 - P3.5, P3.62, P3.98: the round-1 UNCONFIRMED findings above were verified by the writer and stay rejected
 
-## P0.0 File the review issues, part 1: parent, test gaps and defects
+## P0.0 File the review issues, part 1: parent, test gaps and defects — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the review file and this plan file were already tracked before the item ran (committed in 6f48479 and b02ae12), so they are not in FILES and the commit adds only the 36 issue files; both `git ls-files --error-unmatch` acceptance checks pass.
+NOTES (2026-10-13): bodies for agents-symlink-escape, terminal-control-escape, duplicate-id-subtree, stale-rewrite-cas, release-gate-binding and tagger-silent-pass state the plan header's ratified design calls (2026-10-13) instead of the review's open design-call options; agents-symlink-escape's acceptance follows the P0.4 call (refused only by `capcom agents`, refresh leaves an outside link alone) rather than the review's ModeRefresh-error acceptance.
+
 
 **What:** File review section 7 in capcom, first half: the parent `code-review-1013` and, under it, every "Test gaps" row and every "Defects" row except the six P0.1 files (`dep-close-race`, `winget-probe-search`, `missing-config-format`, `check-related-format`, `note-self-supersede`, `know-rm-report-drops`). The same commit adds the untracked review file.
 **Regression guard.** The plan file itself is committed in P0.0's commit, since every filed issue's `--plan` names it and `capcom check` needs it tracked.
