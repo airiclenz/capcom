@@ -333,3 +333,24 @@ func TestNotes_OnlyParentFileChanges_ChildHiddenAndShownAgain(t *testing.T) {
 		t.Errorf("Notes after unretiring the parent = %v, %v; want %v", noteIDs(shown), shownErr, want)
 	}
 }
+
+// TestNotes_RowsDeletedMidRead_ReturnsOneSnapshot swaps the package's beforeEntryRead seam, so it
+// never runs in parallel.
+func TestNotes_RowsDeletedMidRead_ReturnsOneSnapshot(t *testing.T) {
+	s, x := noteFixture(t)
+	before, err := x.Notes(false)
+	if err != nil {
+		t.Fatalf("Notes: %v", err)
+	}
+	want := noteIDs(before)
+	deleteOnFirstEntryRead(t, s, "notes", want[len(want)-1])
+
+	notes, err := x.Notes(false)
+
+	if err != nil {
+		t.Fatalf("Notes: %v", err)
+	}
+	if got := noteIDs(notes); !slices.Equal(got, want) {
+		t.Errorf("Notes = %v, want %v", got, want)
+	}
+}

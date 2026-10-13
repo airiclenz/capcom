@@ -89,10 +89,20 @@ func (r *refresher) insertNote(file foundFile, note knowledge.Note) error {
 }
 
 // Note returns the indexed Note whose id is exactly id, retired or not. found is false when no
-// usable Note has that id, including when a duplicate keeps it out.
+// usable Note has that id, including when a duplicate keeps it out. Every row comes from one read
+// snapshot.
 func (x *Index) Note(id string) (entry NoteEntry, found bool, err error) {
+	err = x.snapshot(func(q querier) error {
+		entry, found, err = x.readNote(q, id)
+		return err
+	})
+	return entry, found, err
+}
+
+// readNote reads the Note Note returns through q.
+func (x *Index) readNote(q querier, id string) (entry NoteEntry, found bool, err error) {
 	ctx := context.Background()
-	err = x.db.QueryRowContext(ctx, `SELECT id, path, parent, title, retired FROM notes
+	err = q.QueryRowContext(ctx, `SELECT id, path, parent, title, retired FROM notes
 		WHERE id = ? AND excluded = 0`, id).Scan(
 		&entry.ID,
 		&entry.Path,
@@ -118,7 +128,7 @@ func (x *Index) Note(id string) (entry NoteEntry, found bool, err error) {
 		{`SELECT to_id FROM supersedes WHERE path = ? ORDER BY rowid`, []any{entry.Path}, &entry.SupersededBy},
 	}
 	for _, list := range lists {
-		if *list.target, err = x.strings(ctx, list.query, list.args...); err != nil {
+		if *list.target, err = x.strings(ctx, q, list.query, list.args...); err != nil {
 			return NoteEntry{}, false, err
 		}
 	}
@@ -130,37 +140,48 @@ func (x *Index) Note(id string) (entry NoteEntry, found bool, err error) {
 // retired ancestor, resolves like any other. It fails with an error matching
 // tree.ErrNotFound when nothing matches, and with a *tree.AmbiguousError when the prefix matches
 // several ids. A name only a Note left out as a duplicate answers to, or the id or an alias of a
-// Note file with problems or left out by the walk, fails as Resolve says, never as a prefix.
-func (x *Index) ResolveNote(arg string) (NoteEntry, error) {
-	id, err := x.resolveID(noteNodes, arg)
-	if err != nil {
-		return NoteEntry{}, err
-	}
-	entries, err := x.noteList([]string{id})
-	if err != nil {
-		return NoteEntry{}, err
-	}
-	return entries[0], nil
+// Note file with problems or left out by the walk, fails as Resolve says, never as a prefix. Every
+// row comes from one read snapshot.
+func (x *Index) ResolveNote(arg string) (entry NoteEntry, err error) {
+	err = x.snapshot(func(q querier) error {
+		id, err := x.resolveID(q, noteNodes, arg)
+		if err != nil {
+			return err
+		}
+		entries, err := x.noteList(q, []string{id})
+		if err != nil {
+			return err
+		}
+		entry = entries[0]
+		return nil
+	})
+	return entry, err
 }
 
 // Notes returns every usable Note in tree order: by path, so every Note comes before its
 // children. Unless isRetiredIncluded is set, it leaves out every Note that is retired or has a
-// retired ancestor.
-func (x *Index) Notes(isRetiredIncluded bool) ([]NoteEntry, error) {
+// retired ancestor. Every row comes from one read snapshot.
+func (x *Index) Notes(isRetiredIncluded bool) (entries []NoteEntry, err error) {
 	with, condition := retiredFilter(isRetiredIncluded)
-	ids, err := x.strings(
-		context.Background(),
-		with+`SELECT id FROM notes WHERE excluded = 0`+condition+` ORDER BY path`,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return x.noteList(ids)
+	err = x.snapshot(func(q querier) error {
+		ids, err := x.strings(
+			context.Background(),
+			q,
+			with+`SELECT id FROM notes WHERE excluded = 0`+condition+` ORDER BY path`,
+		)
+		if err != nil {
+			return err
+		}
+		entries, err = x.noteList(q, ids)
+		return err
+	})
+	return entries, err
 }
 
 // SearchNotes returns the usable Notes whose title or body contains every word of text and that
 // carry every one of labels, best match first. Words match as Search's do. Unless
 // isRetiredIncluded is set, it leaves out every Note that is retired or has a retired ancestor.
+// Every row comes from one read snapshot.
 func (x *Index) SearchNotes(text string, labels []string, isRetiredIncluded bool) ([]NoteEntry, error) {
 	words := strings.Fields(text)
 	if len(words) == 0 {
@@ -175,18 +196,24 @@ func (x *Index) SearchNotes(text string, labels []string, isRetiredIncluded bool
 			WHERE labels.path = notes.path AND labels.kind = ? AND label = ?)`
 		args = append(args, kindNote, label)
 	}
-	ids, err := x.strings(context.Background(), query+` ORDER BY fts.rank, notes.id`, args...)
-	if err != nil {
-		return nil, err
-	}
-	return x.noteList(ids)
+	var entries []NoteEntry
+	err := x.snapshot(func(q querier) error {
+		ids, err := x.strings(context.Background(), q, query+` ORDER BY fts.rank, notes.id`, args...)
+		if err != nil {
+			return err
+		}
+		entries, err = x.noteList(q, ids)
+		return err
+	})
+	return entries, err
 }
 
-// noteList returns the indexed Note of each id, in order.
-func (x *Index) noteList(ids []string) ([]NoteEntry, error) {
+// noteList reads the indexed Note of each id through q, in order.
+func (x *Index) noteList(q querier, ids []string) ([]NoteEntry, error) {
 	entries := make([]NoteEntry, 0, len(ids))
 	for _, id := range ids {
-		entry, found, err := x.Note(id)
+		beforeEntryRead(id)
+		entry, found, err := x.readNote(q, id)
 		if err != nil {
 			return nil, err
 		}

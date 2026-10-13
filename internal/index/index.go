@@ -205,11 +205,20 @@ func (x *Index) Close() error {
 }
 
 // Issue returns the indexed issue whose id is exactly id. found is false when no usable issue has
-// that id, including when a duplicate keeps it out.
+// that id, including when a duplicate keeps it out. Every row comes from one read snapshot.
 func (x *Index) Issue(id string) (entry Entry, found bool, err error) {
+	err = x.snapshot(func(q querier) error {
+		entry, found, err = x.readIssue(q, id)
+		return err
+	})
+	return entry, found, err
+}
+
+// readIssue reads the issue Issue returns through q.
+func (x *Index) readIssue(q querier, id string) (entry Entry, found bool, err error) {
 	ctx := context.Background()
 	var created, closed string
-	err = x.db.QueryRowContext(ctx, `SELECT id, path, parent, status, category, type, priority,
+	err = q.QueryRowContext(ctx, `SELECT id, path, parent, status, category, type, priority,
 		plan, created, closed, reason, title FROM issues WHERE id = ? AND excluded = 0`, id).Scan(
 		&entry.ID, &entry.Path, &entry.ParentID, &entry.Status, &entry.Category, &entry.Type,
 		&entry.Priority, &entry.Plan, &created, &closed, &entry.Reason, &entry.Title,
@@ -237,7 +246,7 @@ func (x *Index) Issue(id string) (entry Entry, found bool, err error) {
 		{`SELECT alias FROM aliases WHERE path = ? ORDER BY rowid`, &entry.Aliases},
 	}
 	for _, list := range lists {
-		if *list.target, err = x.strings(ctx, list.query, entry.Path); err != nil {
+		if *list.target, err = x.strings(ctx, q, list.query, entry.Path); err != nil {
 			return Entry{}, false, err
 		}
 	}
@@ -250,6 +259,7 @@ func (x *Index) Issue(id string) (entry Entry, found bool, err error) {
 func (x *Index) RelatedBy(id string) ([]string, error) {
 	return x.strings(
 		context.Background(),
+		x.db,
 		`SELECT DISTINCT holder.id FROM related
 			JOIN issues AS holder ON holder.path = related.path
 			WHERE holder.excluded = 0 AND holder.id <> ?1 AND (
@@ -267,12 +277,18 @@ func (x *Index) RelatedBy(id string) ([]string, error) {
 // best match first. Words are matched as whole tokens, case-insensitively; FTS5 operators in
 // text are taken literally.
 func (x *Index) Search(text string) ([]string, error) {
+	return x.searchIDs(x.db, text)
+}
+
+// searchIDs reads the ids Search returns through q.
+func (x *Index) searchIDs(q querier, text string) ([]string, error) {
 	words := strings.Fields(text)
 	if len(words) == 0 {
 		return nil, nil
 	}
 	return x.strings(
 		context.Background(),
+		q,
 		`SELECT issues.id FROM fts JOIN issues ON issues.path = fts.path
 			WHERE fts MATCH ? AND fts.kind = ? AND issues.excluded = 0 ORDER BY fts.rank, issues.id`,
 		matchExpression(words), kindIssue,
@@ -289,9 +305,51 @@ func matchExpression(words []string) string {
 	return strings.Join(terms, " ")
 }
 
-// strings runs a query selecting one text column and returns its values in order.
-func (x *Index) strings(ctx context.Context, query string, args ...any) ([]string, error) {
-	rows, err := x.db.QueryContext(ctx, query, args...)
+// querier is the part of *sql.DB and *sql.Conn the readers use, so one reader serves both a lone
+// statement on the pool and a statement inside a snapshot.
+type querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// snapshot runs read inside one deferred SQLite read transaction, so every statement read issues
+// through its querier sees the index as the first one did, whatever another connection commits
+// meanwhile. It begins the transaction with a raw BEGIN DEFERRED rather than BeginTx, since
+// dsnOptions make BeginTx take the write lock. The pool holds one connection, which read's querier
+// holds until snapshot returns: read must issue every statement through it, never through x.db.
+func (x *Index) snapshot(read func(q querier) error) (err error) {
+	ctx := context.Background()
+	conn, err := x.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: %w", Path(x.store), err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("%s: %w", Path(x.store), closeErr))
+		}
+	}()
+
+	if _, err := conn.ExecContext(ctx, "BEGIN DEFERRED"); err != nil {
+		return fmt.Errorf("%s: begin read: %w", Path(x.store), err)
+	}
+	err = read(conn)
+	if err == nil {
+		_, err = conn.ExecContext(ctx, "COMMIT")
+		if err == nil {
+			return nil
+		}
+		err = fmt.Errorf("%s: end read: %w", Path(x.store), err)
+	}
+	// The transaction must not outlive the call on the connection the pool hands out next.
+	if _, rollbackErr := conn.ExecContext(ctx, "ROLLBACK"); rollbackErr != nil {
+		err = errors.Join(err, fmt.Errorf("%s: end read: %w", Path(x.store), rollbackErr))
+	}
+	return err
+}
+
+// strings runs a query selecting one text column through q and returns its values in order.
+func (x *Index) strings(ctx context.Context, q querier, query string, args ...any) ([]string, error) {
+	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: query: %w", Path(x.store), err)
 	}

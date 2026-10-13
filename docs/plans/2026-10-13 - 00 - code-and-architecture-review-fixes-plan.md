@@ -831,7 +831,10 @@ Depends on P0.9.
 - `go vet ./internal/gitx/`
 **Commit:** `fix(gitx): report a fatal rev-parse failure from HasCommit`
 
-## P1.27 Index listings read from one snapshot
+## P1.27 Index listings read from one snapshot — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): SearchIssues reads its ids through a new unexported searchIDs(q, text), and List through listIDs(q, filter), so Search and ListIDs stay single statements on x.db while the snapshot readers never call an exported method; Issue and Note likewise wrap new readIssue/readNote readers.
+NOTES (2026-10-13): the List test indexes its own three open issues instead of reusing listFixture, and both tests take the ids to expect from ListIDs/Notes before swapping the seam rather than hard-coding the last id.
 
 **What:** Fixes F-20 (`index-read-snapshot`). `List`, `SearchIssues`, `Notes` and `SearchNotes` read their ids and then each entry in separate statements. A refresh committed by another command in between fails the whole read with `id "x" not found`, or mixes two versions in one Entry (per review F-20).
 **Goal:** `Index.List`, `SearchIssues`, `Resolve`, `Issue`, `Notes`, `SearchNotes`, `ResolveNote` and `Note` each read all their rows from one SQLite read snapshot. Rows that another connection deletes or changes partway through one call do not affect its result.

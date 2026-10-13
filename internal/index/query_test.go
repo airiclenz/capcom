@@ -1,6 +1,7 @@
 package index
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -47,6 +49,58 @@ func ids(entries []Entry) []string {
 		values = append(values, entry.ID)
 	}
 	return values
+}
+
+// deleteOnFirstEntryRead swaps the package's beforeEntryRead seam so that, on its first call, a
+// second connection deletes the row of id from table, the way a refresh another command commits
+// between the read of the ids and the read of an entry would. Its callers never run in parallel.
+func deleteOnFirstEntryRead(t *testing.T, s *store.Store, table, id string) {
+	t.Helper()
+	original := beforeEntryRead
+	t.Cleanup(func() { beforeEntryRead = original })
+	isDeleted := false
+	beforeEntryRead = func(string) {
+		if isDeleted {
+			return
+		}
+		isDeleted = true
+		other, err := sql.Open(driverName, Path(s)+dsnOptions)
+		if err != nil {
+			t.Fatalf("sql.Open: %v", err)
+		}
+		defer func() {
+			if err := other.Close(); err != nil {
+				t.Errorf("Close: %v", err)
+			}
+		}()
+		if _, err := other.Exec(`DELETE FROM `+table+` WHERE id = ?`, id); err != nil {
+			t.Fatalf("DELETE: %v", err)
+		}
+	}
+}
+
+// TestList_RowsDeletedMidRead_ReturnsOneSnapshot swaps the package's beforeEntryRead seam, so it
+// never runs in parallel.
+func TestList_RowsDeletedMidRead_ReturnsOneSnapshot(t *testing.T) {
+	s := newStore(t)
+	writeIssue(t, s, "login-flow.md", issueWith("Login flow", "open", ""))
+	writeIssue(t, s, "login-flow/session-refresh.md", issueWith("Session refresh", "open", "labels: [auth]\n"))
+	writeIssue(t, s, "release-checklist.md", issueWith("Release checklist", "open", ""))
+	x := openIndex(t, s)
+	want, err := x.ListIDs(Filter{})
+	if err != nil {
+		t.Fatalf("ListIDs: %v", err)
+	}
+	deleteOnFirstEntryRead(t, s, "issues", want[len(want)-1])
+
+	entries, err := x.List(Filter{})
+
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := ids(entries); !slices.Equal(got, want) {
+		t.Errorf("List = %v, want %v", got, want)
+	}
 }
 
 func TestList_Filters_SelectMatchingIssuesInTreeOrder(t *testing.T) {

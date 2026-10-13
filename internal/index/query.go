@@ -50,20 +50,29 @@ type Filter struct {
 }
 
 // List returns the usable issues filter selects, in tree order: by path, so every issue comes
-// right before its children.
-func (x *Index) List(filter Filter) ([]Entry, error) {
-	ids, err := x.ListIDs(filter)
-	if err != nil {
-		return nil, err
-	}
-	return x.issues(ids)
+// right before its children. Every row comes from one read snapshot.
+func (x *Index) List(filter Filter) (entries []Entry, err error) {
+	err = x.snapshot(func(q querier) error {
+		ids, err := x.listIDs(q, filter)
+		if err != nil {
+			return err
+		}
+		entries, err = x.issues(q, ids)
+		return err
+	})
+	return entries, err
 }
 
 // ListIDs returns the ids of the issues List returns for filter, in the same order, without
 // reading the issues themselves.
 func (x *Index) ListIDs(filter Filter) ([]string, error) {
+	return x.listIDs(x.db, filter)
+}
+
+// listIDs reads the ids ListIDs returns through q.
+func (x *Index) listIDs(q querier, filter Filter) ([]string, error) {
 	query, args := filter.sql()
-	return x.strings(context.Background(), query, args...)
+	return x.strings(context.Background(), q, query, args...)
 }
 
 // sql builds the query selecting the ids filter keeps, and its arguments.
@@ -130,13 +139,18 @@ func (f Filter) sql() (string, []any) {
 // only a node left out as a duplicate answers to, or the id or an alias of a node file under the
 // directory of a repeated id, fails with a *tree.Error wrapping tree.ErrDuplicate, and the id or an
 // alias of an invalid file, a file the walk leaves out unread or a node file under another
-// directory the walk leaves out with tree.ErrNotFound, never as a prefix.
-func (x *Index) Resolve(arg string) (Entry, error) {
-	id, err := x.resolveID(issueNodes, arg)
-	if err != nil {
-		return Entry{}, err
-	}
-	return x.resolved(arg, id)
+// directory the walk leaves out with tree.ErrNotFound, never as a prefix. Every row comes from one
+// read snapshot.
+func (x *Index) Resolve(arg string) (entry Entry, err error) {
+	err = x.snapshot(func(q querier) error {
+		id, err := x.resolveID(q, issueNodes, arg)
+		if err != nil {
+			return err
+		}
+		entry, err = x.resolved(q, arg, id)
+		return err
+	})
+	return entry, err
 }
 
 // resolveID finds the id of the usable node of one kind that arg names, the way Resolve does. Its
@@ -145,28 +159,28 @@ func (x *Index) Resolve(arg string) (Entry, error) {
 // as unusableClaim says and is never matched as a prefix. The ids of the node files the latest
 // refresh left out below a repeated id count as prefix candidates, as tree.Resolve counts them: a
 // prefix one of them shares with another id stays ambiguous, and a prefix of one of them alone
-// fails with its duplicate problem.
-func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
+// fails with its duplicate problem. It reads through q.
+func (x *Index) resolveID(q querier, nodes nodeTable, arg string) (string, error) {
 	ctx := context.Background()
 	name := tree.NormalizeArg(arg)
-	exact, err := x.strings(ctx, `SELECT id FROM `+nodes.table+` WHERE id = ? AND excluded = 0`, name)
+	exact, err := x.strings(ctx, q, `SELECT id FROM `+nodes.table+` WHERE id = ? AND excluded = 0`, name)
 	if err != nil || len(exact) == 1 {
 		return firstOf(exact), err
 	}
 
-	owners, err := x.strings(ctx, `SELECT `+nodes.table+`.id FROM aliases
+	owners, err := x.strings(ctx, q, `SELECT `+nodes.table+`.id FROM aliases
 		JOIN `+nodes.table+` ON `+nodes.table+`.path = aliases.path
 		WHERE aliases.kind = ? AND aliases.alias = ? AND `+nodes.table+`.excluded = 0`, nodes.kind, name)
 	if err != nil || len(owners) == 1 {
 		return firstOf(owners), err
 	}
-	if err := x.unusableClaim(ctx, nodes, arg, name); err != nil {
+	if err := x.unusableClaim(ctx, q, nodes, arg, name); err != nil {
 		return "", err
 	}
 
 	var candidates []string
 	if name != "" {
-		candidates, err = x.strings(ctx, `SELECT id FROM `+nodes.table+`
+		candidates, err = x.strings(ctx, q, `SELECT id FROM `+nodes.table+`
 			WHERE excluded = 0 AND substr(id, 1, length(?1)) = ?1 ORDER BY id`, name)
 		if err != nil {
 			return "", err
@@ -197,9 +211,9 @@ func (x *Index) resolveID(nodes nodeTable, arg string) (string, error) {
 // alias, as the claims table records them) fails with an error wrapping tree.ErrNotFound
 // that quotes arg and names the first such file in path order, unless that file is a node file the
 // latest refresh left out below a repeated id: then it fails with that id's duplicate problem,
-// naming both of its files.
-func (x *Index) unusableClaim(ctx context.Context, nodes nodeTable, arg, name string) error {
-	duplicate, err := x.duplicateClaim(ctx, nodes, name)
+// naming both of its files. It reads through q.
+func (x *Index) unusableClaim(ctx context.Context, q querier, nodes nodeTable, arg, name string) error {
+	duplicate, err := x.duplicateClaim(ctx, q, nodes, name)
 	if err != nil {
 		return err
 	}
@@ -207,7 +221,7 @@ func (x *Index) unusableClaim(ctx context.Context, nodes nodeTable, arg, name st
 		return duplicate
 	}
 
-	invalid, err := x.strings(ctx, `SELECT path FROM claims
+	invalid, err := x.strings(ctx, q, `SELECT path FROM claims
 		WHERE kind = ? AND name = ? ORDER BY path LIMIT 1`, nodes.kind, name)
 	if err != nil || len(invalid) == 0 {
 		return err
@@ -248,9 +262,9 @@ func (x *Index) leftOutPrefixCandidates(kind, name string) []string {
 // duplicateClaim returns the duplicate that left out a node of the kind having name as its id or
 // an alias, or nil when no left-out node has. The problem is the one on name itself when two files
 // claim it, otherwise one on another name the node shares with a different file; it is worded like
-// the refresh warning, with both files relative to the working tree root.
-func (x *Index) duplicateClaim(ctx context.Context, nodes nodeTable, name string) (*tree.Error, error) {
-	rows, err := x.db.QueryContext(ctx, `WITH claims(name, path, kind) AS (
+// the refresh warning, with both files relative to the working tree root. It reads through q.
+func (x *Index) duplicateClaim(ctx context.Context, q querier, nodes nodeTable, name string) (*tree.Error, error) {
+	rows, err := q.QueryContext(ctx, `WITH claims(name, path, kind) AS (
 			SELECT id, path, 'id' FROM `+nodes.table+`
 			UNION ALL SELECT alias, path, 'alias' FROM aliases WHERE kind = ?2
 		)
@@ -305,29 +319,40 @@ func firstOf(values []string) string {
 	return values[0]
 }
 
-// resolved returns the issue arg resolved to; it is gone only if the index changed underneath.
-func (x *Index) resolved(arg, id string) (Entry, error) {
-	entry, found, err := x.Issue(id)
+// resolved reads the issue arg resolved to through q; it is gone only if the index changed
+// underneath.
+func (x *Index) resolved(q querier, arg, id string) (Entry, error) {
+	entry, found, err := x.readIssue(q, id)
 	if err == nil && !found {
 		err = fmt.Errorf("id %q %w", arg, tree.ErrNotFound)
 	}
 	return entry, err
 }
 
-// SearchIssues returns the usable issues Search finds for text, best match first.
-func (x *Index) SearchIssues(text string) ([]Entry, error) {
-	ids, err := x.Search(text)
-	if err != nil {
-		return nil, err
-	}
-	return x.issues(ids)
+// SearchIssues returns the usable issues Search finds for text, best match first. Every row comes
+// from one read snapshot.
+func (x *Index) SearchIssues(text string) (entries []Entry, err error) {
+	err = x.snapshot(func(q querier) error {
+		ids, err := x.searchIDs(q, text)
+		if err != nil {
+			return err
+		}
+		entries, err = x.issues(q, ids)
+		return err
+	})
+	return entries, err
 }
 
-// issues returns the indexed issue of each id, in order.
-func (x *Index) issues(ids []string) ([]Entry, error) {
+// beforeEntryRead runs before issues and noteList read each entry; tests swap it to change the
+// index between the read of the ids and the read of an entry.
+var beforeEntryRead = func(id string) {}
+
+// issues reads the indexed issue of each id through q, in order.
+func (x *Index) issues(q querier, ids []string) ([]Entry, error) {
 	entries := make([]Entry, 0, len(ids))
 	for _, id := range ids {
-		entry, err := x.resolved(id, id)
+		beforeEntryRead(id)
+		entry, err := x.resolved(q, id, id)
 		if err != nil {
 			return nil, err
 		}
