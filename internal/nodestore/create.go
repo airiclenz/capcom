@@ -28,14 +28,16 @@ import (
 //  6. build, whose failure is returned as it is.
 //  7. validation: a node that does not validate fails with a *FileError at the new file, listing
 //     every problem and citing the first problem's line.
-//  8. the format raise: when the node carries a key value of a newer store format than
-//     config.yaml declares, config.yaml is raised to it (Written.RaisedFormat); a failure is a
-//     *FileError at config.yaml.
-//  9. the exclusive write, which never replaces a file: right before it the parent's node file is
-//     checked again, and a parent file another session removed or cannot be checked fails with a
-//     *FileError at it, creating neither the parent's children directory nor the new file; a file
-//     that appeared at the new node's path since the claim fails with the *ExistsError naming it;
-//     any other failure is returned as it is.
+//  8. the parent re-check: below a parent, the parent's node file is checked again, and a parent
+//     file another session removed or cannot be checked fails with a *FileError at it, creating
+//     neither the parent's children directory nor the new file.
+//  9. the format raise, after every check so a create an earlier step refuses leaves config.yaml
+//     as it was: when the node carries a key value of a newer store format than config.yaml
+//     declares, config.yaml is raised to it (Written.RaisedFormat); a failure is a *FileError at
+//     config.yaml.
+//  10. the exclusive write, which never replaces a file: a file that appeared at the new node's
+//     path since the claim fails with the *ExistsError naming it; any other failure is returned
+//     as it is.
 //
 // Once a node written at the top of the tree has landed, the Kind's sync hook runs (WithSync), its
 // outcome on the Written's Effects; a node written below a parent runs none.
@@ -75,17 +77,17 @@ func (k *Kind[T]) Create(
 	if err != nil {
 		return Written{}, nil, err
 	}
-	var none T
-	raised, err := k.raise(none, node)
-	if err != nil {
-		return Written{}, nil, err
-	}
 	if parentPath != "" {
 		// Writing below a parent whose node file is gone would recreate its children directory
 		// with no node file.
 		if _, err := os.Lstat(parentPath); err != nil {
 			return Written{}, nil, k.fileError(parentPath, err)
 		}
+	}
+	var none T
+	raised, err := k.raise(none, node)
+	if err != nil {
+		return Written{}, nil, err
 	}
 	written, err := k.place(path, id, encoded, createFile)
 	if errors.Is(err, fs.ErrExist) {

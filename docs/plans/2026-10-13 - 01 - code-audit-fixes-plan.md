@@ -83,7 +83,9 @@ NOTES (2026-10-13): retry: `isPlaceable` also refuses a literal or folded block-
 - `GOMEMLIMIT=2GiB go test ./internal/store/`
 **Commit:** `fix(config): raise the store format on every spelling of the format key`
 
-## 2. nodestore raises the format only after the last pre-write check
+## 2. nodestore raises the format only after the last pre-write check — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the recast `TestEdit_GainsRelatedBelowFormatTwo_RaisesBeforeTheWrite` no longer sets the package-level `beforeRecheck` hook (it wraps the Kind's `raiseFormat` instead), so it now runs with `t.Parallel()` and its not-parallel doc comment is gone; Create's doc comment gains a step (8 parent re-check, 9 raise, 10 exclusive write) and `recheck`'s doc now cites Edit's step 7.
 
 **What:** Fix: `Kind.Edit` raises `config.yaml` before `recheck`, and `Kind.Create` before the parent `Lstat`, so a conflict or missing parent leaves the store declaring a format no file needs.
 **Goal:** An Edit that fails its recheck, or a Create whose parent vanished, leaves `config.yaml` byte-identical; a successful write that needs a newer format still raises it before the node file is placed.

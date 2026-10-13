@@ -137,6 +137,35 @@ func TestCreate_ParentRemovedBeforeTheWrite_FailsAtTheParentAndCreatesNoDirector
 	}
 }
 
+func TestCreate_ParentRemovedBelowFormatTwo_LeavesTheFormatAlone(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	const formatOne = "format: 1\n"
+	configPath := writeNodeFile(t, s.Root, "config.yaml", formatOne)
+	parentPath := writeNodeFile(t, s.IssuesDir(), "parser-epic.md", canonicalIssue)
+	build := buildIssue(t, "open")
+	removingBuild := func() (issue.Issue, error) {
+		if err := os.Remove(parentPath); err != nil {
+			t.Fatal(err)
+		}
+		node, err := build()
+		node.Related = []string{"db-schema"}
+		return node, err
+	}
+
+	written, _, err := Issues(s, nil).Create(newIssueID, "parser-epic", removingBuild)
+
+	var failure *FileError
+	if !errors.As(err, &failure) || failure.Path != ".capcom/issues/parser-epic.md" ||
+		written.RaisedFormat != 0 {
+		t.Errorf("Written = %+v err = %v, want a *FileError at the parent's file and no raise",
+			written, err)
+	}
+	if content := readFile(t, configPath); content != formatOne {
+		t.Errorf("config.yaml = %q, want it unchanged", content)
+	}
+}
+
 func TestPlace_ReplaceMissingTarget_FailsAtTheFileAndCreatesNothing(t *testing.T) {
 	t.Parallel()
 
