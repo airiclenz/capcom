@@ -358,7 +358,11 @@ NOTES (2026-10-13): the failing-reader case runs against both ReplaceFileVerbati
 - `GOMEMLIMIT=2GiB go test ./internal/nodefile/`
 **Commit:** `test: pin the merge placeholder fallback and the verbatim writes`
 
-## 20. Closeout: archive the review
+## 20. Closeout: archive the review — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): re-derived from the assumption that the review is untracked: it was already tracked, so it moved with `git mv` (staged as a rename) instead of `mv` + `git add`, per the dispatch DECISION.
+NOTES (2026-10-13): the plan's Sources path was not updated: implementers never write into the plan document, and its Sources line already records that item 20 moves the file to `docs/reviews/archived/`.
+NOTES (2026-10-13): `.capcom/issues/code-audit-1013.md` (lines 10, 65) still names the old path; left untouched because implementers never edit a ticket, and the issue is closed at closeout.
 
 **What:**
 **Goal:** the review lives at `docs/reviews/archived/code-audit-2026-10-13.md`, tracked by git, and `docs/reviews/code-audit-2026-10-13.md` no longer exists.
