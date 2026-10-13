@@ -375,3 +375,75 @@ func TestScan_OriginHead_IsIgnored(t *testing.T) {
 		t.Errorf("entries = %q, want %q and nothing on origin/HEAD", lines, want)
 	}
 }
+
+// gitOutput runs a read-only git command for test setup and returns its trimmed output.
+func gitOutput(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	command := exec.Command("git", args...)
+	command.Dir = dir
+	output, err := command.Output()
+	if err != nil {
+		t.Fatalf("git %s: %v", strings.Join(args, " "), err)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func TestScan_NotARepository_WarnsListBranchesOnce(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(root))
+
+	report := scan(root)
+
+	if len(report.Entries) != 0 || len(report.Warnings) != 1 ||
+		!strings.HasPrefix(report.Warnings[0], "elsewhere: list branches: ") {
+		t.Errorf("report = %+v, want no entries and one list-branches warning", report)
+	}
+}
+
+func TestScan_BranchWithAMissingTree_WarnsForItAndReportsTheOthers(t *testing.T) {
+	root := newIssueRepo(t)
+	// a-broken sorts before b-healthy, so a scan that stopped at the first failing branch would
+	// never reach the healthy one.
+	onBranch(t, root, "a-broken", map[string]string{"login-flow.md": issueFile("done")})
+	onBranch(t, root, "b-healthy", map[string]string{"login-flow/session-refresh.md": issueFile("done")})
+	tree := gitOutput(t, root, "rev-parse", "a-broken^{tree}")
+	object := filepath.Join(root, ".git", "objects", tree[:2], tree[2:])
+	// git writes loose objects read-only, which Windows refuses to remove.
+	if err := os.Chmod(object, 0o644); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	if err := os.Remove(object); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	report := scan(root)
+
+	want := []string{"session-refresh: done on b-healthy (unmerged)"}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) {
+		t.Errorf("entries = %q, want %q", lines, want)
+	}
+	if len(report.Warnings) != 1 || !strings.HasPrefix(report.Warnings[0], "elsewhere: branch a-broken: ") {
+		t.Errorf("warnings = %q, want one for branch a-broken", report.Warnings)
+	}
+}
+
+func TestScan_HiddenAndNonMarkdownFiles_AreNotReported(t *testing.T) {
+	root := newIssueRepo(t)
+	onBranch(t, root, "extras", map[string]string{
+		".hidden.md":  issueFile("open"),
+		"notes.txt":   "some notes\n",
+		"new-work.md": issueFile("open"),
+	})
+
+	report := scan(root)
+
+	want := []Entry{{ID: "new-work", Branch: "extras", Change: Added, Path: ".capcom/issues/new-work.md"}}
+	if !reflect.DeepEqual(report.Entries, want) || len(report.Warnings) != 0 {
+		t.Errorf("report = %+v\nwant entries %+v and no warnings", report, want)
+	}
+}

@@ -399,7 +399,7 @@ Depends on P0.0, P0.3.
 - `go vet ./internal/knowledge/ ./internal/cli/`
 **Commit:** `fix(knowledge): read a Ref's symbol file through the guarded reader`
 
-## P0.9 Pin the Elsewhere scan's failure warnings and file filter
+## P0.9 Pin the Elsewhere scan's failure warnings and file filter — ✅ DONE (2026-10-13)
 
 **What:** Closes test gap T-07 (`elsewhere-failure-tests`). Adds characterisation tests for the "never fails" contract of `elsewhere.Scan` and for the filter in `issueID`, before P0.10 changes the branch read.
 **Regression guard.** Name the branches so the one with the missing tree sorts first in refname order (e.g. `a-broken`, `b-healthy`), so the bite mutation "Scan returns at the first branch warning" turns the test red. The not-a-repository test sets `GIT_CEILING_DIRECTORIES` as `newRepo` does.
