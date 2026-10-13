@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -53,7 +54,7 @@ func (a *app) newDepListCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if depth < unlimitedDepth {
-				return UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
+				return output.UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)
 			}
 			entry, err := a.resolveIssue(args[0])
 			if err != nil {
@@ -78,7 +79,7 @@ func (a *app) newDepListCommand() *cobra.Command {
 // An issue already printed in its section prints again as `<id>  (see above)` without its branch;
 // entry itself, met again on a cycle, prints in full but without a branch. With isCutShown each
 // issue whose branch maxDepth cut is followed by the outline's `... <n> more` line.
-func (g depGraph) listResult(entry index.Entry, maxDepth int, isCutShown bool) Result {
+func (g depGraph) listResult(entry index.Entry, maxDepth int, isCutShown bool) output.Result {
 	data := depListData{ID: entry.ID, Missing: []string{}}
 	deps := newDepSection(g, entry.ID, isCutShown)
 	dependents := newDepSection(g, entry.ID, isCutShown)
@@ -109,7 +110,7 @@ func (g depGraph) listResult(entry index.Entry, maxDepth int, isCutShown bool) R
 
 	data.Deps, data.Dependents = deps.items, dependents.items
 	text := depsHeading + "\n" + renderOutline(deps.rows) + dependentsHeading + "\n" + renderOutline(dependents.rows)
-	return Result{Kind: "deps", Data: data, Text: text}
+	return output.Result{Kind: "deps", Data: data, Text: text}
 }
 
 // depBranches splits the steps of a walk at its depth-1 steps: each depth-1 issue's id maps to

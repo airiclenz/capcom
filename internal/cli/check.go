@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/cli/output"
 )
 
 // newCheckCommand validates the whole store, reading the files and never the index, and lists
@@ -24,14 +25,14 @@ func (a *app) newCheckCommand() *cobra.Command {
 			}
 			problems, err := check.Run(cwd)
 			if err != nil {
-				return storeFailure(err)
+				return output.StoreFailure(err)
 			}
 			data := append([]check.Problem{}, problems...)
 			var text strings.Builder
 			for _, problem := range problems {
 				text.WriteString(problem.String() + "\n")
 			}
-			if err := a.emit(cmd, Result{Kind: "check", Data: data, Text: text.String()}); err != nil {
+			if err := a.emit(cmd, output.Result{Kind: "check", Data: data, Text: text.String()}); err != nil {
 				return err
 			}
 			if len(problems) == 0 {
@@ -39,7 +40,7 @@ func (a *app) newCheckCommand() *cobra.Command {
 			}
 			// The problems are the result, so the failure only sets the exit code: --json keeps
 			// kind check without an error member, and text mode writes nothing to stderr.
-			failure := Errorf(CodeInvalid, "%d problems found", len(problems))
+			failure := output.Errorf(output.CodeInvalid, "%d problems found", len(problems))
 			failure.IsRendered = true
 			return failure
 		}),

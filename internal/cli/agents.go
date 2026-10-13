@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/agents"
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -45,7 +46,7 @@ func (a *app) newAgentsCommand() *cobra.Command {
 			}
 			opened, err := store.Open(cwd)
 			if err != nil {
-				return storeFailure(err)
+				return output.StoreFailure(err)
 			}
 			if isCheck {
 				return a.checkAgentsBlock(cmd, opened)
@@ -73,7 +74,7 @@ func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 		data.Block = blockRefreshed
 		text = "refreshed the capcom block of " + agents.FileName + "\n"
 	}
-	return a.emit(cmd, Result{Kind: "agents", Data: data, Text: text})
+	return a.emit(cmd, output.Result{Kind: "agents", Data: data, Text: text})
 }
 
 // checkAgentsBlock reports the block's state; a stale block fails invalid at its marker line.
@@ -89,14 +90,14 @@ func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 		data.Block = blockCurrent
 		text = "the capcom block of " + agents.FileName + " is current\n"
 	case agents.StateStale:
-		return &Error{
-			Code:    CodeInvalid,
+		return &output.Error{
+			Code:    output.CodeInvalid,
 			Path:    agents.FileName,
 			Line:    status.Line,
 			Message: "the capcom block is out of date; run capcom agents to refresh it",
 		}
 	}
-	return a.emit(cmd, Result{Kind: "agents", Data: data, Text: text})
+	return a.emit(cmd, output.Result{Kind: "agents", Data: data, Text: text})
 }
 
 // agentsFailure types tangled markers as invalid at AGENTS.md and its line, and an AGENTS.md that
@@ -105,7 +106,7 @@ func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 func agentsFailure(err error) error {
 	var tangled *agents.Error
 	if errors.As(err, &tangled) {
-		return &Error{Code: CodeInvalid, Path: tangled.Path, Line: tangled.Line, Message: tangled.Message}
+		return &output.Error{Code: output.CodeInvalid, Path: tangled.Path, Line: tangled.Line, Message: tangled.Message}
 	}
 	return err
 }

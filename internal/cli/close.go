@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -81,18 +82,18 @@ func (a *app) newCloseCommand() *cobra.Command {
 // closeResult closes every argument's issue and builds the result: a --json item, a text line and a
 // --kv record per argument, and the joined failure of the arguments that name no issue. The text
 // ends with a "now ready:" line naming the todo issues the closes made Ready, when there are any.
-func (a *app) closeResult(args []string, status string, reason string) (Result, error) {
+func (a *app) closeResult(args []string, status string, reason string) (output.Result, error) {
 	// The index is not refreshed after the writes, so the issues are read once, before them.
 	nodes, err := a.issueNodes()
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
 	closedCategory, _ := a.store.Config.CategoryOf(status)
 	closing := map[string]config.Category{}
 	isReported := map[string]bool{}
 	var nowReady []string
 
-	result := Result{Kind: "close", KV: []KVRecord{}}
+	result := output.Result{Kind: "close", KV: []output.KVRecord{}}
 	data := make([]closeData, 0, len(args))
 	var text strings.Builder
 	var messages []string
@@ -102,7 +103,7 @@ func (a *app) closeResult(args []string, status string, reason string) (Result, 
 	for _, arg := range args {
 		outcome, failure, err := a.closeOne(arg, status, reason, closedAt, isHandled)
 		if err != nil {
-			return Result{}, err
+			return output.Result{}, err
 		}
 		if failure != nil {
 			if result.Failure == nil {
@@ -110,7 +111,7 @@ func (a *app) closeResult(args []string, status string, reason string) (Result, 
 			}
 			messages = append(messages, failure.Error())
 			data = append(data, closeData{ID: arg, Outcome: string(failure.Code), NowReady: []string{}})
-			result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{Key: "ID", Value: arg}}, Status: string(failure.Code)})
+			result.KV = append(result.KV, output.KVRecord{Pairs: []output.KVPair{{Key: "ID", Value: arg}}, Status: string(failure.Code)})
 			continue
 		}
 		outcome.NowReady = []string{}
@@ -126,13 +127,13 @@ func (a *app) closeResult(args []string, status string, reason string) (Result, 
 		}
 		data = append(data, outcome)
 		fmt.Fprintf(&text, "%s  %s\n", outcome.ID, outcome.Outcome)
-		result.KV = append(result.KV, KVRecord{Pairs: []KVPair{{Key: "ID", Value: outcome.ID}}, Status: outcome.Outcome})
+		result.KV = append(result.KV, output.KVRecord{Pairs: []output.KVPair{{Key: "ID", Value: outcome.ID}}, Status: outcome.Outcome})
 	}
 	if len(nowReady) > 0 {
 		fmt.Fprintf(&text, "now ready: %s\n", strings.Join(nowReady, ", "))
 	}
 	if result.Failure != nil {
-		result.Failure = Errorf(result.Failure.Code, "%s", strings.Join(messages, failureSeparator))
+		result.Failure = output.Errorf(result.Failure.Code, "%s", strings.Join(messages, failureSeparator))
 	}
 	result.Data = data
 	result.Text = text.String()
@@ -160,7 +161,7 @@ func (a *app) closeOne(
 	reason string,
 	closedAt time.Time,
 	isHandled map[string]bool,
-) (outcome closeData, failure *Error, err error) {
+) (outcome closeData, failure *output.Error, err error) {
 	entry, err := a.issueIndex.Resolve(arg)
 	if err != nil {
 		resolveErr, isArgument := resolveFailure(err)
@@ -174,7 +175,7 @@ func (a *app) closeOne(
 	if isHandled[entry.ID] || isClosedCategory(entry.Category) {
 		file, err := a.readIssueFile(entry.Path)
 		if err != nil {
-			return closeData{}, asError(err), nil
+			return closeData{}, output.AsError(err), nil
 		}
 		outcome.Outcome = outcomeAlreadyClosed
 		outcome.ETag = nodefile.ETag(file)
@@ -187,7 +188,7 @@ func (a *app) closeOne(
 		return target, nil
 	})
 	if err != nil {
-		return closeData{}, asError(err), nil
+		return closeData{}, output.AsError(err), nil
 	}
 	isHandled[entry.ID] = true
 	outcome.Outcome = outcomeClosed
@@ -199,10 +200,10 @@ func (a *app) closeOne(
 // blank one invalid.
 func requireReason(cmd *cobra.Command, reason string) error {
 	if !cmd.Flags().Changed(flagReason) {
-		return UsageErrorf("%s needs --%s <text>", cmd.Name(), flagReason)
+		return output.UsageErrorf("%s needs --%s <text>", cmd.Name(), flagReason)
 	}
 	if strings.TrimSpace(reason) == "" {
-		return Errorf(CodeInvalid, "--%s is empty; say why", flagReason)
+		return output.Errorf(output.CodeInvalid, "--%s is empty; say why", flagReason)
 	}
 	return nil
 }

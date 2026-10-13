@@ -1556,7 +1556,7 @@ Depends on P2.29.
 - move-only: `git add -A && git diff HEAD --color-moved=zebra --color-moved-ws=allow-indentation-change` (no `--stat`). The zebra diff changes no lines beyond the package/import headers, the capitalised names and the alias blocks. The check also allows const/var block wrappers, doc comments naming the new file, the doc.go map and test helpers a split needs.
 **Commit:** `refactor(cli): move the renderers and storeFailure to internal/cli/output`
 
-## P2.31 cli/output package, part 3: commands agents.go to fmt.go
+## P2.31 cli/output package, part 3: commands agents.go to fmt.go — ✅ DONE (2026-10-13)
 
 **What:** Part 3 of review P2-14. The first batch of command files names the output contract through package `output`.
 **Regression guard.** P2.30 keys every unkeyed `KVPair` literal in `internal/cli`, so `go vet ./...` stays green here. The Goal's "use no temporary alias" is checked by an Acceptance grep.

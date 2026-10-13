@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -77,10 +78,10 @@ func (a *app) newCreateCommand() *cobra.Command {
 // that concerns neither the issue's file nor its parent's, unless the index refresh already
 // warned about it, and a warning when the new issue has no body or only whitespace. A --dep that
 // resolves to no issue fails the create before anything is written.
-func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error) {
+func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result, error) {
 	deps, err := a.resolveDeps(options.deps)
 	if err != nil {
-		return Result{}, err
+		return output.Result{}, err
 	}
 	var body string
 	written, problems, err := nodestore.Issues(a.store, nil).Create(
@@ -93,7 +94,7 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (Result, error)
 		},
 	)
 	if err != nil {
-		return Result{}, kindFailure(err)
+		return output.Result{}, kindFailure(err)
 	}
 	result := writeResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
@@ -130,7 +131,7 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 		status, _ = cfg.DefaultStatus(config.CategoryTodo) // config guarantees a todo status
 	}
 	if category, _ := cfg.CategoryOf(status); isClosedCategory(category) {
-		return issue.Issue{}, Errorf(CodeInvalid, "status %q is in the %s category; create the issue open, then close it", status, category)
+		return issue.Issue{}, output.Errorf(output.CodeInvalid, "status %q is in the %s category; create the issue open, then close it", status, category)
 	}
 	issueType := options.issueType
 	if issueType == "" {

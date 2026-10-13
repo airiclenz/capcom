@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -46,8 +47,8 @@ func (a *app) newDepAddCommand() *cobra.Command {
 				return err
 			}
 			if dependent.ID == dependency.ID {
-				return &Error{
-					Code:    CodeInvalid,
+				return &output.Error{
+					Code:    output.CodeInvalid,
 					Path:    dependent.Path,
 					Message: fmt.Sprintf("%s cannot depend on itself", dependent.ID),
 				}
@@ -58,8 +59,8 @@ func (a *app) newDepAddCommand() *cobra.Command {
 			}
 			isPresent := slices.ContainsFunc(dependent.Deps, graph.names(dependency.ID))
 			if cycle := graph.graph.FindCycle(dependent.ID, dependency.ID); !isPresent && cycle != nil {
-				return &Error{
-					Code: CodeInvalid,
+				return &output.Error{
+					Code: output.CodeInvalid,
 					Path: dependent.Path,
 					Message: fmt.Sprintf(
 						"%s cannot depend on %s: that would create the cycle %s",
@@ -109,7 +110,7 @@ func (a *app) newDepRmCommand() *cobra.Command {
 			written, err := a.editIssue(dependent.ID, "", func(target issue.Issue) (issue.Issue, error) {
 				kept := slices.DeleteFunc(slices.Clone(target.Deps), isRemoved)
 				if len(kept) == len(target.Deps) {
-					return issue.Issue{}, Errorf(CodeNotFound, "%s does not depend on %s", dependent.ID, args[1])
+					return issue.Issue{}, output.Errorf(output.CodeNotFound, "%s does not depend on %s", dependent.ID, args[1])
 				}
 				if len(kept) == 0 {
 					kept = nil

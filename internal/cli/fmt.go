@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -47,7 +48,7 @@ func (a *app) newFmtCommand() *cobra.Command {
 			}
 			opened, err := store.Open(cwd)
 			if err != nil {
-				return storeFailure(err)
+				return output.StoreFailure(err)
 			}
 			a.store = opened
 			issues, err := nodestore.Issues(opened, nil).Format(isCheck)
@@ -85,14 +86,14 @@ func (r *formatRun) emit(cmd *cobra.Command) error {
 	fmt.Fprintf(&text, summary, len(r.paths))
 
 	data := fmtData{Paths: append([]string{}, r.paths...)}
-	result := Result{Kind: kindFmt, Data: data, Text: text.String(), Warnings: r.warnings}
+	result := output.Result{Kind: kindFmt, Data: data, Text: text.String(), Warnings: r.warnings}
 	if err := r.app.emit(cmd, result); err != nil {
 		return err
 	}
 	if !r.isCheck || len(r.paths) == 0 {
 		return nil
 	}
-	failure := Errorf(CodeInvalid, "%d files would change", len(r.paths))
+	failure := output.Errorf(output.CodeInvalid, "%d files would change", len(r.paths))
 	failure.IsRendered = true
 	return failure
 }

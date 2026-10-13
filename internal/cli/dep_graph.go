@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 )
@@ -127,7 +128,7 @@ func (g depGraph) shownBy(start string, isAll bool) func(index.Entry) bool {
 // `n<k>["<id> (<status>)"]` per issue in tree order, then an edge `n<a> --> n<b>` from each
 // dependency to its dependent, by dependent in tree order and then in the file's order of its
 // deps, each edge once. An edge whose either end is not shown is left out.
-func (g depGraph) flowchartResult(isShown func(index.Entry) bool) Result {
+func (g depGraph) flowchartResult(isShown func(index.Entry) bool) output.Result {
 	data := depGraphData{Nodes: []depGraphNode{}, Edges: []depGraphEdge{}}
 	var text strings.Builder
 	text.WriteString(mermaidHeading + "\n")
@@ -159,5 +160,5 @@ func (g depGraph) flowchartResult(isShown func(index.Entry) bool) Result {
 			text.WriteString(mermaidIndent + dependencyName + mermaidArrow + nodeNames[node.ID] + "\n")
 		}
 	}
-	return Result{Kind: "dep-graph", Data: data, Text: text.String()}
+	return output.Result{Kind: "dep-graph", Data: data, Text: text.String()}
 }
