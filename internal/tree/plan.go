@@ -29,6 +29,9 @@ type Plan struct {
 	// rename renames a file or directory, os.Rename when nil; tests swap it to inject a failure.
 	// While it is swapped, a node file is renamed with it too, instead of hard-linked.
 	rename func(oldPath string, newPath string) error
+	// remove removes a file or an empty directory, os.Remove when nil; tests swap it to inject a
+	// failure.
+	remove func(path string) error
 }
 
 // step is one change a Plan makes on disk and the change that takes it back.
@@ -184,6 +187,14 @@ func (p *Plan) doRename(oldPath string, newPath string) error {
 		return os.Rename(oldPath, newPath)
 	}
 	return p.rename(oldPath, newPath)
+}
+
+// doRemove removes path with the plan's remove, os.Remove unless a test swapped it.
+func (p *Plan) doRemove(path string) error {
+	if p.remove == nil {
+		return os.Remove(path)
+	}
+	return p.remove(path)
 }
 
 // rollBack undoes the applied steps, newest first, and returns cause with every failure to undo

@@ -113,6 +113,47 @@ func TestPlanMove_ReparentWithChildren_MovesSubtreeAndRemovesEmptyDir(t *testing
 	}
 }
 
+func TestMoveApply_EmptiedOldDirRemovalFails_WarnsAndKeepsTheMove(t *testing.T) {
+	dir := t.TempDir()
+	writeNodes(t, dir, "old-parent.md", "old-parent/moved-node.md", "new-parent.md")
+	move, err := mustLoad(t, dir, nil).PlanMove(
+		"moved-node",
+		tree.Destination{ID: "moved-node", ParentID: "new-parent"},
+		issueKind,
+	)
+	if err != nil {
+		t.Fatalf("PlanMove: %v", err)
+	}
+	oldDir := filepath.Join(dir, "old-parent")
+	tree.SetMoveRemove(move, func(path string) error {
+		if path == oldDir {
+			return errInjected
+		}
+		return os.Remove(path)
+	})
+
+	warnings, err := move.Plan.Apply()
+
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	var cleanup *tree.CleanupError
+	if len(warnings) != 1 || !errors.As(warnings[0], &cleanup) ||
+		cleanup.Path != oldDir || !errors.Is(cleanup, errInjected) {
+		t.Errorf("warnings = %v, want one *tree.CleanupError naming %s", warnings, oldDir)
+	}
+	want := map[string]string{
+		"old-parent.md":            "x\n",
+		"old-parent/":              "",
+		"new-parent.md":            "x\n",
+		"new-parent/":              "",
+		"new-parent/moved-node.md": "x\n",
+	}
+	if got := snapshotDir(t, dir); !reflect.DeepEqual(got, want) {
+		t.Errorf("tree = %v, want %v", got, want)
+	}
+}
+
 func TestMoveApply_NewParentRemovedBeforeApply_FailsCreatingNoDirectory(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "moved-node.md", "new-parent.md")

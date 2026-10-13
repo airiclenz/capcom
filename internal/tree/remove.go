@@ -46,8 +46,8 @@ func (e *ChildrenDirError) Error() string {
 	)
 }
 
-// CleanupError is a best-effort cleanup of a removal that failed: Path is the directory it left in
-// place and Err why.
+// CleanupError is a best-effort cleanup of a Plan (a removal or a move) that failed: Path is the
+// directory it left in place and Err why.
 type CleanupError struct {
 	// Path is the directory the cleanup left in place.
 	Path string
@@ -80,10 +80,6 @@ type Removal struct {
 	ChildrenDir string
 
 	Plan
-
-	// remove removes a file or an empty directory, os.Remove when nil; tests swap it to inject a
-	// failure.
-	remove func(path string) error
 }
 
 // PlanRemove works out the removal of the node with exact id id, changing nothing on disk. kind
@@ -193,14 +189,6 @@ func (r *Removal) removeFileStep(path string) step {
 			return WriteFileAtomicVerbatim(path, bytes.NewReader(original), mode)
 		},
 	}
-}
-
-// doRemove removes path with the removal's remove, os.Remove unless a test swapped it.
-func (r *Removal) doRemove(path string) error {
-	if r.remove == nil {
-		return os.Remove(path)
-	}
-	return r.remove(path)
 }
 
 // removeEmptyDir removes dir with remove when nothing is left in it and leaves it when anything is.

@@ -75,7 +75,8 @@ type Rewrite struct {
 
 // Move is a rename and re-parent of one node, worked out by PlanMove before anything on disk
 // changes, then carried out by Apply. It knows nothing of the node files' format: a caller that
-// changes file contents adds them with AddRewrite. Its renames are the steps of its Plan.
+// changes file contents adds them with AddRewrite. Its renames are the steps of its Plan, and the
+// removal of the old parent's directory, when the move empties it, is its Plan's cleanup.
 type Move struct {
 	// Node is the moved node, as it was before the move.
 	Node Node
@@ -95,6 +96,10 @@ type Move struct {
 // PlanMove fails with ErrInvalidID for an invalid new id, a *TakenError for a new id another node
 // holds, ErrNotFound for an unknown node or parent, and ErrMoveIntoSubtree for a parent at or
 // below the node itself.
+//
+// When the move empties the old parent's children directory, PlanMove adds its removal as a
+// cleanup: failing to remove it fails nothing, and Plan.Apply returns it as a *CleanupError
+// warning. A caller wanting that warning calls Plan.Apply rather than Move.Apply.
 func (t *Tree) PlanMove(id string, to Destination, kind string) (*Move, error) {
 	node, err := t.lookupExact(id)
 	if err != nil {
@@ -168,11 +173,12 @@ func RenameAliases(aliases []string, oldID string, newID string) []string {
 }
 
 // planRenames adds the steps that carry m.Node to m.NewPath, in this fixed order: create the
-// destination directory when the new parent has no children yet, rename the node file, rename its
-// children directory when it has one, and remove the old parent's directory when the move left it
-// empty. Creating the destination directory first checks that the new parent's node file is still
-// there, so a parent removed since PlanMove fails the move instead of getting a children directory
-// again.
+// destination directory when the new parent has no children yet, rename the node file, and rename
+// its children directory when it has one. Creating the destination directory first checks that the
+// new parent's node file is still there, so a parent removed since PlanMove fails the move instead
+// of getting a children directory again. When the node is its old parent's only child it adds a
+// cleanup that removes the old parent's directory once the move left it empty; failing that
+// removal keeps the move and becomes a *CleanupError warning of Plan.Apply.
 func (m *Move) planRenames(nodes *Tree) {
 	node := m.Node
 	newDir := filepath.Dir(m.NewPath)
@@ -199,28 +205,7 @@ func (m *Move) planRenames(nodes *Tree) {
 
 	oldDir := filepath.Dir(node.Path)
 	if node.ParentID != "" && oldDir != newDir && len(nodes.ChildrenOf(node.ParentID)) == 1 {
-		m.steps = append(m.steps, removeEmptyDirStep(oldDir))
-	}
-}
-
-// removeEmptyDirStep removes dir when nothing is left in it, and creates it again to undo that.
-func removeEmptyDirStep(dir string) step {
-	isRemoved := false
-	return step{
-		apply: func() error {
-			entries, err := os.ReadDir(dir)
-			if err != nil || len(entries) > 0 {
-				return err
-			}
-			isRemoved = true
-			return os.Remove(dir)
-		},
-		undo: func() error {
-			if !isRemoved {
-				return nil
-			}
-			return os.Mkdir(dir, movedDirPermissions)
-		},
+		m.AddCleanup(func() error { return removeEmptyDir(oldDir, m.doRemove) })
 	}
 }
 
@@ -228,8 +213,10 @@ func removeEmptyDirStep(dir string) step {
 // current path, failing with ErrChanged on a file that no longer holds the rewrite's Original, then
 // makes the renames in PlanMove's fixed order. When any step fails it takes back the steps already
 // made, newest first, so the tree is as it was; the error names the failing path and any step that
-// could not be taken back, a rewritten file changed since its rewrite among them, left as it is. PlanMove adds no cleanups, so Apply returns no
-// warnings; a caller that adds one calls Plan.Apply to have them. Apply must run at most once.
+// could not be taken back, a rewritten file changed since its rewrite among them, left as it is.
+// Apply drops the cleanup warnings: PlanMove adds the removal of an emptied old parent directory as
+// a cleanup, and a caller wanting its *CleanupError calls Plan.Apply instead. Apply must run at
+// most once.
 func (m *Move) Apply() error {
 	_, err := m.Plan.Apply()
 	return err

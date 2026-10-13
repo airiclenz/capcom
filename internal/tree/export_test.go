@@ -10,6 +10,12 @@ func SetMoveRename(move *Move, rename func(oldPath string, newPath string) error
 	move.rename = rename
 }
 
+// SetMoveRemove replaces the remove a Move's cleanup removes the emptied old parent directory with,
+// so a test can inject a failure.
+func SetMoveRemove(move *Move, remove func(path string) error) {
+	move.remove = remove
+}
+
 // SetRemovalRemove replaces the remove a Removal removes its directories and files with, cleanup
 // included, so a test can inject a failure.
 func SetRemovalRemove(removal *Removal, remove func(path string) error) {

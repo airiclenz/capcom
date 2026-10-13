@@ -887,7 +887,11 @@ NOTES (2026-10-13): the "unclosed fence above the Log appends to it" case passes
 - `go vet ./internal/rawfm/ ./internal/issue/`
 **Commit:** `fix(issue): find the Log section outside fenced code blocks`
 
-## P1.30 Move removes the emptied old parent as a cleanup
+## P1.30 Move removes the emptied old parent as a cleanup — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): The `remove` seam and `doRemove` moved from `Removal` to `Plan`, next to `rename`; `Removal`'s steps, its cleanup and `SetRemovalRemove` still work through the embedded Plan. `Move` type's doc also says the emptied old parent's removal is its Plan's cleanup.
+NOTES (2026-10-13): Bite check: with the pre-item move.go restored (seam kept so the test builds), TestMoveApply_EmptiedOldDirRemovalFails_WarnsAndKeepsTheMove fails: the old directory is removed through os.Remove and Plan.Apply returns no warning.
+NOTES (2026-10-13): The command-level warning (`mv`, `know mv`) is P1.31's, which also closes `move-dir-cleanup`; until then `Move.Apply` drops the warning.
 
 **What:** Fixes the tree half of F-25 (`move-dir-cleanup`): `planRenames` appends `removeEmptyDirStep` as a hard step, so a failed removal of an empty directory rolls back a finished move (per review F-25).
 **Regression guard.** `CleanupError`'s doc in remove.go is widened to "a best-effort cleanup of a Plan (a removal or a move)". The Goal's "`removeEmptyDirStep` no longer exists" is checked by an Acceptance grep.
