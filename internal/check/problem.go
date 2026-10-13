@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -102,25 +103,24 @@ func (c *checker) loadTree(
 		if problem.Alias != "" {
 			line = aliasesLine(problem.Path)
 		}
-		c.add(problem.Path, line, treeCode(problem.Err), relative.Message())
+		// Every problem tree.Load reports wraps a sentinel TreeKind knows; any other is reported
+		// as a duplicate.
+		code := CodeDuplicate
+		if kind, isKnown := diagnose.TreeKind(problem); isKnown {
+			code = kindCode(kind)
+		}
+		c.add(problem.Path, line, code, relative.Message())
 	}
 	return loaded, nil
 }
 
-// treeCode is the Problem code of a tree load problem, by the sentinel it wraps.
-func treeCode(err error) string {
-	switch {
-	case errors.Is(err, tree.ErrInvalidID):
-		return CodeInvalidID
-	case errors.Is(err, tree.ErrInvalidAlias):
-		return CodeInvalidAlias
-	case errors.Is(err, tree.ErrOrphanDirectory):
-		return CodeOrphanDirectory
-	case errors.Is(err, tree.ErrNotRegular), errors.Is(err, tree.ErrTooLarge):
-		return CodeNotRegular
-	default:
+// kindCode is the Problem code of a problem of kind: a repeated alias is a duplicate, and every
+// other Kind is the code of the same name.
+func kindCode(kind diagnose.Kind) string {
+	if kind == diagnose.RepeatedAlias {
 		return CodeDuplicate
 	}
+	return string(kind)
 }
 
 // readFile reads the issue or Note file at path through nodefile.ReadNodeFile. A file it refuses
@@ -129,11 +129,9 @@ func treeCode(err error) string {
 // failed read is an error naming the file.
 func (c *checker) readFile(path string) (data []byte, isRead bool, err error) {
 	data, err = nodefile.ReadNodeFile(path)
-	for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
-		if errors.Is(err, refusal) {
-			c.add(path, 0, CodeNotRegular, refusal.Error())
-			return nil, false, nil
-		}
+	if refusal := diagnose.ReadRefusal(err); refusal != nil {
+		c.add(path, 0, CodeNotRegular, refusal.Error())
+		return nil, false, nil
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf("%s: %w", c.relative(path), err)

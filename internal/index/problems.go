@@ -4,20 +4,10 @@ import (
 	"errors"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/tree"
 )
-
-// readRefusal returns the tree sentinel err wraps when nodefile.ReadNodeFile refused the file unread
-// (tree.ErrNotRegular or tree.ErrTooLarge), worded as the walk words the same problem, or nil.
-func readRefusal(err error) error {
-	for _, sentinel := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
-		if errors.Is(err, sentinel) {
-			return sentinel
-		}
-	}
-	return nil
-}
 
 // parseIssue parses and validates one issue file and returns every problem that keeps it out of
 // the index.
@@ -44,10 +34,8 @@ func aliasProblems(file foundFile, aliases []string) []Warning {
 	_, rejected := tree.CheckAliases(file.path, file.kind, file.id, aliases)
 	var problems []Warning
 	for _, problem := range rejected {
-		kind := WarningRepeatedAlias
-		if errors.Is(problem, tree.ErrInvalidAlias) {
-			kind = WarningInvalidAlias
-		}
+		// CheckAliases rejects an alias only as invalid or repeated, both sentinels TreeKind knows.
+		kind, _ := diagnose.TreeKind(problem)
 		problems = append(problems, Warning{Kind: kind, Path: problem.Path, Message: problem.Message()})
 	}
 	return problems

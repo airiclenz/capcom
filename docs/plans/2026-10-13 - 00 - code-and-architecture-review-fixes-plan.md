@@ -2441,7 +2441,11 @@ NOTES (2026-10-13): the symlinked issue file points at a regular file outside th
 - `go vet ./internal/check/ ./internal/index/`
 **Commit:** `test(check): pin per-file problem codes and wording beside the index's`
 
-## P3.61 One problem-kind enum for check, the index and cli
+## P3.61 One problem-kind enum for check, the index and cli — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): diagnose imports only tree for now; config, issue and knowledge arrive with P3.62's per-file parse and validate functions, which need them.
+
+NOTES (2026-10-13): the index walk and aliasProblems drop TreeKind's bool instead of keeping their old fallbacks (orphan-directory for the walk, repeated-alias for aliases), because every problem tree.Walk and tree.CheckAliases reports wraps a sentinel TreeKind knows. check's loadTree keeps its old fallback: an unknown tree.Load problem still gets CodeDuplicate, now through the small kindCode Kind-to-Code mapping (RepeatedAlias to duplicate, every other Kind its own string).
 
 **What:** Part 1 of A-06: a new package `internal/diagnose` holds one `Kind` enum and the one mapping from a `tree` sentinel to it.
 **Goal:** `diagnose.TreeKind(problem *tree.Error) (Kind, bool)` and `diagnose.ReadRefusal(err error) error` are the only sentinel-to-kind mappings: `grep -rnE 'func (treeCode|walkWarningKind|treeProblemKindOf|readRefusal)\(' internal` finds nothing; check's JSON codes, index warnings and cli warnings are byte-identical (P3.60).

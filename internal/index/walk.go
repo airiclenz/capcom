@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -49,7 +50,10 @@ func walkIssues(worktreeRoot, issuesDir string, r *refresher) ([]foundFile, []cl
 	problems = append(problems, directoryProblems...)
 	var claims []claim
 	for _, problem := range problems {
-		r.warn(walkWarningKind(problem), worktreeRelative(worktreeRoot, problem.Path), 0, problem.Message())
+		// A walk reports only invalid ids, entries left out unread and orphan directories, each
+		// wrapping a sentinel TreeKind knows.
+		kind, _ := diagnose.TreeKind(problem)
+		r.warn(kind, worktreeRelative(worktreeRoot, problem.Path), 0, problem.Message())
 		claims = append(claims, problemClaims(worktreeRoot, problem)...)
 	}
 	claims = withoutKeptFiles(claims, worktreeRoot, nodes)
@@ -248,7 +252,7 @@ func orphanDirectoryClaims(worktreeRoot, dir string) []claim {
 		names := []string{id}
 		data, err := nodefile.ReadNodeFile(current)
 		switch {
-		case readRefusal(err) != nil:
+		case diagnose.ReadRefusal(err) != nil:
 		case err != nil:
 			return nil
 		default:
@@ -274,19 +278,6 @@ func nodeFileID(path string) (string, bool) {
 	name := filepath.Base(path)
 	id := tree.IDOf(name)
 	return id, id != name && tree.ValidateID(id) == nil
-}
-
-// walkWarningKind is the warning kind of a tree.Walk problem: an invalid id, an entry left out
-// unread (not a regular file, or a node file over 1 MiB), or else an orphan directory, the only
-// problems a walk reports.
-func walkWarningKind(problem *tree.Error) WarningKind {
-	switch {
-	case errors.Is(problem, tree.ErrInvalidID):
-		return WarningInvalidID
-	case errors.Is(problem, tree.ErrNotRegular), errors.Is(problem, tree.ErrTooLarge):
-		return WarningNotRegular
-	}
-	return WarningOrphanDirectory
 }
 
 // worktreeRelative names a path below worktreeRoot with forward slashes, for rows and warnings.

@@ -20,6 +20,7 @@ import (
 	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -72,28 +73,29 @@ func WithClock(now func() time.Time) Option {
 }
 
 // WarningKind classifies a Warning by the problem it reports, so a caller tells problems apart
-// without reading the message.
-type WarningKind string
+// without reading the message. It is diagnose.Kind, so its values are those check and the cli
+// classify the same problems by.
+type WarningKind = diagnose.Kind
 
 // The kinds of Warning, one per problem the index reports.
 const (
 	// WarningInvalidID is a node file whose name is not a valid id.
-	WarningInvalidID WarningKind = "invalid-id"
+	WarningInvalidID = diagnose.InvalidID
 	// WarningInvalidAlias is an alias that is not a valid name.
-	WarningInvalidAlias WarningKind = "invalid-alias"
+	WarningInvalidAlias = diagnose.InvalidAlias
 	// WarningDuplicate is an id or alias another file of the same tree also has.
-	WarningDuplicate WarningKind = "duplicate"
+	WarningDuplicate = diagnose.Duplicate
 	// WarningRepeatedAlias is an alias that repeats its own node's id or is listed twice.
-	WarningRepeatedAlias WarningKind = "repeated-alias"
+	WarningRepeatedAlias = diagnose.RepeatedAlias
 	// WarningOrphanDirectory is a directory left out because it has no valid node file beside it.
-	WarningOrphanDirectory WarningKind = "orphan-directory"
+	WarningOrphanDirectory = diagnose.OrphanDirectory
 	// WarningNotRegular is an entry left out unread because it is not a regular file (a symlink, a
 	// named pipe, a device) or is a node file larger than 1 MiB.
-	WarningNotRegular WarningKind = "not-regular"
+	WarningNotRegular = diagnose.NotRegular
 	// WarningFrontmatter is a file whose frontmatter cannot be read.
-	WarningFrontmatter WarningKind = "frontmatter"
+	WarningFrontmatter = diagnose.Frontmatter
 	// WarningField is a field value the file's kind does not accept.
-	WarningField WarningKind = "field"
+	WarningField = diagnose.Field
 )
 
 // Warning is a file the index left out, or a problem it found in one. Path is relative to the

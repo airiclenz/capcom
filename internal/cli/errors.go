@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -77,7 +77,7 @@ func (a *app) unwarnedTreeProblems(problems tree.Errors) []string {
 // relative to the working tree root with forward slashes: a warning names the same file and has the
 // same kind. A different problem on a file the index warned about is not covered.
 func (a *app) isIndexWarnedAbout(problem *tree.Error) bool {
-	kind, isIndexed := treeProblemKindOf(problem)
+	kind, isIndexed := diagnose.TreeKind(problem)
 	if !isIndexed {
 		return false
 	}
@@ -87,25 +87,4 @@ func (a *app) isIndexWarnedAbout(problem *tree.Error) bool {
 		}
 	}
 	return false
-}
-
-// treeProblemKindOf returns the index warning kind of a tree.Load problem, by the sentinel it
-// wraps, and false for a problem the index never reports. A repeated alias also wraps ErrDuplicate,
-// so it is matched first.
-func treeProblemKindOf(problem *tree.Error) (index.WarningKind, bool) {
-	switch {
-	case errors.Is(problem, tree.ErrInvalidID):
-		return index.WarningInvalidID, true
-	case errors.Is(problem, tree.ErrInvalidAlias):
-		return index.WarningInvalidAlias, true
-	case errors.Is(problem, tree.ErrRepeatedAlias):
-		return index.WarningRepeatedAlias, true
-	case errors.Is(problem, tree.ErrDuplicate):
-		return index.WarningDuplicate, true
-	case errors.Is(problem, tree.ErrOrphanDirectory):
-		return index.WarningOrphanDirectory, true
-	case errors.Is(problem, tree.ErrNotRegular), errors.Is(problem, tree.ErrTooLarge):
-		return index.WarningNotRegular, true
-	}
-	return "", false
 }

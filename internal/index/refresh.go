@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/rawfm"
@@ -278,7 +279,7 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	var problems []Warning
 	var aliases []string
 	var insert func() error
-	refusal := readRefusal(err)
+	refusal := diagnose.ReadRefusal(err)
 	switch {
 	case refusal != nil:
 		problems = []Warning{{Kind: WarningNotRegular, Path: file.path, Message: refusal.Error()}}
