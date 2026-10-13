@@ -10,7 +10,7 @@
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
 //   - `claim.go` — the refusal of a new id that a node, or a file the tree leaves out, holds
-//   - `codec.go` — Codec: how one Tree kind parses, validates, serializes and plans moves of its nodes
+//   - `codec.go` — Codec: how one Tree kind parses, validates and serializes its nodes, and which fields reference others
 //   - `create.go` — Create: writes a new node below its parent
 //   - `doc.go` — the package comment and this file map
 //   - `edit.go` — Edit: changes a node and writes it back under its ETag
@@ -19,6 +19,7 @@
 //   - `kind.go` — Kind, Issues and Notes, Written, and the Alias reads and paths every verb shares
 //   - `load.go` — the tree load and the triage of its problems into blocking failures and warnings
 //   - `move.go` — Move: renames a node or moves it below another
+//   - `refs.go` — the reference fields of a Tree kind and the move planner that renames their entries
 //   - `remove.go` — Remove: removes a node that has no children
 //   - `write.go` — the validated write of a node file, replacing it or creating it exclusively
 package nodestore

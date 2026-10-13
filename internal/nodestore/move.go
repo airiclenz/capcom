@@ -36,10 +36,12 @@ type Moved struct {
 
 // Move renames the node ref names (its id, one of its Aliases or a unique id prefix), moves it
 // below another, or both, as to says, carrying its subtree along. A rename keeps the old id as an
-// Alias; the kind's planner rewrites the files that reference it. It returns the node moved and
-// the tree problems that do not concern it, their paths relative to the working tree root with
-// forward slashes, for the caller to report as warnings once it has renamed the paths inside the
-// moved children directory.
+// Alias and renames, in every node file, the node's own among them, the entries of the kind's
+// reference fields that name the old id or an Alias, keeping one entry per new id; the node's own
+// self-refused fields (a Note's superseded-by) drop an entry naming the new id. It returns the node
+// moved and the tree problems that do not concern it, their paths relative to the working tree
+// root with forward slashes, for the caller to report as warnings once it has renamed the paths
+// inside the moved children directory.
 //
 // It resolves ref and to.Parent against the Tree it loads, never through the Resolver, and runs,
 // in this order, stopping at the first failure:
@@ -83,7 +85,7 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 		destination.ParentID, parentPath = parent.ID, parent.Path
 	}
 
-	move, err := k.codec.planMove(nodes, node.ID, destination)
+	move, err := k.planNodeMove(nodes, node, destination)
 	if err != nil {
 		return Moved{}, nil, k.planFailure(err, node)
 	}

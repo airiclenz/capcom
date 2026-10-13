@@ -9,8 +9,8 @@ import (
 )
 
 // Codec is what a Kind knows of its node files: how one parses, serializes and validates, which
-// Aliases a parsed node records, the noun that names one node in a message, and how a move of one
-// node is worked out.
+// Aliases a parsed node records, the noun that names one node in a message, which of its fields
+// reference other nodes, and how a removal of one node is worked out.
 type Codec[T any] struct {
 	// Noun names one node of the kind in a message: "issue" or "note".
 	Noun string
@@ -24,28 +24,20 @@ type Codec[T any] struct {
 	Validate func(path string, node T) []*frontmatter.Error
 	// Aliases returns the former ids node records.
 	Aliases func(node T) []string
-	// planMove works out the move of the node with exact id id in nodes to the destination to,
-	// reading the node files but changing nothing, failing as the kind's PlanMove does.
-	planMove func(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error)
+	// nounPhrase names one node of the kind with its article, as the errors of a move do: "an
+	// issue" or "a note".
+	nounPhrase string
+	// setAliases returns node with its Aliases replaced by aliases.
+	setAliases func(node T, aliases []string) T
+	// refs are the node's reference fields, whose entries name other nodes of the tree by id; a
+	// rename rewrites them through one engine.
+	refs []refField[T]
 	// planRemove works out the removal of the node with exact id id in nodes, reading the node
 	// files but changing nothing: it refuses a node with children first, then an ifMatch that is
 	// not the node file's etag, as a *ConflictError at the absolute file with no message, then,
 	// on the issue kind, dependents unless shouldDropDeps, failing otherwise as the kind's
 	// PlanRemove does.
 	planRemove func(nodes *tree.Tree, id string, ifMatch string, shouldDropDeps bool) (*plannedRemoval, error)
-}
-
-// plannedMove is a move a Codec worked out: the tree move, with the kind's rewrites added, and
-// the moved node file's content before and after it.
-type plannedMove struct {
-	*tree.Move
-	// original is the moved node file's content before the move, as read from disk.
-	original []byte
-	// content is the moved node file's content after the move.
-	content []byte
-	// unread are the files of other nodes that do not parse, so the references in them to the
-	// moved node could not be checked and were left as they are.
-	unread []string
 }
 
 // issueCodec is the Codec of the issue tree; cfg declares the statuses and types Validate accepts.
@@ -58,7 +50,29 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 			return issue.Validate(path, node, cfg)
 		},
 		Aliases:    func(node issue.Issue) []string { return node.Aliases },
-		planMove:   planIssueMove,
+		nounPhrase: "an issue",
+		setAliases: func(node issue.Issue, aliases []string) issue.Issue {
+			node.Aliases = aliases
+			return node
+		},
+		refs: []refField[issue.Issue]{
+			{
+				key: "deps",
+				get: func(node issue.Issue) []string { return node.Deps },
+				set: func(node issue.Issue, entries []string) issue.Issue {
+					node.Deps = entries
+					return node
+				},
+			},
+			{
+				key: "related",
+				get: func(node issue.Issue) []string { return node.Related },
+				set: func(node issue.Issue, entries []string) issue.Issue {
+					node.Related = entries
+					return node
+				},
+			},
+		},
 		planRemove: planIssueRemove,
 	}
 }
@@ -71,27 +85,22 @@ func noteCodec() Codec[knowledge.Note] {
 		Serialize:  knowledge.Note.Serialize,
 		Validate:   knowledge.Validate,
 		Aliases:    func(node knowledge.Note) []string { return node.Aliases },
-		planMove:   planNoteMove,
+		nounPhrase: "a note",
+		setAliases: func(node knowledge.Note, aliases []string) knowledge.Note {
+			node.Aliases = aliases
+			return node
+		},
+		refs: []refField[knowledge.Note]{
+			{
+				key: "superseded-by",
+				get: func(node knowledge.Note) []string { return node.SupersededBy },
+				set: func(node knowledge.Note, entries []string) knowledge.Note {
+					node.SupersededBy = entries
+					return node
+				},
+				isSelfRefused: true,
+			},
+		},
 		planRemove: planNoteRemove,
 	}
-}
-
-// planIssueMove is the move planner of the issue tree: issue.PlanMove, which also rewrites the deps
-// and related entries that name the moved issue.
-func planIssueMove(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error) {
-	move, err := issue.PlanMove(nodes, id, to)
-	if err != nil {
-		return nil, err
-	}
-	return &plannedMove{Move: move.Move, original: move.Original, content: move.Content, unread: move.Unread}, nil
-}
-
-// planNoteMove is the move planner of the Knowledge tree: knowledge.PlanMove, which also rewrites
-// the superseded-by entries that name the moved Note.
-func planNoteMove(nodes *tree.Tree, id string, to tree.Destination) (*plannedMove, error) {
-	move, err := knowledge.PlanMove(nodes, id, to)
-	if err != nil {
-		return nil, err
-	}
-	return &plannedMove{Move: move.Move, original: move.Original, content: move.Content, unread: move.Unread}, nil
 }

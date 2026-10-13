@@ -370,6 +370,61 @@ func TestMove_RenameNote_UnparseableOtherNoteJoinsUnread(t *testing.T) {
 	}
 }
 
+func TestMove_RenameOntoDanglingEntry_KeepsOneEntry(t *testing.T) {
+	t.Parallel()
+	issues, dir := newRefIssues(t, map[string]string{
+		"login-flow.md":   refIssue("", ""),
+		"session-work.md": refIssue("deps: [login-flow, auth-flow]\nrelated: [login-flow, auth-flow]\n", ""),
+	})
+
+	mustMove(t, issues, "login-flow", Destination{ID: "auth-flow"})
+
+	session := parseIssueAt(t, dir, "session-work.md")
+	want := []string{"auth-flow"}
+	if !slices.Equal(session.Deps, want) || !slices.Equal(session.Related, want) {
+		t.Errorf("session-work deps = %v related = %v, want both %v", session.Deps, session.Related, want)
+	}
+}
+
+func TestMove_RenameIssueOntoItsOwnEntry_KeepsTheSelfEntry(t *testing.T) {
+	t.Parallel()
+	issues, dir := newRefIssues(t, map[string]string{
+		"login-flow.md": refIssue("deps: [auth-flow]\nrelated: [login-flow]\n", ""),
+	})
+
+	mustMove(t, issues, "login-flow", Destination{ID: "auth-flow"})
+
+	moved := parseIssueAt(t, dir, "auth-flow.md")
+	want := []string{"auth-flow"}
+	if !slices.Equal(moved.Deps, want) || !slices.Equal(moved.Related, want) {
+		t.Errorf("auth-flow deps = %v related = %v, want both %v", moved.Deps, moved.Related, want)
+	}
+}
+
+func TestMove_NoteRenamedToItsOwnSuccessor_DropsTheEntryAndStaysValid(t *testing.T) {
+	t.Parallel()
+	notes, dir := newRefNotes(t, map[string]string{
+		"auth-v1.md": refNote("Auth v1", "superseded-by: [auth, other-rule]\n", "\nBody.\n"),
+	})
+
+	mustMove(t, notes, "auth-v1", Destination{ID: "auth"})
+
+	path := filepath.Join(dir, "auth.md")
+	parsed, err := knowledge.Parse(path, []byte(readFile(t, path)))
+	if err != nil {
+		t.Fatalf("Parse(auth.md): %v", err)
+	}
+	if want := []string{"other-rule"}; !slices.Equal(parsed.SupersededBy, want) {
+		t.Errorf("superseded-by = %v, want %v", parsed.SupersededBy, want)
+	}
+	if want := []string{"auth-v1"}; !slices.Equal(parsed.Aliases, want) || parsed.Body != "\nBody.\n" {
+		t.Errorf("aliases = %v body = %q, want %v and the body unchanged", parsed.Aliases, parsed.Body, want)
+	}
+	if problems := knowledge.Validate(path, parsed); len(problems) != 0 {
+		t.Errorf("Validate(auth.md) = %v, want no problem", problems)
+	}
+}
+
 // assertMoveRefFileError returns an assertion that err is a *FileError at moved-issue.md, citing a
 // line when hasLine, whose message contains text.
 func assertMoveRefFileError(hasLine bool, text string) func(t *testing.T, err error) {

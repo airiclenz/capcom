@@ -1953,7 +1953,13 @@ Depends on P3.13.
 - `go vet ./internal/nodestore/`
 **Commit:** `test(nodestore): characterise remove drops of both tree kinds`
 
-## P3.15 One rename engine over every reference field
+## P3.15 One rename engine over every reference field — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the engine is the Kind method `planNodeMove` (with `renameOwnRefs`, `planRefRewrite` and `renameRefs`) in refs.go, returning a `nodeMove` that replaces `plannedMove`; it calls `nodes.PlanMove(…, k.codec.nounPhrase)` itself. `refField` carries `key`, `get`, `set` and `isSelfRefused` only: `blocksRemoval` is left for P3.16, which first reads it.
+
+NOTES (2026-10-13): the moved node's own file is now read and parsed before any other node file on both kinds (the issue planner used to read in tree order), so an unparseable moved issue fails before a hard read failure of an earlier other issue file; no test pins the old order.
+
+NOTES (2026-10-13): beyond the planned tests, added `TestMove_RenameIssueOntoItsOwnEntry_KeepsTheSelfEntry` (issue self-entries kept), `TestRenameRefs` and `TestCodecs_ListTheirReferenceFields` (the Codecs' reference fields); `issue.PlanMove` and `knowledge.PlanMove` stay in their packages, now unused by nodestore.
 
 **What:** Third part of A-04. It fixes U-02 (`rename-dup-deps`): `capcom mv x y` turns `deps: [x, y]` into `[y, y]`, and `related` the same way. It also fixes F-23 (`note-self-supersede`): `know mv auth-v1 --id auth` on a Note with `superseded-by: [auth]` writes a Note that names itself, which then drops out of the index. Following review A-04, the moved node's own fields go through the same rename op. A self-entry is dropped, not refused: F-23 is fixed by dropping the moved Note's own superseded-by entry that names its new id; Issue deps/related keep self-entries as today.
 **Regression guard.** F-23 is fixed by dropping the moved Note's own superseded-by entry that names its new id (not by refusing the move); Issue deps/related keep self-entries as today. A file (other or own) is rewritten, and its field deduped, only when one of its entries names the old id or an alias. The Goal's "never calls" clause is checked by an Acceptance grep.
