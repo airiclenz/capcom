@@ -293,6 +293,69 @@ func TestKnowUpdate_SupersededByAliasOrCitation_StoresTheID(t *testing.T) {
 	}
 }
 
+func TestKnowUpdate_RemoveSupersededBy_MatchesTheTextThenTheResolvedID(t *testing.T) {
+	cases := []struct {
+		name   string
+		notes  map[string]string
+		stored string
+		arg    string
+		want   string
+	}{
+		{
+			name:   "alias",
+			notes:  map[string]string{"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\naliases: [fixtures]\n---\n"},
+			stored: "[git-fixtures, cli-tests]",
+			arg:    "fixtures",
+			want:   "[cli-tests]",
+		},
+		{
+			name:   "unique id prefix",
+			stored: "[git-fixtures, cli-tests]",
+			arg:    "git-fix",
+			want:   "[cli-tests]",
+		},
+		{
+			name:   "stale entry whose Note is gone",
+			stored: "[gone-note, cli-tests]",
+			arg:    "gone-note",
+			want:   "[cli-tests]",
+		},
+		{
+			name:   "gone entry whose text is a unique prefix of another",
+			stored: "[cli, cli-tests]",
+			arg:    "cli",
+			want:   "[cli-tests]",
+		},
+		{
+			name: "ambiguous prefix matching no entry",
+			notes: map[string]string{
+				"release-a.md": "---\ntitle: Release A\n---\n",
+				"release-b.md": "---\ntitle: Release B\n---\n",
+			},
+			stored: "[release-a, release-b]",
+			arg:    "release",
+			want:   "[release-a, release-b]",
+		},
+	}
+
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			root := newKnowStore(t)
+			writeNoteFiles(t, root, current.notes)
+			writeNoteFiles(t, root, map[string]string{
+				"release-flow.md": "---\ntitle: Release flow\nsuperseded-by: " + current.stored + "\n---\n",
+			})
+
+			mustRun(t, root, "know", "update", "release-flow", "--remove-superseded-by", current.arg)
+
+			got := readNoteFile(t, root, "release-flow.md")
+			if !strings.Contains(got, "superseded-by: "+current.want+"\n") {
+				t.Errorf("note file = %q; want superseded-by: %s", got, current.want)
+			}
+		})
+	}
+}
+
 func TestKnowUpdate_UnknownOrSelfSuccessor_IsRefusedAndWritesNothing(t *testing.T) {
 	root := newKnowStore(t)
 	writeStoreConfig(t, root, "format: 2\n")

@@ -41,7 +41,7 @@ capcom know update <id|alias|prefix> [flags]
       --if-match string                    only write when the file's etag is this one (see know show)
       --remove-label strings               labels to remove
       --remove-ref stringArray             a ref to remove; repeat for more
-      --remove-superseded-by stringArray   a superseded-by id to remove; repeat for more
+      --remove-superseded-by stringArray   the id, alias or prefix of a superseded-by entry to remove; repeat for more
       --retire                             mark the note retired: it and its subtree leave browsing
       --title string                       new title
       --unretire                           clear the note's retired mark

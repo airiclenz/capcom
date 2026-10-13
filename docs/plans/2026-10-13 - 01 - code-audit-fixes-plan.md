@@ -273,7 +273,9 @@ Depends on 12.
 - `GOMEMLIMIT=2GiB go test ./internal/store/`
 **Commit:** `fix(store): write a new config.yaml atomically`
 
-## 14. know update --remove-superseded-by resolves aliases
+## 14. know update --remove-superseded-by resolves aliases — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): the "[release, release-steps] with Note release deleted" test is written as `[cli, cli-tests]` with no Note `cli`: newKnowStore always holds Note `release-flow`, so `release` is an ambiguous prefix there and would not bite on a resolve-first implementation; `cli` resolves uniquely to `cli-tests`, which the test proves bites.
 
 **What:** Fix: removal arguments go to `edit.List` unresolved, so an alias removes nothing and the command reports success.
 **Goal:** `capcom know update <note> --remove-superseded-by <arg>` removes entries equal to `<arg>` resolved through the same Note lookup `--add-superseded-by` uses, or equal to `<arg>` as given; an argument that resolves to nothing is matched literally, and one that matches no entry is a quiet no-op.
