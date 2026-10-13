@@ -71,7 +71,9 @@ func Open(cwd string) (*Store, error) {
 
 // Init creates the store of the git working tree containing cwd: config.yaml with the default
 // configuration, issues/ and knowledge/. It creates only what is missing and never overwrites, so
-// a re-run is a no-op. It returns the opened store and the paths it created, relative to the
+// a re-run is a no-op. A store it creates gets config.DefaultFile at the current format; an
+// existing store without config.yaml gets config.KeylessFile, so it stays at format 1 (ADR 0009).
+// It returns the opened store and the paths it created, relative to the
 // working tree root with forward slashes, in creation order.
 func Init(cwd string) (*Store, []string, error) {
 	store, err := locate(cwd)
@@ -80,6 +82,7 @@ func Init(cwd string) (*Store, []string, error) {
 	}
 
 	var created []string
+	isNewStore := false
 	for _, dir := range []string{"", issuesDir, knowledgeDir} {
 		isNew, err := store.createDir(dir)
 		if err != nil {
@@ -88,8 +91,11 @@ func Init(cwd string) (*Store, []string, error) {
 		if isNew {
 			created = append(created, store.relative(dir))
 		}
+		if dir == "" {
+			isNewStore = isNew
+		}
 	}
-	isNew, err := store.createConfig()
+	isNew, err := store.createConfig(isNewStore)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,8 +225,10 @@ func (s *Store) createDir(name string) (bool, error) {
 	return true, nil
 }
 
-// createConfig writes the default config.yaml unless one exists, and reports whether it wrote it.
-func (s *Store) createConfig() (bool, error) {
+// createConfig writes config.yaml unless one exists, and reports whether it wrote it. It writes
+// config.DefaultFile into a store created by the same Init (isNewStore), and config.KeylessFile
+// into an existing one, whose missing config.yaml declares format 1.
+func (s *Store) createConfig(isNewStore bool) (bool, error) {
 	path := filepath.Join(s.Root, configFile)
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePermissions)
 	if errors.Is(err, fs.ErrExist) {
@@ -229,7 +237,11 @@ func (s *Store) createConfig() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", s.relative(configFile), err)
 	}
-	_, writeErr := file.WriteString(config.DefaultFile)
+	template := config.KeylessFile
+	if isNewStore {
+		template = config.DefaultFile
+	}
+	_, writeErr := file.WriteString(template)
 	closeErr := file.Close()
 	if err := errors.Join(writeErr, closeErr); err != nil {
 		return false, fmt.Errorf("%s: %w", s.relative(configFile), err)

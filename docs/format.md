@@ -548,7 +548,9 @@ elsewhere:
   except `capcom prime`, which reports it as one `warning: store:` line and exits 0. Unknown keys
   stay errors, and any new key in an issue, a Note or this file raises the format. Format 2 adds
   the `related` key to issue files; format 3 adds the Note keys `retired` and `superseded-by`.
-  `capcom init` writes `format: 3`. The first
+  `capcom init` writes `format: 3` into a store it creates; into an existing store without
+  `config.yaml` it writes the same file with the `format:` line left as the commented
+  `# format: 1`, so the store stays at format 1. The first
   `capcom related add` in a store below format 2 raises it: it replaces the `format:` line, or the
   format-1 template's commented `# format: 1` line, with `format: 2`, keeping every other byte, and
   creates `config.yaml` holding only that line when the store has none. It warns that capcom

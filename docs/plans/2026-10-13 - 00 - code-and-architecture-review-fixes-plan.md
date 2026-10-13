@@ -1711,7 +1711,11 @@ Depends on P3.1; P0.7; P0.6.
 - `go vet ./internal/store/ ./internal/check/`
 **Commit:** `fix(store): open a store without config.yaml at format 1`
 
-## P3.3 init keeps an existing store at its format
+## P3.3 init keeps an existing store at its format — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): config_test.go's TestRaiseFormat_FormatOneTemplate_BecomesCurrentTemplate is renamed TestRaiseFormat_KeylessFile_BecomesDefaultFile, since the formatOneTemplate helper it named is replaced by config.KeylessFile; the new parse test is TestKeylessFile_Parse_DefaultsAtFormatOne.
+NOTES (2026-10-13): Read-first anchor internal/check/check.go — checkSupersession now lives in internal/check/notes.go; nothing there needed changing (the format-1 problem line comes out as the plan states).
+NOTES (2026-10-13): docs/format.md line 505 ("the file `capcom init` writes, except `format`") and the store-config / adr-0009 summary Notes were left as they are: they stay true for a store init creates and claim nothing about an existing one.
 
 **What:** Fixes F-16 (`missing-config-format`). `capcom init --merge-driver` or `--claude-hooks` on an existing store with no `config.yaml` writes `format: 3`. Ratified F-16 (binding): `init` on an existing store with no `config.yaml` writes the template with the `format:` line commented out, so the store stays at format 1. A new store still gets `format: 3`.
 **Regression guard.** The prose rule covers all live prose: `grep -rni 'init.*format\|format.*init' docs/*.md README.md .capcom/knowledge`, docs/migrating-from-beads.md and the adr-0009-decision Note (edited through `capcom know update`, then `capcom check`) included; `createConfig`'s doc changes with `Init`'s. For an existing store this supersedes adr-0009-decision's "from then on `init` writes the current format"; new stores keep it.

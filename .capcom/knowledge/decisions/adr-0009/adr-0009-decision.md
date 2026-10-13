@@ -36,4 +36,7 @@ hand-edited file loud and keeps a rewrite from silently discarding data.
 carries `format` as a comment line, never as `format: 1`: binaries released before this decision
 (v0.1.0) do not know the key and would reject the config as an unknown key. A store that declares
 nothing reads as format 1 to every binary. The first release that raises the format writes the key
-for real, and from then on `init` writes the current format.
+for real, and from then on `init` writes the current format into a store it creates. Into an
+existing store without `config.yaml`, `init` writes the template with the key still a comment, so
+it never raises a store's format: the store stays at format 1 until a write verb that needs a newer
+key raises it.

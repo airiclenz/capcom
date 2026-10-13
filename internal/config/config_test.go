@@ -136,25 +136,25 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 	}
 }
 
-// formatOneTemplate is the config.yaml `capcom init` wrote while the store format was 1: the
-// current template with the format key left as a comment under its own comment line.
-func formatOneTemplate(t *testing.T) string {
-	t.Helper()
-	current := formatComment + fmt.Sprintf("\nformat: %d\n", FormatVersion)
-	legacy := "# The store format version; left as a comment, since a missing key means format 1.\n# format: 1\n"
-	if !strings.Contains(DefaultFile, current) {
-		t.Fatalf("DefaultFile does not carry %q", current)
-	}
-	return strings.Replace(DefaultFile, current, legacy, 1)
-}
-
-func TestRaiseFormat_FormatOneTemplate_BecomesCurrentTemplate(t *testing.T) {
+func TestKeylessFile_Parse_DefaultsAtFormatOne(t *testing.T) {
 	t.Parallel()
 
-	raised, isChanged := RaiseFormat([]byte(formatOneTemplate(t)), FormatVersion)
+	parsed, err := Parse(testPath, []byte(KeylessFile))
+
+	want := Default()
+	want.Format = MissingFormat
+	if err != nil || !reflect.DeepEqual(parsed, want) {
+		t.Errorf("Parse(KeylessFile) = %+v, %v; want %+v", parsed, err, want)
+	}
+}
+
+func TestRaiseFormat_KeylessFile_BecomesDefaultFile(t *testing.T) {
+	t.Parallel()
+
+	raised, isChanged := RaiseFormat([]byte(KeylessFile), FormatVersion)
 
 	if !isChanged || string(raised) != DefaultFile {
-		t.Errorf("RaiseFormat = %v,\n%s\nwant the current template", isChanged, raised)
+		t.Errorf("RaiseFormat = %v,\n%s\nwant DefaultFile", isChanged, raised)
 	}
 }
 

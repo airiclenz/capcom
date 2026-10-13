@@ -74,6 +74,33 @@ func TestInit_WrittenConfig_DeclaresCurrentFormat(t *testing.T) {
 	}
 }
 
+func TestInit_ExistingStoreWithoutConfig_StaysAtFormatOne(t *testing.T) {
+	root := newGitRepo(t)
+	mustRun(t, root, "init")
+	configPath := filepath.Join(root, ".capcom", "config.yaml")
+	if err := os.Remove(configPath); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	writeNoteFiles(t, root, map[string]string{"old-flow.md": "---\ntitle: Old flow\nretired: true\n---\n"})
+
+	initOut := mustRun(t, root, "init", "--merge-driver")
+	checkOut, _, _ := runCLI(t, root, "check")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil || string(data) != config.KeylessFile {
+		t.Errorf("config.yaml = %q (%v), want config.KeylessFile", data, err)
+	}
+	if !strings.Contains(initOut, "\ncreated .capcom/config.yaml\n") {
+		t.Errorf("init stdout:\n%s\nwant it to report created .capcom/config.yaml", initOut)
+	}
+	wantProblem := ".capcom/knowledge/old-flow.md:3: retired needs store format 3, " +
+		"but the store declares format 1: set format: 3 in .capcom/config.yaml, " +
+		"or run a capcom write verb that raises it"
+	if !strings.Contains("\n"+checkOut+"\n", "\n"+wantProblem+"\n") {
+		t.Errorf("check stdout:\n%s\nwant the line:\n%s", checkOut, wantProblem)
+	}
+}
+
 func TestInit_ReRun_IsNoOp(t *testing.T) {
 	root := newGitRepo(t)
 	runCLI(t, root, "init")

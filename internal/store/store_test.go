@@ -93,6 +93,31 @@ func TestInit_ReRun_IsNoOpAndKeepsConfig(t *testing.T) {
 	}
 }
 
+func TestInit_ExistingStoreWithoutConfig_WritesKeylessTemplateAtFormatOne(t *testing.T) {
+	root := newRepo(t)
+	existing, _, err := Init(root)
+	if err != nil {
+		t.Fatalf("first Init: %v", err)
+	}
+	removeConfig(t, existing)
+
+	store, created, err := Init(root)
+
+	if err != nil {
+		t.Fatalf("second Init: %v", err)
+	}
+	if want := []string{".capcom/config.yaml"}; !reflect.DeepEqual(created, want) {
+		t.Errorf("created = %v, want %v", created, want)
+	}
+	content, err := os.ReadFile(store.ConfigPath())
+	if err != nil || string(content) != config.KeylessFile {
+		t.Errorf("config.yaml = %q (%v), want config.KeylessFile", content, err)
+	}
+	if store.Config.Format != config.MissingFormat {
+		t.Errorf("Config.Format = %d, want %d", store.Config.Format, config.MissingFormat)
+	}
+}
+
 func TestInit_FromSubdirectory_CreatesStoreAtWorktreeRoot(t *testing.T) {
 	root := newRepo(t)
 	subdirectory := filepath.Join(root, "src", "deep")

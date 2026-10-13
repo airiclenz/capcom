@@ -42,8 +42,8 @@ const (
 // formatComment is the template's comment line above its format key.
 const formatComment = "# The store format version. capcom refuses a store whose format is newer than it reads."
 
-// keylessFormatComment is the comment line the format-1 template carried above its commented-out
-// format key; RaiseFormat replaces it together with that key.
+// keylessFormatComment is KeylessFile's comment line above its commented-out format key;
+// RaiseFormat replaces it together with that key.
 const keylessFormatComment = "# The store format version; left as a comment, since a missing key means format 1."
 
 // Top-level and section keys of config.yaml.
@@ -70,12 +70,23 @@ const (
 // Elsewhere scan's cutoff duration and silences the scan.
 const maxElsewhereDays = 36500
 
-// DefaultFile is the config.yaml `capcom init` writes. It parses to Default().
-const DefaultFile = `# capcom configuration. Every key is optional; a missing key takes the value shown here.
+// DefaultFile is the config.yaml `capcom init` writes into a store it creates. It parses to
+// Default().
+const DefaultFile = templateHead + formatComment + "\nformat: 3\n" + templateBody
 
-` + formatComment + `
-format: 3
+// KeylessFile is the config.yaml `capcom init` writes into an existing store that has none: the
+// same file as DefaultFile with the format key left as a comment under its own comment line, so
+// the store keeps format 1. It parses to Default() at MissingFormat, and RaiseFormat turns it into
+// DefaultFile.
+const KeylessFile = templateHead + keylessFormatComment + "\n# format: 1\n" + templateBody
 
+// templateHead is the part of the config.yaml template above its format comment.
+const templateHead = `# capcom configuration. Every key is optional; a missing key takes the value shown here.
+
+`
+
+// templateBody is the part of the config.yaml template below its format key.
+const templateBody = `
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
 statuses:
