@@ -2316,7 +2316,10 @@ Depends on P3.46.
 - `grep -c 'func newRmCommand\[' internal/cli/node_verbs.go` prints 1
 **Commit:** `refactor(cli): build rm and know rm from one generic command`
 
-## P3.48 create and know add share one write path
+## P3.48 create and know add share one write path — ✅ DONE (2026-10-13)
+
+NOTES (2026-10-13): consequential edit — internal/cli/doc.go: made necessary by node_verbs.go now holding the write path of create and know add (file-map line updated)
+NOTES (2026-10-13): the nodeVerbs, issueVerbs and noteVerbs doc comments now name create and know add; create's empty-body warning takes options.id, which Kind.Create's ValidateID guarantees equals the written id
 
 **What:** Part 3 of A-02: one generic `createNode[T]` runs the write of `create` and `know add`; their flag sets and node builders (`newIssue`, `newNote`) stay per kind.
 **Regression guard.** `createNode` calls `verbs.afterWrite(&result, written.Effects)` (P3.46's signature), so top-level `know add` keeps `refreshed: AGENTS.md`; `create` then appends `emptyBodyWarning` using `options.id`.

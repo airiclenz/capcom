@@ -70,18 +70,13 @@ func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (output.Resul
 			return output.Result{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
 		}
 	}
-	written, problems, err := a.notes(nil).Create(
+	return createNode(
+		a,
+		noteVerbs,
 		options.id,
 		options.parent,
 		func() (knowledge.Note, error) { return newNote(cmd, options) },
 	)
-	if err != nil {
-		return output.Result{}, kindFailure(err)
-	}
-	result := noteWriteResult(written.ID, written.Path, written.ETag)
-	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
-	addSyncEffects(&result, written.Effects)
-	return result, nil
 }
 
 // noteWriteResult is the result of a command that wrote a Note: its id, path and new etag.

@@ -12,10 +12,11 @@ import (
 )
 
 // nodeVerbs describes one Tree kind to the verbs built for both kinds by one generic constructor
-// each: capcom mv and know mv, capcom rm and know rm. It holds the kind's node store and
-// everything the commands of the two kinds differ in: their wording, the reference field other
-// nodes name the node in, the write and remove results, how a failed removal is typed, what is
-// rendered after a write, and whether --kv and --drop-deps are registered.
+// each, capcom mv and know mv, capcom rm and know rm, and to the write path createNode runs for
+// capcom create and know add. It holds the kind's node store and everything the commands of the
+// two kinds differ in: their wording, the reference field other nodes name the node in, the write
+// and remove results, how a failed removal is typed, what is rendered after a write, and whether
+// --kv and --drop-deps are registered.
 type nodeVerbs[T any] struct {
 	// kind returns the node store of the kind's Tree.
 	kind func(a *app) *nodestore.Kind[T]
@@ -47,7 +48,7 @@ type nodeVerbs[T any] struct {
 	hasDropDeps bool
 }
 
-// issueVerbs describes the issue Tree: capcom mv and rm.
+// issueVerbs describes the issue Tree: capcom create, mv and rm.
 var issueVerbs = nodeVerbs[issue.Issue]{
 	kind: func(a *app) *nodestore.Kind[issue.Issue] {
 		return nodestore.Issues(a.store, nil)
@@ -64,7 +65,7 @@ var issueVerbs = nodeVerbs[issue.Issue]{
 	hasDropDeps:   true,
 }
 
-// noteVerbs describes the Knowledge tree: capcom know mv and know rm. Its node store refreshes the
+// noteVerbs describes the Knowledge tree: capcom know add, know mv and know rm. Its node store refreshes the
 // capcom block of AGENTS.md after each write (see notes), and afterWrite renders that refresh.
 var noteVerbs = nodeVerbs[knowledge.Note]{
 	kind: func(a *app) *nodestore.Kind[knowledge.Note] {
@@ -248,4 +249,28 @@ func unreadWarnings(paths []string, linkKey string, id string) []string {
 		))
 	}
 	return warnings
+}
+
+// createNode writes the new node build returns under id, below parent when it is set, through the
+// kind's node store, which refuses before build runs when id is invalid or already named, see
+// nodestore.Kind.Create. The result names the new node's id, path and etag, with a warning for
+// every tree problem that concerns neither the node's path nor its parent, unless the index
+// refresh already warned about it; verbs.afterWrite then renders the write's Effects.
+func createNode[T any](
+	a *app,
+	verbs nodeVerbs[T],
+	id string,
+	parent string,
+	build func() (T, error),
+) (output.Result, error) {
+	written, problems, err := verbs.kind(a).Create(id, parent, build)
+	if err != nil {
+		return output.Result{}, kindFailure(err)
+	}
+	result := verbs.writeResult(written.ID, written.Path, written.ETag)
+	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
+	if verbs.afterWrite != nil {
+		verbs.afterWrite(&result, written.Effects)
+	}
+	return result, nil
 }

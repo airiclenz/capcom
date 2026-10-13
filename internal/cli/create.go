@@ -12,7 +12,6 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
 // Flags of capcom create.
@@ -84,7 +83,9 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result,
 		return output.Result{}, err
 	}
 	var body string
-	written, problems, err := nodestore.Issues(a.store, nil).Create(
+	result, err := createNode(
+		a,
+		issueVerbs,
 		options.id,
 		options.parent,
 		func() (issue.Issue, error) {
@@ -94,12 +95,10 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result,
 		},
 	)
 	if err != nil {
-		return output.Result{}, kindFailure(err)
+		return output.Result{}, err
 	}
-	result := writeResult(written.ID, written.Path, written.ETag)
-	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	if strings.TrimSpace(body) == "" {
-		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, written.ID, written.ID))
+		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, options.id, options.id))
 	}
 	return result, nil
 }
