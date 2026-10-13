@@ -331,7 +331,7 @@ Depends on 15.
 - `GOMEMLIMIT=2GiB go test ./internal/check/`
 **Commit:** `test(check): pin the AGENTS.md block stage`
 
-## 18. Pin check's related self-reference rule
+## 18. Pin check's related self-reference rule — ✅ DONE (2026-10-13)
 
 **What:** Test only (`internal/check/issues.go`, the self-reference rule).
 **Regression guard.** `TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode` (check_test.go) already pins the path, line and code for both the own id and the own alias; the new test pins the message `related %q names the issue itself` (`internal/check/issues.go:131`) for those cases, and its fixtures keep the `format: 2` config.
