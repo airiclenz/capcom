@@ -242,8 +242,9 @@ func (x *Index) readIssue(q querier, id string) (entry Entry, found bool, err er
 }
 
 // RelatedBy returns the ids of the usable issues whose related links name the usable issue id, by
-// its id or by one of its aliases, each once in id order. The issue itself is left out, and an id
-// no usable issue has yields none.
+// its id or by one of its aliases, each once in id order. An alias another issue file also claims,
+// as an alias or its id, is refused and names no issue. The issue itself is left out, and an id no
+// usable issue has yields none.
 func (x *Index) RelatedBy(id string) ([]string, error) {
 	return x.strings(
 		context.Background(),
@@ -254,7 +255,10 @@ func (x *Index) RelatedBy(id string) ([]string, error) {
 				related.to_id IN (SELECT id FROM issues WHERE id = ?1 AND excluded = 0)
 				OR related.to_id IN (SELECT aliases.alias FROM aliases
 					JOIN issues AS target ON target.path = aliases.path
-					WHERE aliases.kind = ?2 AND target.id = ?1 AND target.excluded = 0)
+					WHERE aliases.kind = ?2 AND target.id = ?1 AND target.excluded = 0
+						AND NOT EXISTS (SELECT 1 FROM aliases AS other WHERE other.kind = ?2
+							AND other.alias = aliases.alias AND other.path <> aliases.path)
+						AND NOT EXISTS (SELECT 1 FROM issues AS owner WHERE owner.id = aliases.alias))
 			)
 			ORDER BY holder.id`,
 		id, kindIssue,

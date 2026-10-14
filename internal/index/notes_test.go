@@ -153,7 +153,7 @@ func TestNotes_SearchNotes_MatchesWordsAndLabelsButIssueSearchIgnoresNotes(t *te
 	}
 }
 
-func TestNotes_InvalidAndDuplicateNotes_WarnAndStayOut(t *testing.T) {
+func TestNotes_InvalidNoteAndAliasClash_WarnAndOnlyTheInvalidNoteStaysOut(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
 	writeNote(t, s, "no-title.md", "---\nlabels: [x]\n---\n")
@@ -165,8 +165,8 @@ func TestNotes_InvalidAndDuplicateNotes_WarnAndStayOut(t *testing.T) {
 	report := refresh(t, x)
 	notes, err := x.Notes(false)
 
-	if err != nil || len(notes) != 0 {
-		t.Errorf("Notes = %v, %v; want none usable", noteIDs(notes), err)
+	if want := []string{"first-note", "second-note"}; err != nil || !slices.Equal(noteIDs(notes), want) {
+		t.Errorf("Notes = %v, %v; want %v usable", noteIDs(notes), err, want)
 	}
 	if report.Indexed != 1 {
 		t.Errorf("Indexed = %d, want the one issue", report.Indexed)
@@ -194,7 +194,6 @@ func TestNotes_EachProducer_SetsTheWarningKind(t *testing.T) {
 		".capcom/knowledge/broken-note.md " + string(WarningFrontmatter),
 		".capcom/knowledge/first-note.md " + string(WarningDuplicate),
 		".capcom/knowledge/no-title.md " + string(WarningField),
-		".capcom/knowledge/second-note.md " + string(WarningDuplicate),
 	}
 	if got := warningKinds(report); !slices.Equal(got, want) {
 		t.Errorf("warning kinds = %q\nwant %q", got, want)

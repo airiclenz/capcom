@@ -200,8 +200,6 @@ func loadAgreementTree(t *testing.T, dir string, aliases tree.AliasFunc) *tree.T
 
 // The ratified calls (plan 2026-10-14 - 00, header) that reconcile the divergences below.
 const (
-	// callAliasClash: both nodes of an alias clash stay usable; only the shared alias is refused.
-	callAliasClash = "Alias clash"
 	// callUnusableClaims: a name an unparsed, invalid, orphan or left-out file claims is refused by
 	// every verb, never prefix-matched past.
 	callUnusableClaims = "Unusable claims"
@@ -238,12 +236,8 @@ var agreementFixtures = []agreementFixture{
 		queries: []agreementQuery{
 			{name: "shared", resolve: "duplicate", claimant: "live one.md alias"},
 			{name: "sha", resolve: "not found", claimant: "none"},
-			{name: "one", claimant: "live one.md"},
-			{name: "two", claimant: "live two.md"},
-		},
-		divergences: map[string]agreementDivergence{
-			"one": {tree: "id one", index: "duplicate", call: callAliasClash},
-			"two": {tree: "id two", index: "duplicate", call: callAliasClash},
+			{name: "one", resolve: "id one", claimant: "live one.md"},
+			{name: "two", resolve: "id two", claimant: "live two.md"},
 		},
 	},
 	{

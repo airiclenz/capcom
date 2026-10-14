@@ -271,16 +271,6 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 			paths: []string{".capcom/issues/foo.md", ".capcom/issues/foo-bar/foo.md"},
 		},
 		{
-			name:  "id another issue aliases",
-			files: map[string]string{"foo.md": issueText("A", "open", ""), "baz.md": aliasing("Baz", "foo")},
-			paths: []string{".capcom/issues/baz.md", ".capcom/issues/foo.md"},
-		},
-		{
-			name:  "id of an issue left out for its alias",
-			files: map[string]string{"foo.md": aliasing("A", "qux"), "qux.md": issueText("Qux", "open", "")},
-			paths: []string{".capcom/issues/foo.md", ".capcom/issues/qux.md"},
-		},
-		{
 			name:      "invalid file",
 			files:     map[string]string{"foo.md": "---\nstatus: open\n---\n"},
 			isInvalid: true,
@@ -351,6 +341,69 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 			}
 			if prefixErr != nil || prefixed.ID != "foo-bar" {
 				t.Errorf("Resolve(fo) = %q, %v; want foo-bar", prefixed.ID, prefixErr)
+			}
+		})
+	}
+}
+
+func TestResolve_AliasClash_RefusesOnlyTheSharedName(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		files   map[string]string
+		answers map[string]string
+		// refused is the name refused as a duplicate, which names every file of paths.
+		refused string
+		paths   []string
+	}{
+		{
+			name: "alias two issues list",
+			files: map[string]string{
+				"one-issue.md": issueWith("One", "open", "aliases: [shared]\n"),
+				"two-issue.md": issueWith("Two", "open", "aliases: [shared]\n"),
+			},
+			answers: map[string]string{"one-issue": "id one-issue", "two-issue": "id two-issue", "sha": "not found"},
+			refused: "Shared",
+			paths:   []string{".capcom/issues/one-issue.md", ".capcom/issues/two-issue.md"},
+		},
+		{
+			name: "id another issue aliases",
+			files: map[string]string{
+				"foo.md":     issueText("Foo", "open", ""),
+				"foo-bar.md": issueText("Foo bar", "open", ""),
+				"baz.md":     issueWith("Baz", "open", "aliases: [foo]\n"),
+			},
+			answers: map[string]string{"baz": "id baz", "fo": "ambiguous foo,foo-bar"},
+			refused: "Foo",
+			paths:   []string{".capcom/issues/baz.md", ".capcom/issues/foo.md"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			for name, content := range tc.files {
+				writeIssue(t, s, name, content)
+			}
+			x := openIndex(t, s)
+			refresh(t, x)
+
+			_, refusedErr := x.Resolve(tc.refused)
+
+			for arg, want := range tc.answers {
+				entry, err := x.Resolve(arg)
+				if got := agreementAnswer(entry.ID, err); got != want {
+					t.Errorf("Resolve(%s) = %q, want %q", arg, got, want)
+				}
+			}
+			if !errors.Is(refusedErr, tree.ErrDuplicate) {
+				t.Errorf("Resolve(%s) err = %v, want a duplicate", tc.refused, refusedErr)
+			}
+			for _, path := range tc.paths {
+				if refusedErr == nil || !strings.Contains(refusedErr.Error(), path) {
+					t.Errorf("Resolve(%s) err = %v, want it to name %s", tc.refused, refusedErr, path)
+				}
 			}
 		})
 	}

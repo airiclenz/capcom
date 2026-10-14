@@ -100,11 +100,18 @@ func conflictError(conflict Conflict) *Error {
 	if !conflict.IsAlias {
 		return DuplicateIDError(conflict.Key, conflict.Other, conflict.Name)
 	}
+	return DuplicateAliasError(conflict.Key, conflict.Other, conflict.Name, conflict.IsOtherAlias)
+}
+
+// DuplicateAliasError returns the problem of path, a node file listing alias, which other also
+// claims, as its id or, when isOtherAlias, as an alias: an *Error wrapping ErrDuplicate, as Load
+// reports a duplicate alias.
+func DuplicateAliasError(path, other, alias string, isOtherAlias bool) *Error {
 	claim := idClaim
-	if conflict.IsOtherAlias {
+	if isOtherAlias {
 		claim = aliasClaim
 	}
-	return newDuplicateAliasError(conflict.Key, conflict.Other, conflict.Name, claim)
+	return newDuplicateAliasError(path, other, alias, claim)
 }
 
 // repeatedIDDirProblems returns the problem of each of dirs that is a directory on disk, as left

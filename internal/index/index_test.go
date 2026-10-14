@@ -257,17 +257,6 @@ func TestRefresh_DuplicateName_WarnsAndExcludesBoth(t *testing.T) {
 			rivals:   []string{"dup-issue.md", "top-issue/dup-issue.md"},
 			remove:   "top-issue/dup-issue.md",
 		},
-		{
-			name: "alias of another issue",
-			files: map[string]string{
-				"real-issue.md": issueText("Real", "open", ""),
-				"other-issue.md": "---\ntitle: Other\nstatus: open\ntype: task\naliases: [real-issue]\n" +
-					"created: 2026-10-11T09:00:00Z\n---\n",
-			},
-			excluded: []string{"real-issue", "other-issue"},
-			rivals:   []string{"real-issue.md", "other-issue.md"},
-			remove:   "other-issue.md",
-		},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -297,6 +286,61 @@ func TestRefresh_DuplicateName_WarnsAndExcludesBoth(t *testing.T) {
 			}
 			if after := refresh(t, x); len(after.Warnings) != 0 || !isIndexed(t, x, testCase.excluded[0]) {
 				t.Errorf("after removing the rival: warnings %q, want %s indexed again", warningStrings(after), testCase.excluded[0])
+			}
+		})
+	}
+}
+
+func TestRefresh_AliasClash_WarnsOnceAndKeepsBothNodes(t *testing.T) {
+	cases := []struct {
+		name    string
+		files   map[string]string
+		warning string
+		remove  string
+	}{
+		{
+			name: "alias two issues list",
+			files: map[string]string{
+				"one-issue.md": issueWith("One", "open", "aliases: [shared]\n"),
+				"two-issue.md": issueWith("Two", "open", "aliases: [shared]\n"),
+			},
+			warning: `.capcom/issues/two-issue.md: duplicate alias "shared": also an alias of .capcom/issues/one-issue.md`,
+			remove:  "one-issue.md",
+		},
+		{
+			name: "alias that is another issue's id",
+			files: map[string]string{
+				"real-issue.md":  issueText("Real", "open", ""),
+				"other-issue.md": issueWith("Other", "open", "aliases: [real-issue]\n"),
+			},
+			warning: `.capcom/issues/other-issue.md: duplicate alias "real-issue": the id of .capcom/issues/real-issue.md`,
+			remove:  "other-issue.md",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			for name, content := range testCase.files {
+				writeIssue(t, s, name, content)
+			}
+			x := openIndex(t, s, laterClock())
+
+			report := refresh(t, x)
+
+			for name := range testCase.files {
+				if id := strings.TrimSuffix(name, ".md"); !isIndexed(t, x, id) {
+					t.Errorf("%s excluded, want it indexed", id)
+				}
+			}
+			if got := warningStrings(report); !slices.Equal(got, []string{testCase.warning}) {
+				t.Errorf("warnings = %q, want only %q", got, testCase.warning)
+			}
+			if err := os.Remove(filepath.Join(s.IssuesDir(), testCase.remove)); err != nil {
+				t.Fatalf("Remove: %v", err)
+			}
+			if after := refresh(t, x); len(after.Warnings) != 0 {
+				t.Errorf("after removing the rival: warnings %q, want none", warningStrings(after))
 			}
 		})
 	}

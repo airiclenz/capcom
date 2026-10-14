@@ -69,7 +69,9 @@ Renaming a node adds its old id to its aliases: `capcom mv` does so for an issue
 ### Naming a node
 
 A command argument resolves to a node by, in order: an exact id, an exact alias, then the one id
-the argument is a prefix of. A prefix matching several ids is an error that lists them. An
+the argument is a prefix of. A prefix matching several ids is an error that lists them. A name
+two files claim, an alias both list or an alias that is the other's id, is an error naming both
+files, checked before any of these; both nodes still resolve by their other names. An
 argument that is exactly the id or an alias of a node left out as a duplicate, or of a node file
 under the directory of a duplicate id, is an error naming the two files that clash, and one that is exactly a name claimed by a file with problems, a file
 left out unread (not a regular file, or over 1 MiB) or a node file under a directory left out (its

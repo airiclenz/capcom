@@ -913,3 +913,46 @@ func TestShow_DuplicatedID_FailsNamingBothFiles(t *testing.T) {
 		t.Errorf("stdout = %q, want nothing shown", stdout)
 	}
 }
+
+func TestShow_AliasClash_ShowsEitherNodeAndRefusesTheSharedAlias(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"one-issue.md": readIssue("One", "open", "aliases: [shared]\n", ""),
+		"two-issue.md": readIssue("Two", "open", "aliases: [shared]\n", ""),
+		"linker.md":    readIssue("Linker", "open", "related: [shared]\n", ""),
+	})
+
+	for _, id := range []string{"one-issue", "two-issue"} {
+		stdout, _, exitCode := runCLI(t, root, "show", "--json", id)
+
+		issues, _ := decodeEnvelope(t, stdout)["data"].([]any)
+		if exitCode != ExitOK || !slices.Equal(envelopeIDs(t, stdout), []string{id}) {
+			t.Fatalf("show %s exit = %d stdout = %q, want the issue shown", id, exitCode, stdout)
+		}
+		if related := issues[0].(map[string]any)["related"]; len(related.([]any)) != 0 {
+			t.Errorf("show %s related = %v, want no link through the refused alias", id, related)
+		}
+	}
+	stdout, stderr, exitCode := runCLI(t, root, "show", "shared")
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/one-issue.md", ".capcom/issues/two-issue.md")
+	if stdout != "" {
+		t.Errorf("show shared stdout = %q, want nothing shown", stdout)
+	}
+}
+
+func TestShow_IDAnotherIssueAliases_RefusesTheIDAndShowsTheOther(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"foo.md": readIssue("Foo", "open", "", ""),
+		"baz.md": readIssue("Baz", "open", "aliases: [foo]\n", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "foo")
+	shown, _, shownExit := runCLI(t, root, "show", "--json", "baz")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/baz.md", ".capcom/issues/foo.md")
+	if stdout != "" {
+		t.Errorf("show foo stdout = %q, want nothing shown", stdout)
+	}
+	if shownExit != ExitOK || !slices.Equal(envelopeIDs(t, shown), []string{"baz"}) {
+		t.Errorf("show baz exit = %d stdout = %q, want baz shown", shownExit, shown)
+	}
+}

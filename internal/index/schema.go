@@ -43,7 +43,7 @@ var (
 
 // schemaStatements create the index tables. Every row hangs off a files row by path, the
 // worktree-relative path of the file it came from; issues.excluded and notes.excluded mark a
-// parsed node that a duplicate id or alias keeps out of every query; notes.retired is the Note's own
+// parsed node that a repeated id keeps out of every query; notes.retired is the Note's own
 // retired flag, never its ancestors'. labels, aliases and fts are shared by issues and Notes and
 // carry the kind of the file each row came from; related holds the related links of issues as
 // written, in file order; refs holds the Refs of Notes in file order; supersedes holds the

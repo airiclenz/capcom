@@ -154,15 +154,22 @@ func (x *Index) Resolve(arg string) (entry Entry, err error) {
 }
 
 // resolveID finds the id of the usable node of one kind that arg names, the way Resolve does. Its
-// errors quote arg as given, not its normalised name. A name no usable node has as its id or an
-// alias, but that a node left out as a duplicate or a file the claims table records claims, fails
-// as unusableClaim says and is never matched as a prefix. The ids of the node files the latest
-// refresh left out below a repeated id count as prefix candidates, as tree.Resolve counts them: a
-// prefix one of them shares with another id stays ambiguous, and a prefix of one of them alone
-// fails with its duplicate problem. It reads through q.
+// errors quote arg as given, not its normalised name. Before any lookup, a name two files claim
+// fails as refusedClaim says, as tree.Resolve refuses it. A name no usable node has as its id or an
+// alias, but that a file the claims table records claims, fails as unusableClaim says and is never
+// matched as a prefix. The ids of the node files the latest refresh left out below a repeated id
+// count as prefix candidates, as tree.Resolve counts them: a prefix one of them shares with another
+// id stays ambiguous, and a prefix of one of them alone fails with its duplicate problem. It reads
+// through q.
 func (x *Index) resolveID(q querier, nodes nodeTable, arg string) (string, error) {
 	ctx := context.Background()
 	name := tree.NormalizeArg(arg)
+	if refused, err := x.refusedClaim(ctx, q, nodes, name); err != nil || refused != nil {
+		if err != nil {
+			return "", err
+		}
+		return "", refused
+	}
 	exact, err := x.strings(ctx, q, `SELECT id FROM `+nodes.table+` WHERE id = ? AND excluded = 0`, name)
 	if err != nil || len(exact) == 1 {
 		return firstOf(exact), err
@@ -203,24 +210,33 @@ func (x *Index) resolveID(q querier, nodes nodeTable, arg string) (string, error
 	}
 }
 
-// unusableClaim returns why name, which no usable node of the kind answers to, still must not be
-// matched as a prefix, or nil when nothing else claims it. A node left out as a duplicate that has
-// name as its id or an alias fails with a *tree.Error wrapping tree.ErrDuplicate, naming its file
-// and the other file of a name they share; a name a file of the kind with problems, a file the walk
-// leaves out unread, or a node file under a directory the walk leaves out claims (its id or an
-// alias, as the claims table records them) fails with an error wrapping tree.ErrNotFound
-// that quotes arg and names the first such file in path order, unless that file is a node file the
-// latest refresh left out below a repeated id: then it fails with that id's duplicate problem,
-// naming both of its files. It reads through q.
-func (x *Index) unusableClaim(ctx context.Context, q querier, nodes nodeTable, arg, name string) error {
+// refusedClaim returns the problem that refuses name for every node of the kind, or nil when none
+// does: a *tree.Error wrapping tree.ErrDuplicate. A node left out as a duplicate that has name as
+// its id or an alias fails as duplicateClaim says; an alias two usable nodes claim, as an alias or
+// one's id, fails with the problem the refresh warned about, naming both files. It reads through q.
+func (x *Index) refusedClaim(ctx context.Context, q querier, nodes nodeTable, name string) (*tree.Error, error) {
 	duplicate, err := x.duplicateClaim(ctx, q, nodes, name)
+	if err != nil || duplicate != nil {
+		return duplicate, err
+	}
+	claims, err := readNameClaims(ctx, q, nameClaimsQuery(nodes)+` WHERE name = ?2`, nodes.kind, name)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("%s: query: %w", Path(x.store), err)
 	}
-	if duplicate != nil {
-		return duplicate
+	if clashes := aliasClashes(claims); len(clashes) > 0 {
+		return clashes[0], nil
 	}
+	return nil, nil
+}
 
+// unusableClaim returns why name, which no usable node of the kind answers to, still must not be
+// matched as a prefix, or nil when nothing else claims it. A name a file of the kind with problems,
+// a file the walk leaves out unread, or a node file under a directory the walk leaves out claims
+// (its id or an alias, as the claims table records them) fails with an error wrapping
+// tree.ErrNotFound that quotes arg and names the first such file in path order, unless that file
+// is a node file the latest refresh left out below a repeated id: then it fails with that id's
+// duplicate problem, naming both of its files. It reads through q.
+func (x *Index) unusableClaim(ctx context.Context, q querier, nodes nodeTable, arg, name string) error {
 	invalid, err := x.strings(ctx, q, `SELECT path FROM claims
 		WHERE kind = ? AND name = ? ORDER BY path LIMIT 1`, nodes.kind, name)
 	if err != nil || len(invalid) == 0 {
@@ -260,9 +276,9 @@ func (x *Index) leftOutPrefixCandidates(kind, name string) []string {
 }
 
 // duplicateClaim returns the duplicate that left out a node of the kind having name as its id or
-// an alias, or nil when no left-out node has. The problem is the one on name itself when two files
-// claim it, otherwise one on another name the node shares with a different file; it is worded like
-// the refresh warning, with both files relative to the working tree root. It reads through q.
+// an alias, or nil when no left-out node has: only a repeated id leaves nodes out. The problem is
+// the one on name itself when two files claim it, otherwise one on another name the node shares
+// with a different file; both files are relative to the working tree root. It reads through q.
 func (x *Index) duplicateClaim(ctx context.Context, q querier, nodes nodeTable, name string) (*tree.Error, error) {
 	rows, err := q.QueryContext(ctx, `WITH claims(name, path, kind) AS (
 			SELECT id, path, 'id' FROM `+nodes.table+`

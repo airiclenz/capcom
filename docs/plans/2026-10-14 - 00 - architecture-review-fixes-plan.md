@@ -137,7 +137,15 @@ NOTES (2026-10-14): claim-only, unparsed and unusable facts are never fed by Loa
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/tree/`; `GOMEMLIMIT=2GiB go test ./internal/index/ -run Agreement`; `GOMEMLIMIT=2GiB go test ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/agents/`
 **Commit:** `refactor(tree): one pure membership function under Load`
 
-## P1.3 An alias clash refuses only the shared name
+## P1.3 An alias clash refuses only the shared name — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): consequential edit — internal/index/schema.go: made necessary by excluded now marking only repeated-id rows (the schemaStatements comment said "a duplicate id or alias")
+NOTES (2026-10-14): consequential edit — docs/site/reference/file-format.md: made necessary by the index refusing a clashing alias instead of leaving both nodes out ("Naming a node" gains the sentence)
+NOTES (2026-10-14): internal/tree/claims.go gains exported `tree.DuplicateAliasError(path, other, alias, isOtherAlias)` (conflictError now calls it), beside the DuplicateIDError the index already uses, so the index warning and resolve error take check's wording from its one owner instead of copying "the id of"/"also an alias of"; no tree behaviour changes
+NOTES (2026-10-14): the warned file is picked as tree.Load picks it (index `aliasClashes`: the id holder, else the first lister, owns the alias; usable rows before repeated-id rows, each by id then path) and resolve's refusal is the first such problem; a node's alias equal to a repeated id gets no warning, as tree.Load reports none, while the id stays refused through the repeated id
+NOTES (2026-10-14): `resolveID` now checks refused names first (`refusedClaim`: the repeated-id duplicateClaim, then an alias clash), so a usable node's id another left-out file lists as an alias is refused too (tree's order); `unusableClaim` keeps only the claims-table part
+NOTES (2026-10-14): the two alias-clash cases of TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching and the "alias of another issue" case of TestRefresh_DuplicateName_WarnsAndExcludesBoth moved to new tests TestResolve_AliasClash_RefusesOnlyTheSharedName and TestRefresh_AliasClash_WarnsOnceAndKeepsBothNodes (the clashing ids now resolve, so "fo" is ambiguous over foo and foo-bar); TestNotes_InvalidAndDuplicateNotes_WarnAndStayOut renamed TestNotes_InvalidNoteAndAliasClash_WarnAndOnlyTheInvalidNoteStaysOut
+NOTES (2026-10-14): RelatedBy leaves out only refused aliases, as the plan names; a related link written as an id that another file lists as an alias still counts for the id's node
 
 **What:**
 **Goal:** when two files list the same alias, `capcom show <id>` of either node succeeds and resolving the alias fails as a duplicate naming both files, through the index and through tree alike.
