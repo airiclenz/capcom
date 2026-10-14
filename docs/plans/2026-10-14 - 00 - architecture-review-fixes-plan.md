@@ -406,7 +406,9 @@ NOTES (2026-10-14): `go vet ./...` fails locally on a git-ignored scratch copy u
 **Closes:** validation-one-vocab
 **Commit:** `refactor(diagnose): one per-file verdict`
 
-## P3.1 Pin reference-list edits
+## P3.1 Pin reference-list edits — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): TestDepRm_NotADep_FailsNotFound tightened from strings.Contains to the full stderr the regression guard names, rather than adding a second test for the same case; the guard's alpha/beta and foo-bar/gamma examples use the existing store fixtures' issue names instead.
 
 **What:**
 **Goal:** runCLI tests pin today's dep, related and know update reference edits for the cases not yet covered.

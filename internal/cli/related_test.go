@@ -300,6 +300,59 @@ func TestRelatedRm_StaleIfMatchOnTheHolder_FailsConflict(t *testing.T) {
 	}
 }
 
+func TestRelatedRm_NameMatchingNoIssueAndNoEntry_FailsNotFoundNamingTheArgument(t *testing.T) {
+	root := newRelatedStore(t)
+	mustRun(t, root, "related", "add", "login-flow", "db-schema")
+
+	_, stderr, exitCode := runCLI(t, root, "related", "rm", "login-flow", "absent")
+
+	want := "capcom: .capcom/issues/login-flow.md: login-flow is not related to absent\n"
+	if exitCode != ExitNotFound || stderr != want {
+		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
+	}
+}
+
+func TestRelatedRm_AmbiguousPrefixMatchingNoEntry_FailsNamingTheCandidates(t *testing.T) {
+	root := newRelatedStore(t)
+	files := map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "related: [db-schema]\n", ""),
+		"build-plan.md": readIssue("Build plan", "open", "", ""),
+	}
+	writeIssueFiles(t, root, files)
+
+	_, stderr, exitCode := runCLI(t, root, "related", "rm", "login-flow", "b")
+
+	want := "capcom: ambiguous id prefix \"b\": matches build-pipeline, build-plan\n"
+	if exitCode != ExitError || stderr != want {
+		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
+	}
+	assertIssueFilesUnchanged(t, root, files)
+}
+
+func TestRelatedRm_DuplicatedName_FailsNamingBothFilesAndWritesNothing(t *testing.T) {
+	root, files := newDuplicateIssueStore(t)
+	files["holder.md"] = readIssue("Holder", "open", "related: [foo, foo-bar]\n", "")
+	writeIssueFiles(t, root, files)
+
+	_, stderr, exitCode := runCLI(t, root, "related", "rm", "holder", "foo")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	assertIssueFilesUnchanged(t, root, files)
+}
+
+func TestRelatedRm_CitationSpellingOfADanglingEntry_RemovesItByItsText(t *testing.T) {
+	root := newRelatedStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "related: [gone-issue, db-schema]\n", ""),
+	})
+
+	mustRun(t, root, "related", "rm", "login-flow", "Gone Issue")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
 func TestRelatedAdd_KeylessConfig_RaisesTheFormatOnceWithAWarning(t *testing.T) {
 	root := newRelatedStore(t)
 	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n")

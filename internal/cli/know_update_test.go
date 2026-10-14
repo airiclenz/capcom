@@ -356,6 +356,20 @@ func TestKnowUpdate_RemoveSupersededBy_MatchesTheTextThenTheResolvedID(t *testin
 	}
 }
 
+func TestKnowUpdate_AddSupersededByBesideItsAliasSpelling_AppendsTheID(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\naliases: [fixtures]\n---\n",
+		"release-flow.md":               "---\ntitle: Release flow\nsuperseded-by: [fixtures]\n---\n",
+	})
+
+	mustRun(t, root, "know", "update", "release-flow", "--add-superseded-by", "git-fixtures")
+
+	if got := readNoteFile(t, root, "release-flow.md"); !strings.Contains(got, "superseded-by: [fixtures, git-fixtures]\n") {
+		t.Errorf("note file = %q; want both spellings kept", got)
+	}
+}
+
 func TestKnowUpdate_UnknownOrSelfSuccessor_IsRefusedAndWritesNothing(t *testing.T) {
 	root := newKnowStore(t)
 	writeStoreConfig(t, root, "format: 2\n")

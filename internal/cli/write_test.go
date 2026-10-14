@@ -174,6 +174,32 @@ func TestCreate_DepByAliasAndRepeated_StoresEachCanonicalIDOnce(t *testing.T) {
 	}
 }
 
+func TestCreate_DepWithEmptyEntry_SkipsIt(t *testing.T) {
+	root := newWriteStore(t)
+
+	mustRun(t, root, "create", "--id", "new-thing", "--title", "New thing", "--dep", "login-flow,,shipped-fix")
+
+	if content := readStoreFile(t, root, "new-thing.md"); !strings.Contains(content, "\ndeps: [login-flow, shipped-fix]\n") {
+		t.Errorf("content = %q", content)
+	}
+}
+
+func TestCreate_TakenIDAsItsOwnDep_FailsExists(t *testing.T) {
+	root := newWriteStore(t)
+	before := readStoreFile(t, root, "login-flow.md")
+
+	stdout, _, exitCode := runCLI(t, root, "create", "--json", "--id", "login-flow", "--title", "Again",
+		"--dep", "login-flow")
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	if exitCode != ExitError || failure["code"] != string(CodeExists) {
+		t.Errorf("exit = %d error = %v, want exists", exitCode, failure)
+	}
+	if after := readStoreFile(t, root, "login-flow.md"); after != before {
+		t.Errorf("login-flow.md = %q, want it unchanged", after)
+	}
+}
+
 func TestCreate_MissingDep_FailsLikeDepAddAndWritesNothing(t *testing.T) {
 	root := newWriteStore(t)
 	_, depAddStderr, depAddExit := runCLI(t, root, "dep", "add", "login-flow", "gone-issue")

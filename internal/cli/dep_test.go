@@ -286,8 +286,9 @@ func TestDepRm_NotADep_FailsNotFound(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "dep", "rm", "login-flow", "db-schema")
 
-	if exitCode != ExitNotFound || !strings.Contains(stderr, "login-flow does not depend on db-schema") {
-		t.Errorf("exit = %d stderr = %q", exitCode, stderr)
+	want := "capcom: .capcom/issues/login-flow.md: login-flow does not depend on db-schema\n"
+	if exitCode != ExitNotFound || stderr != want {
+		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
 }
 
@@ -378,6 +379,62 @@ func TestDepRm_DuplicatedDep_FailsNamingBothFilesAndWritesNothing(t *testing.T) 
 	_, stderr, exitCode := runCLI(t, root, "dep", "rm", "dependent", "foo")
 
 	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
+	assertIssueFilesUnchanged(t, root, files)
+}
+
+func TestDepRm_AmbiguousPrefixMatchingNoDep_FailsNamingTheCandidates(t *testing.T) {
+	root := newDepStore(t)
+	files := map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "deps: [db-schema]\n", ""),
+		"build-plan.md": readIssue("Build plan", "open", "", ""),
+	}
+	writeIssueFiles(t, root, files)
+
+	_, stderr, exitCode := runCLI(t, root, "dep", "rm", "login-flow", "b")
+
+	want := "capcom: ambiguous id prefix \"b\": matches build-pipeline, build-plan\n"
+	if exitCode != ExitError || stderr != want {
+		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
+	}
+	assertIssueFilesUnchanged(t, root, files)
+}
+
+func TestDepRm_CitationSpellingOfADanglingDep_RemovesItByItsText(t *testing.T) {
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "deps: [gone-issue, db-schema]\n", ""),
+	})
+
+	mustRun(t, root, "dep", "rm", "login-flow", "Gone Issue")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestDepRm_HandWrittenSelfDep_RemovesIt(t *testing.T) {
+	root := newDepStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "deps: [login-flow, db-schema]\n", ""),
+	})
+
+	mustRun(t, root, "dep", "rm", "login-flow", "login-flow")
+
+	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q", content)
+	}
+}
+
+func TestDepAdd_EdgeAlreadyInAHandWrittenCycle_ExitsOKAndWritesNothing(t *testing.T) {
+	root := newDepStore(t)
+	files := map[string]string{
+		"login-flow.md":    readIssue("Login flow", "open", "deps: [release-notes]\n", ""),
+		"release-notes.md": readIssue("Release notes", "open", "deps: [login-flow]\n", ""),
+	}
+	writeIssueFiles(t, root, files)
+
+	mustRun(t, root, "dep", "add", "login-flow", "release-notes")
+
 	assertIssueFilesUnchanged(t, root, files)
 }
 
