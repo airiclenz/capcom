@@ -80,8 +80,10 @@ Knowledge tree, top level:
 ```
 
 A [Retired](../concepts/knowledge.md#retired-notes-and-supersession) top-level Note is left out,
-and so is a [Background](../concepts/knowledge.md#background-note) one. The block is rendered from
-the Note files alone, so the same Tree always produces the same block.
+and so is a [Background](../concepts/knowledge.md#background-note) one. So is a top-level Note that
+does not parse or validate (a blank title, a ref that names no path), or that shares its id or an
+alias with another Note: `capcom know tree` hides it too, and `capcom check` reports it. The block
+is rendered from the Note files alone, so the same Tree always produces the same block.
 
 ## Keeping it current
 

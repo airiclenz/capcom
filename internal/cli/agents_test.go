@@ -217,3 +217,39 @@ func TestCheck_OversizedAgentsGuide_ReportsAnAgentsBlockProblem(t *testing.T) {
 		t.Errorf("check = %d, stdout:\n%s\nwant 1 and the line %q", exitCode, stdout, "AGENTS.md: file is larger than 1 MiB")
 	}
 }
+
+func TestAgents_UnusableTopLevelNote_IsInNeitherTheBlockNorKnowTreeAndCheckReportsIt(t *testing.T) {
+	notes := map[string]string{
+		"empty-label.md":  "---\ntitle: Empty label\nlabels: [\"\"]\n---\n",
+		"pathless-ref.md": "---\ntitle: Pathless ref\nrefs: [\"#symbol\"]\n---\n",
+	}
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, notes)
+
+	mustRun(t, root, "agents")
+	block := agentsBlockOf(t, readAgentsGuide(t, root))
+	outline := mustRun(t, root, "know", "tree")
+	report, _, checkExit := runCLI(t, root, "check")
+
+	if !strings.Contains(block, "- `release-flow`: Release flow\n") {
+		t.Errorf("block lacks the usable Note release-flow:\n%s", block)
+	}
+	if !strings.Contains(outline, "release-flow  Release flow\n") {
+		t.Errorf("know tree lacks the usable Note release-flow:\n%s", outline)
+	}
+	if checkExit != ExitError {
+		t.Errorf("check exit = %d; want %d\n%s", checkExit, ExitError, report)
+	}
+	for name := range notes {
+		id := strings.TrimSuffix(name, ".md")
+		if strings.Contains(block, id) {
+			t.Errorf("block lists the unusable Note %s:\n%s", id, block)
+		}
+		if strings.Contains(outline, id+"  ") {
+			t.Errorf("know tree lists the unusable Note %s:\n%s", id, outline)
+		}
+		if !strings.Contains(report, ".capcom/knowledge/"+name+":") {
+			t.Errorf("check does not report %s:\n%s", name, report)
+		}
+	}
+}

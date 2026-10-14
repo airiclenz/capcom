@@ -18,6 +18,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -145,27 +146,24 @@ func guidePath(worktreeRoot string) string {
 
 // topNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
 // the files. A retired Note is left out, and with it its whole subtree, and so is a Note labelled
-// knowledge.LabelBackground. A Note file that does not parse, that nodefile.ReadRegularFile refuses
-// unread, or that a load problem names (a duplicate id or alias, an invalid or repeated alias) is
-// left out; `capcom check` reports it. It fails only when the tree or a Note file cannot be read.
+// knowledge.LabelBackground. A Note file the Note reader judges unusable (one that
+// nodefile.ReadRegularFile refuses unread, that does not parse, or whose fields or aliases do not
+// validate) is left out, as the index leaves it out of `capcom know tree`, and so is one a load
+// problem names (a duplicate id or alias, an invalid or repeated alias); `capcom check` reports
+// each. It fails only when the tree or a Note file cannot be read.
 func topNotes(knowledgeDir string) ([]Note, error) {
-	parsed := map[string]knowledge.Note{}
-	readAliases := func(path string) ([]string, error) {
-		data, err := nodefile.ReadRegularFile(path)
-		if errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge) {
-			return nil, nil
-		}
+	reader := nodestore.NoteReader()
+	readings := map[string]nodestore.Reading[knowledge.Note]{}
+	readContent := func(path string) (tree.Content, error) {
+		// The findings are not reported here, so the path relative to knowledgeDir names them.
+		reading, err := reader.Read(path, filepath.ToSlash(relativeTo(knowledgeDir, path)))
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", path, err)
+			return tree.Content{}, fmt.Errorf("%s: %w", path, err)
 		}
-		note, err := knowledge.Parse(path, data)
-		if err != nil {
-			return nil, nil
-		}
-		parsed[path] = note
-		return note.Aliases, nil
+		readings[path] = reading
+		return contentOf(reading), nil
 	}
-	loaded, err := tree.Load(knowledgeDir, "note", readAliases)
+	loaded, err := tree.LoadContent(knowledgeDir, "note", readContent)
 	var problems tree.Errors
 	if err != nil && !errors.As(err, &problems) {
 		return nil, err
@@ -181,13 +179,37 @@ func topNotes(knowledgeDir string) ([]Note, error) {
 		if node.ParentID != "" || isNamed[node.Path] {
 			continue
 		}
-		note, isParsed := parsed[node.Path]
-		if !isParsed || note.IsRetired || knowledge.IsBackground(note.Labels) {
+		reading := readings[node.Path]
+		note := reading.Node
+		if !reading.IsUsable() || note.IsRetired || knowledge.IsBackground(note.Labels) {
 			continue
 		}
 		notes = append(notes, Note{ID: node.ID, Title: note.Title})
 	}
 	return notes, nil
+}
+
+// contentOf is the tree.Content of a Note file the Note reader read as reading: unread when the
+// read was refused, its recovered aliases when it does not parse, and its aliases and usable
+// verdict when it parses.
+func contentOf(reading nodestore.Reading[knowledge.Note]) tree.Content {
+	switch {
+	case !reading.IsRead():
+		return tree.Content{Parse: tree.UnreadFile}
+	case !reading.IsParsed():
+		return tree.Content{Aliases: reading.Aliases, Parse: tree.UnparsedFile}
+	default:
+		return tree.Content{Aliases: reading.Aliases, Parse: tree.ParsedFile, IsUsable: reading.IsUsable()}
+	}
+}
+
+// relativeTo returns path relative to dir, or path itself when it cannot be made relative.
+func relativeTo(dir, path string) string {
+	relative, err := filepath.Rel(dir, path)
+	if err != nil {
+		return path
+	}
+	return relative
 }
 
 // render returns the block for notes, the begin and end markers included, with LF line endings

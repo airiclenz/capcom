@@ -509,6 +509,36 @@ func TestTopNotes_SharedAlias_LeavesBothOut(t *testing.T) {
 	}
 }
 
+func TestTopNotes_UnusableTopLevelNote_IsLeftOut(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "empty label, which does not parse", content: "---\ntitle: Bad note\nlabels: [\"\"]\n---\n"},
+		{name: "ref without a path", content: "---\ntitle: Bad note\nrefs: [\"#symbol\"]\n---\n"},
+		{name: "blank title", content: "---\ntitle: \"  \"\n---\n"},
+		{name: "superseded by itself", content: "---\ntitle: Bad note\nsuperseded-by: [bad-note]\n---\n"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeNoteFiles(t, dir, map[string]string{
+				"bad-note.md":     test.content,
+				"release-flow.md": "---\ntitle: Release flow\n---\n",
+			})
+
+			notes, err := topNotes(dir)
+
+			want := Note{ID: "release-flow", Title: "Release flow"}
+			if err != nil || len(notes) != 1 || notes[0] != want {
+				t.Errorf("topNotes = %v, %v; want [%v]", notes, err, want)
+			}
+		})
+	}
+}
+
 // writeNoteFiles writes each of files, a slash-separated path below dir mapped to its content.
 func writeNoteFiles(t *testing.T, dir string, files map[string]string) {
 	t.Helper()

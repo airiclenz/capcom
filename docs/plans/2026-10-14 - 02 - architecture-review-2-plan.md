@@ -148,7 +148,11 @@ internal/check/check_test.go — TestCodes_ClosedSet_PinsEveryCodeString, codeCo
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/check/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/diagnose/`; `grep -rn 'func IssueFile\|func NoteFile\|type Verdict' internal/diagnose` prints nothing
 **Commit:** `refactor(check): read node files through the Kind reader`
 
-## P1.5 The Managed block hides Notes the index leaves out
+## P1.5 The Managed block hides Notes the index leaves out — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from the assumption that a top-level Note with `labels: [""]` is listed in the block before this change: `knowledge.Parse` (its schema) already refuses an empty label, so that Note never parsed and was already left out. The tests keep the `labels: [""]` case and add Notes that parse but fail `knowledge.Validate` (`refs: ["#symbol"]`, a blank title, superseded-by itself), which are the cases that bite before the change.
+
+NOTES (2026-10-14): topNotes maps the Note reader's Reading to tree.Content with its own `contentOf` (the same mapping as `Kind.ReadContent`), since agents holds only knowledgeDir and no store to build a nodestore Kind from; findings are discarded, so the reader is given the path relative to knowledgeDir.
 
 **What:**
 **Goal:** fixes `block-left-out-notes`: the AGENTS.md Managed block lists only top-level Notes the Kind reader judges usable and tree membership keeps, so a top-level Note with `labels: [""]` is absent from the block and from `know tree`, and reported by `capcom check`.
