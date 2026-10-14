@@ -120,7 +120,12 @@ NOTES (2026-10-14): 13 expected divergences today, identical for both kinds: Ali
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/index/ -run Agreement`; `go vet ./internal/index/`
 **Commit:** `test(index): characterise tree and index membership side by side`
 
-## P1.2 One pure membership function in tree
+## P1.2 One pure membership function in tree — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): consequential edit — internal/tree/doc.go: made necessary by the new membership.go and claims.go's changed role (TestDocFileMap_MatchesDirectory enumerates the package's files)
+NOTES (2026-10-14): the function is `tree.DecideMembership(facts []FileFact) Membership`; FileFact also carries ParentID (the children map needs it), and its Aliases are only the ones CheckAliases passed: Load runs CheckAliases while building the facts and renders the rejections itself, so alias validity keeps one owner and the verdicts stay structured (Conflict, NameVerdict, LeftOutFile, RepeatedIDDir), never rendered strings.
+NOTES (2026-10-14): Load now reads every walk file's aliases before deciding, so the AliasFunc also runs on the files after one that fails; the error returned is still the first in the old order (kept nodes, then left-out files), and an Lstat failure on a repeated id's directory still wins over it.
+NOTES (2026-10-14): claim-only, unparsed and unusable facts are never fed by Load yet (P1.4/P1.7); for them DecideMembership refuses every name nothing else refuses, as a duplicate naming the first other claimant or as an UnusableRefusal, and Load renders only DuplicateRefusal into Resolve's duplicates.
 
 **What:**
 **Goal:** `tree` exports one pure function that, given per-file facts, decides kept nodes, left-out files with their reason, and every name's claimants with its refusal reason; `tree.Load` is built on it; no output changes.

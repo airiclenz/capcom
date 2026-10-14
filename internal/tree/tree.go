@@ -80,41 +80,71 @@ type Tree struct {
 // claims as its id or an alias, or that an earlier such file lists, is a duplicate, which Resolve
 // refuses.
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
-	tree := &Tree{
-		dir:        dir,
-		aliases:    aliases,
-		byID:       map[string]int{},
-		byAlias:    map[string]int{},
-		children:   map[string][]int{},
-		duplicates: map[string]*Error{},
-	}
 	nodes, problems, err := Walk(dir)
 	if err != nil {
 		return nil, err
 	}
-	tree.nodes = nodes
-	sort.Slice(tree.nodes, func(i, j int) bool {
-		if tree.nodes[i].ID != tree.nodes[j].ID {
-			return tree.nodes[i].ID < tree.nodes[j].ID
-		}
-		return tree.nodes[i].Path < tree.nodes[j].Path
-	})
-	dropped, err := tree.indexIDs(&problems)
+	facts, rejected, failures := readAliasFacts(nodes, aliases)
+	membership := DecideMembership(facts)
+	dirProblems, err := repeatedIDDirProblems(membership.RepeatedIDDirs)
 	if err != nil {
 		return nil, err
 	}
-	if err := tree.indexAliases(aliases, &problems); err != nil {
+	if err := firstAliasFailure(membership, failures); err != nil {
 		return nil, err
 	}
-	if err := tree.checkDroppedAliases(aliases, dropped, &problems); err != nil {
-		return nil, err
-	}
+
+	tree := newTree(dir, aliases, nodes, membership)
+	// Appended in this order, a file's repeated id comes before its rejected aliases, and those
+	// before its alias conflicts, once the problems are sorted by path.
+	problems = append(problems, conflictErrors(membership.IDConflicts)...)
+	problems = append(problems, dirProblems...)
+	problems = append(problems, rejected...)
+	problems = append(problems, conflictErrors(membership.AliasConflicts)...)
 	if len(problems) > 0 {
 		sort.SliceStable(problems, func(i, j int) bool { return problems[i].Path < problems[j].Path })
 		tree.orphanDirs = outermostOrphanDirs(problems)
 		return tree, problems
 	}
 	return tree, nil
+}
+
+// newTree builds the tree of dir from membership, DecideMembership's verdict on the facts of
+// nodes, which it indexes. Load passes only usable walk files, so the only names membership
+// refuses are duplicates.
+func newTree(dir string, aliases AliasFunc, nodes []Node, membership Membership) *Tree {
+	tree := &Tree{
+		dir:        dir,
+		aliases:    aliases,
+		nodes:      make([]Node, 0, len(membership.Kept)),
+		byID:       map[string]int{},
+		byAlias:    map[string]int{},
+		children:   map[string][]int{},
+		duplicates: map[string]*Error{},
+	}
+	keptAt := map[int]int{}
+	for _, i := range membership.Kept {
+		node := nodes[i]
+		keptAt[i] = len(tree.nodes)
+		tree.byID[node.ID] = len(tree.nodes)
+		tree.children[node.ParentID] = append(tree.children[node.ParentID], len(tree.nodes))
+		tree.nodes = append(tree.nodes, node)
+	}
+	for alias, i := range membership.Aliases {
+		tree.byAlias[alias] = keptAt[i]
+	}
+	for _, file := range membership.LeftOut {
+		if file.Reason == RepeatedIDFile {
+			tree.repeatedFiles = append(tree.repeatedFiles, len(tree.leftOut))
+		}
+		tree.leftOut = append(tree.leftOut, nodes[file.Fact])
+	}
+	for name, verdict := range membership.Names {
+		if verdict.Refusal == DuplicateRefusal {
+			tree.duplicates[name] = conflictError(verdict.Conflict)
+		}
+	}
+	return tree
 }
 
 // The reasons a node file is left out, as the problem of the directory beside it words them.
