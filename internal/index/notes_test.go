@@ -200,6 +200,72 @@ func TestNotes_EachProducer_SetsTheWarningKind(t *testing.T) {
 	}
 }
 
+// The Note-tree twin of TestRefresh_FileProblems_PinKindsAndWording; the check package pins the
+// same fixture's problems in TestRun_NoteFileProblems_PinCodesAndWording.
+func TestNotes_FileProblems_PinKindsAndWording(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	noteText := func(extra string) string { return "---\ntitle: Some note\n" + extra + "---\n" }
+	writeNote(t, s, "unknown-key.md", noteText("owner: me\n"))
+	writeNote(t, s, "bad-ref.md", noteText("refs: [\"#Symbol\"]\n"))
+	writeNote(t, s, "bad-alias.md", noteText("aliases: [Bad_Alias]\n"))
+	writeNote(t, s, "own-alias.md", noteText("aliases: [own-alias]\n"))
+	writeNote(t, s, "top-note.md", noteText(""))
+	writeNote(t, s, "top-note/dup-note.md", noteText(""))
+	writeNote(t, s, "dup-note.md", noteText(""))
+	outside := filepath.Join(s.WorktreeRoot, "outside.md")
+	if err := os.WriteFile(outside, []byte(noteText("")), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	makeSymlink(t, outside, filepath.Join(s.KnowledgeDir(), "link-note.md"))
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	const dir = ".capcom/knowledge/"
+	want := []Warning{
+		{
+			Kind:    WarningInvalidAlias,
+			Path:    dir + "bad-alias.md",
+			Message: `invalid alias "Bad_Alias": must use only a-z, 0-9, dots and hyphens`,
+		},
+		{
+			Kind:    WarningField,
+			Path:    dir + "bad-ref.md",
+			Line:    3,
+			Message: `ref "#Symbol" names no path; write path or path#symbol`,
+		},
+		{
+			Kind: WarningDuplicate,
+			Path: dir + "dup-note.md",
+			Message: `duplicate id "dup-note": also the id of ` + dir + "top-note/dup-note.md; " +
+				"both are left out",
+		},
+		{Kind: WarningNotRegular, Path: dir + "link-note.md", Message: "not a regular file"},
+		{
+			Kind:    WarningRepeatedAlias,
+			Path:    dir + "own-alias.md",
+			Message: `alias "own-alias" repeats the note's own id`,
+		},
+		{
+			Kind: WarningDuplicate,
+			Path: dir + "top-note/dup-note.md",
+			Message: `duplicate id "dup-note": also the id of ` + dir + "dup-note.md; " +
+				"both are left out",
+		},
+		{
+			Kind: WarningFrontmatter,
+			Path: dir + "unknown-key.md",
+			Line: 3,
+			Message: `unknown key "owner"; a note has title, labels, refs, retired, superseded-by ` +
+				"and aliases",
+		},
+	}
+	if !slices.Equal(report.Warnings, want) {
+		t.Errorf("warnings = %#v\nwant %#v", report.Warnings, want)
+	}
+}
+
 func TestNotes_OldSchemaIndex_RebuildsWithTheNotes(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

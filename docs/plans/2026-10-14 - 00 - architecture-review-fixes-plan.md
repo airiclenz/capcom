@@ -270,7 +270,10 @@ NOTES (2026-10-14): consequential edit — internal/index/walk.go: made necessar
 **Closes:** membership-owner
 **Commit:** `refactor(tree): one resolver over tree maps and index SQL`
 
-## P2.1 Pin the validation surface
+## P2.1 Pin the validation surface — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the closed-set test TestCodes_ClosedSet_PinsEveryCodeString pins each check.CodeX value and also parses the package's non-test sources (go/parser) so a Code constant added or removed fails it; P2.5, which deletes check's code constants, must move or rewrite it.
+NOTES (2026-10-14): the Note twins use a ref with no path (refs: ["#Symbol"]) for the field problem with a line, since an empty label fails at parse (frontmatter code), not in Validate.
 
 **What:**
 **Goal:** tests pin the closed set of check code strings, the JSON element shape of check `data` and prime `broken_refs` (`line: 0` present), and a Note-tree twin of the per-file problem wording pin in check and the index.

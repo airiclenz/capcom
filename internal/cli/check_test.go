@@ -78,6 +78,26 @@ func TestCheck_JSONWithProblems_IsKindCheckWithProblemList(t *testing.T) {
 	}
 }
 
+// A problem no single line is to blame for still carries "line": 0, so every element of check's
+// data has the same four keys.
+func TestCheck_JSONProblemWithoutALine_CarriesLineZero(t *testing.T) {
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, map[string]string{"lonely/child.md": validIssue})
+
+	stdout, _, exitCode := runCLI(t, root, "check", "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	want := []any{map[string]any{
+		"path":    ".capcom/issues/lonely",
+		"line":    float64(0),
+		"code":    "orphan-directory",
+		"message": "directory without its node file: no lonely.md beside it; left out",
+	}}
+	if exitCode != ExitError || !reflect.DeepEqual(envelope["data"], want) {
+		t.Errorf("check --json = %d, data %v; want 1 and %v", exitCode, envelope["data"], want)
+	}
+}
+
 func TestCheck_JSONCleanStore_IsAnEmptyList(t *testing.T) {
 	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
 

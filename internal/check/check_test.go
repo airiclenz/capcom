@@ -1,6 +1,9 @@
 package check_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -800,5 +803,145 @@ func TestRun_NamedPipeIssueFile_ReportedNotRegularWithoutBlocking(t *testing.T) 
 		}
 	case <-time.After(fifoCheckTimeout):
 		t.Fatal("Run blocked on the named pipe")
+	}
+}
+
+// noteFile is a valid Note whose frontmatter ends with extra, from line 3 on.
+func noteFile(extra string) string {
+	return "---\ntitle: Some note\n" + extra + "---\n"
+}
+
+// The Note-tree twin of TestRun_FileProblems_PinCodesAndWording; the index pins the same
+// fixture's warnings in TestNotes_FileProblems_PinKindsAndWording.
+func TestRun_NoteFileProblems_PinCodesAndWording(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		knowledge + "unknown-key.md":       noteFile("owner: me\n"),
+		knowledge + "bad-ref.md":           noteFile("refs: [\"#Symbol\"]\n"),
+		knowledge + "bad-alias.md":         noteFile("aliases: [Bad_Alias]\n"),
+		knowledge + "own-alias.md":         noteFile("aliases: [own-alias]\n"),
+		knowledge + "top-note.md":          noteFile(""),
+		knowledge + "top-note/dup-note.md": noteFile(""),
+		knowledge + "dup-note.md":          noteFile(""),
+		"outside.md":                       noteFile(""),
+	})
+	link := filepath.Join(root, filepath.FromSlash(knowledge+"link-note.md"))
+	makeSymlink(t, filepath.Join(root, "outside.md"), link)
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.Code+" "+problem.String())
+	}
+	want := []string{
+		check.CodeInvalidAlias + " " + knowledge + `bad-alias.md:3: invalid alias "Bad_Alias": ` +
+			"must use only a-z, 0-9, dots and hyphens",
+		check.CodeField + " " + knowledge + `bad-ref.md:3: ref "#Symbol" names no path; ` +
+			"write path or path#symbol",
+		check.CodeNotRegular + " " + knowledge + "link-note.md: not a regular file",
+		check.CodeDuplicate + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the node's own id`,
+		check.CodeDuplicate + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note", also at ` +
+			knowledge + "dup-note.md",
+		check.CodeFrontmatter + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a note has ` +
+			"title, labels, refs, retired, superseded-by and aliases",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+// codeConstants returns the value of every exported Code constant declared in the check package's
+// non-test source files, keyed by the constant's name.
+func codeConstants(t *testing.T) map[string]string {
+	t.Helper()
+	sources, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("Glob: %v", err)
+	}
+	constants := map[string]string{}
+	for _, source := range sources {
+		if strings.HasSuffix(source, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), source, nil, 0)
+		if err != nil {
+			t.Fatalf("ParseFile: %v", err)
+		}
+		for _, declaration := range file.Decls {
+			general, isGeneral := declaration.(*ast.GenDecl)
+			if !isGeneral || general.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range general.Specs {
+				for i, name := range spec.(*ast.ValueSpec).Names {
+					if !strings.HasPrefix(name.Name, "Code") {
+						continue
+					}
+					literal, isLiteral := spec.(*ast.ValueSpec).Values[i].(*ast.BasicLit)
+					if !isLiteral {
+						t.Fatalf("%s is not a string literal", name.Name)
+					}
+					value, err := strconv.Unquote(literal.Value)
+					if err != nil {
+						t.Fatalf("%s: %v", name.Name, err)
+					}
+					constants[name.Name] = value
+				}
+			}
+		}
+	}
+	return constants
+}
+
+// The codes are part of check --json and prime --json: a code added, renamed or removed changes
+// what a script reading them sees, so the whole set is pinned here.
+func TestCodes_ClosedSet_PinsEveryCodeString(t *testing.T) {
+	want := map[string]string{
+		"CodeConfig":              "config",
+		"CodeInvalidID":           "invalid-id",
+		"CodeInvalidAlias":        "invalid-alias",
+		"CodeDuplicate":           "duplicate",
+		"CodeOrphanDirectory":     "orphan-directory",
+		"CodeNotRegular":          "not-regular",
+		"CodeFrontmatter":         "frontmatter",
+		"CodeConflict":            "conflict",
+		"CodeField":               "field",
+		"CodeMissingDep":          "missing-dep",
+		"CodeMissingRelated":      "missing-related",
+		"CodeMissingSupersededBy": "missing-superseded-by",
+		"CodeFormatTooOld":        "format-too-old",
+		"CodeCycle":               "cycle",
+		"CodeMissingPlan":         "missing-plan",
+		"CodeBrokenRef":           "broken-ref",
+		"CodeAgentsBlock":         "agents-block",
+	}
+	exported := map[string]string{
+		"CodeConfig":              check.CodeConfig,
+		"CodeInvalidID":           check.CodeInvalidID,
+		"CodeInvalidAlias":        check.CodeInvalidAlias,
+		"CodeDuplicate":           check.CodeDuplicate,
+		"CodeOrphanDirectory":     check.CodeOrphanDirectory,
+		"CodeNotRegular":          check.CodeNotRegular,
+		"CodeFrontmatter":         check.CodeFrontmatter,
+		"CodeConflict":            check.CodeConflict,
+		"CodeField":               check.CodeField,
+		"CodeMissingDep":          check.CodeMissingDep,
+		"CodeMissingRelated":      check.CodeMissingRelated,
+		"CodeMissingSupersededBy": check.CodeMissingSupersededBy,
+		"CodeFormatTooOld":        check.CodeFormatTooOld,
+		"CodeCycle":               check.CodeCycle,
+		"CodeMissingPlan":         check.CodeMissingPlan,
+		"CodeBrokenRef":           check.CodeBrokenRef,
+		"CodeAgentsBlock":         check.CodeAgentsBlock,
+	}
+
+	declared := codeConstants(t)
+
+	if !reflect.DeepEqual(exported, want) {
+		t.Errorf("code values = %v\nwant %v", exported, want)
+	}
+	if !reflect.DeepEqual(declared, want) {
+		t.Errorf("declared codes = %v\nwant exactly %v", declared, want)
 	}
 }

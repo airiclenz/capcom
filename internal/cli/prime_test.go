@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -95,6 +96,29 @@ func TestPrime_JSON_CarriesEverySection(t *testing.T) {
 	}
 	if count := data["ready_unplanned"].(map[string]any)["count"]; count != 2.0 {
 		t.Errorf("ready_unplanned count = %v, want 2", count)
+	}
+}
+
+// A broken_refs element is a check problem: exactly path, line, code and message, and the line of
+// the broken ref, never 0, since every ref of a Note sits on its own line.
+func TestPrime_JSONBrokenRef_IsACheckProblemAtItsLine(t *testing.T) {
+	root := newPrimeStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "prime", "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	data, isObject := envelope["data"].(map[string]any)
+	if exitCode != ExitOK || !isObject {
+		t.Fatalf("prime --json = %d\n%s", exitCode, stdout)
+	}
+	want := []any{map[string]any{
+		"path":    ".capcom/knowledge/build-notes.md",
+		"line":    float64(3),
+		"code":    "broken-ref",
+		"message": `ref "gone.go": no such file or directory`,
+	}}
+	if !reflect.DeepEqual(data["broken_refs"], want) {
+		t.Errorf("broken_refs = %v, want %v", data["broken_refs"], want)
 	}
 }
 
