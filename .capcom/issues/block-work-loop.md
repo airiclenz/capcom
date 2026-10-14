@@ -8,7 +8,7 @@ created: 2026-10-13T11:59:13Z
 
 The Managed block of AGENTS.md (`blockIntro` in `internal/agents/block.go`) teaches an agent how to
 file, link and close an issue, but not how to work one. It never names claiming an issue
-(`capcom update <id> --status <doing status>`, and `capcom lock acquire --purpose <id>`), keeping
+(`capcom update <id> --status <doing status>`), keeping
 a trail (`capcom log <id>`), or undoing a close (`capcom reopen`). It does not say that
 `capcom ready` is where to start, and it does not say that each command's flags (`--type`,
 `--priority`, ...) are in `capcom <cmd> --help`.
@@ -24,11 +24,13 @@ Constraints:
   configured doing status, or phrase it so it holds for any configuration.
 - Point at `--help` for flags; do not list them in the block, where they would drift from the CLI.
 - Keep the block short; it is read on every session.
+- Claiming an issue does not take the Tree lock: the block teaches the lock on its own
+  (`lock-visibility`), and the work loop does not repeat it.
 
 ## Acceptance
 
 - The block gives a short work loop: start from `capcom ready`, `capcom show <id>`, claim it
-  (doing status, Tree lock), `capcom log <id>` as work lands, `capcom close <id> --reason`,
+  (doing status), `capcom log <id>` as work lands, `capcom close <id> --reason`,
   `capcom reopen <id>` to undo.
 - The block says flags are in `capcom <cmd> --help`.
 - The rendered text holds for a repository whose doing status is not named `active`.
