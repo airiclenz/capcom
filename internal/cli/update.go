@@ -2,15 +2,17 @@ package cli
 
 import (
 	"errors"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
 // updateOptions holds the flags of one capcom update.
@@ -183,16 +185,40 @@ func hasAnyFlag(cmd *cobra.Command, names ...string) bool {
 	return false
 }
 
-// readIssueFile reads the issue file at path, relative to the working tree root with forward
-// slashes (an index Entry's Path), through nodefile.ReadRegularFile: a file that is not a regular
-// file or is larger than 1 MiB is refused unread, an invalid-input error at path like any failed
-// read.
-func (a *app) readIssueFile(path string) ([]byte, error) {
-	data, err := nodefile.ReadRegularFile(a.absoluteIssuePath(path))
-	if err != nil {
-		return nil, &output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()}
+// refusedReadOp is the Op of the *fs.PathError nodefile.ReadRegularFile refuses a node file with,
+// the words a refused read fails in.
+const refusedReadOp = "read"
+
+// readNodeFile reads the node file at path, relative to the working tree root with forward slashes
+// (an index entry's Path), through reader, the Kind reader of its kind. A file that cannot be read,
+// refused unread (not a regular file, or larger than 1 MiB) or not, is an invalid-input error at
+// path, worded as nodefile.ReadRegularFile's *fs.PathError naming the file. A file that does not
+// parse fails nothing here: its Reading carries the finding.
+func readNodeFile[T any](a *app, reader nodestore.Reader[T], path string) (nodestore.Reading[T], error) {
+	absolute := a.absoluteIssuePath(path)
+	reading, err := reader.Read(absolute, path)
+	if err == nil && !reading.IsRead() {
+		refusal := errors.New(reading.Refusal[0].Message)
+		err = &fs.PathError{Op: refusedReadOp, Path: absolute, Err: refusal}
 	}
-	return data, nil
+	if err != nil {
+		return nodestore.Reading[T]{}, &output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()}
+	}
+	return reading, nil
+}
+
+// parseNodeFile reads the node file at path through reader as readNodeFile does, and fails as
+// invalid at its file and line when the file does not parse. A field or alias finding fails
+// nothing: the Reading keeps it, and the index already leaves such a file out.
+func parseNodeFile[T any](a *app, reader nodestore.Reader[T], path string) (nodestore.Reading[T], error) {
+	reading, err := readNodeFile(a, reader, path)
+	if err != nil {
+		return nodestore.Reading[T]{}, err
+	}
+	if !reading.IsParsed() {
+		return nodestore.Reading[T]{}, a.parseFailure(reading.Parse[0])
+	}
+	return reading, nil
 }
 
 // absoluteIssuePath turns path, relative to the working tree root with forward slashes, into a
@@ -215,4 +241,16 @@ func (a *app) frontmatterFailure(err error) error {
 		}
 	}
 	return output.AsError(err)
+}
+
+// parseFailure types finding, the parse finding of a node file that does not parse, as
+// frontmatterFailure types the parser's error: invalid, at its file and line, both the path and
+// the message naming the file relative to the working tree root.
+func (a *app) parseFailure(finding diagnose.Finding) error {
+	return &output.Error{
+		Code:    output.CodeInvalid,
+		Path:    a.store.Relative(finding.Path),
+		Line:    finding.Line,
+		Message: a.worktreeRelativeText(finding.Message),
+	}
 }

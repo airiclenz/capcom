@@ -8,7 +8,7 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
-	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
 // Flags of capcom know show.
@@ -71,16 +71,14 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 func (a *app) noteShowResult(entries []index.NoteEntry) (output.Result, error) {
 	data := make([]noteData, 0, len(entries))
 	var text strings.Builder
+	reader := nodestore.NoteReader()
 	for _, indexed := range entries {
-		file, err := a.readIssueFile(indexed.Path)
+		reading, err := parseNodeFile(a, reader, indexed.Path)
 		if err != nil {
 			return output.Result{}, err
 		}
-		entry, body, err := a.noteFromFile(indexed, file)
-		if err != nil {
-			return output.Result{}, err
-		}
-		etag := nodefile.ETag(file)
+		entry, body := noteFromFile(indexed, reading.Node)
+		etag := reading.ETag
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}
@@ -93,15 +91,10 @@ func (a *app) noteShowResult(entries []index.NoteEntry) (output.Result, error) {
 	return output.Result{Kind: "note", Data: data, Text: text.String()}, nil
 }
 
-// noteFromFile parses file, the bytes of the Note file entry indexes, and returns the entry with
-// every frontmatter field taken from those bytes, and the body. The entry keeps its id, path and
-// parent, which the file's place in the tree gives. A file that does not parse fails as invalid at
-// its file and line.
-func (a *app) noteFromFile(entry index.NoteEntry, file []byte) (index.NoteEntry, string, error) {
-	note, err := knowledge.Parse(entry.Path, file)
-	if err != nil {
-		return index.NoteEntry{}, "", a.frontmatterFailure(err)
-	}
+// noteFromFile returns entry with every frontmatter field taken from note, the Note its file
+// parses to, and the body. The entry keeps its id, path and parent, which the file's place in the
+// tree gives.
+func noteFromFile(entry index.NoteEntry, note knowledge.Note) (index.NoteEntry, string) {
 	return index.NoteEntry{
 		ID:           entry.ID,
 		Path:         entry.Path,
@@ -112,7 +105,7 @@ func (a *app) noteFromFile(entry index.NoteEntry, file []byte) (index.NoteEntry,
 		Aliases:      note.Aliases,
 		IsRetired:    note.IsRetired,
 		SupersededBy: note.SupersededBy,
-	}, note.Body, nil
+	}, note.Body
 }
 
 // noteText renders one Note in full: its id, location, etag and frontmatter as `key: value`

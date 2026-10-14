@@ -167,7 +167,15 @@ internal/cli/know_test.go — writeNoteFiles; internal/check/agents.go — Sync 
 **Closes:** block-left-out-notes
 **Commit:** `fix(agents): the Managed block hides Notes the index leaves out`
 
-## P1.6 cli reads node files through the Kind reader
+## P1.6 cli reads node files through the Kind reader — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): `readIssueFile` is replaced in update.go by two generic functions on the Kind reader: `readNodeFile` (a failed or refused read is CodeInvalid at the entry path; close's `alreadyClosed` uses it, so it still needs only a readable file) and `parseNodeFile` (adds the parse failure; show, know show and know verify use it). Field and alias findings fail no verb.
+
+NOTES (2026-10-14): the Kind reader turns a refused read into a NotRegular finding worded with the sentinel alone, so `readNodeFile` rebuilds today's `*fs.PathError` text from it (`read <absolute path>: <sentinel text>`, Op in the constant `refusedReadOp`, mirroring nodefile's unexported `readOp`).
+
+NOTES (2026-10-14): `frontmatterFailure` is kept unchanged as the plan's guard asks, but its only remaining caller is `cli_test.go`'s `TestUpdate_FrontmatterFailure_RelativizesOnlyAnAbsolutePath`; the new Finding-taking sibling `parseFailure` does the same mapping for the reader's parse finding.
+
+NOTES (2026-10-14): `issueFromFile`/`noteFromFile` keep their names but now take the parsed node and return no error; `noteFromFile` no longer needs the app and is a plain function.
 
 **What:**
 **Goal:** `show`, `know show`, `know verify`, `close` and `update` read, parse and etag node files only through the Kind reader; `readIssueFile` and the direct `issue.Parse`/`knowledge.Parse`/`nodefile.ETag` calls in those files are gone; output, error codes and paths are unchanged.

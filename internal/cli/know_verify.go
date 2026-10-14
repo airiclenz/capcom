@@ -7,6 +7,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
 // findingData is one broken Ref in the --json data of know verify.
@@ -68,16 +69,13 @@ func (a *app) verifyNotes() ([]knowledge.Finding, error) {
 		return nil, err
 	}
 	var findings []knowledge.Finding
+	reader := nodestore.NoteReader()
 	for _, entry := range notes {
-		data, err := a.readIssueFile(entry.Path)
+		reading, err := parseNodeFile(a, reader, entry.Path)
 		if err != nil {
 			return nil, err
 		}
-		note, err := knowledge.Parse(entry.Path, data)
-		if err != nil {
-			return nil, a.frontmatterFailure(err)
-		}
-		found, err := knowledge.Verify(a.store.WorktreeRoot, entry.Path, entry.ID, note)
+		found, err := knowledge.Verify(a.store.WorktreeRoot, entry.Path, entry.ID, reading.Node)
 		if err != nil {
 			return nil, output.AsError(err)
 		}

@@ -10,7 +10,7 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -66,6 +66,7 @@ func (a *app) showResult(args []string) (output.Result, []string, error) {
 	var shownPaths []string
 	var text strings.Builder
 	var messages []string
+	reader := nodestore.IssueReader(a.store.Config)
 	for _, arg := range args {
 		entry, err := a.issueIndex.Resolve(arg)
 		if err != nil {
@@ -84,14 +85,11 @@ func (a *app) showResult(args []string) (output.Result, []string, error) {
 			continue
 		}
 
-		file, err := a.readIssueFile(entry.Path)
+		reading, err := parseNodeFile(a, reader, entry.Path)
 		if err != nil {
 			return output.Result{}, nil, err
 		}
-		entry, body, err := a.issueFromFile(entry, file)
-		if err != nil {
-			return output.Result{}, nil, err
-		}
+		entry, body := a.issueFromFile(entry, reading.Node)
 		related, err := a.showLinks(entry)
 		if err != nil {
 			return output.Result{}, nil, err
@@ -106,7 +104,7 @@ func (a *app) showResult(args []string) (output.Result, []string, error) {
 			return output.Result{}, nil, err
 		}
 		facts := graph.facts(entry.ID, related, children)
-		etag := nodefile.ETag(file)
+		etag := reading.ETag
 		if text.Len() > 0 {
 			text.WriteString("\n")
 		}
@@ -126,15 +124,10 @@ func (a *app) showResult(args []string) (output.Result, []string, error) {
 	return result, shownPaths, nil
 }
 
-// issueFromFile parses file, the bytes of the issue file entry indexes, and returns the entry with
-// every frontmatter field taken from those bytes, and the body. The entry keeps its id, path and
-// parent, which the file's place in the tree gives. A file that does not parse fails as invalid at
-// its file and line.
-func (a *app) issueFromFile(entry index.Entry, file []byte) (index.Entry, string, error) {
-	parsed, err := issue.Parse(entry.Path, file)
-	if err != nil {
-		return index.Entry{}, "", a.frontmatterFailure(err)
-	}
+// issueFromFile returns entry with every frontmatter field taken from parsed, the issue its file
+// parses to, and the body. The entry keeps its id, path and parent, which the file's place in the
+// tree gives.
+func (a *app) issueFromFile(entry index.Entry, parsed issue.Issue) (index.Entry, string) {
 	category, _ := a.store.Config.CategoryOf(parsed.Status) // an undeclared status has none
 	return index.Entry{
 		ID:       entry.ID,
@@ -153,7 +146,7 @@ func (a *app) issueFromFile(entry index.Entry, file []byte) (index.Entry, string
 		Deps:     parsed.Deps,
 		Related:  parsed.Related,
 		Aliases:  parsed.Aliases,
-	}, parsed.Body, nil
+	}, parsed.Body
 }
 
 // showGraph is what show needs from the whole issue tree: the ready rules' verdict on each issue in

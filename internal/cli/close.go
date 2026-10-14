@@ -12,7 +12,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
 // Flags of close and reopen; --status is shared with list and update.
@@ -220,12 +220,12 @@ func (a *app) closeOne(
 
 // alreadyClosed reports outcome's issue as already_closed, with the etag of its file as read now.
 func (a *app) alreadyClosed(outcome closeData) (closeData, *output.Error, error) {
-	file, err := a.readIssueFile(outcome.Path)
+	reading, err := readNodeFile(a, nodestore.IssueReader(a.store.Config), outcome.Path)
 	if err != nil {
 		return closeData{}, output.AsError(err), nil
 	}
 	outcome.Outcome = outcomeAlreadyClosed
-	outcome.ETag = nodefile.ETag(file)
+	outcome.ETag = reading.ETag
 	return outcome, nil, nil
 }
 
