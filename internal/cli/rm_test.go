@@ -212,7 +212,7 @@ func TestRm_UnrelatedBadFileName_RemovesAndWarnsOnce(t *testing.T) {
 	assertWarnedOnce(t, stdout+stderr, ".capcom/issues/Bad_Name.md")
 }
 
-func TestRm_UnparseableIssue_WarnsDepsNotChecked(t *testing.T) {
+func TestRm_UnparseableIssue_WarnsDepsAndRelatedNotChecked(t *testing.T) {
 	root := newRmStore(t)
 	writeIssueFiles(t, root, map[string]string{"broken-issue.md": "---\ntitle: [unclosed\n---\n"})
 
@@ -221,9 +221,9 @@ func TestRm_UnparseableIssue_WarnsDepsNotChecked(t *testing.T) {
 	if exitCode != ExitOK {
 		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
 	}
-	warning := "warning: .capcom/issues/broken-issue.md: deps not checked for renamed-issue: the file does not parse"
+	warning := "warning: .capcom/issues/broken-issue.md: deps and related not checked for renamed-issue: the file does not parse"
 	if !slices.Contains(strings.Split(stdout, "\n"), warning) {
-		t.Errorf("no deps-not-checked warning line %q\nstdout = %q\nstderr = %q", warning, stdout, stderr)
+		t.Errorf("no deps-and-related-not-checked warning line %q\nstdout = %q\nstderr = %q", warning, stdout, stderr)
 	}
 }
 

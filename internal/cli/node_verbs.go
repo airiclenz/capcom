@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -14,7 +16,7 @@ import (
 // nodeVerbs describes one Tree kind to the verbs built for both kinds by one generic constructor
 // each, capcom mv and know mv, capcom rm and know rm, and to the write path createNode runs for
 // capcom create and know add. It holds the kind's node store and everything the commands of the
-// two kinds differ in: their wording, the reference field other nodes name the node in, the write
+// two kinds differ in: their wording, the kind's Descriptor, the write
 // and remove results, how a failed removal is typed, what is rendered after a write, and whether
 // --kv and --drop-deps are registered.
 type nodeVerbs[T any] struct {
@@ -29,9 +31,11 @@ type nodeVerbs[T any] struct {
 	flagNoun string
 	// showCommand prints a node's etag ("show", "know show"); the --if-match help names it.
 	showCommand string
-	// linkKey is the reference field through which other nodes name a node ("deps",
-	// "superseded-by"), named in the warning for a file whose references could not be checked.
-	linkKey string
+	// descriptor describes the kind without a store, so the command tree builds before a store is
+	// open; its ref keys name the reference fields in the warning for a file whose references
+	// could not be checked. The issue Descriptor is built from a zero config.Config, so its
+	// Validate is not the store's: never validate through it.
+	descriptor nodestore.Descriptor[T]
 	// writeResult is the result of a command that wrote a node: its id, path and new etag.
 	writeResult func(id string, path string, etag string) output.Result
 	// removeResult is the result of a command that removed a node.
@@ -66,7 +70,7 @@ var issueVerbs = nodeVerbs[issue.Issue]{
 	nounPhrase:    "an issue",
 	flagNoun:      "issue",
 	showCommand:   "show",
-	linkKey:       "deps",
+	descriptor:    nodestore.IssueDescriptor(config.Config{}),
 	writeResult:   writeResult,
 	removeResult:  issueRemoveResult,
 	removeFailure: issueRemovalFailure,
@@ -86,7 +90,7 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 	nounPhrase:   "a Note",
 	flagNoun:     "note",
 	showCommand:  "know show",
-	linkKey:      "superseded-by",
+	descriptor:   nodestore.NoteDescriptor(),
 	writeResult:  noteWriteResult,
 	removeResult: noteRemoveResult,
 	removeFailure: func(err error) error {
@@ -101,7 +105,7 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 
 // newMvCommand builds capcom mv or know mv, as verbs says: it renames a node, moves it below
 // another, or both. A rename keeps the old id as an Alias and rewrites every reference
-// (verbs.linkKey) that named the node; the node's subtree moves with it. capcom moves files with a
+// (verbs.descriptor's ref keys) that named the node; the node's subtree moves with it. capcom moves files with a
 // plain file-system rename and never runs git.
 func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 	options := &mvOptions{}
@@ -168,7 +172,7 @@ func move[T any](
 	indexWarnings, warnings := a.movedWarnings(moved, problems)
 	a.indexWarnings = indexWarnings
 	result.Warnings = append(result.Warnings, warnings...)
-	unread := unreadWarnings(moved.Unread, verbs.linkKey, moved.OldID)
+	unread := unreadWarnings(moved.Unread, verbs.descriptor.RefKeys(), moved.OldID)
 	result.Warnings = append(result.Warnings, unread...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(moved.LeftInPlace)...)
 	if verbs.afterWrite != nil {
@@ -244,7 +248,7 @@ func remove[T any](
 	}
 	result := verbs.removeResult(removed)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
-	unread := unreadWarnings(removed.Unread, verbs.linkKey, removed.ID)
+	unread := unreadWarnings(removed.Unread, verbs.descriptor.RefKeys(), removed.ID)
 	result.Warnings = append(result.Warnings, unread...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
 	if verbs.afterWrite != nil {
@@ -253,19 +257,28 @@ func remove[T any](
 	return result, nil
 }
 
-// unreadWarnings renders one warning per node file in paths, which does not parse, so its linkKey
-// entries naming the node id were not checked.
-func unreadWarnings(paths []string, linkKey string, id string) []string {
+// unreadWarnings renders one warning per node file in paths, which does not parse, so its entries
+// naming the node id under every one of refKeys were not checked.
+func unreadWarnings(paths []string, refKeys []string, id string) []string {
+	keys := joinKeys(refKeys)
 	warnings := make([]string, 0, len(paths))
 	for _, path := range paths {
 		warnings = append(warnings, fmt.Sprintf(
 			"%s: %s not checked for %s: the file does not parse",
 			path,
-			linkKey,
+			keys,
 			id,
 		))
 	}
 	return warnings
+}
+
+// joinKeys joins keys as a message lists them: "a", "a and b", "a, b and c".
+func joinKeys(keys []string) string {
+	if len(keys) < 2 {
+		return strings.Join(keys, "")
+	}
+	return strings.Join(keys[:len(keys)-1], ", ") + " and " + keys[len(keys)-1]
 }
 
 // createNode writes the new node build returns under id, below parent when it is set, through the

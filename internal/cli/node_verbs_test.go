@@ -35,3 +35,22 @@ func TestHelp_NodeVerbs_MatchGolden(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinKeys_ListsKeysAsAMessageDoes(t *testing.T) {
+	tests := []struct {
+		name string
+		keys []string
+		want string
+	}{
+		{name: "one key", keys: []string{"superseded-by"}, want: "superseded-by"},
+		{name: "two keys", keys: []string{"deps", "related"}, want: "deps and related"},
+		{name: "three keys", keys: []string{"a", "b", "c"}, want: "a, b and c"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := joinKeys(test.keys); got != test.want {
+				t.Errorf("joinKeys(%q) = %q, want %q", test.keys, got, test.want)
+			}
+		})
+	}
+}

@@ -52,7 +52,8 @@ func (d Descriptor[T]) RefKeys() []string {
 }
 
 // IssueDescriptor is the Descriptor of the issue tree; cfg declares the statuses and types its
-// Validate accepts.
+// Validate accepts. Only Validate depends on cfg: the nouns, format table and ref keys are the same
+// for every cfg, so a reader with no store may take them from IssueDescriptor(config.Config{}).
 func IssueDescriptor(cfg config.Config) Descriptor[issue.Issue] {
 	return Descriptor[issue.Issue]{
 		Noun:       "issue",

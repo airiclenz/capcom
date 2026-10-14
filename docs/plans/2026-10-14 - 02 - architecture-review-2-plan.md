@@ -213,7 +213,11 @@ internal/cli/know_update_test.go — TestKnowUpdate_WritesThatGainNoKey_LeaveThe
 **Closes:** format-key-rule
 **Commit:** `fix(check): one format-key rule for codec and check`
 
-## P3.1 node verbs take nouns and ref keys from the descriptor
+## P3.1 node verbs take nouns and ref keys from the descriptor — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): nodeVerbs replaces linkKey with a store-free `descriptor nodestore.Descriptor[T]` field (issue Descriptor from a zero config.Config, Note Descriptor) and reads its RefKeys(); nounPhrase stays until P3.4 as the plan's guard says. descriptor.go only gains a doc line on IssueDescriptor stating that only Validate depends on cfg.
+
+NOTES (2026-10-14): added `joinKeys` ("a", "a and b", "a, b and c") with a table test in node_verbs_test.go, which the plan's Files did not name, so the three-key form is pinned; the full ./internal/cli/ package passes too.
 
 **What:**
 **Goal:** fixes the first half of `unread-warning-keys`: `mv`/`rm` on an issue with an unparseable bystander warn `<path>: deps and related not checked for <id>: the file does not parse`; Note verbs keep `superseded-by not checked`. `nodeVerbs` has no `nounPhrase`/`linkKey` fields of its own; it reads the descriptor.

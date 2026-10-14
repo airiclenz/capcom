@@ -419,13 +419,13 @@ func TestMv_BelowDuplicatedID_FailsNamingBothFiles(t *testing.T) {
 	}
 }
 
-func TestMv_UnparseableBystander_WarnsDepsNotChecked(t *testing.T) {
+func TestMv_UnparseableBystander_WarnsDepsAndRelatedNotChecked(t *testing.T) {
 	root := newMoveStore(t)
 	writeIssueFiles(t, root, map[string]string{"broken-issue.md": "---\ntitle: [unclosed\n---\n"})
 
 	stdout, stderr, exitCode := runCLI(t, root, "mv", "renamed-issue", "kept-issue")
 
-	warning := "warning: .capcom/issues/broken-issue.md: deps not checked for renamed-issue: the file does not parse"
+	warning := "warning: .capcom/issues/broken-issue.md: deps and related not checked for renamed-issue: the file does not parse"
 	if exitCode != ExitOK || !slices.Contains(strings.Split(stdout, "\n"), warning) {
 		t.Errorf("mv = %d\nstdout = %q\nstderr = %q\nwant success with the line %q", exitCode, stdout, stderr, warning)
 	}
