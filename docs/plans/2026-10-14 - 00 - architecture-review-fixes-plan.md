@@ -420,7 +420,9 @@ NOTES (2026-10-14): TestDepRm_NotADep_FailsNotFound tightened from strings.Conta
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestDep|TestRelated|TestKnowUpdate|TestCreate'`
 **Commit:** `test(cli): pin reference-list edits`
 
-## P3.2 know update refuses a superseded-by name two files claim
+## P3.2 know update refuses a superseded-by name two files claim — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from `internal/index/query.go — duplicateClaim`, which no longer exists; the duplicate error now comes from `tree` (claims.go) wrapping `tree.ErrDuplicate`, and the fix stays in `isResolveMiss` as planned.
 
 **What:**
 **Goal:** `capcom know update <id> --remove-superseded-by <name>` exits 1 naming both files and writes nothing when two files claim `<name>`, as `dep rm` does.

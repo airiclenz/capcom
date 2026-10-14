@@ -186,9 +186,9 @@ func (a *app) resolveSuccessors(arg string, successorArgs []string) ([]string, e
 }
 
 // resolveRemovals resolves each of removalArgs, the --remove-superseded-by arguments, through the
-// same Note lookup --add-superseded-by uses. An argument that names no usable Note, or several,
-// keeps "" as its resolved id, so only its text can match an entry. It fails only when the index
-// cannot be read.
+// same Note lookup --add-superseded-by uses. An argument that names no Note, or is a prefix of
+// several, keeps "" as its resolved id, so only its text can match an entry. It fails, as dep rm
+// does, on a name two files claim, naming both, and when the index cannot be read.
 func (a *app) resolveRemovals(removalArgs []string) ([]successorRemoval, error) {
 	removals := make([]successorRemoval, 0, len(removalArgs))
 	for _, removalArg := range removalArgs {
@@ -205,11 +205,10 @@ func (a *app) resolveRemovals(removalArgs []string) ([]successorRemoval, error) 
 	return removals, nil
 }
 
-// isResolveMiss reports whether err, a failure of Index.ResolveNote, is about the argument rather
-// than the index: no match, an ambiguous prefix, or a name a duplicate or a left-out file claims.
+// isResolveMiss reports whether err, a failure of Index.ResolveNote, leaves only the argument's
+// text to match: no match or an ambiguous prefix. A name two files claim is not a miss.
 func isResolveMiss(err error) bool {
-	return errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrAmbiguous) ||
-		errors.Is(err, tree.ErrDuplicate)
+	return errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrAmbiguous)
 }
 
 // removedSuccessors returns the superseded-by entries removals take out of entries: each removal's

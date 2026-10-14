@@ -483,7 +483,8 @@ still holds. Neither key implies the other.
   `--add-superseded-by <note>` takes an id, an alias or a prefix and writes the id it resolves to;
   `--remove-superseded-by <note>` removes the entry equal to its text, or, when none is, the entry
   equal to the id it resolves to as `--add-superseded-by` resolves it; one that matches no entry
-  changes nothing. Both repeat. An update that retires
+  changes nothing, and a name two files claim is refused naming both files, as `capcom dep rm`
+  refuses it, and nothing is written. Both repeat. An update that retires
   a Note or adds a `superseded-by` entry in a store below format 3 first raises `config.yaml` to
   `format: 3`, as `capcom related add` raises it to 2 (see Config), and warns:
 

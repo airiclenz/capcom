@@ -356,6 +356,23 @@ func TestKnowUpdate_RemoveSupersededBy_MatchesTheTextThenTheResolvedID(t *testin
 	}
 }
 
+func TestKnowUpdate_RemoveSupersededByDuplicatedName_FailsNamingBothFilesAndWritesNothing(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"foo.md":               "---\ntitle: Foo\n---\n",
+		"testing-rules/foo.md": "---\ntitle: Other foo\n---\n",
+		"release-flow.md":      "---\ntitle: Release flow\nsuperseded-by: [foo, cli-tests]\n---\n",
+	})
+	before := readNoteFile(t, root, "release-flow.md")
+
+	_, stderr, exitCode := runCLI(t, root, "know", "update", "release-flow", "--remove-superseded-by", "foo")
+
+	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/knowledge/foo.md", ".capcom/knowledge/testing-rules/foo.md")
+	if after := readNoteFile(t, root, "release-flow.md"); after != before {
+		t.Errorf("note file changed to %q", after)
+	}
+}
+
 func TestKnowUpdate_AddSupersededByBesideItsAliasSpelling_AppendsTheID(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{
