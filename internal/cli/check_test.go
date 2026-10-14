@@ -50,8 +50,9 @@ func TestCheck_DuplicateIDWithChildren_ReportsTheDirectoryLeftOut(t *testing.T) 
 
 	stdout, stderr, exitCode := runCLI(t, root, "check")
 
-	want := ".capcom/issues/b/x: directory left out: its node file x.md has a duplicate id\n" +
-		".capcom/issues/b/x.md: duplicate id \"x\", also at .capcom/issues/a/x.md\n"
+	want := ".capcom/issues/a/x.md: duplicate id \"x\": also the id of .capcom/issues/b/x.md; both are left out\n" +
+		".capcom/issues/b/x: directory left out: its node file x.md has a duplicate id\n" +
+		".capcom/issues/b/x.md: duplicate id \"x\": also the id of .capcom/issues/a/x.md; both are left out\n"
 	if exitCode != ExitError || stdout != want || stderr != "" {
 		t.Fatalf("check = %d, stdout:\n%s\nstderr %q; want 1 and\n%s", exitCode, stdout, stderr, want)
 	}

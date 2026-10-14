@@ -27,8 +27,10 @@ func (c *checker) addFormatTooOld(path string, line int, key string, needed int,
 }
 
 // loadTree loads the tree in dir, recording each of its load problems with every file it names
-// relative to the working tree root, and returns what could be placed. aliasesLine returns the
-// line of the aliases key in the file at a path aliases parsed, or 0; an alias problem cites it.
+// relative to the working tree root, and returns what could be placed. A repeated id is recorded
+// as the index warns it, through diagnose.NameClashes: one problem for every file of the id, each
+// naming another. aliasesLine returns the line of the aliases key in the file at a path aliases
+// parsed, or 0; an alias problem cites it.
 func (c *checker) loadTree(
 	dir string,
 	aliases tree.AliasFunc,
@@ -39,7 +41,25 @@ func (c *checker) loadTree(
 	if !errors.As(err, &problems) {
 		return loaded, err
 	}
+	var conflicts []tree.Conflict
+	var others tree.Errors
 	for _, problem := range problems {
+		if !isRepeatedID(problem) {
+			others = append(others, problem)
+			continue
+		}
+		conflicts = append(conflicts, tree.Conflict{
+			Key:   c.relative(problem.Path),
+			Other: c.relative(problem.Other),
+			Name:  tree.IDOf(problem.Path),
+		})
+	}
+	// Recorded first, a file's repeated id stays before its other problems at the same line once
+	// Run sorts the problems.
+	for _, finding := range diagnose.NameClashes(conflicts) {
+		c.add(finding.Path, finding.Line, finding.Code, finding.Message)
+	}
+	for _, problem := range others {
 		relative := *problem
 		relative.Other = c.relative(problem.Other)
 		line := 0
@@ -55,6 +75,13 @@ func (c *checker) loadTree(
 		c.add(problem.Path, line, code, relative.Message())
 	}
 	return loaded, nil
+}
+
+// isRepeatedID reports whether problem is tree.Load's report of a node file whose id an earlier
+// node file has, a tree.DuplicateIDError: the one duplicate that names another file but no alias.
+func isRepeatedID(problem *tree.Error) bool {
+	kind, isKnown := diagnose.TreeKind(problem)
+	return isKnown && kind == diagnose.Duplicate && problem.Alias == "" && problem.Other != ""
 }
 
 // kindCode is the Problem code of a problem of kind: a repeated alias is a duplicate, and every

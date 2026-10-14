@@ -357,7 +357,10 @@ NOTES (2026-10-14): `go build ./...` / `go vet ./...` fail at the repo root on g
 **Acceptance:** `go build ./...`; `go vet ./...`; `GOMEMLIMIT=2GiB go test ./internal/diagnose/`; `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/briefing/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestCheck_|TestPrime_'`
 **Commit:** `refactor(diagnose): one finding type for check and the index`
 
-## P2.7 One repeated-id finding for check and the index
+## P2.7 One repeated-id finding for check and the index — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): check's loadTree rebuilds the tree.Conflict of each tree.DuplicateIDError that tree.Load reports (worktree-relative Key and Other, the id from tree.IDOf) and renders them through diagnose.NameClashes, the index's renderer, instead of reading tree.Load's membership verdict directly; tree.Load does not expose its Membership, and tree was not in this item's Files list. The repeated-id problems are recorded before the other load problems so they keep sorting ahead of a same-line problem of the same file.
+NOTES (2026-10-14): TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode gained an alsoWant field so its duplicate-id case can pin both files; new runCLI test TestPrime_RepeatedID_CountsBothFilesInCheck pins the prime count of 2.
 
 **What:**
 **Goal:** `capcom check` reports a repeated id with the index's wording, one problem per claimant ("…also the id of P; both are left out"), code `duplicate`.

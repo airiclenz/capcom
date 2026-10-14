@@ -29,9 +29,11 @@ The directory tree is the hierarchy (ADR 0001). The same rules hold in `issues/`
   never read: it is left out with a `not a regular file` warning, whatever its name. A node file
   larger than 1 MiB is left out with a `file is larger than 1 MiB` warning. Both are `not-regular`
   problems in `capcom check`, and a directory beside such a node file is left out with it.
-- Every node file of an id two or more files share is left out, each file after the first with a
-  `duplicate id` problem naming the first. A directory beside any of them is left out with its
-  whole subtree, as a `directory left out: its node file <id>.md has a duplicate id` problem.
+- Every node file of an id two or more files share is left out, each with a `duplicate id` problem
+  naming another file of the id: `duplicate id "<id>": also the id of <file>; both are left out`,
+  or `also the id of <file> and <n> more; all are left out` for three or more. A file that does not
+  parse counts as a file of its id too. A directory beside any of them is left out with its whole
+  subtree, as a `directory left out: its node file <id>.md has a duplicate id` problem.
 
 ```text
 .capcom/issues/

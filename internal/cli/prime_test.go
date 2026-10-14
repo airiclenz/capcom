@@ -235,6 +235,18 @@ func TestPrime_UnparseableIssue_CountsItInCheckWithoutAWarningLine(t *testing.T)
 	}
 }
 
+func TestPrime_RepeatedID_CountsBothFilesInCheck(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"x.md": validIssue, "a.md": validIssue})
+	writeIssueFiles(t, root, map[string]string{"a/x.md": validIssue})
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+	if exitCode != ExitOK || stderr != "" || !strings.Contains(stdout, "check: 2 problems; run capcom check\n") {
+		t.Errorf("prime = %d, stderr %q, stdout:\n%s\nwant 0 and both files of the repeated id counted",
+			exitCode, stderr, stdout)
+	}
+}
+
 func TestPrime_OversizedAgentsGuide_ExitsZeroCountingIt(t *testing.T) {
 	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
 	guide := filepath.Join(root, "AGENTS.md")

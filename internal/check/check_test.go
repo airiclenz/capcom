@@ -115,6 +115,9 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 		name  string
 		files map[string]string
 		want  string
+		// alsoWant are the locations the fixture reports after want, for a class reported once
+		// per file.
+		alsoWant []string
 	}{
 		{
 			name:  "unknown issue key",
@@ -153,7 +156,8 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				issues + "export-csv.md":                 issueFile(""),
 				issues + "export-csv/session-timeout.md": issueFile(""),
 			},
-			want: issues + "login-flow/session-timeout.md:0:" + string(diagnose.Duplicate),
+			want:     issues + "export-csv/session-timeout.md:0:" + string(diagnose.Duplicate),
+			alsoWant: []string{issues + "login-flow/session-timeout.md:0:" + string(diagnose.Duplicate)},
 		},
 		{
 			name: "duplicate alias",
@@ -244,7 +248,7 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 			problems := runCheck(t, root)
 
 			got := locations(t, problems)
-			if want := []string{testCase.want}; !reflect.DeepEqual(got, want) {
+			if want := append([]string{testCase.want}, testCase.alsoWant...); !reflect.DeepEqual(got, want) {
 				t.Errorf("problems = %v, want %v", problems, want)
 			}
 		})
@@ -437,6 +441,7 @@ func TestRun_SupersededByNamingALeftOutNote_ReportsNoMissingSupersededBy(t *test
 	got := locations(t, problems)
 	want := []string{
 		knowledge + "new-flow:0:" + string(diagnose.OrphanDirectory),
+		knowledge + "new-flow.md:0:" + string(diagnose.Duplicate),
 		knowledge + "zz-other/new-flow.md:0:" + string(diagnose.Duplicate),
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -460,9 +465,11 @@ func TestRun_DuplicateIDAndAlias_NameBothFilesRelativeToTheWorktree(t *testing.T
 		got = append(got, problem.String())
 	}
 	want := []string{
+		issues + `export-csv/session-timeout.md: duplicate id "session-timeout": also the id of ` +
+			issues + "login-flow/session-timeout.md; both are left out",
 		issues + `login-flow.md:7: duplicate alias "apogee-qi3": also an alias of ` + issues + "export-csv.md",
-		issues + `login-flow/session-timeout.md: duplicate id "session-timeout", also at ` +
-			issues + "export-csv/session-timeout.md",
+		issues + `login-flow/session-timeout.md: duplicate id "session-timeout": also the id of ` +
+			issues + "export-csv/session-timeout.md; both are left out",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %q\nwant %q", got, want)
@@ -490,13 +497,17 @@ func TestRun_DroppedDuplicateIDFiles_AliasClashAndParseFailureReported(t *testin
 	for _, problem := range problems {
 		got = append(got, string(problem.Code)+" "+problem.String())
 	}
-	keptTwin := issues + "export-csv/session-timeout.md"
+	firstTwin := issues + "export-csv/session-timeout.md"
+	repeatedID := string(diagnose.Duplicate) + " " + issues
 	want := []string{
-		string(diagnose.Duplicate) + " " + issues + `login-flow/session-timeout.md: duplicate id "session-timeout", also at ` +
-			keptTwin,
+		repeatedID + `export-csv/session-timeout.md: duplicate id "session-timeout": also the id of ` +
+			issues + "login-flow/session-timeout.md and 1 more; all are left out",
+		repeatedID + `login-flow/session-timeout.md: duplicate id "session-timeout": also the id of ` +
+			firstTwin + " and 1 more; all are left out",
 		string(diagnose.Duplicate) + " " + issues + `login-flow/session-timeout.md:7: duplicate alias "apogee-qi3": ` +
 			"also an alias of " + issues + "export-csv.md",
-		string(diagnose.Duplicate) + " " + issues + `session-timeout.md: duplicate id "session-timeout", also at ` + keptTwin,
+		repeatedID + `session-timeout.md: duplicate id "session-timeout": also the id of ` + firstTwin +
+			" and 1 more; all are left out",
 		string(diagnose.Frontmatter) + " " + issues + `session-timeout.md:7: unknown key "estimate"; an issue has ` +
 			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
 	}
@@ -594,10 +605,12 @@ func TestRun_FileProblems_PinCodesAndWording(t *testing.T) {
 			"must use only a-z, 0-9, dots and hyphens",
 		string(diagnose.Field) + " " + issues + `bad-status.md:3: status "wip" is not declared in config; ` +
 			"use one of [open active parked done dropped]",
+		string(diagnose.Duplicate) + " " + issues + `dup-issue.md: duplicate id "dup-issue": also the id of ` +
+			issues + "top-issue/dup-issue.md; both are left out",
 		string(diagnose.NotRegular) + " " + issues + "link-issue.md: not a regular file",
 		string(diagnose.Duplicate) + " " + issues + `own-alias.md:7: alias "own-alias" repeats the node's own id`,
-		string(diagnose.Duplicate) + " " + issues + `top-issue/dup-issue.md: duplicate id "dup-issue", also at ` +
-			issues + "dup-issue.md",
+		string(diagnose.Duplicate) + " " + issues + `top-issue/dup-issue.md: duplicate id "dup-issue": also the id of ` +
+			issues + "dup-issue.md; both are left out",
 		string(diagnose.Frontmatter) + " " + issues + `unknown-key.md:7: unknown key "estimate"; an issue has ` +
 			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
 	}
@@ -840,10 +853,12 @@ func TestRun_NoteFileProblems_PinCodesAndWording(t *testing.T) {
 			"must use only a-z, 0-9, dots and hyphens",
 		string(diagnose.Field) + " " + knowledge + `bad-ref.md:3: ref "#Symbol" names no path; ` +
 			"write path or path#symbol",
+		string(diagnose.Duplicate) + " " + knowledge + `dup-note.md: duplicate id "dup-note": also the id of ` +
+			knowledge + "top-note/dup-note.md; both are left out",
 		string(diagnose.NotRegular) + " " + knowledge + "link-note.md: not a regular file",
 		string(diagnose.Duplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the node's own id`,
-		string(diagnose.Duplicate) + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note", also at ` +
-			knowledge + "dup-note.md",
+		string(diagnose.Duplicate) + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note": also the id of ` +
+			knowledge + "dup-note.md; both are left out",
 		string(diagnose.Frontmatter) + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a note has ` +
 			"title, labels, refs, retired, superseded-by and aliases",
 	}
