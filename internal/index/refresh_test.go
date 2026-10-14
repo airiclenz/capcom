@@ -64,6 +64,35 @@ func TestRefresh_DuplicateIDWithChildren_LeavesTheSubtreeOut(t *testing.T) {
 	}
 }
 
+func TestRefresh_RepeatedIDDirectoryWithoutNodeFiles_WarnsItLeftOut(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "a.md", issueText("A", "open", ""))
+	writeIssue(t, s, "a/x.md", issueText("X one", "open", ""))
+	writeIssue(t, s, "b.md", issueText("B", "open", ""))
+	writeIssue(t, s, "b/x.md", issueText("X two", "open", ""))
+	if err := os.MkdirAll(filepath.Join(s.IssuesDir(), "b", "x"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	want := Warning{
+		Kind:    WarningOrphanDirectory,
+		Path:    ".capcom/issues/b/x",
+		Message: "directory left out: its node file x.md has a duplicate id",
+	}
+	if !slices.Contains(report.Warnings, want) {
+		t.Errorf("warnings = %q, want %q", warningStrings(report), want.String())
+	}
+	for _, warning := range report.Warnings {
+		if warning.Path == ".capcom/issues/a/x" {
+			t.Errorf("warnings = %q, want none for the absent directory a/x", warningStrings(report))
+		}
+	}
+}
+
 func TestResolve_PrefixOfANodeBelowARepeatedID_CountsItAsACandidate(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

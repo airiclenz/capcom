@@ -152,7 +152,7 @@ func load(dir string, content ContentFunc, aliases AliasFunc) (*Tree, error) {
 	facts, rejected, failures := readContentFacts(nodes, content)
 	facts = append(facts, claimOnlyFacts(problems, content)...)
 	membership := DecideMembership(facts)
-	dirProblems, err := repeatedIDDirProblems(membership.RepeatedIDDirs)
+	dirProblems, err := RepeatedIDDirProblems(membership.RepeatedIDDirs)
 	if err != nil {
 		return nil, err
 	}

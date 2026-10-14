@@ -201,7 +201,11 @@ NOTES (2026-10-14): consequential edit — docs/site/reference/file-format.md: m
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestShow_|TestDepRm_|TestRelatedRm_|TestKnowUpdate'`
 **Commit:** `fix(index): prefix candidates count every file's id`
 
-## P1.6 Index leaves out repeated-id subtrees through the membership function
+## P1.6 Index leaves out repeated-id subtrees through the membership function — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from `addRepeatedIDDirs` in internal/tree/claims.go — P1.2 renamed Load's per-directory Lstat to `repeatedIDDirProblems`; it is exported as `tree.RepeatedIDDirProblems` and the index walk Lstats through it, wrapping its *fs.PathError to name the directory relative to the worktree.
+NOTES (2026-10-14): consequential edit — internal/tree/tree.go: made necessary by exporting repeatedIDDirProblems as RepeatedIDDirProblems (Load's call site).
+NOTES (2026-10-14): the index's facts use the absolute node path as key (same spelling and order as tree.Load), no aliases, parse state UnreadFile, usable; the replacement function is `leaveOutBelowRepeatedIDs`, and a left-out node's duplicate problem is rendered from `membership.Names[id].Conflict`, which DecideMembership sets to the innermost repeated id's conflict. The Walk-error and Lstat-error relative-path wrapping now share a small `worktreeRelativeError` helper in walk.go.
 
 **What:**
 **Goal:** the index computes repeated-id subtrees by calling tree's membership function; no repeated-id logic remains in `internal/index`; warning text unchanged.

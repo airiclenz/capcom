@@ -32,18 +32,14 @@ var lstat = os.Lstat
 // that directory, which is warned about as an orphan directory. A walk or stat failure names its
 // path relative to worktreeRoot.
 // It also returns the names the files the walk leaves out claim, as problemClaims finds them, and
-// the node files it leaves out below a repeated id, as leaveOutRepeatedIDSubtrees finds them, both
+// the node files it leaves out below a repeated id, as leaveOutBelowRepeatedIDs finds them, both
 // without their kind.
 func walkIssues(worktreeRoot, issuesDir string, r *refresher) ([]foundFile, []claim, []leftOutNode, error) {
 	nodes, problems, err := tree.Walk(issuesDir)
 	if err != nil {
-		var pathErr *fs.PathError
-		if errors.As(err, &pathErr) {
-			return nil, nil, nil, fmt.Errorf("%s: %w", worktreeRelative(worktreeRoot, pathErr.Path), err)
-		}
-		return nil, nil, nil, err
+		return nil, nil, nil, worktreeRelativeError(worktreeRoot, err)
 	}
-	nodes, leftOut, directoryProblems, err := leaveOutRepeatedIDSubtrees(worktreeRoot, nodes)
+	nodes, leftOut, directoryProblems, err := leaveOutBelowRepeatedIDs(worktreeRoot, nodes)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -93,100 +89,65 @@ type leftOutNode struct {
 	problem *tree.Error
 }
 
-// repeatedIDDirectory is the directory beside a file of a repeated id, with the id and its
-// duplicate problem.
-type repeatedIDDirectory struct {
-	path    string
-	id      string
-	problem *tree.Error
-}
-
-// leaveOutRepeatedIDSubtrees splits nodes, as tree.Walk returns them, the way tree.Load does for an
-// id two or more of them share: every node file under the directory beside a file of such an id is
-// left out, with the duplicate problem of the innermost such id it lies under, which names that
-// id's second file by path and, in Other, its first, both relative to worktreeRoot. The files of a
-// repeated id themselves are kept: the refresh leaves them out as duplicates. It returns the kept
-// nodes in order, the left-out ones without their kind, and one problem wrapping
-// tree.ErrOrphanDirectory per such directory that is a directory on disk. A directory whose Lstat
-// fails other than by being gone fails the walk, naming it relative to worktreeRoot.
-func leaveOutRepeatedIDSubtrees(worktreeRoot string, nodes []tree.Node) ([]tree.Node, []leftOutNode, tree.Errors, error) {
-	pathsByID := map[string][]string{}
-	for _, node := range nodes {
-		pathsByID[node.ID] = append(pathsByID[node.ID], node.Path)
-	}
-	var directories []repeatedIDDirectory
-	for _, node := range nodes {
-		paths := pathsByID[node.ID]
-		if len(paths) < 2 {
-			continue
+// leaveOutBelowRepeatedIDs splits nodes, as tree.Walk returns them, by tree.DecideMembership, the
+// membership function tree.Load decides by. Each node is passed as a walk fact of its path, id,
+// parent id and directory alone: its key is its absolute path, so a repeated id's files order as
+// tree.Load orders them; it lists no aliases, its parse state is tree.UnreadFile and it is usable,
+// for the walk reads no file. Every node the function leaves out below a repeated id is left out,
+// with the duplicate problem of the repeated id it stands for, which names that id's second file
+// by path and, in Other, its first, both relative to worktreeRoot. The files of a repeated id
+// themselves are kept: the refresh leaves them out as duplicates. It returns the kept nodes in
+// order, the left-out ones in order without their kind, and the problem of each repeated-id
+// directory that is a directory on disk, as tree.RepeatedIDDirProblems finds them. A directory
+// whose Lstat fails other than by being gone fails the walk, naming it relative to worktreeRoot.
+func leaveOutBelowRepeatedIDs(worktreeRoot string, nodes []tree.Node) ([]tree.Node, []leftOutNode, tree.Errors, error) {
+	facts := make([]tree.FileFact, len(nodes))
+	for i, node := range nodes {
+		facts[i] = tree.FileFact{
+			Key:      node.Path,
+			ID:       node.ID,
+			ParentID: node.ParentID,
+			Dir:      filepath.Dir(node.Path),
+			Parse:    tree.UnreadFile,
+			IsUsable: true,
+			Origin:   tree.WalkOrigin,
 		}
-		slices.Sort(paths)
-		directories = append(directories, repeatedIDDirectory{
-			path: tree.ChildrenDir(node.Path),
-			id:   node.ID,
-			problem: tree.DuplicateIDError(
-				worktreeRelative(worktreeRoot, paths[1]),
-				worktreeRelative(worktreeRoot, paths[0]),
-				node.ID,
-			),
-		})
 	}
-	if len(directories) == 0 {
+	membership := tree.DecideMembership(facts)
+	if len(membership.RepeatedIDDirs) == 0 {
 		return nodes, nil, nil, nil
 	}
 
+	isBelow := map[int]bool{}
+	for _, file := range membership.LeftOut {
+		if file.Reason == tree.BelowRepeatedID {
+			isBelow[file.Fact] = true
+		}
+	}
 	kept := make([]tree.Node, 0, len(nodes))
 	var leftOut []leftOutNode
-	for _, node := range nodes {
-		directory := enclosingRepeatedIDDirectory(directories, node.Path)
-		if directory == nil || len(pathsByID[node.ID]) > 1 {
+	for i, node := range nodes {
+		if !isBelow[i] {
 			kept = append(kept, node)
 			continue
 		}
+		// DecideMembership refuses the id of a file below a repeated id with that id's conflict.
+		conflict := membership.Names[node.ID].Conflict
 		leftOut = append(leftOut, leftOutNode{
-			id:      node.ID,
-			path:    worktreeRelative(worktreeRoot, node.Path),
-			problem: directory.problem,
+			id:   node.ID,
+			path: worktreeRelative(worktreeRoot, node.Path),
+			problem: tree.DuplicateIDError(
+				worktreeRelative(worktreeRoot, conflict.Key),
+				worktreeRelative(worktreeRoot, conflict.Other),
+				conflict.Name,
+			),
 		})
 	}
-	problems, err := repeatedIDDirectoryProblems(worktreeRoot, directories)
-	return kept, leftOut, problems, err
-}
-
-// enclosingRepeatedIDDirectory returns the innermost of directories that path lies under, or nil
-// when it lies under none.
-func enclosingRepeatedIDDirectory(directories []repeatedIDDirectory, path string) *repeatedIDDirectory {
-	var enclosing *repeatedIDDirectory
-	for i := range directories {
-		directory := &directories[i]
-		if !strings.HasPrefix(path, directory.path+string(filepath.Separator)) {
-			continue
-		}
-		if enclosing == nil || len(directory.path) > len(enclosing.path) {
-			enclosing = directory
-		}
+	problems, err := tree.RepeatedIDDirProblems(membership.RepeatedIDDirs)
+	if err != nil {
+		return nil, nil, nil, worktreeRelativeError(worktreeRoot, err)
 	}
-	return enclosing
-}
-
-// repeatedIDDirectoryProblems returns the problem of each of directories that is a directory on
-// disk, worded as tree.Load words it. One that is gone, or is no directory, is no problem; any other
-// failed Lstat is returned, naming the directory relative to worktreeRoot.
-func repeatedIDDirectoryProblems(worktreeRoot string, directories []repeatedIDDirectory) (tree.Errors, error) {
-	var problems tree.Errors
-	for _, directory := range directories {
-		info, err := os.Lstat(directory.path)
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", worktreeRelative(worktreeRoot, directory.path), err)
-		}
-		if info.IsDir() {
-			problems = append(problems, tree.DuplicateIDDirectoryError(directory.path, directory.id))
-		}
-	}
-	return problems, nil
+	return kept, leftOut, problems, nil
 }
 
 // withoutKeptFiles drops from claims every claim of a file among nodes, which keeps its own rows:
@@ -278,6 +239,16 @@ func nodeFileID(path string) (string, bool) {
 	name := filepath.Base(path)
 	id := tree.IDOf(name)
 	return id, id != name && tree.ValidateID(id) == nil
+}
+
+// worktreeRelativeError returns err naming its path relative to worktreeRoot when it is an
+// *fs.PathError, and err unchanged otherwise.
+func worktreeRelativeError(worktreeRoot string, err error) error {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("%s: %w", worktreeRelative(worktreeRoot, pathErr.Path), err)
+	}
+	return err
 }
 
 // worktreeRelative names a path below worktreeRoot with forward slashes, for rows and warnings.
