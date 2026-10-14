@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"slices"
-
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
@@ -117,44 +115,28 @@ func (a *app) outline(
 	if err != nil {
 		return nil, err
 	}
-	// Orphanhood is decided over every indexed Note, background ones included, so a Note below a
-	// background Note stays in its parent's group rather than joining the top level.
-	children := childrenByParent(notes)
-	if !isBackgroundIncluded {
-		// Dropping a background Note drops its subtree too: walkOutline reaches a Note only
-		// through its parent's group. The filter stays here, not in childrenByParent, which know
-		// show --with-children also uses.
-		for parentID, group := range children {
-			children[parentID] = slices.DeleteFunc(group, func(note index.NoteEntry) bool {
-				return knowledge.IsBackground(note.Labels)
-			})
+	var start *index.NoteEntry
+	if len(args) > 0 {
+		resolved, err := a.resolveNote(args[0])
+		if err != nil {
+			return nil, err
 		}
+		start = &resolved
+	}
+	// Hiding a background Note hides its subtree too: the tree groups every indexed Note, so a
+	// Note below a background Note stays in its parent's group rather than joining the top level.
+	isShown := func(note index.NoteEntry) bool {
+		return isBackgroundIncluded || !knowledge.IsBackground(note.Labels)
 	}
 	var lines []outlineLine
-	walk := func(parentID string, level int, indent int) {
-		walkOutline(
-			func(parentID string) []index.NoteEntry { return children[parentID] },
-			noteID,
-			parentID,
-			level,
-			indent,
-			maxDepth,
-			func(entry index.NoteEntry, indent int, more int, moreDepth int) {
-				line := noteOutlineLine(entry, indent)
-				line.more, line.moreDepth = more, moreDepth
-				lines = append(lines, line)
-			},
-		)
-	}
-	if len(args) == 0 {
-		walk("", 1, 0)
-		return lines, nil
-	}
-	start, err := a.resolveNote(args[0])
-	if err != nil {
-		return nil, err
-	}
-	lines = append(lines, noteOutlineLine(start, 0))
-	walk(start.ID, 1, 1)
+	newNoteTree(notes, isShown).walk(
+		start,
+		maxDepth,
+		func(entry index.NoteEntry, indent int, more int, moreDepth int) {
+			line := noteOutlineLine(entry, indent)
+			line.more, line.moreDepth = more, moreDepth
+			lines = append(lines, line)
+		},
+	)
 	return lines, nil
 }

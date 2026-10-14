@@ -52,7 +52,7 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				shown = append(shown, childrenByParent(notes)[entry.ID]...)
+				shown = append(shown, newNoteTree(notes, nil).all(entry.ID)...)
 			}
 			result, err := a.noteShowResult(shown)
 			if err != nil {

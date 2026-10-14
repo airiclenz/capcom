@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -13,6 +14,78 @@ type outlineRow struct {
 	text      string
 	more      int
 	moreDepth int
+}
+
+// visibleTree is a hierarchy of entries grouped under their parents, with the visibility rule of
+// the command that prints it. Grouping covers every entry, hidden ones included, so a hidden
+// entry's children stay in its group and are hidden with it, never promoted to the top level.
+type visibleTree[E any] struct {
+	children map[string][]E
+	idOf     func(E) string
+	isShown  func(E) bool
+}
+
+// newVisibleTree groups entries by the id parentOf gives, under "" for the top level. An entry
+// whose parent is not among entries (its file unusable or left out) joins the top level. Each
+// group is in the order compare gives, or in the order of entries when compare is nil. isShown
+// decides which entries the outline prints; nil shows every entry.
+func newVisibleTree[E any](
+	entries []E,
+	idOf func(E) string,
+	parentOf func(E) string,
+	compare func(left E, right E) int,
+	isShown func(E) bool,
+) *visibleTree[E] {
+	isListed := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		isListed[idOf(entry)] = true
+	}
+	children := map[string][]E{}
+	for _, entry := range entries {
+		parentID := parentOf(entry)
+		if !isListed[parentID] {
+			parentID = ""
+		}
+		children[parentID] = append(children[parentID], entry)
+	}
+	if compare != nil {
+		for _, group := range children {
+			slices.SortStableFunc(group, compare)
+		}
+	}
+	return &visibleTree[E]{children: children, idOf: idOf, isShown: isShown}
+}
+
+// all returns every direct child of parentID, hidden ones included, in group order.
+func (t *visibleTree[E]) all(parentID string) []E {
+	return t.children[parentID]
+}
+
+// shown returns the direct children of parentID the outline prints, in group order.
+func (t *visibleTree[E]) shown(parentID string) []E {
+	if t.isShown == nil {
+		return t.children[parentID]
+	}
+	var shown []E
+	for _, child := range t.children[parentID] {
+		if t.isShown(child) {
+			shown = append(shown, child)
+		}
+	}
+	return shown
+}
+
+// walk adds the outline to add, cutting it maxDepth levels below its start (unlimitedDepth for
+// none), as walkOutline does. With a nil start the outline is every shown top-level entry and its
+// shown subtree. Otherwise start comes first at indent 0, cutting nothing, whether or not it is
+// shown, then its shown subtree one indent deeper.
+func (t *visibleTree[E]) walk(start *E, maxDepth int, add func(entry E, indent int, more int, moreDepth int)) {
+	if start == nil {
+		walkOutline(t.shown, t.idOf, "", 1, 0, maxDepth, add)
+		return
+	}
+	add(*start, 0, 0, 0)
+	walkOutline(t.shown, t.idOf, t.idOf(*start), 1, 1, maxDepth, add)
 }
 
 // walkOutline walks the outline below parentID, whose shown children sit level levels below the

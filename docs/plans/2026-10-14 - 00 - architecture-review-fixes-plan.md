@@ -554,7 +554,13 @@ internal/cli/know_test.go — newBackgroundKnowStore, TestKnowTree_BackgroundSub
 **Closes:** know-tree-orphans
 **Commit:** `fix(cli): know tree prints the children of an unparseable Note`
 
-## P4.5 One visible-subtree outline
+## P4.5 One visible-subtree outline — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): `visibleTree[E]` in outline.go groups every entry (orphans to the top level, optional sort), with `shown(parent)`, `all(parent)` and `walk(start *E, maxDepth, add)` as the start helper (nil start: the whole outline; a start prints first at indent 0 whether or not shown); `walkOutline` stays as the walker it calls, so TestWalkOutline_DepthCutsAndCountsShownChildren is unchanged. `issuesByParent`, `childrenByParent` and `issueTree.shownChildren` are deleted; know.go's `newNoteTree` builds the id-sorted Note tree that know tree (hides background unless --background) and know show --with-children (nil rule, `all`) share.
+
+NOTES (2026-10-14): consequential edit — internal/cli/doc.go: made necessary by outline.go now holding the visible-subtree outline type (package map line).
+
+NOTES (2026-10-14): `go vet ./...` fails on gitignored scratch copies under docs/skill-runs/release-notes-capcom/2026-10-14/scratch (pre-existing, not part of the repo); `go vet ./internal/... ./cmd/...` is clean.
 
 **What:**
 **Goal:** `list --tree`, `know tree` and `know show` group, hide and start their outlines through one generic outline type in `outline.go` with a per-command visibility rule; output unchanged.

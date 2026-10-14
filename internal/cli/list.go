@@ -229,11 +229,9 @@ type issueTreeItem struct {
 // issueTree is the issue hierarchy list --tree walks: every usable issue grouped under its parent,
 // Closed ones included so they count in their parent's progress, and the outline built so far.
 type issueTree struct {
-	children map[string][]index.Entry
-	isAll    bool
-	maxDepth int
-	rows     []outlineRow
-	items    []issueTreeItem
+	tree  *visibleTree[index.Entry]
+	rows  []outlineRow
+	items []issueTreeItem
 }
 
 // issueTreeResult prints the issue outline: one line per issue, `id  status  P<n>  title`,
@@ -246,47 +244,23 @@ func (a *app) issueTreeResult(options *listOptions) (output.Result, error) {
 	if err != nil {
 		return output.Result{}, err
 	}
-	tree := &issueTree{
-		children: issuesByParent(entries),
-		isAll:    options.isAll,
-		maxDepth: options.depth,
-		items:    []issueTreeItem{},
-	}
-	if options.parent == "" {
-		tree.walk("", 1, 0)
-	} else {
-		start, err := a.resolveIssue(options.parent)
+	var start *index.Entry
+	if options.parent != "" {
+		resolved, err := a.resolveIssue(options.parent)
 		if err != nil {
 			return output.Result{}, err
 		}
-		tree.add(start, 0, 0, 0)
-		tree.walk(start.ID, 1, 1)
+		start = &resolved
 	}
-	return output.Result{Kind: "issue-list", Data: tree.items, Text: renderOutline(tree.rows)}, nil
-}
-
-// issuesByParent groups entries by the id of their parent, in the order given. An entry with no
-// parent, or whose parent is not among entries (its file unusable), goes under "" as a root.
-func issuesByParent(entries []index.Entry) map[string][]index.Entry {
-	isListed := make(map[string]bool, len(entries))
-	for _, entry := range entries {
-		isListed[entry.ID] = true
+	isShown := func(entry index.Entry) bool {
+		return options.isAll || !entry.Category.IsClosed()
 	}
-	children := map[string][]index.Entry{}
-	for _, entry := range entries {
-		parentID := entry.ParentID
-		if !isListed[parentID] {
-			parentID = ""
-		}
-		children[parentID] = append(children[parentID], entry)
+	outline := &issueTree{
+		tree:  newVisibleTree(entries, issueID, issueParentID, nil, isShown),
+		items: []issueTreeItem{},
 	}
-	return children
-}
-
-// walk adds the shown children of parentID at indent, level levels below the start, and their
-// subtrees, as walkOutline does.
-func (t *issueTree) walk(parentID string, level int, indent int) {
-	walkOutline(t.shownChildren, issueID, parentID, level, indent, t.maxDepth, t.add)
+	outline.tree.walk(start, options.depth, outline.add)
+	return output.Result{Kind: "issue-list", Data: outline.items, Text: renderOutline(outline.rows)}, nil
 }
 
 // issueID returns the id of entry, the key its children are grouped under.
@@ -294,25 +268,15 @@ func issueID(entry index.Entry) string {
 	return entry.ID
 }
 
-// shownChildren returns the direct children of parentID the outline prints: all of them with
-// --all, and otherwise those that are not Closed.
-func (t *issueTree) shownChildren(parentID string) []index.Entry {
-	if t.isAll {
-		return t.children[parentID]
-	}
-	var shown []index.Entry
-	for _, child := range t.children[parentID] {
-		if !child.Category.IsClosed() {
-			shown = append(shown, child)
-		}
-	}
-	return shown
+// issueParentID returns the id of the parent of entry, "" for a top-level issue.
+func issueParentID(entry index.Entry) string {
+	return entry.ParentID
 }
 
 // add appends the line of entry at indent, cutting more children that --depth moreDepth would show.
 func (t *issueTree) add(entry index.Entry, indent int, more int, moreDepth int) {
 	text := strings.TrimSuffix(issueLines([]index.Entry{entry}, ""), "\n")
-	if progress := progressOf(t.children[entry.ID]); progress != nil {
+	if progress := progressOf(t.tree.all(entry.ID)); progress != nil {
 		text += "  (" + childrenText(progress) + ")"
 	}
 	t.rows = append(t.rows, outlineRow{depth: indent, text: text, more: more, moreDepth: moreDepth})
