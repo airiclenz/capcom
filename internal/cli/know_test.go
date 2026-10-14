@@ -311,6 +311,51 @@ func TestKnowTree_JSON_LeavesOutBackgroundUnlessBackground(t *testing.T) {
 	}
 }
 
+func TestKnowTree_ChildOfInvalidParent_PrintsAsRoot(t *testing.T) {
+	currentLines := "testing-rules  Testing rules\n  cli-tests  CLI tests\n    no-parallel  No parallel\n" +
+		"  git-fixtures  Git fixtures\n"
+	cases := []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{
+			"below a current Note",
+			map[string]string{"testing-rules/cli-tests.md": "no frontmatter here\n"},
+			"no-parallel  No parallel\nrelease-flow  Release flow\ntesting-rules  Testing rules\n" +
+				"  git-fixtures  Git fixtures\n",
+		},
+		{
+			"inside a background subtree",
+			map[string]string{
+				"testing-rules/flaky-history/quarantine.md":              "no frontmatter here\n",
+				"testing-rules/flaky-history/quarantine/retry-budget.md": "---\ntitle: Retry budget\n---\n",
+			},
+			"release-flow  Release flow\nretry-budget  Retry budget\n" + currentLines,
+		},
+		{
+			"inside a retired subtree",
+			map[string]string{
+				"old-harness/old-fixtures.md":              "no frontmatter here\n",
+				"old-harness/old-fixtures/fixture-dump.md": "---\ntitle: Fixture dump\n---\n",
+			},
+			"fixture-dump  Fixture dump\nrelease-flow  Release flow\n" + currentLines,
+		},
+	}
+
+	for _, current := range cases {
+		root := newBackgroundKnowStore(t)
+		writeNoteFiles(t, root, current.files)
+
+		stdout, stderr, exitCode := runCLI(t, root, "know", "tree")
+
+		// The unusable file's warning follows the outline.
+		if exitCode != ExitOK || !strings.HasPrefix(stdout, current.want+"warning: ") {
+			t.Errorf("%s: know tree = %d\n%s%s\nwant\n%swarning: ...", current.name, exitCode, stdout, stderr, current.want)
+		}
+	}
+}
+
 func TestKnowShow_WithChildren_ShowsBackgroundChildren(t *testing.T) {
 	root := newBackgroundKnowStore(t)
 

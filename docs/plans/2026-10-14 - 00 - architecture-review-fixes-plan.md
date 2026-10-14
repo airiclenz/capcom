@@ -538,7 +538,9 @@ NOTES (2026-10-14): `go build ./...` fails on Go files under the ignored, untrac
 **Closes:** worktree-relpath
 **Commit:** `refactor(cli): use the store's worktree-relative paths`
 
-## P4.4 know tree prints the children of an unparseable Note
+## P4.4 know tree prints the children of an unparseable Note — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): `outline` now groups every indexed Note with `childrenByParent` first and drops background Notes from each group afterwards (instead of filtering the list before grouping), so orphanhood is decided over background Notes too and a Note below a background Note stays hidden in its parent's group; `know show --with-children` looks up a listed Note's own group and is unaffected.
 
 **What:** Recast at the regression check (2026-10-14).
 **Goal:** in `capcom know tree`, a Note whose parent is not indexed (unparseable or left out) prints at the root, as `capcom list --tree` does for issues.

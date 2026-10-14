@@ -63,11 +63,20 @@ func (a *app) newKnowCommand() *cobra.Command {
 }
 
 // childrenByParent groups notes by the id of their parent ("" for the top level), each group in
-// id order.
+// id order. A Note whose parent is not among notes, unparseable or left out, joins the top level,
+// as issuesByParent does for issues.
 func childrenByParent(notes []index.NoteEntry) map[string][]index.NoteEntry {
+	isListed := make(map[string]bool, len(notes))
+	for _, note := range notes {
+		isListed[note.ID] = true
+	}
 	children := map[string][]index.NoteEntry{}
 	for _, note := range notes {
-		children[note.ParentID] = append(children[note.ParentID], note)
+		parentID := note.ParentID
+		if !isListed[parentID] {
+			parentID = ""
+		}
+		children[parentID] = append(children[parentID], note)
 	}
 	for _, group := range children {
 		slices.SortFunc(group, func(left, right index.NoteEntry) int {

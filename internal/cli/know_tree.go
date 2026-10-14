@@ -117,15 +117,19 @@ func (a *app) outline(
 	if err != nil {
 		return nil, err
 	}
+	// Orphanhood is decided over every indexed Note, background ones included, so a Note below a
+	// background Note stays in its parent's group rather than joining the top level.
+	children := childrenByParent(notes)
 	if !isBackgroundIncluded {
 		// Dropping a background Note drops its subtree too: walkOutline reaches a Note only
 		// through its parent's group. The filter stays here, not in childrenByParent, which know
 		// show --with-children also uses.
-		notes = slices.DeleteFunc(notes, func(note index.NoteEntry) bool {
-			return knowledge.IsBackground(note.Labels)
-		})
+		for parentID, group := range children {
+			children[parentID] = slices.DeleteFunc(group, func(note index.NoteEntry) bool {
+				return knowledge.IsBackground(note.Labels)
+			})
+		}
 	}
-	children := childrenByParent(notes)
 	var lines []outlineLine
 	walk := func(parentID string, level int, indent int) {
 		walkOutline(
