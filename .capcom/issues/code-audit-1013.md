@@ -9,7 +9,7 @@ closed: 2026-10-13T21:32:37Z
 reason: "Resolved by plan 2026-10-13 - 01 - code-audit-fixes-plan (archived in dd98799): all 20 audit findings fixed or pinned by tests"
 ---
 
-The code audit of 2026-10-13 (`docs/reviews/code-audit-2026-10-13.md`) found 20 Medium
+The code audit of 2026-10-13 (`docs/reviews/archived/code-audit-2026-10-13.md`) found 20 Medium
 findings: correctness bugs with realistic triggers, guard bypasses, a quadratic parse reachable
 from the git merge driver, and critical paths that have no test. Left alone they can leave a
 store unreadable or declaring a newer format than it needs, run an unverified binary during a
@@ -64,4 +64,4 @@ Each finding's trigger, impact and suggested fix are in the review.
   fails when the path breaks
 - `go vet ./...` and `go test ./...` pass
 
-Source: docs/reviews/code-audit-2026-10-13.md
+Source: docs/reviews/archived/code-audit-2026-10-13.md
