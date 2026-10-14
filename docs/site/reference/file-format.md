@@ -656,7 +656,10 @@ agent needs (`ready`, `show`, `create` with `--dep`, `dep add` and `dep list`, `
 or wanted, why, and an `## Acceptance` section, readable on its own; the how and the order belong
 in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its children in the
 directory `.capcom/issues/<id>/` beside it, Notes the same under `.capcom/knowledge/`; prefer capcom
-commands, and run `capcom check` after a hand edit), and the top level of the Knowledge tree, one
+commands, and run `capcom check` after a hand edit), a paragraph recommending the Tree lock before
+a change that spans several files or commits (`capcom lock acquire --purpose <text>`, keeping the
+token it prints for `touch`, `release` and resuming, and asking the user when `capcom lock check`
+reports another session's lock), and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
 `background` left out, and so is one whose file a load problem names (a duplicate id or alias, an
 invalid or repeated alias). It is rendered from the Note files alone, so the same tree always yields

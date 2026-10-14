@@ -64,6 +64,14 @@ Where things are: an issue is ` + "`.capcom/issues/<id>.md`" + `, and its childr
 ` + "`.capcom/issues/<id>/`" + ` beside it; Notes follow the same shape under ` + "`.capcom/knowledge/`" + `.
 Prefer capcom commands; after a hand edit run ` + "`capcom check`" + `.
 
+Tree lock: before a change that spans several files or commits, it is recommended to claim this
+worktree with ` + "`capcom lock acquire --purpose <text>`" + ` and keep the token it prints.
+` + "`capcom lock touch --token <token>`" + ` renews it during long work,
+` + "`capcom lock release --token <token>`" + ` frees it when done, and acquiring again with ` + "`--token <token>`" + `
+resumes it after a restart or compaction. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
+` + "`capcom lock check`" + ` does while you hold no token, another session holds this worktree: ask the user
+before editing it.
+
 `
 
 // Headings of the Knowledge list.

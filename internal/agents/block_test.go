@@ -41,11 +41,22 @@ Where things are: an issue is ` + "`.capcom/issues/<id>.md`" + `, and its childr
 ` + "`.capcom/issues/<id>/`" + ` beside it; Notes follow the same shape under ` + "`.capcom/knowledge/`" + `.
 Prefer capcom commands; after a hand edit run ` + "`capcom check`" + `.
 
+Tree lock: before a change that spans several files or commits, it is recommended to claim this
+worktree with ` + "`capcom lock acquire --purpose <text>`" + ` and keep the token it prints.
+` + "`capcom lock touch --token <token>`" + ` renews it during long work,
+` + "`capcom lock release --token <token>`" + ` frees it when done, and acquiring again with ` + "`--token <token>`" + `
+resumes it after a restart or compaction. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
+` + "`capcom lock check`" + ` does while you hold no token, another session holds this worktree: ask the user
+before editing it.
+
 Knowledge tree, top level:
 
 - ` + "`release-flow`" + `: Release flow
 - ` + "`testing-rules`" + `: Testing rules and fixtures
 <!-- END CAPCOM -->`
+
+// goldenLines is the number of lines goldenBlock spans.
+var goldenLines = strings.Count(goldenBlock, "\n") + 1
 
 // installLine is the paragraph that points an agent without a capcom binary at its source.
 const installLine = "Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#install."
@@ -120,6 +131,18 @@ func TestRender_Notes_MatchesGolden(t *testing.T) {
 
 	if block != goldenBlock {
 		t.Errorf("render =\n%s\nwant\n%s", block, goldenBlock)
+	}
+}
+
+func TestRender_NoNotes_RecommendsTheTreeLock(t *testing.T) {
+	t.Parallel()
+
+	block := render(nil)
+
+	for _, want := range []string{"capcom lock acquire --purpose <text>", "--token <token>", "capcom lock check"} {
+		if !strings.Contains(block, want) {
+			t.Errorf("render(nil) =\n%s\nwant it to contain %q", block, want)
+		}
 	}
 }
 
@@ -359,8 +382,8 @@ func TestInspect_TangledMarkers_FailAtTheMarkerLine(t *testing.T) {
 	}{
 		{"never closed", "# Guide\n" + BeginMarker + "\ntext\n", 2},
 		{"end first", EndMarker + "\n" + BeginMarker + "\n", 1},
-		{"second begin", goldenBlock + "\n\n" + BeginMarker + "\n", 31},
-		{"second end", goldenBlock + "\n" + EndMarker + "\n", 30},
+		{"second begin", goldenBlock + "\n\n" + BeginMarker + "\n", goldenLines + 2},
+		{"second end", goldenBlock + "\n" + EndMarker + "\n", goldenLines + 1},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

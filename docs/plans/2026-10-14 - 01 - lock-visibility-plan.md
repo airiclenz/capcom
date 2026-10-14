@@ -35,7 +35,10 @@ about this worktree's lock.
 - 1: guard folded (TangledMarkers line numbers; `lock check --token` wording; every doc enumerating the block's contents)
 - 2: guard folded (FixtureStore want string; no free line over a corrupt record of this worktree)
 
-## 1. Managed block recommends the Tree lock
+## 1. Managed block recommends the Tree lock — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the Tree lock paragraph is wrapped at 100 columns without breaking a code span (so it is 7 lines, not the plan's quoted wrap); the wording is the binding text with the regression guard's last sentence.
+NOTES (2026-10-14): TestInspect_TangledMarkers_FailAtTheMarkerLine derives the marker lines from a new goldenLines (strings.Count(goldenBlock, "\n") + 1) instead of hard-coded numbers; new test TestRender_NoNotes_RecommendsTheTreeLock.
 
 **What:**
 **Goal:** The block that `capcom agents` renders has a Tree lock paragraph that recommends

@@ -6,8 +6,9 @@ sidebar: { order: 3 }
 
 `AGENTS.md` at the root of a repository is the instructions file most coding agents read when a
 session starts. capcom owns one marked section of it, the **Managed block**: a pointer to capcom,
-the core commands, a map of the store and the top level of the [Knowledge](../concepts/knowledge.md)
-Tree. Everything outside the markers is your own hand-written guide, and capcom never touches it.
+the core commands, a map of the store, a recommendation to take the
+[Tree lock](../concepts/tree-locks.md) before an extensive change, and the top level of the
+[Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is your own hand-written guide, and capcom never touches it.
 
 ## Writing it: `capcom agents`
 
@@ -49,6 +50,14 @@ readable on its own; a plan says how and in what order.
 Where things are: an issue is `.capcom/issues/<id>.md`, and its children sit in the directory
 `.capcom/issues/<id>/` beside it; Notes follow the same shape under `.capcom/knowledge/`.
 Prefer capcom commands; after a hand edit run `capcom check`.
+
+Tree lock: before a change that spans several files or commits, it is recommended to claim this
+worktree with `capcom lock acquire --purpose <text>` and keep the token it prints.
+`capcom lock touch --token <token>` renews it during long work,
+`capcom lock release --token <token>` frees it when done, and acquiring again with `--token <token>`
+resumes it after a restart or compaction. When `capcom lock check --token <token>` exits 3, or
+`capcom lock check` does while you hold no token, another session holds this worktree: ask the user
+before editing it.
 
 Knowledge tree, top level: no Notes yet.
 <!-- END CAPCOM -->
