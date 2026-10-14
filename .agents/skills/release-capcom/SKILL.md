@@ -183,7 +183,9 @@ End with the final step table and, in plain words:
   - homebrew — create the tap: `gh repo create airiclenz/homebrew-tap --public`;
   - scoop — create the bucket: `gh repo create airiclenz/scoop-bucket --public`;
   - winget — a first `komac submit` failed: relay the kept manifest
-    directory and the command `publish` printed for it, verbatim;
+    directory and the command `publish` printed for it, verbatim; or the
+    first submission's pull request is still open: name it, nothing to run
+    but wait for winget's review to merge it;
 - the smoke result `publish` ran last; a SKIP is not a pass — say which.
 
 ## Hard rules

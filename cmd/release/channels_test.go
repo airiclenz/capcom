@@ -568,6 +568,32 @@ func TestPublishLeavesASubmittedWingetReleaseAlone(t *testing.T) {
 	}
 }
 
+// TestPublishWingetWaitsForAnOpenFirstSubmission pins the one new-package pull request: while
+// AiricLenz.Capcom is not in winget-pkgs and an open pull request already submits an earlier
+// version as the first one, publish runs no komac at all — a second `komac submit` would open a
+// rival new-package pull request — and reports winget setup-pending, naming that pull request.
+func TestPublishWingetWaitsForAnOpenFirstSubmission(t *testing.T) {
+	t.Parallel()
+	fake := releasedFake()
+	fake.remote = channelReposOf(fake.remote, wingetHolding(nil, komacPull(301234, "New package", "0.24.10")))
+
+	result := runChannelPublish(t, fake, false, sentinelToken)
+
+	if result.err != nil {
+		t.Fatalf("publish failed: %v\n%s", result.err, result.output)
+	}
+	if calls := result.commands.recorded("komac"); len(calls) > 0 {
+		t.Errorf("ran komac %d times while the first submission is open, want never: %v", len(calls), calls)
+	}
+	if !strings.Contains(result.output, "winget: skipped, its one-time setup is pending") {
+		t.Errorf("output does not report winget skipped:\n%s", result.output)
+	}
+	if !hasRow(result.output, "winget", "setup-pending",
+		"AiricLenz.Capcom is not in microsoft/winget-pkgs yet: its first submission, pull request #301234") {
+		t.Errorf("the winget row does not name the open first submission:\n%s", result.output)
+	}
+}
+
 // TestPublishLeavesAChannelPinnedToANewerVersionAlone pins the no-downgrade rule: a rerun of
 // publish for an older release finds the tap and the bucket already on a newer one, reports both
 // done, and never publishes to either.

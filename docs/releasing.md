@@ -45,7 +45,10 @@ One release publishes to four channels:
   writes.
 - **winget** needs no setup. While `AiricLenz.Capcom` is not in winget-pkgs, `publish` renders the
   first three manifests from `cmd/release/templates/winget/` and submits them with
-  `komac submit`; once the package is listed it runs `komac update`.
+  `komac submit`; once the package is listed it runs `komac update`. While that first
+  submission's pull request is still open, later releases leave winget `setup-pending` and name
+  the pull request, rather than open a rival new-package one: winget-pkgs needs only the latest
+  version, and the first release after the merge submits its update with `komac update`.
 
 ## Cutting a release
 
@@ -121,6 +124,8 @@ local state to clean up, and a second run cannot duplicate a commit or a pull re
 
 - A step reported `setup-pending` did not fail the run; do its one-time setup (above) and run
   `publish` again.
+- winget stays `setup-pending` while the package's first submission is an open pull request;
+  nothing is to be done but wait for it to merge.
 - A first `komac submit` that fails leaves winget `setup-pending`. `publish` prints the kept
   manifest directory and the exact `komac submit` command; run that command, or run `publish`
   again.

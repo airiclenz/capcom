@@ -22,7 +22,10 @@ const (
 // probeWinget reports winget done once the version's manifest is published in winget-pkgs or an
 // open pull request submits it, and pending otherwise — including while the package is not in
 // winget-pkgs at all: winget needs no one-time setup, since publish submits the first manifests
-// itself with `komac submit`.
+// itself with `komac submit`. While the package is not listed and an open pull request already
+// submits another version of it, winget is setup-pending: that first submission must merge before
+// `komac update` can follow it, and a second `komac submit` would only open a rival new-package
+// pull request.
 func probeWinget(ctx context.Context, env probeEnv, version releaseVersion) stepReport {
 	bare := bareRelease(version)
 	versions, isListed, err := env.channels.ListDirs(ctx, wingetRepo, wingetManifestDir)
@@ -36,7 +39,7 @@ func probeWinget(ctx context.Context, env probeEnv, version releaseVersion) step
 			"published: %s/%s in %s", wingetManifestDir, bare, wingetRepo)}
 	}
 
-	pulls, err := env.channels.OpenPulls(ctx, wingetRepo, wingetPackageID+" "+bare+" in:title")
+	pulls, err := env.channels.OpenPulls(ctx, wingetRepo, wingetPackageID+" in:title")
 	switch {
 	case errors.Is(err, errUnparsableAnswer):
 		return unknownStep(stepWinget, "could not parse gh pr list output: %v", err)
@@ -50,6 +53,13 @@ func probeWinget(ctx context.Context, env probeEnv, version releaseVersion) step
 		}
 	}
 	if !isListed {
+		for _, pull := range pulls {
+			if titleNamesPackage(pull.title) {
+				return stepReport{Name: stepWinget, State: stateSetupPending, Detail: fmt.Sprintf(
+					"%s is not in %s yet: its first submission, pull request #%d %s, has not merged",
+					wingetPackageID, wingetRepo, pull.number, pull.url)}
+			}
+		}
 		return stepReport{Name: stepWinget, State: statePending, Detail: fmt.Sprintf(
 			"%s is not in %s yet and no open pull request submits %s: publish submits it with `komac submit`",
 			wingetPackageID, wingetRepo, bare)}
@@ -61,13 +71,22 @@ func probeWinget(ctx context.Context, env probeEnv, version releaseVersion) step
 // titleNamesRelease reports whether a winget pull request's title names the package and exactly
 // the version — a search for 0.24.1 also finds 0.24.11, which must not count.
 func titleNamesRelease(title, bare string) bool {
-	hasPackage, hasVersion := false, false
-	for _, word := range strings.Fields(title) {
-		word = strings.Trim(word, ".,:;()[]")
-		hasPackage = hasPackage || word == wingetPackageID
-		hasVersion = hasVersion || word == bare
+	return titleNamesPackage(title) && slices.Contains(titleWords(title), bare)
+}
+
+// titleNamesPackage reports whether a winget pull request's title names the package as a whole
+// word — AiricLenz.CapcomX must not count.
+func titleNamesPackage(title string) bool {
+	return slices.Contains(titleWords(title), wingetPackageID)
+}
+
+// titleWords is a pull request title's words, stripped of the punctuation around them.
+func titleWords(title string) []string {
+	words := strings.Fields(title)
+	for i, word := range words {
+		words[i] = strings.Trim(word, ".,:;()[]")
 	}
-	return hasPackage && hasVersion
+	return words
 }
 
 // githubTokenVariable is the environment variable komac reads its GitHub token from, and the one
