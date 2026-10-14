@@ -170,7 +170,7 @@ func addLocks(text *strings.Builder, overview lock.Overview, now time.Time) []lo
 	data := make([]lockData, 0, len(held))
 	fmt.Fprintf(text, "locks: %d\n", len(held))
 	for _, status := range held {
-		data = append(data, newLockData(foundState(status), status, ""))
+		data = append(data, newLockData(lockStateName(status.State()), status, ""))
 		record := status.Record
 		fmt.Fprintf(text, "  %s: held by %s for %s, heartbeat %s ago: %s",
 			status.Key,

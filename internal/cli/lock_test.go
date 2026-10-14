@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -250,6 +251,93 @@ func TestLockCheck_ExitCodes(t *testing.T) {
 				t.Errorf("exit = %d, want %d\nstdout = %s\nstderr = %s", exitCode, testCase.wantExit, stdout, stderr)
 			}
 		})
+	}
+}
+
+func TestLockCheck_CorruptRecord_FailsWithExitOne(t *testing.T) {
+	root := newLockStore(t)
+	writeLockRecord(t, root, "_main", "{")
+
+	stdout, stderr, exitCode := runCLI(t, root, "lock", "check")
+
+	if exitCode != ExitError || !strings.Contains(stderr, "_main.json: invalid lock record") {
+		t.Errorf("exit = %d, want %d\nstdout = %s\nstderr = %s", exitCode, ExitError, stdout, stderr)
+	}
+}
+
+func TestLockStatus_CorruptOwnRecord_ReportsInvalidWithAWarning(t *testing.T) {
+	root := newLockStore(t)
+	writeLockRecord(t, root, "_main", "{")
+	warning := "_main.json: invalid lock record: unexpected end of JSON input"
+
+	text, textStderr, textExit := runCLI(t, root, "lock", "status")
+	kv, _, kvExit := runCLI(t, root, "lock", "status", "--kv")
+	jsonOut, _, jsonExit := runCLI(t, root, "lock", "status", "--json")
+
+	if textExit != ExitOK || !strings.HasPrefix(text, "_main: invalid\n") || !strings.Contains(text, warning) {
+		t.Errorf("text: exit = %d stdout = %q stderr = %q, want the invalid state and the warning", textExit, text, textStderr)
+	}
+	if kvExit != ExitOK || kvValue(t, kv, "LOCK") != "invalid" || !strings.Contains(kv, warning) || lastLine(kv) != "STATUS=ok" {
+		t.Errorf("--kv: exit = %d stdout = %q, want LOCK=invalid, the warning and STATUS=ok", kvExit, kv)
+	}
+	envelope := decodeEnvelope(t, jsonOut)
+	data, _ := envelope["data"].(map[string]any)
+	warnings, _ := envelope["warnings"].([]any)
+	if jsonExit != ExitOK || data["lock"] != "invalid" || data["worktree"] != "_main" || len(warnings) != 1 ||
+		!strings.Contains(warnings[0].(string), warning) {
+		t.Errorf("--json: exit = %d envelope = %v, want lock invalid and one warning", jsonExit, envelope)
+	}
+}
+
+func TestLockStatus_DirectoryAtOwnRecord_ReportsUnreadableWithAWarning(t *testing.T) {
+	root := newLockStore(t)
+	recordPath := filepath.Join(root, ".git", "capcom", "locks", "_main.json")
+	if err := os.MkdirAll(recordPath, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "lock", "status", "--kv")
+
+	if exitCode != ExitOK || kvValue(t, stdout, "LOCK") != "unreadable" || !strings.Contains(stdout, "_main.json: ") {
+		t.Errorf("exit = %d stdout = %q stderr = %q, want LOCK=unreadable and a warning naming the record", exitCode, stdout, stderr)
+	}
+}
+
+func TestLockStatus_ForeignInvalidRecord_PrintsNoWarning(t *testing.T) {
+	root := newLockStore(t)
+	acquireToken(t, root, "agent-a")
+	writeLockRecord(t, root, "wt-ghost", "{")
+
+	stdout, _, exitCode := runCLI(t, root, "lock", "status")
+
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, "_main: held by agent-a") || strings.Contains(stdout, "warning") {
+		t.Errorf("exit = %d stdout = %q, want this worktree's held lock and no warning", exitCode, stdout)
+	}
+}
+
+func TestLockStatusAll_UnreadableForeignRecord_ListsTheRestWithOneWarning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("an unreadable file test does not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("an unreadable file test does not run as root")
+	}
+	root := newLockStore(t)
+	acquireToken(t, root, "agent-a")
+	writeLockRecord(t, root, "wt-ghost", "{}")
+	foreignPath := filepath.Join(root, ".git", "capcom", "locks", "wt-ghost.json")
+	if err := os.Chmod(foreignPath, 0o000); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "lock", "status", "--all", "--kv")
+
+	if exitCode != ExitOK || strings.Count(stdout, "WORKTREE=") != 1 ||
+		!strings.Contains(stdout, "WORKTREE=_main\nLOCK=held\nHOLDER=agent-a\n") {
+		t.Errorf("exit = %d stdout = %q stderr = %q, want the _main lock alone", exitCode, stdout, stderr)
+	}
+	if strings.Count(stdout, "WARNING=") != 1 || !strings.Contains(stdout, "wt-ghost.json: ") {
+		t.Errorf("stdout = %q, want one warning naming wt-ghost.json", stdout)
 	}
 }
 

@@ -289,50 +289,6 @@ func TestCheck_FreeOwnAndOtherHolder(t *testing.T) {
 	asHeldError(t, noTokenErr)
 }
 
-func TestList_TwoWorktrees_HoldIndependentLocks(t *testing.T) {
-	t.Parallel()
-	locks, _ := openTest(t)
-	mustAcquire(t, locks, MainWorktreeKey)
-	mustAcquire(t, locks, "wt-feature")
-
-	held, warnings, err := locks.List()
-
-	if err != nil || len(held) != 2 || len(warnings) != 0 {
-		t.Fatalf("List = %+v, warnings %v, err %v", held, warnings, err)
-	}
-	if held[0].Key != MainWorktreeKey || held[1].Key != "wt-feature" {
-		t.Errorf("keys = %s, %s", held[0].Key, held[1].Key)
-	}
-}
-
-func TestList_NoLockDirectory_IsEmpty(t *testing.T) {
-	t.Parallel()
-	locks, _ := openTest(t)
-
-	held, warnings, err := locks.List()
-
-	if err != nil || len(held) != 0 || len(warnings) != 0 {
-		t.Fatalf("List = %+v, warnings %v, err %v", held, warnings, err)
-	}
-}
-
-func TestList_FileWhereTheLockDirectoryBelongs_Fails(t *testing.T) {
-	t.Parallel()
-	locks, _ := openTest(t)
-	if err := os.MkdirAll(filepath.Dir(locks.dir), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(locks.dir, []byte("not a directory\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	held, _, err := locks.List()
-
-	if err == nil || !strings.Contains(err.Error(), locks.dir) {
-		t.Fatalf("List = %+v, err %v; want an error naming %s", held, err, locks.dir)
-	}
-}
-
 func TestRead_CorruptRecord_FailsNamingTheFile(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)
@@ -401,22 +357,6 @@ func TestBreak_UnreadableRecord_FailsAndKeepsIt(t *testing.T) {
 	}
 	if _, statErr := os.Stat(locks.RecordPath(MainWorktreeKey)); statErr != nil {
 		t.Errorf("record removed: stat err %v", statErr)
-	}
-}
-
-func TestList_OneCorruptRecord_ReturnsTheValidLockAndOneWarning(t *testing.T) {
-	t.Parallel()
-	locks, _ := openTest(t)
-	mustAcquire(t, locks, "wt-feature")
-	writeRecord(t, locks, MainWorktreeKey, "{")
-
-	held, warnings, err := locks.List()
-
-	if err != nil || len(held) != 1 || held[0].Key != "wt-feature" {
-		t.Fatalf("List = %+v, err %v; want the wt-feature lock alone", held, err)
-	}
-	if len(warnings) != 1 || !strings.Contains(warnings[0].Error(), "_main.json: invalid lock record") {
-		t.Errorf("warnings = %v; want one naming _main.json", warnings)
 	}
 }
 

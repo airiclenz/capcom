@@ -60,11 +60,6 @@ func (w Worktree) Read() (Status, error) {
 	return w.locks.Read(w.key)
 }
 
-// List returns every held lock of the repository, not only this worktree's, as Locks.List does.
-func (w Worktree) List() ([]Status, []error, error) {
-	return w.locks.List()
-}
-
 // Overview returns the Lock overview of the repository with this worktree's state, as
 // Locks.Overview does.
 func (w Worktree) Overview() (Overview, error) {

@@ -48,8 +48,8 @@ const (
 var ErrNotHeld = errors.New("no lock is held on this worktree")
 
 // errCorruptRecord marks a record file that was read but holds no lock: it does not parse, or it
-// carries no token. Break discards such a record and List skips it with a warning; an I/O error
-// reading a record never matches it.
+// carries no token. Break discards such a record and the Lock overview reports it as invalid; an
+// I/O error reading a record never matches it.
 var errCorruptRecord = errors.New("invalid lock record")
 
 // Record is one worktree's lock as stored on disk.
@@ -310,33 +310,6 @@ func (l *Locks) Check(key, token string) (Status, error) {
 		return nil
 	})
 	return checked, err
-}
-
-// List returns every held lock of the repository, ordered by key, and one warning per record that
-// holds no valid lock, which it skips. It fails only when the lock directory or a record cannot be
-// read.
-func (l *Locks) List() ([]Status, []error, error) {
-	keys, err := l.recordKeys("")
-	if err != nil {
-		return nil, nil, err
-	}
-
-	held := make([]Status, 0, len(keys))
-	var warnings []error
-	for _, key := range keys {
-		status, err := l.Read(key)
-		if errors.Is(err, errCorruptRecord) {
-			warnings = append(warnings, err)
-			continue
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		if status.IsHeld {
-			held = append(held, status)
-		}
-	}
-	return held, warnings, nil
 }
 
 // recordKeys returns the key of every record file in the lock directory, ordered. It skips hidden

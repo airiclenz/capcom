@@ -94,16 +94,21 @@ func (l *Locks) Overview(key string) (Overview, error) {
 		overview.Locks = append(overview.Locks, status)
 		if recordKey == key {
 			overview.Own = status
-			overview.State = heldState(status)
+			overview.State = status.State()
 		}
 	}
 	return overview, nil
 }
 
-// heldState names the state of a held lock: stale or held.
-func heldState(status Status) State {
-	if status.IsStale {
+// State names the state of a lock read from a valid record, or of a worktree with no record: free,
+// held or stale. Only the Lock overview names an invalid or unreadable record.
+func (s Status) State() State {
+	switch {
+	case !s.IsHeld:
+		return StateFree
+	case s.IsStale:
 		return StateStale
+	default:
+		return StateHeld
 	}
-	return StateHeld
 }

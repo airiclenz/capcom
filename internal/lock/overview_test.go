@@ -128,6 +128,22 @@ func TestOverview_OwnState_NamesEachState(t *testing.T) {
 	}
 }
 
+func TestOverview_TwoWorktrees_HoldIndependentLocks(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	mustAcquire(t, locks, foreignKey)
+	mustAcquire(t, locks, MainWorktreeKey)
+
+	overview := mustOverview(t, locks, MainWorktreeKey)
+
+	if got := strings.Join(lockKeys(overview.Locks), ","); got != MainWorktreeKey+","+foreignKey {
+		t.Errorf("locks = %s, want %s,%s ordered by key", got, MainWorktreeKey, foreignKey)
+	}
+	if overview.State != StateHeld || len(overview.Problems) != 0 {
+		t.Errorf("overview = %+v; want this worktree held and no problems", overview)
+	}
+}
+
 func TestOverview_ForeignInvalidRecordBesideAHeldLock_IsOneProblem(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)

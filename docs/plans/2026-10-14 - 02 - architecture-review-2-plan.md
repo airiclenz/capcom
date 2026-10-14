@@ -357,7 +357,15 @@ internal/cli/lock_test.go — newLockStore, addWorktree, writeLockRecord; docs/s
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/briefing/`; `GOMEMLIMIT=2GiB go test -count=1 -run Prime ./internal/cli/`; `grep -rn 'HasPrefix(warning.Error()' internal/briefing` prints nothing
 **Commit:** `feat(prime): advice for an invalid or unreadable worktree lock`
 
-## P4.3 lock status reads the Lock overview; one state mapping
+## P4.3 lock status reads the Lock overview; one state mapping — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the one state mapping is cli's `lockStateName(lock.State)`; the Status-to-State step it needs (free, held or stale) is a new exported `lock.Status.State()` method in internal/lock/overview.go (not in **Files:**), replacing that file's unexported `heldState`, so lock and cli share one Status-to-State rule. `foundState` is gone; `lock check`, `emitLock`, `status`, `status --all` and prime's `addLocks` all map through `lockStateName`.
+
+NOTES (2026-10-14): `TestList_TwoWorktrees_HoldIndependentLocks` is ported as `TestOverview_TwoWorktrees_HoldIndependentLocks` in internal/lock/overview_test.go (not in **Files:**, where the other Overview tests live); the other three `TestList_*` cases were already ported by P4.1 and are deleted with `Locks.List`/`Worktree.List`.
+
+NOTES (2026-10-14): consequential edit — internal/lock/lock.go: the `errCorruptRecord` comment named List; it now names the Lock overview.
+
+NOTES (2026-10-14): plain `lock status` now reads through the overview, so it no longer creates the locks directory or a guard file when no record exists; tests added beyond the plan: an own directory-at-record reports `unreadable` (runs on Windows too).
 
 **What:**
 **Goal:** closes `lock-overview`: cli has one mapping from a lock state to its name, used by `lock status`, `status --all`, `emitLock` and `prime`. `lock status` on an invalid or unreadable own record prints `<key>: invalid` (or `unreadable`) in text, `LOCK=` in `--kv` and `lock` in JSON, warns naming the file, and exits 0. `status --all` warns once per problem and lists the rest. `lock check`'s exit codes are unchanged.

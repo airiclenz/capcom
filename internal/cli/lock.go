@@ -23,12 +23,14 @@ const (
 
 // LOCK= values: what a lock command did or found.
 const (
-	lockAcquired = "acquired"
-	lockResumed  = "resumed"
-	lockHeld     = "held"
-	lockFree     = "free"
-	lockReleased = "released"
-	lockStale    = "stale"
+	lockAcquired   = "acquired"
+	lockResumed    = "resumed"
+	lockHeld       = "held"
+	lockFree       = "free"
+	lockReleased   = "released"
+	lockStale      = "stale"
+	lockInvalid    = "invalid"
+	lockUnreadable = "unreadable"
 )
 
 // --kv keys of the lock commands, in output order after WORKTREE (status --all only).
@@ -115,8 +117,11 @@ const (
 	lockCheckExample = "  capcom lock check                   # exit 3 when any session holds the lock\n" +
 		"  capcom lock check --token <token>   # exit 0 when the lock is free or yours"
 	lockStatusLong = "Show this worktree's Tree lock: free, or held or stale with its holder, purpose, since " +
-		"time and heartbeat. --all shows every held lock in the repository, one per worktree, or " +
-		"\"no locks held\". It only reads the lock, and it never prints a Lock token."
+		"time and heartbeat. A lock record that does not parse shows as invalid, and one that cannot " +
+		"be read as unreadable, each with a warning naming the file; the command still exits 0. " +
+		"--all shows every held lock in the repository, one per worktree, or \"no locks held\", with " +
+		"one warning per invalid or unreadable record. It only reads the lock, and it never prints a " +
+		"Lock token."
 	lockStatusExample = "  capcom lock status         # this worktree's lock\n" +
 		"  capcom lock status --all   # every worktree's lock"
 )
@@ -246,7 +251,7 @@ func (a *app) newLockCheckCommand() *cobra.Command {
 			if status.IsHeld {
 				ownToken = token
 			}
-			return a.emitLock(cmd, foundState(status), status, ownToken, err)
+			return a.emitLock(cmd, lockStateName(status.State()), status, ownToken, err)
 		}),
 	}
 	cmd.Flags().StringVar(&token, flagToken, "", "your token; the lock counts as free when you hold it")
@@ -263,18 +268,14 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			target := a.openLockTarget()
-			if isAll {
-				held, warnings, err := target.lock.List()
-				if err != nil {
-					return err
-				}
-				result := allLocksResult(held)
-				result.Warnings = errorStrings(warnings)
-				return a.emit(cmd, result)
+			overview, err := a.openLockTarget().lock.Overview()
+			if err != nil {
+				return err
 			}
-			status, err := target.lock.Read()
-			return a.emitLock(cmd, foundState(status), status, "", err)
+			if isAll {
+				return a.emit(cmd, allLocksResult(overview))
+			}
+			return a.emit(cmd, ownLockResult(overview))
 		}),
 	}
 	cmd.Flags().BoolVar(&isAll, flagAll, false, "show the locks of every worktree")
@@ -295,7 +296,7 @@ func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, tok
 	switch {
 	case errors.As(err, &held):
 		failure := &output.Error{Code: output.CodeLocked, Message: held.Message(), Path: held.Path}
-		return a.emit(cmd, failedLockResult(foundState(held.Status), held.Status, failure))
+		return a.emit(cmd, failedLockResult(lockStateName(held.Status.State()), held.Status, failure))
 	case errors.As(err, &notHeld):
 		failure := &output.Error{Code: output.CodeNotFound, Message: lock.ErrNotHeld.Error(), Path: notHeld.Path}
 		return a.emit(cmd, failedLockResult(lockFree, status, failure))
@@ -336,14 +337,35 @@ func failedLockResult(state string, status lock.Status, failure *output.Error) o
 	}
 }
 
-// allLocksResult lists every held lock of the repository, one --kv record per lock led by its
-// WORKTREE line. With none held, --kv writes a lone STATUS line.
-func allLocksResult(held []lock.Status) output.Result {
+// ownLockResult is overview's own worktree lock in its state. An invalid or unreadable record of
+// its own is reported in that state, with one warning naming the file; another worktree's record
+// is not looked at.
+func ownLockResult(overview lock.Overview) output.Result {
+	data := newLockData(lockStateName(overview.State), overview.Own, "")
+	result := output.Result{
+		Kind: kindLock,
+		Data: data,
+		Text: lockText(data),
+		KV:   []output.KVRecord{{Pairs: lockPairs(data)}},
+	}
+	for _, problem := range overview.Problems {
+		if problem.Key == overview.Key {
+			result.Warnings = append(result.Warnings, problem.Error())
+		}
+	}
+	return result
+}
+
+// allLocksResult lists every held lock of overview, one --kv record per lock led by its WORKTREE
+// line, with one warning per record that is invalid or unreadable. With none held, --kv writes a
+// lone STATUS line.
+func allLocksResult(overview lock.Overview) output.Result {
+	held := overview.Locks
 	data := make([]lockData, 0, len(held))
 	records := make([]output.KVRecord, 0, len(held))
 	var text strings.Builder
 	for _, status := range held {
-		entry := newLockData(foundState(status), status, "")
+		entry := newLockData(lockStateName(status.State()), status, "")
 		data = append(data, entry)
 		pairs := append([]output.KVPair{{Key: kvKeyWorktree, Value: entry.Worktree}}, lockPairs(entry)...)
 		records = append(records, output.KVRecord{Pairs: pairs})
@@ -353,18 +375,29 @@ func allLocksResult(held []lock.Status) output.Result {
 		records = append(records, output.KVRecord{})
 		text.WriteString("no locks held\n")
 	}
-	return output.Result{Kind: kindLock, Data: data, Text: text.String(), KV: records}
+	return output.Result{
+		Kind:     kindLock,
+		Data:     data,
+		Text:     text.String(),
+		KV:       records,
+		Warnings: errorStrings(overview.Problems),
+	}
 }
 
-// foundState names a lock as read: held, stale or free.
-func foundState(status lock.Status) string {
-	switch {
-	case !status.IsHeld:
-		return lockFree
-	case status.IsStale:
-		return lockStale
-	default:
+// lockStateName names a lock state as LOCK=, the JSON lock field and the text line give it; it is
+// the one mapping every lock command and prime use.
+func lockStateName(state lock.State) string {
+	switch state {
+	case lock.StateHeld:
 		return lockHeld
+	case lock.StateStale:
+		return lockStale
+	case lock.StateInvalid:
+		return lockInvalid
+	case lock.StateUnreadable:
+		return lockUnreadable
+	default:
+		return lockFree
 	}
 }
 
