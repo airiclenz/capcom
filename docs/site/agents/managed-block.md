@@ -8,7 +8,8 @@ sidebar: { order: 3 }
 session starts. capcom owns one marked section of it, the **Managed block**: a pointer to capcom,
 the core commands, a map of the store, a recommendation to take the
 [Tree lock](../concepts/tree-locks.md) before an extensive change, and the top level of the
-[Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is your own hand-written guide, and capcom never touches it.
+[Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is your own hand-written
+guide, and capcom never touches it.
 
 ## Writing it: `capcom agents`
 
