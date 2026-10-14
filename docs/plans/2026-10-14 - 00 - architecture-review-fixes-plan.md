@@ -105,7 +105,10 @@ NOTES (2026-10-14): claimed-name-prefix's body cites a reproduction made in a sc
 - `git ls-files --error-unmatch docs/reviews/architecture-review-2026-10-14-0848.html` succeeds
 **Commit:** `chore(issues): file the architecture review 2026-10-14 issues`
 
-## P1.1 Characterise tree and index membership side by side
+## P1.1 Characterise tree and index membership side by side — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): each fixture runs for both kinds (issue via Resolve, Note via ResolveNote) as nested subtests; tree loads with nodestore's ReadAliases and Claimant recovers with RecoverAliases, the AliasFuncs commands use. The fixtures carry extra query names (prefixes, the subtree's alias, the non-regular file's prefix) beyond the plan's list.
+NOTES (2026-10-14): 13 expected divergences today, identical for both kinds: Alias clash (one, two answer as ids in tree, duplicate in index); Unusable claims (unparsed/orphan/invalid/non-regular claims resolve in tree, refused in index; the later repeated-id file's alias is not found in tree, duplicate in index); Prefix candidates (tree counts repeated-id files and unusable live files as candidates, index does not: "du", "zz", "ba", "dup", "dup-").
 
 **What:**
 **Goal:** one test runs every membership fixture through tree (`Load`, `Resolve`, `Claimant`) and the index (`Resolve`, `ResolveNote`) and asserts each answer; every case where they disagree today is listed in an explicit expected-divergence table, each row naming the ratified call that will reconcile it.
