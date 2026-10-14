@@ -47,7 +47,10 @@ type Moved struct {
 // in this order, stopping at the first failure:
 //  1. the Tree load: a tree that cannot be loaded at all fails with its *tree.Error or tree.Errors.
 //  2. the resolution of ref, then of to.Parent: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped,
-//     or, for a name two files claim, a *tree.Error wrapping tree.ErrDuplicate naming both files.
+//     or, for a name two files claim, a *tree.Error wrapping tree.ErrDuplicate naming both files,
+//     or, for a name only an unusable file claims, a *tree.UnusableError naming it, which matches
+//     tree.ErrNotFound. The exact id of a node whose file does not parse resolves, and fails at
+//     the plan.
 //  3. the plan: an id another node holds is an *ExistsError; the node file that does not parse, or
 //     any other refusal (an invalid id, a parent inside the node's own subtree), a *FileError.
 //  4. on a rename, the claim: a file other than the node's own that holds the new id, as

@@ -817,3 +817,18 @@ func TestUpdate_DuplicatedID_FailsNamingBothFilesAndLeavesThePrefixMatchUnchange
 	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
 	assertIssueFilesUnchanged(t, root, files)
 }
+
+func TestCreate_ParentOnlyAnUnusableFileClaims_IsRefusedNamingIt(t *testing.T) {
+	for _, fixture := range unusableClaimStores {
+		t.Run(fixture.name, func(t *testing.T) {
+			root, files := newUnusableClaimStore(t, fixture)
+
+			_, stderr, exitCode := runCLI(t, root, "create", "--id", "new-child", "--title", "New", "--parent", "foo")
+
+			assertUnusableClaimRefusal(t, root, fixture, files, stderr, exitCode)
+			if issueFileExists(t, root, "foo-bar/new-child.md") || issueFileExists(t, root, "new-child.md") {
+				t.Error("new-child.md was written")
+			}
+		})
+	}
+}

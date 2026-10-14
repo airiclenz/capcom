@@ -26,7 +26,8 @@ const (
 	// ParsedFile parses; its aliases are the ones it records.
 	ParsedFile ParseState = iota + 1
 	// UnparsedFile does not parse; its aliases are the ones a recovering read found, and every
-	// name it claims is an unusable claim.
+	// name it claims is an unusable claim. Its aliases only claim: they are never mapped and
+	// never conflict.
 	UnparsedFile
 	// UnreadFile was not read for its aliases, so it claims its id alone.
 	UnreadFile
@@ -57,7 +58,8 @@ type FileFact struct {
 }
 
 // isUnusable reports whether every name the file claims is an unusable claim: a claim-only file, a
-// file that does not parse, or one its caller found unusable.
+// file that does not parse, or one its caller found unusable. A walk file left out for a repeated
+// id is one too; DecideMembership adds it.
 func (f FileFact) isUnusable() bool {
 	return f.Origin == ClaimOnlyOrigin || f.Parse == UnparsedFile || !f.IsUsable
 }
@@ -121,8 +123,8 @@ const (
 	// DuplicateRefusal is a name two files claim, or one that stands for a repeated id; the
 	// verdict's Conflict names two files.
 	DuplicateRefusal RefusalReason = iota + 1
-	// UnusableRefusal is a name an unusable file alone claims; the verdict's Conflict names it in
-	// Key.
+	// UnusableRefusal is a name an unusable file alone claims, or a walk file left out for a
+	// repeated id; the verdict's Conflict names it in Key.
 	UnusableRefusal
 )
 
@@ -192,10 +194,11 @@ type decider struct {
 // left-out file's alias a kept node claims or an earlier left-out file lists. Each such name is
 // refused with its first conflict. An alias the first file of a repeated id lists, or that a file
 // under one of its directories lists, is refused with that id's conflict; one only a later file of
-// the id lists is not.
+// the id lists is refused as below.
 //
-// A claim-only file is never kept and never leaves another file out. Every name a claim-only,
-// unparsed or unusable file claims and nothing else refuses is refused: as a duplicate naming the
+// A claim-only file is never kept and never leaves another file out. The aliases of a file that
+// does not parse are never mapped and never a conflict. Every name a claim-only, unparsed,
+// unusable or left-out file claims and nothing else refuses is refused: as a duplicate naming the
 // first other file that claims it, or, when it alone claims the name, as an unusable claim.
 func DecideMembership(facts []FileFact) Membership {
 	d := &decider{
@@ -340,12 +343,13 @@ func isWithin(dir string, ancestor string) bool {
 	return rest == "" || rest[0] == '/' || rest[0] == filepath.Separator
 }
 
-// mapKeptAliases maps every alias of each kept node, in order, to its fact, unless a kept node has
-// it as its id or an earlier one maps it: that is a conflict, and the alias is refused.
+// mapKeptAliases maps every alias of each kept node that parses, in order, to its fact, unless a
+// kept node has it as its id or an earlier one maps it: that is a conflict, and the alias is
+// refused.
 func (d *decider) mapKeptAliases() {
 	for _, i := range d.verdict.Kept {
 		fact := d.facts[i]
-		for _, alias := range fact.Aliases {
+		for _, alias := range mappedAliases(fact) {
 			if conflict, isTaken := d.keptClaim(fact.Key, alias); isTaken {
 				d.verdict.AliasConflicts = append(d.verdict.AliasConflicts, conflict)
 				d.refuse(alias, conflict)
@@ -356,15 +360,15 @@ func (d *decider) mapKeptAliases() {
 	}
 }
 
-// checkLeftOutAliases checks the aliases of every left-out file, in order, once the kept nodes'
-// aliases are mapped, mapping none. An alias a kept node has as its id or maps, or that an earlier
+// checkLeftOutAliases checks the aliases of every left-out file that parses, in order, once the
+// kept nodes' aliases are mapped, mapping none. An alias a kept node has as its id or maps, or that an earlier
 // left-out file lists, is a conflict and refused. Any other alias of a file that stands for a
 // repeated id, by standsFor, is refused with that id's conflict.
 func (d *decider) checkLeftOutAliases(standsFor map[int]Conflict) {
 	owners := map[string]string{}
 	for _, file := range d.verdict.LeftOut {
 		fact := d.facts[file.Fact]
-		for _, alias := range fact.Aliases {
+		for _, alias := range mappedAliases(fact) {
 			conflict, isTaken := d.keptClaim(fact.Key, alias)
 			if other, isListed := owners[alias]; !isTaken && isListed {
 				conflict = Conflict{Key: fact.Key, Other: other, Name: alias, IsAlias: true, IsOtherAlias: true}
@@ -381,6 +385,15 @@ func (d *decider) checkLeftOutAliases(standsFor map[int]Conflict) {
 			}
 		}
 	}
+}
+
+// mappedAliases returns the aliases of fact that are mapped and checked for conflicts: all of them,
+// unless the file does not parse, whose recovered aliases only claim.
+func mappedAliases(fact FileFact) []string {
+	if fact.Parse == UnparsedFile {
+		return nil
+	}
+	return fact.Aliases
 }
 
 // keptClaim returns the conflict of the file key listing alias when a kept node has it as its id or
@@ -419,13 +432,17 @@ func (d *decider) addClaim(name string, claim NameClaim) {
 	d.verdict.Names[name] = verdict
 }
 
-// refuseUnusableClaims refuses every name an unusable file claims that nothing refuses yet: as a
-// duplicate naming the first other file that claims it, or as an unusable claim when no other
-// file does.
+// refuseUnusableClaims refuses every name an unusable or left-out file claims that nothing refuses
+// yet: as a duplicate naming the first other file that claims it, or as an unusable claim when no
+// other file does.
 func (d *decider) refuseUnusableClaims(order []int) {
+	isLeftOut := map[int]bool{}
+	for _, file := range d.verdict.LeftOut {
+		isLeftOut[file.Fact] = true
+	}
 	for _, i := range order {
 		fact := d.facts[i]
-		if !fact.isUnusable() {
+		if !fact.isUnusable() && !isLeftOut[i] {
 			continue
 		}
 		d.refuseUnusableClaim(i, fact.ID, false)

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -132,13 +134,15 @@ func TestCodec_InvalidIssue_ValidateUsesTheStoreConfig(t *testing.T) {
 	}
 }
 
-// aliasLookups are the two alias lookups of one kind, with a canonical file of that kind.
+// aliasLookups are the content reader and the alias lookup of one kind, with a canonical file of
+// that kind and the text of one that parses but fails validation.
 type aliasLookups struct {
 	name    string
 	dir     string
 	content string
+	invalid string
 	aliases []string
-	read    tree.AliasFunc
+	read    tree.ContentFunc
 	recover tree.AliasFunc
 }
 
@@ -147,12 +151,18 @@ func kindAliasLookups(s *store.Store) []aliasLookups {
 	issues := Issues(s, nil)
 	notes := Notes(s, nil)
 	return []aliasLookups{
-		{"issue", s.IssuesDir(), canonicalIssue, []string{"old-parser"}, issues.ReadAliases, issues.RecoverAliases},
-		{"note", s.KnowledgeDir(), canonicalNote, []string{"old-rule"}, notes.ReadAliases, notes.RecoverAliases},
+		{
+			"issue", s.IssuesDir(), canonicalIssue, strings.Replace(canonicalIssue, "status: open", "status: bogus", 1),
+			[]string{"old-parser"}, issues.ReadContent, issues.RecoverAliases,
+		},
+		{
+			"note", s.KnowledgeDir(), canonicalNote, strings.Replace(canonicalNote, `"Quoting: the one policy"`, `""`, 1),
+			[]string{"old-rule"}, notes.ReadContent, notes.RecoverAliases,
+		},
 	}
 }
 
-func TestReadAliases_ParseableAndUnparseableFiles(t *testing.T) {
+func TestReadContent_ParseableUnparseableAndInvalidFiles(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
 
@@ -160,15 +170,21 @@ func TestReadAliases_ParseableAndUnparseableFiles(t *testing.T) {
 		t.Run(kind.name, func(t *testing.T) {
 			parseable := writeNodeFile(t, kind.dir, "parseable.md", kind.content)
 			broken := writeNodeFile(t, kind.dir, "broken.md", unparseable(kind.content))
-
-			fromParseable, errParseable := kind.read(parseable)
-			fromBroken, errBroken := kind.read(broken)
-
-			if errParseable != nil || !slices.Equal(fromParseable, kind.aliases) {
-				t.Errorf("parseable file: %v, %v; want %v", fromParseable, errParseable, kind.aliases)
+			invalid := writeNodeFile(t, kind.dir, "invalid.md", kind.invalid)
+			cases := []struct {
+				path string
+				want tree.Content
+			}{
+				{parseable, tree.Content{Aliases: kind.aliases, Parse: tree.ParsedFile, IsUsable: true}},
+				{broken, tree.Content{Aliases: kind.aliases, Parse: tree.UnparsedFile}},
+				{invalid, tree.Content{Aliases: kind.aliases, Parse: tree.ParsedFile}},
 			}
-			if errBroken != nil || fromBroken != nil {
-				t.Errorf("unparseable file: %v, %v; want none", fromBroken, errBroken)
+			for _, testCase := range cases {
+				got, err := kind.read(testCase.path)
+
+				if err != nil || !reflect.DeepEqual(got, testCase.want) {
+					t.Errorf("%s: %+v, %v; want %+v", filepath.Base(testCase.path), got, err, testCase.want)
+				}
 			}
 		})
 	}
@@ -202,9 +218,10 @@ func TestAliasLookups_MissingFile_FailWithATreeError(t *testing.T) {
 	missing := filepath.Join(s.IssuesDir(), "missing.md")
 
 	for _, kind := range kindAliasLookups(s) {
-		for name, lookup := range map[string]tree.AliasFunc{"read": kind.read, "recover": kind.recover} {
-			_, err := lookup(missing)
+		_, readErr := kind.read(missing)
+		_, recoverErr := kind.recover(missing)
 
+		for name, err := range map[string]error{"read": readErr, "recover": recoverErr} {
 			var failure *tree.Error
 			if !errors.As(err, &failure) || failure.Path != missing {
 				t.Errorf("%s %s: err = %v, want a *tree.Error at %s", kind.name, name, err, missing)

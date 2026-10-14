@@ -157,7 +157,20 @@ NOTES (2026-10-14): RelatedBy leaves out only refused aliases, as the plan names
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestShow_'`
 **Commit:** `fix(index): an alias clash refuses only the shared name`
 
-## P1.4 tree refuses names that unusable files claim
+## P1.4 tree refuses names that unusable files claim — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from "nodestore's Kind.load supplies the usable fact to the P1.2 function" with `tree.Load(dir, AliasFunc)` kept as is: tree gains `LoadContent(dir, ContentFunc)` (a `tree.Content` per file gives aliases, parse state and usable), and Load wraps its AliasFunc into one. nodestore's `Kind.ReadContent` (kind.go) replaces `ReadAliases`, which had no production caller left; kind_test.go and agreement_test.go use ReadContent.
+NOTES (2026-10-14): the refusal is a new `*tree.UnusableError{Arg, Path}` matching ErrNotFound, not a `*tree.Error`: a `*tree.Error` renders "path: message" and cannot give the index's wording `id "<arg>" not found: <file> is invalid`, which the Goal requires. `nodestore.resolveFailure` relativizes its Path as it does a duplicate's.
+NOTES (2026-10-14): the exact id of an unparsed live file passes Resolve for every verb (the Regression guard), not for rm alone as the Approach said: mv and create --parent fail at the parse as before. A unique prefix of an unusable node's id is refused too.
+NOTES (2026-10-14): a file with an alias CheckAliases rejects counts as unusable, matching the index, which puts such a file in its claims table. An unparsed file's recovered aliases only claim names; DecideMembership never maps them or reports them as alias conflicts, so no new load problems appear.
+NOTES (2026-10-14): Load now feeds claim-only facts: walk-refused node files (not regular, over 1 MiB) and the node files below Walk's orphan directories. An orphan directory that cannot be listed claims nothing, and a file that cannot be read claims its id alone, as the index's orphanDirectoryClaims does. check and agents go through plain Load and see no new problems.
+NOTES (2026-10-14): the tree now applies the header's Resolution order to unusable claims too: a node's id that an unusable file also claims is refused as a duplicate naming both. The index follows in P1.5.
+NOTES (2026-10-14): agreement table: the "foo", "bad", "worse", "zero" and "zz" (unparsed) rows were reconciled and dropped. "zzz" stays under a new call, callUnparsedRemoval (the ratified rm exception). "later" moves to callPrefixCandidates: P1.5's Goal owns the index side.
+NOTES (2026-10-14): consequential edit — internal/nodestore/move.go: made necessary by Resolve's new *tree.UnusableError (the step-2 failure list)
+NOTES (2026-10-14): consequential edit — internal/nodestore/create.go: made necessary by Resolve's new *tree.UnusableError (the step-4 failure list)
+NOTES (2026-10-14): consequential edit — internal/nodestore/remove.go: made necessary by Resolve's new *tree.UnusableError (the step-2 failure list)
+NOTES (2026-10-14): consequential edit — internal/tree/doc.go: made necessary by LoadContent and ContentFunc (package comment and tree.go's map entry)
+NOTES (2026-10-14): consequential edit — docs/site/reference/file-format.md: made necessary by the rm exception for a file that does not parse ("Naming a node")
 
 **What:**
 **Goal:** `capcom rm foo`, `capcom mv foo x` and `capcom create x --parent foo` refuse when `foo` is claimed by an unparsed, invalid, orphan or left-out file, with the same error kind and wording `index.Resolve` gives for that name; `rm`/`know rm` by the exact id of an unparsed live file still removes it.

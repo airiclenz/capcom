@@ -138,31 +138,36 @@ func applyMove(move *tree.Move) ([]error, error) {
 	return move.Plan.Apply()
 }
 
-// ReadAliases is the tree.AliasFunc of the kind's tree: the Aliases the node file at path records.
-// A file that does not parse contributes none; the index reports it. So does a file
-// nodefile.ReadRegularFile refuses (not a regular file, or larger than 1 MiB), which is left out
-// unread as the walk leaves one out. A file that cannot be read otherwise fails with a *tree.Error
-// naming path as it was given.
-func (k *Kind[T]) ReadAliases(path string) ([]string, error) {
+// ReadContent is the tree.ContentFunc of the kind's tree: what the node file at path records. A
+// file that parses gives its Aliases, and is usable when it passes the kind's validation. A file
+// that does not parse gives the aliases rawfm.Aliases still reads from its raw frontmatter; the
+// index reports it. A file nodefile.ReadRegularFile refuses (not a regular file, or larger than
+// 1 MiB) is left out unread, as the walk leaves one out. A file that cannot be read otherwise fails
+// with a *tree.Error naming path as it was given.
+func (k *Kind[T]) ReadContent(path string) (tree.Content, error) {
 	data, err := nodefile.ReadRegularFile(path)
 	if isRefusedRead(err) {
-		return nil, nil
+		return tree.Content{Parse: tree.UnreadFile}, nil
 	}
 	if err != nil {
-		return nil, &tree.Error{Path: path, Err: err}
+		return tree.Content{}, &tree.Error{Path: path, Err: err}
 	}
 	node, err := k.codec.Parse(path, data)
 	if err != nil {
 		// The index refresh before every command already warned about this file.
-		return nil, nil
+		return tree.Content{Aliases: rawfm.Aliases(data), Parse: tree.UnparsedFile}, nil
 	}
-	return k.codec.Aliases(node), nil
+	return tree.Content{
+		Aliases:  k.codec.Aliases(node),
+		Parse:    tree.ParsedFile,
+		IsUsable: len(k.codec.Validate(path, node)) == 0,
+	}, nil
 }
 
 // RecoverAliases is the recovering lookup of the kind's tree: the aliases rawfm.Aliases still reads
 // from the raw frontmatter of a node file at path that does not parse, and none for one that
-// parses, whose Aliases ReadAliases returns. A file nodefile.ReadRegularFile refuses gives none, as
-// for ReadAliases. A file that cannot be read otherwise fails with a *tree.Error naming path as it
+// parses, whose Aliases ReadContent returns. A file nodefile.ReadRegularFile refuses gives none, as
+// for ReadContent. A file that cannot be read otherwise fails with a *tree.Error naming path as it
 // was given.
 func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 	data, err := nodefile.ReadRegularFile(path)

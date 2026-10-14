@@ -68,9 +68,9 @@ type agreementKind struct {
 	// validation and of one that parses but fails it.
 	valid   string
 	invalid string
-	// aliasFuncs return the AliasFunc commands load the tree with and the recovering one they hand
-	// Claimant.
-	aliasFuncs func(s *store.Store) (read tree.AliasFunc, recover tree.AliasFunc)
+	// aliasFuncs return the ContentFunc commands load the tree with and the recovering AliasFunc
+	// they hand Claimant.
+	aliasFuncs func(s *store.Store) (read tree.ContentFunc, recover tree.AliasFunc)
 	resolve    func(x *Index, arg string) (string, error)
 }
 
@@ -81,9 +81,9 @@ var agreementKinds = []agreementKind{
 		dir:     (*store.Store).IssuesDir,
 		valid:   "title: Fixture\nstatus: open\ntype: task\npriority: 2\ncreated: 2026-10-11T09:00:00Z\n",
 		invalid: "title: Fixture\nstatus: bogus\ntype: task\npriority: 2\ncreated: 2026-10-11T09:00:00Z\n",
-		aliasFuncs: func(s *store.Store) (tree.AliasFunc, tree.AliasFunc) {
+		aliasFuncs: func(s *store.Store) (tree.ContentFunc, tree.AliasFunc) {
 			kind := nodestore.Issues(s, nil)
-			return kind.ReadAliases, kind.RecoverAliases
+			return kind.ReadContent, kind.RecoverAliases
 		},
 		resolve: func(x *Index, arg string) (string, error) {
 			entry, err := x.Resolve(arg)
@@ -95,9 +95,9 @@ var agreementKinds = []agreementKind{
 		dir:     (*store.Store).KnowledgeDir,
 		valid:   "title: Fixture\n",
 		invalid: "title: \"\"\n",
-		aliasFuncs: func(s *store.Store) (tree.AliasFunc, tree.AliasFunc) {
+		aliasFuncs: func(s *store.Store) (tree.ContentFunc, tree.AliasFunc) {
 			kind := nodestore.Notes(s, nil)
-			return kind.ReadAliases, kind.RecoverAliases
+			return kind.ReadContent, kind.RecoverAliases
 		},
 		resolve: func(x *Index, arg string) (string, error) {
 			entry, err := x.ResolveNote(arg)
@@ -186,24 +186,25 @@ func claimantAnswer(t *testing.T, dir string, claim tree.Claim, isFound bool, er
 	return answer
 }
 
-// loadAgreementTree loads the kind's tree of s as commands do, keeping the tree Load returns
-// beside the problems it reports.
-func loadAgreementTree(t *testing.T, dir string, aliases tree.AliasFunc) *tree.Tree {
+// loadAgreementTree loads the kind's tree of s as commands do, keeping the tree LoadContent
+// returns beside the problems it reports.
+func loadAgreementTree(t *testing.T, dir string, content tree.ContentFunc) *tree.Tree {
 	t.Helper()
-	loaded, err := tree.Load(dir, aliases)
+	loaded, err := tree.LoadContent(dir, content)
 	var problems tree.Errors
 	if err != nil && !errors.As(err, &problems) {
-		t.Fatalf("Load: %v", err)
+		t.Fatalf("LoadContent: %v", err)
 	}
 	return loaded
 }
 
-// The ratified calls (plan 2026-10-14 - 00, header) that reconcile the divergences below.
+// The ratified calls (plan 2026-10-14 - 00, header) behind the divergences below.
 const (
-	// callUnusableClaims: a name an unparsed, invalid, orphan or left-out file claims is refused by
-	// every verb, never prefix-matched past.
-	callUnusableClaims = "Unusable claims"
-	// callPrefixCandidates: every file's id counts as a prefix candidate, unusable ones included.
+	// callUnparsedRemoval: the one exception to "Unusable claims": the exact id of an unparsed live
+	// file still resolves in the tree, so rm and know rm can remove it. This row stays.
+	callUnparsedRemoval = "Unusable claims, the rm exception"
+	// callPrefixCandidates: every file's id counts as a prefix candidate, unusable ones included,
+	// and an alias only a left-out repeated-id file lists gets the unusable-claim refusal.
 	callPrefixCandidates = "Prefix candidates"
 )
 
@@ -246,16 +247,14 @@ var agreementFixtures = []agreementFixture{
 			{path: "zzz.md", form: formBroken, aliases: []string{"foo"}}, {path: "foo-bar.md"},
 		},
 		queries: []agreementQuery{
-			{name: "foo", claimant: "unparsed zzz.md alias"},
+			{name: "foo", resolve: "not found", claimant: "unparsed zzz.md alias"},
 			{name: "fo", resolve: "id foo-bar", claimant: "none"},
 			{name: "zzz", claimant: "live zzz.md"},
-			{name: "zz", claimant: "none"},
+			{name: "zz", resolve: "not found", claimant: "none"},
 			{name: "foo-bar", resolve: "id foo-bar", claimant: "live foo-bar.md"},
 		},
 		divergences: map[string]agreementDivergence{
-			"foo": {tree: "id foo-bar", index: "not found", call: callUnusableClaims},
-			"zzz": {tree: "id zzz", index: "not found", call: callUnusableClaims},
-			"zz":  {tree: "id zzz", index: "not found", call: callPrefixCandidates},
+			"zzz": {tree: "id zzz", index: "not found", call: callUnparsedRemoval},
 		},
 	},
 	{
@@ -264,14 +263,11 @@ var agreementFixtures = []agreementFixture{
 			{path: "ghost/zzz.md", form: formBroken, aliases: []string{"foo"}}, {path: "foo-bar.md"},
 		},
 		queries: []agreementQuery{
-			{name: "foo", claimant: "unparsed ghost/zzz.md alias"},
+			{name: "foo", resolve: "not found", claimant: "unparsed ghost/zzz.md alias"},
 			{name: "fo", resolve: "id foo-bar", claimant: "none"},
 			{name: "zzz", resolve: "not found", claimant: "orphan ghost/zzz.md"},
 			{name: "zz", resolve: "not found", claimant: "none"},
 			{name: "ghost", resolve: "not found", claimant: "none"},
-		},
-		divergences: map[string]agreementDivergence{
-			"foo": {tree: "id foo-bar", index: "not found", call: callUnusableClaims},
 		},
 	},
 	{
@@ -280,15 +276,13 @@ var agreementFixtures = []agreementFixture{
 			{path: "bad.md", form: formInvalid, aliases: []string{"worse"}}, {path: "bad-luck.md"},
 		},
 		queries: []agreementQuery{
-			{name: "bad", claimant: "live bad.md"},
+			{name: "bad", resolve: "not found", claimant: "live bad.md"},
 			{name: "ba", claimant: "none"},
-			{name: "worse", claimant: "live bad.md alias"},
+			{name: "worse", resolve: "not found", claimant: "live bad.md alias"},
 			{name: "bad-luck", resolve: "id bad-luck", claimant: "live bad-luck.md"},
 		},
 		divergences: map[string]agreementDivergence{
-			"bad":   {tree: "id bad", index: "not found", call: callUnusableClaims},
-			"ba":    {tree: "ambiguous bad,bad-luck", index: "id bad-luck", call: callPrefixCandidates},
-			"worse": {tree: "id bad", index: "not found", call: callUnusableClaims},
+			"ba": {tree: "ambiguous bad,bad-luck", index: "id bad-luck", call: callPrefixCandidates},
 		},
 	},
 	{
@@ -303,7 +297,7 @@ var agreementFixtures = []agreementFixture{
 			{name: "dup", resolve: "duplicate", claimant: "duplicate a/dup.md"},
 		},
 		divergences: map[string]agreementDivergence{
-			"later": {tree: "not found", index: "duplicate", call: callUnusableClaims},
+			"later": {tree: "not found", index: "duplicate", call: callPrefixCandidates},
 		},
 	},
 	{
@@ -329,12 +323,9 @@ var agreementFixtures = []agreementFixture{
 			{path: "zero.md", form: formSymlink}, {path: "zero-day.md"},
 		},
 		queries: []agreementQuery{
-			{name: "zero", claimant: "none"},
+			{name: "zero", resolve: "not found", claimant: "none"},
 			{name: "zer", resolve: "id zero-day", claimant: "none"},
 			{name: "zero-day", resolve: "id zero-day", claimant: "live zero-day.md"},
-		},
-		divergences: map[string]agreementDivergence{
-			"zero": {tree: "id zero-day", index: "not found", call: callUnusableClaims},
 		},
 	},
 }

@@ -387,3 +387,108 @@ func TestRm_DuplicatedID_FailsNamingBothFiles(t *testing.T) {
 	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/issues/foo.md", ".capcom/issues/sub-issue/foo.md")
 	assertIssueFilesUnchanged(t, root, files)
 }
+
+// unusableClaimStore is a store in which only an unusable file claims the name foo, beside a
+// usable foo-bar the name is a prefix of.
+type unusableClaimStore struct {
+	name string
+	// files are the store's issue files, by slash path below .capcom/issues/.
+	files map[string]string
+	// claimant is the file that claims foo, relative to the working tree root.
+	claimant string
+	// isIndexAlike reports whether show foo words its refusal as the tree does today; an alias only
+	// a left-out repeated-id file lists is still a duplicate through the index.
+	isIndexAlike bool
+}
+
+// unusableClaimStores are the stores of every kind of unusable file that can claim foo.
+var unusableClaimStores = []unusableClaimStore{
+	{
+		name: "alias of a file that does not parse",
+		files: map[string]string{
+			"zzz.md": "---\ntitle: [unclosed\naliases: [foo]\n---\n",
+		},
+		claimant:     ".capcom/issues/zzz.md",
+		isIndexAlike: true,
+	},
+	{
+		name: "id of a file that fails validation",
+		files: map[string]string{
+			"foo.md": readIssue("Foo", "bogus", "", ""),
+		},
+		claimant:     ".capcom/issues/foo.md",
+		isIndexAlike: true,
+	},
+	{
+		name: "id of a node file below an orphan directory",
+		files: map[string]string{
+			"ghost/foo.md": readIssue("Foo", "open", "", ""),
+		},
+		claimant:     ".capcom/issues/ghost/foo.md",
+		isIndexAlike: true,
+	},
+	{
+		name: "alias only the later file of a repeated id lists",
+		files: map[string]string{
+			"a.md":     readIssue("A", "open", "", ""),
+			"b.md":     readIssue("B", "open", "", ""),
+			"a/dup.md": readIssue("Dup", "open", "", ""),
+			"b/dup.md": readIssue("Dup too", "open", "aliases: [foo]\n", ""),
+		},
+		claimant: ".capcom/issues/b/dup.md",
+	},
+}
+
+// newUnusableClaimStore creates the store of fixture, with foo-bar.md beside its files, and returns
+// its root and every issue file it wrote.
+func newUnusableClaimStore(t *testing.T, fixture unusableClaimStore) (string, map[string]string) {
+	t.Helper()
+	files := map[string]string{"foo-bar.md": readIssue("Foo bar", "open", "", "")}
+	for name, content := range fixture.files {
+		files[name] = content
+	}
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, files)
+	return root, files
+}
+
+// assertUnusableClaimRefusal fails the test unless a command exited not found with stderr giving
+// the refusal of the name foo that fixture's claimant claims, with no absolute path inside root,
+// and left every issue file of the store as it was. When the index already words the refusal
+// alike, show foo must give the same one.
+func assertUnusableClaimRefusal(
+	t *testing.T,
+	root string,
+	fixture unusableClaimStore,
+	files map[string]string,
+	stderr string,
+	exitCode int,
+) {
+	t.Helper()
+	refusal := `id "foo" not found: ` + fixture.claimant + " is invalid"
+	if exitCode != ExitNotFound || !strings.Contains(stderr, refusal) {
+		t.Errorf("exit = %d stderr = %q, want %d and %q", exitCode, stderr, ExitNotFound, refusal)
+	}
+	if strings.Contains(stderr, root) {
+		t.Errorf("stderr = %q names an absolute path", stderr)
+	}
+	assertIssueFilesUnchanged(t, root, files)
+	if !fixture.isIndexAlike {
+		return
+	}
+	if _, showStderr, _ := runCLI(t, root, "show", "foo"); !strings.Contains(showStderr, refusal) {
+		t.Errorf("show foo stderr = %q, want the same refusal %q", showStderr, refusal)
+	}
+}
+
+func TestRm_NameOnlyAnUnusableFileClaims_IsRefusedNamingIt(t *testing.T) {
+	for _, fixture := range unusableClaimStores {
+		t.Run(fixture.name, func(t *testing.T) {
+			root, files := newUnusableClaimStore(t, fixture)
+
+			_, stderr, exitCode := runCLI(t, root, "rm", "foo")
+
+			assertUnusableClaimRefusal(t, root, fixture, files, stderr, exitCode)
+		})
+	}
+}

@@ -22,6 +22,23 @@ const rootParentID = ""
 // Load unchanged, so it should name the file itself.
 type AliasFunc func(path string) ([]string, error)
 
+// Content is what a ContentFunc reads of one node file.
+type Content struct {
+	// Aliases are the Aliases the file records or, for a file that does not parse, the ones a
+	// recovering read still finds.
+	Aliases []string
+	// Parse is ParsedFile for a file that parses, UnparsedFile for one that does not, and
+	// UnreadFile for one the reader refused unread.
+	Parse ParseState
+	// IsUsable reports whether the file passes its kind's validation; false for one that does not
+	// parse or was not read.
+	IsUsable bool
+}
+
+// ContentFunc reads the node file at path for LoadContent. Its error is returned from LoadContent
+// unchanged, so it should name the file itself.
+type ContentFunc func(path string) (Content, error)
+
 // Node is one node of a Tree. Its fields are read-only.
 type Node struct {
 	// ID is the node's id: its file name without the .md extension.
@@ -48,6 +65,12 @@ type Tree struct {
 	// below a repeated id claims, and each alias the first file of a repeated id lists, to the
 	// problem of that repeated id.
 	duplicates map[string]*Error
+	// unusables maps every name only an unusable file claims to that file: one that does not parse,
+	// fails its kind's validation or has an alias CheckAliases rejects, a file left out for a
+	// repeated id, or a node file the walk left out.
+	unusables map[string]string
+	// unparsedIDs holds the id of every node whose file does not parse.
+	unparsedIDs map[string]bool
 	// aliases is the AliasFunc Load read the Aliases with; nil when the kind has none.
 	aliases AliasFunc
 	// repeatedFiles index the files of leftOut that carry a repeated id, in leftOut's order.
@@ -78,13 +101,56 @@ type Tree struct {
 // aliases is called for every node file, one left out for a repeated id or below one included. Such
 // a file's aliases are checked as any other file's and never mapped; one that a kept file also
 // claims as its id or an alias, or that an earlier such file lists, is a duplicate, which Resolve
-// refuses.
+// refuses. It is also called for the node files below the orphan directories Walk reports, whose
+// names Resolve refuses as unusable claims; an error there leaves the file claiming its id alone,
+// as a node file the walk left out unread claims it. Resolve refuses as unusable claims, too, every
+// name of a file with an alias CheckAliases rejects, and an alias only a file left out for a
+// repeated id lists.
 func Load(dir string, aliases AliasFunc) (*Tree, error) {
+	var content ContentFunc
+	if aliases != nil {
+		content = func(path string) (Content, error) {
+			names, err := aliases(path)
+			return Content{Aliases: names, Parse: ParsedFile, IsUsable: true}, err
+		}
+	}
+	return load(dir, content, aliases)
+}
+
+// LoadContent reads the tree stored in dir as Load does, reading every node file with content
+// instead of an AliasFunc: a file that does not parse is a node whose Aliases are nil, and a file
+// that fails its kind's validation is a node as any other. Resolve refuses every name such a file
+// claims, its recovered aliases included, as an unusable claim, except the exact id of a node whose
+// file does not parse. Nodes, ChildrenOf and LeftOut are as Load gives them.
+func LoadContent(dir string, content ContentFunc) (*Tree, error) {
+	var aliases AliasFunc
+	if content != nil {
+		aliases = parsedAliases(content)
+	}
+	return load(dir, content, aliases)
+}
+
+// parsedAliases returns the AliasFunc of content: the Aliases of a file that parses, none for any
+// other.
+func parsedAliases(content ContentFunc) AliasFunc {
+	return func(path string) ([]string, error) {
+		read, err := content(path)
+		if err != nil || read.Parse != ParsedFile {
+			return nil, err
+		}
+		return read.Aliases, nil
+	}
+}
+
+// load is Load and LoadContent: content reads every node file, nil reading none, and aliases is
+// the AliasFunc the tree keeps for Claimant.
+func load(dir string, content ContentFunc, aliases AliasFunc) (*Tree, error) {
 	nodes, problems, err := Walk(dir)
 	if err != nil {
 		return nil, err
 	}
-	facts, rejected, failures := readAliasFacts(nodes, aliases)
+	facts, rejected, failures := readContentFacts(nodes, content)
+	facts = append(facts, claimOnlyFacts(problems, content)...)
 	membership := DecideMembership(facts)
 	dirProblems, err := repeatedIDDirProblems(membership.RepeatedIDDirs)
 	if err != nil {
@@ -94,7 +160,7 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 		return nil, err
 	}
 
-	tree := newTree(dir, aliases, nodes, membership)
+	tree := newTree(dir, aliases, nodes, facts, membership)
 	// Appended in this order, a file's repeated id comes before its rejected aliases, and those
 	// before its alias conflicts, once the problems are sorted by path.
 	problems = append(problems, conflictErrors(membership.IDConflicts)...)
@@ -109,22 +175,26 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 	return tree, nil
 }
 
-// newTree builds the tree of dir from membership, DecideMembership's verdict on the facts of
-// nodes, which it indexes. Load passes only usable walk files, so the only names membership
-// refuses are duplicates.
-func newTree(dir string, aliases AliasFunc, nodes []Node, membership Membership) *Tree {
+// newTree builds the tree of dir from membership, DecideMembership's verdict on facts, which hold
+// the facts of nodes first, in nodes' order.
+func newTree(dir string, aliases AliasFunc, nodes []Node, facts []FileFact, membership Membership) *Tree {
 	tree := &Tree{
-		dir:        dir,
-		aliases:    aliases,
-		nodes:      make([]Node, 0, len(membership.Kept)),
-		byID:       map[string]int{},
-		byAlias:    map[string]int{},
-		children:   map[string][]int{},
-		duplicates: map[string]*Error{},
+		dir:         dir,
+		aliases:     aliases,
+		nodes:       make([]Node, 0, len(membership.Kept)),
+		byID:        map[string]int{},
+		byAlias:     map[string]int{},
+		children:    map[string][]int{},
+		duplicates:  map[string]*Error{},
+		unusables:   map[string]string{},
+		unparsedIDs: map[string]bool{},
 	}
 	keptAt := map[int]int{}
 	for _, i := range membership.Kept {
 		node := nodes[i]
+		if facts[i].Parse == UnparsedFile {
+			tree.unparsedIDs[node.ID] = true
+		}
 		keptAt[i] = len(tree.nodes)
 		tree.byID[node.ID] = len(tree.nodes)
 		tree.children[node.ParentID] = append(tree.children[node.ParentID], len(tree.nodes))
@@ -140,8 +210,11 @@ func newTree(dir string, aliases AliasFunc, nodes []Node, membership Membership)
 		tree.leftOut = append(tree.leftOut, nodes[file.Fact])
 	}
 	for name, verdict := range membership.Names {
-		if verdict.Refusal == DuplicateRefusal {
+		switch verdict.Refusal {
+		case DuplicateRefusal:
 			tree.duplicates[name] = conflictError(verdict.Conflict)
+		case UnusableRefusal:
+			tree.unusables[name] = verdict.Conflict.Key
 		}
 	}
 	return tree
@@ -163,7 +236,8 @@ func (t *Tree) Nodes() []Node {
 // LeftOut returns the node files Load left out for a repeated id, ordered by id, then path: every
 // file of the id, and every node file under a directory beside one of them. Their Aliases are as
 // the AliasFunc returned them. They are not nodes of the tree: Nodes, Lookup, ChildrenOf and
-// PathFor never see them, and Resolve refuses their names as duplicates.
+// PathFor never see them, and Resolve refuses their names: as duplicates, and an alias only a later
+// file of a repeated id lists as an unusable claim.
 func (t *Tree) LeftOut() []Node {
 	return append([]Node(nil), t.leftOut...)
 }

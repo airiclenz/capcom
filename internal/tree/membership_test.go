@@ -167,7 +167,7 @@ func TestDecideMembership_FixtureShapes_DecideNodesLeftOutAndRefusals(t *testing
 			},
 			kept:     []string{"a.md", "b.md"},
 			leftOut:  []string{"a/dup.md repeated", "b/dup.md repeated"},
-			refusals: map[string]string{"first": "duplicate b/dup.md<a/dup.md", "later": ""},
+			refusals: map[string]string{"first": "duplicate b/dup.md<a/dup.md", "later": "unusable b/dup.md"},
 		},
 		{
 			name: "prefix over a repeated id",
@@ -261,5 +261,28 @@ func TestDecideMembership_AliasConflicts_NameHowTheOtherFileClaims(t *testing.T)
 	}
 	if owner, isMapped := membership.Aliases["shared"]; !isMapped || owner != 0 {
 		t.Errorf("Aliases[shared] = %d, %t; want one.md's fact", owner, isMapped)
+	}
+}
+
+func TestDecideMembership_UnparsedFileAliases_ClaimButAreNeverMapped(t *testing.T) {
+	t.Parallel()
+	facts := []tree.FileFact{
+		fileFact("zzz.md", unparsed, withAliases("foo", "shared")),
+		fileFact("one.md", withAliases("shared")),
+		fileFact("foo.md"),
+	}
+
+	membership := tree.DecideMembership(facts)
+
+	if len(membership.AliasConflicts) != 0 {
+		t.Errorf("AliasConflicts = %+v, want none: an unparsed file's aliases never conflict", membership.AliasConflicts)
+	}
+	if owner, isMapped := membership.Aliases["shared"]; !isMapped || owner != 1 {
+		t.Errorf("Aliases[shared] = %d, %t; want one.md's fact", owner, isMapped)
+	}
+	for name, want := range map[string]string{"foo": "duplicate zzz.md<foo.md", "shared": "duplicate zzz.md<one.md"} {
+		if got := renderRefusal(membership.Names[name]); got != want {
+			t.Errorf("refusal of %q = %q, want %q", name, got, want)
+		}
 	}
 }

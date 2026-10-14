@@ -31,12 +31,14 @@ func DuplicateIDDirectoryError(dir, id string) *Error {
 	return &Error{Path: dir, Err: &invalidIDDirectoryError{name: id, reason: duplicateReason}}
 }
 
-// readAliasFacts returns the FileFact of every node, in the same order: each node's Aliases read
-// with aliases and set on the node, and its fact claiming the ones CheckAliases passes. It returns
-// the problems of the aliases CheckAliases rejects, in node order, and the error aliases returned
-// for each node, by index; a node whose aliases failed claims none. A nil aliases reads none and
-// leaves every fact UnreadFile.
-func readAliasFacts(nodes []Node, aliases AliasFunc) ([]FileFact, Errors, map[int]error) {
+// readContentFacts returns the FileFact of every node, in the same order, each node read with
+// content. A node that parses has its Aliases set, and its fact claims the ones CheckAliases
+// passes; one with an alias CheckAliases rejects is unusable. A node that does not parse keeps nil
+// Aliases, and its fact claims the recovered aliases CheckAliases passes, their problems left
+// unreported. It returns the problems of the aliases CheckAliases rejects in the files that parse,
+// in node order, and the error content returned for each node, by index; a node whose read failed
+// claims its id alone. A nil content reads none and leaves every fact UnreadFile.
+func readContentFacts(nodes []Node, content ContentFunc) ([]FileFact, Errors, map[int]error) {
 	facts := make([]FileFact, 0, len(nodes))
 	var rejected Errors
 	failures := map[int]error{}
@@ -51,22 +53,74 @@ func readAliasFacts(nodes []Node, aliases AliasFunc) ([]FileFact, Errors, map[in
 			IsUsable: true,
 			Origin:   WalkOrigin,
 		}
-		if aliases != nil {
-			names, err := aliases(node.Path)
-			if err != nil {
-				failures[i] = err
-				facts = append(facts, fact)
-				continue
-			}
-			node.Aliases = names
-			kept, problems := CheckAliases(node.Path, "node", node.ID, names)
+		if content == nil {
+			facts = append(facts, fact)
+			continue
+		}
+		read, err := content(node.Path)
+		if err != nil {
+			failures[i] = err
+			facts = append(facts, fact)
+			continue
+		}
+		kept, problems := CheckAliases(node.Path, "node", node.ID, read.Aliases)
+		fact.Aliases, fact.Parse = kept, read.Parse
+		fact.IsUsable = read.IsUsable && len(problems) == 0
+		if read.Parse == ParsedFile {
+			node.Aliases = read.Aliases
 			rejected = append(rejected, problems...)
-			fact.Aliases = kept
-			fact.Parse = ParsedFile
 		}
 		facts = append(facts, fact)
 	}
 	return facts, rejected, failures
+}
+
+// claimOnlyFacts returns the facts of the files Walk left out that still claim names, among
+// problems, Walk's: each node file with a valid id it left out unread (not a regular file, or over
+// 1 MiB), claiming its id, and each node file with a valid id at any depth below an orphan
+// directory it reported, claiming its id and the aliases content reads, the recovered ones of a
+// file that does not parse included. Walk has already reported each such directory, so one that
+// cannot be listed claims nothing, and a file content fails to read claims its id alone. A nil
+// content reads no aliases.
+func claimOnlyFacts(problems Errors, content ContentFunc) []FileFact {
+	var facts []FileFact
+	for _, problem := range problems {
+		isUnread := errors.Is(problem, ErrNotRegular) || errors.Is(problem, ErrTooLarge)
+		if fact, isNodeFile := claimOnlyFact(problem.Path); isUnread && isNodeFile {
+			facts = append(facts, fact)
+		}
+	}
+	for _, dir := range outermostOrphanDirs(problems) {
+		files, err := listNodeFiles(dir)
+		if err != nil {
+			continue
+		}
+		for _, path := range files {
+			fact, isNodeFile := claimOnlyFact(path)
+			if !isNodeFile {
+				continue
+			}
+			if content != nil {
+				if read, err := content(path); err == nil {
+					fact.Aliases, _ = CheckAliases(path, "node", fact.ID, read.Aliases)
+					fact.Parse = read.Parse
+				}
+			}
+			facts = append(facts, fact)
+		}
+	}
+	return facts
+}
+
+// claimOnlyFact returns the claim-only fact of the file at path, unread and claiming its id, and
+// whether path is a node file with a valid id.
+func claimOnlyFact(path string) (FileFact, bool) {
+	id := IDOf(path)
+	if id == filepath.Base(path) || ValidateID(id) != nil {
+		return FileFact{}, false
+	}
+	fact := FileFact{Key: path, ID: id, Dir: filepath.Dir(path), Parse: UnreadFile, Origin: ClaimOnlyOrigin}
+	return fact, true
 }
 
 // firstAliasFailure returns the first of failures, by fact, in the order Load reads aliases: the

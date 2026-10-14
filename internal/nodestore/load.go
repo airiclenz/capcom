@@ -6,11 +6,12 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// load loads the kind's tree and the problems tree.Load reports while still returning the tree of
-// what it could place. A failure that returns no tree is returned with its files relative to the
-// working tree root.
+// load loads the kind's tree with ReadContent, so its Resolve refuses every name an unusable file
+// claims, and the problems tree.LoadContent reports while still returning the tree of what it could
+// place. A failure that returns no tree is returned with its files relative to the working tree
+// root.
 func (k *Kind[T]) load() (*tree.Tree, tree.Errors, error) {
-	nodes, err := tree.Load(k.dir, k.ReadAliases)
+	nodes, err := tree.LoadContent(k.dir, k.ReadContent)
 	if err == nil {
 		return nodes, nil, nil
 	}
@@ -67,11 +68,16 @@ func isBlockingProblem(problem *tree.Error, targets []string) bool {
 }
 
 // resolveFailure returns err, a failure of tree.Resolve, with the files of a duplicate's *tree.Error
-// relative to the working tree root; any other failure comes back as it is.
+// and the file of an *tree.UnusableError relative to the working tree root; any other failure
+// comes back as it is.
 func (k *Kind[T]) resolveFailure(err error) error {
 	var problem *tree.Error
 	if errors.As(err, &problem) {
 		return k.relativeTreeError(problem)
+	}
+	var unusable *tree.UnusableError
+	if errors.As(err, &unusable) {
+		return &tree.UnusableError{Arg: unusable.Arg, Path: k.relative(unusable.Path)}
 	}
 	return err
 }

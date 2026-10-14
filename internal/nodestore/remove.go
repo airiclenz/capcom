@@ -58,7 +58,10 @@ func (e *DependentsError) Error() string {
 // stopping at the first failure:
 //  1. the Tree load: a tree that cannot be loaded at all fails with its *tree.Error or tree.Errors.
 //  2. the resolution of ref: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped, or, for a name two
-//     files claim, a *tree.Error wrapping tree.ErrDuplicate that names both files.
+//     files claim, a *tree.Error wrapping tree.ErrDuplicate that names both files, or, for a name
+//     only an unusable file claims, a *tree.UnusableError naming it, which matches
+//     tree.ErrNotFound. The exact id of a node whose file does not parse resolves, so its file can
+//     still be removed.
 //  3. triage: a tree problem naming the node's file, its parent's file or one of their children
 //     directories blocks the removal and comes back as the failure, a tree.Errors.
 //  4. the children refusals: a node with children is a *FileError at its file, a children

@@ -22,7 +22,9 @@ import (
 //     out; a file left out for its repeated id; or a node file that does not parse but whose raw
 //     frontmatter still lists id as an alias.
 //  4. the --parent resolution: tree.ErrNotFound or tree.ErrAmbiguous, unwrapped, or, for a name
-//     two files claim, a *tree.Error wrapping tree.ErrDuplicate that names both files.
+//     two files claim, a *tree.Error wrapping tree.ErrDuplicate that names both files, or, for a
+//     name only an unusable file claims, a *tree.UnusableError naming it, which matches
+//     tree.ErrNotFound.
 //  5. triage: a tree problem naming the new file, the parent's file or the parent's children
 //     directory blocks the write and comes back as the failure, a tree.Errors.
 //  6. build, whose failure is returned as it is.

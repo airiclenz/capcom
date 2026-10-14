@@ -430,3 +430,18 @@ func TestMv_UnparseableBystander_WarnsDepsNotChecked(t *testing.T) {
 		t.Errorf("mv = %d\nstdout = %q\nstderr = %q\nwant success with the line %q", exitCode, stdout, stderr, warning)
 	}
 }
+
+func TestMv_NameOnlyAnUnusableFileClaims_IsRefusedNamingIt(t *testing.T) {
+	for _, fixture := range unusableClaimStores {
+		t.Run(fixture.name, func(t *testing.T) {
+			root, files := newUnusableClaimStore(t, fixture)
+
+			_, stderr, exitCode := runCLI(t, root, "mv", "foo", "renamed-foo")
+
+			assertUnusableClaimRefusal(t, root, fixture, files, stderr, exitCode)
+			if issueFileExists(t, root, "renamed-foo.md") {
+				t.Error("renamed-foo.md was written")
+			}
+		})
+	}
+}

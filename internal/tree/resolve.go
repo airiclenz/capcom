@@ -25,6 +25,25 @@ func (e *AmbiguousError) Is(target error) bool {
 	return target == ErrAmbiguous
 }
 
+// UnusableError reports an argument naming what only an unusable file claims (see Resolve). It
+// matches ErrNotFound under errors.Is and reads as the index words the same refusal.
+type UnusableError struct {
+	// Arg is the argument as given.
+	Arg string
+	// Path is the file that claims the name.
+	Path string
+}
+
+// Error renders the argument and the file that claims it.
+func (e *UnusableError) Error() string {
+	return fmt.Sprintf("id %q %v: %s is invalid", e.Arg, ErrNotFound, e.Path)
+}
+
+// Is reports whether target is ErrNotFound.
+func (e *UnusableError) Is(target error) bool {
+	return target == ErrNotFound
+}
+
 // Lookup returns the node whose id or one of whose Aliases is exactly name.
 func (t *Tree) Lookup(name string) (Node, bool) {
 	if i, found := t.byID[name]; found {
@@ -55,11 +74,22 @@ func NormalizeArg(arg string) string {
 // with the problem of that repeated id, naming both its files. The ids of the files LeftOut returns
 // count as prefix candidates, so a prefix one of them shares with another id stays ambiguous, and
 // a prefix of one of them alone fails with its duplicate problem.
+//
+// A name that only an unusable file claims fails with an *UnusableError naming that file, and is
+// never matched as a prefix of another id: the id or an alias of a file that does not parse, fails
+// its kind's validation or has an alias CheckAliases rejects, an alias only a file left out for a
+// repeated id lists, and the id or an alias of a node file the walk left out unread or below an
+// orphan directory. A tree Load built sees only the aliases its AliasFunc reads. The exact id of a
+// node whose file does not parse is the one exception: it resolves to the node, so a removal can
+// still take the file away. A prefix of the id of one unusable node alone fails the same way.
 func (t *Tree) Resolve(arg string) (Node, error) {
 	name := NormalizeArg(arg)
 	if problem, isDuplicate := t.duplicates[name]; isDuplicate {
 		duplicate := *problem
 		return Node{}, &duplicate
+	}
+	if path, isUnusable := t.unusables[name]; isUnusable && !t.unparsedIDs[name] {
+		return Node{}, &UnusableError{Arg: arg, Path: path}
 	}
 	if node, found := t.Lookup(name); found {
 		return node, nil
@@ -70,6 +100,9 @@ func (t *Tree) Resolve(arg string) (Node, error) {
 	case 0:
 		return Node{}, fmt.Errorf("id %q %w", arg, ErrNotFound)
 	case 1:
+		if path, isUnusable := t.unusables[candidates[0]]; isUnusable {
+			return Node{}, &UnusableError{Arg: arg, Path: path}
+		}
 		if i, isKept := t.byID[candidates[0]]; isKept {
 			return t.nodes[i], nil
 		}

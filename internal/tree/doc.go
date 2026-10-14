@@ -3,7 +3,8 @@
 // node is the markdown file `<id>.md`, and its children live in the sibling directory `<id>/`.
 // Ids are chosen kebab slugs, unique across the whole tree together with every node's Aliases
 // (ADR 0002). The package is generic over the node kind; reading a node's Aliases out of its file
-// is left to the caller through an AliasFunc.
+// is left to the caller through an AliasFunc, or a ContentFunc that also says whether it parses and
+// is usable.
 //
 // # Files
 //
@@ -20,6 +21,6 @@
 //   - `plan.go` — Plan: the steps, rewrites and cleanups of a move or removal, applied with undo
 //   - `remove.go` — PlanRemove: removes a node that has no children
 //   - `resolve.go` — Lookup and Resolve: an argument to its node by id, alias or id prefix
-//   - `tree.go` — Tree, Node, Load and the accessors, and PathFor
+//   - `tree.go` — Tree, Node, Load, LoadContent and the accessors, and PathFor
 //   - `walk.go` — Walk: the one directory walk of ADR 0001 and the entries it leaves out
 package tree

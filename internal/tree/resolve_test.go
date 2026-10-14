@@ -274,18 +274,22 @@ func TestResolve_DuplicatedName_FailsNamingTwoClaimants(t *testing.T) {
 	}
 }
 
-func TestResolve_AliasOnlyADroppedFileLists_IsNotADuplicate(t *testing.T) {
+func TestResolve_AliasOnlyADroppedFileLists_FailsAsAnUnusableClaim(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	writeNodes(t, dir, "foo.md", "sub.md", "sub/foo.md")
+	writeNodes(t, dir, "foo.md", "sub.md", "sub/foo.md", "legacy-10.md")
 	loaded := loadWithDuplicates(t, dir, aliasesByPath(dir, map[string][]string{
 		"sub/foo.md": {"legacy-1"},
 	}))
 
 	node, err := loaded.Resolve("legacy-1")
 
+	var unusable *tree.UnusableError
+	if !errors.As(err, &unusable) || unusable.Path != filepath.Join(dir, "sub", "foo.md") {
+		t.Fatalf("Resolve(legacy-1) = %q, %v; want an *UnusableError at sub/foo.md, never legacy-10", node.ID, err)
+	}
 	if !errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrDuplicate) {
-		t.Fatalf("Resolve(legacy-1) = %q, %v; want ErrNotFound, as before the file was dropped", node.ID, err)
+		t.Errorf("Resolve(legacy-1) = %v; want ErrNotFound, not ErrDuplicate", err)
 	}
 }
 
@@ -371,5 +375,97 @@ func TestResolve_PrefixOfADuplicatedIDAndAKeptID_StaysAmbiguous(t *testing.T) {
 	var ambiguous *tree.AmbiguousError
 	if !errors.As(err, &ambiguous) || !reflect.DeepEqual(ambiguous.Candidates, []string{"foo", "foo-bar"}) {
 		t.Errorf("Resolve(fo) = %q, %v; want ambiguous between foo and foo-bar", node.ID, err)
+	}
+}
+
+// contentByPath returns a ContentFunc that looks a node file's content up by its slash path below
+// dir; a file it does not list parses, passes validation and has no aliases.
+func contentByPath(dir string, contents map[string]tree.Content) tree.ContentFunc {
+	return func(path string) (tree.Content, error) {
+		relative, err := filepath.Rel(dir, path)
+		if err != nil {
+			return tree.Content{}, err
+		}
+		if content, isListed := contents[filepath.ToSlash(relative)]; isListed {
+			return content, nil
+		}
+		return tree.Content{Parse: tree.ParsedFile, IsUsable: true}, nil
+	}
+}
+
+// unusableClaimsFixture loads, through LoadContent, a tree holding a file of every unusable kind
+// beside usable nodes whose ids the unusable names are prefixes of.
+func unusableClaimsFixture(t *testing.T) (string, *tree.Tree) {
+	t.Helper()
+	dir := t.TempDir()
+	writeNodes(t, dir,
+		"zzz.md", "foo-bar.md", "bad.md", "worse-luck.md", "odd.md", "odd-one.md",
+		"ghost/orphan.md", "orphan-twin.md", "spooky-tale.md", "huge-hit.md",
+	)
+	writeSizedFile(t, filepath.Join(dir, "huge.md"), 1<<20+1)
+	loaded, err := tree.LoadContent(dir, contentByPath(dir, map[string]tree.Content{
+		"zzz.md":          {Aliases: []string{"foo"}, Parse: tree.UnparsedFile},
+		"bad.md":          {Aliases: []string{"worse"}, Parse: tree.ParsedFile},
+		"odd.md":          {Aliases: []string{"odd"}, Parse: tree.ParsedFile, IsUsable: true},
+		"ghost/orphan.md": {Aliases: []string{"spooky"}, Parse: tree.UnparsedFile},
+	}))
+	var problems tree.Errors
+	if !errors.As(err, &problems) || loaded == nil {
+		t.Fatalf("LoadContent = %v, %v; want a tree and its problems", loaded, err)
+	}
+	return dir, loaded
+}
+
+func TestResolve_NameAnUnusableFileClaims_FailsNamingTheFile(t *testing.T) {
+	t.Parallel()
+	dir, loaded := unusableClaimsFixture(t)
+	cases := []struct {
+		name string
+		arg  string
+		file string
+	}{
+		{"alias an unparsed file recovers", "foo", "zzz.md"},
+		{"prefix of an unparsed file's id alone", "zz", "zzz.md"},
+		{"id of a file that fails validation", "bad", "bad.md"},
+		{"alias of a file that fails validation", "worse", "bad.md"},
+		{"id of a file with a rejected alias", "odd", "odd.md"},
+		{"id of a node file below an orphan directory", "orphan", "ghost/orphan.md"},
+		{"alias of a node file below an orphan directory", "spooky", "ghost/orphan.md"},
+		{"id of a node file the walk left out unread", "huge", "huge.md"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			node, err := loaded.Resolve(testCase.arg)
+
+			var unusable *tree.UnusableError
+			want := filepath.Join(dir, filepath.FromSlash(testCase.file))
+			if !errors.As(err, &unusable) || unusable.Path != want || !errors.Is(err, tree.ErrNotFound) {
+				t.Fatalf("Resolve(%q) = %q, %v; want an *UnusableError at %s", testCase.arg, node.ID, err, want)
+			}
+		})
+	}
+}
+
+func TestResolve_ExactIDOfAnUnparsedNode_ResolvesToIt(t *testing.T) {
+	t.Parallel()
+	_, loaded := unusableClaimsFixture(t)
+
+	node, err := loaded.Resolve("zzz")
+
+	if err != nil || node.ID != "zzz" || node.Aliases != nil {
+		t.Errorf("Resolve(zzz) = %+v, %v; want the node zzz, with no Aliases", node, err)
+	}
+}
+
+func TestUnusableError_ReadsAsTheIndexWordsIt(t *testing.T) {
+	t.Parallel()
+	err := &tree.UnusableError{Arg: "Foo", Path: ".capcom/issues/zzz.md"}
+
+	got := err.Error()
+
+	if want := `id "Foo" not found: .capcom/issues/zzz.md is invalid`; got != want {
+		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }

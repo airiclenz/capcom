@@ -75,7 +75,9 @@ files, checked before any of these; both nodes still resolve by their other name
 argument that is exactly the id or an alias of a node left out as a duplicate, or of a node file
 under the directory of a duplicate id, is an error naming the two files that clash, and one that is exactly a name claimed by a file with problems, a file
 left out unread (not a regular file, or over 1 MiB) or a node file under a directory left out (its
-id or an alias) is not found; neither is matched as a prefix. Before any of these, the argument is trimmed, lowercased and
+id or an alias) is not found; neither is matched as a prefix. The exact id of a file whose
+frontmatter does not parse is the one exception: `capcom rm` and `capcom know rm` still remove that
+file. Before any of these, the argument is trimmed, lowercased and
 each run of whitespace becomes one hyphen, so a citation spelling resolves as typed (`"ADR 0076"`
 names `adr-0076`); dots and hyphens are kept, and errors quote the argument as typed.
 
