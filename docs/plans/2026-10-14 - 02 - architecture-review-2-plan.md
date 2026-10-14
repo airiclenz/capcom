@@ -115,7 +115,7 @@ internal/nodestore/doc.go — file map; internal/nodestore/refs.go — planRemov
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `go build -o <scratchpad>/capcom ./cmd/capcom`; `<scratchpad>/capcom know show kind-reader`; `<scratchpad>/capcom check` exits 0; `grep -n 'codec.Parse\|codec.Validate' internal/nodestore/kind.go` prints nothing
 **Commit:** `refactor(nodestore): one Kind reader per kind`
 
-## P1.3 The index reads through the Kind reader
+## P1.3 The index reads through the Kind reader — ✅ DONE (2026-10-14)
 
 **What:**
 **Goal:** `internal/index` decodes node files only through the Kind reader; `parseIssue`, `parseNote` and `aliasParser` are gone; index rows, warnings and the agreement test are unchanged.

@@ -14,9 +14,10 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/store"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // racyGranularity is the coarsest file mtime resolution the racy-clean rule allows for: a file
@@ -61,7 +62,14 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	if err != nil {
 		return Report{}, x.databaseError(err)
 	}
-	r := &refresher{ctx: ctx, tx: tx, config: x.store.Config, refreshed: start.UnixNano()}
+	r := &refresher{
+		ctx:       ctx,
+		tx:        tx,
+		config:    x.store.Config,
+		issues:    nodestore.IssueReader(x.store.Config),
+		notes:     nodestore.NoteReader(),
+		refreshed: start.UnixNano(),
+	}
 	found, err := walkStore(x.store, r)
 	if err != nil {
 		return Report{}, err
@@ -95,12 +103,16 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 // the node files it leaves out below a repeated id, marked with the same kind.
 func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	trees := []struct {
-		dir  string
-		kind string
-	}{{s.IssuesDir(), kindIssue}, {s.KnowledgeDir(), kindNote}}
+		dir         string
+		kind        string
+		readAliases aliasReader
+	}{
+		{s.IssuesDir(), kindIssue, aliasesThrough(r.issues)},
+		{s.KnowledgeDir(), kindNote, aliasesThrough(r.notes)},
+	}
 	var found []foundFile
 	for _, current := range trees {
-		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, aliasParser(current.kind), r)
+		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, current.readAliases, r)
 		if err != nil {
 			return nil, err
 		}
@@ -136,6 +148,10 @@ type refresher struct {
 	ctx    context.Context
 	tx     *sql.Tx
 	config config.Config
+	// issues and notes are the Kind readers of the issue tree and the Knowledge tree, the one
+	// decode of every node file the refresh reads.
+	issues nodestore.Reader[issue.Issue]
+	notes  nodestore.Reader[knowledge.Note]
 	// refreshed is the refresh start, truncated to racyGranularity, in Unix nanoseconds.
 	refreshed int64
 	warnings  []diagnose.Finding
@@ -253,9 +269,9 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 	return nil
 }
 
-// indexFile reads and parses one file and replaces its rows. A file with problems keeps only its
-// files row, which carries the problems so the next refresh reports them again, and its claims
-// rows, one per name claimedNames gives it. The file is read
+// indexFile reads one file, decodes it through the Kind reader of its kind and replaces its rows.
+// A file with problems keeps only its files row, which carries the problems so the next refresh
+// reports them again, and its claims rows, one per name claimedNames gives it. The file is read
 // through nodefile.ReadRegularFile: one that is no longer a regular file, or has grown past 1 MiB,
 // since the walk kept it is left out unread with a diagnose.NotRegular, never failing the
 // refresh. A file removed since the walk kept it is left without rows, and isGone reports it.
@@ -269,6 +285,7 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	}
 
 	var problems []diagnose.Finding
+	var aliases []string
 	var insert func() error
 	refusal := diagnose.ReadRefusal(err)
 	switch {
@@ -279,13 +296,13 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	case err != nil:
 		return false, fmt.Errorf("%s: %w", file.path, err)
 	case file.kind == kindNote:
-		note, noteProblems := parseNote(file, data)
-		problems = noteProblems
-		insert = func() error { return r.insertNote(file, note) }
+		reading := r.notes.Decode(file.path, data)
+		problems, aliases = reading.Findings(), reading.Aliases
+		insert = func() error { return r.insertNote(file, reading.Node) }
 	default:
-		parsed, issueProblems := parseIssue(file, data, r.config)
-		problems = issueProblems
-		insert = func() error { return r.insertIssue(file, parsed) }
+		reading := r.issues.Decode(file.path, data)
+		problems, aliases = reading.Findings(), reading.Aliases
+		insert = func() error { return r.insertIssue(file, reading.Node) }
 	}
 	var stored sql.NullString
 	if len(problems) > 0 {
@@ -305,17 +322,16 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 		return false, fmt.Errorf("index %s: %w", file.path, err)
 	}
 	if len(problems) > 0 {
-		return false, r.insertClaims(file, claimedNames(file, data))
+		return false, r.insertClaims(file, claimedNames(file, aliases))
 	}
 	return false, insert()
 }
 
-// claimedNames returns the names a node file with problems claims: its id, plus the Aliases
-// tree.ReadAliases reads from data with the parse of the file's kind: the ones its parse gives or,
-// when its frontmatter does not parse, the ones it recovers. A file refused unread has no data and
-// claims its id only.
-func claimedNames(file foundFile, data []byte) []string {
-	aliases, _ := tree.ReadAliases(data, aliasParser(file.kind))
+// claimedNames returns the names a node file with problems claims: its id, plus aliases, the
+// Aliases the Kind reader of its kind found in it: the ones its parse gives or, when its
+// frontmatter does not parse, the ones it recovers. A file refused unread has none and claims its
+// id only.
+func claimedNames(file foundFile, aliases []string) []string {
 	return append([]string{file.id}, aliases...)
 }
 

@@ -10,9 +10,7 @@ import (
 	"slices"
 
 	"github.com/airiclenz/capcom/internal/diagnose"
-	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/knowledge"
-	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -30,12 +28,12 @@ var lstat = os.Lstat
 // that directory, which is warned about as an orphan directory. A walk or stat failure names its
 // path relative to worktreeRoot.
 // It also returns the names the files the walk leaves out claim, as problemClaims finds them with
-// parse, the tree.AliasParseFunc of the tree's kind, and
+// readAliases, the aliasReader of the tree's kind, and
 // the node files it leaves out below a repeated id, as leaveOutBelowRepeatedIDs finds them, both
 // without their kind.
 func walkIssues(
 	worktreeRoot, issuesDir string,
-	parse tree.AliasParseFunc,
+	readAliases aliasReader,
 	r *refresher,
 ) ([]foundFile, []claim, []leftOutNode, error) {
 	nodes, problems, err := tree.Walk(issuesDir)
@@ -54,7 +52,7 @@ func walkIssues(
 		kind, _ := diagnose.TreeKind(problem)
 		path, _ := store.RelativePath(worktreeRoot, problem.Path)
 		r.warn(kind, path, 0, problem.Message())
-		claims = append(claims, problemClaims(worktreeRoot, problem, parse)...)
+		claims = append(claims, problemClaims(worktreeRoot, problem, readAliases)...)
 	}
 	claims = withoutKeptFiles(claims, worktreeRoot, nodes)
 
@@ -165,13 +163,13 @@ func withoutKeptFiles(claims []claim, worktreeRoot string, nodes []tree.Node) []
 // problemClaims returns the names a file the walk leaves out claims, so a resolve refuses them
 // instead of matching them as a prefix. A node file left out unread (not a regular file, or over
 // 1 MiB) whose name is a valid id claims that id; a directory left out claims the names of every
-// node file below it, as orphanDirectoryClaims finds them with parse; a file with an invalid id
+// node file below it, as orphanDirectoryClaims finds them with readAliases; a file with an invalid id
 // claims nothing. Each claim's path is relative to worktreeRoot and its kind is left for the caller
 // to set.
-func problemClaims(worktreeRoot string, problem *tree.Error, parse tree.AliasParseFunc) []claim {
+func problemClaims(worktreeRoot string, problem *tree.Error, readAliases aliasReader) []claim {
 	switch {
 	case errors.Is(problem, tree.ErrOrphanDirectory):
-		return orphanDirectoryClaims(worktreeRoot, problem.Path, parse)
+		return orphanDirectoryClaims(worktreeRoot, problem.Path, readAliases)
 	case errors.Is(problem, tree.ErrNotRegular), errors.Is(problem, tree.ErrTooLarge):
 		id, isNode := nodeFileID(problem.Path)
 		if !isNode {
@@ -185,14 +183,13 @@ func problemClaims(worktreeRoot string, problem *tree.Error, parse tree.AliasPar
 
 // orphanDirectoryClaims returns the names claimed by every node file with a valid id that
 // tree.ListOrphanFiles lists below dir, a directory the walk left out: each file's id, plus the
-// Aliases tree.ReadAliases reads with parse from the bytes of a regular file read through
-// nodefile.ReadRegularFile. A file that is not a regular file, or that the guarded reader refuses
-// unread, claims its id only.
+// Aliases readAliases reads from a regular file. A file that is not a regular file, or that the
+// Kind reader refuses unread, claims its id only.
 //
 // The walk has already warned about dir itself, so an entry below it that cannot be read (an
 // unreadable directory, dir or a file removed since the walk, a failed read) only leaves its names
 // unclaimed, never those of the files listed beside it; it never fails the refresh.
-func orphanDirectoryClaims(worktreeRoot, dir string, parse tree.AliasParseFunc) []claim {
+func orphanDirectoryClaims(worktreeRoot, dir string, readAliases aliasReader) []claim {
 	files, _ := tree.ListOrphanFiles(dir)
 	var claims []claim
 	for _, file := range files {
@@ -200,19 +197,15 @@ func orphanDirectoryClaims(worktreeRoot, dir string, parse tree.AliasParseFunc) 
 		if !isNode {
 			continue
 		}
+		path, _ := store.RelativePath(worktreeRoot, file.Path)
 		names := []string{id}
 		if file.IsRegular {
-			data, err := nodefile.ReadRegularFile(file.Path)
-			switch {
-			case diagnose.ReadRefusal(err) != nil:
-			case err != nil:
+			aliases, err := readAliases(file.Path, path)
+			if err != nil {
 				continue
-			default:
-				aliases, _ := tree.ReadAliases(data, parse)
-				names = append(names, aliases...)
 			}
+			names = append(names, aliases...)
 		}
-		path, _ := store.RelativePath(worktreeRoot, file.Path)
 		for _, name := range names {
 			claims = append(claims, claim{name: name, path: path})
 		}
@@ -220,27 +213,17 @@ func orphanDirectoryClaims(worktreeRoot, dir string, parse tree.AliasParseFunc) 
 	return claims
 }
 
-// errUnparsed is the error an alias parse of the index returns for a file that does not parse.
-var errUnparsed = errors.New("frontmatter does not parse")
+// aliasReader reads the Aliases of the node file at path, which relPath names relative to the
+// working tree root with forward slashes: the ones its parse gives or, when its frontmatter does
+// not parse, the ones it recovers. A file the read refuses unread has none; any other read failure
+// is returned.
+type aliasReader func(path, relPath string) ([]string, error)
 
-// aliasParser returns the tree.AliasParseFunc of the files of kind, kindIssue or kindNote: the
-// Aliases of the issue issue.Parse, or the Note knowledge.Parse, parses from the bytes.
-func aliasParser(kind string) tree.AliasParseFunc {
-	if kind == kindNote {
-		return func(data []byte) ([]string, error) {
-			parsed, err := knowledge.Parse("", data)
-			if err != nil {
-				return nil, errUnparsed
-			}
-			return parsed.Aliases, nil
-		}
-	}
-	return func(data []byte) ([]string, error) {
-		parsed, err := issue.Parse("", data)
-		if err != nil {
-			return nil, errUnparsed
-		}
-		return parsed.Aliases, nil
+// aliasesThrough returns the aliasReader that reads through reader, the Kind reader of one tree.
+func aliasesThrough[T any](reader nodestore.Reader[T]) aliasReader {
+	return func(path, relPath string) ([]string, error) {
+		reading, err := reader.Read(path, relPath)
+		return reading.Aliases, err
 	}
 }
 

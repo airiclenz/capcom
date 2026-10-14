@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -44,13 +43,6 @@ func retiredFilter(isRetiredIncluded bool) (with, condition string) {
 		return "", ""
 	}
 	return retiredSubtrees, ` AND notes.id NOT IN (SELECT id FROM hidden)`
-}
-
-// parseNote parses and validates one Note file and returns the Note with every problem of its
-// verdict, each of which keeps it out of the index.
-func parseNote(file foundFile, data []byte) (knowledge.Note, []diagnose.Finding) {
-	verdict := diagnose.NoteFile(file.path, file.id, data)
-	return verdict.Parsed, verdict.Findings()
 }
 
 // insertNote writes the rows of one valid Note.
