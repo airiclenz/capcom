@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -633,10 +634,10 @@ func TestRefresh_NonRegularNodeFiles_WarnOnceEachAndIndexTheRest(t *testing.T) {
 	report := refresh(t, x)
 
 	want := []string{
-		".capcom/issues/huge-issue.md " + string(WarningNotRegular),
-		".capcom/issues/pipe-issue.md " + string(WarningNotRegular),
-		".capcom/issues/z.md " + string(WarningOrphanDirectory),
-		".capcom/issues/zero-issue.md " + string(WarningNotRegular),
+		".capcom/issues/huge-issue.md " + string(diagnose.NotRegular),
+		".capcom/issues/pipe-issue.md " + string(diagnose.NotRegular),
+		".capcom/issues/z.md " + string(diagnose.OrphanDirectory),
+		".capcom/issues/zero-issue.md " + string(diagnose.NotRegular),
 	}
 	if got := warningKinds(report); !slices.Equal(got, want) {
 		t.Errorf("warning kinds = %q\nwant %q", got, want)
@@ -680,7 +681,7 @@ func TestIndexFile_FileGrownPastTheLimitSinceTheWalk_WarnsAndKeepsItOut(t *testi
 	if got := warningStrings(Report{Warnings: r.warnings}); !slices.Equal(got, want) {
 		t.Errorf("warnings = %q, want %q", got, want)
 	}
-	wantKinds := []string{".capcom/issues/huge-issue.md " + string(WarningNotRegular)}
+	wantKinds := []string{".capcom/issues/huge-issue.md " + string(diagnose.NotRegular)}
 	if got := warningKinds(Report{Warnings: r.warnings}); !slices.Equal(got, wantKinds) {
 		t.Errorf("warning kinds = %q, want %q", got, wantKinds)
 	}
@@ -718,7 +719,7 @@ func TestRefresh_DirectoryWarnings_WordedAsTheTreeWalk(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, warning := range report.Warnings {
-		if warning.Kind == WarningOrphanDirectory {
+		if warning.Kind == diagnose.OrphanDirectory {
 			got[warning.Path] = warning.Message
 		}
 	}
@@ -749,18 +750,18 @@ func TestRefresh_EachProducer_SetsTheWarningKindAndReplaysIt(t *testing.T) {
 	second := refresh(t, x)
 
 	want := []string{
-		".capcom/issues/Bad_Name " + string(WarningOrphanDirectory),
-		".capcom/issues/Bad_Name.md " + string(WarningInvalidID),
-		".capcom/issues/bad-alias.md " + string(WarningInvalidAlias),
-		".capcom/issues/bad-status.md " + string(WarningField),
-		".capcom/issues/broken-issue.md " + string(WarningFrontmatter),
-		".capcom/issues/dup-issue.md " + string(WarningDuplicate),
-		".capcom/issues/orphan-dir " + string(WarningOrphanDirectory),
-		".capcom/issues/own-alias.md " + string(WarningRepeatedAlias),
-		".capcom/issues/top-issue/dup-issue.md " + string(WarningDuplicate),
-		".capcom/issues/twice-alias.md " + string(WarningRepeatedAlias),
-		".capcom/issues/huge-issue.md " + string(WarningNotRegular),
-		".capcom/issues/z.md " + string(WarningOrphanDirectory),
+		".capcom/issues/Bad_Name " + string(diagnose.OrphanDirectory),
+		".capcom/issues/Bad_Name.md " + string(diagnose.InvalidID),
+		".capcom/issues/bad-alias.md " + string(diagnose.InvalidAlias),
+		".capcom/issues/bad-status.md " + string(diagnose.Field),
+		".capcom/issues/broken-issue.md " + string(diagnose.Frontmatter),
+		".capcom/issues/dup-issue.md " + string(diagnose.Duplicate),
+		".capcom/issues/orphan-dir " + string(diagnose.OrphanDirectory),
+		".capcom/issues/own-alias.md " + string(diagnose.RepeatedAlias),
+		".capcom/issues/top-issue/dup-issue.md " + string(diagnose.Duplicate),
+		".capcom/issues/twice-alias.md " + string(diagnose.RepeatedAlias),
+		".capcom/issues/huge-issue.md " + string(diagnose.NotRegular),
+		".capcom/issues/z.md " + string(diagnose.OrphanDirectory),
 	}
 	slices.Sort(want)
 	for name, report := range map[string]Report{"first": first, "second": second} {
@@ -795,38 +796,38 @@ func TestRefresh_FileProblems_PinKindsAndWording(t *testing.T) {
 	report := refresh(t, x)
 
 	const dir = ".capcom/issues/"
-	want := []Warning{
+	want := []diagnose.Finding{
 		{
-			Kind:    WarningInvalidAlias,
+			Kind:    diagnose.InvalidAlias,
 			Path:    dir + "bad-alias.md",
 			Message: `invalid alias "Bad_Alias": must use only a-z, 0-9, dots and hyphens`,
 		},
 		{
-			Kind:    WarningField,
+			Kind:    diagnose.Field,
 			Path:    dir + "bad-status.md",
 			Line:    3,
 			Message: `status "wip" is not declared in config; use one of [open active parked done dropped]`,
 		},
 		{
-			Kind: WarningDuplicate,
+			Kind: diagnose.Duplicate,
 			Path: dir + "dup-issue.md",
 			Message: `duplicate id "dup-issue": also the id of ` + dir + "top-issue/dup-issue.md; " +
 				"both are left out",
 		},
-		{Kind: WarningNotRegular, Path: dir + "link-issue.md", Message: "not a regular file"},
+		{Kind: diagnose.NotRegular, Path: dir + "link-issue.md", Message: "not a regular file"},
 		{
-			Kind:    WarningRepeatedAlias,
+			Kind:    diagnose.RepeatedAlias,
 			Path:    dir + "own-alias.md",
 			Message: `alias "own-alias" repeats the issue's own id`,
 		},
 		{
-			Kind: WarningDuplicate,
+			Kind: diagnose.Duplicate,
 			Path: dir + "top-issue/dup-issue.md",
 			Message: `duplicate id "dup-issue": also the id of ` + dir + "dup-issue.md; " +
 				"both are left out",
 		},
 		{
-			Kind: WarningFrontmatter,
+			Kind: diagnose.Frontmatter,
 			Path: dir + "unknown-key.md",
 			Line: 7,
 			Message: `unknown key "estimate"; an issue has title, status, type, priority, labels, deps, ` +

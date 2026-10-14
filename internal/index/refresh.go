@@ -83,7 +83,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	}
 
 	report.Warnings = r.warnings
-	slices.SortFunc(report.Warnings, func(a, b Warning) int {
+	slices.SortFunc(report.Warnings, func(a, b diagnose.Finding) int {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line), cmp.Compare(a.Message, b.Message))
 	})
 	x.report = report
@@ -138,7 +138,7 @@ type refresher struct {
 	config config.Config
 	// refreshed is the refresh start, truncated to racyGranularity, in Unix nanoseconds.
 	refreshed int64
-	warnings  []Warning
+	warnings  []diagnose.Finding
 	// walkClaims are the names the files the walk left out claim, which replaceWalkClaims stores.
 	walkClaims []claim
 	// leftOut are the node files the walk left out below a repeated id, which persistMembership
@@ -147,8 +147,11 @@ type refresher struct {
 }
 
 // warn records a warning of kind about one file.
-func (r *refresher) warn(kind WarningKind, path string, line int, message string) {
-	r.warnings = append(r.warnings, Warning{Kind: kind, Path: path, Line: line, Message: message})
+func (r *refresher) warn(kind diagnose.Kind, path string, line int, message string) {
+	r.warnings = append(
+		r.warnings,
+		diagnose.Finding{Kind: kind, Path: path, Line: line, Message: message},
+	)
 }
 
 // foundFile is a node file the walk found, with the stat the refresh compares.
@@ -242,7 +245,7 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 	if !problems.Valid {
 		return nil
 	}
-	var stored []Warning
+	var stored []diagnose.Finding
 	if err := json.Unmarshal([]byte(problems.String), &stored); err != nil {
 		return fmt.Errorf("index holds bad problems for %s: %w", path, err)
 	}
@@ -254,8 +257,8 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 // files row, which carries the problems so the next refresh reports them again, and its claims
 // rows, one per name claimedNames gives it. The file is read
 // through nodefile.ReadRegularFile: one that is no longer a regular file, or has grown past 1 MiB,
-// since the walk kept it is left out unread with a WarningNotRegular, never failing the refresh. A
-// file removed since the walk kept it is left without rows, and isGone reports it.
+// since the walk kept it is left out unread with a diagnose.NotRegular, never failing the
+// refresh. A file removed since the walk kept it is left without rows, and isGone reports it.
 func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	if err := r.forget(file.path); err != nil {
 		return false, err
@@ -265,12 +268,14 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 		return true, nil
 	}
 
-	var problems []Warning
+	var problems []diagnose.Finding
 	var insert func() error
 	refusal := diagnose.ReadRefusal(err)
 	switch {
 	case refusal != nil:
-		problems = []Warning{{Kind: WarningNotRegular, Path: file.path, Message: refusal.Error()}}
+		problems = []diagnose.Finding{
+			{Kind: diagnose.NotRegular, Path: file.path, Message: refusal.Error()},
+		}
 	case err != nil:
 		return false, fmt.Errorf("%s: %w", file.path, err)
 	case file.kind == kindNote:

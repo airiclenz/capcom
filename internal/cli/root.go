@@ -8,6 +8,7 @@ import (
 
 	"github.com/airiclenz/capcom"
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -66,7 +67,7 @@ type app struct {
 	store         *store.Store
 	issueIndex    *index.Index
 	indexReport   index.Report
-	indexWarnings []index.Warning
+	indexWarnings []diagnose.Finding
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and

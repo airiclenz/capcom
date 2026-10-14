@@ -285,7 +285,9 @@ NOTES (2026-10-14): the Note twins use a ref with no path (refs: ["#Symbol"]) fo
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/index/ -run 'Notes|FileProblems'`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestCheck_|TestPrime_'`
 **Commit:** `test(check): pin the validation codes and JSON shapes`
 
-## P2.2 Drop the index Warning re-exports
+## P2.2 Drop the index Warning re-exports — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from the assumption that duplicates.go (excludeClaims) and cli/errors.go (isIndexWarnedAbout) name index Warning types; at this tree neither does (errors.go already uses diagnose kinds), so both stay unchanged.
 
 **What:**
 **Goal:** `internal/index` declares no `Warning`, `WarningKind` or `WarningX` names; producers, cli and tests use `diagnose.Finding` and `diagnose` kinds; output unchanged.

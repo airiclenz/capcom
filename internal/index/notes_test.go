@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -191,9 +192,9 @@ func TestNotes_EachProducer_SetsTheWarningKind(t *testing.T) {
 	report := refresh(t, x)
 
 	want := []string{
-		".capcom/knowledge/broken-note.md " + string(WarningFrontmatter),
-		".capcom/knowledge/first-note.md " + string(WarningDuplicate),
-		".capcom/knowledge/no-title.md " + string(WarningField),
+		".capcom/knowledge/broken-note.md " + string(diagnose.Frontmatter),
+		".capcom/knowledge/first-note.md " + string(diagnose.Duplicate),
+		".capcom/knowledge/no-title.md " + string(diagnose.Field),
 	}
 	if got := warningKinds(report); !slices.Equal(got, want) {
 		t.Errorf("warning kinds = %q\nwant %q", got, want)
@@ -223,38 +224,38 @@ func TestNotes_FileProblems_PinKindsAndWording(t *testing.T) {
 	report := refresh(t, x)
 
 	const dir = ".capcom/knowledge/"
-	want := []Warning{
+	want := []diagnose.Finding{
 		{
-			Kind:    WarningInvalidAlias,
+			Kind:    diagnose.InvalidAlias,
 			Path:    dir + "bad-alias.md",
 			Message: `invalid alias "Bad_Alias": must use only a-z, 0-9, dots and hyphens`,
 		},
 		{
-			Kind:    WarningField,
+			Kind:    diagnose.Field,
 			Path:    dir + "bad-ref.md",
 			Line:    3,
 			Message: `ref "#Symbol" names no path; write path or path#symbol`,
 		},
 		{
-			Kind: WarningDuplicate,
+			Kind: diagnose.Duplicate,
 			Path: dir + "dup-note.md",
 			Message: `duplicate id "dup-note": also the id of ` + dir + "top-note/dup-note.md; " +
 				"both are left out",
 		},
-		{Kind: WarningNotRegular, Path: dir + "link-note.md", Message: "not a regular file"},
+		{Kind: diagnose.NotRegular, Path: dir + "link-note.md", Message: "not a regular file"},
 		{
-			Kind:    WarningRepeatedAlias,
+			Kind:    diagnose.RepeatedAlias,
 			Path:    dir + "own-alias.md",
 			Message: `alias "own-alias" repeats the note's own id`,
 		},
 		{
-			Kind: WarningDuplicate,
+			Kind: diagnose.Duplicate,
 			Path: dir + "top-note/dup-note.md",
 			Message: `duplicate id "dup-note": also the id of ` + dir + "dup-note.md; " +
 				"both are left out",
 		},
 		{
-			Kind: WarningFrontmatter,
+			Kind: diagnose.Frontmatter,
 			Path: dir + "unknown-key.md",
 			Line: 3,
 			Message: `unknown key "owner"; a note has title, labels, refs, retired, superseded-by ` +

@@ -48,7 +48,7 @@ func retiredFilter(isRetiredIncluded bool) (with, condition string) {
 
 // parseNote parses and validates one Note file and returns every problem that keeps it out of the
 // index.
-func parseNote(file foundFile, data []byte) (knowledge.Note, []Warning) {
+func parseNote(file foundFile, data []byte) (knowledge.Note, []diagnose.Finding) {
 	parsed, problems := diagnose.ParseNote(file.path, data)
 	if len(problems) > 0 {
 		return knowledge.Note{}, problems

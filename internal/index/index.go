@@ -3,8 +3,8 @@
 // stay the truth. Open returns the index already up to date: ModeRefresh brings it up to date
 // incrementally, re-parsing only the files whose size or mtime changed, and ModeRebuild (or
 // deleting the file) recreates it from scratch. A file that cannot be used is reported as a
-// Warning and left out while the rest stays queryable. The index only reads `.capcom/`; it never
-// writes there.
+// diagnose.Finding and left out while the rest stays queryable. The index only reads `.capcom/`;
+// it never writes there.
 package index
 
 import (
@@ -70,37 +70,6 @@ func withClock(now func() time.Time) Option {
 	}
 }
 
-// WarningKind classifies a Warning by the problem it reports, so a caller tells problems apart
-// without reading the message. It is diagnose.Kind, so its values are those check and the cli
-// classify the same problems by.
-type WarningKind = diagnose.Kind
-
-// The kinds of Warning, one per problem the index reports.
-const (
-	// WarningInvalidID is a node file whose name is not a valid id.
-	WarningInvalidID = diagnose.InvalidID
-	// WarningInvalidAlias is an alias that is not a valid name.
-	WarningInvalidAlias = diagnose.InvalidAlias
-	// WarningDuplicate is an id or alias another file of the same tree also has.
-	WarningDuplicate = diagnose.Duplicate
-	// WarningRepeatedAlias is an alias that repeats its own node's id or is listed twice.
-	WarningRepeatedAlias = diagnose.RepeatedAlias
-	// WarningOrphanDirectory is a directory left out because it has no valid node file beside it.
-	WarningOrphanDirectory = diagnose.OrphanDirectory
-	// WarningNotRegular is an entry left out unread because it is not a regular file (a symlink, a
-	// named pipe, a device) or is a node file larger than 1 MiB.
-	WarningNotRegular = diagnose.NotRegular
-	// WarningFrontmatter is a file whose frontmatter cannot be read.
-	WarningFrontmatter = diagnose.Frontmatter
-	// WarningField is a field value the file's kind does not accept.
-	WarningField = diagnose.Field
-)
-
-// Warning is a file the index left out, or a problem it found in one. It is diagnose.Finding, so
-// check and the index find a file's problems through the same functions. Path is relative to the
-// working tree root with forward slashes; Line is 1-based, or 0 when no single line is to blame.
-type Warning = diagnose.Finding
-
 // Report is what one refresh or rebuild did.
 type Report struct {
 	// rebuilt is true when every table was recreated: on a rebuild, on a new database, and when
@@ -115,7 +84,7 @@ type Report struct {
 	Indexed int
 	// Warnings are every file left out and every problem found, in path then line order. A
 	// problem is reported on every refresh until its file changes.
-	Warnings []Warning
+	Warnings []diagnose.Finding
 }
 
 // Entry is one indexed issue. Times are zero when the file leaves them out. Related holds the

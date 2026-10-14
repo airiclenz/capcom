@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -50,8 +51,8 @@ func TestRefresh_DuplicateIDWithChildren_LeavesTheSubtreeOut(t *testing.T) {
 	if isIndexed(t, x, "c2") {
 		t.Errorf("c2 is indexed, want it left out with the directory of the repeated id x")
 	}
-	want := Warning{
-		Kind:    WarningOrphanDirectory,
+	want := diagnose.Finding{
+		Kind:    diagnose.OrphanDirectory,
 		Path:    ".capcom/issues/b/x",
 		Message: "directory left out: its node file x.md has a duplicate id",
 	}
@@ -78,8 +79,8 @@ func TestRefresh_RepeatedIDDirectoryWithoutNodeFiles_WarnsItLeftOut(t *testing.T
 
 	report := refresh(t, x)
 
-	want := Warning{
-		Kind:    WarningOrphanDirectory,
+	want := diagnose.Finding{
+		Kind:    diagnose.OrphanDirectory,
 		Path:    ".capcom/issues/b/x",
 		Message: "directory left out: its node file x.md has a duplicate id",
 	}

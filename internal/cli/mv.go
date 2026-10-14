@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -67,7 +67,7 @@ func moveDestination(args []string, parent string, isReparented bool) (nodestore
 func (a *app) movedWarnings(
 	moved nodestore.Moved,
 	problems tree.Errors,
-) (indexWarnings []index.Warning, warnings []string) {
+) (indexWarnings []diagnose.Finding, warnings []string) {
 	var warned tree.Errors
 	for _, problem := range problems {
 		if !a.isIndexWarnedAbout(problem) {
@@ -76,7 +76,7 @@ func (a *app) movedWarnings(
 	}
 	oldDir := tree.ChildrenDir(moved.OldPath) + "/"
 	newDir := tree.ChildrenDir(moved.Path) + "/"
-	indexWarnings = make([]index.Warning, 0, len(a.indexReport.Warnings))
+	indexWarnings = make([]diagnose.Finding, 0, len(a.indexReport.Warnings))
 	for _, warning := range a.indexReport.Warnings {
 		warning.Path = movedPath(warning.Path, oldDir, newDir)
 		indexWarnings = append(indexWarnings, warning)
