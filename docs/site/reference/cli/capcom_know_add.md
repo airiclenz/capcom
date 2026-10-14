@@ -30,11 +30,11 @@ capcom know add --id <slug> --title <title> [flags]
 ```
       --body-file string   file holding the markdown body; - reads stdin
   -h, --help               help for add
-      --id string          the new note's id: a kebab slug of 1 to 4 words (required)
+      --id string          the new Note's id: a kebab slug of 1 to 4 words (required)
       --label strings      labels; repeat or separate with commas
-      --parent string      add the note below this one
-      --ref stringArray    a path or path#symbol the note depends on; repeat for more
-      --title string       the note's title (required)
+      --parent string      add the Note below this one
+      --ref stringArray    a path or path#symbol the Note depends on; repeat for more
+      --title string       the Note's title (required)
 ```
 
 ### Options inherited from parent commands

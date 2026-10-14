@@ -62,11 +62,11 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 		}),
 	}
 	flags := cmd.Flags()
-	flags.StringVar(&options.id, flagID, "", "the new note's id: a kebab slug of 1 to 4 words (required)")
-	flags.StringVar(&options.title, flagTitle, "", "the note's title (required)")
-	flags.StringVar(&options.parent, flagParent, "", "add the note below this one")
+	flags.StringVar(&options.id, flagID, "", "the new Note's id: a kebab slug of 1 to 4 words (required)")
+	flags.StringVar(&options.title, flagTitle, "", "the Note's title (required)")
+	flags.StringVar(&options.parent, flagParent, "", "add the Note below this one")
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "labels; repeat or separate with commas")
-	flags.StringArrayVar(&options.refs, flagRef, nil, "a path or path#symbol the note depends on; repeat for more")
+	flags.StringArrayVar(&options.refs, flagRef, nil, "a path or path#symbol the Note depends on; repeat for more")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
 	_ = cmd.MarkFlagRequired(flagID)    // fails only for an undefined flag
 	_ = cmd.MarkFlagRequired(flagTitle) // fails only for an undefined flag

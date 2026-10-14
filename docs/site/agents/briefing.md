@@ -21,7 +21,7 @@ doing: 1
 locks: 1
   _main: held by claude@devbox for 0m, heartbeat 0m ago: implementing the login rework
 this worktree: held; if the token is yours resume with capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it
-broken note refs: 0
+broken Note refs: 0
 check: no problems
 elsewhere: rate-limit: active on rate-limit-work (unmerged)
 ```
@@ -47,7 +47,7 @@ Section by section:
 
   The line is left out when the locks cannot be listed, and when this worktree's lock record is
   damaged; the warning then names the record.
-- **`broken note refs`**: the [Refs](../concepts/knowledge.md#ref-and-suspect-notes) of Notes that
+- **`broken Note refs`**: the [Refs](../concepts/knowledge.md#ref-and-suspect-notes) of Notes that
   no longer resolve, each as `path:line: ref "<ref>": <why>`. Those Notes are suspect: read them
   with care, and fix them when the work touches them.
 - **`check`**: the number of problems `capcom check` finds. Anything other than `no problems` is

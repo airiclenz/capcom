@@ -30,7 +30,7 @@ capcom know mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if
 ```
   -h, --help              help for mv
       --if-match string   only move when the file's etag is this one (see know show)
-      --parent string     move the note below this one; . moves it to the top of the tree
+      --parent string     move the Note below this one; . moves it to the top of the tree
 ```
 
 ### Options inherited from parent commands

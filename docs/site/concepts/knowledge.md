@@ -117,11 +117,11 @@ finds one:
 ```console
 $ capcom know verify
 .capcom/knowledge/auth/token-refresh.md:4: ref "internal/auth/refresh.go#func RefreshToken": symbol "func RefreshToken" is not in the file
-capcom: 1 note refs do not resolve
+capcom: 1 Note refs do not resolve
 ```
 
 `capcom check` reports the same problems, and `capcom prime` lists them in the session
-[briefing](../agents/briefing.md) under `broken note refs:`, so a stale Note surfaces the next time
+[briefing](../agents/briefing.md) under `broken Note refs:`, so a stale Note surfaces the next time
 an agent starts work. Fix it by updating the Note, its Refs or both:
 
 ```sh

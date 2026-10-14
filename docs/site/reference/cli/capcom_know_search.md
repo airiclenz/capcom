@@ -29,8 +29,8 @@ capcom know search <word>... [flags]
 
 ```
   -h, --help            help for search
-      --label strings   only notes with every one of these labels; repeat or separate with commas
-      --retired         include retired notes and everything below them
+      --label strings   only Notes with every one of these labels; repeat or separate with commas
+      --retired         include retired Notes and everything below them
 ```
 
 ### Options inherited from parent commands

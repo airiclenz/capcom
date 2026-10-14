@@ -31,7 +31,7 @@ capcom know update <id|alias|prefix> [flags]
 ```
       --add-label strings                  labels to add
       --add-ref stringArray                a path or path#symbol to add to the refs; repeat for more
-      --add-superseded-by stringArray      the id, alias or prefix of a note that replaces this one; repeat for more
+      --add-superseded-by stringArray      the id, alias or prefix of a Note that replaces this one; repeat for more
       --body-append string                 text to append to the body, taken literally
       --body-append-file string            file to append to the body; - reads stdin
       --body-file string                   file holding the whole new markdown body; - reads stdin
@@ -42,9 +42,9 @@ capcom know update <id|alias|prefix> [flags]
       --remove-label strings               labels to remove
       --remove-ref stringArray             a ref to remove; repeat for more
       --remove-superseded-by stringArray   the id, alias or prefix of a superseded-by entry to remove; repeat for more
-      --retire                             mark the note retired: it and its subtree leave browsing
+      --retire                             mark the Note retired: it and its subtree leave browsing
       --title string                       new title
-      --unretire                           clear the note's retired mark
+      --unretire                           clear the Note's retired mark
 ```
 
 ### Options inherited from parent commands

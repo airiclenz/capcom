@@ -14,7 +14,7 @@ const (
 )
 
 // backgroundFlagUsage is the help of the --background flag of know tree.
-const backgroundFlagUsage = "include notes labelled background and everything below them"
+const backgroundFlagUsage = "include Notes labelled background and everything below them"
 
 // Help text of capcom know tree.
 const (
@@ -76,7 +76,7 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().IntVar(&depth, flagDepth, unlimitedDepth,
-		"levels below the top (or below the named note) to print; 0 prints every level")
+		"levels below the top (or below the named Note) to print; 0 prints every level")
 	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
 	cmd.Flags().BoolVar(&isBackgroundIncluded, flagBackground, false, backgroundFlagUsage)
 	return cmd

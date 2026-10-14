@@ -61,7 +61,7 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 			return a.emit(cmd, result)
 		}),
 	}
-	cmd.Flags().BoolVar(&isWithChildren, flagWithChildren, false, "also show the notes directly below it")
+	cmd.Flags().BoolVar(&isWithChildren, flagWithChildren, false, "also show the Notes directly below it")
 	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
 	return cmd
 }

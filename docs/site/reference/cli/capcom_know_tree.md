@@ -29,10 +29,10 @@ capcom know tree [id|alias|prefix] [flags]
 ### Options
 
 ```
-      --background   include notes labelled background and everything below them
-      --depth int    levels below the top (or below the named note) to print; 0 prints every level
+      --background   include Notes labelled background and everything below them
+      --depth int    levels below the top (or below the named Note) to print; 0 prints every level
   -h, --help         help for tree
-      --retired      include retired notes and everything below them
+      --retired      include retired Notes and everything below them
 ```
 
 ### Options inherited from parent commands

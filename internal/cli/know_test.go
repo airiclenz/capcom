@@ -545,7 +545,7 @@ func TestKnowVerify_BrokenRefs_ListsEachWithItsLineAndFails(t *testing.T) {
 	want := ".capcom/knowledge/stale-refs.md:5: ref \"gone.go\": no such file or directory\n" +
 		".capcom/knowledge/stale-refs.md:6: ref \"go.mod#absentSymbol\": symbol \"absentSymbol\" is not in the file\n" +
 		".capcom/knowledge/stale-refs.md:7: ref \"../escape.go\": escapes the working tree\n"
-	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "3 note refs do not resolve") {
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "3 Note refs do not resolve") {
 		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
 	}
 }
@@ -560,7 +560,7 @@ func TestKnowVerify_RefBelowAFile_IsListedAsBroken(t *testing.T) {
 
 	want := ".capcom/knowledge/below-a-file.md:4: ref \"go.mod/sub\": no such file or directory\n" +
 		".capcom/knowledge/below-a-file.md:5: ref \"gone.go\": no such file or directory\n"
-	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "2 note refs do not resolve") {
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "2 Note refs do not resolve") {
 		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
 	}
 }
@@ -578,7 +578,7 @@ func TestKnowVerify_OversizedRef_IsListedAsBroken(t *testing.T) {
 	stdout, stderr, exitCode := runCLI(t, root, "know", "verify")
 
 	want := ".capcom/knowledge/big-ref.md:4: ref \"big.txt#needle\": is larger than 1 MiB; symbol \"needle\" is not searched\n"
-	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "1 note refs do not resolve") {
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "1 Note refs do not resolve") {
 		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
 	}
 }
@@ -594,7 +594,7 @@ func TestKnowVerify_BrokenRefsInRetiredSubtree_AreNotListed(t *testing.T) {
 	stdout, stderr, exitCode := runCLI(t, root, "know", "verify")
 
 	want := ".capcom/knowledge/live-notes.md:3: ref \"gone.go\": no such file or directory\n"
-	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "1 note refs do not resolve") {
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "1 Note refs do not resolve") {
 		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
 	}
 }

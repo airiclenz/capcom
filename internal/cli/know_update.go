@@ -108,10 +108,10 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 	flags.StringSliceVar(&options.removeLabels, flagRemoveLabel, nil, "labels to remove")
 	flags.StringArrayVar(&options.addRefs, flagAddRef, nil, "a path or path#symbol to add to the refs; repeat for more")
 	flags.StringArrayVar(&options.removeRefs, flagRemoveRef, nil, "a ref to remove; repeat for more")
-	flags.BoolVar(&options.isRetiring, flagRetire, false, "mark the note retired: it and its subtree leave browsing")
-	flags.BoolVar(&options.isUnretiring, flagUnretire, false, "clear the note's retired mark")
+	flags.BoolVar(&options.isRetiring, flagRetire, false, "mark the Note retired: it and its subtree leave browsing")
+	flags.BoolVar(&options.isUnretiring, flagUnretire, false, "clear the Note's retired mark")
 	flags.StringArrayVar(&options.addSuccessors, flagAddSupersededBy, nil,
-		"the id, alias or prefix of a note that replaces this one; repeat for more")
+		"the id, alias or prefix of a Note that replaces this one; repeat for more")
 	flags.StringArrayVar(&options.removeSuccessors, flagRemoveSupersededBy, nil,
 		"the id, alias or prefix of a superseded-by entry to remove; repeat for more")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the whole new markdown body; - reads stdin")

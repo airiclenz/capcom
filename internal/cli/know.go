@@ -23,7 +23,7 @@ const (
 )
 
 // retiredFlagUsage is the help of the --retired flag shared by know tree, know show and know search.
-const retiredFlagUsage = "include retired notes and everything below them"
+const retiredFlagUsage = "include retired Notes and everything below them"
 
 // noteData is one Note in the --json data of the know commands. Lists are always present, empty
 // when the file has none; retired is left out when false; ETag and Body are set by know show only.

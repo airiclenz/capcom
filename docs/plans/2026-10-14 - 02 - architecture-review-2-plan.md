@@ -300,7 +300,13 @@ internal/cli/know_update_test.go — TestKnowUpdate_NoChangeOrClashingFlags_AreU
 **Acceptance:** each of `./internal/check/`, `./internal/cli/`, `./internal/clidoc/` passes `GOMEMLIMIT=2GiB go test -count=1`, one at a time; `grep -n 'nounPhrase' internal/cli/node_verbs.go` prints nothing
 **Commit:** `fix(cli): messages say Note`
 
-## P3.5 "Note" in help and summaries
+## P3.5 "Note" in help and summaries — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): CHANGELOG.md:16's two `the note's own id` quotes are not reworded here (implementers never edit CHANGELOG.md); the plan's Regression guard assigns that reword to the closeout, so the Acceptance grep `grep -n "the note's own id" CHANGELOG.md` passes only once the closeout applies it
+
+NOTES (2026-10-14): the CHANGELOG entry covers P3.5's own change only: P3.2, P3.3 and P3.4 each already carry their own entry in their sidecars, so the plan's "one line covering P3.2 to P3.5" is met by those four lines together
+
+NOTES (2026-10-14): know_tree.go's --depth help and know_update.go's --add-superseded-by help sit on continuation lines the Acceptance grep cannot see; both reworded to Note as the Goal asks. internal/agents/block.go quotes neither summary, so AGENTS.md is untouched
 
 **What:**
 **Goal:** completes `unread-warning-keys`: flag help names the Note kind "Note" (`know_add.go`, `know.go`, `know_tree.go`, `know_update.go`, `know_search.go`, `know_show.go`, `node_verbs.go` flagNoun), the Briefing prints `broken Note refs:` and `know verify` reports `N Note refs do not resolve`. Flag names, command names, JSON keys and kind values stay lowercase.

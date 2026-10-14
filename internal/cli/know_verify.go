@@ -54,7 +54,7 @@ func (a *app) newKnowVerifyCommand() *cobra.Command {
 			}
 			result := output.Result{Kind: "know-verify", Data: data, Text: text.String()}
 			if len(findings) > 0 {
-				result.Failure = output.Errorf(output.CodeInvalid, "%d note refs do not resolve", len(findings))
+				result.Failure = output.Errorf(output.CodeInvalid, "%d Note refs do not resolve", len(findings))
 			}
 			return a.emit(cmd, result)
 		}),

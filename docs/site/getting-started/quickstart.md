@@ -162,7 +162,7 @@ ready, unplanned: 1
 doing: 0
 locks: 0
 this worktree: free; before a multi-file change run capcom lock acquire --purpose <text> and keep the token
-broken note refs: 0
+broken Note refs: 0
 check: no problems
 ```
 

@@ -50,7 +50,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 			return a.emit(cmd, output.Result{Kind: "know-search", Data: data, Text: lines.String()})
 		}),
 	}
-	cmd.Flags().StringSliceVar(&labels, flagLabel, nil, "only notes with every one of these labels; repeat or separate with commas")
+	cmd.Flags().StringSliceVar(&labels, flagLabel, nil, "only Notes with every one of these labels; repeat or separate with commas")
 	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
 	return cmd
 }

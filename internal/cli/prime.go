@@ -202,7 +202,7 @@ func worktreeLockAdvice(held []lock.Status, worktreeKey string) string {
 
 // addHealth writes the broken Note refs and the count of every check problem.
 func addHealth(text *strings.Builder, health briefing.Health) {
-	fmt.Fprintf(text, "broken note refs: %d\n", len(health.BrokenRefs))
+	fmt.Fprintf(text, "broken Note refs: %d\n", len(health.BrokenRefs))
 	for _, problem := range health.BrokenRefs {
 		text.WriteString("  " + problem.String() + "\n")
 	}

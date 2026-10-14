@@ -29,8 +29,8 @@ capcom know show <id|alias|prefix> [flags]
 
 ```
   -h, --help            help for show
-      --retired         include retired notes and everything below them
-      --with-children   also show the notes directly below it
+      --retired         include retired Notes and everything below them
+      --with-children   also show the Notes directly below it
 ```
 
 ### Options inherited from parent commands

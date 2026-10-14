@@ -72,7 +72,7 @@ func TestPrime_FixtureStore_PrintsTheBriefing(t *testing.T) {
 		"  busy-work  active  P2  Busy work\n" +
 		"locks: 0\n" +
 		worktreeLockFree + "\n" +
-		"broken note refs: 1\n" +
+		"broken Note refs: 1\n" +
 		"  .capcom/knowledge/build-notes.md:3: ref \"gone.go\": no such file or directory\n" +
 		"check: 1 problem; run capcom check\n"
 	if exitCode != ExitOK || stderr != "" || stdout != want {

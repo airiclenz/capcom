@@ -25,7 +25,7 @@ type nodeVerbs[T any] struct {
 	// commandPath is the mv command as typed after capcom ("mv", "know mv"), naming it in usage
 	// errors.
 	commandPath string
-	// flagNoun is the kind's noun in flag help ("issue", "note").
+	// flagNoun is the kind's noun in flag help ("issue", "Note").
 	flagNoun string
 	// showCommand prints a node's etag ("show", "know show"); the --if-match help names it.
 	showCommand string
@@ -85,7 +85,7 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 		return a.notes(nil)
 	},
 	commandPath:  "know mv",
-	flagNoun:     "note",
+	flagNoun:     "Note",
 	showCommand:  "know show",
 	descriptor:   nodestore.NoteDescriptor(),
 	writeResult:  noteWriteResult,
