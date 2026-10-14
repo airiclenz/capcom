@@ -480,11 +480,15 @@ still holds. Neither key implies the other.
   Managed block in AGENTS.md), and the Ref checks of `capcom know verify`, `capcom check` and `capcom prime` leave
   out the Refs of a retired Note and of every Note below it (see Refs).
 - `capcom know update --retire` sets `retired: true` and `--unretire` removes it.
-  `--add-superseded-by <note>` takes an id, an alias or a prefix and writes the id it resolves to;
-  `--remove-superseded-by <note>` removes the entry equal to its text, or, when none is, the entry
-  equal to the id it resolves to as `--add-superseded-by` resolves it; one that matches no entry
-  changes nothing, and a name two files claim is refused naming both files, as `capcom dep rm`
-  refuses it, and nothing is written. Both repeat. An update that retires
+  `--add-superseded-by <note>` takes an id, an alias or a prefix and writes the id it resolves to,
+  unless an entry already names that Note by its id or any alias, which adds nothing.
+  `--remove-superseded-by <note>` follows `capcom related rm`: a `<note>` that is exactly a Note's
+  id or alias removes every entry naming that Note, by its id or any alias; one that is not removes
+  the entries that are its text when there are any, before it is matched as a prefix, and one that
+  names no Note is matched only that way. One that matches no entry changes nothing. A prefix of
+  several ids that no entry's text matches is refused naming the candidates, and a name two files
+  claim is refused naming both files, as `capcom dep rm` refuses them; nothing is written. Both
+  repeat, and the removals apply after the additions. An update that retires
   a Note or adds a `superseded-by` entry in a store below format 3 first raises `config.yaml` to
   `format: 3`, as `capcom related add` raises it to 2 (see Config), and warns:
 

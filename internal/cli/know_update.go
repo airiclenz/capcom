@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"errors"
-	"fmt"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -12,7 +10,7 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
+	"github.com/airiclenz/capcom/internal/reflist"
 )
 
 // Flags of know update beyond those it shares with capcom update.
@@ -59,21 +57,16 @@ const (
 )
 
 // noteInputs is what know update reads and resolves before it touches the Note: the whole new body
-// of --body-file, the text of --body-append-file, the ids the --add-superseded-by arguments
-// resolve to, and the --remove-superseded-by arguments with what each resolves to.
+// of --body-file, the text of --body-append-file, and the superseded-by list whose lookups decide
+// the --add-superseded-by and --remove-superseded-by edits, its Entries left for the Note as read.
 type noteInputs struct {
 	body       string
 	appendFile string
-	successors []string
-	removals   []successorRemoval
+	successors reflist.List
 }
 
-// successorRemoval is one --remove-superseded-by argument: its text as given, and the id of the
-// Note it resolves to, "" when it resolves to none.
-type successorRemoval struct {
-	literal  string
-	resolved string
-}
+// successorWords words know update's refusal of a Note superseded by itself.
+var successorWords = refusalWords{self: "%s cannot be superseded by itself"}
 
 // newKnowUpdateCommand changes the title, labels, refs, retired flag, superseded-by list and body
 // of one Note. Only the flags given change anything. --body-file replaces the whole body and so
@@ -97,13 +90,10 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if len(options.addSuccessors) > 0 {
-				if inputs.successors, err = a.resolveSuccessors(args[0], options.addSuccessors); err != nil {
+			if len(options.addSuccessors) > 0 || len(options.removeSuccessors) > 0 {
+				if inputs.successors, err = a.successorList(args[0]); err != nil {
 					return err
 				}
-			}
-			if inputs.removals, err = a.resolveRemovals(options.removeSuccessors); err != nil {
-				return err
 			}
 			result, err := a.updateNote(cmd, args[0], options, inputs)
 			if err != nil {
@@ -156,76 +146,91 @@ func readNoteInputs(cmd *cobra.Command, options *knowUpdateOptions) (noteInputs,
 	return inputs, nil
 }
 
-// resolveSuccessors resolves each of successorArgs, the --add-superseded-by arguments, to the id of
-// the Note it names, so the Note stores canonical ids only. arg names the Note they are added to;
-// an argument naming no Note, several or the Note itself is refused, at the Note's file.
-func (a *app) resolveSuccessors(arg string, successorArgs []string) ([]string, error) {
+// successorList is the superseded-by list of the Note arg names, whose edits reflist decides as
+// it decides deps and related: the index resolves an argument, and every usable Note, retired ones
+// included, names an entry by exact id or Alias (noteNames). Its Entries are left unset, for
+// applyNoteUpdate to fill from the Note as read.
+func (a *app) successorList(arg string) (reflist.List, error) {
 	holder, err := a.issueIndex.ResolveNote(arg)
 	if err != nil {
 		failure, _ := resolveFailure(err) // either way the command stops here
-		return nil, failure
+		return reflist.List{}, failure
 	}
-	successors := make([]string, 0, len(successorArgs))
-	for _, successorArg := range successorArgs {
-		successor, err := a.issueIndex.ResolveNote(successorArg)
-		if err != nil {
-			failure, _ := resolveFailure(err) // either way the command stops here
-			failure.Path = holder.Path
-			return nil, failure
-		}
-		if successor.ID == holder.ID {
-			return nil, &output.Error{
-				Code:    output.CodeInvalid,
-				Path:    holder.Path,
-				Message: fmt.Sprintf("%s cannot be superseded by itself", holder.ID),
+	notes, err := a.issueIndex.Notes(true)
+	if err != nil {
+		return reflist.List{}, err
+	}
+	return reflist.List{Holder: holder.ID, Resolve: a.resolveNoteID, Names: noteNames(notes)}, nil
+}
+
+// resolveNoteID resolves arg to the id of the Note it names, failing as index.Index.ResolveNote
+// does: the reflist.ResolveFunc of a Note's superseded-by list.
+func (a *app) resolveNoteID(arg string) (string, error) {
+	entry, err := a.issueIndex.ResolveNote(arg)
+	return entry.ID, err
+}
+
+// noteNames returns the reflist.NamesFunc over notes, a superseded-by entry as the file writes it
+// naming the Note whose id it is, else the one Note of notes listing it as an Alias. An alias two
+// Notes list names neither.
+func noteNames(notes []index.NoteEntry) reflist.NamesFunc {
+	byID := make(map[string]bool, len(notes))
+	for _, note := range notes {
+		byID[note.ID] = true
+	}
+	byAlias := map[string]string{}
+	for _, note := range notes {
+		for _, alias := range note.Aliases {
+			if _, isClaimed := byAlias[alias]; isClaimed {
+				byAlias[alias] = ""
+				continue
 			}
-		}
-		successors = append(successors, successor.ID)
-	}
-	return successors, nil
-}
-
-// resolveRemovals resolves each of removalArgs, the --remove-superseded-by arguments, through the
-// same Note lookup --add-superseded-by uses. An argument that names no Note, or is a prefix of
-// several, keeps "" as its resolved id, so only its text can match an entry. It fails, as dep rm
-// does, on a name two files claim, naming both, and when the index cannot be read.
-func (a *app) resolveRemovals(removalArgs []string) ([]successorRemoval, error) {
-	removals := make([]successorRemoval, 0, len(removalArgs))
-	for _, removalArg := range removalArgs {
-		removal := successorRemoval{literal: removalArg}
-		entry, err := a.issueIndex.ResolveNote(removalArg)
-		switch {
-		case err == nil:
-			removal.resolved = entry.ID
-		case !isResolveMiss(err):
-			return nil, output.AsError(err)
-		}
-		removals = append(removals, removal)
-	}
-	return removals, nil
-}
-
-// isResolveMiss reports whether err, a failure of Index.ResolveNote, leaves only the argument's
-// text to match: no match or an ambiguous prefix. A name two files claim is not a miss.
-func isResolveMiss(err error) bool {
-	return errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrAmbiguous)
-}
-
-// removedSuccessors returns the superseded-by entries removals take out of entries: each removal's
-// text when an entry equals it, otherwise the id it resolves to. A removal matching neither takes
-// nothing out.
-func removedSuccessors(entries []string, removals []successorRemoval) []string {
-	removed := make([]string, 0, len(removals))
-	for _, removal := range removals {
-		// The text as given wins, so an entry whose Note is gone, or whose id is also a prefix of
-		// another Note's, is removed by its own text and nothing else.
-		if slices.Contains(entries, removal.literal) {
-			removed = append(removed, removal.literal)
-		} else if removal.resolved != "" {
-			removed = append(removed, removal.resolved)
+			byAlias[alias] = note.ID
 		}
 	}
-	return removed
+	return func(entry string) (string, bool) {
+		if byID[entry] {
+			return entry, true
+		}
+		id := byAlias[entry]
+		return id, id != ""
+	}
+}
+
+// editSuccessors applies the addArgs, then the removeArgs, to entries, a superseded-by list as the
+// file writes it, each decided by list against entries as the edits before it left them. An
+// addition appends the id its argument resolves to unless an entry already names that Note, by id
+// or by any Alias; a removal drops the entries it matches, and one matching none changes nothing.
+// It fails on reflist's refusals, typed by refusalFailure with no path.
+func editSuccessors(
+	list reflist.List,
+	addArgs []string,
+	removeArgs []string,
+	entries []string,
+) ([]string, error) {
+	entries = slices.Clone(entries)
+	for _, arg := range addArgs {
+		list.Entries = entries
+		addition, err := list.Add(arg)
+		if err != nil {
+			return nil, refusalFailure(err, "", successorWords)
+		}
+		if !addition.IsPresent {
+			entries = append(entries, addition.ID)
+		}
+	}
+	for _, arg := range removeArgs {
+		list.Entries = entries
+		removal, err := list.Remove(arg)
+		if err != nil {
+			return nil, refusalFailure(err, "", successorWords)
+		}
+		// Drop's only failure is a removal that drops no entry: a silent no-op here.
+		if dropped, err := removal.Drop(entries); err == nil {
+			entries = withoutEntries(entries, dropped)
+		}
+	}
+	return entries, nil
 }
 
 // updateNote changes the Note arg names through the node store of the Knowledge tree, which
@@ -270,8 +275,9 @@ func (r noteResolver) Resolve(arg string) (nodestore.Target, error) {
 }
 
 // applyNoteUpdate applies the changed flags to note in the order title, labels, refs, retired,
-// superseded-by, whole body, body replacement, append. It fails on a new ref of the wrong form and
-// on replacement text that does not occur exactly once.
+// superseded-by, whole body, body replacement, append. It fails on a new ref of the wrong form, on
+// a superseded-by edit reflist refuses (editSuccessors) and on replacement text that does not
+// occur exactly once.
 func applyNoteUpdate(
 	cmd *cobra.Command,
 	options *knowUpdateOptions,
@@ -296,10 +302,18 @@ func applyNoteUpdate(
 	if options.isUnretiring {
 		note.IsRetired = false
 	}
-	// Successors merge like refs, the added ones already resolved to ids; a removal matches an entry
-	// by its text first and by the id it resolves to only when its text matches none.
-	successors := edit.List(note.SupersededBy, inputs.successors, nil)
-	note.SupersededBy = edit.List(successors, nil, removedSuccessors(successors, inputs.removals))
+	if len(options.addSuccessors) > 0 || len(options.removeSuccessors) > 0 {
+		successors, err := editSuccessors(
+			inputs.successors,
+			options.addSuccessors,
+			options.removeSuccessors,
+			note.SupersededBy,
+		)
+		if err != nil {
+			return knowledge.Note{}, err
+		}
+		note.SupersededBy = successors
+	}
 	if flags.Changed(flagBodyFile) {
 		note.Body = noteBody(inputs.body)
 	}

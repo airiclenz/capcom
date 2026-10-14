@@ -466,7 +466,10 @@ NOTES (2026-10-14): related rm's reverse side (the other issue holds the link) i
 **Acceptance:** `go build ./...`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestDep|TestRelated|TestCreate'`; `grep -rn 'isRemovedByText\|isEntryText\|depRemoval\|relatedRemoval' internal/cli` prints nothing
 **Commit:** `refactor(cli): dep, related and create --dep use reflist`
 
-## P3.5 know update superseded-by follows reflist
+## P3.5 know update superseded-by follows reflist — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the superseded-by decisions (additions, then removals, each against the list as the edits before it left it) run inside applyNoteUpdate through editSuccessors, so every refusal, the name two files claim on --remove-superseded-by included, now names the Note file as know update's other failures do (editNode fills the path), and a stale --if-match is reported before an argument refusal; the holder is resolved up front (successorList) for reflist's self check.
+NOTES (2026-10-14): the entry-names adapter noteNames is built in know_update.go from index.Notes(true), id first, then an alias exactly one Note lists; resolveNoteID is the ResolveFunc. resolveSuccessors, resolveRemovals, isResolveMiss, removedSuccessors and successorRemoval are deleted. The flipped ambiguous-prefix case is its own test (TestKnowUpdate_RemoveSupersededByAmbiguousPrefix_IsRefusedNamingTheCandidates); the table test is renamed TestKnowUpdate_RemoveSupersededBy_MatchesTheNamedNoteThenTheText and gains rows for every alias spelling, a retired Note's alias, an ambiguous prefix that is an entry's text and a name of no entry; the P3.1 pin becomes TestKnowUpdate_AddSupersededByBesideItsAliasSpelling_AddsNothing. Flag help is unchanged, so the generated CLI reference needs no regeneration.
 
 **What:**
 **Goal:** `--add-superseded-by` and `--remove-superseded-by` decide through `reflist` with the dep/related rules (ratified); a removal matching nothing stays a silent no-op.

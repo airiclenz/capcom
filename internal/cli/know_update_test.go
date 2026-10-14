@@ -293,7 +293,7 @@ func TestKnowUpdate_SupersededByAliasOrCitation_StoresTheID(t *testing.T) {
 	}
 }
 
-func TestKnowUpdate_RemoveSupersededBy_MatchesTheTextThenTheResolvedID(t *testing.T) {
+func TestKnowUpdate_RemoveSupersededBy_MatchesTheNamedNoteThenTheText(t *testing.T) {
 	cases := []struct {
 		name   string
 		notes  map[string]string
@@ -306,6 +306,22 @@ func TestKnowUpdate_RemoveSupersededBy_MatchesTheTextThenTheResolvedID(t *testin
 			notes:  map[string]string{"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\naliases: [fixtures]\n---\n"},
 			stored: "[git-fixtures, cli-tests]",
 			arg:    "fixtures",
+			want:   "[cli-tests]",
+		},
+		{
+			name:   "every spelling of the named note",
+			notes:  map[string]string{"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\naliases: [fixtures]\n---\n"},
+			stored: "[fixtures, cli-tests, git-fixtures]",
+			arg:    "git-fixtures",
+			want:   "[cli-tests]",
+		},
+		{
+			name: "alias of a retired note",
+			notes: map[string]string{
+				"old-flow.md": "---\ntitle: Old flow\nretired: true\naliases: [legacy-flow]\n---\n",
+			},
+			stored: "[legacy-flow, cli-tests]",
+			arg:    "old-flow",
 			want:   "[cli-tests]",
 		},
 		{
@@ -327,14 +343,20 @@ func TestKnowUpdate_RemoveSupersededBy_MatchesTheTextThenTheResolvedID(t *testin
 			want:   "[cli-tests]",
 		},
 		{
-			name: "ambiguous prefix matching no entry",
+			name: "ambiguous prefix that is an entry's text",
 			notes: map[string]string{
 				"release-a.md": "---\ntitle: Release A\n---\n",
 				"release-b.md": "---\ntitle: Release B\n---\n",
 			},
-			stored: "[release-a, release-b]",
+			stored: "[release, release-a]",
 			arg:    "release",
-			want:   "[release-a, release-b]",
+			want:   "[release-a]",
+		},
+		{
+			name:   "name of no entry",
+			stored: "[cli-tests]",
+			arg:    "git-fixtures",
+			want:   "[cli-tests]",
 		},
 	}
 
@@ -351,6 +373,51 @@ func TestKnowUpdate_RemoveSupersededBy_MatchesTheTextThenTheResolvedID(t *testin
 			got := readNoteFile(t, root, "release-flow.md")
 			if !strings.Contains(got, "superseded-by: "+current.want+"\n") {
 				t.Errorf("note file = %q; want superseded-by: %s", got, current.want)
+			}
+		})
+	}
+}
+
+func TestKnowUpdate_RemoveSupersededByAmbiguousPrefix_IsRefusedNamingTheCandidates(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"release-a.md":    "---\ntitle: Release A\n---\n",
+		"release-b.md":    "---\ntitle: Release B\n---\n",
+		"release-flow.md": "---\ntitle: Release flow\nsuperseded-by: [release-a, release-b]\n---\n",
+	})
+	before := readNoteFile(t, root, "release-flow.md")
+
+	_, stderr, exitCode := runCLI(t, root, "know", "update", "release-flow", "--remove-superseded-by", "release")
+
+	if exitCode != ExitError || !strings.Contains(stderr, "release-a") || !strings.Contains(stderr, "release-b") {
+		t.Errorf("exit = %d stderr = %q; want 1 naming the candidates", exitCode, stderr)
+	}
+	if after := readNoteFile(t, root, "release-flow.md"); after != before {
+		t.Errorf("note file changed to %q", after)
+	}
+}
+
+func TestKnowUpdate_AddThenRemoveTheSameSuccessor_RemovesIt(t *testing.T) {
+	cases := []struct {
+		name   string
+		stored string
+	}{
+		{name: "not stored", stored: "[cli-tests]"},
+		{name: "already stored", stored: "[git-fixtures, cli-tests]"},
+	}
+
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			root := newKnowStore(t)
+			writeNoteFiles(t, root, map[string]string{
+				"release-flow.md": "---\ntitle: Release flow\nsuperseded-by: " + current.stored + "\n---\n",
+			})
+
+			mustRun(t, root, "know", "update", "release-flow",
+				"--add-superseded-by", "git-fixtures", "--remove-superseded-by", "git-fixtures")
+
+			if got := readNoteFile(t, root, "release-flow.md"); !strings.Contains(got, "superseded-by: [cli-tests]\n") {
+				t.Errorf("note file = %q; want superseded-by: [cli-tests]", got)
 			}
 		})
 	}
@@ -373,17 +440,18 @@ func TestKnowUpdate_RemoveSupersededByDuplicatedName_FailsNamingBothFilesAndWrit
 	}
 }
 
-func TestKnowUpdate_AddSupersededByBesideItsAliasSpelling_AppendsTheID(t *testing.T) {
+func TestKnowUpdate_AddSupersededByBesideItsAliasSpelling_AddsNothing(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{
 		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\naliases: [fixtures]\n---\n",
 		"release-flow.md":               "---\ntitle: Release flow\nsuperseded-by: [fixtures]\n---\n",
 	})
+	before := readNoteFile(t, root, "release-flow.md")
 
 	mustRun(t, root, "know", "update", "release-flow", "--add-superseded-by", "git-fixtures")
 
-	if got := readNoteFile(t, root, "release-flow.md"); !strings.Contains(got, "superseded-by: [fixtures, git-fixtures]\n") {
-		t.Errorf("note file = %q; want both spellings kept", got)
+	if after := readNoteFile(t, root, "release-flow.md"); after != before {
+		t.Errorf("note file = %q; want it unchanged, %q", after, before)
 	}
 }
 
