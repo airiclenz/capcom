@@ -234,7 +234,12 @@ internal/index/refresh.go — claimedNames, walkStore; internal/nodestore/kind.g
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/tree/`; `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/nodestore/`; `grep -rn 'rawfm.Aliases' internal/index internal/nodestore` prints nothing
 **Commit:** `refactor(tree): one orphan listing and one alias reader`
 
-## P1.8 The index persists membership verdicts
+## P1.8 The index persists membership verdicts — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from the assumption that query.go and duplicates.go alone hold the left-out lookups: the in-memory left-out list lived on Index (internal/index/index.go) and carried a duplicate problem built in leaveOutBelowRepeatedIDs (internal/index/walk.go); both are gone, since resolve now answers from the stored verdicts.
+NOTES (2026-10-14): the verdicts are two tables, file_verdicts (every walk file: kept, repeated-id, below-repeated-id) and name_verdicts (every refused name, its reason and conflict), rebuilt whole on each refresh; schemaVersion 6 -> 7; claims index changed from (kind, name), no longer queried by name, to (path), which forget deletes by.
+NOTES (2026-10-14): diagnose.NameClashes now renders the verdict's IDConflicts (its only caller only ever passed id claims); diagnose.Claim is deleted. Alias warnings render the verdict's AliasConflicts between two clean files only, so the index warns about exactly the alias clashes it warned about before.
+NOTES (2026-10-14): files with problems and claim-only files enter DecideMembership as UnparsedFile (their stored aliases only claim, as the index treated them); a node file left out below a repeated id enters as ParsedFile, since the walk claims do not record whether its frontmatter parsed — a recovered alias of such an unparsed file is refused as that repeated id's duplicate, as before, where tree.Load refuses it as an unusable claim (pre-existing, no test covers it).
 
 **What:** Recast at the regression check (2026-10-14).
 **Goal:** after each refresh the index stores the membership function's verdicts (kept, left out with reason, refused names) in its database and answers exclusion and claim queries from them; `excludeDuplicates` is gone; warning wording unchanged; a repeated id counts unparsed and invalid files, warning about and excluding both.

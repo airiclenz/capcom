@@ -46,9 +46,6 @@ type Index struct {
 	store  *store.Store
 	now    func() time.Time
 	report Report
-	// leftOut are the node files the latest refresh left out below a repeated id, which have no
-	// rows: Resolve refuses their names with the repeated id's duplicate problem.
-	leftOut []leftOutNode
 }
 
 // Mode is how Open brings the index up to date before returning it.

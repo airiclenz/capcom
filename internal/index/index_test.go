@@ -291,6 +291,107 @@ func TestRefresh_DuplicateName_WarnsAndExcludesBoth(t *testing.T) {
 	}
 }
 
+// repeatedIDWarnings are the warnings about dup-issue.md and top-issue/dup-issue.md, two files of
+// the id dup-issue.
+var repeatedIDWarnings = []string{
+	`.capcom/issues/dup-issue.md: duplicate id "dup-issue": also the id of .capcom/issues/top-issue/dup-issue.md; both are left out`,
+	`.capcom/issues/top-issue/dup-issue.md: duplicate id "dup-issue": also the id of .capcom/issues/dup-issue.md; both are left out`,
+}
+
+// unparsedIssueText is the content of an issue file whose frontmatter does not parse.
+const unparsedIssueText = "---\ntitle: [unclosed\n---\n"
+
+func TestRefresh_RepeatedIDWithAFileWithProblems_WarnsAndExcludesBoth(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{name: "unparsed file", content: unparsedIssueText},
+		{name: "invalid file", content: issueText("Nested dup", "bogus", "")},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			writeIssue(t, s, "top-issue.md", issueText("Top", "open", ""))
+			writeIssue(t, s, "dup-issue.md", issueText("Top dup", "open", ""))
+			writeIssue(t, s, "top-issue/dup-issue.md", testCase.content)
+			x := openIndex(t, s)
+
+			report := refresh(t, x)
+			_, err := x.Resolve("dup-issue")
+
+			if isIndexed(t, x, "dup-issue") {
+				t.Errorf("dup-issue indexed, want it excluded")
+			}
+			warnings := warningStrings(report)
+			for _, want := range repeatedIDWarnings {
+				if !slices.Contains(warnings, want) {
+					t.Errorf("warnings = %q, want %q among them", warnings, want)
+				}
+			}
+			if len(warnings) != len(repeatedIDWarnings)+1 {
+				t.Errorf("warnings = %q, want the repeated id and the file's own problem", warnings)
+			}
+			if !errors.Is(err, tree.ErrDuplicate) {
+				t.Errorf("Resolve(dup-issue) err = %v, want ErrDuplicate", err)
+			}
+		})
+	}
+}
+
+func TestRefresh_SiblingAdded_DecidesFromStoredRowsWithoutRereading(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "top-issue.md", issueText("Top", "open", ""))
+	writeIssue(t, s, "top-issue/dup-issue.md", unparsedIssueText)
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+	_, beforeErr := x.Resolve("dup-issue")
+
+	writeIssue(t, s, "dup-issue.md", issueText("Top dup", "open", ""))
+	report := refresh(t, x)
+	_, afterErr := x.Resolve("dup-issue")
+
+	if want := []string{".capcom/issues/dup-issue.md"}; !slices.Equal(report.parsed, want) {
+		t.Fatalf("parsed = %q, want only %q", report.parsed, want)
+	}
+	if !errors.Is(beforeErr, tree.ErrNotFound) {
+		t.Errorf("Resolve(dup-issue) before the sibling err = %v, want ErrNotFound", beforeErr)
+	}
+	if isIndexed(t, x, "dup-issue") {
+		t.Errorf("dup-issue indexed, want it excluded beside the unparsed file")
+	}
+	warnings := warningStrings(report)
+	for _, want := range repeatedIDWarnings {
+		if !slices.Contains(warnings, want) {
+			t.Errorf("warnings = %q, want %q among them", warnings, want)
+		}
+	}
+	if !errors.Is(afterErr, tree.ErrDuplicate) {
+		t.Errorf("Resolve(dup-issue) after the sibling err = %v, want ErrDuplicate", afterErr)
+	}
+}
+
+func TestRefresh_ValidFileBesideAnOrphanFileOfItsID_StaysListed(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "login.md", issueText("Login", "open", ""))
+	writeIssue(t, s, "old/login.md", issueText("Old login", "open", ""))
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+	ids, err := x.ListIDs(Filter{})
+
+	if err != nil || !slices.Equal(ids, []string{"login"}) {
+		t.Errorf("ListIDs() = %q, %v; want login listed", ids, err)
+	}
+	want := []string{".capcom/issues/old: directory without its node file: no old.md beside it; left out"}
+	if got := warningStrings(report); !slices.Equal(got, want) {
+		t.Errorf("warnings = %q, want only %q", got, want)
+	}
+}
+
 func TestRefresh_AliasClash_WarnsOnceAndKeepsBothNodes(t *testing.T) {
 	cases := []struct {
 		name    string

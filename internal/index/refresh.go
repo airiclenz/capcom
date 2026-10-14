@@ -35,7 +35,8 @@ var readNodeFile = nodefile.ReadRegularFile
 // IMMEDIATE transaction, and records its report as the one Report returns. It re-parses only the
 // files that are new, changed in size or mtime, or racily clean, drops the rows of files that are
 // gone, and rebuilds everything when the schema version or the configured statuses and types
-// changed; isForced drops every table and indexes both trees again. Files that cannot be used are
+// changed; isForced drops every table and indexes both trees again. It then stores the membership
+// verdicts tree.DecideMembership gives on the rows it recorded. Files that cannot be used are
 // reported in the Report's Warnings and left out; refresh itself fails only when the index or
 // the tree cannot be read.
 func (x *Index) refresh(isForced bool) (report Report, err error) {
@@ -71,7 +72,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	if err := r.replaceWalkClaims(); err != nil {
 		return Report{}, x.databaseError(err)
 	}
-	if err := r.excludeDuplicates(); err != nil {
+	if err := r.persistMembership(); err != nil {
 		return Report{}, x.databaseError(err)
 	}
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM issues WHERE excluded = 0`).Scan(&report.Indexed); err != nil {
@@ -86,7 +87,6 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line), cmp.Compare(a.Message, b.Message))
 	})
 	x.report = report
-	x.leftOut = r.leftOut
 	return report, nil
 }
 
@@ -141,8 +141,8 @@ type refresher struct {
 	warnings  []Warning
 	// walkClaims are the names the files the walk left out claim, which replaceWalkClaims stores.
 	walkClaims []claim
-	// leftOut are the node files the walk left out below a repeated id, which the Index keeps once
-	// the refresh commits.
+	// leftOut are the node files the walk left out below a repeated id, which persistMembership
+	// decides on beside the files rows.
 	leftOut []leftOutNode
 }
 

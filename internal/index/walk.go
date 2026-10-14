@@ -79,14 +79,13 @@ func walkIssues(
 }
 
 // leftOutNode is a node file the walk found below the directory beside a file of a repeated id,
-// which the index leaves out as tree.Load does, with the duplicate problem of that repeated id.
+// which the index leaves out as tree.Load does.
 type leftOutNode struct {
 	id string
 	// path is relative to the working tree root, with forward slashes.
 	path string
 	// kind is kindIssue or kindNote, by the tree the file was found in.
-	kind    string
-	problem *tree.Error
+	kind string
 }
 
 // leaveOutBelowRepeatedIDs splits nodes, as tree.Walk returns them, by tree.DecideMembership, the
@@ -94,9 +93,8 @@ type leftOutNode struct {
 // parent id and directory alone: its key is its absolute path, so a repeated id's files order as
 // tree.Load orders them; it lists no aliases, its parse state is tree.UnreadFile and it is usable,
 // for the walk reads no file. Every node the function leaves out below a repeated id is left out,
-// with the duplicate problem of the repeated id it stands for, which names that id's second file
-// by path and, in Other, its first, both relative to worktreeRoot. The files of a repeated id
-// themselves are kept: the refresh leaves them out as duplicates. It returns the kept nodes in
+// its path relative to worktreeRoot. The files of a repeated id themselves are kept: the refresh
+// leaves them out as duplicates. It returns the kept nodes in
 // order, the left-out ones in order without their kind, and the problem of each repeated-id
 // directory that is a directory on disk, as tree.RepeatedIDDirProblems finds them. A directory
 // whose Lstat fails other than by being gone fails the walk, naming it relative to worktreeRoot.
@@ -131,17 +129,7 @@ func leaveOutBelowRepeatedIDs(worktreeRoot string, nodes []tree.Node) ([]tree.No
 			kept = append(kept, node)
 			continue
 		}
-		// DecideMembership refuses the id of a file below a repeated id with that id's conflict.
-		conflict := membership.Names[node.ID].Conflict
-		leftOut = append(leftOut, leftOutNode{
-			id:   node.ID,
-			path: worktreeRelative(worktreeRoot, node.Path),
-			problem: tree.DuplicateIDError(
-				worktreeRelative(worktreeRoot, conflict.Key),
-				worktreeRelative(worktreeRoot, conflict.Other),
-				conflict.Name,
-			),
-		})
+		leftOut = append(leftOut, leftOutNode{id: node.ID, path: worktreeRelative(worktreeRoot, node.Path)})
 	}
 	problems, err := tree.RepeatedIDDirProblems(membership.RepeatedIDDirs)
 	if err != nil {
