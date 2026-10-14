@@ -12,6 +12,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/reflist"
 )
 
 // Flags of capcom create.
@@ -127,15 +128,21 @@ func (a *app) resolveDeps(args []string) ([]string, error) {
 		if arg == "" {
 			continue
 		}
-		dependency, err := a.resolveIssue(arg)
+		addition, err := reflist.List{Entries: deps, Resolve: a.resolveIssueID, Names: namesItself}.Add(arg)
 		if err != nil {
-			return nil, err
+			return nil, refusalFailure(err, "", refusalWords{})
 		}
-		if !slices.Contains(deps, dependency.ID) {
-			deps = append(deps, dependency.ID)
+		if !addition.IsPresent {
+			deps = append(deps, addition.ID)
 		}
 	}
 	return deps, nil
+}
+
+// namesItself is the reflist.NamesFunc of a new issue's deps, which resolveDeps writes as
+// canonical ids only: each entry names the issue whose id it is.
+func namesItself(entry string) (string, bool) {
+	return entry, true
 }
 
 // newIssue builds the issue the flags describe, created now, depending on deps.

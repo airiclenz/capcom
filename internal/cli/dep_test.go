@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -292,69 +293,39 @@ func TestDepRm_NotADep_FailsNotFound(t *testing.T) {
 	}
 }
 
-func TestDepRm_DanglingDep_RemovesItByItsText(t *testing.T) {
-	root := newDepStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "deps: [gone-issue, db-schema]\n", ""),
-	})
-
-	mustRun(t, root, "dep", "rm", "login-flow", "gone-issue")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db-schema]\n") {
-		t.Errorf("login-flow.md = %q", content)
+func TestDepRm_EntryTextOrIssue_RemovesTheMatchingDeps(t *testing.T) {
+	tests := []struct {
+		name  string
+		deps  string
+		arg   string
+		extra map[string]string
+		want  string
+	}{
+		{name: "dangling dep by its text", deps: "[gone-issue, db-schema]", arg: "gone-issue", want: "[db-schema]"},
+		{name: "dangling dep prefixing one issue", deps: "[db, release-notes]", arg: "db", want: "[release-notes]"},
+		{
+			name:  "dangling dep prefixing two issues",
+			deps:  "[rel, db-schema]",
+			arg:   "rel",
+			extra: map[string]string{"release-plan.md": readIssue("Release plan", "open", "", "")},
+			want:  "[db-schema]",
+		},
+		{name: "dangling dep beside the issue it prefixes", deps: "[db, db-schema]", arg: "db", want: "[db-schema]"},
+		{name: "exact id beside a dangling prefix", deps: "[apogee-kk0.4, db]", arg: "db-schema", want: "[db]"},
 	}
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := newDepStore(t)
+			files := map[string]string{"login-flow.md": readIssue("Login flow", "open", "deps: "+test.deps+"\n", "")}
+			maps.Copy(files, test.extra)
+			writeIssueFiles(t, root, files)
 
-func TestDepRm_DanglingDepPrefixingOneIssue_RemovesItByItsText(t *testing.T) {
-	root := newDepStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "deps: [db, release-notes]\n", ""),
-	})
+			mustRun(t, root, "dep", "rm", "login-flow", test.arg)
 
-	mustRun(t, root, "dep", "rm", "login-flow", "db")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [release-notes]\n") {
-		t.Errorf("login-flow.md = %q", content)
-	}
-}
-
-func TestDepRm_DanglingDepPrefixingTwoIssues_RemovesItByItsText(t *testing.T) {
-	root := newDepStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md":   readIssue("Login flow", "open", "deps: [rel, db-schema]\n", ""),
-		"release-plan.md": readIssue("Release plan", "open", "", ""),
-	})
-
-	mustRun(t, root, "dep", "rm", "login-flow", "rel")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db-schema]\n") {
-		t.Errorf("login-flow.md = %q", content)
-	}
-}
-
-func TestDepRm_DanglingDepBesideTheIssueItPrefixes_RemovesOnlyTheDanglingOne(t *testing.T) {
-	root := newDepStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "deps: [db, db-schema]\n", ""),
-	})
-
-	mustRun(t, root, "dep", "rm", "login-flow", "db")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db-schema]\n") {
-		t.Errorf("login-flow.md = %q", content)
-	}
-}
-
-func TestDepRm_ExactIDBesideADanglingPrefix_RemovesTheDepNamingTheIssue(t *testing.T) {
-	root := newDepStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "deps: [apogee-kk0.4, db]\n", ""),
-	})
-
-	mustRun(t, root, "dep", "rm", "login-flow", "db-schema")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: [db]\n") {
-		t.Errorf("login-flow.md = %q", content)
+			if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "deps: "+test.want+"\n") {
+				t.Errorf("login-flow.md = %q, want deps %s", content, test.want)
+			}
+		})
 	}
 }
 

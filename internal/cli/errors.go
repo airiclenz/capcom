@@ -2,12 +2,14 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/reflist"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -34,6 +36,39 @@ func kindFailure(err error) *output.Error {
 		return failure
 	}
 	return output.AsError(err)
+}
+
+// refusalWords words the refusals of one reference-list edit that refuse the edit rather than its
+// argument: self is a format of the holder's id, cycle a format of the holder's id, the id the
+// argument names and the cycle, and notFound the whole message of a removal that drops no entry.
+type refusalWords struct {
+	self     string
+	cycle    string
+	notFound string
+}
+
+// refusalFailure types a failure of reflist's decision on an edit of the reference list of the
+// node at path. A refusal of the argument, a name of no node, an ambiguous prefix or a name two
+// files claim, and any failure that is no refusal, go through resolveFailure, with no path. A
+// refusal of the edit is placed at path and worded by words: adding the holder to its own list or
+// closing a cycle is invalid, and a removal that drops no entry is not_found.
+func refusalFailure(err error, path string, words refusalWords) *output.Error {
+	var refusal *reflist.Refusal
+	if !errors.As(err, &refusal) || refusal.Err != nil {
+		failure, _ := resolveFailure(err) // an argument failure: the command stops here
+		return failure
+	}
+	failure := &output.Error{Code: output.CodeInvalid, Path: path}
+	switch refusal.Reason {
+	case reflist.ReasonSelf:
+		failure.Message = fmt.Sprintf(words.self, refusal.Holder)
+	case reflist.ReasonCycle:
+		failure.Message = fmt.Sprintf(words.cycle, refusal.Holder, refusal.ID, strings.Join(refusal.Cycle, cycleArrow))
+	default: // reflist.ReasonNotFound: a removal that drops no entry
+		failure.Code = output.CodeNotFound
+		failure.Message = words.notFound
+	}
+	return failure
 }
 
 // worktreeRelative names path relative to the working tree root with forward slashes, or returns

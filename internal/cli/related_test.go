@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -219,69 +220,41 @@ func TestRelatedRm_NotRelated_FailsNotFound(t *testing.T) {
 	}
 }
 
-func TestRelatedRm_DanglingEntry_RemovesItByItsText(t *testing.T) {
-	root := newRelatedStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "related: [gone-issue, db-schema]\n", ""),
-	})
-
-	mustRun(t, root, "related", "rm", "login-flow", "gone-issue")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db-schema]\n") {
-		t.Errorf("login-flow.md = %q", content)
+func TestRelatedRm_EntryTextOrIssue_RemovesTheMatchingEntries(t *testing.T) {
+	tests := []struct {
+		name    string
+		related string
+		arg     string
+		extra   map[string]string
+		want    string
+	}{
+		{name: "dangling entry by its text", related: "[gone-issue, db-schema]", arg: "gone-issue", want: "[db-schema]"},
+		{name: "dangling entry prefixing one issue", related: "[db, build-pipeline]", arg: "db", want: "[build-pipeline]"},
+		{
+			name:    "dangling entry prefixing two issues",
+			related: "[b, db-schema]",
+			arg:     "b",
+			extra:   map[string]string{"build-plan.md": readIssue("Build plan", "open", "", "")},
+			want:    "[db-schema]",
+		},
+		{name: "dangling entry beside the issue it prefixes", related: "[db, db-schema]", arg: "db", want: "[db-schema]"},
+		{name: "exact id beside a dangling prefix", related: "[apogee-kk0.4, db]", arg: "db-schema", want: "[db]"},
 	}
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := newRelatedStore(t)
+			files := map[string]string{
+				"login-flow.md": readIssue("Login flow", "open", "related: "+test.related+"\n", ""),
+			}
+			maps.Copy(files, test.extra)
+			writeIssueFiles(t, root, files)
 
-func TestRelatedRm_DanglingEntryPrefixingOneIssue_RemovesItByItsText(t *testing.T) {
-	root := newRelatedStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "related: [db, build-pipeline]\n", ""),
-	})
+			mustRun(t, root, "related", "rm", "login-flow", test.arg)
 
-	mustRun(t, root, "related", "rm", "login-flow", "db")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [build-pipeline]\n") {
-		t.Errorf("login-flow.md = %q", content)
-	}
-}
-
-func TestRelatedRm_DanglingEntryPrefixingTwoIssues_RemovesItByItsText(t *testing.T) {
-	root := newRelatedStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "related: [b, db-schema]\n", ""),
-		"build-plan.md": readIssue("Build plan", "open", "", ""),
-	})
-
-	mustRun(t, root, "related", "rm", "login-flow", "b")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db-schema]\n") {
-		t.Errorf("login-flow.md = %q", content)
-	}
-}
-
-func TestRelatedRm_DanglingEntryBesideTheIssueItPrefixes_RemovesOnlyTheDanglingOne(t *testing.T) {
-	root := newRelatedStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "related: [db, db-schema]\n", ""),
-	})
-
-	mustRun(t, root, "related", "rm", "login-flow", "db")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db-schema]\n") {
-		t.Errorf("login-flow.md = %q", content)
-	}
-}
-
-func TestRelatedRm_ExactIDBesideADanglingPrefix_RemovesTheEntryNamingTheIssue(t *testing.T) {
-	root := newRelatedStore(t)
-	writeIssueFiles(t, root, map[string]string{
-		"login-flow.md": readIssue("Login flow", "open", "related: [apogee-kk0.4, db]\n", ""),
-	})
-
-	mustRun(t, root, "related", "rm", "login-flow", "db-schema")
-
-	if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: [db]\n") {
-		t.Errorf("login-flow.md = %q", content)
+			if content := readStoreFile(t, root, "login-flow.md"); !strings.Contains(content, "related: "+test.want+"\n") {
+				t.Errorf("login-flow.md = %q, want related %s", content, test.want)
+			}
+		})
 	}
 }
 

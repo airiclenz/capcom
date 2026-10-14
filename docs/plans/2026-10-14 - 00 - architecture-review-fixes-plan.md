@@ -450,7 +450,11 @@ NOTES (2026-10-14): `go build ./...` fails on the pre-existing, gitignored scrat
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/reflist/`; `go vet ./internal/reflist/`; `go list -deps ./internal/reflist | grep capcom/internal` lists only reflist and tree (and tree's own deps)
 **Commit:** `feat(reflist): one module for reference-list edits`
 
-## P3.4 dep, related and create --dep use reflist
+## P3.4 dep, related and create --dep use reflist — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the five mirrored dep rm / related rm runCLI pairs (dangling text, prefixing one issue, prefixing two issues, beside the issue it prefixes, exact id beside a dangling prefix) collapse into one table-driven test per command (TestDepRm_EntryTextOrIssue_RemovesTheMatchingDeps, TestRelatedRm_EntryTextOrIssue_RemovesTheMatchingEntries) that keeps every row, rather than a single-case smoke test, so the cli wiring of reflist's text-vs-id decision stays covered end to end.
+NOTES (2026-10-14): resolveEdge is deleted, since dep add and related add now resolve the second argument through reflist.List.Add; refusals map to output.Error in refusalFailure (errors.go), worded per command by refusalWords; the shared lookups are app.referenceList and app.resolveIssueID in dep_graph.go, and withoutEntries in dep.go applies a Removal's dropped entries.
+NOTES (2026-10-14): related rm's reverse side (the other issue holds the link) is decided through reflist too: Remove(first.ID) on the other issue's list; related add's reverse already-linked check keeps depGraph.names.
 
 **What:**
 **Goal:** dep add/rm, related add/rm and create --dep decide through `reflist`; cli maps flags and refusals only; output unchanged.

@@ -10,7 +10,11 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/reflist"
 )
+
+// relatedSelfFormat refuses linking an issue, the format's one argument, to itself.
+const relatedSelfFormat = "%s cannot be related to itself"
 
 // formatRaisedWarning is the warning of the write that raises the store format (capcom related add
 // and know update): the config file, the new format, and the format older releases read.
@@ -69,28 +73,25 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 		Args:        cobra.ExactArgs(2),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			holder, other, err := a.resolveEdge(args)
+			holder, err := a.resolveIssue(args[0])
 			if err != nil {
 				return err
-			}
-			if holder.ID == other.ID {
-				return &output.Error{
-					Code:    output.CodeInvalid,
-					Path:    holder.Path,
-					Message: fmt.Sprintf("%s cannot be related to itself", holder.ID),
-				}
 			}
 			graph, err := a.loadDepGraph()
 			if err != nil {
 				return err
 			}
-			isLinked := slices.ContainsFunc(holder.Related, graph.names(other.ID)) ||
-				slices.ContainsFunc(other.Related, graph.names(holder.ID))
+			addition, err := a.referenceList(graph, holder.ID, holder.Related).Add(args[1])
+			if err != nil {
+				return refusalFailure(err, holder.Path, refusalWords{self: relatedSelfFormat})
+			}
+			isLinked := addition.IsPresent ||
+				slices.ContainsFunc(graph.entries[addition.ID].Related, graph.names(holder.ID))
 			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				if isLinked {
 					return target, nil
 				}
-				target.Related = append(slices.Clone(target.Related), other.ID)
+				target.Related = append(slices.Clone(target.Related), addition.ID)
 				return target, nil
 			})
 			if err != nil {
@@ -124,19 +125,21 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			holder, isRemoved, err := a.relatedRemoval(first, args[1])
+			graph, err := a.loadDepGraph()
 			if err != nil {
 				return err
 			}
+			holder, removal, err := a.linkHolder(graph, first, args[1])
+			if err != nil {
+				return err
+			}
+			notRelated := refusalWords{notFound: fmt.Sprintf("%s is not related to %s", first.ID, args[1])}
 			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
-				kept := slices.DeleteFunc(slices.Clone(target.Related), isRemoved)
-				if len(kept) == len(target.Related) {
-					return issue.Issue{}, output.Errorf(output.CodeNotFound, "%s is not related to %s", first.ID, args[1])
+				dropped, err := removal.Drop(target.Related)
+				if err != nil {
+					return issue.Issue{}, refusalFailure(err, "", notRelated)
 				}
-				if len(kept) == 0 {
-					kept = nil
-				}
-				target.Related = kept
+				target.Related = withoutEntries(target.Related, dropped)
 				return target, nil
 			})
 			if err != nil {
@@ -149,34 +152,28 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// relatedRemoval finds the issue holding the link between first and the issue arg names, and the
-// test its related entries must pass to be removed. first holds it when one of its entries names
-// that issue, else that issue holds it when one of its entries names first; neither is not_found.
-// When isRemovedByText says so, first holds it and the entry is matched by its text (isEntryText).
-func (a *app) relatedRemoval(first index.Entry, arg string) (index.Entry, func(string) bool, error) {
-	graph, err := a.loadDepGraph()
+// linkHolder finds the issue holding the link between first and the issue arg names, and reflist's
+// removal of the link from it. first holds it when arg is matched by its text or one of first's
+// entries names that issue, else that issue holds it when one of its entries names first; neither
+// is not_found at first's file.
+func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.Entry, reflist.Removal, error) {
+	removal, err := a.referenceList(graph, first.ID, first.Related).Remove(arg)
 	if err != nil {
-		return index.Entry{}, nil, err
+		return index.Entry{}, reflist.Removal{}, refusalFailure(err, "", refusalWords{})
 	}
-	other, err := a.issueIndex.Resolve(arg)
-	if graph.isRemovedByText(first.Related, arg, err) {
-		return first, isEntryText(arg), nil
+	if _, err := removal.Drop(first.Related); removal.ID == "" || err == nil {
+		return first, removal, nil
 	}
+	other := graph.entries[removal.ID]
+	reverse, err := a.referenceList(graph, other.ID, other.Related).Remove(first.ID)
 	if err != nil {
-		failure, _ := resolveFailure(err) // either way the command stops here
-		return index.Entry{}, nil, failure
+		return index.Entry{}, reflist.Removal{}, refusalFailure(err, "", refusalWords{})
 	}
-	if namesOther := graph.names(other.ID); slices.ContainsFunc(first.Related, namesOther) {
-		return first, namesOther, nil
+	if _, err := reverse.Drop(other.Related); err != nil {
+		notRelated := refusalWords{notFound: fmt.Sprintf("%s and %s are not related", first.ID, removal.ID)}
+		return index.Entry{}, reflist.Removal{}, refusalFailure(err, first.Path, notRelated)
 	}
-	if namesFirst := graph.names(first.ID); slices.ContainsFunc(other.Related, namesFirst) {
-		return other, namesFirst, nil
-	}
-	return index.Entry{}, nil, &output.Error{
-		Code:    output.CodeNotFound,
-		Path:    first.Path,
-		Message: fmt.Sprintf("%s and %s are not related", first.ID, other.ID),
-	}
+	return other, reverse, nil
 }
 
 // warnRaisedFormat adds to result the warning of a write whose effects raised the store format
