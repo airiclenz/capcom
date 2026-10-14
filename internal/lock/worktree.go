@@ -64,3 +64,9 @@ func (w Worktree) Read() (Status, error) {
 func (w Worktree) List() ([]Status, []error, error) {
 	return w.locks.List()
 }
+
+// Overview returns the Lock overview of the repository with this worktree's state, as
+// Locks.Overview does.
+func (w Worktree) Overview() (Overview, error) {
+	return w.locks.Overview(w.key)
+}

@@ -321,7 +321,11 @@ internal/cli/prime_test.go — TestPrime_FixtureStore_PrintsTheBriefing
 **Closes:** unread-warning-keys
 **Commit:** `docs(cli): help and summaries say Note`
 
-## P4.1 The Lock overview
+## P4.1 The Lock overview — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): internal/lock/lock.go (not in **Files:**) is touched to reuse List's scan as the guard asks: the directory scan with its Lstat check moves out of List into the new `Locks.recordKeys(ownKey)` beside it, which List calls with "" (unchanged behaviour) and Overview with its own key, so the own key's entry is read even when it is a directory.
+
+NOTES (2026-10-14): a problem's Path is always the record file; its Err (read's error, unchanged) names the guard file instead when the guard cannot be opened. The own key's problem is listed in Problems too (as the Briefing's warnings list it today), and the own key is not read at all when it has no record entry, so no guard file is created for it.
 
 **What:**
 **Goal:** `lock` exports a Lock overview: every held lock, this worktree's state as a named value (`free`, `held`, `stale`, `invalid`, `unreadable`) and typed per-record problems (key, path, invalid or unreadable). A foreign invalid or unreadable record is one problem beside the other locks; only an unlistable locks directory fails it; a missing locks directory gives an empty overview with state free and creates nothing. A guard that cannot be opened for one key makes that record unreadable. The glossary Note `lock-overview` exists under `glossary-coordination`. No caller changes yet.

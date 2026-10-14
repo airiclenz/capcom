@@ -316,27 +316,10 @@ func (l *Locks) Check(key, token string) (Status, error) {
 // holds no valid lock, which it skips. It fails only when the lock directory or a record cannot be
 // read.
 func (l *Locks) List() ([]Status, []error, error) {
-	entries, err := os.ReadDir(l.dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		// Windows reports a file in the directory's place as not found too.
-		if _, statErr := os.Lstat(l.dir); errors.Is(statErr, fs.ErrNotExist) {
-			return []Status{}, nil, nil
-		}
-		err = errors.New("not a directory")
-	}
+	keys, err := l.recordKeys("")
 	if err != nil {
-		return nil, nil, fmt.Errorf("%s: %w", l.dir, err)
+		return nil, nil, err
 	}
-
-	keys := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		name := entry.Name()
-		key, isRecord := strings.CutSuffix(name, recordExtension)
-		if isRecord && !entry.IsDir() && !strings.HasPrefix(name, hiddenPrefix) {
-			keys = append(keys, key)
-		}
-	}
-	sort.Strings(keys)
 
 	held := make([]Status, 0, len(keys))
 	var warnings []error
@@ -354,6 +337,36 @@ func (l *Locks) List() ([]Status, []error, error) {
 		}
 	}
 	return held, warnings, nil
+}
+
+// recordKeys returns the key of every record file in the lock directory, ordered. It skips hidden
+// files and directories, except that ownKey's entry is kept even when it is a directory, so reading
+// it reports the problem; an empty ownKey keeps no directory. A missing lock directory has no keys
+// and is not created; only a lock directory that cannot be listed fails.
+func (l *Locks) recordKeys(ownKey string) ([]string, error) {
+	entries, err := os.ReadDir(l.dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		// Windows reports a file in the directory's place as not found too.
+		if _, statErr := os.Lstat(l.dir); errors.Is(statErr, fs.ErrNotExist) {
+			return []string{}, nil
+		}
+		err = errors.New("not a directory")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", l.dir, err)
+	}
+
+	keys := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		key, isRecord := strings.CutSuffix(name, recordExtension)
+		isKept := !entry.IsDir() || (ownKey != "" && key == ownKey)
+		if isRecord && isKept && !strings.HasPrefix(name, hiddenPrefix) {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	return keys, nil
 }
 
 // withGuard runs body while holding the OS file lock on key's guard file, passing it the current
