@@ -64,7 +64,7 @@ type checker struct {
 }
 
 // add records one problem at the absolute or worktree-relative path.
-func (c *checker) add(path string, line int, code string, message string) {
+func (c *checker) add(path string, line int, code diagnose.Kind, message string) {
 	c.problems = append(c.problems, Problem{
 		Path:    c.relative(path),
 		Line:    line,

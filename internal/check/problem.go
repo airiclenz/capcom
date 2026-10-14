@@ -9,56 +9,57 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// The closed set of Problem codes.
+// The closed set of Problem codes, each the diagnose.Kind of the same name. A repeated alias is
+// reported as CodeDuplicate (see kindCode).
 const (
 	// CodeConfig is a config.yaml that cannot be used.
-	CodeConfig = "config"
+	CodeConfig = diagnose.Config
 	// CodeInvalidID is a node file whose name is not a valid id.
-	CodeInvalidID = "invalid-id"
+	CodeInvalidID = diagnose.InvalidID
 	// CodeInvalidAlias is an alias outside the allowed characters.
-	CodeInvalidAlias = "invalid-alias"
+	CodeInvalidAlias = diagnose.InvalidAlias
 	// CodeDuplicate is an id or alias used twice in one tree.
-	CodeDuplicate = "duplicate"
+	CodeDuplicate = diagnose.Duplicate
 	// CodeOrphanDirectory is a directory without the node file of the same name.
-	CodeOrphanDirectory = "orphan-directory"
+	CodeOrphanDirectory = diagnose.OrphanDirectory
 	// CodeNotRegular is an entry left out unread because it is not a regular file (a symlink, a
 	// named pipe, a device) or is a node file larger than 1 MiB.
-	CodeNotRegular = "not-regular"
+	CodeNotRegular = diagnose.NotRegular
 	// CodeFrontmatter is an issue or Note file that does not parse: a malformed frontmatter, an
 	// unknown or repeated key, a value of the wrong shape.
-	CodeFrontmatter = "frontmatter"
+	CodeFrontmatter = diagnose.Frontmatter
 	// CodeConflict is a git conflict marker left in an issue or Note file by a merge.
-	CodeConflict = "conflict"
+	CodeConflict = diagnose.Conflict
 	// CodeField is a parsed issue or Note whose values are not usable: a missing title, an
 	// undeclared status or type, a closed issue without closed or reason, and the like.
-	CodeField = "field"
+	CodeField = diagnose.Field
 	// CodeMissingDep is a dependency that names no issue.
-	CodeMissingDep = "missing-dep"
+	CodeMissingDep = diagnose.MissingDep
 	// CodeMissingRelated is a related link that names no issue.
-	CodeMissingRelated = "missing-related"
+	CodeMissingRelated = diagnose.MissingRelated
 	// CodeMissingSupersededBy is a superseded-by link that names no Note.
-	CodeMissingSupersededBy = "missing-superseded-by"
+	CodeMissingSupersededBy = diagnose.MissingSupersededBy
 	// CodeFormatTooOld is an issue or Note key the store's declared format does not hold yet:
 	// related in a store below format 2, retired or superseded-by in a store below format 3.
-	CodeFormatTooOld = "format-too-old"
+	CodeFormatTooOld = diagnose.FormatTooOld
 	// CodeCycle is a dependency cycle.
-	CodeCycle = "cycle"
+	CodeCycle = diagnose.Cycle
 	// CodeMissingPlan is a plan found in none of the configured plans directories.
-	CodeMissingPlan = "missing-plan"
+	CodeMissingPlan = diagnose.MissingPlan
 	// CodeBrokenRef is a Note Ref that does not resolve in the working tree.
-	CodeBrokenRef = "broken-ref"
+	CodeBrokenRef = diagnose.BrokenRef
 	// CodeAgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled,
 	// or one that is not a regular file or is larger than 1 MiB.
-	CodeAgentsBlock = "agents-block"
+	CodeAgentsBlock = diagnose.AgentsBlock
 )
 
 // Problem is one thing wrong with the store. Path is relative to the working tree root with
 // forward slashes; Line is 1-based, or 0 when no single line is to blame.
 type Problem struct {
-	Path    string `json:"path"`
-	Line    int    `json:"line"`
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Path    string        `json:"path"`
+	Line    int           `json:"line"`
+	Code    diagnose.Kind `json:"code"`
+	Message string        `json:"message"`
 }
 
 // String renders "path:line: message", or "path: message" when the line is unknown.
@@ -115,12 +116,12 @@ func (c *checker) loadTree(
 }
 
 // kindCode is the Problem code of a problem of kind: a repeated alias is a duplicate, and every
-// other Kind is the code of the same name.
-func kindCode(kind diagnose.Kind) string {
+// other Kind is its own code.
+func kindCode(kind diagnose.Kind) diagnose.Kind {
 	if kind == diagnose.RepeatedAlias {
 		return CodeDuplicate
 	}
-	return string(kind)
+	return kind
 }
 
 // readFile reads the issue or Note file at path through nodefile.ReadRegularFile. A file it refuses

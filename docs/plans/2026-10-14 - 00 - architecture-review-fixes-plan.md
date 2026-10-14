@@ -310,7 +310,9 @@ NOTES (2026-10-14): re-derived from the assumption that duplicates.go (excludeCl
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/check/`
 **Commit:** `refactor(check): add parse failures from the finding directly`
 
-## P2.4 One code set, part 1: diagnose owns every code
+## P2.4 One code set, part 1: diagnose owns every code — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the P2.1 closed-set pin's helper `codeConstants` (check_test.go) read only string-literal Code constants; it now also resolves a `diagnose.X` value through the diagnose package's source (new helpers `stringConstants`, `constantValue`), so the pin stays green on the aliases. diagnose_test.go gains `TestKind_EachKind_PinsItsString` pinning all eighteen Kind strings. issues.go, notes.go and agents.go needed no change: their `CodeX` arguments to `checker.add` type-check as `diagnose.Kind`.
 
 **What:**
 **Goal:** every check code is a `diagnose.Kind`; `check.Problem.Code` is typed `diagnose.Kind`; check JSON unchanged.

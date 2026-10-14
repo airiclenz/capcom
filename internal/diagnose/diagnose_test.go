@@ -78,3 +78,36 @@ func TestReadRefusal_EachError_ReturnsTheRefusalSentinel(t *testing.T) {
 		})
 	}
 }
+
+// A Kind's string is the code check --json reports and the kind the index stores with a warning,
+// so every value is pinned here.
+func TestKind_EachKind_PinsItsString(t *testing.T) {
+	tests := map[diagnose.Kind]string{
+		diagnose.InvalidID:           "invalid-id",
+		diagnose.InvalidAlias:        "invalid-alias",
+		diagnose.Duplicate:           "duplicate",
+		diagnose.RepeatedAlias:       "repeated-alias",
+		diagnose.OrphanDirectory:     "orphan-directory",
+		diagnose.NotRegular:          "not-regular",
+		diagnose.Frontmatter:         "frontmatter",
+		diagnose.Field:               "field",
+		diagnose.Config:              "config",
+		diagnose.Conflict:            "conflict",
+		diagnose.MissingDep:          "missing-dep",
+		diagnose.MissingRelated:      "missing-related",
+		diagnose.MissingSupersededBy: "missing-superseded-by",
+		diagnose.FormatTooOld:        "format-too-old",
+		diagnose.Cycle:               "cycle",
+		diagnose.MissingPlan:         "missing-plan",
+		diagnose.BrokenRef:           "broken-ref",
+		diagnose.AgentsBlock:         "agents-block",
+	}
+
+	for kind, want := range tests {
+		t.Run(want, func(t *testing.T) {
+			if string(kind) != want {
+				t.Errorf("Kind = %q, want %q", kind, want)
+			}
+		})
+	}
+}

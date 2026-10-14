@@ -28,7 +28,7 @@ func writeGuide(t *testing.T, root string, content string) {
 func codedProblems(problems []check.Problem) []string {
 	result := make([]string, 0, len(problems))
 	for _, problem := range problems {
-		result = append(result, problem.Code+" "+problem.String())
+		result = append(result, string(problem.Code)+" "+problem.String())
 	}
 	return result
 }
@@ -68,7 +68,7 @@ func TestRun_StaleAgentsBlock_ReportsOneProblemAtTheBeginMarkerLine(t *testing.T
 	problems := runCheck(t, root)
 
 	want := []string{
-		check.CodeAgentsBlock + " " + agents.FileName +
+		string(check.CodeAgentsBlock) + " " + agents.FileName +
 			":3: the capcom block is out of date; run capcom agents to refresh it",
 	}
 	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
@@ -98,7 +98,7 @@ func TestRun_TangledAgentsMarkers_ReportsTheMarkerErrorWithoutFailing(t *testing
 
 			problems := runCheck(t, root)
 
-			want := []string{check.CodeAgentsBlock + " " + agents.FileName + testCase.wantLine}
+			want := []string{string(check.CodeAgentsBlock) + " " + agents.FileName + testCase.wantLine}
 			if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
 				t.Errorf("problems = %q\nwant %q", got, want)
 			}
@@ -160,7 +160,7 @@ func TestRun_UnreadableAgentsFile_ReportsAnAgentsBlockProblem(t *testing.T) {
 
 			problems := runCheckWithin(t, root)
 
-			want := []string{check.CodeAgentsBlock + " " + agents.FileName + ": " + testCase.wantMessage}
+			want := []string{string(check.CodeAgentsBlock) + " " + agents.FileName + ": " + testCase.wantMessage}
 			if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
 				t.Errorf("problems = %q\nwant %q", got, want)
 			}

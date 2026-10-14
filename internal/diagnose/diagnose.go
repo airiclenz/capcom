@@ -12,7 +12,8 @@ import (
 )
 
 // Kind classifies a problem with one file or directory, so a caller tells problems apart without
-// reading the message. Its values are the kinds the index stores with each warning.
+// reading the message. Its values are the codes check reports and the kinds the index stores with
+// each warning; the index stores only the kinds a file's walk, parse or validation finds.
 type Kind string
 
 // The kinds of problem.
@@ -34,6 +35,28 @@ const (
 	Frontmatter Kind = "frontmatter"
 	// Field is a field value the file's kind does not accept.
 	Field Kind = "field"
+	// Config is a config.yaml that cannot be used.
+	Config Kind = "config"
+	// Conflict is a git conflict marker left in an issue or Note file by a merge.
+	Conflict Kind = "conflict"
+	// MissingDep is a dependency that names no issue.
+	MissingDep Kind = "missing-dep"
+	// MissingRelated is a related link that names no issue.
+	MissingRelated Kind = "missing-related"
+	// MissingSupersededBy is a superseded-by link that names no Note.
+	MissingSupersededBy Kind = "missing-superseded-by"
+	// FormatTooOld is an issue or Note key the store's declared format does not hold yet: related
+	// in a store below format 2, retired or superseded-by in a store below format 3.
+	FormatTooOld Kind = "format-too-old"
+	// Cycle is a dependency cycle.
+	Cycle Kind = "cycle"
+	// MissingPlan is a plan found in none of the configured plans directories.
+	MissingPlan Kind = "missing-plan"
+	// BrokenRef is a Note Ref that does not resolve in the working tree.
+	BrokenRef Kind = "broken-ref"
+	// AgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled, or
+	// one that is not a regular file or is larger than 1 MiB.
+	AgentsBlock Kind = "agents-block"
 )
 
 // TreeKind returns the Kind of a problem tree.Walk, tree.Load or tree.CheckAliases reports, by the
