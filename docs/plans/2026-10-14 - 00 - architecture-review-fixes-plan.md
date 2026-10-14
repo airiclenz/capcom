@@ -74,7 +74,10 @@
 - Review candidates 4–10 and "Multi-argument results".
 - Defect leads "six write sites drop Effects" and "update wraps ReplaceBody" (verified harmless); show's per-argument report of a doubly-claimed name; supersession cycle checks; nodestore `renameRefs`/`dropRefs` sharing `reflist`.
 
-## P0.1 File the review issues
+## P0.1 File the review issues — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the review HTML and this plan were already tracked (ccd3f32, 5884f58), so neither file is edited or listed in FILES; the Goal's "tracked" clause holds on the tree as found.
+NOTES (2026-10-14): claimed-name-prefix's body cites a reproduction made in a scratch repo: an orphan file .capcom/issues/ghost/foo.md plus a valid foo-bar makes `capcom rm foo` remove foo-bar; an unparseable foo.md did not trigger it (mv refuses with the parse error, create --parent files below foo/).
 
 **What:**
 **Goal:** `arch-review-1014` ("Architecture review 2026-10-14") has the nine children below, each with a self-contained body ending in `## Acceptance`; the review file and this plan are tracked; `capcom check` is clean.
