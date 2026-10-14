@@ -62,7 +62,7 @@
 - P3.4 (re-check): guard folded (repins check_test.go:859's `loadTree` noun; rule exempts P3.5's summaries and kind/JSON values; `nounPhrase` grep and new message assertions)
 - P3.5 (re-check): guard folded (help goldens `know-mv.txt`/`know-add.txt`; CHANGELOG.md:16 quotes reworded; flag-help grep in Acceptance)
 
-## P0.1 Commit the review, the issues and the plan
+## P0.1 Commit the review, the issues and the plan — ✅ ALREADY-DONE (eb617be)
 
 **What:** Recast at the regression check (2026-10-14).
 **Goal:** the second review, the archived first review, the `arch-review-1014b` issues and this plan are committed; `capcom check` reports no problem.
