@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -13,12 +12,6 @@ import (
 
 // refSymbolSeparator splits a Note Ref into its path and symbol.
 const refSymbolSeparator = "#"
-
-// The Note keys a store needs format 3 for, as Problems name them.
-const (
-	keyRetired      = "retired"
-	keySupersededBy = "superseded-by"
-)
 
 // notes checks the Knowledge tree: its load problems, each Note's frontmatter and fields, and its
 // Refs.
@@ -80,8 +73,8 @@ func leftOutNames(loaded *tree.Tree) map[string]bool {
 
 // checkSupersession checks the supersession keys of one parsed Note: each superseded-by entry must
 // name a Note by id or by an alias, or one of leftOut, the names of the Note files Load left out
-// for a repeated id, and the retired and superseded-by keys need a store declaring format 3,
-// however they are set. An entry Validate rejects as no id is left to Validate.
+// for a repeated id, and each key line of the Knowledge tree's format table (retired and
+// superseded-by), whatever it holds, needs a store declaring the key's format. An entry Validate rejects as no id is left to Validate.
 func (c *checker) checkSupersession(
 	node tree.Node,
 	note knowledge.Note,
@@ -101,22 +94,7 @@ func (c *checker) checkSupersession(
 			))
 		}
 	}
-	if declaredFormat >= config.FormatSupersession {
-		return
-	}
-	keyLines := []struct {
-		key  string
-		line int
-	}{
-		{key: keyRetired, line: note.RetiredLine()},
-		{key: keySupersededBy, line: note.SupersededByKeyLine()},
-	}
-	for _, keyLine := range keyLines {
-		if keyLine.line == 0 {
-			continue
-		}
-		c.addFormatTooOld(path, keyLine.line, keyLine.key, config.FormatSupersession, declaredFormat)
-	}
+	addKeysFormatTooOld(c, path, note, nodestore.NoteDescriptor().Formats, declaredFormat)
 }
 
 // retiredSubtrees returns the ids of the nodes that are retired or sit below a retired ancestor,

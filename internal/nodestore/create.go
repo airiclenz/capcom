@@ -34,9 +34,9 @@ import (
 //     file another session removed or cannot be checked fails with a *FileError at it, creating
 //     neither the parent's children directory nor the new file.
 //  9. the format raise, after every check so a create an earlier step refuses leaves config.yaml
-//     as it was: when the node carries a key value of a newer store format than config.yaml
-//     declares, config.yaml is raised to it (Written.RaisedFormat); a failure is a *FileError at
-//     config.yaml.
+//     as it was: when the new file carries a key line of a newer store format than config.yaml
+//     declares, whatever the line holds, config.yaml is raised to it (Written.RaisedFormat); a
+//     failure is a *FileError at config.yaml.
 //  10. the exclusive write, which never replaces a file: a file that appeared at the new node's
 //     path since the claim fails with the *ExistsError naming it; any other failure is returned
 //     as it is.
@@ -86,8 +86,7 @@ func (k *Kind[T]) Create(
 			return Written{}, nil, k.fileError(parentPath, err)
 		}
 	}
-	var none T
-	raised, err := k.raise(none, node)
+	raised, err := k.raise(path, encoded)
 	if err != nil {
 		return Written{}, nil, err
 	}

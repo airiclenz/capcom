@@ -237,9 +237,9 @@ func editSuccessors(
 // resolves arg through the index, refuses with conflict when --if-match is set and is not the
 // file's etag, applies the flags to the parsed Note, then validates and writes the result
 // atomically (Kind.Edit), whose sync hook (see notes) then refreshes a stale capcom block of
-// AGENTS.md. Every failure names the Note file, or config.yaml when its raise fails. An edit that
-// retires the Note or gives it a new superseded-by entry raises a store below format 3 to 3 before
-// the write (Kind.Edit), with a warning.
+// AGENTS.md. Every failure names the Note file, or config.yaml when its raise fails. An edit whose
+// written file carries a retired or superseded-by line raises a store below format 3 to 3 before
+// the write (Kind.Edit), with a warning (editNode).
 func (a *app) updateNote(
 	cmd *cobra.Command,
 	arg string,
@@ -247,14 +247,13 @@ func (a *app) updateNote(
 	inputs noteInputs,
 ) (output.Result, error) {
 	notes := a.notes(noteResolver{index: a.issueIndex})
-	written, err := editNode(notes, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
+	written, err := editNode(a, notes, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
 		return applyNoteUpdate(cmd, options, inputs, note)
 	})
 	if err != nil {
 		return output.Result{}, err
 	}
 	result := noteWriteResult(written.ID, written.Path, written.ETag)
-	a.warnRaisedFormat(&result, written.Effects)
 	addSyncEffects(&result, written.Effects)
 	return result, nil
 }

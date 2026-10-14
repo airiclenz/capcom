@@ -383,3 +383,24 @@ func TestClose_ClosedByAnotherSessionAfterResolve_ReportsAlreadyClosedAndKeepsTh
 		})
 	}
 }
+
+func TestClose_IssueHoldingRelatedInAFormatOneStore_RaisesTheFormatAndWarnsOnce(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"build-pipeline.md": readIssue("Build pipeline", "open", "", ""),
+		"db-schema.md":      readIssue("Schema", "open", "", ""),
+		"login-flow.md":     readIssue("Login flow", "open", "related: [db-schema]\n", ""),
+	})
+	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n")
+
+	stdout, stderr, exitCode := runCLI(t, root, "close", "login-flow", "build-pipeline", "--reason", "done")
+
+	if exitCode != ExitOK || stderr != "" || strings.Count(stdout, formatRaisedText) != 1 {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q; want the raise warned once", exitCode, stderr, stdout)
+	}
+	if config := readStoreConfig(t, root); config != "format: 2\ntypes: [bug, feature, task, chore]\n" {
+		t.Errorf("config.yaml = %q; want format 2 declared", config)
+	}
+	if login := readStoreFile(t, root, "login-flow.md"); !strings.Contains(login, "related: [db-schema]\n") {
+		t.Errorf("login-flow.md = %q; want its related entry kept", login)
+	}
+}

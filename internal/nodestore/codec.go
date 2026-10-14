@@ -1,8 +1,6 @@
 package nodestore
 
 import (
-	"slices"
-
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -11,7 +9,7 @@ import (
 
 // Codec is what a Kind knows of its node files: how one parses, serializes and validates, which
 // Aliases a parsed node records, the noun that names one node in a message, which of its fields
-// reference other nodes, and the store format a write needs.
+// reference other nodes, and which of its key lines need a store format.
 type Codec[T any] struct {
 	// Noun names one node of the kind in a message, as the kind's Descriptor names it.
 	Noun string
@@ -34,10 +32,9 @@ type Codec[T any] struct {
 	// other nodes of the tree by id; a rename rewrites them, and a removal drops them, through one
 	// engine.
 	refs []refField[T]
-	// requiredFormat returns the store format (ADR 0009) that writing after, the node before
-	// changed, needs config.yaml to declare: the format introducing a key value after gains, or 0
-	// when it gains none. A new node is written with the zero node as before.
-	requiredFormat func(before T, after T) int
+	// formats is the kind's format table, as the kind's Descriptor lists it: every key whose line
+	// a file may carry only from a later store format on.
+	formats []KeyFormat[T]
 }
 
 // issueCodec is the Codec of the issue tree, filled from IssueDescriptor; cfg declares the
@@ -55,13 +52,8 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 			node.Aliases = aliases
 			return node
 		},
-		refs: descriptor.refs,
-		requiredFormat: func(before issue.Issue, after issue.Issue) int {
-			if gainsEntry(before.Related, after.Related) {
-				return config.FormatRelated
-			}
-			return 0
-		},
+		refs:    descriptor.refs,
+		formats: descriptor.Formats,
 	}
 }
 
@@ -79,28 +71,21 @@ func noteCodec() Codec[knowledge.Note] {
 			node.Aliases = aliases
 			return node
 		},
-		refs: descriptor.refs,
-		requiredFormat: func(before knowledge.Note, after knowledge.Note) int {
-			if gainsSupersession(before, after) {
-				return config.FormatSupersession
-			}
-			return 0
-		},
+		refs:    descriptor.refs,
+		formats: descriptor.Formats,
 	}
 }
 
-// gainsSupersession reports whether after, the edit of before, newly carries a format-3 key value:
-// it is retired where before was not, or it has a superseded-by entry before lacks.
-func gainsSupersession(before knowledge.Note, after knowledge.Note) bool {
-	if after.IsRetired && !before.IsRetired {
-		return true
+// requiredFormat returns the store format (ADR 0009) a file holding node, parsed from that file,
+// needs config.yaml to declare: the latest format of the format table whose key has a line in the
+// file, whatever the line holds, or 0 when the file carries none of them. A key line needs its
+// format even when empty, because a release older than the key rejects the file for the key alone.
+func (c Codec[T]) requiredFormat(node T) int {
+	required := 0
+	for _, row := range c.formats {
+		if row.Line(node) > 0 {
+			required = max(required, row.Format)
+		}
 	}
-	return gainsEntry(before.SupersededBy, after.SupersededBy)
-}
-
-// gainsEntry reports whether after holds an entry that before lacks.
-func gainsEntry(before []string, after []string) bool {
-	return slices.ContainsFunc(after, func(entry string) bool {
-		return !slices.Contains(before, entry)
-	})
+	return required
 }

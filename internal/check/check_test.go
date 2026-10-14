@@ -343,6 +343,7 @@ func TestRun_RelatedBelowFormatTwo_ReportsFormatTooOldAtTheRelatedLine(t *testin
 			writeFiles(t, root, testCase.files)
 			writeFiles(t, root, map[string]string{
 				issues + "login-flow.md":      issueFile("labels: [auth]\nrelated: [session-timeout]\n"),
+				issues + "quiet-flow.md":      issueFile("related: []\n"),
 				issues + "session-timeout.md": issueFile(""),
 			})
 
@@ -352,10 +353,12 @@ func TestRun_RelatedBelowFormatTwo_ReportsFormatTooOldAtTheRelatedLine(t *testin
 			for _, problem := range problems {
 				got = append(got, string(problem.Code)+" "+problem.String())
 			}
+			const advice = ": set format: 2 in .capcom/config.yaml, or run a capcom write verb that raises it"
 			want := []string{
-				string(diagnose.FormatTooOld) + " " + issues + "login-flow.md:8: related needs store format 2, " +
-					"but the store declares format 1: set format: 2 in .capcom/config.yaml, " +
-					"or run a capcom write verb that raises it",
+				string(diagnose.FormatTooOld) + " " + issues +
+					"login-flow.md:8: related needs store format 2, but the store declares format 1" + advice,
+				string(diagnose.FormatTooOld) + " " + issues +
+					"quiet-flow.md:7: related needs store format 2, but the store declares format 1" + advice,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("problems = %q\nwant %q", got, want)
@@ -370,6 +373,7 @@ func TestRun_SupersessionKeysWithoutConfig_ReportFormatTooOldAtEachKey(t *testin
 		knowledge + "old-flow.md":  "---\ntitle: Old flow\nretired: true\nsuperseded-by: [new-flow]\n---\n",
 		knowledge + "new-flow.md":  "---\ntitle: New flow\n---\n",
 		knowledge + "live-flow.md": "---\ntitle: Live flow\nsuperseded-by: []\n---\n",
+		knowledge + "kept-flow.md": "---\ntitle: Kept flow\nretired: false\n---\n",
 	})
 
 	problems := runCheck(t, root)
@@ -380,6 +384,8 @@ func TestRun_SupersessionKeysWithoutConfig_ReportFormatTooOldAtEachKey(t *testin
 	}
 	const advice = ": set format: 3 in .capcom/config.yaml, or run a capcom write verb that raises it"
 	want := []string{
+		string(diagnose.FormatTooOld) + " " + knowledge +
+			"kept-flow.md:3: retired needs store format 3, but the store declares format 1" + advice,
 		string(diagnose.FormatTooOld) + " " + knowledge +
 			"live-flow.md:3: superseded-by needs store format 3, but the store declares format 1" + advice,
 		string(diagnose.FormatTooOld) + " " + knowledge +

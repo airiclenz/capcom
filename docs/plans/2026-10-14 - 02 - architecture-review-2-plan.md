@@ -188,7 +188,17 @@ internal/cli/close.go — alreadyClosed; internal/cli/cli_test.go — TestUpdate
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`; `grep -n 'readIssueFile\|nodefile.ETag\|issue.Parse\|knowledge.Parse' internal/cli/show.go internal/cli/know_show.go internal/cli/know_verify.go internal/cli/close.go internal/cli/update.go` prints nothing
 **Commit:** `refactor(cli): read node files through the Kind reader`
 
-## P2.1 One format-key rule for codec and check
+## P2.1 One format-key rule for codec and check — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the format raise parses the bytes about to be written (Kind.raise(path, data)) and Codec.requiredFormat reads the descriptor's format table off that parsed node; since Serialize drops empty lists and `retired: false`, only a non-empty `related`/`superseded-by` or `retired: true` line raises on a write, while check flags the hand-written empty forms
+
+NOTES (2026-10-14): descriptor.go needed no change (its Formats table from P1.1 is the one table); check reads it through a new generic addKeysFormatTooOld in internal/check/problem.go, a file the plan did not list
+
+NOTES (2026-10-14): editNode now takes the app and adds the raise warning to a new app.writeWarnings list that emit renders after the index warnings and before the result's own, keeping know update's raise-then-sync warning order
+
+NOTES (2026-10-14): TestKnowUpdate_WritesThatGainNoKey_LeaveTheConfigAlone recast and renamed TestKnowUpdate_WritesCarryingAKeyLine_RaiseTheConfigOnceWhateverTheyGain (refused edits first leave format 2; the first no-gain write raises to 3 with one warning; later writes warn no more)
+
+NOTES (2026-10-14): related add / know update help text and docs/site/concepts pages left as they are: "the first link ... raises" and "retiring a Note ... raises" stay true under the new rule
 
 **What:**
 **Goal:** fixes `format-key-rule`: a key line needs its format whatever it holds. Check flags `related: []` below `config.FormatRelated` and `superseded-by: []` and `retired: false` below `config.FormatSupersession`; a write raises the store format when the file it writes carries a key line the store's format lacks. Both read the descriptor's format table; `gainsEntry`/`gainsSupersession` and check's `keyRelated`/`keyRetired`/`keySupersededBy` constants are gone.

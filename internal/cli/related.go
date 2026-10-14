@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -16,8 +15,8 @@ import (
 // relatedSelfFormat refuses linking an issue, the format's one argument, to itself.
 const relatedSelfFormat = "%s cannot be related to itself"
 
-// formatRaisedWarning is the warning of the write that raises the store format (capcom related add
-// and know update): the config file, the new format, and the format older releases read.
+// formatRaisedWarning is the warning of the edit that raises the store format (editNode): the config
+// file, the new format, and the format older releases read.
 const formatRaisedWarning = "%s: store format raised to %d; capcom releases that read only format %d can no longer read this store"
 
 // The help text of capcom related, related add and related rm.
@@ -97,9 +96,7 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := writeResult(written.ID, written.Path, written.ETag)
-			a.warnRaisedFormat(&result, written.Effects)
-			return a.emit(cmd, result)
+			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	}
 	cmd.Flags().StringVar(&ifMatch, flagIfMatch, "", "only write when the first issue's etag is this one (see show)")
@@ -176,15 +173,16 @@ func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.E
 	return other, reverse, nil
 }
 
-// warnRaisedFormat adds to result the warning of a write whose effects raised the store format
-// (formatRaisedWarning), and nothing when the write left config.yaml alone.
-func (a *app) warnRaisedFormat(result *output.Result, effects nodestore.Effects) {
+// warnRaisedFormat adds the warning of a write whose effects raised the store format
+// (formatRaisedWarning) to the command's write warnings, and nothing when the write left
+// config.yaml alone.
+func (a *app) warnRaisedFormat(effects nodestore.Effects) {
 	if effects.RaisedFormat == 0 {
 		return
 	}
 	displayPath := a.store.Relative(a.store.ConfigPath())
-	result.Warnings = append(
-		result.Warnings,
+	a.writeWarnings = append(
+		a.writeWarnings,
 		fmt.Sprintf(formatRaisedWarning, displayPath, effects.RaisedFormat, effects.RaisedFormat-1),
 	)
 }

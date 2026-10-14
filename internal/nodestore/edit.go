@@ -33,9 +33,10 @@ var beforeRecheck = func(path string) {}
 //     being a *FileError at it as in step 2, and when its etag is no longer the one step 2 read,
 //     a *ConflictError naming that first-read etag as stale; the newer file is left as it is.
 //  8. the format raise, after every check so an edit an earlier step refuses leaves config.yaml
-//     as it was: when the changed node gains a key value of a newer store format than config.yaml
-//     declares, config.yaml is raised to it (Written.RaisedFormat), so a store never holds such a
-//     value while it declares an older format; a failure is a *FileError at config.yaml.
+//     as it was: when the file about to be written carries a key line of a newer store format than
+//     config.yaml declares, whatever the line holds and whether or not the edit added it,
+//     config.yaml is raised to it (Written.RaisedFormat), so a store never holds such a line while
+//     it declares an older format; a failure is a *FileError at config.yaml.
 //  9. the atomic write: a node file removed or moved since the re-check fails with a *FileError at
 //     it and is not recreated; any other failure is returned as it is. An edit landing between the
 //     re-check and this write is still overwritten: the store takes no lock.
@@ -76,7 +77,7 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err := k.recheck(path, firstETag); err != nil {
 		return located, err
 	}
-	raised, err := k.raise(node, edited)
+	raised, err := k.raise(path, encoded)
 	if err != nil {
 		return located, err
 	}

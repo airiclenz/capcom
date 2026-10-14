@@ -30,12 +30,16 @@ func (a *app) editIssue(
 	ifMatch string,
 	change func(issue.Issue) (issue.Issue, error),
 ) (nodestore.Written, error) {
-	return editNode(nodestore.Issues(a.store, issueResolver{index: a.issueIndex}), arg, ifMatch, change)
+	return editNode(a, nodestore.Issues(a.store, issueResolver{index: a.issueIndex}), arg, ifMatch, change)
 }
 
 // editNode runs kind.Edit and types its failure through kindFailure. A failure of change that names
-// no file is placed at the node's file, so a refusal of the change itself still names the file.
+// no file is placed at the node's file, so a refusal of the change itself still names the file. An
+// edit that raised the store format, because the file it wrote carries a key line config.yaml's
+// format lacks, adds formatRaisedWarning to the warnings the command's result renders, so every
+// edit verb warns of the raise once.
 func editNode[T any](
+	a *app,
 	kind *nodestore.Kind[T],
 	arg string,
 	ifMatch string,
@@ -48,6 +52,7 @@ func editNode[T any](
 		return edited, err
 	})
 	if err == nil {
+		a.warnRaisedFormat(written.Effects)
 		return written, nil
 	}
 	failure := kindFailure(err)

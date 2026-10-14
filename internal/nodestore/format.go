@@ -18,7 +18,9 @@ type Formatted struct {
 
 // Format brings every node file the kind's tree places to its canonical form: a file whose bytes
 // differ from the serialization of its parsed node is rewritten, unless isCheck, and listed either
-// way. It never resolves an argument, so it works on a Kind without a Resolver.
+// way. It never resolves an argument, so it works on a Kind without a Resolver. Unlike Create and
+// Edit it raises no store format: config.yaml is left alone even when a file it rewrites carries a
+// key line of a newer store format than config.yaml declares, a line capcom check reports.
 //
 // A tree problem, and a file that does not parse or validate, is a warning and the file is left
 // alone. A tree that cannot be loaded at all fails as it is, its files relative to the working

@@ -74,7 +74,8 @@ type Written struct {
 // Effects are what a write changed besides the node file.
 type Effects struct {
 	// RaisedFormat is the store format (ADR 0009) the write raised config.yaml to, so that the store
-	// declares the format of the key values the node gained; 0 when config.yaml was left alone.
+	// declares the format of every key line the written file carries, whatever the line holds; 0
+	// when config.yaml was left alone.
 	RaisedFormat int
 	// IsSynced reports whether the Kind's sync hook, run once the write had landed, changed what it
 	// keeps in step with the tree; false when the Kind has no hook, it ran none or it failed.
@@ -199,13 +200,19 @@ func (k *Kind[T]) aliasParser(path string) tree.AliasParseFunc {
 	}
 }
 
-// raise raises config.yaml to the store format writing after, the node before changed, needs
-// (Codec.requiredFormat), and returns the format it raised the file to: 0 when the write needs no
-// format or the store already declares it or above. A failure is a *FileError at config.yaml: a
-// config.yaml that is not a regular file or is larger than 1 MiB is named by the refusal alone, and
-// a *config.Error, which already names config.yaml, keeps its line and message.
-func (k *Kind[T]) raise(before T, after T) (int, error) {
-	version := k.codec.requiredFormat(before, after)
+// raise raises config.yaml to the store format the node file data, the bytes about to be written to
+// path, needs (Codec.requiredFormat): a key line data carries needs its format whatever the line
+// holds. It returns the format it raised the file to: 0 when data needs no format or the store
+// already declares it or above. data that does not parse fails with a *FileError at path; any other
+// failure is a *FileError at config.yaml: a config.yaml that is not a regular file or is larger than
+// 1 MiB is named by the refusal alone, and a *config.Error, which already names config.yaml, keeps
+// its line and message.
+func (k *Kind[T]) raise(path string, data []byte) (int, error) {
+	written, err := k.codec.Parse(k.relative(path), data)
+	if err != nil {
+		return 0, k.fileError(path, err)
+	}
+	version := k.codec.requiredFormat(written)
 	if version == 0 {
 		return 0, nil
 	}

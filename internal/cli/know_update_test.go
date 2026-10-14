@@ -509,7 +509,7 @@ func TestKnowUpdate_FormatTwoStore_SupersededByAdd_RaisesToThree(t *testing.T) {
 	}
 }
 
-func TestKnowUpdate_WritesThatGainNoKey_LeaveTheConfigAlone(t *testing.T) {
+func TestKnowUpdate_WritesCarryingAKeyLine_RaiseTheConfigOnceWhateverTheyGain(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{
 		"release-flow.md": "---\ntitle: Release flow\nretired: true\nsuperseded-by: [cli-tests]\n---\n",
@@ -517,24 +517,31 @@ func TestKnowUpdate_WritesThatGainNoKey_LeaveTheConfigAlone(t *testing.T) {
 	writeStoreConfig(t, root, "format: 2\n")
 	staleETag := "0000000000000000"
 	cases := []struct {
-		args     []string
-		wantCode int
+		args       []string
+		wantCode   int
+		isWarned   bool
+		wantConfig string
 	}{
-		{[]string{"--retire", "--add-superseded-by", "cli-tests"}, ExitOK},
-		{[]string{"--remove-superseded-by", "cli-tests"}, ExitOK},
-		{[]string{"--unretire"}, ExitOK},
-		{[]string{"--retire", "--if-match", staleETag}, ExitError},
-		{[]string{"--retire", "--title", ""}, ExitError},
+		// A refused edit writes nothing, so it raises nothing, whatever lines the file carries.
+		{[]string{"--retire", "--if-match", staleETag}, ExitError, false, "format: 2\n"},
+		{[]string{"--retire", "--title", ""}, ExitError, false, "format: 2\n"},
+		// The first write gains no key value, but the file it writes carries both format-3 lines.
+		{[]string{"--retire", "--add-superseded-by", "cli-tests"}, ExitOK, true, "format: 3\n"},
+		{[]string{"--remove-superseded-by", "cli-tests"}, ExitOK, false, "format: 3\n"},
+		{[]string{"--unretire"}, ExitOK, false, "format: 3\n"},
 	}
 
 	for _, current := range cases {
 		stdout, stderr, exitCode := runCLI(t, root, append([]string{"know", "update", "release-flow"}, current.args...)...)
 
-		if exitCode != current.wantCode || strings.Contains(stdout, "warning:") {
-			t.Errorf("know update %v = %d\n%s%s; want %d without a warning", current.args, exitCode, stdout, stderr, current.wantCode)
+		warnings := strings.Count(stdout, knowUpdateFormatRaisedText)
+		if exitCode != current.wantCode || strings.Contains(stdout, "warning:") != current.isWarned ||
+			(current.isWarned && warnings != 1) {
+			t.Errorf("know update %v = %d\n%s%s; want %d, warned %t once",
+				current.args, exitCode, stdout, stderr, current.wantCode, current.isWarned)
 		}
-		if config := readStoreConfig(t, root); config != "format: 2\n" {
-			t.Fatalf("know update %v: config.yaml = %q; want it left at format 2", current.args, config)
+		if config := readStoreConfig(t, root); config != current.wantConfig {
+			t.Fatalf("know update %v: config.yaml = %q; want %q", current.args, config, current.wantConfig)
 		}
 	}
 }

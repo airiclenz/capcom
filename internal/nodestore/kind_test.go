@@ -2,6 +2,7 @@ package nodestore
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/frontmatter"
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -300,5 +302,81 @@ func TestRaise_UnplaceableFormatKey_FailsAtTheKeyLineNamingTheConfigOnce(t *test
 	}
 	if data := readFile(t, path); data != canonicalIssue {
 		t.Errorf("issue file =\n%s\nwant it unchanged", data)
+	}
+}
+
+func TestRaise_WrittenFileCarryingAKeyLine_RaisesToItsFormatWhateverTheEditChanged(t *testing.T) {
+	t.Parallel()
+	retitleIssue := func(t *testing.T, s *store.Store, content string) (Written, error) {
+		t.Helper()
+		writeNodeFile(t, s.IssuesDir(), editedIssueID+".md", content)
+		issues := Issues(s, fakeResolver{editedIssueID: {ID: editedIssueID, Path: editedIssuePath}})
+		calls := 0
+		return issues.Edit(editedIssueID, "", retitle("Fix the lexer", &calls))
+	}
+	retitleNote := func(t *testing.T, s *store.Store, content string) (Written, error) {
+		t.Helper()
+		writeNodeFile(t, s.KnowledgeDir(), "rule.md", content)
+		notes := Notes(s, fakeResolver{"rule": {ID: "rule", Path: ".capcom/knowledge/rule.md"}})
+		return notes.Edit("rule", "", func(note knowledge.Note) (knowledge.Note, error) {
+			note.Title = "Quoting"
+			return note, nil
+		})
+	}
+	withLine := func(content string, line string) string {
+		return strings.Replace(content, "aliases:", line+"\naliases:", 1)
+	}
+	tests := []struct {
+		name       string
+		edit       func(t *testing.T, s *store.Store, content string) (Written, error)
+		content    string
+		wantFormat int
+	}{
+		{
+			name:       "issue holding a related entry",
+			edit:       retitleIssue,
+			content:    withLine(canonicalIssue, "related: [db-schema]"),
+			wantFormat: config.FormatRelated,
+		},
+		{name: "issue holding no related key", edit: retitleIssue, content: canonicalIssue},
+		{
+			name:    "issue holding an empty related list, which the write leaves out",
+			edit:    retitleIssue,
+			content: withLine(canonicalIssue, "related: []"),
+		},
+		{
+			name:       "retired note holding a superseded-by entry",
+			edit:       retitleNote,
+			content:    canonicalNote,
+			wantFormat: config.FormatSupersession,
+		},
+		{
+			name: "note holding retired: false and an empty superseded-by, which the write leaves out",
+			edit: retitleNote,
+			content: strings.Replace(canonicalNote, "retired: true\nsuperseded-by: [new-rule]",
+				"retired: false\nsuperseded-by: []", 1),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			configPath := writeNodeFile(t, s.Root, "config.yaml", keylessConfig)
+
+			written, err := test.edit(t, s, test.content)
+
+			if err != nil {
+				t.Fatalf("Edit: %v", err)
+			}
+			wantConfig := keylessConfig
+			if test.wantFormat != 0 {
+				wantConfig = fmt.Sprintf("format: %d\n%s", test.wantFormat, keylessConfig)
+			}
+			if content := readFile(t, configPath); written.RaisedFormat != test.wantFormat ||
+				content != wantConfig {
+				t.Errorf("RaisedFormat = %d, config.yaml = %q; want %d and %q",
+					written.RaisedFormat, content, test.wantFormat, wantConfig)
+			}
+		})
 	}
 }

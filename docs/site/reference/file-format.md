@@ -160,8 +160,10 @@ deletes the file itself and never runs git.
 A **Related link** ties two issues together without either depending on the other: it never
 affects `ready`, `dep` or blocking. `capcom related add <a> <b>` writes the canonical id of `b`
 into the `related` list of `a`, and only there; the other issue's file is not touched. Linking an
-issue to itself is refused, and a link already held by either issue changes nothing. The first link
-written in a store below format 2 raises `config.yaml` to `format: 2` (see Config) and warns:
+issue to itself is refused, and a link already held by either issue changes nothing. In a store
+below format 2, any write that leaves a `related` line in the issue file raises `config.yaml` to
+`format: 2` (see Config) and warns: the first link, and also an `update`, `close`, `reopen`, `log`
+or `dep` of an issue that already holds one:
 
 ```text
 warning: .capcom/config.yaml: store format raised to 2; capcom releases that read only format 1 can no longer read this store
@@ -182,7 +184,7 @@ entries in file order, then the ids of the issues whose links name it, in id ord
 renaming `capcom mv` rewrites every `related` entry naming the old id or one of its aliases, as it
 does `deps`. `capcom check` reports a `related` entry that names no issue (`missing-related`) or
 names the issue itself (`field`), and a `related` key in a store declaring a format below 2
-(`format-too-old`), at the `related` line.
+(`format-too-old`), at the `related` line, whatever it holds: `related: []` included.
 
 ### Dependency output
 
@@ -490,9 +492,10 @@ still holds. Neither key implies the other.
   names no Note is matched only that way. One that matches no entry changes nothing. A prefix of
   several ids that no entry's text matches is refused naming the candidates, and a name two files
   claim is refused naming both files, as `capcom dep rm` refuses them; nothing is written. Both
-  repeat, and the removals apply after the additions. An update that retires
-  a Note or adds a `superseded-by` entry in a store below format 3 first raises `config.yaml` to
-  `format: 3`, as `capcom related add` raises it to 2 (see Config), and warns:
+  repeat, and the removals apply after the additions. An update that leaves a `retired` or
+  `superseded-by` line in the Note file in a store below format 3, whether or not the update
+  added it, first raises `config.yaml` to `format: 3`, as `capcom related add` raises it to 2
+  (see Config), and warns:
 
 ```text
 warning: .capcom/config.yaml: store format raised to 3; capcom releases that read only format 2 can no longer read this store
@@ -504,7 +507,8 @@ entry naming the old id or one of its aliases to the new id, and `capcom know rm
 entry naming the removed Note; a Note file that does not parse is left as it is, with a warning
 naming it. `capcom check` reports a `superseded-by` entry that names no Note by id or by an alias
 (`missing-superseded-by`), at the entry's line, and a `retired` or `superseded-by` key in a store
-declaring a format below 3 (`format-too-old`), at the key's line.
+declaring a format below 3 (`format-too-old`), at the key's line, whatever it holds:
+`retired: false` and `superseded-by: []` included.
 
 ### Refs
 
@@ -576,13 +580,17 @@ elsewhere:
   the `related` key to issue files; format 3 adds the Note keys `retired` and `superseded-by`.
   `capcom init` writes `format: 3` into a store it creates; into an existing store without
   `config.yaml` it writes the same file with the `format:` line left as the commented
-  `# format: 1`, so the store stays at format 1. The first
-  `capcom related add` in a store below format 2 raises it: it replaces the `format:` line, or the
-  format-1 template's commented `# format: 1` line, with `format: 2`, keeping every other byte, and
-  creates `config.yaml` holding only that line when the store has none. It warns that capcom
-  releases reading only format 1 can no longer read the store. The first
-  `capcom know update` that retires a Note or adds a `superseded-by` entry raises a store below
-  format 3 to `format: 3` the same way (see Supersession).
+  `# format: 1`, so the store stays at format 1. A key line needs its format whatever it holds,
+  an empty list or `retired: false` included, because a release older than the key rejects the
+  file for the key alone. So a write that creates or edits an issue or a Note file carrying a key
+  line of a newer format than the store declares raises the store to that format: a `related`
+  line raises a store below format 2 to `format: 2`, replacing the `format:` line, or the
+  format-1 template's commented `# format: 1` line, keeping every other byte, and creating
+  `config.yaml` holding only that line when the store has none; a `retired` or `superseded-by`
+  line raises a store below format 3 to `format: 3` the same way (see Related links and
+  Supersession). Each raise warns that capcom releases reading only the older format can no
+  longer read the store. `capcom mv`, `rm`, `know mv`, `know rm` and `fmt` never raise it;
+  `capcom check` reports the key line instead.
 - **statuses** — an ordered mapping of status name to Status category. Every rule in capcom reads
   the category, never the name (ADR 0003). At least one status must be in `todo` and one in
   `done`. When capcom moves an issue into a category (create, close, reopen) it uses the first

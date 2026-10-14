@@ -6,6 +6,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -24,6 +25,23 @@ func (c *checker) addFormatTooOld(path string, line int, key string, needed int,
 		needed,
 		c.store.Relative(c.store.ConfigPath()),
 	))
+}
+
+// addKeysFormatTooOld records a format-too-old problem at each key line of node, parsed from the
+// file path, that formats, its kind's format table, gates above declared, the store's format: a
+// key line needs its format whatever it holds, an empty list or retired: false included.
+func addKeysFormatTooOld[T any](
+	c *checker,
+	path string,
+	node T,
+	formats []nodestore.KeyFormat[T],
+	declared int,
+) {
+	for _, row := range formats {
+		if line := row.Line(node); line > 0 && declared < row.Format {
+			c.addFormatTooOld(path, line, row.Key, row.Format, declared)
+		}
+	}
 }
 
 // loadTree loads the tree in dir, recording each of its load problems with every file it names

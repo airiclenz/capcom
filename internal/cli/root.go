@@ -68,6 +68,9 @@ type app struct {
 	issueIndex    *index.Index
 	indexReport   index.Report
 	indexWarnings []diagnose.Finding
+	// writeWarnings are the warnings of the writes the command made, such as the store format an
+	// edit raised (editNode); emit renders them after the index warnings and before the result's.
+	writeWarnings []string
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and
@@ -242,10 +245,11 @@ func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 	if a.isKV && result.KV == nil {
 		return output.UsageErrorf("%s does not support --kv", cmd.CommandPath())
 	}
-	warnings := make([]string, 0, len(a.indexWarnings)+len(result.Warnings))
+	warnings := make([]string, 0, len(a.indexWarnings)+len(a.writeWarnings)+len(result.Warnings))
 	for _, warning := range a.indexWarnings {
 		warnings = append(warnings, warning.String())
 	}
+	warnings = append(warnings, a.writeWarnings...)
 	result.Warnings = append(warnings, result.Warnings...)
 	if err := a.renderer.Render(result); err != nil {
 		return err
