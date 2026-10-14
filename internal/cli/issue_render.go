@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -232,16 +231,6 @@ func issueKV(entry index.Entry, etag string) output.KVRecord {
 		{Key: "CATEGORY", Value: string(entry.Category)},
 		{Key: "TITLE", Value: entry.Title},
 	}}
-}
-
-// relativeSlashPath returns target relative to base with forward slashes, the form index paths
-// take; it returns "" when target is not below base.
-func relativeSlashPath(base, target string) string {
-	relative, err := filepath.Rel(base, target)
-	if err != nil || strings.HasPrefix(relative, "..") {
-		return ""
-	}
-	return filepath.ToSlash(relative)
 }
 
 // flowList renders a list the way an issue file's frontmatter writes it: `[a, b]`, or "" when empty.

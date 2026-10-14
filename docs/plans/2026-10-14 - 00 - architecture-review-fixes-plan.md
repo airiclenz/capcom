@@ -513,7 +513,19 @@ NOTES (2026-10-14): index's `worktreeRelativeError` renamed `relativePathError`,
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/store/`; `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/index/`; `grep -rn 'func worktreeRelative\|func (c \*checker) relative(' internal/` prints nothing
 **Commit:** `refactor(store): own worktree-relative paths`
 
-## P4.3 store owns worktree-relative paths, part 2
+## P4.3 store owns worktree-relative paths, part 2 — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): `Kind.relative` became a `relative func(path string) string` field set to `(*store.Store).Relative` in `Issues` and `Notes`, so its callers in errors.go, write.go, claim.go, create.go, format.go, refs.go, load.go, remove.go and move.go keep the `k.relative(...)` spelling unchanged and are not edited; the `worktreeRoot` field stays, since edit.go and the nodestore tests use it.
+
+NOTES (2026-10-14): `IssuesPathspec` returns nil on `store.RelativePath`'s outside verdict; `list.go` takes the issue-tree prefix from `store.RelativePath`, "" when outside.
+
+NOTES (2026-10-14): consequential edit — internal/cli/related.go: made necessary by removing `(*app).worktreeRelative`; `warnRaisedFormat` calls `a.store.Relative`.
+
+NOTES (2026-10-14): consequential edit — internal/cli/update.go: made necessary by removing `(*app).worktreeRelative`; `frontmatterFailure` calls `a.store.Relative`.
+
+NOTES (2026-10-14): the text helpers `(*Kind[T]).relativeText` and `(*app).worktreeRelativeText` (strip the worktree prefix from an OS error message) are kept as they are; `agents.isInsideTree` and knowledge's verify containment check, which work on symlink-resolved paths, are outside this item's scope and kept.
+
+NOTES (2026-10-14): `go build ./...` fails on Go files under the ignored, untracked `docs/skill-runs/release-notes-capcom/2026-10-14/scratch/`; `go build ./cmd/... ./internal/...` is clean.
 
 **What:**
 **Goal:** nodestore and cli use `store.RelativePath`; no other worktree-relative helper remains.

@@ -119,11 +119,11 @@ func (s *Store) IssuesDir() string {
 // WorktreeRoot, with forward slashes. It returns nil when the issue tree lies outside the worktree,
 // where no pathspec can name it.
 func (s *Store) IssuesPathspec() []string {
-	relative, err := filepath.Rel(s.WorktreeRoot, s.IssuesDir())
-	if err != nil || strings.HasPrefix(relative, "..") {
+	relative, isInside := RelativePath(s.WorktreeRoot, s.IssuesDir())
+	if !isInside {
 		return nil
 	}
-	return []string{filepath.ToSlash(relative)}
+	return []string{relative}
 }
 
 // KnowledgeDir returns the directory that holds the Knowledge tree.

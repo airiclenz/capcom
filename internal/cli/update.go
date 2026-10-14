@@ -209,7 +209,7 @@ func (a *app) frontmatterFailure(err error) error {
 	if errors.As(err, &failure) {
 		return &output.Error{
 			Code:    output.CodeInvalid,
-			Path:    a.worktreeRelative(failure.Path),
+			Path:    a.store.Relative(failure.Path),
 			Line:    failure.Line,
 			Message: a.worktreeRelativeText(failure.Message),
 		}

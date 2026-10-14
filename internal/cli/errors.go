@@ -71,15 +71,6 @@ func refusalFailure(err error, path string, words refusalWords) *output.Error {
 	return failure
 }
 
-// worktreeRelative names path relative to the working tree root with forward slashes, or returns
-// it unchanged when it is empty or outside the working tree.
-func (a *app) worktreeRelative(path string) string {
-	if relative := relativeSlashPath(a.store.WorktreeRoot, path); relative != "" {
-		return relative
-	}
-	return path
-}
-
 // worktreeRelativeText returns text with every path inside the working tree named relative to its
 // root, so a message built from an OS error never carries the worktree's absolute path.
 func (a *app) worktreeRelativeText(text string) string {

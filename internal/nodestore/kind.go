@@ -21,6 +21,9 @@ type Kind[T any] struct {
 	dir string
 	// worktreeRoot is the top directory of the git working tree.
 	worktreeRoot string
+	// relative names a path relative to the working tree root with forward slashes, as
+	// store.Store.Relative does; a path outside the working tree is kept, with forward slashes.
+	relative func(path string) string
 	// resolver resolves an argument naming an existing node; it may be nil for a caller that
 	// never resolves one.
 	resolver Resolver
@@ -86,6 +89,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		codec:        issueCodec(s.Config),
 		dir:          s.IssuesDir(),
 		worktreeRoot: s.WorktreeRoot,
+		relative:     s.Relative,
 		resolver:     resolver,
 		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
@@ -101,6 +105,7 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		codec:        noteCodec(),
 		dir:          s.KnowledgeDir(),
 		worktreeRoot: s.WorktreeRoot,
+		relative:     s.Relative,
 		resolver:     resolver,
 		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
@@ -235,19 +240,6 @@ func (k *Kind[T]) raise(before T, after T) (int, error) {
 // not a regular file, or is larger than 1 MiB.
 func isRefusedRead(err error) bool {
 	return errors.Is(err, tree.ErrNotRegular) || errors.Is(err, tree.ErrTooLarge)
-}
-
-// relative names path relative to the working tree root with forward slashes. A path that is
-// already relative, or lies outside the working tree, is kept as it is, with forward slashes.
-func (k *Kind[T]) relative(path string) string {
-	if !filepath.IsAbs(path) {
-		return filepath.ToSlash(path)
-	}
-	relative, err := filepath.Rel(k.worktreeRoot, path)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return path
-	}
-	return filepath.ToSlash(relative)
 }
 
 // relativeText returns text with every path inside the working tree named relative to its root, so

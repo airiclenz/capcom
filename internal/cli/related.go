@@ -182,7 +182,7 @@ func (a *app) warnRaisedFormat(result *output.Result, effects nodestore.Effects)
 	if effects.RaisedFormat == 0 {
 		return
 	}
-	displayPath := a.worktreeRelative(a.store.ConfigPath())
+	displayPath := a.store.Relative(a.store.ConfigPath())
 	result.Warnings = append(
 		result.Warnings,
 		fmt.Sprintf(formatRaisedWarning, displayPath, effects.RaisedFormat, effects.RaisedFormat-1),

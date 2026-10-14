@@ -10,6 +10,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 // Flags of capcom list.
@@ -143,10 +144,14 @@ func (a *app) listResult(options *listOptions) (output.Result, error) {
 	if err != nil {
 		return output.Result{}, err
 	}
+	issuesPrefix, isInside := store.RelativePath(a.store.WorktreeRoot, a.store.IssuesDir())
+	if !isInside {
+		issuesPrefix = ""
+	}
 	return output.Result{
 		Kind: "issue-list",
 		Data: issueListData(entries),
-		Text: issueLines(entries, relativeSlashPath(a.store.WorktreeRoot, a.store.IssuesDir())),
+		Text: issueLines(entries, issuesPrefix),
 	}, nil
 }
 
