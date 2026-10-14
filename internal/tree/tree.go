@@ -60,15 +60,12 @@ type Tree struct {
 	children map[string][]int
 	// leftOut are the node files Load left out for a repeated id, ordered by id, then path.
 	leftOut []Node
-	// duplicates maps every id or alias two or more files claim to the first problem Load reported
-	// for it, which names two of those files. It also maps each id and alias a node file left out
-	// below a repeated id claims, and each alias the first file of a repeated id lists, to the
-	// problem of that repeated id.
-	duplicates map[string]*Error
-	// unusables maps every name only an unusable file claims to that file: one that does not parse,
-	// fails its kind's validation or has an alias CheckAliases rejects, a file left out for a
-	// repeated id, or a node file the walk left out.
-	unusables map[string]string
+	// refusals maps every name the membership verdicts refuse to its verdict: a name two or more
+	// files claim, each id and alias a node file left out below a repeated id claims, and each alias
+	// the first file of a repeated id lists, as duplicates; and every name only an unusable file
+	// claims, one that does not parse, fails its kind's validation or has an alias CheckAliases
+	// rejects, a file left out for a repeated id, or a node file the walk left out.
+	refusals map[string]NameVerdict
 	// unparsedIDs holds the id of every node whose file does not parse.
 	unparsedIDs map[string]bool
 	// aliases is the AliasFunc Load read the Aliases with; nil when the kind has none.
@@ -185,8 +182,7 @@ func newTree(dir string, aliases AliasFunc, nodes []Node, facts []FileFact, memb
 		byID:        map[string]int{},
 		byAlias:     map[string]int{},
 		children:    map[string][]int{},
-		duplicates:  map[string]*Error{},
-		unusables:   map[string]string{},
+		refusals:    map[string]NameVerdict{},
 		unparsedIDs: map[string]bool{},
 	}
 	keptAt := map[int]int{}
@@ -210,11 +206,8 @@ func newTree(dir string, aliases AliasFunc, nodes []Node, facts []FileFact, memb
 		tree.leftOut = append(tree.leftOut, nodes[file.Fact])
 	}
 	for name, verdict := range membership.Names {
-		switch verdict.Refusal {
-		case DuplicateRefusal:
-			tree.duplicates[name] = conflictError(verdict.Conflict)
-		case UnusableRefusal:
-			tree.unusables[name] = verdict.Conflict.Key
+		if verdict.Refusal != 0 {
+			tree.refusals[name] = verdict
 		}
 	}
 	return tree

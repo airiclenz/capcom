@@ -39,30 +39,20 @@ type agreementFile struct {
 }
 
 // agreementQuery is one name asked of a fixture and the answers both sides give for it. resolve is
-// the answer tree.Resolve and the index's resolve share unless the fixture's divergence table
-// lists the name; claimant is tree.Claimant's answer.
+// the answer tree.ResolveIn gives over the tree's names and the index's resolve gives over its
+// stored ones; claimant is tree.Claimant's answer.
 type agreementQuery struct {
 	name     string
 	resolve  string
 	claimant string
 }
 
-// agreementDivergence is a name tree and index answer differently today, each answer as
-// agreementAnswer renders it, and the ratified call (plan header) that will reconcile them. A row
-// goes when that call lands; a row whose answers agree fails the test.
-type agreementDivergence struct {
-	tree  string
-	index string
-	call  string
-}
-
-// agreementFixture is one membership fixture: the files it writes in each kind's tree, the names
-// asked of it, and the names tree and index answer differently today.
+// agreementFixture is one membership fixture: the files it writes in each kind's tree and the
+// names asked of it.
 type agreementFixture struct {
-	name        string
-	files       []agreementFile
-	queries     []agreementQuery
-	divergences map[string]agreementDivergence
+	name    string
+	files   []agreementFile
+	queries []agreementQuery
 }
 
 // agreementKind is one node kind as the tree and the index both see it.
@@ -206,13 +196,6 @@ func loadAgreementTree(t *testing.T, dir string, content tree.ContentFunc) *tree
 	return loaded
 }
 
-// The ratified calls (plan 2026-10-14 - 00, header) behind the divergences below.
-const (
-	// callUnparsedRemoval: the one exception to "Unusable claims": the exact id of an unparsed live
-	// file still resolves in the tree, so rm and know rm can remove it. This row stays.
-	callUnparsedRemoval = "Unusable claims, the rm exception"
-)
-
 // agreementFixtures are the membership fixtures. Every path is below the kind's tree, and the
 // issue and the Note kind answer every name alike.
 var agreementFixtures = []agreementFixture{
@@ -251,12 +234,9 @@ var agreementFixtures = []agreementFixture{
 		queries: []agreementQuery{
 			{name: "foo", resolve: "not found", claimant: "unparsed zzz.md alias"},
 			{name: "fo", resolve: "id foo-bar", claimant: "none"},
-			{name: "zzz", claimant: "live zzz.md"},
+			{name: "zzz", resolve: "not found", claimant: "live zzz.md"},
 			{name: "zz", resolve: "not found", claimant: "none"},
 			{name: "foo-bar", resolve: "id foo-bar", claimant: "live foo-bar.md"},
-		},
-		divergences: map[string]agreementDivergence{
-			"zzz": {tree: "id zzz", index: "not found", call: callUnparsedRemoval},
 		},
 	},
 	{
@@ -360,7 +340,7 @@ var agreementFixtures = []agreementFixture{
 	},
 }
 
-func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlikeOrAsListed(t *testing.T) {
+func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlike(t *testing.T) {
 	t.Parallel()
 	for _, fixture := range agreementFixtures {
 		t.Run(fixture.name, func(t *testing.T) {
@@ -375,24 +355,14 @@ func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlikeOrAsListed(t *testi
 					refresh(t, x)
 
 					for _, query := range fixture.queries {
-						node, treeErr := loaded.Resolve(query.name)
-						treeAnswer := agreementAnswer(node.ID, treeErr)
+						treeAnswer := agreementAnswer(tree.ResolveIn(loaded, query.name))
 						indexAnswer := agreementAnswer(kind.resolve(x, query.name))
 						claim, isFound, claimErr := loaded.Claimant(tree.NormalizeArg(query.name), "", recover)
 						claimant := claimantAnswer(t, kind.dir(s), claim, isFound, claimErr)
 
-						wantTree, wantIndex := query.resolve, query.resolve
-						divergence, isDivergent := fixture.divergences[query.name]
-						if isDivergent {
-							wantTree, wantIndex = divergence.tree, divergence.index
-						}
-						if treeAnswer != wantTree || indexAnswer != wantIndex {
-							t.Errorf("%q: tree.Resolve = %q, index = %q; want %q, %q",
-								query.name, treeAnswer, indexAnswer, wantTree, wantIndex)
-						}
-						if isDivergent && divergence.tree == divergence.index {
-							t.Errorf("%q: divergence row answers alike (%q); drop it once %s lands",
-								query.name, divergence.tree, divergence.call)
+						if treeAnswer != query.resolve || indexAnswer != query.resolve {
+							t.Errorf("%q: tree.ResolveIn = %q, index = %q; want %q for both",
+								query.name, treeAnswer, indexAnswer, query.resolve)
 						}
 						if claimant != query.claimant {
 							t.Errorf("%q: tree.Claimant = %q, want %q", query.name, claimant, query.claimant)

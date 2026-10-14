@@ -469,3 +469,121 @@ func TestUnusableError_ReadsAsTheIndexWordsIt(t *testing.T) {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}
 }
+
+func TestResolveIn_ExactIDOfAnUnparsedNode_FailsAsAnUnusableClaim(t *testing.T) {
+	t.Parallel()
+	dir, loaded := unusableClaimsFixture(t)
+
+	id, err := tree.ResolveIn(loaded, "zzz")
+
+	var unusable *tree.UnusableError
+	want := filepath.Join(dir, "zzz.md")
+	if !errors.As(err, &unusable) || unusable.Path != want || unusable.Arg != "zzz" {
+		t.Errorf("ResolveIn(zzz) = %q, %v; want an *UnusableError at %s", id, err, want)
+	}
+}
+
+// failingNames is a NameReader whose Match fails for one name and whose PrefixCandidates fail
+// outright; every other name matches nothing.
+type failingNames struct {
+	failingName string
+	err         error
+}
+
+func (f failingNames) Match(name string) (tree.NameMatch, error) {
+	if name == f.failingName {
+		return tree.NameMatch{}, f.err
+	}
+	return tree.NameMatch{}, nil
+}
+
+func (f failingNames) PrefixCandidates(string) ([]string, error) {
+	return nil, f.err
+}
+
+func TestResolveIn_NameReaderFails_ReturnsItsErrorUnchanged(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("snapshot gone")
+	cases := []struct {
+		name  string
+		names failingNames
+	}{
+		{"exact match", failingNames{failingName: "login", err: failure}},
+		{"prefix candidates", failingNames{failingName: "", err: failure}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			id, err := tree.ResolveIn(testCase.names, "Login")
+
+			if !errors.Is(err, failure) || id != "" {
+				t.Errorf("ResolveIn(Login) = %q, %v; want %v", id, err, failure)
+			}
+		})
+	}
+}
+
+// prefixNames is a NameReader holding one prefix candidate and the match of that id.
+type prefixNames struct {
+	candidate string
+	match     tree.NameMatch
+}
+
+func (p prefixNames) Match(name string) (tree.NameMatch, error) {
+	if name == p.candidate {
+		return p.match, nil
+	}
+	return tree.NameMatch{}, nil
+}
+
+func (p prefixNames) PrefixCandidates(string) ([]string, error) {
+	return []string{p.candidate}, nil
+}
+
+func TestResolveIn_OneCandidate_AnswersAsItsMatchSays(t *testing.T) {
+	t.Parallel()
+	duplicate := tree.Conflict{Key: "a/dup.md", Other: "b/dup.md", Name: "dup"}
+	cases := []struct {
+		name  string
+		match tree.NameMatch
+		want  string
+	}{
+		{"usable node", tree.NameMatch{ID: "dup"}, "id dup"},
+		{"usable node beats a duplicate", tree.NameMatch{ID: "dup", Refusal: tree.DuplicateRefusal, Conflict: duplicate}, "id dup"},
+		{"unusable claim beats a node", tree.NameMatch{ID: "dup", Refusal: tree.UnusableRefusal, Conflict: tree.Conflict{Key: "dup.md"}}, "unusable dup.md"},
+		{"alias owner only", tree.NameMatch{ID: "other", IsAlias: true}, "not found"},
+		{"alias owner and a duplicate", tree.NameMatch{ID: "other", IsAlias: true, Refusal: tree.DuplicateRefusal, Conflict: duplicate}, "duplicate a/dup.md"},
+		{"nothing", tree.NameMatch{}, "not found"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			id, err := tree.ResolveIn(prefixNames{candidate: "dup", match: testCase.match}, "du")
+
+			if got := resolveInAnswer(id, err); got != testCase.want {
+				t.Errorf("ResolveIn(du) = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+// resolveInAnswer renders ResolveIn's outcome: the id it found, or the kind of its failure with
+// the file the failure names.
+func resolveInAnswer(id string, err error) string {
+	var unusable *tree.UnusableError
+	var problem *tree.Error
+	switch {
+	case err == nil:
+		return "id " + id
+	case errors.As(err, &unusable):
+		return "unusable " + unusable.Path
+	case errors.As(err, &problem) && errors.Is(err, tree.ErrDuplicate):
+		return "duplicate " + problem.Path
+	case errors.Is(err, tree.ErrNotFound):
+		return "not found"
+	default:
+		return "error " + err.Error()
+	}
+}

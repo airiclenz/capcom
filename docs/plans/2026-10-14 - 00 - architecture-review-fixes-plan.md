@@ -252,7 +252,12 @@ internal/tree/tree.go — Load; internal/index/query_test.go — TestResolve_Nam
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/diagnose/`; `grep -n 'func excludeDuplicates' -r internal/` prints nothing
 **Commit:** `refactor(index): persist tree's membership verdicts`
 
-## P1.9 One resolver over tree maps and index SQL
+## P1.9 One resolver over tree maps and index SQL — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from the assumption that the index still held unusableClaim, duplicateClaim and leftOutPrefixCandidates (P1.8 already removed them) and that Resolve's maps live in resolve.go: the algorithm is tree.ResolveIn over a NameReader interface (Match: exact name -> refusal, conflict and node id; PrefixCandidates), which *tree.Tree implements from its maps and the index from its read snapshot (snapshotNames in query.go). The duplicates/unusables maps became one refusals map of NameVerdicts, built in tree.go's newTree.
+NOTES (2026-10-14): the ratified rm exception (the exact id of an unparsed live file resolves) stays a guard in (*Tree).Resolve ahead of ResolveIn: the index holds no node for such a file and cannot tell an unparsed file from an invalid one, so no shared NameReader data can carry it. The agreement test therefore compares tree.ResolveIn over the loaded tree with the index, every query agreeing ("zzz" is not found on both sides); TestResolve_ExactIDOfAnUnparsedNode_ResolvesToIt keeps the exception covered. The test is renamed TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlike, since "OrAsListed" no longer holds.
+NOTES (2026-10-14): the interface is named NameReader, not "names", to follow the Go -er interface rule; *Tree implements it directly so no accessor returns an interface.
+NOTES (2026-10-14): consequential edit — internal/index/walk.go: made necessary by the prose guard; the leftOutNode comment said the index leaves files out "as tree.Load does" and now names tree.DecideMembership.
 
 **What:**
 **Goal:** `tree.Resolve` is the only resolution algorithm, written against a small names interface that tree's in-memory maps and the index's SQL snapshot both implement; the P1.1 test asserts full agreement with no divergence table.

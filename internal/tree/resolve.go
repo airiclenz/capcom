@@ -62,62 +62,142 @@ func NormalizeArg(arg string) string {
 	return strings.Join(strings.Fields(strings.ToLower(arg)), "-")
 }
 
-// Resolve finds the node an argument names, once NormalizeArg has turned a citation spelling into
-// a name: an exact id first, then an Alias, then the one id the name is a prefix of. It fails with
-// an *AmbiguousError when the prefix matches several ids, and with ErrNotFound when it matches
-// none; both quote the argument as given.
+// NameReader reads one kind's names as ResolveIn resolves them. A Tree's in-memory maps and the
+// index's read snapshot both implement it, so one algorithm resolves an argument over either.
+type NameReader interface {
+	// Match returns what is known of exactly name.
+	Match(name string) (NameMatch, error)
+	// PrefixCandidates returns the ids name is a prefix of, each once and in order: the id of every
+	// node file the walk found, kept or left out for a repeated id, with problems or without. A file
+	// the walk leaves out unread or below an orphan directory counts as none. An empty name has
+	// none.
+	PrefixCandidates(name string) ([]string, error)
+}
+
+// NameMatch is what a NameReader knows of one exact name: the membership verdict that refuses it, and the
+// node of the tree it names.
+type NameMatch struct {
+	// ID is the id of the node of the tree whose id is the name, or, with IsAlias set, of the node
+	// that has the name as an Alias; "" when no node answers to it.
+	ID      string
+	IsAlias bool
+	// Refusal is why the name must not be resolved; zero when nothing refuses it.
+	Refusal RefusalReason
+	// Conflict is the conflict that refuses the name, as DecideMembership gave it; zero when
+	// Refusal is.
+	Conflict Conflict
+}
+
+// refusalError returns the error a resolve of arg fails with for the match's refusal: an
+// *UnusableError naming the file that alone claims the name, or the duplicate problem of its
+// Conflict, as Load reports it.
+func (m NameMatch) refusalError(arg string) error {
+	if m.Refusal == UnusableRefusal {
+		return &UnusableError{Arg: arg, Path: m.Conflict.Key}
+	}
+	return conflictError(m.Conflict)
+}
+
+// ResolveIn finds the id of the node an argument names among names, once NormalizeArg has turned a
+// citation spelling into a name: an exact id first, then an Alias, then the one id the name is a
+// prefix of. It fails with an *AmbiguousError when the prefix matches several ids, and with
+// ErrNotFound when it matches none; both quote the argument as given. An error names returns comes
+// back unchanged.
 //
-// Before any of that, a name that two or more files claim as their id or an alias fails with an
-// *Error wrapping ErrDuplicate that names two of those files, the problem Load reported for it, so
-// a write never acts on a node another file also answers to. The id or an alias of a node file Load
-// left out below a repeated id, and an alias of the first file of a repeated id, fail the same way
-// with the problem of that repeated id, naming both its files. The ids of the files LeftOut returns
-// count as prefix candidates, so a prefix one of them shares with another id stays ambiguous, and
-// a prefix of one of them alone fails with its duplicate problem.
-//
-// A name that only an unusable file claims fails with an *UnusableError naming that file, and is
-// never matched as a prefix of another id: the id or an alias of a file that does not parse, fails
-// its kind's validation or has an alias CheckAliases rejects, an alias only a file left out for a
-// repeated id lists, and the id or an alias of a node file the walk left out unread or below an
-// orphan directory. A tree Load built sees only the aliases its AliasFunc reads. The exact id of a
-// node whose file does not parse is the one exception: it resolves to the node, so a removal can
-// still take the file away. A prefix of the id of one unusable node alone fails the same way.
-func (t *Tree) Resolve(arg string) (Node, error) {
+// Before any of that, a name the membership verdicts refuse fails: one that two or more files
+// claim, or that stands for a repeated id, with an *Error wrapping ErrDuplicate naming two of those
+// files, and one only an unusable file claims with an *UnusableError naming that file. A refused
+// name is never matched as a prefix of another id, and the id of a node file with problems or left
+// out for a repeated id still counts as a prefix candidate, so a prefix it shares with another id
+// stays ambiguous. A prefix of one such id alone fails as that id refused, unless a usable node has
+// the id and the refusal is a duplicate: the node wins.
+func ResolveIn(names NameReader, arg string) (string, error) {
 	name := NormalizeArg(arg)
-	if problem, isDuplicate := t.duplicates[name]; isDuplicate {
-		duplicate := *problem
-		return Node{}, &duplicate
+	match, err := names.Match(name)
+	if err != nil {
+		return "", err
 	}
-	if path, isUnusable := t.unusables[name]; isUnusable && !t.unparsedIDs[name] {
-		return Node{}, &UnusableError{Arg: arg, Path: path}
+	if match.Refusal != 0 {
+		return "", match.refusalError(arg)
 	}
-	if node, found := t.Lookup(name); found {
-		return node, nil
+	if match.ID != "" {
+		return match.ID, nil
 	}
 
-	candidates := t.prefixCandidates(name)
+	candidates, err := names.PrefixCandidates(name)
+	if err != nil {
+		return "", err
+	}
 	switch len(candidates) {
 	case 0:
-		return Node{}, fmt.Errorf("id %q %w", arg, ErrNotFound)
+		return "", fmt.Errorf("id %q %w", arg, ErrNotFound)
 	case 1:
-		if path, isUnusable := t.unusables[candidates[0]]; isUnusable {
-			return Node{}, &UnusableError{Arg: arg, Path: path}
-		}
-		if i, isKept := t.byID[candidates[0]]; isKept {
-			return t.nodes[i], nil
-		}
-		duplicate := *t.duplicates[candidates[0]]
-		return Node{}, &duplicate
+		return prefixMatch(names, arg, candidates[0])
 	default:
-		return Node{}, &AmbiguousError{Arg: arg, Candidates: candidates}
+		return "", &AmbiguousError{Arg: arg, Candidates: candidates}
 	}
 }
 
-// prefixCandidates returns the ids name is a prefix of, each once and in order: the ids of the
-// nodes and of the node files Load left out for a repeated id. An empty name has none.
-func (t *Tree) prefixCandidates(name string) []string {
+// prefixMatch returns id, the one candidate the prefix arg matched, when a node of the tree has it
+// as its id, unless only an unusable file claims it. Otherwise it fails as the exact name id would,
+// quoting arg.
+func prefixMatch(names NameReader, arg, id string) (string, error) {
+	match, err := names.Match(id)
+	switch {
+	case err != nil:
+		return "", err
+	case match.Refusal == UnusableRefusal:
+		return "", match.refusalError(arg)
+	case match.ID != "" && !match.IsAlias:
+		return match.ID, nil
+	case match.Refusal != 0:
+		return "", match.refusalError(arg)
+	default:
+		return "", fmt.Errorf("id %q %w", arg, ErrNotFound)
+	}
+}
+
+// Resolve finds the node an argument names, as ResolveIn finds it among the tree's names. The
+// id or an alias of a node file Load left out below a repeated id, and an alias of the first file
+// of a repeated id, fail with the problem of that repeated id, naming both its files. A name only
+// an unusable file claims is the id or an alias of a file that does not parse, fails its kind's
+// validation or has an alias CheckAliases rejects, an alias only a file left out for a repeated id
+// lists, and the id or an alias of a node file the walk left out unread or below an orphan
+// directory. A tree Load built sees only the aliases its AliasFunc reads.
+//
+// The exact id of a node whose file does not parse, which no other file claims, is the one
+// exception: it resolves to the node, so a removal can still take the file away. A prefix of that
+// id alone still fails as an unusable claim.
+func (t *Tree) Resolve(arg string) (Node, error) {
+	name := NormalizeArg(arg)
+	if t.unparsedIDs[name] && t.refusals[name].Refusal == UnusableRefusal {
+		return t.nodes[t.byID[name]], nil
+	}
+	id, err := ResolveIn(t, arg)
+	if err != nil {
+		return Node{}, err
+	}
+	return t.nodes[t.byID[id]], nil
+}
+
+// Match returns the refusal Load's membership verdicts give name, and the node whose id or alias
+// it is. It never fails.
+func (t *Tree) Match(name string) (NameMatch, error) {
+	verdict := t.refusals[name]
+	match := NameMatch{Refusal: verdict.Refusal, Conflict: verdict.Conflict}
+	if i, found := t.byID[name]; found {
+		match.ID = t.nodes[i].ID
+	} else if i, found := t.byAlias[name]; found {
+		match.ID, match.IsAlias = t.nodes[i].ID, true
+	}
+	return match, nil
+}
+
+// PrefixCandidates returns the ids of the nodes and of the node files Load left out for a repeated
+// id that name is a prefix of, as NameReader says. It never fails.
+func (t *Tree) PrefixCandidates(name string) ([]string, error) {
 	if name == "" {
-		return nil
+		return nil, nil
 	}
 	var candidates []string
 	for _, node := range slices.Concat(t.nodes, t.leftOut) {
@@ -126,5 +206,5 @@ func (t *Tree) prefixCandidates(name string) []string {
 		}
 	}
 	slices.Sort(candidates)
-	return slices.Compact(candidates)
+	return slices.Compact(candidates), nil
 }

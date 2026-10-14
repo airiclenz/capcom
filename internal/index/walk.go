@@ -79,7 +79,7 @@ func walkIssues(
 }
 
 // leftOutNode is a node file the walk found below the directory beside a file of a repeated id,
-// which the index leaves out as tree.Load does.
+// which tree.DecideMembership leaves out of the tree.
 type leftOutNode struct {
 	id string
 	// path is relative to the working tree root, with forward slashes.
