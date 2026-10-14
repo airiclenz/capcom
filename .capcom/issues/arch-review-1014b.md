@@ -1,10 +1,12 @@
 ---
 title: Architecture review 2026-10-14, second pass
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-14 - 02 - architecture-review-2-plan
 created: 2026-10-14T16:53:33Z
+closed: 2026-10-14T19:03:49Z
+reason: resolved by plan 2026-10-14 - 02 - architecture-review-2-plan (7123d17f)
 ---
 
 Parent of the issues filed from the second architecture review of 2026-10-14

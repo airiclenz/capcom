@@ -1,10 +1,12 @@
 ---
 title: Lock overview answers this worktree's Tree lock state
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-14 - 02 - architecture-review-2-plan
 created: 2026-10-14T16:53:34Z
+closed: 2026-10-14T19:03:49Z
+reason: resolved by plan 2026-10-14 - 02 - architecture-review-2-plan (7123d17f)
 ---
 
 No module answers "is this worktree's Tree lock free?". The Briefing (`internal/briefing/briefing.go`

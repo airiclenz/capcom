@@ -1,11 +1,13 @@
 ---
 title: Unread warning names deps only, and messages say note
-status: open
+status: done
 type: bug
 priority: 2
 deps: [kind-reader]
 plan: 2026-10-14 - 02 - architecture-review-2-plan
 created: 2026-10-14T16:53:33Z
+closed: 2026-10-14T19:03:49Z
+reason: resolved by plan 2026-10-14 - 02 - architecture-review-2-plan (7123d17f)
 ---
 
 When `capcom mv` or `rm` finds a bystander issue file that does not parse, it warns

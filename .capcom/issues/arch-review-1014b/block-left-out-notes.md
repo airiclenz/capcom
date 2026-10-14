@@ -1,11 +1,13 @@
 ---
 title: Managed block lists Notes the index leaves out
-status: open
+status: done
 type: bug
 priority: 2
 deps: [kind-reader]
 plan: 2026-10-14 - 02 - architecture-review-2-plan
 created: 2026-10-14T16:53:33Z
+closed: 2026-10-14T19:03:49Z
+reason: resolved by plan 2026-10-14 - 02 - architecture-review-2-plan (7123d17f)
 ---
 
 `topNotes` (`internal/agents/block.go:150`) reads the Knowledge tree with its own parser and never
