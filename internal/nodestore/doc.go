@@ -12,6 +12,7 @@
 //   - `claim.go` — the refusal of a new id that a node, or a file the tree leaves out, holds
 //   - `codec.go` — Codec: how one Tree kind parses, validates and serializes its nodes, and which fields reference others
 //   - `create.go` — Create: writes a new node below its parent
+//   - `descriptor.go` — Descriptor: a Tree kind's noun, reference fields and the store format each format-gated key needs, built without a store
 //   - `doc.go` — the package comment and this file map
 //   - `edit.go` — Edit: changes a node and writes it back under its ETag
 //   - `errors.go` — FileError, ConflictError and ExistsError: the typed failures every verb reports

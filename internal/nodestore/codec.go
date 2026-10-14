@@ -13,7 +13,7 @@ import (
 // Aliases a parsed node records, the noun that names one node in a message, which of its fields
 // reference other nodes, and the store format a write needs.
 type Codec[T any] struct {
-	// Noun names one node of the kind in a message: "issue" or "note".
+	// Noun names one node of the kind in a message, as the kind's Descriptor names it.
 	Noun string
 	// Parse reads the file content data; path names the file in a failure, a *frontmatter.Error
 	// citing the line when it is known.
@@ -26,12 +26,13 @@ type Codec[T any] struct {
 	// Aliases returns the former ids node records.
 	Aliases func(node T) []string
 	// nounPhrase names one node of the kind with its article, as the errors of a move or a removal
-	// do: "an issue" or "a note".
+	// do; it is the kind's Descriptor's NounPhrase.
 	nounPhrase string
 	// setAliases returns node with its Aliases replaced by aliases.
 	setAliases func(node T, aliases []string) T
-	// refs are the node's reference fields, whose entries name other nodes of the tree by id; a
-	// rename rewrites them, and a removal drops them, through one engine.
+	// refs are the node's reference fields, as the kind's Descriptor lists them, whose entries name
+	// other nodes of the tree by id; a rename rewrites them, and a removal drops them, through one
+	// engine.
 	refs []refField[T]
 	// requiredFormat returns the store format (ADR 0009) that writing after, the node before
 	// changed, needs config.yaml to declare: the format introducing a key value after gains, or 0
@@ -39,40 +40,22 @@ type Codec[T any] struct {
 	requiredFormat func(before T, after T) int
 }
 
-// issueCodec is the Codec of the issue tree; cfg declares the statuses and types Validate accepts.
+// issueCodec is the Codec of the issue tree, filled from IssueDescriptor; cfg declares the
+// statuses and types Validate accepts.
 func issueCodec(cfg config.Config) Codec[issue.Issue] {
+	descriptor := IssueDescriptor(cfg)
 	return Codec[issue.Issue]{
-		Noun:      "issue",
-		Parse:     issue.Parse,
-		Serialize: issue.Issue.Serialize,
-		Validate: func(path string, node issue.Issue) []*frontmatter.Error {
-			return issue.Validate(path, node, cfg)
-		},
+		Noun:       descriptor.Noun,
+		Parse:      issue.Parse,
+		Serialize:  issue.Issue.Serialize,
+		Validate:   descriptor.Validate,
 		Aliases:    func(node issue.Issue) []string { return node.Aliases },
-		nounPhrase: "an issue",
+		nounPhrase: descriptor.NounPhrase,
 		setAliases: func(node issue.Issue, aliases []string) issue.Issue {
 			node.Aliases = aliases
 			return node
 		},
-		refs: []refField[issue.Issue]{
-			{
-				key: RefDeps,
-				get: func(node issue.Issue) []string { return node.Deps },
-				set: func(node issue.Issue, entries []string) issue.Issue {
-					node.Deps = entries
-					return node
-				},
-				blocksRemoval: true,
-			},
-			{
-				key: RefRelated,
-				get: func(node issue.Issue) []string { return node.Related },
-				set: func(node issue.Issue, entries []string) issue.Issue {
-					node.Related = entries
-					return node
-				},
-			},
-		},
+		refs: descriptor.refs,
 		requiredFormat: func(before issue.Issue, after issue.Issue) int {
 			if gainsEntry(before.Related, after.Related) {
 				return config.FormatRelated
@@ -82,30 +65,21 @@ func issueCodec(cfg config.Config) Codec[issue.Issue] {
 	}
 }
 
-// noteCodec is the Codec of the Knowledge tree.
+// noteCodec is the Codec of the Knowledge tree, filled from NoteDescriptor.
 func noteCodec() Codec[knowledge.Note] {
+	descriptor := NoteDescriptor()
 	return Codec[knowledge.Note]{
-		Noun:       "note",
+		Noun:       descriptor.Noun,
 		Parse:      knowledge.Parse,
 		Serialize:  knowledge.Note.Serialize,
-		Validate:   knowledge.Validate,
+		Validate:   descriptor.Validate,
 		Aliases:    func(node knowledge.Note) []string { return node.Aliases },
-		nounPhrase: "a note",
+		nounPhrase: descriptor.NounPhrase,
 		setAliases: func(node knowledge.Note, aliases []string) knowledge.Note {
 			node.Aliases = aliases
 			return node
 		},
-		refs: []refField[knowledge.Note]{
-			{
-				key: RefSupersededBy,
-				get: func(node knowledge.Note) []string { return node.SupersededBy },
-				set: func(node knowledge.Note, entries []string) knowledge.Note {
-					node.SupersededBy = entries
-					return node
-				},
-				isSelfRefused: true,
-			},
-		},
+		refs: descriptor.refs,
 		requiredFormat: func(before knowledge.Note, after knowledge.Note) int {
 			if gainsSupersession(before, after) {
 				return config.FormatSupersession

@@ -10,7 +10,8 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// The keys of the reference fields of both Tree kinds, as Removed.Dropped reports them.
+// The keys of the reference fields of both Tree kinds, as Descriptor.RefKeys and Removed.Dropped
+// report them.
 const (
 	// RefDeps is an issue's deps: the issues it waits for.
 	RefDeps = "deps"
@@ -21,7 +22,8 @@ const (
 )
 
 // refField is one frontmatter field of a Tree kind whose entries name other nodes of the tree by
-// id: an issue's deps and related, a Note's superseded-by.
+// id: an issue's deps and related, a Note's superseded-by. The kind's Descriptor lists its fields,
+// and the Codec takes them from there.
 type refField[T any] struct {
 	// key is the field's frontmatter key.
 	key string

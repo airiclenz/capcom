@@ -75,7 +75,13 @@ docs/reviews/archived/architecture-review-2026-10-14-0848.html — staged rename
 **Acceptance:** `go build -o <scratchpad>/capcom ./cmd/capcom`, then `<scratchpad>/capcom check` exits 0; `git status --short docs/reviews .capcom AGENTS.md` prints nothing.
 **Commit:** `chore(issues): file the second architecture review's issues`
 
-## P1.1 Export a descriptor per kind
+## P1.1 Export a descriptor per kind — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the Descriptor also carries Validate (bound to cfg for issues): it is the only cfg-dependent part of a kind, so it is what "issues from a config.Config" builds; Codec.Validate is taken from it. Behaviour unchanged.
+
+NOTES (2026-10-14): ref fields (key with get/set) moved from codec.go into the Descriptor's unexported refs, exposed as Descriptor.RefKeys(); Codec.refs is filled from it, so codec.go holds no noun or ref-key literal. The Ref* constants stay in refs.go; refs.go only gains doc lines pointing at the Descriptor.
+
+NOTES (2026-10-14): `go build ./...` fails on pre-existing gitignored scratch Go files under docs/skill-runs/release-notes-capcom/2026-10-14/scratch/ (old snapshots of internal/); `go build ./cmd/... ./internal/...` is clean. CI clones would not see them.
 
 **What:**
 **Goal:** nodestore exports one descriptor per kind, built without a store (issues from a `config.Config`, Notes from nothing): its noun and noun phrase, its ref keys (`RefDeps`, `RefRelated`, `RefSupersededBy`) and a table of key → format needed → line accessor. `Codec` takes its noun, noun phrase and ref keys from it. Output unchanged (nouns keep their current values until P3.3).
