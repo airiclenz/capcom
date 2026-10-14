@@ -1,9 +1,11 @@
 ---
 title: Every agent guide reaches the Managed block
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-14T20:20:07Z
+closed: 2026-10-14T20:52:19Z
+reason: Resolved by plan guides-reach-block-plan (archived in 0d9c7a6)
 ---
 
 The Managed block lives only in AGENTS.md. Most agent hosts read AGENTS.md, but Claude Code reads
