@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
-	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -194,8 +193,9 @@ type nodeRemoval struct {
 // changing nothing. Every other node's entries of the kind's reference fields that name the node,
 // by its id or one of its Aliases, are dropped; every other node file of the tree is read, those
 // tree.Load left out for a repeated id included. The node's own file is read once, for its etag
-// and, when the node has no Aliases, for those rawfm still reads from it, but never parsed, so a
-// node whose file does not parse is removed like any other.
+// and, when the node has no Aliases, for those tree.ReadAliases reads from it, recovered from the
+// raw frontmatter when it does not parse, so a node whose file does not parse is removed like any
+// other.
 //
 // It fails, in this order, as tree.PlanRemove does, with the *fs.PathError of the node's own file
 // when it cannot be read, with a *ConflictError when ifMatch is set and is not the node file's
@@ -218,7 +218,7 @@ func (k *Kind[T]) planNodeRemoval(nodes *tree.Tree, node tree.Node, ifMatch stri
 
 	aliases := node.Aliases
 	if len(aliases) == 0 {
-		aliases = rawfm.Aliases(data)
+		aliases, _ = tree.ReadAliases(data, k.aliasParser(node.Path, nil))
 	}
 	names := slices.Concat([]string{node.ID}, aliases)
 	removal := &nodeRemoval{Removal: planned, dropped: map[string][]string{}}

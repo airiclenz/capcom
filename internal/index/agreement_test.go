@@ -2,8 +2,10 @@ package index
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -31,6 +33,9 @@ type agreementFile struct {
 	path    string
 	form    fileForm
 	aliases []string
+	// isMultiLine writes aliases as a flow list over several lines, which YAML parses and the
+	// line-based recovery does not read.
+	isMultiLine bool
 }
 
 // agreementQuery is one name asked of a fixture and the answers both sides give for it. resolve is
@@ -115,7 +120,10 @@ func (k agreementKind) content(file agreementFile) string {
 	case formBroken:
 		fields = "title: [unclosed\n"
 	}
-	if len(file.aliases) > 0 {
+	switch {
+	case len(file.aliases) > 0 && file.isMultiLine:
+		fields += "aliases: [\n  " + strings.Join(file.aliases, ",\n  ") + "\n]\n"
+	case len(file.aliases) > 0:
 		fields += "aliases: [" + strings.Join(file.aliases, ", ") + "]\n"
 	}
 	return "---\n" + fields + "---\nBody.\n"
@@ -316,6 +324,30 @@ var agreementFixtures = []agreementFixture{
 		},
 	},
 	{
+		name: "parsed file in an orphan directory lists aliases over several lines",
+		files: []agreementFile{
+			{path: "ghost/kid.md", aliases: []string{"far-one", "far-two"}, isMultiLine: true},
+			{path: "far-one-x.md"},
+		},
+		queries: []agreementQuery{
+			{name: "far-one", resolve: "not found", claimant: "orphan ghost/kid.md alias"},
+			{name: "far-two", resolve: "not found", claimant: "orphan ghost/kid.md alias"},
+			{name: "kid", resolve: "not found", claimant: "orphan ghost/kid.md"},
+			{name: "far-one-x", resolve: "id far-one-x", claimant: "live far-one-x.md"},
+		},
+	},
+	{
+		name: "non-regular file in an orphan directory",
+		files: []agreementFile{
+			{path: "ghost/zero.md", form: formSymlink}, {path: "zero-day.md"},
+		},
+		queries: []agreementQuery{
+			{name: "zero", resolve: "not found", claimant: "orphan ghost/zero.md"},
+			{name: "zer", resolve: "id zero-day", claimant: "none"},
+			{name: "zero-day", resolve: "id zero-day", claimant: "live zero-day.md"},
+		},
+	},
+	{
 		name: "non-regular file",
 		files: []agreementFile{
 			{path: "zero.md", form: formSymlink}, {path: "zero-day.md"},
@@ -367,6 +399,50 @@ func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlikeOrAsListed(t *testi
 						}
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestAgreement_UnreadableDirectoryInOrphan_ReadableFilesClaimAndClaimantFails(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("directory permissions do not bind root")
+	}
+	fixture := agreementFixture{files: []agreementFile{
+		{path: "ghost/kid.md", aliases: []string{"alpha"}},
+		{path: "ghost/locked/deep.md"},
+		{path: "alpha-x.md"}, {path: "kid-x.md"},
+	}}
+	for _, kind := range agreementKinds {
+		t.Run(kind.name, func(t *testing.T) {
+			s := newStore(t)
+			kind.write(t, s, fixture)
+			locked := filepath.Join(kind.dir(s), "ghost", "locked")
+			if err := os.Chmod(locked, 0o000); err != nil {
+				t.Fatalf("Chmod: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+			read, recover := kind.aliasFuncs(s)
+			loaded := loadAgreementTree(t, kind.dir(s), read)
+			x := openIndex(t, s)
+			refresh(t, x)
+
+			for _, name := range []string{"alpha", "kid"} {
+				node, treeErr := loaded.Resolve(name)
+				treeAnswer := agreementAnswer(node.ID, treeErr)
+				indexAnswer := agreementAnswer(kind.resolve(x, name))
+				if treeAnswer != "not found" || indexAnswer != "not found" {
+					t.Errorf("%q: tree.Resolve = %q, index = %q; want not found for both",
+						name, treeAnswer, indexAnswer)
+				}
+			}
+			claim, isFound, err := loaded.Claimant("alpha", "", recover)
+			if !errors.Is(err, fs.ErrPermission) {
+				t.Errorf("Claimant(alpha) = %+v, %t, %v; want a permission failure", claim, isFound, err)
 			}
 		})
 	}

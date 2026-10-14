@@ -15,8 +15,8 @@ import (
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodefile"
-	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // racyGranularity is the coarsest file mtime resolution the racy-clean rule allows for: a file
@@ -100,7 +100,7 @@ func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	}{{s.IssuesDir(), kindIssue}, {s.KnowledgeDir(), kindNote}}
 	var found []foundFile
 	for _, current := range trees {
-		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, r)
+		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, aliasParser(current.kind), r)
 		if err != nil {
 			return nil, err
 		}
@@ -266,7 +266,6 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	}
 
 	var problems []Warning
-	var aliases []string
 	var insert func() error
 	refusal := diagnose.ReadRefusal(err)
 	switch {
@@ -276,11 +275,11 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 		return false, fmt.Errorf("%s: %w", file.path, err)
 	case file.kind == kindNote:
 		note, noteProblems := parseNote(file, data)
-		problems, aliases = noteProblems, note.Aliases
+		problems = noteProblems
 		insert = func() error { return r.insertNote(file, note) }
 	default:
 		parsed, issueProblems := parseIssue(file, data, r.config)
-		problems, aliases = issueProblems, parsed.Aliases
+		problems = issueProblems
 		insert = func() error { return r.insertIssue(file, parsed) }
 	}
 	var stored sql.NullString
@@ -301,21 +300,17 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 		return false, fmt.Errorf("index %s: %w", file.path, err)
 	}
 	if len(problems) > 0 {
-		return false, r.insertClaims(file, claimedNames(file, problems, aliases, data))
+		return false, r.insertClaims(file, claimedNames(file, data))
 	}
 	return false, insert()
 }
 
-// claimedNames returns the names a node file with problems claims: its id, plus the Aliases its
-// parse gave or, when its frontmatter does not parse, the ones rawfm.Aliases reads from data. A
-// file refused unread has no data and claims its id only.
-func claimedNames(file foundFile, problems []Warning, aliases []string, data []byte) []string {
-	isUnparsed := slices.ContainsFunc(problems, func(problem Warning) bool {
-		return problem.Kind == WarningFrontmatter
-	})
-	if isUnparsed {
-		aliases = rawfm.Aliases(data)
-	}
+// claimedNames returns the names a node file with problems claims: its id, plus the Aliases
+// tree.ReadAliases reads from data with the parse of the file's kind: the ones its parse gives or,
+// when its frontmatter does not parse, the ones it recovers. A file refused unread has no data and
+// claims its id only.
+func claimedNames(file foundFile, data []byte) []string {
+	aliases, _ := tree.ReadAliases(data, aliasParser(file.kind))
 	return append([]string{file.id}, aliases...)
 }
 

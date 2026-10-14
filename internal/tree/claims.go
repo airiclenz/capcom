@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/rawfm"
 )
 
 // The claims a duplicate alias problem names its Other file by.
@@ -77,11 +78,12 @@ func readContentFacts(nodes []Node, content ContentFunc) ([]FileFact, Errors, ma
 
 // claimOnlyFacts returns the facts of the files Walk left out that still claim names, among
 // problems, Walk's: each node file with a valid id it left out unread (not a regular file, or over
-// 1 MiB), claiming its id, and each node file with a valid id at any depth below an orphan
-// directory it reported, claiming its id and the aliases content reads, the recovered ones of a
-// file that does not parse included. Walk has already reported each such directory, so one that
-// cannot be listed claims nothing, and a file content fails to read claims its id alone. A nil
-// content reads no aliases.
+// 1 MiB), claiming its id, and each node file with a valid id ListOrphanFiles lists below an orphan
+// directory it reported, claiming its id and, for a regular file, the aliases content reads, the
+// recovered ones of a file that does not parse included. Walk has already reported each such
+// directory, so a directory below one that cannot be listed claims nothing while the files listed
+// beside it still claim theirs, and a file content fails to read claims its id alone. A nil content
+// reads no aliases.
 func claimOnlyFacts(problems Errors, content ContentFunc) []FileFact {
 	var facts []FileFact
 	for _, problem := range problems {
@@ -91,18 +93,15 @@ func claimOnlyFacts(problems Errors, content ContentFunc) []FileFact {
 		}
 	}
 	for _, dir := range outermostOrphanDirs(problems) {
-		files, err := listNodeFiles(dir)
-		if err != nil {
-			continue
-		}
-		for _, path := range files {
-			fact, isNodeFile := claimOnlyFact(path)
+		files, _ := ListOrphanFiles(dir)
+		for _, file := range files {
+			fact, isNodeFile := claimOnlyFact(file.Path)
 			if !isNodeFile {
 				continue
 			}
-			if content != nil {
-				if read, err := content(path); err == nil {
-					fact.Aliases, _ = CheckAliases(path, "node", fact.ID, read.Aliases)
+			if content != nil && file.IsRegular {
+				if read, err := content(file.Path); err == nil {
+					fact.Aliases, _ = CheckAliases(file.Path, "node", fact.ID, read.Aliases)
 					fact.Parse = read.Parse
 				}
 			}
@@ -238,11 +237,11 @@ type Claim struct {
 //  3. a file Load left out for its repeated id, with the aliases Load's AliasFunc read;
 //  4. a file of the above from which recover reads name, which holds it as an alias.
 //
-// A file whose path is except is skipped; "" skips none. Below an orphan directory, names starting
-// with a dot are skipped and only regular files whose name ends in .md are read, as Walk does; a
-// directory gone since Load lists as empty. recover may be nil, which skips step 4. It reports
-// false when no file holds name. An AliasFunc error comes back unchanged, and so does any other
-// failure to read an orphan directory.
+// A file whose path is except is skipped; "" skips none. Below an orphan directory, the files
+// ListOrphanFiles lists are searched: one that is not a regular file holds its id alone and is
+// never read. recover may be nil, which skips step 4. It reports false when no file holds name. An
+// AliasFunc error comes back unchanged, and so does the first failure ListOrphanFiles reports for
+// an orphan directory.
 func (t *Tree) Claimant(name string, except string, recover AliasFunc) (Claim, bool, error) {
 	if claim, found := t.liveClaim(name, except); found {
 		return claim, true, nil
@@ -273,11 +272,14 @@ func (t *Tree) liveClaim(name string, except string) (Claim, bool) {
 // orphanClaim returns the first node file below one of the tree's orphan directories, other than
 // except, that is named name or from which Load's AliasFunc reads name.
 func (t *Tree) orphanClaim(name string, except string) (Claim, bool, error) {
-	path, dir, err := t.findOrphanFile(except, func(path string) (bool, error) {
-		if IDOf(path) == name {
+	path, dir, err := t.findOrphanFile(except, func(file OrphanFile) (bool, error) {
+		if IDOf(file.Path) == name {
 			return true, nil
 		}
-		return holdsAlias(t.aliases, path, name)
+		if !file.IsRegular {
+			return false, nil
+		}
+		return holdsAlias(t.aliases, file.Path, name)
 	})
 	if err != nil || path == "" {
 		return Claim{}, false, err
@@ -287,27 +289,29 @@ func (t *Tree) orphanClaim(name string, except string) (Claim, bool, error) {
 	return claim, true, nil
 }
 
-// findOrphanFile returns the first node file below one of the tree's orphan directories, other than
-// except, that matches, and the orphan directory it lies under, or "" for both when none does.
+// findOrphanFile returns the first file ListOrphanFiles lists below one of the tree's orphan
+// directories, other than except, that matches, and the orphan directory it lies under, or "" for
+// both when none does. The first failure ListOrphanFiles reports for a directory is returned
+// unchanged.
 func (t *Tree) findOrphanFile(
 	except string,
-	matches func(path string) (bool, error),
+	matches func(file OrphanFile) (bool, error),
 ) (path string, dir string, err error) {
 	for _, dir := range t.orphanDirs {
-		files, err := listNodeFiles(dir)
-		if err != nil {
-			return "", "", err
+		files, failures := ListOrphanFiles(dir)
+		if len(failures) > 0 {
+			return "", "", failures[0]
 		}
-		for _, path := range files {
-			if path == except {
+		for _, file := range files {
+			if file.Path == except {
 				continue
 			}
-			isMatch, err := matches(path)
+			isMatch, err := matches(file)
 			if err != nil {
 				return "", "", err
 			}
 			if isMatch {
-				return path, dir, nil
+				return file.Path, dir, nil
 			}
 		}
 	}
@@ -345,7 +349,12 @@ func (t *Tree) unparsedClaim(name string, except string, recover AliasFunc) (Cla
 	if err != nil || path != "" {
 		return unparsedClaimOf(path, err)
 	}
-	path, _, err = t.findOrphanFile(except, isHeld)
+	path, _, err = t.findOrphanFile(except, func(file OrphanFile) (bool, error) {
+		if !file.IsRegular {
+			return false, nil
+		}
+		return isHeld(file.Path)
+	})
 	if err != nil || path != "" {
 		return unparsedClaimOf(path, err)
 	}
@@ -423,38 +432,69 @@ func isBelow(path string, dir string) bool {
 	return strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
-// listNodeFiles returns the node files at any depth below dir, with the entry rules Walk applies:
-// names starting with a dot are skipped, and so is every file that is not a regular file or whose
-// name does not end in .md. Each directory's files come by name before its child directories. A
-// directory gone since its parent was read, dir included, lists as empty; any other failure to read
-// one is returned unchanged.
-func listNodeFiles(dir string) ([]string, error) {
+// OrphanFile is one file ListOrphanFiles lists.
+type OrphanFile struct {
+	// Path is the file, joined onto the directory listed.
+	Path string
+	// IsRegular reports whether the file is a regular file. One that is not (a symlink, a named
+	// pipe, a device) is never read: it holds its id alone.
+	IsRegular bool
+}
+
+// ListOrphanFiles is the one listing of the files below an orphan directory: every entry at any
+// depth below dir whose name ends in .md, with the entry rules Walk applies, so a name starting
+// with a dot is skipped at every depth. An entry that is not a regular file is listed too, marked
+// so, and a name that is no valid id is listed as it is; the caller passes over what it does not
+// claim. Each directory's files come by name before its child directories. A directory gone since
+// its parent was read, dir included, lists as empty. A directory that cannot be read otherwise is
+// left out, its failure returned unchanged among failures, in listing order, and the listing goes
+// on: files holds every file listed beside it.
+func ListOrphanFiles(dir string) (files []OrphanFile, failures []error) {
+	return appendOrphanFiles(dir, nil, nil)
+}
+
+// appendOrphanFiles appends the files ListOrphanFiles lists below dir to files, and the failures it
+// reports to failures, and returns both.
+func appendOrphanFiles(dir string, files []OrphanFile, failures []error) ([]OrphanFile, []error) {
 	entries, err := readDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
+		return files, failures
 	}
 	if err != nil {
-		return nil, err
+		return files, append(failures, err)
 	}
-	var files, childDirs []string
+	var childDirs []string
 	for _, entry := range entries {
-		if isSkippedEntry(entry) {
+		name := entry.Name()
+		if strings.HasPrefix(name, hiddenPrefix) {
 			continue
 		}
-		path := filepath.Join(dir, entry.Name())
+		path := filepath.Join(dir, name)
 		switch {
 		case entry.IsDir():
 			childDirs = append(childDirs, path)
-		case !nodefile.IsNotRegular(entry.Type()):
-			files = append(files, path)
+		case strings.HasSuffix(name, nodeExtension):
+			files = append(files, OrphanFile{Path: path, IsRegular: !nodefile.IsNotRegular(entry.Type())})
 		}
 	}
 	for _, child := range childDirs {
-		below, err := listNodeFiles(child)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, below...)
+		files, failures = appendOrphanFiles(child, files, failures)
 	}
-	return files, nil
+	return files, failures
+}
+
+// AliasParseFunc parses data, the bytes of a node file, and returns the Aliases it records, or an
+// error when its frontmatter does not parse.
+type AliasParseFunc func(data []byte) ([]string, error)
+
+// ReadAliases is the one alias reader of a node file whose bytes are data: the Aliases parse
+// returns when the file parses, and otherwise the ones rawfm.Aliases still reads from its raw
+// frontmatter. It reports whether the file parses. A file that parses never gives recovered
+// aliases, so every reader agrees on a file the line-based recovery reads differently.
+func ReadAliases(data []byte, parse AliasParseFunc) (aliases []string, isParsed bool) {
+	aliases, err := parse(data)
+	if err != nil {
+		return rawfm.Aliases(data), false
+	}
+	return aliases, true
 }

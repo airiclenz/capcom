@@ -217,7 +217,11 @@ NOTES (2026-10-14): the index's facts use the absolute node path as key (same sp
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/tree/`; `grep -n 'leaveOutRepeatedIDSubtrees\|enclosingRepeatedIDDirectory' -r internal/` prints nothing
 **Commit:** `refactor(index): repeated-id subtrees from tree's membership function`
 
-## P1.7 One orphan listing and one alias reader
+## P1.7 One orphan listing and one alias reader — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): tree.ListOrphanFiles lists only `.md` entries (regular or not), so a non-regular entry not named `.md` is no longer listed. listNodeFiles already skipped regular files not named `.md`, so this only drops non-regular non-`.md` entries, which no caller claimed. Claimant used to match those by IDOf.
+NOTES (2026-10-14): Load's claim-only facts (claimOnlyFacts) use the per-entry listing too. An orphan directory with an unreadable subdirectory now keeps the claims of the files listed beside it, where before the whole orphan directory claimed nothing. tree.Resolve now refuses those names as the index already did; the new agreement test pins this.
+NOTES (2026-10-14): the index's claimedNames now parses a file with problems a second time, through diagnose's parse inside tree.ReadAliases, instead of reusing indexFile's parse result. This affects only files with problems, and the plan's guard names diagnose's parse as the index's parse func. kind_test.go needed no change: TestRecoverAliases_ParseableAndUnparseableFiles passes unchanged.
 
 **What:** Recast at the regression check (2026-10-14).
 **Goal:** tree exports the listing of files under orphan directories and one alias reader (parsed aliases when the file parses, `rawfm` only when it does not); `orphanDirectoryClaims`, `claimedNames`, `RecoverAliases` and nodestore's `planNodeRemoval` all use them.

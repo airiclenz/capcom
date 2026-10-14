@@ -9,7 +9,6 @@ import (
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
-	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -140,8 +139,8 @@ func applyMove(move *tree.Move) ([]error, error) {
 
 // ReadContent is the tree.ContentFunc of the kind's tree: what the node file at path records. A
 // file that parses gives its Aliases, and is usable when it passes the kind's validation. A file
-// that does not parse gives the aliases rawfm.Aliases still reads from its raw frontmatter; the
-// index reports it. A file nodefile.ReadRegularFile refuses (not a regular file, or larger than
+// that does not parse gives the aliases tree.ReadAliases still recovers from its raw frontmatter;
+// the index reports it. A file nodefile.ReadRegularFile refuses (not a regular file, or larger than
 // 1 MiB) is left out unread, as the walk leaves one out. A file that cannot be read otherwise fails
 // with a *tree.Error naming path as it was given.
 func (k *Kind[T]) ReadContent(path string) (tree.Content, error) {
@@ -152,21 +151,22 @@ func (k *Kind[T]) ReadContent(path string) (tree.Content, error) {
 	if err != nil {
 		return tree.Content{}, &tree.Error{Path: path, Err: err}
 	}
-	node, err := k.codec.Parse(path, data)
-	if err != nil {
+	var node T
+	aliases, isParsed := tree.ReadAliases(data, k.aliasParser(path, &node))
+	if !isParsed {
 		// The index refresh before every command already warned about this file.
-		return tree.Content{Aliases: rawfm.Aliases(data), Parse: tree.UnparsedFile}, nil
+		return tree.Content{Aliases: aliases, Parse: tree.UnparsedFile}, nil
 	}
 	return tree.Content{
-		Aliases:  k.codec.Aliases(node),
+		Aliases:  aliases,
 		Parse:    tree.ParsedFile,
 		IsUsable: len(k.codec.Validate(path, node)) == 0,
 	}, nil
 }
 
-// RecoverAliases is the recovering lookup of the kind's tree: the aliases rawfm.Aliases still reads
-// from the raw frontmatter of a node file at path that does not parse, and none for one that
-// parses, whose Aliases ReadContent returns. A file nodefile.ReadRegularFile refuses gives none, as
+// RecoverAliases is the recovering lookup of the kind's tree: the aliases tree.ReadAliases still
+// recovers from the raw frontmatter of a node file at path that does not parse, and none for one
+// that parses, whose Aliases ReadContent returns. A file nodefile.ReadRegularFile refuses gives none, as
 // for ReadContent. A file that cannot be read otherwise fails with a *tree.Error naming path as it
 // was given.
 func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
@@ -177,10 +177,26 @@ func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 	if err != nil {
 		return nil, &tree.Error{Path: path, Err: err}
 	}
-	if _, err := k.codec.Parse(path, data); err == nil {
+	aliases, isParsed := tree.ReadAliases(data, k.aliasParser(path, nil))
+	if isParsed {
 		return nil, nil
 	}
-	return rawfm.Aliases(data), nil
+	return aliases, nil
+}
+
+// aliasParser returns the tree.AliasParseFunc of the node file at path: the Aliases of the node
+// the kind's codec parses from it, which is also stored in node unless node is nil.
+func (k *Kind[T]) aliasParser(path string, node *T) tree.AliasParseFunc {
+	return func(data []byte) ([]string, error) {
+		parsed, err := k.codec.Parse(path, data)
+		if err != nil {
+			return nil, err
+		}
+		if node != nil {
+			*node = parsed
+		}
+		return k.codec.Aliases(parsed), nil
+	}
 }
 
 // raise raises config.yaml to the store format writing after, the node before changed, needs

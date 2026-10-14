@@ -294,7 +294,7 @@ func TestClaimant_HiddenAndNonNodeEntriesInOrphan_NeverClaim(t *testing.T) {
 	}
 }
 
-func TestClaimant_NonRegularFileInOrphan_NeverClaims(t *testing.T) {
+func TestClaimant_NonRegularFileInOrphan_ClaimsItsIDNeverAnAlias(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "target.md")
@@ -304,12 +304,25 @@ func TestClaimant_NonRegularFileInOrphan_NeverClaims(t *testing.T) {
 	}
 	makeSymlink(t, outside, filepath.Join(dir, "stray", "target.md"))
 	makeFIFO(t, filepath.Join(dir, "stray", "pipe.md"))
-	everyFileHolds := func(string) ([]string, error) { return []string{"target"}, nil }
-	loaded := loadAllowingProblems(t, dir, nil)
+	everyFileHolds := func(string) ([]string, error) { return []string{"held"}, nil }
+	loaded := loadAllowingProblems(t, dir, everyFileHolds)
 
-	claim, found, err := loaded.Claimant("target", "", everyFileHolds)
+	for _, id := range []string{"target", "pipe"} {
+		claim, found, err := loaded.Claimant(id, "", everyFileHolds)
+
+		want := tree.Claim{
+			Path:   filepath.Join(dir, "stray", id+".md"),
+			Holder: id,
+			Kind:   tree.OrphanClaim,
+			Dir:    filepath.Join(dir, "stray"),
+		}
+		if err != nil || !found || claim != want {
+			t.Errorf("Claimant(%s) = %+v, %t, %v; want %+v", id, claim, found, err, want)
+		}
+	}
+	claim, found, err := loaded.Claimant("held", "", everyFileHolds)
 
 	if err != nil || found {
-		t.Errorf("Claimant(target) = %+v, %t, %v; want none", claim, found, err)
+		t.Errorf("Claimant(held) = %+v, %t, %v; want none", claim, found, err)
 	}
 }
