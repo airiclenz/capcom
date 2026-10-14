@@ -20,6 +20,7 @@ doing: 1
   login-error-copy  active  P1  Reword the login errors
 locks: 1
   _main: held by claude@devbox for 0m, heartbeat 0m ago: implementing the login rework
+this worktree: held; if the token is yours resume with capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it
 broken note refs: 0
 check: no problems
 elsewhere: rate-limit: active on rate-limit-work (unmerged)
@@ -34,8 +35,18 @@ Section by section:
 - **`doing`**: the Issues in the `doing` Status category: work someone has claimed. Check it before
   starting something new, so as not to pick up an Issue another session is on.
 - **`locks`**: the [Tree locks](../concepts/tree-locks.md) held in every worktree of the clone, with
-  their holder, age, heartbeat and purpose. A lock on your worktree means another session is
-  editing it.
+  their holder, age, heartbeat and purpose. The `this worktree:` line after the list says what to
+  do about the lock of the worktree `prime` runs in:
+  - `free`: nobody holds it; take it with `capcom lock acquire --purpose <text>` before a change
+    that spans several files or commits, and keep the token it prints.
+  - `held`: a session holds it; if the token is yours, resume with
+    `capcom lock acquire --purpose <text> --token <token>`, otherwise another session is editing
+    the worktree, so do not edit it.
+  - `stale`: its holder stopped sending heartbeats; resume with your `--token` if it is yours,
+    otherwise ask the user before taking it over with `--take-stale`.
+
+  The line is left out when the locks cannot be listed, and when this worktree's lock record is
+  damaged; the warning then names the record.
 - **`broken note refs`**: the [Refs](../concepts/knowledge.md#ref-and-suspect-notes) of Notes that
   no longer resolve, each as `path:line: ref "<ref>": <why>`. Those Notes are suspect: read them
   with care, and fix them when the work touches them.

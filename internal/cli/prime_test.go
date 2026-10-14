@@ -71,6 +71,7 @@ func TestPrime_FixtureStore_PrintsTheBriefing(t *testing.T) {
 		"doing: 1\n" +
 		"  busy-work  active  P2  Busy work\n" +
 		"locks: 0\n" +
+		worktreeLockFree + "\n" +
 		"broken note refs: 1\n" +
 		"  .capcom/knowledge/build-notes.md:3: ref \"gone.go\": no such file or directory\n" +
 		"check: 1 problem; run capcom check\n"
@@ -149,6 +150,58 @@ func TestPrime_Locks_ShowAgeAndStaleFlag(t *testing.T) {
 	pattern := regexp.MustCompile(`(?m)^locks: 1\n  _main: held by bob for 3h0[0-9]m, heartbeat 3h0[0-9]m ago: refactor the parser \(stale\)$`)
 	if exitCode != ExitOK || !pattern.MatchString(stdout) {
 		t.Errorf("prime = %d, stdout:\n%s\nwant a stale lock line matching %s", exitCode, stdout, pattern)
+	}
+	if !strings.Contains(stdout, " (stale)\n"+worktreeLockStale+"\n") {
+		t.Errorf("prime stdout:\n%s\nwant the stale advice after the locks list", stdout)
+	}
+}
+
+func TestPrime_FreshLock_AdvisesItIsHeld(t *testing.T) {
+	root := newIssueStore(t, nil)
+	mustRun(t, root, "lock", "acquire", "--purpose", "refactor the parser", "--holder", "bob")
+
+	stdout, _, exitCode := runCLI(t, root, "prime")
+
+	pattern := regexp.MustCompile(`(?m)^  _main: held by bob for [^\n]*: refactor the parser\n` +
+		regexp.QuoteMeta(worktreeLockHeld) + `$`)
+	if exitCode != ExitOK || !pattern.MatchString(stdout) {
+		t.Errorf("prime = %d, stdout:\n%s\nwant the held advice after the locks list", exitCode, stdout)
+	}
+}
+
+// List skips a corrupt record of this worktree, but acquire fails on it, so the Briefing must not
+// call the worktree free.
+func TestPrime_GarbageLockRecord_GivesNoWorktreeAdvice(t *testing.T) {
+	root := newIssueStore(t, nil)
+	recordPath := filepath.Join(root, ".git", "capcom", "locks", "_main.json")
+	if err := os.MkdirAll(filepath.Dir(recordPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(recordPath, []byte("not json"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	stdout, _, exitCode := runCLI(t, root, "prime")
+
+	if exitCode != ExitOK || !strings.Contains(stdout, "locks: 0\n") || strings.Contains(stdout, "this worktree:") {
+		t.Errorf("prime = %d, stdout:\n%s\nwant the locks list and no this worktree: line", exitCode, stdout)
+	}
+	if !strings.Contains(stdout, "_main.json: invalid lock record") {
+		t.Errorf("stdout:\n%s\nwant the invalid record warning", stdout)
+	}
+}
+
+func TestPrime_LockHeldInMainWorktree_AdvisesALinkedWorktreeItIsFree(t *testing.T) {
+	root := newLockStore(t)
+	worktree := addWorktree(t, root, "feature")
+	mustRun(t, root, "lock", "acquire", "--purpose", "refactor the parser", "--holder", "bob")
+
+	stdout, _, exitCode := runCLI(t, worktree, "prime")
+
+	pattern := regexp.MustCompile(`(?m)^locks: 1\n  _main: held by bob for [^\n]*: refactor the parser\n` +
+		regexp.QuoteMeta(worktreeLockFree) + `$`)
+	if exitCode != ExitOK || !pattern.MatchString(stdout) {
+		t.Errorf("prime = %d, stdout:\n%s\nwant the free advice after the locks list", exitCode, stdout)
 	}
 }
 

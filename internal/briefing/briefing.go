@@ -3,6 +3,7 @@ package briefing
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
@@ -55,6 +56,9 @@ type Briefing struct {
 	// Locks is every worktree's held Tree lock, ordered by key: nil when they could not be listed,
 	// and never nil otherwise.
 	Locks []lock.Status
+	// WorktreeKey is the lock key of the worktree the store belongs to. It is empty when Locks is
+	// nil, and when that worktree's lock record holds no valid lock, since its state is then unknown.
+	WorktreeKey string
 	// Health is what check found, nil when check failed.
 	Health *Health
 	// Elsewhere is the issue changes on other branches, nil when there are none.
@@ -153,8 +157,8 @@ func (b *Briefing) readWork(s *store.Store) {
 	b.Work = work
 }
 
-// readLocks sets Locks to the Tree lock of every worktree that has one; each lock record that
-// holds no valid lock becomes one Failure of SectionLocks.
+// readLocks sets Locks to the Tree lock of every worktree that has one, and WorktreeKey to the key
+// of s's worktree; each lock record that holds no valid lock becomes one Failure of SectionLocks.
 func (b *Briefing) readLocks(s *store.Store) {
 	held, warnings, err := lock.Open(s.GitCommonDir, s.Config.Lock.TTL).List()
 	if err != nil {
@@ -162,8 +166,14 @@ func (b *Briefing) readLocks(s *store.Store) {
 		return
 	}
 	b.Locks = append([]lock.Status{}, held...)
+	worktree := lock.ForWorktree(s)
+	b.WorktreeKey = worktree.Key()
 	for _, warning := range warnings {
 		b.fail(SectionLocks, warning)
+		// List skips an invalid record, but acquire fails on it, so this worktree is not free.
+		if strings.HasPrefix(warning.Error(), worktree.RecordPath()+":") {
+			b.WorktreeKey = ""
+		}
 	}
 }
 

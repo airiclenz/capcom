@@ -20,6 +20,16 @@ const kindPrime = "prime"
 // minutesPerHour splits a lock age into hours and minutes.
 const minutesPerHour = 60
 
+// The advice the Briefing gives on this worktree's Tree lock, one line per state.
+const (
+	worktreeLockFree = "this worktree: free; before a multi-file change run " +
+		"capcom lock acquire --purpose <text> and keep the token"
+	worktreeLockHeld = "this worktree: held; if the token is yours resume with " +
+		"capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it"
+	worktreeLockStale = "this worktree: stale; resume with your --token, " +
+		"otherwise ask the user before taking it over with --take-stale"
+)
+
 // primeListCap is how many issues each Ready list of the Briefing shows; the count covers all.
 const primeListCap = 15
 
@@ -104,7 +114,7 @@ func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Re
 		text.WriteString(indentLines(issueLines(work.Doing, "")))
 	}
 	if composed.Locks != nil {
-		data.Locks = addLocks(&text, composed.Locks, now)
+		data.Locks = addLocks(&text, composed.Locks, composed.WorktreeKey, now)
 	}
 	if health := composed.Health; health != nil {
 		data.BrokenRefs = append([]check.Problem{}, health.BrokenRefs...)
@@ -149,8 +159,9 @@ func addCappedList(text *strings.Builder, heading string, entries []index.Entry)
 	return &primeListData{Count: len(entries), Issues: issueListData(shown)}
 }
 
-// addLocks writes the Tree lock of every worktree that has one, with its age and stale flag.
-func addLocks(text *strings.Builder, held []lock.Status, now time.Time) []lockData {
+// addLocks writes the Tree lock of every worktree that has one, with its age and stale flag, then
+// the advice on the lock of the worktree keyed worktreeKey, unless worktreeKey is empty.
+func addLocks(text *strings.Builder, held []lock.Status, worktreeKey string, now time.Time) []lockData {
 	data := make([]lockData, 0, len(held))
 	fmt.Fprintf(text, "locks: %d\n", len(held))
 	for _, status := range held {
@@ -168,7 +179,25 @@ func addLocks(text *strings.Builder, held []lock.Status, now time.Time) []lockDa
 		}
 		text.WriteString("\n")
 	}
+	if worktreeKey != "" {
+		text.WriteString(worktreeLockAdvice(held, worktreeKey) + "\n")
+	}
 	return data
+}
+
+// worktreeLockAdvice returns the advice on the lock of the worktree keyed worktreeKey: free when
+// held lists no lock of it, otherwise held or stale.
+func worktreeLockAdvice(held []lock.Status, worktreeKey string) string {
+	for _, status := range held {
+		if status.Key != worktreeKey {
+			continue
+		}
+		if status.IsStale {
+			return worktreeLockStale
+		}
+		return worktreeLockHeld
+	}
+	return worktreeLockFree
 }
 
 // addHealth writes the broken Note refs and the count of every check problem.

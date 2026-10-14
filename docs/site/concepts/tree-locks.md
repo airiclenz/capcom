@@ -117,11 +117,13 @@ it, stale or not:
 capcom lock check --token "$CAPCOM_TOKEN" || exit 1
 ```
 
-`capcom prime` lists the held locks at the start of every session:
+`capcom prime` lists the held locks at the start of every session, then says what to do about the
+lock of the worktree it runs in (`free`, `held` or `stale`):
 
 ```text
 locks: 1
   _main: held by claude@devbox for 0m, heartbeat 0m ago: implementing the login rework
+this worktree: held; if the token is yours resume with capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it
 ```
 
 ## A session's lock, end to end

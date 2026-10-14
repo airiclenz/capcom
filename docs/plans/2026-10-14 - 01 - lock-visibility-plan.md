@@ -79,7 +79,9 @@ internal/cli/lock.go — lockCheckLong; docs/site/agents/managed-block.md — in
 
 **Commit:** `feat(agents): Managed block recommends the Tree lock before extensive changes`
 
-## 2. Briefing advises on this worktree's Tree lock
+## 2. Briefing advises on this worktree's Tree lock — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the regression guard lives in `briefing.readLocks`, not the renderer: it leaves the new `Briefing.WorktreeKey` empty when a corrupt-record warning starts with this worktree's `RecordPath()` (List wraps such errors as `<path>: invalid lock record...`), and `addLocks` writes no `this worktree:` line for an empty key.
 
 **What:**
 **Goal:** The text output of `capcom prime` has a `this worktree:` line right after the locks
