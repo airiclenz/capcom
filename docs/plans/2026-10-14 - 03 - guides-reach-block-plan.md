@@ -44,7 +44,10 @@ adds the import, and `capcom agents --check` and `capcom check` report a guide t
 - The `ModeRefresh` path that Note writes run (`syncAgents`): it never touches guides.
 - Raising an existing store's format automatically when `agents:` is added by hand.
 
-## 1. config.yaml gains `agents.guides` at format 4
+## 1. config.yaml gains `agents.guides` at format 4 — ✅ DONE (2026-10-14)
+NOTES (2026-10-14): the format gate runs in the `agents` case of topLevel, not after the whole mapping is read: format is parsed before every other key, so config.Format is already known there and the error lands at the `agents` key line whatever the section holds.
+NOTES (2026-10-14): AGENTS.md is refused in any letter case and after path.Clean (`./AGENTS.md`, `agents.md`), duplicates are compared after path.Clean, and an entry holding a backslash is refused so a guide names the same file on every platform.
+NOTES (2026-10-14): internal/config/format_test.go and internal/cli/prime_test.go needed no change: format_test raises to an explicit 3 and prime_test reaches the too-new fixture only through writeNewerFormatConfig/newerFormatMessage in read_test.go.
 
 **What:**
 **Goal:** `config.Config` carries `Agents.Guides []string`, default `["CLAUDE.md", "GEMINI.md"]`

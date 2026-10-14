@@ -113,9 +113,9 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 		content  string
 		wantLine int
 	}{
-		{"format alone", "format: 4\n", 1},
-		{"after other keys", "types: [bug]\n\nformat: 4\n", 3},
-		{"unknown key above format", "colour: blue\nformat: 4\n", 2},
+		{"format alone", "format: 5\n", 1},
+		{"after other keys", "types: [bug]\n\nformat: 5\n", 3},
+		{"unknown key above format", "colour: blue\nformat: 5\n", 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 			if !errors.As(err, &failure) {
 				t.Fatalf("err = %v, want *config.Error", err)
 			}
-			want := fmt.Sprintf("%s:%d: store format 4 is newer than this capcom reads (up to 3); upgrade capcom",
+			want := fmt.Sprintf("%s:%d: store format 5 is newer than this capcom reads (up to 4); upgrade capcom",
 				testPath, testCase.wantLine)
 			if err.Error() != want {
 				t.Errorf("err = %q, want %q", err.Error(), want)
@@ -345,6 +345,15 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 		{"fractional format", "format: 1.5\n", 1},
 		{"format not a scalar", "format:\n  - 1\n", 2},
 		{"second document", "format: 2\n---\nstatuses:\n  open: todo\n  done: done\n", 2},
+		{"guides not a list", "format: 4\nagents:\n  guides: CLAUDE.md\n", 3},
+		{"unknown agents key", "format: 4\nagents:\n  guides: []\n  hosts: [claude]\n", 4},
+		{"guide is AGENTS.md", "format: 4\nagents:\n  guides: [CLAUDE.md, AGENTS.md]\n", 3},
+		{"guide is AGENTS.md once cleaned", "format: 4\nagents:\n  guides:\n    - ./AGENTS.md\n", 4},
+		{"guide outside the repository", "format: 4\nagents:\n  guides:\n    - ../x.md\n", 4},
+		{"absolute guide", "format: 4\nagents:\n  guides:\n    - /etc/x.md\n", 4},
+		{"guide with a backslash", "format: 4\nagents:\n  guides:\n    - 'docs\\AI.md'\n", 4},
+		{"duplicate guide", "format: 4\nagents:\n  guides:\n    - CLAUDE.md\n    - CLAUDE.md\n", 5},
+		{"duplicate guide once cleaned", "format: 4\nagents:\n  guides:\n    - docs/AI.md\n    - ./docs/AI.md\n", 5},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -358,6 +367,56 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 			}
 			if failure.Path != testPath || failure.Line != testCase.wantLine {
 				t.Errorf("error at %s:%d (%v), want %s:%d", failure.Path, failure.Line, err, testPath, testCase.wantLine)
+			}
+		})
+	}
+}
+
+func TestParse_AgentsGuides_LoadsAtFormatFour(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{"key absent", "format: 4\n", []string{"CLAUDE.md", "GEMINI.md"}},
+		{"empty list", "format: 4\nagents:\n  guides: []\n", []string{}},
+		{"guide in a subdirectory", "format: 4\nagents:\n  guides: [docs/AI.md]\n", []string{"docs/AI.md"}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			config, err := Parse(testPath, []byte(testCase.content))
+
+			if err != nil || !reflect.DeepEqual(config.Agents.Guides, testCase.want) {
+				t.Errorf("Parse(%q) = guides %q, %v; want %q", testCase.content, config.Agents.Guides, err, testCase.want)
+			}
+		})
+	}
+}
+
+func TestParse_AgentsBelowFormatFour_FailsAtTheKeyNamingFormatFour(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		content  string
+		wantLine int
+	}{
+		{"format 3", "format: 3\ntypes: [bug]\nagents:\n  guides: [CLAUDE.md]\n", 3},
+		{"no format key", "agents:\n  guides: []\n", 1},
+		{"invalid section", "format: 2\nagents: none\n", 2},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse(testPath, []byte(testCase.content))
+
+			var failure *Error
+			if !errors.As(err, &failure) || failure.Line != testCase.wantLine ||
+				!strings.Contains(failure.Message, "set format: 4") {
+				t.Errorf("err = %v, want a *config.Error at line %d naming format: 4", err, testCase.wantLine)
 			}
 		})
 	}

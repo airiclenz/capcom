@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -141,6 +144,8 @@ func (p parser) topLevel(root *yaml.Node, config *Config) error {
 			return p.lock(value, config)
 		case keyElsewhere:
 			return p.elsewhere(value, config)
+		case keyAgents:
+			return p.agents(key, value, config)
 		default:
 			return p.errorAt(key, "unknown key %q", key.Value)
 		}
@@ -253,6 +258,51 @@ func (p parser) elsewhere(value *yaml.Node, config *Config) error {
 		config.Elsewhere.Days = days
 		return nil
 	})
+}
+
+// agents reads the agents section. Its key needs store format FormatAgents: in a store declaring
+// less it fails at the key's line, naming the format to set, whatever the section holds.
+func (p parser) agents(sectionKey, value *yaml.Node, config *Config) error {
+	if config.Format < FormatAgents {
+		return p.errorAt(sectionKey, "%s needs store format %d, but the store declares format %d: set format: %d",
+			keyAgents, FormatAgents, config.Format, FormatAgents)
+	}
+	return p.eachKey(value, func(key, setting *yaml.Node) error {
+		if key.Value != keyGuides {
+			return p.errorAt(key, "unknown key %q in %s", key.Value, keyAgents)
+		}
+		return p.guides(setting, config)
+	})
+}
+
+// guides reads agents.guides: a possibly empty list of local slash-separated paths, none of them
+// AGENTS.md (in any letter case) and no two the same once cleaned.
+func (p parser) guides(value *yaml.Node, config *Config) error {
+	const field = keyAgents + "." + keyGuides
+	var guides []string
+	if err := p.nameList(value, field, &guides, false); err != nil {
+		return err
+	}
+
+	seen := make(map[string]bool, len(guides))
+	for index, guide := range guides {
+		item := value.Content[index]
+		// A backslash is a separator on Windows only, so a guide spelled with one would name a
+		// different file on each platform.
+		if strings.Contains(guide, `\`) || !filepath.IsLocal(filepath.FromSlash(guide)) {
+			return p.errorAt(item, "%s: %q must be a slash-separated path inside the repository", field, guide)
+		}
+		cleaned := path.Clean(guide)
+		if strings.EqualFold(cleaned, agentsFile) {
+			return p.errorAt(item, "%s: %q is %s itself, the file that holds the Managed block", field, guide, agentsFile)
+		}
+		if seen[cleaned] {
+			return p.errorAt(item, "%s: duplicate entry %q", field, guide)
+		}
+		seen[cleaned] = true
+	}
+	config.Agents.Guides = guides
+	return nil
 }
 
 func isCategory(candidate Category) bool {

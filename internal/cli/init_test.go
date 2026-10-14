@@ -66,8 +66,9 @@ func TestInit_WrittenConfig_DeclaresCurrentFormat(t *testing.T) {
 	}
 	opened, openErr := store.Open(root)
 
-	if !strings.Contains(string(data), "\nformat: 3\n") || strings.Contains(string(data), "# format:") {
-		t.Errorf("config.yaml = %q, want a real format: 3 line and no commented one", data)
+	formatLine := fmt.Sprintf("\nformat: %d\n", config.FormatVersion)
+	if !strings.Contains(string(data), formatLine) || strings.Contains(string(data), "# format:") {
+		t.Errorf("config.yaml = %q, want a real format: %d line and no commented one", data, config.FormatVersion)
 	}
 	if openErr != nil || opened.Config.Format != config.FormatVersion {
 		t.Errorf("store.Open = %v, format %v; want format %d", openErr, opened, config.FormatVersion)
