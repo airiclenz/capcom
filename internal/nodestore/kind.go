@@ -17,6 +17,8 @@ import (
 // is relative to the working tree root with forward slashes.
 type Kind[T any] struct {
 	codec Codec[T]
+	// reader is the Kind reader of the kind, through which every node file is read and decoded.
+	reader Reader[T]
 	// dir is the directory that holds the kind's tree.
 	dir string
 	// worktreeRoot is the top directory of the git working tree.
@@ -87,6 +89,7 @@ type Effects struct {
 func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 	return &Kind[issue.Issue]{
 		codec:        issueCodec(s.Config),
+		reader:       IssueReader(s.Config),
 		dir:          s.IssuesDir(),
 		worktreeRoot: s.WorktreeRoot,
 		relative:     s.Relative,
@@ -103,6 +106,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 	return &Kind[knowledge.Note]{
 		codec:        noteCodec(),
+		reader:       NoteReader(),
 		dir:          s.KnowledgeDir(),
 		worktreeRoot: s.WorktreeRoot,
 		relative:     s.Relative,
@@ -142,31 +146,25 @@ func applyMove(move *tree.Move) ([]error, error) {
 	return move.Plan.Apply()
 }
 
-// ReadContent is the tree.ContentFunc of the kind's tree: what the node file at path records. A
-// file that parses gives its Aliases, and is usable when it passes the kind's validation. A file
-// that does not parse gives the aliases tree.ReadAliases still recovers from its raw frontmatter;
-// the index reports it. A file nodefile.ReadRegularFile refuses (not a regular file, or larger than
-// 1 MiB) is left out unread, as the walk leaves one out. A file that cannot be read otherwise fails
-// with a *tree.Error naming path as it was given.
+// ReadContent is the tree.ContentFunc of the kind's tree: what the node file at path records, as
+// the kind's Reader reads it. A file that parses gives its Aliases, and is usable when the Reader
+// finds nothing wrong with it. A file that does not parse gives the aliases tree.ReadAliases still
+// recovers from its raw frontmatter; the index reports it. A file nodefile.ReadRegularFile refuses
+// (not a regular file, or larger than 1 MiB) is left out unread, as the walk leaves one out. A file
+// that cannot be read otherwise fails with a *tree.Error naming path as it was given.
 func (k *Kind[T]) ReadContent(path string) (tree.Content, error) {
-	data, err := nodefile.ReadRegularFile(path)
-	if isRefusedRead(err) {
-		return tree.Content{Parse: tree.UnreadFile}, nil
-	}
+	reading, err := k.reader.Read(path, k.relative(path))
 	if err != nil {
 		return tree.Content{}, &tree.Error{Path: path, Err: err}
 	}
-	var node T
-	aliases, isParsed := tree.ReadAliases(data, k.aliasParser(path, &node))
-	if !isParsed {
-		// The index refresh before every command already warned about this file.
-		return tree.Content{Aliases: aliases, Parse: tree.UnparsedFile}, nil
+	if !reading.IsRead() {
+		return tree.Content{Parse: tree.UnreadFile}, nil
 	}
-	return tree.Content{
-		Aliases:  aliases,
-		Parse:    tree.ParsedFile,
-		IsUsable: len(k.codec.Validate(path, node)) == 0,
-	}, nil
+	if !reading.IsParsed() {
+		// The index refresh before every command already warned about this file.
+		return tree.Content{Aliases: reading.Aliases, Parse: tree.UnparsedFile}, nil
+	}
+	return tree.Content{Aliases: reading.Aliases, Parse: tree.ParsedFile, IsUsable: reading.IsUsable()}, nil
 }
 
 // RecoverAliases is the recovering lookup of the kind's tree: the aliases tree.ReadAliases still
@@ -182,7 +180,7 @@ func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 	if err != nil {
 		return nil, &tree.Error{Path: path, Err: err}
 	}
-	aliases, isParsed := tree.ReadAliases(data, k.aliasParser(path, nil))
+	aliases, isParsed := tree.ReadAliases(data, k.aliasParser(path))
 	if isParsed {
 		return nil, nil
 	}
@@ -190,17 +188,14 @@ func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
 }
 
 // aliasParser returns the tree.AliasParseFunc of the node file at path: the Aliases of the node
-// the kind's codec parses from it, which is also stored in node unless node is nil.
-func (k *Kind[T]) aliasParser(path string, node *T) tree.AliasParseFunc {
+// the kind's Reader decodes from it, or errUnparsed when it does not parse.
+func (k *Kind[T]) aliasParser(path string) tree.AliasParseFunc {
 	return func(data []byte) ([]string, error) {
-		parsed, err := k.codec.Parse(path, data)
-		if err != nil {
-			return nil, err
+		reading := k.reader.Decode(k.relative(path), data)
+		if !reading.IsParsed() {
+			return nil, errUnparsed
 		}
-		if node != nil {
-			*node = parsed
-		}
-		return k.codec.Aliases(parsed), nil
+		return reading.Aliases, nil
 	}
 }
 

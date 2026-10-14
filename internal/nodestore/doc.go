@@ -20,6 +20,7 @@
 //   - `kind.go` — Kind, Issues and Notes, Written, and the Alias reads and paths every verb shares
 //   - `load.go` — the tree load and the triage of its problems into blocking failures and warnings
 //   - `move.go` — Move: renames a node or moves it below another
+//   - `read.go` — Reader: the Kind reader that reads and decodes one node file, with its findings and usable verdict
 //   - `refs.go` — the reference fields of a Tree kind, the move planner that renames their entries and the removal planner that drops them
 //   - `remove.go` — Remove: removes a node that has no children
 //   - `write.go` — the validated write of a node file, replacing it or creating it exclusively

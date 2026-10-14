@@ -220,7 +220,7 @@ func (k *Kind[T]) planNodeRemoval(nodes *tree.Tree, node tree.Node, ifMatch stri
 
 	aliases := node.Aliases
 	if len(aliases) == 0 {
-		aliases, _ = tree.ReadAliases(data, k.aliasParser(node.Path, nil))
+		aliases, _ = tree.ReadAliases(data, k.aliasParser(node.Path))
 	}
 	names := slices.Concat([]string{node.ID}, aliases)
 	removal := &nodeRemoval{Removal: planned, dropped: map[string][]string{}}

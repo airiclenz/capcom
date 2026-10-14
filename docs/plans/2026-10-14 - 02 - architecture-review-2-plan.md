@@ -95,7 +95,13 @@ internal/knowledge/note.go — Note.RetiredLine, Note.SupersededByKeyLine; inter
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `go vet ./internal/nodestore/`; `grep -n '"issue"\|"note"\|"an issue"\|"a note"\|key: *Ref' internal/nodestore/codec.go` prints nothing
 **Commit:** `refactor(nodestore): export a descriptor per kind`
 
-## P1.2 The Kind reader
+## P1.2 The Kind reader — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the reader is `Reader[T]`, built by `IssueReader(cfg)` / `NoteReader()` from what builds the kind's Descriptor (the config), not from a `Descriptor` value: until P1.4 moves the verdict in, it decodes through `diagnose.IssueFile`/`NoteFile`, which take neither the Descriptor's noun nor its Validate.
+
+NOTES (2026-10-14): the result type is `Reading[T]` (Node, ETag, Aliases, Refusal, Parse, Fields, AliasFindings; IsRead, IsParsed, Findings, IsUsable); the alias findings are named `AliasFindings` because `Aliases` holds the alias list, and a refused read is its own `Refusal` field (one NotRegular finding worded as the walk words it), so Parse stays split from the rest as the Regression guard asks.
+
+NOTES (2026-10-14): consequential edit — internal/nodestore/refs.go: made necessary by `aliasParser` losing its `node *T` parameter (ReadContent no longer uses it; planRemoval's call drops the `nil`).
 
 **What:**
 **Goal:** nodestore exports a Kind reader per kind, built from the descriptor: `Read(path)` reads a file (refusing non-regular and too-large files) and `Decode(relPath, data)` decodes bytes already read; both return the node, etag (`nodefile.ETag`), aliases, findings (refused read, parse, fields, aliases, in `diagnose.Finding` form) and one usable verdict (no finding at all). `Kind.ReadContent` and `aliasParser` are built on it. The glossary Note `kind-reader` exists under `glossary-structure`.
