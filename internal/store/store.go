@@ -278,3 +278,28 @@ func (s *Store) createConfig(isNewStore bool) (bool, error) {
 func (s *Store) relative(name string) string {
 	return filepath.ToSlash(filepath.Join(dirName, name))
 }
+
+// RelativePath names path relative to the working tree root with forward slashes, for messages,
+// findings and index rows, and reports whether path lies inside root, the one containment verdict.
+// A relative path is taken as already relative to root and kept; it is inside when it is local
+// (filepath.IsLocal). An absolute path outside root, or one filepath.Rel cannot relate to root, is
+// returned as given with forward slashes and reported outside. A name that only begins with "..",
+// such as "..foo", is inside.
+func RelativePath(root, path string) (string, bool) {
+	if !filepath.IsAbs(path) {
+		return filepath.ToSlash(path), filepath.IsLocal(path)
+	}
+	relative, err := filepath.Rel(root, path)
+	if err != nil || !filepath.IsLocal(relative) {
+		return filepath.ToSlash(path), false
+	}
+	return filepath.ToSlash(relative), true
+}
+
+// Relative names path relative to the working tree root with forward slashes, as RelativePath
+// does, for messages and output; a path outside the working tree is returned as given with forward
+// slashes.
+func (s *Store) Relative(path string) string {
+	relative, _ := RelativePath(s.WorktreeRoot, path)
+	return relative
+}

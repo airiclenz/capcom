@@ -497,7 +497,11 @@ NOTES (2026-10-14): frontmatter.Split now finds the fences on the raw lines with
 **Closes:** fence-scanner
 **Commit:** `refactor(rawfm): one frontmatter fence predicate`
 
-## P4.2 store owns worktree-relative paths, part 1
+## P4.2 store owns worktree-relative paths, part 1 — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): `store.RelativePath(root, path)` returns `(string, bool)`, the bool the inside verdict P4.3's IssuesPathspec is to use; `(*Store).Relative(path)` returns the string only. index/walk.go keeps its `worktreeRoot string` parameters and calls `store.RelativePath` at each site, discarding the verdict.
+
+NOTES (2026-10-14): index's `worktreeRelativeError` renamed `relativePathError`, since the Acceptance grep `func worktreeRelative` also matches it; its body now uses `store.RelativePath`.
 
 **What:**
 **Goal:** `store.RelativePath(root, path)` and `(*Store).Relative(path)` return a slash-separated worktree-relative path, the original path (slash-separated) when outside; a file named `..foo` is shown relative; check and the index use them.

@@ -13,6 +13,7 @@ import (
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -39,7 +40,7 @@ func walkIssues(
 ) ([]foundFile, []claim, []leftOutNode, error) {
 	nodes, problems, err := tree.Walk(issuesDir)
 	if err != nil {
-		return nil, nil, nil, worktreeRelativeError(worktreeRoot, err)
+		return nil, nil, nil, relativePathError(worktreeRoot, err)
 	}
 	nodes, leftOut, directoryProblems, err := leaveOutBelowRepeatedIDs(worktreeRoot, nodes)
 	if err != nil {
@@ -51,22 +52,24 @@ func walkIssues(
 		// A walk reports only invalid ids, entries left out unread and orphan directories, each
 		// wrapping a sentinel TreeKind knows.
 		kind, _ := diagnose.TreeKind(problem)
-		r.warn(kind, worktreeRelative(worktreeRoot, problem.Path), 0, problem.Message())
+		path, _ := store.RelativePath(worktreeRoot, problem.Path)
+		r.warn(kind, path, 0, problem.Message())
 		claims = append(claims, problemClaims(worktreeRoot, problem, parse)...)
 	}
 	claims = withoutKeptFiles(claims, worktreeRoot, nodes)
 
 	found := make([]foundFile, 0, len(nodes))
 	for _, node := range nodes {
+		path, _ := store.RelativePath(worktreeRoot, node.Path)
 		info, err := lstat(node.Path)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("%s: %w", worktreeRelative(worktreeRoot, node.Path), err)
+			return nil, nil, nil, fmt.Errorf("%s: %w", path, err)
 		}
 		found = append(found, foundFile{
-			path:     worktreeRelative(worktreeRoot, node.Path),
+			path:     path,
 			absolute: node.Path,
 			id:       node.ID,
 			parentID: node.ParentID,
@@ -131,11 +134,12 @@ func leaveOutBelowRepeatedIDs(worktreeRoot string, nodes []tree.Node) ([]tree.No
 			kept = append(kept, node)
 			continue
 		}
-		leftOut = append(leftOut, leftOutNode{id: node.ID, path: worktreeRelative(worktreeRoot, node.Path)})
+		path, _ := store.RelativePath(worktreeRoot, node.Path)
+		leftOut = append(leftOut, leftOutNode{id: node.ID, path: path})
 	}
 	problems, err := tree.RepeatedIDDirProblems(membership.RepeatedIDDirs)
 	if err != nil {
-		return nil, nil, nil, worktreeRelativeError(worktreeRoot, err)
+		return nil, nil, nil, relativePathError(worktreeRoot, err)
 	}
 	return kept, leftOut, problems, nil
 }
@@ -150,7 +154,8 @@ func withoutKeptFiles(claims []claim, worktreeRoot string, nodes []tree.Node) []
 	}
 	kept := make(map[string]bool, len(nodes))
 	for _, node := range nodes {
-		kept[worktreeRelative(worktreeRoot, node.Path)] = true
+		path, _ := store.RelativePath(worktreeRoot, node.Path)
+		kept[path] = true
 	}
 	return slices.DeleteFunc(claims, func(current claim) bool {
 		return kept[current.path]
@@ -172,7 +177,8 @@ func problemClaims(worktreeRoot string, problem *tree.Error, parse tree.AliasPar
 		if !isNode {
 			return nil
 		}
-		return []claim{{name: id, path: worktreeRelative(worktreeRoot, problem.Path)}}
+		path, _ := store.RelativePath(worktreeRoot, problem.Path)
+		return []claim{{name: id, path: path}}
 	}
 	return nil
 }
@@ -206,7 +212,7 @@ func orphanDirectoryClaims(worktreeRoot, dir string, parse tree.AliasParseFunc) 
 				names = append(names, aliases...)
 			}
 		}
-		path := worktreeRelative(worktreeRoot, file.Path)
+		path, _ := store.RelativePath(worktreeRoot, file.Path)
 		for _, name := range names {
 			claims = append(claims, claim{name: name, path: path})
 		}
@@ -246,21 +252,13 @@ func nodeFileID(path string) (string, bool) {
 	return id, id != name && tree.ValidateID(id) == nil
 }
 
-// worktreeRelativeError returns err naming its path relative to worktreeRoot when it is an
+// relativePathError returns err naming its path relative to worktreeRoot when it is an
 // *fs.PathError, and err unchanged otherwise.
-func worktreeRelativeError(worktreeRoot string, err error) error {
+func relativePathError(worktreeRoot string, err error) error {
 	var pathErr *fs.PathError
 	if errors.As(err, &pathErr) {
-		return fmt.Errorf("%s: %w", worktreeRelative(worktreeRoot, pathErr.Path), err)
+		path, _ := store.RelativePath(worktreeRoot, pathErr.Path)
+		return fmt.Errorf("%s: %w", path, err)
 	}
 	return err
-}
-
-// worktreeRelative names a path below worktreeRoot with forward slashes, for rows and warnings.
-func worktreeRelative(worktreeRoot, path string) string {
-	relative, err := filepath.Rel(worktreeRoot, path)
-	if err != nil {
-		return filepath.ToSlash(path)
-	}
-	return filepath.ToSlash(relative)
 }

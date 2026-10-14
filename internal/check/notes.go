@@ -31,7 +31,7 @@ func (c *checker) notes() error {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
-		verdict := diagnose.NoteFile(c.relative(path), tree.IDOf(filepath.Base(path)), data)
+		verdict := diagnose.NoteFile(c.store.Relative(path), tree.IDOf(filepath.Base(path)), data)
 		if !verdict.IsParsed() {
 			c.addParseFailure(path, verdict.Parse[0])
 			return nil, nil
@@ -144,7 +144,7 @@ func (c *checker) checkNote(
 	fieldFindings []diagnose.Finding,
 	isRetired bool,
 ) error {
-	path := c.relative(node.Path)
+	path := c.store.Relative(node.Path)
 	for _, finding := range fieldFindings {
 		c.add(path, finding.Line, kindCode(finding.Code), finding.Message)
 	}

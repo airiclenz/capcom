@@ -13,7 +13,6 @@ package check
 import (
 	"cmp"
 	"errors"
-	"path/filepath"
 	"slices"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -66,24 +65,11 @@ type checker struct {
 // add records one problem at the absolute or worktree-relative path.
 func (c *checker) add(path string, line int, code diagnose.Kind, message string) {
 	c.problems = append(c.problems, Problem{
-		Path:    c.relative(path),
+		Path:    c.store.Relative(path),
 		Line:    line,
 		Code:    code,
 		Message: message,
 	})
-}
-
-// relative names path relative to the working tree root with forward slashes; a path already
-// relative is kept.
-func (c *checker) relative(path string) string {
-	if !filepath.IsAbs(path) {
-		return filepath.ToSlash(path)
-	}
-	relative, err := filepath.Rel(c.store.WorktreeRoot, path)
-	if err != nil {
-		return filepath.ToSlash(path)
-	}
-	return filepath.ToSlash(relative)
 }
 
 // checkConflictMarkers records every git conflict marker in the issue or Note file at path.
@@ -98,7 +84,7 @@ func (c *checker) checkConflictMarkers(path string, data []byte) {
 // problem's own words, which checkConflictMarkers has already recorded, so that failure is not
 // recorded twice.
 func (c *checker) addParseFailure(path string, failure diagnose.Finding) {
-	conflict := Problem{Path: c.relative(path), Line: failure.Line, Code: diagnose.Conflict, Message: failure.Message}
+	conflict := Problem{Path: c.store.Relative(path), Line: failure.Line, Code: diagnose.Conflict, Message: failure.Message}
 	if slices.Contains(c.problems, conflict) {
 		return
 	}

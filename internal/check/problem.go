@@ -22,7 +22,7 @@ func (c *checker) addFormatTooOld(path string, line int, key string, needed int,
 		needed,
 		declared,
 		needed,
-		c.relative(c.store.ConfigPath()),
+		c.store.Relative(c.store.ConfigPath()),
 	))
 }
 
@@ -51,8 +51,8 @@ func (c *checker) loadTree(
 			continue
 		}
 		conflicts = append(conflicts, tree.Conflict{
-			Key:   c.relative(problem.Path),
-			Other: c.relative(problem.Other),
+			Key:   c.store.Relative(problem.Path),
+			Other: c.store.Relative(problem.Other),
 			Name:  tree.IDOf(problem.Path),
 		})
 	}
@@ -63,7 +63,7 @@ func (c *checker) loadTree(
 	}
 	for _, problem := range others {
 		relative := *problem
-		relative.Other = c.relative(problem.Other)
+		relative.Other = c.store.Relative(problem.Other)
 		line := 0
 		if problem.Alias != "" {
 			line = aliasesLine(problem.Path)
@@ -106,7 +106,7 @@ func (c *checker) readFile(path string) (data []byte, isRead bool, err error) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("%s: %w", c.relative(path), err)
+		return nil, false, fmt.Errorf("%s: %w", c.store.Relative(path), err)
 	}
 	return data, true, nil
 }

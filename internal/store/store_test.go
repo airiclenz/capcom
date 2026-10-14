@@ -385,6 +385,48 @@ func TestIssuesPathspec_OutsideTheWorktree_IsNil(t *testing.T) {
 	}
 }
 
+func TestRelativePath_EachPlacement_NamesThePathAndItsInsideVerdict(t *testing.T) {
+	base := t.TempDir()
+	root := filepath.Join(base, "worktree")
+	outside := filepath.Join(base, "elsewhere", "a.md")
+	tests := []struct {
+		name         string
+		path         string
+		wantRelative string
+		wantInside   bool
+	}{
+		{"inside", filepath.Join(root, ".capcom", "issues", "a.md"), ".capcom/issues/a.md", true},
+		{"the root itself", root, ".", true},
+		{"outside", outside, filepath.ToSlash(outside), false},
+		{"a name starting with two dots", filepath.Join(root, "..foo"), "..foo", true},
+		{"already relative", filepath.Join(".capcom", "issues", "a.md"), ".capcom/issues/a.md", true},
+		{"already relative and outside", filepath.Join("..", "a.md"), "../a.md", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			relative, isInside := RelativePath(root, test.path)
+
+			if relative != test.wantRelative || isInside != test.wantInside {
+				t.Errorf("RelativePath(%q, %q) = %q, %v, want %q, %v",
+					root, test.path, relative, isInside, test.wantRelative, test.wantInside)
+			}
+		})
+	}
+}
+
+func TestRelative_PathInTheStore_IsWorktreeRelative(t *testing.T) {
+	store, _, err := Init(newRepo(t))
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	relative := store.Relative(filepath.Join(store.IssuesDir(), "a.md"))
+
+	if want := ".capcom/issues/a.md"; relative != want {
+		t.Errorf("Relative() = %q, want %q", relative, want)
+	}
+}
+
 // replaceConfigWithDir swaps the store's config.yaml for an empty directory of the same name.
 func replaceConfigWithDir(t *testing.T, store *Store) {
 	t.Helper()

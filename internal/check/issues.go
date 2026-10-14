@@ -42,7 +42,7 @@ func (c *checker) issues() error {
 		}
 		c.checkConflictMarkers(path, data)
 		id := tree.IDOf(filepath.Base(path))
-		verdict := diagnose.IssueFile(c.relative(path), id, data, c.store.Config)
+		verdict := diagnose.IssueFile(c.store.Relative(path), id, data, c.store.Config)
 		if !verdict.IsParsed() {
 			c.addParseFailure(path, verdict.Parse[0])
 			return nil, nil
