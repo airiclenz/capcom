@@ -39,7 +39,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 				return err
 			}
 			if len(entries) == 0 {
-				return output.Errorf(output.CodeNotFound, "no note matches %q", text)
+				return output.Errorf(output.CodeNotFound, "no Note matches %q", text)
 			}
 			data := make([]noteData, 0, len(entries))
 			var lines strings.Builder

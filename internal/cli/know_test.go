@@ -614,7 +614,7 @@ func TestKnowSearch_WordsAndLabel_FindNotesOnly(t *testing.T) {
 	root := newKnowStore(t)
 
 	byWord := mustRun(t, root, "know", "search", "harness")
-	byLabel, _, labelExit := runCLI(t, root, "know", "search", "tag", "--label", "invariant")
+	byLabel, labelErr, labelExit := runCLI(t, root, "know", "search", "tag", "--label", "invariant")
 	issueOnly, _, issueExit := runCLI(t, root, "know", "search", "ship")
 
 	if byWord != "no-parallel  No parallel\n" {
@@ -623,6 +623,9 @@ func TestKnowSearch_WordsAndLabel_FindNotesOnly(t *testing.T) {
 	if labelExit != ExitNotFound || issueExit != ExitNotFound {
 		t.Errorf("exits = %d, %d; want not_found for a label miss and an issue-only word\n%s%s",
 			labelExit, issueExit, byLabel, issueOnly)
+	}
+	if !strings.Contains(labelErr, `no Note matches "tag"`) {
+		t.Errorf("know search tag --label invariant stderr = %q; want it to say no Note matches", labelErr)
 	}
 }
 

@@ -25,15 +25,14 @@ type nodeVerbs[T any] struct {
 	// commandPath is the mv command as typed after capcom ("mv", "know mv"), naming it in usage
 	// errors.
 	commandPath string
-	// nounPhrase is the kind's noun with its article ("an issue", "a Note"), used in Short.
-	nounPhrase string
 	// flagNoun is the kind's noun in flag help ("issue", "note").
 	flagNoun string
 	// showCommand prints a node's etag ("show", "know show"); the --if-match help names it.
 	showCommand string
 	// descriptor describes the kind without a store, so the command tree builds before a store is
-	// open; its ref keys name the reference fields in the warning for a file whose references
-	// could not be checked. The issue Descriptor is built from a zero config.Config, so its
+	// open; its noun phrase ("an issue", "a Note") names the kind in the Short of mv and rm, and
+	// its ref keys name the reference fields in the warning for a file whose references could not
+	// be checked. The issue Descriptor is built from a zero config.Config, so its
 	// Validate is not the store's: never validate through it.
 	descriptor nodestore.Descriptor[T]
 	// writeResult is the result of a command that wrote a node: its id, path and new etag.
@@ -67,7 +66,6 @@ var issueVerbs = nodeVerbs[issue.Issue]{
 		return nodestore.Issues(a.store, nil)
 	},
 	commandPath:   "mv",
-	nounPhrase:    "an issue",
 	flagNoun:      "issue",
 	showCommand:   "show",
 	descriptor:    nodestore.IssueDescriptor(config.Config{}),
@@ -87,7 +85,6 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 		return a.notes(nil)
 	},
 	commandPath:  "know mv",
-	nounPhrase:   "a Note",
 	flagNoun:     "note",
 	showCommand:  "know show",
 	descriptor:   nodestore.NoteDescriptor(),
@@ -111,7 +108,7 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 	options := &mvOptions{}
 	cmd := &cobra.Command{
 		Use:         "mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if-match <etag>]",
-		Short:       "Rename " + verbs.nounPhrase + " or move it below another",
+		Short:       "Rename " + verbs.descriptor.NounPhrase + " or move it below another",
 		Long:        verbs.mvHelp.long,
 		Example:     verbs.mvHelp.example,
 		Args:        cobra.RangeArgs(1, 2),
@@ -194,7 +191,7 @@ func newRmCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:         use,
-		Short:       "Remove " + verbs.nounPhrase + " that has no children",
+		Short:       "Remove " + verbs.descriptor.NounPhrase + " that has no children",
 		Long:        verbs.rmHelp.long,
 		Example:     verbs.rmHelp.example,
 		Args:        cobra.ExactArgs(1),

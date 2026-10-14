@@ -84,7 +84,7 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 			if !hasAnyFlag(cmd, flagTitle, flagAddLabel, flagRemoveLabel, flagAddRef, flagRemoveRef,
 				flagRetire, flagUnretire, flagAddSupersededBy, flagRemoveSupersededBy,
 				flagBodyFile, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld) {
-				return output.UsageErrorf("know update needs at least one flag that changes the note")
+				return output.UsageErrorf("know update needs at least one flag that changes the Note")
 			}
 			inputs, err := readNoteInputs(cmd, options)
 			if err != nil {

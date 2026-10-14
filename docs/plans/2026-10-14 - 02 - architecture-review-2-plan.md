@@ -278,7 +278,15 @@ internal/cli/know_rm_test.go — TestKnowRm_WithChildren_IsRefusedNamingTheFileA
 **Acceptance:** each of `./internal/nodestore/`, `./internal/diagnose/`, `./internal/index/`, `./internal/check/`, `./internal/cli/` passes `GOMEMLIMIT=2GiB go test -count=1`, one at a time
 **Commit:** `fix(nodestore): messages say Note`
 
-## P3.4 "Note" in messages, part 3: check and cli
+## P3.4 "Note" in messages, part 3: check and cli — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): consequential edit — internal/check/problem.go: made necessary by the loadTree noun change (loadTree's doc comment quotes the noun "note")
+
+NOTES (2026-10-14): node_verbs.go's mv/rm Short now reads verbs.descriptor.NounPhrase (field `descriptor` already held the store-free descriptor from P3.1); the descriptor field's doc comment now says it supplies the Short's noun phrase. Short text is unchanged ("an issue"/"a Note"), so clidoc goldens are untouched
+
+NOTES (2026-10-14): the superseded-by assertion is a new test, TestRun_SupersededByResolvingToNothing_NamesNoNote, rather than a fixture in TestRun_NoteFileProblems_PinCodesAndWording, which is the index's twin fixture and the index reports no missing-superseded-by
+
+NOTES (2026-10-14): `go build ./...` fails on untracked scratch copies under docs/skill-runs/release-notes-capcom/2026-10-14/scratch (pre-existing, not this item's); the sanity build used `go build ./cmd/... ./internal/...`
 
 **What:**
 **Goal:** check's and cli's own messages naming the Note kind say "Note" (e.g. `superseded-by %q names no Note by id or by an alias only one Note has`, `no Note matches %q`, `know update needs at least one flag that changes the Note`); `nodeVerbs` has no `nounPhrase` of its own and reads the descriptor's "a Note". Flag help is left to P3.5.

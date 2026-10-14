@@ -204,6 +204,11 @@ func TestKnowUpdate_NoChangeOrClashingFlags_AreUsageErrors(t *testing.T) {
 			t.Errorf("know update %v = %d, stderr %q; want usage", args, exitCode, stderr)
 		}
 	}
+
+	_, stderr, _ := runCLI(t, root, "know", "update", "release-flow")
+	if !strings.Contains(stderr, "know update needs at least one flag that changes the Note") {
+		t.Errorf("know update without a change flag: stderr %q; want it to name the Note", stderr)
+	}
 }
 
 func TestKnowUpdate_TopLevelTitle_RefreshesTheAgentsBlock(t *testing.T) {

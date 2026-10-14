@@ -37,7 +37,7 @@ func (c *checker) notes() error {
 		return reading.Aliases, nil
 	}
 	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
-	loaded, err := c.loadTree(c.store.KnowledgeDir(), "note", readAliases, aliasesLine)
+	loaded, err := c.loadTree(c.store.KnowledgeDir(), "Note", readAliases, aliasesLine)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (c *checker) checkSupersession(
 		}
 		if _, isFound := notes.Lookup(successor); !isFound {
 			c.add(path, note.SupersededByLine(i), diagnose.MissingSupersededBy, fmt.Sprintf(
-				"superseded-by %q names no note by id or by an alias only one note has",
+				"superseded-by %q names no Note by id or by an alias only one Note has",
 				successor,
 			))
 		}

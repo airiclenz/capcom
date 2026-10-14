@@ -430,6 +430,26 @@ func TestRun_SupersededByNamingOnlyAnIDPrefix_ReportsMissingSupersededBy(t *test
 	}
 }
 
+func TestRun_SupersededByResolvingToNothing_NamesNoNote(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml":     "format: 3\n",
+		knowledge + "old-flow.md": "---\ntitle: Old flow\nsuperseded-by: [no-such-note]\n---\n",
+	})
+
+	problems := runCheck(t, root)
+
+	var got []string
+	for _, problem := range problems {
+		got = append(got, problem.String())
+	}
+	want := []string{knowledge + `old-flow.md:3: superseded-by "no-such-note" names no Note by id or ` +
+		"by an alias only one Note has"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
 func TestRun_SupersededByNamingALeftOutNote_ReportsNoMissingSupersededBy(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{
@@ -862,7 +882,7 @@ func TestRun_NoteFileProblems_PinCodesAndWording(t *testing.T) {
 		string(diagnose.Duplicate) + " " + knowledge + `dup-note.md: duplicate id "dup-note": also the id of ` +
 			knowledge + "top-note/dup-note.md; both are left out",
 		string(diagnose.NotRegular) + " " + knowledge + "link-note.md: not a regular file",
-		string(diagnose.Duplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the note's own id`,
+		string(diagnose.Duplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the Note's own id`,
 		string(diagnose.Duplicate) + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note": also the id of ` +
 			knowledge + "dup-note.md; both are left out",
 		string(diagnose.Frontmatter) + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a Note has ` +

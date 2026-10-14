@@ -47,7 +47,7 @@ func addKeysFormatTooOld[T any](
 // loadTree loads the tree in dir, recording each of its load problems with every file it names
 // relative to the working tree root, and returns what could be placed. A repeated id is recorded
 // as the index warns it, through diagnose.NameClashes: one problem for every file of the id, each
-// naming another. noun names one node of the kind, "issue" or "note", as tree.Load takes it.
+// naming another. noun names one node of the kind, "issue" or "Note", as tree.Load takes it.
 // aliasesLine returns the line of the aliases key in the file at a path aliases parsed, or 0; an
 // alias problem cites it, as the index's warning does.
 func (c *checker) loadTree(
