@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review for capcom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose", flowchart: { useMaxWidth: true } });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+      .mod { border: 1.5px solid #334155; border-radius: 4px; background: #fff; }
+      .ghost { opacity: .45; }
+      .dashed-seam { border-top: 2px dashed #64748b; }
+      .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
+      .diagram { min-height: 300px; }
+      pre.mermaid { background: transparent; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header class="space-y-4">
+        <h1 class="font-serif text-4xl">capcom · architecture review</h1>
+        <p class="text-sm text-slate-500">2026-10-14 · second pass · as of <span class="font-mono">40180c0</span></p>
+        <div class="flex flex-wrap gap-5 text-xs text-slate-600 items-center">
+          <span class="flex items-center gap-2"><span class="inline-block w-6 h-4 mod"></span>module</span>
+          <span class="flex items-center gap-2"><svg width="30" height="6"><line x1="0" y1="3" x2="30" y2="3" stroke="#64748b" stroke-width="2" class="seam"/></svg>seam</span>
+          <span class="flex items-center gap-2"><svg width="30" height="8"><line x1="0" y1="4" x2="24" y2="4" stroke-width="2" class="leak"/><polygon points="24,0 30,4 24,8" fill="#dc2626"/></svg>leakage</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-6 h-4 deep rounded"></span>deep module</span>
+        </div>
+        <div class="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
+          The plan <span class="font-mono">2026-10-14 - 00 - architecture-review-fixes-plan</span> implemented candidates 1–3 and the
+          small fixes only. Candidates 4–10 of the earlier review were out of scope and remain open; 4, 5 and 9 are folded into the cards below,
+          and 6, 7, 8 and 10 are listed under <a href="#still-open" class="underline">Still open</a>.
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+
+        <!-- 1 -->
+        <article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">1 · One Tree scan feeds every membership decision</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/tree/tree.go · claims.go (readContentFacts, claimOnlyFacts)</li>
+            <li>internal/index/walk.go (leaveOutBelowRepeatedIDs, orphanDirectoryClaims, aliasParser)</li>
+            <li>internal/index/duplicates.go (membershipFacts, walkFact, claimedAliases)</li>
+            <li>internal/check/problem.go (loadTree, isRepeatedID)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">Before</p>
+              <pre class="mermaid">
+flowchart TD
+  T[tree scan] --> D1[DecideMembership]
+  W[index walk] --> R[own repeated-id split]
+  W --> O[own orphan reader]
+  W --> A[own aliasParser]
+  R & O & A --> D2[DecideMembership on stubs]
+  D2 --> Rows[(rows)]
+  Rows --> F[facts rebuilt from rows]
+  F --> D3[DecideMembership again]
+  C[check] --> TL[tree.Load errors]
+  TL --> G[isRepeatedID guess]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class F,G,A leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">After</p>
+              <pre class="mermaid">
+flowchart TD
+  S[tree scan: walk, read via kind reader, DecideMembership]:::deep
+  I[index: cached reader for clean files] -.seam.-> S
+  S --> V[(facts + verdict + problems)]
+  V --> Tr[tree.LoadContent]
+  V --> Ix[index persists verdict]
+  V --> Ck[check]
+  V --> Ag[agents]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+              </pre>
+            </div>
+          </div>
+          <p><b>Problem.</b> The index still re-derives membership facts three ways, runs <span class="font-mono">DecideMembership</span> twice per refresh, and rebuilds facts lossily (every node below a repeated id is marked parsed, <span class="font-mono">duplicates.go:154</span>), which is the divergence logged on <span class="font-mono">membership-owner</span>.</p>
+          <p><b>Solution.</b> <span class="font-mono">tree</span> exports its scan; the index plugs in a reader that answers clean files from rows and persists the verdict; check and agents read the verdict instead of parsing errors back.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>Locality: facts gathered in one place</li>
+            <li>Tree and index agree by construction</li>
+            <li>index/walk.go shrinks to stat-and-cache</li>
+            <li>One spelling of the fact key</li>
+            <li>Closes <span class="font-mono">membership-owner</span> acceptance</li>
+          </ul>
+          <div class="rounded border border-amber-200 bg-amber-50 p-2 text-sm">Inside ADR-0001 and ADR-0002; ADR-0007 keeps tests on real files and SQLite. Builds on candidate 3's kind reader.</div>
+        </article>
+
+        <!-- 2 -->
+        <article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">2 · Tree keeps its membership verdict; Claimant reads it</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/tree/claims.go (Claimant, liveClaim, orphanClaim, duplicateClaim, unparsedClaim)</li>
+            <li>internal/tree/tree.go (aliases field, parsedAliases)</li>
+            <li>internal/nodestore/kind.go (RecoverAliases) · create.go:58 · move.go:100</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 diagram space-y-2">
+              <p class="lbl text-slate-500">Before: a second claims algorithm</p>
+              <div class="mod p-2 text-sm"><span class="lbl">DecideMembership</span> computes every claimant → <span class="text-red-600">only refusals kept</span></div>
+              <div class="border-l-4 border-slate-400 pl-3 py-1 text-sm">Claimant · step 1 liveClaim</div>
+              <div class="border-l-4 border-slate-400 pl-3 py-1 text-sm">step 2 orphanClaim · re-lists orphan dirs</div>
+              <div class="border-l-4 border-slate-400 pl-3 py-1 text-sm">step 3 duplicateClaim</div>
+              <div class="border-l-4 border-red-500 pl-3 py-1 text-sm">step 4 unparsedClaim · <b>re-reads every node</b> via RecoverAliases</div>
+              <p class="text-xs text-slate-500">Every <span class="font-mono">create</span> of a free id reads the Tree twice.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col justify-center gap-3">
+              <p class="lbl text-slate-500">After</p>
+              <div class="deep rounded p-4">
+                <p class="lbl text-slate-300">Tree · membership verdict kept</p>
+                <p class="text-sm mt-1">Claimant = lookup in the name's claims</p>
+                <div class="mt-3 grid grid-cols-2 gap-1 text-xs ghost">
+                  <span class="border border-slate-500 rounded px-1">origin</span><span class="border border-slate-500 rounded px-1">parse state</span>
+                  <span class="border border-slate-500 rounded px-1">left-out reason</span><span class="border border-slate-500 rounded px-1">except by key</span>
+                </div>
+              </div>
+              <p class="text-xs text-slate-500 line-through">RecoverAliases · AliasFunc plumbing</p>
+            </div>
+          </div>
+          <p><b>Problem.</b> <span class="font-mono">newTree</span> drops the claimants <span class="font-mono">DecideMembership</span> already computed, so <span class="font-mono">Claimant</span> re-derives them with its own four-step precedence and re-parses every node file.</p>
+          <p><b>Solution.</b> The Tree keeps each name's claims; <span class="font-mono">Claimant</span> becomes a lookup; <span class="font-mono">RecoverAliases</span> and the <span class="font-mono">AliasFunc</span> plumbing go.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>One Tree read per write</li>
+            <li>About 150 lines deleted</li>
+            <li>Claimant tested as membership fixtures</li>
+            <li>Lands independently of candidate 1</li>
+          </ul>
+        </article>
+
+        <!-- 3 -->
+        <article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">3 · One node reader and descriptor per kind</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/nodestore/codec.go · kind.go (ReadContent)</li>
+            <li>internal/diagnose/files.go (IssueFile, NoteFile)</li>
+            <li>internal/index/problems.go (parseIssue) · notes.go (parseNote) · walk.go (aliasParser)</li>
+            <li>internal/check/issues.go · notes.go (readAliases)</li>
+            <li>internal/agents/block.go (topNotes)</li>
+            <li>internal/cli/show.go · know_show.go · know_verify.go · close.go · update.go · node_verbs.go</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 diagram">
+              <p class="lbl text-slate-500 mb-2">Before: six readers, three nouns</p>
+              <div class="grid grid-cols-3 gap-2 text-xs">
+                <div class="mod p-2">cli show / close / update<br><span class="text-slate-500">read+parse+etag</span></div>
+                <div class="mod p-2">cli know show / verify</div>
+                <div class="mod p-2">index parseIssue / parseNote</div>
+                <div class="mod p-2">index aliasParser</div>
+                <div class="mod p-2">check readAliases</div>
+                <div class="mod p-2 border-red-500">agents topNotes<br><span class="text-red-600">parses, never validates</span></div>
+                <div class="mod p-2">diagnose IssueFile / NoteFile</div>
+                <div class="mod p-2 border-red-500">cli nodeVerbs<br><span class="text-red-600">"a Note" / linkKey deps</span></div>
+                <div class="mod p-2 border-red-500">codec<br><span class="text-red-600">"a note" / deps+related</span></div>
+              </div>
+              <p class="text-xs text-slate-500 mt-3">Format-key rule twice: codec raises on a gained entry, check flags any key line.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col items-center justify-center gap-3">
+              <p class="lbl text-slate-500 self-start">After</p>
+              <div class="flex gap-2 text-xs">
+                <span class="mod px-2 py-1">cli</span><span class="mod px-2 py-1">index</span><span class="mod px-2 py-1">check</span><span class="mod px-2 py-1">agents</span><span class="mod px-2 py-1">diagnose</span>
+              </div>
+              <svg width="220" height="18"><line x1="0" y1="9" x2="220" y2="9" stroke="#64748b" stroke-width="2" class="seam"/></svg>
+              <div class="deep rounded p-4 w-full max-w-xs">
+                <p class="lbl text-slate-300">Kind descriptor + reader</p>
+                <p class="text-sm mt-1">file → node, etag, aliases, findings, usable?</p>
+                <p class="text-xs mt-2 ghost">noun · ref fields · format each key needs</p>
+              </div>
+            </div>
+          </div>
+          <p><b>Problem.</b> "Read one node file" is assembled six ways with different usability verdicts: a top-level Note the index leaves out still appears in the AGENTS.md Managed block, and <span class="font-mono">mv</span>'s unread warning says "deps" when related is unchecked too.</p>
+          <p><b>Solution.</b> Export a per-kind descriptor and reader from <span class="font-mono">nodestore</span>; every reader goes through it (earlier review items 4 and 5).</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>One usability verdict everywhere</li>
+            <li>A new key is one edit</li>
+            <li>One table test per kind</li>
+            <li>cli read path testable without runCLI</li>
+            <li>The reader candidate 1 plugs in</li>
+          </ul>
+          <div class="rounded border border-amber-200 bg-amber-50 p-2 text-sm">Consistent with ADR-0009 (the format a key needs lives in one place).</div>
+        </article>
+
+        <!-- 4 -->
+        <article id="c4" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">4 · Reference-list edits finish leaving cli, with one entry-naming rule</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/cli/dep.go (withoutEntries) · related.go (linkHolder) · show.go (showLinks)</li>
+            <li>internal/cli/know_update.go (noteNames, successorList, editSuccessors) · create.go (resolveDeps, namesItself)</li>
+            <li>internal/cli/dep_graph.go · errors.go (refusalWords)</li>
+            <li>internal/issue/ready.go:88 (readyTree.resolve) · internal/check/notes.go:91 · internal/index/index.go:214 (RelatedBy)</li>
+            <li>internal/nodestore/refs.go (renameRefs, dropRefs) · codec.go · internal/reflist</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">Before</p>
+              <pre class="mermaid">
+flowchart LR
+  da[dep add] --> rl[reflist decide]
+  dr[dep rm] --> rl
+  ra[related add] --> rl
+  rr[related rm] --> rl
+  ku[know update] --> rl
+  cd[create --dep] --> rl
+  da & dr & ra & rr & ku & cd -.apply by hand.-> F[(node file)]
+  N1[names: ready.go] ~~~ N2[names: noteNames]
+  N3[names: check Lookup] ~~~ N4[names: refs.go]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class N3 leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">After</p>
+              <pre class="mermaid">
+flowchart LR
+  v[cli: flags → key, adds, removes] --> E
+  E[nodestore: edit ref list K of node X]:::deep
+  E --> n[one entry-naming rule]
+  E --> rl[reflist decide]
+  E --> c[codec get/set K]
+  E --> ed[Edit + Effects]
+  mv[mv / rm rewrites] --> n
+  ck[check / ready / RelatedBy] --> n
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+              </pre>
+            </div>
+          </div>
+          <p><b>Problem.</b> reflist owns the decision, but applying it is hand-written five times in cli, and ADR-0002's entry rule is coded five ways and disagrees: check accepts a <span class="font-mono">superseded-by</span> alias two Notes share, <span class="font-mono">know update</span> rejects it, and check reports the issue equivalent as <span class="font-mono">missing-dep</span>.</p>
+          <p><b>Solution.</b> One node-store operation edits a reference list end to end, including the Related-link symmetry rule; one entry-naming function serves it, check, ready, <span class="font-mono">RelatedBy</span> and mv/rm rewrites.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>Leverage: one interface, six verbs</li>
+            <li>check agrees with itself across kinds</li>
+            <li>Delete withoutEntries, noteNames, linkHolder…</li>
+            <li>runCLI cases become table tests</li>
+          </ul>
+        </article>
+
+        <!-- 5 -->
+        <article id="c5" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">5 · The Tree lock state of a worktree, answered by lock</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/lock/lock.go (List, Read, Check, Break, errCorruptRecord) · worktree.go</li>
+            <li>internal/briefing/briefing.go:162 (readLocks)</li>
+            <li>internal/cli/prime.go:164 (addLocks, worktreeLockAdvice) · lock.go:360 (foundState)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">Before</p>
+              <pre class="mermaid">
+flowchart TD
+  B[briefing.readLocks] --> L1[lock.Open.List]
+  B --> L2[lock.ForWorktree]
+  B -- "HasPrefix(warning.Error(), RecordPath+':')" --> W[warning text]
+  B --> K["WorktreeKey = '' means invalid"]
+  P[prime worktreeLockAdvice] --> K
+  P --> S[search held list by key]
+  CL[cli foundState] --> M[map states to strings]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class W,K leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">After</p>
+              <pre class="mermaid">
+flowchart TD
+  O[lock overview: every lock + this worktree's state + typed problems]:::deep
+  B[briefing] --> O
+  P[prime advice] --> O
+  CL[lock status / check] --> O
+  O --- st([free · held · stale · invalid · unreadable])
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+              </pre>
+            </div>
+          </div>
+          <p><b>Problem.</b> No module answers "is this worktree's lock free?"; the Briefing parses an error string to find out, encodes "invalid" as an empty key, and one unreadable record elsewhere hides every lock plus this worktree's advice.</p>
+          <p><b>Solution.</b> <span class="font-mono">lock</span> returns one overview with this worktree's state as a named value; Briefing, prime and <span class="font-mono">lock status</span> read it.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>Locality: state next to record reader</li>
+            <li>No error-string parsing across the seam</li>
+            <li>States tested in lock with a temp dir</li>
+            <li>Hot code: last two features touched it</li>
+          </ul>
+          <div class="rounded border border-amber-200 bg-amber-50 p-2 text-sm">Within ADR-0005 (token with a heartbeat); changes no lock semantics.</div>
+        </article>
+
+        <!-- 6 -->
+        <article id="c6" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">6 · Write warnings decided once, in the diagnose vocabulary</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-0.5">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/cli/errors.go (treeProblemWarnings, unwarnedTreeProblems, isIndexWarnedAbout)</li>
+            <li>internal/cli/mv.go (movedWarnings, movedPath) · node_verbs.go · root.go (emit, a.indexWarnings)</li>
+            <li>internal/diagnose/diagnose.go (TreeKind) · internal/nodestore (verbs return tree.Errors)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">Before</p>
+              <pre class="mermaid">
+sequenceDiagram
+  participant N as nodestore
+  participant C as cli verb
+  participant D as diagnose.TreeKind
+  participant A as app.indexWarnings
+  N->>C: tree.Errors
+  C->>D: translate each
+  C->>C: compare to index report
+  C->>C: rewrite moved paths
+  C->>A: mutate ambient warnings
+  A->>C: emit prepends
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">After</p>
+              <pre class="mermaid">
+sequenceDiagram
+  participant N as nodestore
+  participant W as warning merge
+  participant C as cli verb
+  N->>W: findings + outcome
+  W->>C: final warnings, once, current paths
+              </pre>
+            </div>
+          </div>
+          <p><b>Problem.</b> <span class="font-mono">tree.Error</span> is still a second finding vocabulary crossing the nodestore seam, translated by <span class="font-mono">TreeKind</span> in four packages; cli de-duplicates against the index by hand and mutates app state; about nine runCLI tests pin the rule.</p>
+          <p><b>Solution.</b> Write verbs report diagnose findings; one module merges the index report with a write's outcome (earlier item 9).</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>"Warn once" rule in one place</li>
+            <li>cli stops importing tree for this</li>
+            <li>Nine runCLI tests → one table</li>
+          </ul>
+        </article>
+
+        <!-- 7 -->
+        <article id="c7" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">7 · One classifier from domain errors to output codes</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-0.5">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/cli/errors.go (kindFailure, refusalFailure) · show.go:214 (resolveFailure)</li>
+            <li>internal/cli/rm.go (issueRemovalFailure) · update.go (statusChangeFailure, frontmatterFailure)</li>
+            <li>internal/cli/init.go (hooksFailure) · agents.go (agentsFailure) · output/errors.go (AsError)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex items-end gap-6 justify-center">
+              <div class="text-center">
+                <p class="lbl text-slate-500 mb-2">Before</p>
+                <div class="flex items-end gap-2">
+                  <div><div class="w-20 h-48 mod bg-red-50 flex items-center justify-center text-xs text-center px-1">interface:<br>~9 typing helpers, pick one per call</div></div>
+                  <div><div class="w-20 h-56 mod flex items-center justify-center text-xs text-center px-1">implementation:<br>6 copies of one mapping</div></div>
+                </div>
+                <p class="text-xs text-red-600 mt-2">wrong pick → AsError, no path</p>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex items-end gap-6 justify-center">
+              <div class="text-center">
+                <p class="lbl text-slate-500 mb-2">After</p>
+                <div class="flex items-end gap-2">
+                  <div><div class="w-20 h-10 mod flex items-center justify-center text-xs">classify(err)</div></div>
+                  <div><div class="w-20 h-56 deep rounded flex items-center justify-center text-xs text-center px-1">located failure: code, path, line, isArgument</div></div>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">verb wording passed as data</p>
+              </div>
+            </div>
+          </div>
+          <p><b>Problem.</b> Each verb must pick the right one of about nine helpers; none maps <span class="font-mono">tree.Error</span>, so a name two files claim aborts every argument of <span class="font-mono">show a dup b</span> and drops <span class="font-mono">error.path</span> from JSON, against Note <span class="font-mono">error-messages</span>.</p>
+          <p><b>Solution.</b> Domain errors expose one located-failure shape; one classifier maps any of them to <span class="font-mono">output.Error</span>.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>Exit-code contract in one file</li>
+            <li>New verbs cannot mis-type errors</li>
+            <li>Error table tested without runCLI</li>
+            <li>Fixes per-argument duplicate refusal</li>
+          </ul>
+        </article>
+
+        <!-- 8 -->
+        <article id="c8" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">8 · One module edits a worktree-root file in place</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-0.5">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/hooks/settings.go (Install, readWorktreeFile, Error) · gitattributes.go (InstallMergeAttribute)</li>
+            <li>internal/agents/block.go (reconcile, resolveGuide, readGuide, Error)</li>
+            <li>internal/cli/init.go (installHooks, hooksFailure, installMergeDriver) · agents.go (agentsFailure)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 diagram">
+              <p class="lbl text-slate-500 mb-2">Before: three stacks</p>
+              <div class="grid grid-cols-3 gap-2 text-xs">
+                <div class="space-y-1"><p class="font-mono">settings.json</p><div class="mod p-1">guarded read</div><div class="mod p-1 bg-emerald-50">Merge (pure)</div><div class="mod p-1">atomic write</div><div class="mod p-1">hooks.Error</div><div class="mod p-1 border-red-500 text-red-600">symlink: refuse</div></div>
+                <div class="space-y-1"><p class="font-mono">.gitattributes</p><div class="mod p-1">guarded read</div><div class="mod p-1 bg-emerald-50">Append (pure)</div><div class="mod p-1">atomic write</div><div class="mod p-1">hooks.Error</div><div class="mod p-1 border-red-500 text-red-600">symlink: refuse</div></div>
+                <div class="space-y-1"><p class="font-mono">AGENTS.md</p><div class="mod p-1">guarded read</div><div class="mod p-1 bg-emerald-50">splice (pure)</div><div class="mod p-1">atomic write</div><div class="mod p-1">agents.Error</div><div class="mod p-1 border-red-500 text-red-600">symlink: follow</div></div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col justify-center gap-3">
+              <p class="lbl text-slate-500">After</p>
+              <div class="grid grid-cols-3 gap-2 text-xs">
+                <div class="mod p-1 bg-emerald-50 text-center">Merge</div><div class="mod p-1 bg-emerald-50 text-center">Append</div><div class="mod p-1 bg-emerald-50 text-center">splice</div>
+              </div>
+              <svg width="100%" height="14"><line x1="0" y1="7" x2="100%" y2="7" stroke="#64748b" stroke-width="2" class="seam"/></svg>
+              <div class="deep rounded p-4">
+                <p class="lbl text-slate-300">worktree file edit</p>
+                <p class="text-xs mt-1">one symlink policy · guarded read · mode + line endings · Added / Present / Refreshed · one error</p>
+              </div>
+            </div>
+          </div>
+          <p><b>Problem.</b> Three copies of read-edit-write with two error types and two symlink policies: a symlinked <span class="font-mono">AGENTS.md</span> is written, a symlinked <span class="font-mono">.claude/settings.json</span> fails <span class="font-mono">init</span>, and no code says why.</p>
+          <p><b>Solution.</b> One module owns editing a worktree-root file; the three edits become pure functions passed to it.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>Three adapters: a real seam</li>
+            <li>File edge cases tested once</li>
+            <li>File-handling fixes land once</li>
+          </ul>
+        </article>
+
+        <!-- 9 -->
+        <article id="c9" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">9 · One visibility rule for Knowledge</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-0.5">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/agents/block.go:150 (topNotes) · internal/check/notes.go:122 (retiredSubtrees)</li>
+            <li>internal/cli/know_tree.go:128 (isShown) · internal/index/notes.go:153 (retiredFilter)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col justify-center gap-2">
+              <p class="lbl text-slate-500">Before: four answers to "which Notes are visible"</p>
+              <div class="flex gap-2 text-xs flex-wrap">
+                <div class="mod p-2 w-[45%]">Managed block · files · own rules</div>
+                <div class="mod p-2 w-[45%]">check · files · retiredSubtrees</div>
+                <div class="mod p-2 w-[45%]">know tree · index · isShown</div>
+                <div class="mod p-2 w-[45%]">index · SQL retiredFilter</div>
+              </div>
+              <p class="text-xs text-red-600">No test ties the block's list to <span class="font-mono">know tree</span>'s top level.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col justify-center gap-3">
+              <p class="lbl text-slate-500">After</p>
+              <div class="deep rounded p-4 text-sm">visible(parsed tree): retired and background subtrees hidden</div>
+              <div class="flex gap-2 text-xs"><span class="mod px-2 py-1">block</span><span class="mod px-2 py-1">check</span><span class="mod px-2 py-1">know tree</span></div>
+              <div class="text-xs text-slate-500">SQL filter stays, pinned by a parity test</div>
+            </div>
+          </div>
+          <p><b>Problem.</b> Hiding retired and background subtrees is computed four times; paired commits show changes have to be made twice.</p>
+          <p><b>Solution.</b> One pure visibility function over a parsed tree, read through candidate 3's reader; the SQL filter is pinned to it by a test.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5">
+            <li>Block and know tree cannot drift</li>
+            <li>One table test plus one parity test</li>
+          </ul>
+          <div class="rounded border border-amber-200 bg-amber-50 p-2 text-sm">Within ADR-0010 (retired keys on Note trees).</div>
+        </article>
+
+        <!-- 10 -->
+        <article id="c10" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">10 · Agent guidance names commands through the cli</h2>
+            <span class="rounded-full bg-slate-200 text-slate-700 text-xs px-2 py-0.5">Speculative</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>internal/agents/block.go:44 (blockIntro) · internal/cli/prime.go:23 (worktreeLock* advice) · internal/cli/init.go:211</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col justify-center gap-2 text-xs">
+              <p class="lbl text-slate-500">Before</p>
+              <div class="mod p-2 font-mono">"capcom lock acquire --purpose &lt;text&gt;" (block)</div>
+              <div class="mod p-2 font-mono">"…--token…" (prime advice, other wording)</div>
+              <div class="mod p-2 font-mono">flagPurpose, flagToken (cli consts)</div>
+              <p class="text-red-600">nothing checks the strings parse</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4 diagram flex flex-col justify-center gap-2 text-xs">
+              <p class="lbl text-slate-500">After</p>
+              <div class="deep rounded p-3">agent-facing invocations, resolved through the root command in a test</div>
+              <div class="flex gap-2"><span class="mod px-2 py-1">block</span><span class="mod px-2 py-1">prime</span><span class="mod px-2 py-1">init</span></div>
+            </div>
+          </div>
+          <p><b>Problem.</b> The two latest features added the same Tree-lock guidance twice, by hand, in different wording.</p>
+          <p><b>Solution.</b> At minimum, a test that parses every <span class="font-mono">capcom …</span> invocation in the block and the advice against the cobra tree.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5"><li>A renamed flag fails a test</li></ul>
+        </article>
+
+        <!-- 11 -->
+        <article id="c11" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h2 class="font-serif text-2xl mr-2">11 · Release steps state their preconditions</h2>
+            <span class="rounded-full bg-slate-200 text-slate-700 text-xs px-2 py-0.5">Speculative</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-0.5">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 space-y-0.5">
+            <li>cmd/release/publish.go (publishRun, converge, printPublish) · steps.go · tag.go · githubrelease.go · smoke.go · winget.go</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">Before</p>
+              <pre class="mermaid">
+flowchart LR
+  run[(publishRun scratchpad)]
+  cp[checkPushable] -->|sets head| run
+  rel[release step] -->|sets distDir| run
+  rw[resolveWingetPackage] -->|sets listed| run
+  run -->|reads head| tag[tag step]
+  run -->|reads distDir| sm[smoke step]
+  run -->|reads listed| wg[winget step]
+  steps[steps slice] -. aligned by index .- tbl[publishSteps]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class steps,tbl leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-1">After</p>
+              <pre class="mermaid">
+flowchart LR
+  plan[plan: step + probed report]:::deep
+  plan --> tag[tag: needs head]
+  plan --> sm[smoke: needs distDir]
+  plan --> wg[winget: needs listed]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+              </pre>
+            </div>
+          </div>
+          <p><b>Problem.</b> Steps read fields that other files set, and two slices are matched by position.</p>
+          <p><b>Solution.</b> Pair each step with its report; each step names the facts it needs.</p>
+          <ul class="list-disc pl-6 text-sm space-y-0.5"><li>One step testable alone</li></ul>
+          <div class="rounded border border-amber-200 bg-amber-50 p-2 text-sm">Within ADR-0008. The module is already deep and the couplings are commented; low priority.</div>
+        </article>
+      </section>
+
+      <section id="still-open" class="rounded-xl border border-slate-200 bg-white p-6 space-y-3">
+        <h2 class="font-serif text-2xl">Still open from the earlier review</h2>
+        <p class="text-sm text-slate-600">Out of the fixes plan's scope; see <span class="font-mono">architecture-review-2026-10-14-0848.html</span> for the cards.</p>
+        <ul class="text-sm space-y-1 list-disc pl-6">
+          <li><b>6 · Node patch and creation defaults leave cli:</b> <span class="font-mono">cli/update.go:100</span> (applyUpdate), <span class="font-mono">create.go</span> (newIssue, defaultType), <span class="font-mono">reopen.go</span> (targetStatus) repeats <span class="font-mono">issue.SetStatus</span>'s ErrEntersClosed.</li>
+          <li><b>7 · Write results carry their own Effects:</b> <span class="font-mono">warnRaisedFormat</span> still called by hand (<span class="font-mono">related.go</span>, <span class="font-mono">know_update.go</span>); <span class="font-mono">addSyncEffects</span> type-switches on result shape.</li>
+          <li><b>8 · Issue graph facts in one place:</b> List → Nodes → Ready/DepGraph assembled separately in <span class="font-mono">show.go</span>, <span class="font-mono">close.go</span>, <span class="font-mono">briefing/ready.go</span>, <span class="font-mono">dep_graph.go</span>.</li>
+          <li><b>10 · One way to open the store:</b> three opening paths (<span class="font-mono">root.go</span>, <span class="font-mono">check.go</span>, <span class="font-mono">prime.go</span>); <span class="font-mono">briefing.Compose(cwd)</span> opens its own store and tests swap package globals.</li>
+          <li><b>Naming:</b> <span class="font-mono">readIssueFile</span> reads Notes; <span class="font-mono">app.issueIndex</span> serves Notes.</li>
+        </ul>
+      </section>
+
+      <section class="grid md:grid-cols-2 gap-6">
+        <div class="rounded-xl border border-slate-200 bg-white p-6 space-y-2">
+          <h2 class="font-serif text-xl">Fails the deletion test</h2>
+          <ul class="text-sm list-disc pl-6 space-y-1">
+            <li><span class="font-mono">tree.Move.Apply</span> (<span class="font-mono">move.go:206</span>): no production caller; nodestore calls <span class="font-mono">Plan.Apply</span>.</li>
+            <li><span class="font-mono">Kind.RecoverAliases</span>: exists only for <span class="font-mono">Claimant</span> (candidate 2).</li>
+            <li><span class="font-mono">tree.Load</span> with <span class="font-mono">AliasFunc</span>: two callers, both re-implement kind readers (candidate 3).</li>
+            <li><span class="font-mono">Destination</span> defined twice (<span class="font-mono">nodestore/move.go</span>, <span class="font-mono">tree/move.go</span>).</li>
+          </ul>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-6 space-y-2">
+          <h2 class="font-serif text-xl">Looked shallow, earns its keep</h2>
+          <ul class="text-sm list-disc pl-6 space-y-1">
+            <li><span class="font-mono">tree.DecideMembership</span>, <span class="font-mono">tree.ResolveIn</span> over NameReader (two adapters)</li>
+            <li><span class="font-mono">reflist</span>, <span class="font-mono">diagnose</span>, <span class="font-mono">issue.DepGraph</span>, <span class="font-mono">nodestore.Kind</span></li>
+            <li><span class="font-mono">nodeVerbs[T]</span>, <span class="font-mono">editNode</span>, <span class="font-mono">visibleTree</span>, <span class="font-mono">output.Renderer</span></li>
+            <li><span class="font-mono">gitx</span>: exit codes, NUL parsing, size checks for five callers</li>
+            <li><span class="font-mono">elsewhere</span>, <span class="font-mono">lock.Worktree</span>, <span class="font-mono">hooks.Merge</span></li>
+            <li>cmd/release <span class="font-mono">runner</span> / <span class="font-mono">repo</span> / <span class="font-mono">channelRepos</span>: exec + in-memory adapters</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="top-recommendation" class="rounded-2xl deep p-8 space-y-3">
+        <p class="lbl text-slate-300">Top recommendation</p>
+        <h2 class="font-serif text-3xl"><a href="#c3" class="underline decoration-slate-500">3 · One node reader and descriptor per kind</a></h2>
+        <p class="text-slate-200">It is the module candidates 1 and 9 plug into, it removes the drift already shipping (Managed block lists Notes the index leaves out; mv's "deps not checked" wording), and it carries earlier items 4 and 5 that the fixes plan skipped.</p>
+        <p class="text-sm text-slate-400">Quick win alongside it: <a href="#c5" class="underline">5 · lock state</a>, small and in code the last two features touched.</p>
+      </section>
+    </main>
+  </body>
+</html>
