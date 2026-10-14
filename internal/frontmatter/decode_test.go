@@ -316,6 +316,7 @@ func TestDecode_NoKeys_CallsNothing(t *testing.T) {
 		{name: "empty frontmatter", content: "---\n---\nbody\n", body: "body\n"},
 		{name: "comment only", content: "---\n# nothing\n---\n", body: ""},
 		{name: "closing fence at end of file", content: "---\n---", body: ""},
+		{name: "closing fence with a lone CR at end of file", content: "---\n---\r", body: ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -382,6 +383,60 @@ func TestSplit(t *testing.T) {
 
 	if err != nil || front != "title: T\n" || body != "body\n" {
 		t.Errorf("Split = %q, %q, %v; want the frontmatter and body with LF endings", front, body, err)
+	}
+}
+
+func TestSplit_Fences(t *testing.T) {
+	t.Parallel()
+	const neverClosed = testPath + ":1: the frontmatter opened here is never closed by a --- line"
+	const noOpening = testPath + ":1: a note file must start with a --- line"
+	cases := []struct {
+		name    string
+		content string
+		front   string
+		body    string
+		wantErr string
+	}{
+		{
+			name:    "CRLF fences",
+			content: "---\r\ntitle: T\r\n---\r\nbody\r\n",
+			front:   "title: T\n",
+			body:    "body\n",
+		},
+		{name: "byte order mark before the opening fence", content: "\ufeff---\ntitle: T\n---\n", wantErr: noOpening},
+		{name: "trailing space after the closing fence", content: "---\ntitle: T\n--- \n", wantErr: neverClosed},
+		{name: "missing closing fence", content: "---\ntitle: T\n", wantErr: neverClosed},
+		{name: "lone opening fence", content: "---\n", wantErr: neverClosed},
+		{name: "closing fence with a lone CR at end of file", content: "---\ntitle: T\n---\r", front: "title: T\n"},
+		{
+			name:    "fence lines in the body are kept",
+			content: "---\ntitle: T\n---\r\nabove\r\n---\r\nbelow\n",
+			front:   "title: T\n",
+			body:    "above\n---\nbelow\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			front, body, err := frontmatter.Split(testPath, []byte(tc.content), "a note")
+
+			gotErr := ""
+			if err != nil {
+				gotErr = err.Error()
+			}
+			if gotErr != tc.wantErr || front != tc.front || body != tc.body {
+				t.Errorf(
+					"Split = %q, %q, %q; want %q, %q, %q",
+					front,
+					body,
+					gotErr,
+					tc.front,
+					tc.body,
+					tc.wantErr,
+				)
+			}
+		})
 	}
 }
 

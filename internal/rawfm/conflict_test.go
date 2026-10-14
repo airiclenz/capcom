@@ -138,3 +138,60 @@ func TestConflictMessage_Marker_QuotesTheMarkerAndSaysHowToResolve(t *testing.T)
 		t.Errorf("ConflictMessage = %q; want %q", message, want)
 	}
 }
+
+func TestIsFrontmatterFence(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		line    string
+		isFence bool
+	}{
+		{name: "lone fence", line: "---", isFence: true},
+		{name: "CRLF fence", line: "---\r", isFence: true},
+		{name: "two carriage returns", line: "---\r\r", isFence: false},
+		{name: "byte order mark", line: "\ufeff---", isFence: false},
+		{name: "trailing space", line: "--- ", isFence: false},
+		{name: "leading space", line: " ---", isFence: false},
+		{name: "four dashes", line: "----", isFence: false},
+		{name: "empty line", line: "", isFence: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			isFence := rawfm.IsFrontmatterFence(tc.line)
+
+			if isFence != tc.isFence {
+				t.Errorf("IsFrontmatterFence(%q) = %v; want %v", tc.line, isFence, tc.isFence)
+			}
+		})
+	}
+}
+
+func TestBodyStart_Fences(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		content string
+		want    int
+	}{
+		{name: "LF fences", content: "---\ntitle: T\n---\nbody\n", want: 3},
+		{name: "CRLF fences", content: "---\r\ntitle: T\r\n---\r\nbody\r\n", want: 3},
+		{name: "byte order mark before the opening fence", content: "\ufeff---\ntitle: T\n---\n", want: 0},
+		{name: "trailing space after the closing fence", content: "---\ntitle: T\n--- \n", want: 4},
+		{name: "missing closing fence", content: "---\ntitle: T\n", want: 3},
+		{name: "lone opening fence", content: "---", want: 1},
+		{name: "closing fence with a lone CR at end of file", content: "---\ntitle: T\n---\r", want: 3},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			start := rawfm.BodyStart(strings.Split(tc.content, "\n"))
+
+			if start != tc.want {
+				t.Errorf("BodyStart(%q) = %d; want %d", tc.content, start, tc.want)
+			}
+		})
+	}
+}

@@ -9,9 +9,10 @@
 package frontmatter
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/rawfm"
 )
 
 // fence is the line that opens and closes the frontmatter.
@@ -45,22 +46,23 @@ func (e *Error) Error() string {
 
 // Split separates the file content data into its frontmatter YAML and its body, both with CRLF
 // line endings read as LF. The frontmatter is everything between the opening `---` line and the
-// first later line that is exactly `---`; the body is everything after that line, byte for byte.
-// path names the file in an error, and noun names one file of its kind with its article ("an
-// issue", "a note").
+// first later line that is a fence, `---` with at most one trailing carriage return
+// (rawfm.IsFrontmatterFence), so a closing `---\r` that ends the file closes it too; the body is
+// everything after that line, byte for byte. path names the file in an error, and noun names one
+// file of its kind with its article ("an issue", "a note").
 //
 // Split fails, with an *Error citing line 1, when data does not open with a `---` line ("an issue
 // file must start with a --- line") and when the frontmatter is never closed.
 func Split(path string, data []byte, noun string) (front string, body string, err error) {
-	text := string(bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n")))
-	if !strings.HasPrefix(text, fenceLine) {
+	opening, rest, isLine := strings.Cut(string(data), "\n")
+	if !isLine || !rawfm.IsFrontmatterFence(opening) {
 		return "", "", &Error{
 			Path:    path,
 			Line:    openingFenceLine,
 			Message: noun + " file must start with a --- line",
 		}
 	}
-	front, body, isClosed := splitAtFence(text[len(fenceLine):])
+	front, body, isClosed := splitAtFence(rest)
 	if !isClosed {
 		return "", "", &Error{
 			Path:    path,
@@ -68,24 +70,30 @@ func Split(path string, data []byte, noun string) (front string, body string, er
 			Message: "the frontmatter opened here is never closed by a --- line",
 		}
 	}
-	return front, body, nil
+	return crlfToLF(front), crlfToLF(body), nil
 }
 
-// splitAtFence splits rest, the content after the opening fence, at the first line that is exactly
-// a fence. isClosed is false when there is none.
+// splitAtFence splits rest, the raw content after the opening fence's line, at its first line that
+// is a fence by rawfm.IsFrontmatterFence, the one predicate rawfm's own readers use. isClosed is
+// false when there is none.
 func splitAtFence(rest string) (front string, body string, isClosed bool) {
 	offset := 0
 	for {
-		end := strings.IndexByte(rest[offset:], '\n')
-		if end < 0 {
-			if rest[offset:] == fence {
+		line, _, hasEnd := strings.Cut(rest[offset:], "\n")
+		if rawfm.IsFrontmatterFence(line) {
+			if !hasEnd {
 				return rest[:offset], "", true
 			}
+			return rest[:offset], rest[offset+len(line)+1:], true
+		}
+		if !hasEnd {
 			return "", "", false
 		}
-		if rest[offset:offset+end] == fence {
-			return rest[:offset], rest[offset+end+1:], true
-		}
-		offset += end + 1
+		offset += len(line) + 1
 	}
+}
+
+// crlfToLF returns text with each CRLF line ending read as LF.
+func crlfToLF(text string) string {
+	return strings.ReplaceAll(text, "\r\n", "\n")
 }

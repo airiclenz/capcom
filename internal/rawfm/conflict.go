@@ -85,12 +85,11 @@ func BodyStart(lines []string) int {
 // after the "---" line that closes the frontmatter, 0 for a file that opens with no frontmatter,
 // and len(lines) for one whose frontmatter is never closed, which is then all frontmatter.
 func bodyStartIndex(lines []string) int {
-	isFence := func(line string) bool { return strings.TrimSuffix(line, "\r") == "---" }
-	if len(lines) == 0 || !isFence(lines[0]) {
+	if len(lines) == 0 || !IsFrontmatterFence(lines[0]) {
 		return 0
 	}
 	for index := 1; index < len(lines); index++ {
-		if isFence(lines[index]) {
+		if IsFrontmatterFence(lines[index]) {
 			return index + 1
 		}
 	}

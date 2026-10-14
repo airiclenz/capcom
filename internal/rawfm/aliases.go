@@ -19,6 +19,14 @@ const (
 // frontmatterFence is the line that opens and closes the frontmatter.
 const frontmatterFence = "---"
 
+// IsFrontmatterFence reports whether line, without its LF terminator, is a fence that opens or
+// closes the frontmatter of an issue or Note file: exactly "---", with at most one trailing "\r",
+// so a CRLF line and a closing fence that ends the file with a lone "\r" are fences too. Leading or
+// trailing spaces, a byte order mark or any other text make it no fence.
+func IsFrontmatterFence(line string) bool {
+	return strings.TrimSuffix(line, "\r") == frontmatterFence
+}
+
 // Aliases returns the aliases the frontmatter of an issue or Note file lists under its top-level
 // aliases key, read line by line from the raw text without parsing it, for a file whose frontmatter
 // does not parse. It reads the flow form "aliases: [a, b]" and the block form, an "aliases:" line
@@ -52,7 +60,7 @@ func Aliases(data []byte) []string {
 // opens with no frontmatter: its frontmatter lines lie between index 1 and the one returned.
 func frontmatterEndIndex(lines []string) int {
 	end := bodyStartIndex(lines)
-	if end > 1 && strings.TrimSuffix(lines[end-1], "\r") == frontmatterFence {
+	if end > 1 && IsFrontmatterFence(lines[end-1]) {
 		return end - 1
 	}
 	return end

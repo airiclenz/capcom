@@ -482,7 +482,9 @@ NOTES (2026-10-14): the entry-names adapter noteNames is built in know_update.go
 **Closes:** reflist-module
 **Commit:** `feat(cli): know update superseded-by edits follow the dep rules`
 
-## P4.1 One frontmatter fence predicate
+## P4.1 One frontmatter fence predicate — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): frontmatter.Split now finds the fences on the raw lines with rawfm.IsFrontmatterFence and reads CRLF as LF in the frontmatter and body afterwards (new helper crlfToLF), rather than normalising first and then matching; the opening-fence check uses the predicate too. Outcomes are unchanged except the intended lone `---\r` at end of file, and a raw `---\r\r` line stays no fence in both packages, which per-line matching after normalisation would have split.
 
 **What:**
 **Goal:** `rawfm` exports one fence predicate used by `bodyStartIndex`, `frontmatterEndIndex` and `frontmatter`'s `splitAtFence`; a closing `---\r` at end of file closes the frontmatter in both.

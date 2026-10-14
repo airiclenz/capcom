@@ -89,7 +89,9 @@ names `adr-0076`); dots and hyphens are kept, and errors quote the argument as t
 ## Issue files
 
 An issue file is markdown with a YAML frontmatter between two `---` lines. The first line of the
-file is `---`, and the frontmatter ends at the next line that is exactly `---`. Everything after
+file is `---`, and the frontmatter ends at the next line that is `---` with nothing else on it
+but a line ending: a CRLF ending counts, and so does a lone carriage return after a closing `---`
+that ends the file, while a space or any other text makes the line no fence. Everything after
 that line is the body, kept byte for byte, so a body may hold `---` lines of its own (a thematic
 break, a fenced YAML example).
 
