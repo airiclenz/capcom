@@ -204,7 +204,9 @@ internal/cli/agents_test.go — writeAgentsGuide, TestAgents_GuideLinkedOutsideT
 
 **Commit:** `feat(agents): capcom agents adds @AGENTS.md to agent guides that miss the block`
 
-## 5. Docs and glossary describe the guide rule
+## 5. Docs and glossary describe the guide rule — ✅ DONE (2026-10-14)
+NOTES (2026-10-14): the README.md and docs/site/index.md quick-start commit lines split into `git add .capcom AGENTS.md  # plus CLAUDE.md or GEMINI.md when capcom agents changed them` and a separate `git commit` line, instead of naming the guides on `git add`: git add fails on a pathspec that does not exist, and capcom agents never creates a guide. quickstart.md's commit step names CLAUDE.md on `git add` and says to leave it out when absent and to add GEMINI.md when capcom agents named it.
+NOTES (2026-10-14): README.md's "AGENTS.md" bullet (line 91) also gained the import of the block into CLAUDE.md and GEMINI.md, as a sentence describing what capcom agents writes; the managed-block.md example output was captured from the built binary in a scratch repository.
 
 Depends on items 3 and 4.
 

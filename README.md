@@ -89,7 +89,9 @@ Codex, Cursor, Gemini CLI, Aider, GitHub Copilot's agent mode or your own script
 make that easy:
 
 - **`AGENTS.md`.** `capcom agents` writes a short block telling agents how to use capcom into
-  `AGENTS.md`, the instructions file most coding agents read on start-up.
+  `AGENTS.md`, the instructions file most coding agents read on start-up, and appends an
+  `@AGENTS.md` import line to `CLAUDE.md` and `GEMINI.md`, when they exist, so Claude Code and
+  Gemini CLI read it too.
 - **Claude Code and Codex hooks.** `capcom init --claude-hooks` runs `capcom prime` from Claude
   Code's session hooks, so every session starts with a briefing. `capcom init --codex-hooks` does
   the same for Codex through `.codex/hooks.json`; Codex runs hooks only with
@@ -138,7 +140,8 @@ capcom init                     # create .capcom/ in this git repository
 capcom agents                   # tell your agents about capcom in AGENTS.md
 capcom create --id first-task --title "Try capcom"
 capcom ready                    # what to work on next
-git add .capcom AGENTS.md && git commit -m "chore: track issues with capcom"
+git add .capcom AGENTS.md       # plus CLAUDE.md or GEMINI.md when capcom agents changed them
+git commit -m "chore: track issues with capcom"
 ```
 
 ## Usage

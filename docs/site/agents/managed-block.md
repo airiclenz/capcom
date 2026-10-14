@@ -11,6 +11,11 @@ the core commands, a map of the store, a recommendation to take the
 [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is your own hand-written
 guide, and capcom never touches it.
 
+`AGENTS.md` is the block's only home. An agent that reads another guide, such as Claude Code's
+`CLAUDE.md` or Gemini CLI's `GEMINI.md`, reaches the block through that guide, which links to
+`AGENTS.md` or imports it with an `@AGENTS.md` line; no other file holds a copy of it (see
+[Other agent guides](#other-agent-guides)).
+
 ## Writing it: `capcom agents`
 
 ```console
@@ -112,13 +117,68 @@ capcom: AGENTS.md:5: the capcom block is out of date; run capcom agents to refre
 ```
 
 Run `capcom agents` to rewrite it. In CI, `capcom agents --check` (or `capcom check`) catches a
-block that has drifted. A file without the block passes both: nothing is out of date when there
-is nothing to keep current.
+block that has drifted, and an agent guide that does not reach it (see
+[Other agent guides](#other-agent-guides)). A file without the block passes both: nothing is out of
+date when there is nothing to keep current.
+
+## Other agent guides
+
+Some agents read their own guide instead of `AGENTS.md`: Claude Code reads `CLAUDE.md`, Gemini CLI
+reads `GEMINI.md`. The block is never copied into them; each reaches the one in `AGENTS.md`, in one
+of two ways:
+
+- the guide is a symbolic link to `AGENTS.md` (`CLAUDE.md -> AGENTS.md`), or
+- one of its lines, white space trimmed, is the import line `@AGENTS.md` (or `@./AGENTS.md`). A
+  guide in a subdirectory imports the root file by its relative path, `@../AGENTS.md` and so on.
+
+The `agents.guides` key of [`config.yaml`](../reference/file-format.md#config) names the guides
+that must reach the block, as paths relative to the repository root. It defaults to
+`[CLAUDE.md, GEMINI.md]`, and `guides: []` turns the rule off:
+
+```yaml
+format: 4
+agents:
+  guides: [CLAUDE.md, GEMINI.md, docs/CLAUDE.md]
+```
+
+`capcom agents` appends the import line, after a blank line, to every listed guide that exists but
+does not reach the block, and names each one:
+
+```console
+$ capcom agents
+wrote the capcom block to AGENTS.md
+added @AGENTS.md to CLAUDE.md
+```
+
+On a `CLAUDE.md` that held a heading and one line of its own, the result is:
+
+```markdown
+# Claude
+
+House rules.
+
+@AGENTS.md
+```
+
+A guide that does not exist is never created, and one that links outside the working tree is left
+alone (`skipped CLAUDE.md: links outside the working tree`). Commit the guides it changed together
+with `AGENTS.md`.
+
+While `AGENTS.md` carries the block, `capcom check` reports each listed guide that exists but does
+not reach it, as an `agents-guide` problem, and `capcom agents --check` fails on the first one:
+
+```console
+$ capcom agents --check
+capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md
+```
+
+An `AGENTS.md` without the block reports no guide: there is nothing yet to reach.
 
 ## AGENTS.md as a link
 
 When `AGENTS.md` is a symbolic link to another file inside the working tree
 (`AGENTS.md -> CLAUDE.md`), capcom writes the block into the file it points to and keeps the link.
+That file then reaches the block as it is, with no import line.
 A link that points outside the working tree is neither read nor written. The full rules, including
 what counts as a broken marker, are in
 [The Managed block in AGENTS.md](../reference/file-format.md#the-managed-block-in-agentsmd).

@@ -33,7 +33,8 @@ capcom init                     # create .capcom/ in this git repository
 capcom agents                   # tell your agents about capcom in AGENTS.md
 capcom create --id first-task --title "Try capcom"
 capcom ready                    # what to work on next
-git add .capcom AGENTS.md && git commit -m "chore: track issues with capcom"
+git add .capcom AGENTS.md       # plus CLAUDE.md or GEMINI.md when capcom agents changed them
+git commit -m "chore: track issues with capcom"
 ```
 
 [Install capcom](getting-started/install.md) first, then walk through a whole session, with real

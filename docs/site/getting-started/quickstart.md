@@ -67,6 +67,19 @@ block into it, between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->`, that t
 use capcom, and leaves the rest of the file alone. Run `capcom agents` again after upgrading capcom
 to refresh it.
 
+`AGENTS.md` is the block's only home. Claude Code reads `CLAUDE.md` and Gemini CLI reads
+`GEMINI.md`, so when either exists, `capcom agents` appends an `@AGENTS.md` import line to it, and
+the agent reads `AGENTS.md` too:
+
+```console
+$ capcom agents
+wrote the capcom block to AGENTS.md
+added @AGENTS.md to CLAUDE.md
+```
+
+It never creates either file. The guides it looks after are the `agents.guides` list of
+`config.yaml`; [The Managed block](../agents/managed-block.md#other-agent-guides) has the details.
+
 ## 3. File Issues
 
 An Issue's id is a readable slug you choose. Its body says what is wrong or wanted, why, and how
@@ -171,11 +184,15 @@ With the Claude Code or Codex hooks installed, every session starts with this ou
 
 ## 8. Commit
 
-Issues are files, so they are committed like code:
+Issues are files, so they are committed like code, together with `AGENTS.md` and each guide
+`capcom agents` added `@AGENTS.md` to:
 
 ```sh
-git add .capcom AGENTS.md && git commit -m "chore: track issues with capcom"
+git add .capcom AGENTS.md CLAUDE.md && git commit -m "chore: track issues with capcom"
 ```
+
+Leave out `CLAUDE.md` when the repository has none, and add `GEMINI.md` when `capcom agents` named
+it too.
 
 The SQLite index capcom builds for its queries lives under the git directory and is never
 committed; capcom rebuilds it from the files whenever they change.

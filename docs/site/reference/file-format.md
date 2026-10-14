@@ -665,9 +665,10 @@ write, and the record is replaced atomically.
 
 ## The Managed block in AGENTS.md
 
-`AGENTS.md` at the root of the working tree stays a hand-written agent guide. capcom owns only the
-**Managed block**: the lines from `<!-- BEGIN CAPCOM -->` to `<!-- END CAPCOM -->`, each marker on a
-line of its own. The block holds a short paragraph naming capcom as the issue register of record,
+`AGENTS.md` at the root of the working tree stays a hand-written agent guide, and the only home of
+the block capcom owns in it, the **Managed block**: the lines from `<!-- BEGIN CAPCOM -->` to
+`<!-- END CAPCOM -->`, each marker on a line of its own. The block holds a short paragraph naming
+capcom as the issue register of record,
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
 install instructions, https://github.com/airiclenz/capcom#install), the handful of commands an
 agent needs (`ready`, `show`, `create` with `--dep`, `dep add` and `dep list`, `close`,
@@ -699,6 +700,24 @@ the same block.
   `capcom agents` rewrites it.
 - A marker that appears twice, an end marker before the begin marker, or a begin marker that is
   never closed is an error at that marker's line, for `agents` and `check` alike.
+- Every other agent guide that `agents.guides` lists (see [Config](#config); `CLAUDE.md` and
+  `GEMINI.md` by default) reaches the block in `AGENTS.md` and never holds a copy of it. A guide
+  reaches it when it resolves to the same file as `AGENTS.md` (a link `CLAUDE.md -> AGENTS.md`, or
+  the file an `AGENTS.md` link points to), or when one of its lines, white space trimmed, is
+  `@<rel>` or `@./<rel>`, `<rel>` being the root `AGENTS.md` relative to the directory of the file
+  the guide resolves to, in slash form: `@AGENTS.md` at the root, `@../AGENTS.md` one level down.
+- `capcom agents` appends the import line `@<rel>` to each listed guide that exists but does not
+  reach the block, after a blank line and in the file's line ending, keeping its permissions, and
+  prints `added @AGENTS.md to CLAUDE.md`. It never creates a missing guide, and leaves a guide that
+  links outside the working tree unread and unwritten (`skipped CLAUDE.md: links outside the
+  working tree`). Guides that resolve to one file are read, and written, once.
+- While `AGENTS.md` carries the block, `capcom check` reports each listed guide that exists but
+  does not reach it as an `agents-guide` problem
+  (`CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md`),
+  and `capcom agents --check` fails on the first one once the block is current. A listed guide that
+  is not a regular file, or is larger than 1 MiB, is an `agents-guide` problem too. A missing guide,
+  one linking outside the working tree, an `AGENTS.md` without the block and `guides: []` report
+  nothing.
 - An `AGENTS.md` that is a symbolic link keeps its link: the block is written to the file it
   points to, but only when that file lies inside the working tree (`AGENTS.md -> CLAUDE.md`). An
   `AGENTS.md` link that resolves outside the working tree is neither read nor written.

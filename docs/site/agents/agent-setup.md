@@ -26,13 +26,28 @@ wrote the capcom block to AGENTS.md
 ```
 
 This adds a marked section to `AGENTS.md` (creating the file when there is none) and leaves the
-rest of the file alone. Commit it. [The Managed block](managed-block.md) explains what it holds
-and how it stays current.
+rest of the file alone. [The Managed block](managed-block.md) explains what it holds and how it
+stays current.
 
-If your agent reads a different instructions file, point that file at `AGENTS.md`. Claude Code
-reads `CLAUDE.md`, and a `CLAUDE.md` holding the single line `@AGENTS.md` makes it read
-`AGENTS.md` too; capcom's own repository does exactly that. A symbolic link
-`AGENTS.md -> CLAUDE.md` works as well: capcom writes the block into the file the link points to.
+`AGENTS.md` is the block's only home. An agent that reads a different instructions file reaches it
+through that file: Claude Code reads `CLAUDE.md`, Gemini CLI reads `GEMINI.md`, and a guide holding
+the line `@AGENTS.md` makes the agent read `AGENTS.md` too; capcom's own repository does exactly
+that. The `agents.guides` key of `config.yaml` lists the guides that must reach the block,
+`[CLAUDE.md, GEMINI.md]` by default, and `capcom agents` appends `@AGENTS.md` to each one that
+exists without reaching it:
+
+```console
+$ capcom agents
+wrote the capcom block to AGENTS.md
+added @AGENTS.md to CLAUDE.md
+```
+
+It never creates a guide that does not exist. A guide that is a symbolic link to `AGENTS.md`
+reaches the block as it is, and so does the reverse link `AGENTS.md -> CLAUDE.md`, where capcom
+writes the block into the file the link points to. While `AGENTS.md` carries the block,
+`capcom check` and `capcom agents --check` report a listed guide that does not reach it
+([Other agent guides](managed-block.md#other-agent-guides) has the details). Commit `AGENTS.md`
+and every guide `capcom agents` changed.
 
 ## Step 2: Claude Code hooks
 
