@@ -8,94 +8,160 @@ import (
 	"github.com/airiclenz/capcom/internal/diagnose"
 )
 
-func TestParseIssue_FileDoesNotParse_ReturnsOneFrontmatterFinding(t *testing.T) {
+func TestIssueFile_Verdict(t *testing.T) {
 	tests := []struct {
-		name string
-		data string
-		want diagnose.Finding
+		name        string
+		data        string
+		wantTitle   string
+		wantParse   []diagnose.Finding
+		wantFields  []diagnose.Finding
+		wantAliases []diagnose.Finding
 	}{
 		{
-			name: "with a line",
+			name: "does not parse, with a line",
 			data: "---\ntitle: a\nbogus: 1\n---\n",
-			want: diagnose.Finding{
+			wantParse: []diagnose.Finding{{
 				Code: diagnose.Frontmatter,
 				Path: "alpha.md",
 				Line: 3,
 				Message: "unknown key \"bogus\"; an issue has title, status, type, priority, labels, deps, " +
 					"related, plan, aliases, created, closed and reason",
-			},
+			}},
 		},
 		{
-			name: "without a line",
+			name: "does not parse, without a line",
 			data: "---\n\ttitle: a\n---\n",
-			want: diagnose.Finding{
+			wantParse: []diagnose.Finding{{
 				Code:    diagnose.Frontmatter,
 				Path:    "alpha.md",
 				Message: "invalid YAML frontmatter: yaml: found character that cannot start any token",
+			}},
+		},
+		{
+			name: "two bad fields",
+			data: "---\ntitle: \"\"\nstatus: nope\ntype: task\ncreated: 2026-10-13T00:00:00Z\n---\n",
+			wantFields: []diagnose.Finding{
+				{Code: diagnose.Field, Path: "alpha.md", Line: 2, Message: "title is required"},
+				{
+					Code:    diagnose.Field,
+					Path:    "alpha.md",
+					Line:    3,
+					Message: "status \"nope\" is not declared in config; use one of [open active parked done dropped]",
+				},
 			},
+		},
+		{
+			name:      "an alias repeats the id",
+			data:      "---\ntitle: Alpha\nstatus: open\ntype: task\naliases: [alpha]\ncreated: 2026-10-13T00:00:00Z\n---\n",
+			wantTitle: "Alpha",
+			wantAliases: []diagnose.Finding{{
+				Code:    diagnose.RepeatedAlias,
+				Path:    "alpha.md",
+				Line:    5,
+				Message: "alias \"alpha\" repeats the issue's own id",
+			}},
+		},
+		{
+			name:      "clean",
+			data:      "---\ntitle: Alpha\nstatus: open\ntype: task\naliases: [first]\ncreated: 2026-10-13T00:00:00Z\n---\n",
+			wantTitle: "Alpha",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			parsed, findings := diagnose.ParseIssue("alpha.md", []byte(test.data))
+			verdict := diagnose.IssueFile("alpha.md", "alpha", []byte(test.data), config.Default())
 
-			if !slices.Equal(findings, []diagnose.Finding{test.want}) {
-				t.Errorf("findings = %#v, want %#v", findings, test.want)
+			if verdict.Parsed.Title != test.wantTitle {
+				t.Errorf("parsed title = %q, want %q", verdict.Parsed.Title, test.wantTitle)
 			}
-			if parsed.Title != "" {
-				t.Errorf("parsed title = %q, want the zero issue", parsed.Title)
+			if verdict.IsParsed() != (test.wantParse == nil) {
+				t.Errorf("IsParsed() = %v, want %v", verdict.IsParsed(), test.wantParse == nil)
 			}
+			assertVerdictFindings(t, verdict.Parse, verdict.Fields, verdict.Aliases, verdict.Findings(),
+				test.wantParse, test.wantFields, test.wantAliases)
 		})
 	}
 }
 
-func TestParseNote_FileDoesNotParse_ReturnsOneFrontmatterFinding(t *testing.T) {
-	_, findings := diagnose.ParseNote("alpha.md", []byte("---\ntitle: a\nbogus: 1\n---\n"))
-
-	want := []diagnose.Finding{{
-		Code:    diagnose.Frontmatter,
-		Path:    "alpha.md",
-		Line:    3,
-		Message: "unknown key \"bogus\"; a note has title, labels, refs, retired, superseded-by and aliases",
-	}}
-	if !slices.Equal(findings, want) {
-		t.Errorf("findings = %#v, want %#v", findings, want)
-	}
-}
-
-func TestValidateIssue_TwoBadFields_ReturnsAFieldFindingForEach(t *testing.T) {
-	data := "---\ntitle: \"\"\nstatus: nope\ntype: task\ncreated: 2026-10-13T00:00:00Z\n---\n"
-	parsed, parseFindings := diagnose.ParseIssue("alpha.md", []byte(data))
-	if parseFindings != nil {
-		t.Fatalf("ParseIssue findings = %v, want none", parseFindings)
-	}
-
-	findings := diagnose.ValidateIssue("alpha.md", parsed, config.Default())
-
-	want := []diagnose.Finding{
-		{Code: diagnose.Field, Path: "alpha.md", Line: 2, Message: "title is required"},
+func TestNoteFile_Verdict(t *testing.T) {
+	tests := []struct {
+		name        string
+		data        string
+		wantTitle   string
+		wantParse   []diagnose.Finding
+		wantFields  []diagnose.Finding
+		wantAliases []diagnose.Finding
+	}{
 		{
-			Code:    diagnose.Field,
-			Path:    "alpha.md",
-			Line:    3,
-			Message: "status \"nope\" is not declared in config; use one of [open active parked done dropped]",
+			name: "does not parse",
+			data: "---\ntitle: a\nbogus: 1\n---\n",
+			wantParse: []diagnose.Finding{{
+				Code:    diagnose.Frontmatter,
+				Path:    "alpha.md",
+				Line:    3,
+				Message: "unknown key \"bogus\"; a note has title, labels, refs, retired, superseded-by and aliases",
+			}},
+		},
+		{
+			name: "missing title",
+			data: "---\nlabels: [x]\n---\n",
+			wantFields: []diagnose.Finding{
+				{Code: diagnose.Field, Path: "alpha.md", Line: 0, Message: "title is required"},
+			},
+		},
+		{
+			name:      "an alias is no valid name",
+			data:      "---\ntitle: Alpha\naliases: [Not Valid]\n---\n",
+			wantTitle: "Alpha",
+			wantAliases: []diagnose.Finding{{
+				Code:    diagnose.InvalidAlias,
+				Path:    "alpha.md",
+				Line:    3,
+				Message: "invalid alias \"Not Valid\": must use only a-z, 0-9, dots and hyphens",
+			}},
+		},
+		{
+			name:      "clean",
+			data:      "---\ntitle: Alpha\naliases: [first]\n---\n",
+			wantTitle: "Alpha",
 		},
 	}
-	if !slices.Equal(findings, want) {
-		t.Errorf("findings = %#v, want %#v", findings, want)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			verdict := diagnose.NoteFile("alpha.md", "alpha", []byte(test.data))
+
+			if verdict.Parsed.Title != test.wantTitle {
+				t.Errorf("parsed title = %q, want %q", verdict.Parsed.Title, test.wantTitle)
+			}
+			if verdict.IsParsed() != (test.wantParse == nil) {
+				t.Errorf("IsParsed() = %v, want %v", verdict.IsParsed(), test.wantParse == nil)
+			}
+			assertVerdictFindings(t, verdict.Parse, verdict.Fields, verdict.Aliases, verdict.Findings(),
+				test.wantParse, test.wantFields, test.wantAliases)
+		})
 	}
 }
 
-func TestValidateNote_MissingTitle_ReturnsAFieldFinding(t *testing.T) {
-	parsed, parseFindings := diagnose.ParseNote("alpha.md", []byte("---\nlabels: [x]\n---\n"))
-	if parseFindings != nil {
-		t.Fatalf("ParseNote findings = %v, want none", parseFindings)
+// assertVerdictFindings fails t unless each part of a verdict is its want, and all is the three
+// wants in order, nil when every part is.
+func assertVerdictFindings(
+	t *testing.T,
+	parse, fields, aliases, all []diagnose.Finding,
+	wantParse, wantFields, wantAliases []diagnose.Finding,
+) {
+	t.Helper()
+	if !slices.Equal(parse, wantParse) {
+		t.Errorf("Parse = %#v, want %#v", parse, wantParse)
 	}
-
-	findings := diagnose.ValidateNote("alpha.md", parsed)
-
-	if len(findings) != 1 || findings[0].Code != diagnose.Field || findings[0].Path != "alpha.md" {
-		t.Errorf("findings = %#v, want one Field finding at alpha.md", findings)
+	if !slices.Equal(fields, wantFields) {
+		t.Errorf("Fields = %#v, want %#v", fields, wantFields)
+	}
+	if !slices.Equal(aliases, wantAliases) {
+		t.Errorf("Aliases = %#v, want %#v", aliases, wantAliases)
+	}
+	wantAll := slices.Concat(wantParse, wantFields, wantAliases)
+	if !slices.Equal(all, wantAll) || (all == nil) != (wantAll == nil) {
+		t.Errorf("Findings() = %#v, want %#v", all, wantAll)
 	}
 }
 
@@ -118,21 +184,6 @@ func TestAliasFindings_RejectedAliases_ReturnsTheirKinds(t *testing.T) {
 	}
 	if !slices.Equal(findings, want) {
 		t.Errorf("findings = %#v, want %#v", findings, want)
-	}
-}
-
-func TestFindings_CleanFile_ReturnsNone(t *testing.T) {
-	data := "---\ntitle: Alpha\nstatus: open\ntype: task\naliases: [first]\ncreated: 2026-10-13T00:00:00Z\n---\n"
-	parsed, parseFindings := diagnose.ParseIssue("alpha.md", []byte(data))
-
-	findings := slices.Concat(
-		parseFindings,
-		diagnose.ValidateIssue("alpha.md", parsed, config.Default()),
-		diagnose.AliasFindings("alpha.md", "issue", "alpha", parsed.Aliases, parsed.AliasesLine()),
-	)
-
-	if findings != nil {
-		t.Errorf("findings = %#v, want none", findings)
 	}
 }
 

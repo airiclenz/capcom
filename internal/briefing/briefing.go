@@ -117,9 +117,10 @@ func (b *Briefing) fail(section Section, err error) {
 // readWork sets Work from the refreshed index: the Ready-list split planned and unplanned, and the
 // issues in a doing status.
 func (b *Briefing) readWork(s *store.Store) {
-	// The refresh report Open leaves on Report is never read on purpose: its warnings name files
-	// the index left out, and readHealth already counts each of them in ProblemCount. Repeating
-	// them would flood the session start with one line per broken file.
+	// The refresh report Open leaves on Report is never read on purpose: its warnings are the
+	// findings of the per-file verdicts that left files out of the index, which check reports
+	// too, so readHealth already counts each of them in ProblemCount. Repeating them would flood
+	// the session start with one line per broken file.
 	opened, err := index.Open(s, index.ModeRefresh)
 	if err != nil {
 		b.fail(SectionIndex, fmt.Errorf("%w; run capcom reindex", err))

@@ -2,6 +2,7 @@ package check
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -23,19 +24,21 @@ const (
 // Refs.
 func (c *checker) notes() error {
 	parsed := map[string]knowledge.Note{}
+	fields := map[string][]diagnose.Finding{}
 	readAliases := func(path string) ([]string, error) {
 		data, isRead, err := c.readFile(path)
 		if !isRead {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
-		found, findings := diagnose.ParseNote(c.relative(path), data)
-		if len(findings) > 0 {
-			c.addParseFailure(path, findings[0])
+		verdict := diagnose.NoteFile(c.relative(path), tree.IDOf(filepath.Base(path)), data)
+		if !verdict.IsParsed() {
+			c.addParseFailure(path, verdict.Parse[0])
 			return nil, nil
 		}
-		parsed[path] = found
-		return found.Aliases, nil
+		parsed[path] = verdict.Parsed
+		fields[path] = verdict.Fields
+		return verdict.Parsed.Aliases, nil
 	}
 	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
 	loaded, err := c.loadTree(c.store.KnowledgeDir(), "note", readAliases, aliasesLine)
@@ -52,7 +55,7 @@ func (c *checker) notes() error {
 			continue
 		}
 		c.checkSupersession(node, note, loaded, leftOut, c.store.Config.Format)
-		if err := c.checkNote(node, note, isRetired[node.ID]); err != nil {
+		if err := c.checkNote(node, note, fields[node.Path], isRetired[node.ID]); err != nil {
 			return err
 		}
 	}
@@ -133,11 +136,16 @@ func retiredSubtrees(nodes []tree.Node, parsed map[string]knowledge.Note) map[st
 	return isRetired
 }
 
-// checkNote checks one parsed Note: its fields, then, unless isRetired says it sits in a retired
-// subtree, whether each Ref resolves.
-func (c *checker) checkNote(node tree.Node, note knowledge.Note, isRetired bool) error {
+// checkNote checks one parsed Note: its fields, reporting fieldFindings, the Field findings of its
+// verdict, then, unless isRetired says it sits in a retired subtree, whether each Ref resolves.
+func (c *checker) checkNote(
+	node tree.Node,
+	note knowledge.Note,
+	fieldFindings []diagnose.Finding,
+	isRetired bool,
+) error {
 	path := c.relative(node.Path)
-	for _, finding := range diagnose.ValidateNote(path, note) {
+	for _, finding := range fieldFindings {
 		c.add(path, finding.Line, kindCode(finding.Code), finding.Message)
 	}
 	if isRetired {

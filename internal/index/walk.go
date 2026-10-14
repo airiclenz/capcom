@@ -10,6 +10,8 @@ import (
 	"slices"
 
 	"github.com/airiclenz/capcom/internal/diagnose"
+	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -216,20 +218,20 @@ func orphanDirectoryClaims(worktreeRoot, dir string, parse tree.AliasParseFunc) 
 var errUnparsed = errors.New("frontmatter does not parse")
 
 // aliasParser returns the tree.AliasParseFunc of the files of kind, kindIssue or kindNote: the
-// Aliases of the issue diagnose.ParseIssue, or the Note diagnose.ParseNote, parses from the bytes.
+// Aliases of the issue issue.Parse, or the Note knowledge.Parse, parses from the bytes.
 func aliasParser(kind string) tree.AliasParseFunc {
 	if kind == kindNote {
 		return func(data []byte) ([]string, error) {
-			parsed, findings := diagnose.ParseNote("", data)
-			if len(findings) > 0 {
+			parsed, err := knowledge.Parse("", data)
+			if err != nil {
 				return nil, errUnparsed
 			}
 			return parsed.Aliases, nil
 		}
 	}
 	return func(data []byte) ([]string, error) {
-		parsed, findings := diagnose.ParseIssue("", data)
-		if len(findings) > 0 {
+		parsed, err := issue.Parse("", data)
+		if err != nil {
 			return nil, errUnparsed
 		}
 		return parsed.Aliases, nil

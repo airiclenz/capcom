@@ -24,6 +24,8 @@ type parsedIssue struct {
 	node     tree.Node
 	issue    issue.Issue
 	isParsed bool
+	// fields is the Field findings of the file's verdict.
+	fields []diagnose.Finding
 }
 
 // issues checks the issue tree: its load problems, each file's frontmatter and fields, its plan,
@@ -32,19 +34,22 @@ type parsedIssue struct {
 // but only the loaded issues are checked one by one.
 func (c *checker) issues() error {
 	parsed := map[string]issue.Issue{}
+	fields := map[string][]diagnose.Finding{}
 	readAliases := func(path string) ([]string, error) {
 		data, isRead, err := c.readFile(path)
 		if !isRead {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
-		found, findings := diagnose.ParseIssue(c.relative(path), data)
-		if len(findings) > 0 {
-			c.addParseFailure(path, findings[0])
+		id := tree.IDOf(filepath.Base(path))
+		verdict := diagnose.IssueFile(c.relative(path), id, data, c.store.Config)
+		if !verdict.IsParsed() {
+			c.addParseFailure(path, verdict.Parse[0])
 			return nil, nil
 		}
-		parsed[path] = found
-		return found.Aliases, nil
+		parsed[path] = verdict.Parsed
+		fields[path] = verdict.Fields
+		return verdict.Parsed.Aliases, nil
 	}
 	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
 	loaded, err := c.loadTree(c.store.IssuesDir(), "issue", readAliases, aliasesLine)
@@ -57,7 +62,12 @@ func (c *checker) issues() error {
 	entries := make([]parsedIssue, 0, len(nodes))
 	for _, node := range nodes {
 		found, isParsed := parsed[node.Path]
-		entries = append(entries, parsedIssue{node: node, issue: found, isParsed: isParsed})
+		entries = append(entries, parsedIssue{
+			node:     node,
+			issue:    found,
+			isParsed: isParsed,
+			fields:   fields[node.Path],
+		})
 	}
 	graph := issue.NewDepGraph(graphNodes(entries))
 	for _, entry := range entries[:loadedCount] {
@@ -84,11 +94,12 @@ func graphNodes(entries []parsedIssue) []issue.Node {
 	return nodes
 }
 
-// checkIssue checks one parsed issue: its fields against the config, its plan, its deps and its
-// related links, and that its related key, however it is set, sits in a store declaring format 2.
+// checkIssue checks one parsed issue: its fields against the config, as its verdict found them, its
+// plan, its deps and its related links, and that its related key, however it is set, sits in a
+// store declaring format 2.
 func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	path := entry.node.Path
-	for _, finding := range diagnose.ValidateIssue(c.relative(path), entry.issue, c.store.Config) {
+	for _, finding := range entry.fields {
 		c.add(path, finding.Line, kindCode(finding.Code), finding.Message)
 	}
 	if plan := entry.issue.Plan; plan != "" && !c.isPlanFound(plan) {

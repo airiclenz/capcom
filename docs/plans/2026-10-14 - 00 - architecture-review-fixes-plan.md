@@ -388,7 +388,13 @@ NOTES (2026-10-14): index schemaVersion is not bumped: P2.6 already raised it to
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/diagnose/`; `GOMEMLIMIT=2GiB go test ./internal/tree/`; `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test ./internal/agents/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestCreate_'`
 **Commit:** `feat(diagnose): alias findings name the line and the kind`
 
-## P2.9 One per-file verdict replaces the diagnose wrappers
+## P2.9 One per-file verdict replaces the diagnose wrappers — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the verdict is one generic diagnose.Verdict[T] (Parsed, Parse, Fields, Aliases; IsParsed, Findings) returned by diagnose.IssueFile(relPath, id, data, cfg) and diagnose.NoteFile(relPath, id, data); the kind nouns "issue"/"note" are inlined literals, since check's TestCodes_ClosedSet_PinsEveryCodeString pins every string constant of package diagnose.
+NOTES (2026-10-14): check takes the verdict once per file when it reads the file for tree.Load, reports its Parse finding there, and reports its Fields only for loaded nodes in checkIssue/checkNote (findings order unchanged); its alias findings stay with tree.Load, so check ignores the verdict's Aliases part.
+NOTES (2026-10-14): index parseIssue/parseNote stay as the callers refresh.go uses, now returning verdict.Parsed and verdict.Findings(); aliasProblems is gone.
+NOTES (2026-10-14): consequential edit — internal/index/walk.go: made necessary by removing diagnose.ParseIssue/ParseNote; aliasParser now calls issue.Parse/knowledge.Parse directly (it only needs the aliases and whether the file parses).
+NOTES (2026-10-14): `go vet ./...` fails locally on a git-ignored scratch copy under docs/skill-runs/release-notes-capcom/ (undefined index.Warning); `go vet ./internal/... ./cmd/...` is clean. Pre-existing, not in the tree CI sees.
 
 **What:**
 **Goal:** `diagnose` exposes one per-file verdict per kind (parse, validate and alias findings in one call); `ParseIssue`, `ParseNote`, `ValidateIssue`, `ValidateNote` are gone; the index uses the whole verdict, check the parse part plus its own validation of loaded nodes; output unchanged.

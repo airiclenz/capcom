@@ -46,15 +46,11 @@ func retiredFilter(isRetiredIncluded bool) (with, condition string) {
 	return retiredSubtrees, ` AND notes.id NOT IN (SELECT id FROM hidden)`
 }
 
-// parseNote parses and validates one Note file and returns every problem that keeps it out of the
-// index.
+// parseNote parses and validates one Note file and returns the Note with every problem of its
+// verdict, each of which keeps it out of the index.
 func parseNote(file foundFile, data []byte) (knowledge.Note, []diagnose.Finding) {
-	parsed, problems := diagnose.ParseNote(file.path, data)
-	if len(problems) > 0 {
-		return knowledge.Note{}, problems
-	}
-	problems = diagnose.ValidateNote(file.path, parsed)
-	return parsed, append(problems, aliasProblems(file, parsed.Aliases, parsed.AliasesLine())...)
+	verdict := diagnose.NoteFile(file.path, file.id, data)
+	return verdict.Parsed, verdict.Findings()
 }
 
 // insertNote writes the rows of one valid Note.
