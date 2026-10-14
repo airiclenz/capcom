@@ -77,7 +77,7 @@ func TestRemove_StaleIfMatchOnANote_ConflictsNamingANote(t *testing.T) {
 
 	var conflict *ConflictError
 	if !errors.As(err, &conflict) || conflict.Path != ".capcom/knowledge/release-flow.md" ||
-		!strings.Contains(conflict.Message, "show the note again") {
+		!strings.Contains(conflict.Message, "show the Note again") {
 		t.Errorf("err = %v, want a *ConflictError at the note file", err)
 	}
 }

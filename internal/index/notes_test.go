@@ -248,7 +248,7 @@ func TestNotes_FileProblems_PinKindsAndWording(t *testing.T) {
 			Code:    diagnose.RepeatedAlias,
 			Path:    dir + "own-alias.md",
 			Line:    3,
-			Message: `alias "own-alias" repeats the note's own id`,
+			Message: `alias "own-alias" repeats the Note's own id`,
 		},
 		{
 			Code: diagnose.Duplicate,

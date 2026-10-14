@@ -767,7 +767,7 @@ func TestKnowAdd_AliasOfUnparseableNote_FailsExistsNamingTheFile(t *testing.T) {
 	stdout, _, exitCode := runCLI(t, root, "know", "add", "--json", "--id", "release-flow", "--title", "Duplicate")
 
 	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
-	wantMessage := `id "release-flow" may be an alias of note release-steps, whose file does not parse: fix it first`
+	wantMessage := `id "release-flow" may be an alias of Note release-steps, whose file does not parse: fix it first`
 	if exitCode != ExitError || failure["code"] != string(CodeExists) ||
 		failure["path"] != ".capcom/knowledge/release-steps.md" || failure["message"] != wantMessage {
 		t.Errorf("exit = %d error = %v, want exists at release-steps.md with %q", exitCode, failure, wantMessage)

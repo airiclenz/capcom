@@ -384,7 +384,7 @@ func TestCreate_NoteIDMaybeAnAliasOfAnUnparseableNote_NamesANote(t *testing.T) {
 
 	_, _, err := Notes(s, nil).Create("old-rule", "", build)
 
-	assertExists(".capcom/knowledge/broken-rule.md", "broken-rule", "may be an alias of note broken-rule")(t, err)
+	assertExists(".capcom/knowledge/broken-rule.md", "broken-rule", "may be an alias of Note broken-rule")(t, err)
 }
 
 // droppedIssue is plainIssue with extra lines added to its frontmatter.

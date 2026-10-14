@@ -95,7 +95,7 @@ func (x *Index) readNote(q querier, id string) (entry NoteEntry, found bool, err
 		return NoteEntry{}, false, nil
 	}
 	if err != nil {
-		return NoteEntry{}, false, fmt.Errorf("%s: read note %q: %w", Path(x.store), id, err)
+		return NoteEntry{}, false, fmt.Errorf("%s: read Note %q: %w", Path(x.store), id, err)
 	}
 
 	lists := []struct {
@@ -200,7 +200,7 @@ func (x *Index) noteList(q querier, ids []string) ([]NoteEntry, error) {
 		}
 		if !found {
 			// Gone only if the index changed underneath.
-			return nil, fmt.Errorf("note id %q %w", id, tree.ErrNotFound)
+			return nil, fmt.Errorf("Note id %q %w", id, tree.ErrNotFound)
 		}
 		entries = append(entries, entry)
 	}

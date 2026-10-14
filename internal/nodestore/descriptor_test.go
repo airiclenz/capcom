@@ -88,8 +88,8 @@ func TestDescriptor_PerKind_DescribesNounRefKeysAndFormats(t *testing.T) {
 		descriptor := NoteDescriptor()
 
 		assertDescriptor(t, descriptor, knowledge.Parse, canonicalNote, descriptorWant{
-			noun:       "note",
-			nounPhrase: "a note",
+			noun:       "Note",
+			nounPhrase: "a Note",
 			refKeys:    []string{RefSupersededBy},
 			formats: []formatRow{
 				{key: "retired", format: config.FormatSupersession, line: 5},

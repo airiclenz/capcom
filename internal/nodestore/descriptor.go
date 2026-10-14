@@ -15,10 +15,10 @@ const keyRetired = "retired"
 // the store format (ADR 0009) each format-gated key needs. It is built without a store, so a
 // reader that holds no Kind describes the kind exactly as the Kind's Codec does.
 type Descriptor[T any] struct {
-	// Noun names one node of the kind in a message: "issue" or "note".
+	// Noun names one node of the kind in a message: "issue" or "Note".
 	Noun string
 	// NounPhrase names one node of the kind with its article, as the errors of a move or a removal
-	// do: "an issue" or "a note".
+	// do: "an issue" or "a Note".
 	NounPhrase string
 	// Validate returns every problem of node, or nil when there is none; path names the file in
 	// each problem.
@@ -89,8 +89,8 @@ func IssueDescriptor(cfg config.Config) Descriptor[issue.Issue] {
 // NoteDescriptor is the Descriptor of the Knowledge tree.
 func NoteDescriptor() Descriptor[knowledge.Note] {
 	return Descriptor[knowledge.Note]{
-		Noun:       "note",
-		NounPhrase: "a note",
+		Noun:       "Note",
+		NounPhrase: "a Note",
 		Validate:   knowledge.Validate,
 		Formats: []KeyFormat[knowledge.Note]{
 			{Key: keyRetired, Format: config.FormatSupersession, Line: knowledge.Note.RetiredLine},

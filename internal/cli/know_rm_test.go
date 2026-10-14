@@ -60,7 +60,7 @@ func TestKnowRm_WithChildren_IsRefusedNamingTheFileAndCount(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "know", "rm", "testing-rules")
 
-	wantPrefix := "capcom: .capcom/knowledge/testing-rules.md: note testing-rules has 2 child notes"
+	wantPrefix := "capcom: .capcom/knowledge/testing-rules.md: Note testing-rules has 2 child Notes"
 	if exitCode != ExitError || !strings.HasPrefix(stderr, wantPrefix) {
 		t.Errorf("know rm with children = %d, stderr %q; want %q", exitCode, stderr, wantPrefix)
 	}

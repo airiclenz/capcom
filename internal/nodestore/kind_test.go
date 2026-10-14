@@ -114,7 +114,7 @@ func TestCodec_CanonicalFile_RoundTripsPerKind(t *testing.T) {
 
 		node := assertRoundTrip(t, codec, canonicalNote)
 
-		if codec.Noun != "note" || !slices.Equal(codec.Aliases(node), []string{"old-rule"}) {
+		if codec.Noun != "Note" || !slices.Equal(codec.Aliases(node), []string{"old-rule"}) {
 			t.Errorf("noun %q, aliases %v", codec.Noun, codec.Aliases(node))
 		}
 	})
@@ -260,7 +260,7 @@ func TestErrors_NameFilesRelativeToTheWorktree(t *testing.T) {
 		{
 			name: "conflict",
 			err:  notes.conflictError(notePath, "aaaa", "bbbb"),
-			want: ".capcom/knowledge/rule.md: etag aaaa does not match the file's etag bbbb; show the note again",
+			want: ".capcom/knowledge/rule.md: etag aaaa does not match the file's etag bbbb; show the Note again",
 		},
 		{
 			name: "id taken",
@@ -270,7 +270,7 @@ func TestErrors_NameFilesRelativeToTheWorktree(t *testing.T) {
 		{
 			name: "alias taken",
 			err:  notes.existsError("old-rule", tree.Node{ID: "rule", Path: notePath}),
-			want: `.capcom/knowledge/rule.md: id "old-rule" is already an alias of note rule`,
+			want: `.capcom/knowledge/rule.md: id "old-rule" is already an alias of Note rule`,
 		},
 	}
 	for _, test := range tests {

@@ -98,8 +98,8 @@ func TestKnowMv_OntoTakenIDOrAlias_FailsExistsNamingTheNote(t *testing.T) {
 		newID string
 		want  string
 	}{
-		{"testing-rules", "already taken by note testing-rules"},
-		{"release-flow", "already an alias of note release-steps"},
+		{"testing-rules", "already taken by Note testing-rules"},
+		{"release-flow", "already an alias of Note release-steps"},
 	}
 
 	for _, current := range cases {
@@ -125,7 +125,7 @@ func TestKnowMv_OntoAliasOfUnparseableNote_FailsExistsNamingTheFile(t *testing.T
 	stdout, _, exitCode := runCLI(t, root, "know", "mv", "--json", "git-fixtures", "release-flow")
 
 	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
-	wantMessage := `id "release-flow" may be an alias of note release-steps, whose file does not parse: fix it first`
+	wantMessage := `id "release-flow" may be an alias of Note release-steps, whose file does not parse: fix it first`
 	if exitCode != ExitError || failure["code"] != string(CodeExists) ||
 		failure["path"] != ".capcom/knowledge/release-steps.md" || failure["message"] != wantMessage {
 		t.Errorf("exit = %d error = %v, want exists at release-steps.md with %q", exitCode, failure, wantMessage)
@@ -140,7 +140,7 @@ func TestKnowMv_BelowItsOwnChild_FailsInvalid(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "know", "mv", "testing-rules", "--parent", "no-parallel")
 
-	wantPrefix := "capcom: .capcom/knowledge/testing-rules.md: cannot move a note below itself or its own descendants"
+	wantPrefix := "capcom: .capcom/knowledge/testing-rules.md: cannot move a Note below itself or its own descendants"
 	if exitCode != ExitError || !strings.HasPrefix(stderr, wantPrefix) {
 		t.Errorf("know mv below its own child = %d, stderr %q; want %q", exitCode, stderr, wantPrefix)
 	}

@@ -29,7 +29,7 @@ func (f Finding) String() string {
 // AliasFindings returns a finding for every alias of the node file at relPath that
 // tree.CheckAliases rejects: an InvalidAlias finding for one that is not a valid name, and a
 // RepeatedAlias finding for one that repeats id, the node's own, or is listed twice. kind names
-// the node in a message, "issue" or "note", as CheckAliases words it. Every finding cites line,
+// the node in a message, "issue" or "Note", as CheckAliases words it. Every finding cites line,
 // the line of the file's aliases key, as check cites it; 0 when it is unknown.
 func AliasFindings(relPath, kind, id string, aliases []string, line int) []Finding {
 	_, rejected := tree.CheckAliases(relPath, kind, id, aliases)

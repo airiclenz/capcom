@@ -256,7 +256,15 @@ internal/tree/move.go — bareNoun; internal/tree/move_test.go — noteKind; int
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/knowledge/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/frontmatter/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/tree/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/check/`, one at a time
 **Commit:** `fix(knowledge): messages say Note`
 
-## P3.3 "Note" in messages, part 2: nodestore, diagnose and index
+## P3.3 "Note" in messages, part 2: nodestore, diagnose and index — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): read.go and read_test.go needed no edit: Reader.Decode already passes r.descriptor.Noun to diagnose.AliasFindings, so the descriptor noun change alone rewords its alias findings, and read_test.go holds no Note-noun message pin
+
+NOTES (2026-10-14): consequential edit — internal/diagnose/files.go: made necessary by the descriptor noun change (AliasFindings doc comment quotes the noun "note")
+
+NOTES (2026-10-14): internal/nodestore/descriptor_test.go repinned with the other nodestore tests: it pins the Note descriptor's noun and noun phrase directly
+
+NOTES (2026-10-14): schemaVersion bumped 8 -> 9 so stored problem messages are rebuilt in the new wording; check's own alias message (check_test.go "the note's own id") is left for P3.4 as planned
 
 **What:** Recast at the regression check (2026-10-14).
 **Goal:** the Note descriptor's noun is "Note" and noun phrase "a Note", so nodestore's messages say it (e.g. `already taken by Note X`, `show the Note again`); diagnose's alias findings and index's own messages say "Note" (`repeats the Note's own id`, `read Note %q`, `Note id %q`). JSON `kind` values, the index's `kindNote`, flag and command names are unchanged. diagnose gains no `const`.
