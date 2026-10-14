@@ -434,7 +434,11 @@ NOTES (2026-10-14): re-derived from `internal/index/query.go — duplicateClaim`
 **Closes:** supersede-dup-name
 **Commit:** `fix(cli): know update refuses a superseded-by name two files claim`
 
-## P3.3 The reflist package
+## P3.3 The reflist package — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): Removal is two-stage, `List.Remove(arg)` decides text-vs-id against the Entries the caller read and `Removal.Drop(entries)` applies the decision to a list, which may be the one an edit re-reads. That way P3.4 can resolve before the edit (no path on resolve failures) and raise not-found inside the edit closure (with path, after --if-match), as its regression guard requires.
+NOTES (2026-10-14): resolver refusals (not found, ambiguous, duplicate) come back as `*reflist.Refusal` wrapping the resolver's error with its message unchanged, so errors.Is/As and today's resolveFailure/output.AsError mapping still work; any other resolver error passes through unchanged.
+NOTES (2026-10-14): `go build ./...` fails on the pre-existing, gitignored scratch tree docs/skill-runs/release-notes-capcom/2026-10-14/scratch (old snapshots of internal/); `go build ./cmd/... ./internal/...` is clean. That tree is not part of this item; deleting it makes `./...` builds work again.
 
 **What:**
 **Goal:** `internal/reflist` decides add and remove on a reference list: given the holder, its entries, the argument, a resolver and an entry-names lookup, it returns the canonical id and whether it is present, the entries to drop, or a typed refusal (self, cycle, not found, ambiguous, duplicate).
