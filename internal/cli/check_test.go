@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -95,6 +96,27 @@ func TestCheck_JSONProblemWithoutALine_CarriesLineZero(t *testing.T) {
 	}}
 	if exitCode != ExitError || !reflect.DeepEqual(envelope["data"], want) {
 		t.Errorf("check --json = %d, data %v; want 1 and %v", exitCode, envelope["data"], want)
+	}
+}
+
+// The raw bytes of one element pin what a decoded map cannot: the key order path, line, code,
+// message, and a line of 0 written out rather than left out.
+func TestCheck_JSONProblem_RawBytesKeepKeyOrderAndLineZero(t *testing.T) {
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, map[string]string{"lonely/child.md": validIssue})
+
+	stdout, _, exitCode := runCLI(t, root, "check", "--json")
+
+	var envelope struct {
+		Data []json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("stdout is not a JSON envelope: %v\n%s", err, stdout)
+	}
+	want := `{"path":".capcom/issues/lonely","line":0,"code":"orphan-directory",` +
+		`"message":"directory without its node file: no lonely.md beside it; left out"}`
+	if exitCode != ExitError || len(envelope.Data) != 1 || string(envelope.Data[0]) != want {
+		t.Errorf("check --json = %d, data %s; want 1 and [%s]", exitCode, envelope.Data, want)
 	}
 }
 

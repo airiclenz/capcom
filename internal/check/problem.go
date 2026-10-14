@@ -9,22 +9,8 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// Problem is one thing wrong with the store. Path is relative to the working tree root with
-// forward slashes; Line is 1-based, or 0 when no single line is to blame.
-type Problem struct {
-	Path    string        `json:"path"`
-	Line    int           `json:"line"`
-	Code    diagnose.Kind `json:"code"`
-	Message string        `json:"message"`
-}
-
-// String renders "path:line: message", or "path: message" when the line is unknown.
-func (p Problem) String() string {
-	if p.Line > 0 {
-		return fmt.Sprintf("%s:%d: %s", p.Path, p.Line, p.Message)
-	}
-	return fmt.Sprintf("%s: %s", p.Path, p.Message)
-}
+// Problem is one thing wrong with the store: a diagnose.Finding, which the index reports too.
+type Problem = diagnose.Finding
 
 // addFormatTooOld records a format-too-old problem at line, the line of key, a key that needs
 // store format needed in a store declaring format declared.

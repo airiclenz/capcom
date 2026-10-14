@@ -18,7 +18,7 @@ func TestParseIssue_FileDoesNotParse_ReturnsOneFrontmatterFinding(t *testing.T) 
 			name: "with a line",
 			data: "---\ntitle: a\nbogus: 1\n---\n",
 			want: diagnose.Finding{
-				Kind: diagnose.Frontmatter,
+				Code: diagnose.Frontmatter,
 				Path: "alpha.md",
 				Line: 3,
 				Message: "unknown key \"bogus\"; an issue has title, status, type, priority, labels, deps, " +
@@ -29,7 +29,7 @@ func TestParseIssue_FileDoesNotParse_ReturnsOneFrontmatterFinding(t *testing.T) 
 			name: "without a line",
 			data: "---\n\ttitle: a\n---\n",
 			want: diagnose.Finding{
-				Kind:    diagnose.Frontmatter,
+				Code:    diagnose.Frontmatter,
 				Path:    "alpha.md",
 				Message: "invalid YAML frontmatter: yaml: found character that cannot start any token",
 			},
@@ -53,7 +53,7 @@ func TestParseNote_FileDoesNotParse_ReturnsOneFrontmatterFinding(t *testing.T) {
 	_, findings := diagnose.ParseNote("alpha.md", []byte("---\ntitle: a\nbogus: 1\n---\n"))
 
 	want := []diagnose.Finding{{
-		Kind:    diagnose.Frontmatter,
+		Code:    diagnose.Frontmatter,
 		Path:    "alpha.md",
 		Line:    3,
 		Message: "unknown key \"bogus\"; a note has title, labels, refs, retired, superseded-by and aliases",
@@ -73,9 +73,9 @@ func TestValidateIssue_TwoBadFields_ReturnsAFieldFindingForEach(t *testing.T) {
 	findings := diagnose.ValidateIssue("alpha.md", parsed, config.Default())
 
 	want := []diagnose.Finding{
-		{Kind: diagnose.Field, Path: "alpha.md", Line: 2, Message: "title is required"},
+		{Code: diagnose.Field, Path: "alpha.md", Line: 2, Message: "title is required"},
 		{
-			Kind:    diagnose.Field,
+			Code:    diagnose.Field,
 			Path:    "alpha.md",
 			Line:    3,
 			Message: "status \"nope\" is not declared in config; use one of [open active parked done dropped]",
@@ -94,7 +94,7 @@ func TestValidateNote_MissingTitle_ReturnsAFieldFinding(t *testing.T) {
 
 	findings := diagnose.ValidateNote("alpha.md", parsed)
 
-	if len(findings) != 1 || findings[0].Kind != diagnose.Field || findings[0].Path != "alpha.md" {
+	if len(findings) != 1 || findings[0].Code != diagnose.Field || findings[0].Path != "alpha.md" {
 		t.Errorf("findings = %#v, want one Field finding at alpha.md", findings)
 	}
 }
@@ -103,9 +103,9 @@ func TestAliasFindings_RejectedAliases_ReturnsTheirKinds(t *testing.T) {
 	findings := diagnose.AliasFindings("alpha.md", "issue", "alpha", []string{"alpha", "Not Valid", "ok"})
 
 	want := []diagnose.Finding{
-		{Kind: diagnose.RepeatedAlias, Path: "alpha.md", Message: "alias \"alpha\" repeats the issue's own id"},
+		{Code: diagnose.RepeatedAlias, Path: "alpha.md", Message: "alias \"alpha\" repeats the issue's own id"},
 		{
-			Kind:    diagnose.InvalidAlias,
+			Code:    diagnose.InvalidAlias,
 			Path:    "alpha.md",
 			Message: "invalid alias \"Not Valid\": must use only a-z, 0-9, dots and hyphens",
 		},

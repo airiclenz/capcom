@@ -89,7 +89,7 @@ func graphNodes(entries []parsedIssue) []issue.Node {
 func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	path := entry.node.Path
 	for _, finding := range diagnose.ValidateIssue(c.relative(path), entry.issue, c.store.Config) {
-		c.add(path, finding.Line, kindCode(finding.Kind), finding.Message)
+		c.add(path, finding.Line, kindCode(finding.Code), finding.Message)
 	}
 	if plan := entry.issue.Plan; plan != "" && !c.isPlanFound(plan) {
 		c.add(path, entry.issue.PlanLine(), diagnose.MissingPlan, fmt.Sprintf(

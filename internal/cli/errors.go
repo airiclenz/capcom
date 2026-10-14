@@ -82,7 +82,7 @@ func (a *app) isIndexWarnedAbout(problem *tree.Error) bool {
 		return false
 	}
 	for _, warning := range a.indexReport.Warnings {
-		if warning.Path == problem.Path && warning.Kind == kind {
+		if warning.Path == problem.Path && warning.Code == kind {
 			return true
 		}
 	}

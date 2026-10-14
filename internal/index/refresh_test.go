@@ -52,7 +52,7 @@ func TestRefresh_DuplicateIDWithChildren_LeavesTheSubtreeOut(t *testing.T) {
 		t.Errorf("c2 is indexed, want it left out with the directory of the repeated id x")
 	}
 	want := diagnose.Finding{
-		Kind:    diagnose.OrphanDirectory,
+		Code:    diagnose.OrphanDirectory,
 		Path:    ".capcom/issues/b/x",
 		Message: "directory left out: its node file x.md has a duplicate id",
 	}
@@ -80,7 +80,7 @@ func TestRefresh_RepeatedIDDirectoryWithoutNodeFiles_WarnsItLeftOut(t *testing.T
 	report := refresh(t, x)
 
 	want := diagnose.Finding{
-		Kind:    diagnose.OrphanDirectory,
+		Code:    diagnose.OrphanDirectory,
 		Path:    ".capcom/issues/b/x",
 		Message: "directory left out: its node file x.md has a duplicate id",
 	}

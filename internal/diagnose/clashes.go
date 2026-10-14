@@ -33,7 +33,7 @@ func NameClashes(conflicts []tree.Conflict) []Finding {
 				other = files[1]
 			}
 			findings = append(findings, Finding{
-				Kind:    Duplicate,
+				Code:    Duplicate,
 				Path:    file,
 				Message: clashMessage(id, other, len(files)-2),
 			})

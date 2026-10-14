@@ -226,36 +226,36 @@ func TestNotes_FileProblems_PinKindsAndWording(t *testing.T) {
 	const dir = ".capcom/knowledge/"
 	want := []diagnose.Finding{
 		{
-			Kind:    diagnose.InvalidAlias,
+			Code:    diagnose.InvalidAlias,
 			Path:    dir + "bad-alias.md",
 			Message: `invalid alias "Bad_Alias": must use only a-z, 0-9, dots and hyphens`,
 		},
 		{
-			Kind:    diagnose.Field,
+			Code:    diagnose.Field,
 			Path:    dir + "bad-ref.md",
 			Line:    3,
 			Message: `ref "#Symbol" names no path; write path or path#symbol`,
 		},
 		{
-			Kind: diagnose.Duplicate,
+			Code: diagnose.Duplicate,
 			Path: dir + "dup-note.md",
 			Message: `duplicate id "dup-note": also the id of ` + dir + "top-note/dup-note.md; " +
 				"both are left out",
 		},
-		{Kind: diagnose.NotRegular, Path: dir + "link-note.md", Message: "not a regular file"},
+		{Code: diagnose.NotRegular, Path: dir + "link-note.md", Message: "not a regular file"},
 		{
-			Kind:    diagnose.RepeatedAlias,
+			Code:    diagnose.RepeatedAlias,
 			Path:    dir + "own-alias.md",
 			Message: `alias "own-alias" repeats the note's own id`,
 		},
 		{
-			Kind: diagnose.Duplicate,
+			Code: diagnose.Duplicate,
 			Path: dir + "top-note/dup-note.md",
 			Message: `duplicate id "dup-note": also the id of ` + dir + "dup-note.md; " +
 				"both are left out",
 		},
 		{
-			Kind: diagnose.Frontmatter,
+			Code: diagnose.Frontmatter,
 			Path: dir + "unknown-key.md",
 			Line: 3,
 			Message: `unknown key "owner"; a note has title, labels, refs, retired, superseded-by ` +

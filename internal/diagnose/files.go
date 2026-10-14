@@ -13,11 +13,13 @@ import (
 
 // Finding is one problem with one issue or Note file, or with a file or directory of its tree.
 // Path is relative to the working tree root with forward slashes; Line is 1-based, or 0 when no
-// single line is to blame. The index stores it, JSON-encoded, with the file it warns about.
+// single line is to blame; Code names the kind of problem. check reports it, JSON-encoded in this
+// field order with every key always present, and the index stores it, JSON-encoded, with the file
+// it warns about.
 type Finding struct {
-	Kind    Kind   `json:"kind"`
 	Path    string `json:"path"`
-	Line    int    `json:"line,omitempty"`
+	Line    int    `json:"line"`
+	Code    Kind   `json:"code"`
 	Message string `json:"message"`
 }
 
@@ -54,9 +56,9 @@ func ParseNote(relPath string, data []byte) (knowledge.Note, []Finding) {
 func parseFinding(relPath string, err error) Finding {
 	var failure *frontmatter.Error
 	if errors.As(err, &failure) {
-		return Finding{Kind: Frontmatter, Path: failure.Path, Line: failure.Line, Message: failure.Message}
+		return Finding{Code: Frontmatter, Path: failure.Path, Line: failure.Line, Message: failure.Message}
 	}
-	return Finding{Kind: Frontmatter, Path: relPath, Message: err.Error()}
+	return Finding{Code: Frontmatter, Path: relPath, Message: err.Error()}
 }
 
 // ValidateIssue returns a Field finding for every value of parsed, the issue file at relPath, that
@@ -75,7 +77,7 @@ func ValidateNote(relPath string, parsed knowledge.Note) []Finding {
 func fieldFindings(problems []*frontmatter.Error) []Finding {
 	var findings []Finding
 	for _, problem := range problems {
-		findings = append(findings, Finding{Kind: Field, Path: problem.Path, Line: problem.Line, Message: problem.Message})
+		findings = append(findings, Finding{Code: Field, Path: problem.Path, Line: problem.Line, Message: problem.Message})
 	}
 	return findings
 }
@@ -90,7 +92,7 @@ func AliasFindings(relPath, kind, id string, aliases []string) []Finding {
 	for _, problem := range rejected {
 		// CheckAliases rejects an alias only as invalid or repeated, both sentinels TreeKind knows.
 		problemKind, _ := TreeKind(problem)
-		findings = append(findings, Finding{Kind: problemKind, Path: problem.Path, Message: problem.Message()})
+		findings = append(findings, Finding{Code: problemKind, Path: problem.Path, Message: problem.Message()})
 	}
 	return findings
 }

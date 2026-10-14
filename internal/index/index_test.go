@@ -118,7 +118,7 @@ func warningStrings(report Report) []string {
 func warningKinds(report Report) []string {
 	lines := make([]string, 0, len(report.Warnings))
 	for _, warning := range report.Warnings {
-		lines = append(lines, warning.Path+" "+string(warning.Kind))
+		lines = append(lines, warning.Path+" "+string(warning.Code))
 	}
 	slices.Sort(lines)
 	return lines
@@ -719,7 +719,7 @@ func TestRefresh_DirectoryWarnings_WordedAsTheTreeWalk(t *testing.T) {
 	}
 	got := map[string]string{}
 	for _, warning := range report.Warnings {
-		if warning.Kind == diagnose.OrphanDirectory {
+		if warning.Code == diagnose.OrphanDirectory {
 			got[warning.Path] = warning.Message
 		}
 	}
@@ -798,36 +798,36 @@ func TestRefresh_FileProblems_PinKindsAndWording(t *testing.T) {
 	const dir = ".capcom/issues/"
 	want := []diagnose.Finding{
 		{
-			Kind:    diagnose.InvalidAlias,
+			Code:    diagnose.InvalidAlias,
 			Path:    dir + "bad-alias.md",
 			Message: `invalid alias "Bad_Alias": must use only a-z, 0-9, dots and hyphens`,
 		},
 		{
-			Kind:    diagnose.Field,
+			Code:    diagnose.Field,
 			Path:    dir + "bad-status.md",
 			Line:    3,
 			Message: `status "wip" is not declared in config; use one of [open active parked done dropped]`,
 		},
 		{
-			Kind: diagnose.Duplicate,
+			Code: diagnose.Duplicate,
 			Path: dir + "dup-issue.md",
 			Message: `duplicate id "dup-issue": also the id of ` + dir + "top-issue/dup-issue.md; " +
 				"both are left out",
 		},
-		{Kind: diagnose.NotRegular, Path: dir + "link-issue.md", Message: "not a regular file"},
+		{Code: diagnose.NotRegular, Path: dir + "link-issue.md", Message: "not a regular file"},
 		{
-			Kind:    diagnose.RepeatedAlias,
+			Code:    diagnose.RepeatedAlias,
 			Path:    dir + "own-alias.md",
 			Message: `alias "own-alias" repeats the issue's own id`,
 		},
 		{
-			Kind: diagnose.Duplicate,
+			Code: diagnose.Duplicate,
 			Path: dir + "top-issue/dup-issue.md",
 			Message: `duplicate id "dup-issue": also the id of ` + dir + "dup-issue.md; " +
 				"both are left out",
 		},
 		{
-			Kind: diagnose.Frontmatter,
+			Code: diagnose.Frontmatter,
 			Path: dir + "unknown-key.md",
 			Line: 7,
 			Message: `unknown key "estimate"; an issue has title, status, type, priority, labels, deps, ` +

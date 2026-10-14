@@ -25,11 +25,11 @@ func TestNameClashes_IDConflicts_FindsEveryFileOfARepeatedID(t *testing.T) {
 			conflicts: []tree.Conflict{{Key: "b/alpha.md", Other: "a/alpha.md", Name: "alpha"}},
 			want: []diagnose.Finding{
 				{
-					Kind: diagnose.Duplicate, Path: "a/alpha.md",
+					Code: diagnose.Duplicate, Path: "a/alpha.md",
 					Message: `duplicate id "alpha": also the id of b/alpha.md; both are left out`,
 				},
 				{
-					Kind: diagnose.Duplicate, Path: "b/alpha.md",
+					Code: diagnose.Duplicate, Path: "b/alpha.md",
 					Message: `duplicate id "alpha": also the id of a/alpha.md; both are left out`,
 				},
 			},
@@ -42,15 +42,15 @@ func TestNameClashes_IDConflicts_FindsEveryFileOfARepeatedID(t *testing.T) {
 			},
 			want: []diagnose.Finding{
 				{
-					Kind: diagnose.Duplicate, Path: "a/alpha.md",
+					Code: diagnose.Duplicate, Path: "a/alpha.md",
 					Message: `duplicate id "alpha": also the id of b/alpha.md and 1 more; all are left out`,
 				},
 				{
-					Kind: diagnose.Duplicate, Path: "b/alpha.md",
+					Code: diagnose.Duplicate, Path: "b/alpha.md",
 					Message: `duplicate id "alpha": also the id of a/alpha.md and 1 more; all are left out`,
 				},
 				{
-					Kind: diagnose.Duplicate, Path: "c/alpha.md",
+					Code: diagnose.Duplicate, Path: "c/alpha.md",
 					Message: `duplicate id "alpha": also the id of a/alpha.md and 1 more; all are left out`,
 				},
 			},
@@ -63,19 +63,19 @@ func TestNameClashes_IDConflicts_FindsEveryFileOfARepeatedID(t *testing.T) {
 			},
 			want: []diagnose.Finding{
 				{
-					Kind: diagnose.Duplicate, Path: "z1.md",
+					Code: diagnose.Duplicate, Path: "z1.md",
 					Message: `duplicate id "zulu": also the id of z2.md; both are left out`,
 				},
 				{
-					Kind: diagnose.Duplicate, Path: "z2.md",
+					Code: diagnose.Duplicate, Path: "z2.md",
 					Message: `duplicate id "zulu": also the id of z1.md; both are left out`,
 				},
 				{
-					Kind: diagnose.Duplicate, Path: "a1.md",
+					Code: diagnose.Duplicate, Path: "a1.md",
 					Message: `duplicate id "alpha": also the id of a2.md; both are left out`,
 				},
 				{
-					Kind: diagnose.Duplicate, Path: "a2.md",
+					Code: diagnose.Duplicate, Path: "a2.md",
 					Message: `duplicate id "alpha": also the id of a1.md; both are left out`,
 				},
 			},
@@ -114,7 +114,7 @@ func TestNameClashes_ManyFiles_FindsOnePerFile(t *testing.T) {
 			other = paths[1]
 		}
 		want := diagnose.Finding{
-			Kind:    diagnose.Duplicate,
+			Code:    diagnose.Duplicate,
 			Path:    paths[position],
 			Message: `duplicate id "alpha": also the id of ` + other + " and 998 more; all are left out",
 		}

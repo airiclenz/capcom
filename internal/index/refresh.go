@@ -150,7 +150,7 @@ type refresher struct {
 func (r *refresher) warn(kind diagnose.Kind, path string, line int, message string) {
 	r.warnings = append(
 		r.warnings,
-		diagnose.Finding{Kind: kind, Path: path, Line: line, Message: message},
+		diagnose.Finding{Code: kind, Path: path, Line: line, Message: message},
 	)
 }
 
@@ -274,7 +274,7 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	switch {
 	case refusal != nil:
 		problems = []diagnose.Finding{
-			{Kind: diagnose.NotRegular, Path: file.path, Message: refusal.Error()},
+			{Code: diagnose.NotRegular, Path: file.path, Message: refusal.Error()},
 		}
 	case err != nil:
 		return false, fmt.Errorf("%s: %w", file.path, err)

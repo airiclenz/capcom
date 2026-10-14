@@ -138,7 +138,7 @@ func retiredSubtrees(nodes []tree.Node, parsed map[string]knowledge.Note) map[st
 func (c *checker) checkNote(node tree.Node, note knowledge.Note, isRetired bool) error {
 	path := c.relative(node.Path)
 	for _, finding := range diagnose.ValidateNote(path, note) {
-		c.add(path, finding.Line, kindCode(finding.Kind), finding.Message)
+		c.add(path, finding.Line, kindCode(finding.Code), finding.Message)
 	}
 	if isRetired {
 		return nil

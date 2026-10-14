@@ -339,7 +339,13 @@ NOTES (2026-10-14): `go build ./...` fails on the gitignored Go copies under doc
 **Acceptance:** `go build ./...`; `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/briefing/`; `grep -rn 'check\.Code' internal/` prints nothing; `grep -n '\bCode[A-Z]' internal/check/*.go` prints nothing
 **Commit:** `refactor(check): use diagnose kinds for every code`
 
-## P2.6 One finding type
+## P2.6 One finding type — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): kept Go field `Code` (check's name, matching the JSON key); diagnose.Finding is now Path, Line, Code, Message with `line` always present and `code` in place of `kind`; check.Problem is a type alias of diagnose.Finding and its own String method is gone (Finding.String renders the same). Every `Kind:`/`.Kind` site on a Finding was converted by grep and compiler, including files the plan's Files list did not name: diagnose/clashes.go, check/issues.go, check/notes.go, cli/errors.go and the diagnose/index tests.
+NOTES (2026-10-14): check/check.go, briefing/briefing.go and cli/prime.go needed no change: they use check.Problem and its Code field, both of which the alias keeps.
+NOTES (2026-10-14): index schemaVersion bumped 7 -> 8, since stored files.problems JSON now carries `code` and always `line`.
+NOTES (2026-10-14): added TestCheck_JSONProblem_RawBytesKeepKeyOrderAndLineZero pinning the raw bytes of one check --json element (line 0 case).
+NOTES (2026-10-14): `go build ./...` / `go vet ./...` fail at the repo root on gitignored Go copies under docs/skill-runs/release-notes-capcom/2026-10-14/scratch/ (pre-existing, also on the untouched tree); `go build ./cmd/... ./internal/...` and `go vet ./cmd/... ./internal/...` are clean.
 
 **What:**
 **Goal:** `check.Problem` and `diagnose.Finding` are one type with check's JSON shape (`path`, `line` always present, `code`, `message`); check and prime JSON are byte-identical to before.
