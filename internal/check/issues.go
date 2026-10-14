@@ -40,9 +40,7 @@ func (c *checker) issues() error {
 		c.checkConflictMarkers(path, data)
 		found, findings := diagnose.ParseIssue(c.relative(path), data)
 		if len(findings) > 0 {
-			// addParseFailure reads the line and message of a parse failure off its error.
-			failure := findings[0]
-			c.addParseFailure(path, &issue.Error{Path: failure.Path, Line: failure.Line, Message: failure.Message})
+			c.addParseFailure(path, findings[0])
 			return nil, nil
 		}
 		parsed[path] = found

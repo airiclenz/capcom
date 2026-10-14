@@ -31,9 +31,7 @@ func (c *checker) notes() error {
 		c.checkConflictMarkers(path, data)
 		found, findings := diagnose.ParseNote(c.relative(path), data)
 		if len(findings) > 0 {
-			// addParseFailure reads the line and message of a parse failure off its error.
-			failure := findings[0]
-			c.addParseFailure(path, &knowledge.Error{Path: failure.Path, Line: failure.Line, Message: failure.Message})
+			c.addParseFailure(path, findings[0])
 			return nil, nil
 		}
 		parsed[path] = found

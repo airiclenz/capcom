@@ -299,7 +299,7 @@ NOTES (2026-10-14): re-derived from the assumption that duplicates.go (excludeCl
 **Acceptance:** `go build ./...`; `GOMEMLIMIT=2GiB go test ./internal/index/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestMv_|TestReindex|TestErrors_'`; `grep -rn 'index\.Warning' internal/` prints nothing; `grep -nE 'type Warning|\bWarningKind\b|\bWarning[A-Z][A-Za-z]* *=' internal/index/*.go` prints nothing
 **Commit:** `refactor(index): drop the Warning re-exports`
 
-## P2.3 check adds parse failures from the finding directly
+## P2.3 check adds parse failures from the finding directly — ✅ DONE (2026-10-14)
 
 **What:**
 **Goal:** check records a parse failure from its `diagnose.Finding` without rebuilding an `issue.Error`/`knowledge.Error`; output unchanged.

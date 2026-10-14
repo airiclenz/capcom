@@ -17,7 +17,7 @@ import (
 	"slices"
 
 	"github.com/airiclenz/capcom/internal/config"
-	"github.com/airiclenz/capcom/internal/frontmatter"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/rawfm"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -93,18 +93,14 @@ func (c *checker) checkConflictMarkers(path string, data []byte) {
 	}
 }
 
-// addParseFailure records a file that does not parse, at the line its parser blamed. A parser
-// blames a conflict marker in the frontmatter with the conflict problem's own words, which
-// checkConflictMarkers has already recorded, so that failure is not recorded twice.
-func (c *checker) addParseFailure(path string, err error) {
-	line, message := 0, err.Error()
-	var failure *frontmatter.Error
-	if errors.As(err, &failure) {
-		line, message = failure.Line, failure.Message
-	}
-	conflict := Problem{Path: c.relative(path), Line: line, Code: CodeConflict, Message: message}
+// addParseFailure records failure, the finding that the file at path does not parse, at the line
+// its parser blamed. A parser blames a conflict marker in the frontmatter with the conflict
+// problem's own words, which checkConflictMarkers has already recorded, so that failure is not
+// recorded twice.
+func (c *checker) addParseFailure(path string, failure diagnose.Finding) {
+	conflict := Problem{Path: c.relative(path), Line: failure.Line, Code: CodeConflict, Message: failure.Message}
 	if slices.Contains(c.problems, conflict) {
 		return
 	}
-	c.add(path, line, CodeFrontmatter, message)
+	c.add(path, failure.Line, CodeFrontmatter, failure.Message)
 }
