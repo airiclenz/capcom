@@ -23,8 +23,8 @@ var yamlLineError = regexp.MustCompile(`^yaml: line (\d+): (.*)$`)
 
 // Kind is one kind of file Decode reads: an issue or a Note.
 type Kind struct {
-	// Noun names one file of the kind with its article, "an issue" or "a note". It words the
-	// missing-fence failure ("a note file must start with a --- line") and the unknown-key hint.
+	// Noun names one file of the kind with its article, "an issue" or "a Note". It words the
+	// missing-fence failure ("a Note file must start with a --- line") and the unknown-key hint.
 	Noun string
 	// Keys lists every frontmatter key the kind knows, in the order the unknown-key hint names
 	// them. Any other key is an error (ADR 0009).
@@ -59,7 +59,7 @@ type Field struct {
 //
 // Decode fails, with an *Error citing the file line, wherever Split does, on invalid YAML, on a
 // second YAML document, on a frontmatter that is not a mapping, on a repeated key, on a key outside
-// kind.Keys (its message ends with a hint generated from them: `; a note has title, labels, refs,
+// kind.Keys (its message ends with a hint generated from them: `; a Note has title, labels, refs,
 // retired, superseded-by and aliases`), and with the first error apply returns. When the
 // frontmatter holds a git conflict marker, a failure past Split cites the first marker instead, in
 // the words `capcom check` reports it with, since the marker, not the YAML it breaks, is what to
@@ -144,7 +144,7 @@ func (d decoder) document(front string) (*yaml.Node, error) {
 	return root, nil
 }
 
-// keysHint is the unknown-key hint naming the kind's keys, "; a note has title, labels, refs,
+// keysHint is the unknown-key hint naming the kind's keys, "; a Note has title, labels, refs,
 // retired, superseded-by and aliases", or "" for a kind that names none.
 func (d decoder) keysHint() string {
 	keys := d.kind.Keys

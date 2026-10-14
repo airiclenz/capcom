@@ -865,7 +865,7 @@ func TestRun_NoteFileProblems_PinCodesAndWording(t *testing.T) {
 		string(diagnose.Duplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the note's own id`,
 		string(diagnose.Duplicate) + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note": also the id of ` +
 			knowledge + "dup-note.md; both are left out",
-		string(diagnose.Frontmatter) + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a note has ` +
+		string(diagnose.Frontmatter) + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a Note has ` +
 			"title, labels, refs, retired, superseded-by and aliases",
 	}
 	if !reflect.DeepEqual(got, want) {

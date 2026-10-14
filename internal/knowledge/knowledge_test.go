@@ -206,7 +206,7 @@ func TestValidate_SupersededBy_ReportsBadEntriesAtTheirLines(t *testing.T) {
 	problems := Validate(notePath, note)
 
 	want := []string{
-		notePath + `:5: superseded-by "some-note" names the note itself`,
+		notePath + `:5: superseded-by "some-note" names the Note itself`,
 		notePath + `:6: superseded-by "New_Rule" is not an id: use only a-z, 0-9, dots and hyphens`,
 		notePath + `:7: superseded-by "new-rule" is listed more than once`,
 	}
@@ -245,7 +245,7 @@ func TestParse_UnknownKey_NamesTheNoteKeys(t *testing.T) {
 
 	_, err := Parse(notePath, []byte("---\ntitle: x\nstatus: open\n---\n"))
 
-	want := notePath + `:3: unknown key "status"; a note has title, labels, refs, retired, superseded-by and aliases`
+	want := notePath + `:3: unknown key "status"; a Note has title, labels, refs, retired, superseded-by and aliases`
 	if err == nil || err.Error() != want {
 		t.Errorf("Parse error = %v, want %s", err, want)
 	}

@@ -39,7 +39,7 @@ const LabelBackground = "background"
 // noteSchema is the Note field table: every frontmatter key, how Parse reads it into a Note and
 // how Serialize writes it back, in the order Serialize writes them.
 var noteSchema = frontmatter.NewSchema(
-	"a note",
+	"a Note",
 	frontmatter.Text(keyTitle, func(note *Note) *string { return &note.Title }),
 	frontmatter.List(keyLabels, func(note *Note) *[]string { return &note.Labels }),
 	frontmatter.Raw(
@@ -226,7 +226,7 @@ func validateSupersededBy(path string, note Note) []*Error {
 		case tree.ValidateAlias(successor) != nil:
 			message = fmt.Sprintf("%s %q is not an id: use only a-z, 0-9, dots and hyphens", keySupersededBy, successor)
 		case successor == ownID:
-			message = fmt.Sprintf("%s %q names the note itself", keySupersededBy, successor)
+			message = fmt.Sprintf("%s %q names the Note itself", keySupersededBy, successor)
 		case slices.Contains(note.SupersededBy[:i], successor):
 			message = fmt.Sprintf("%s %q is listed more than once", keySupersededBy, successor)
 		default:

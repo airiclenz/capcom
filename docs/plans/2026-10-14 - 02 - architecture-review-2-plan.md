@@ -231,7 +231,19 @@ internal/cli/know_mv_test.go — TestKnowMv_UnparseableBystander_WarnsAndMoves; 
 **Closes:** kind-reader
 **Commit:** `fix(cli): the unread warning names every ref key`
 
-## P3.2 "Note" in messages, part 1: knowledge, frontmatter and tree
+## P3.2 "Note" in messages, part 1: knowledge, frontmatter and tree — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): consequential edit — internal/frontmatter/decode.go: made necessary by the Note noun change (doc comments quote "a note file must start…" and "; a note has title…")
+
+NOTES (2026-10-14): consequential edit — internal/frontmatter/frontmatter.go: made necessary by the Note noun change (doc comment example noun "a note")
+
+NOTES (2026-10-14): consequential edit — internal/frontmatter/schema.go: made necessary by the Note noun change (doc comment example noun "a note")
+
+NOTES (2026-10-14): consequential edit — internal/tree/move.go: made necessary by the Note noun change (doc comment example noun "a note")
+
+NOTES (2026-10-14): consequential edit — internal/tree/tree.go: made necessary by the Note noun change (doc comment example noun "note")
+
+NOTES (2026-10-14): remove.go changes are doc comments only: bareNoun/childCount already carry the caller's capitalisation ("Note parent-node has 2 child Notes"); tree_test.go's CheckAliases/Load fixtures now pass "Note"; the callers' own lowercase nouns (nodestore descriptor, cli nounPhrase) stay for P3.3/P3.4, so cli's know_rm_test "note testing-rules has 2 child notes" is unchanged
 
 **What:**
 **Goal:** messages from `knowledge`, `frontmatter` and `tree` name the Note kind "Note"/"a Note" (e.g. `a Note has title, labels, …`, `a Note file must start with a --- line`, `names the Note itself`, `has 2 child Notes`). "issue" is unchanged.

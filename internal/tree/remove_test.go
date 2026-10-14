@@ -42,8 +42,8 @@ func TestPlanRemove_WithChildren_RefusedNamingKindAndCount(t *testing.T) {
 	_, err := mustLoad(t, dir, nil).PlanRemove("parent-node", noteKind)
 
 	var refusal *tree.ChildrenError
-	if !errors.As(err, &refusal) || refusal.Count != 2 || err.Error() != "note parent-node has 2 child notes; remove or move them first" {
-		t.Errorf("PlanRemove of a parent = %v; want a *tree.ChildrenError counting 2 child notes", err)
+	if !errors.As(err, &refusal) || refusal.Count != 2 || err.Error() != "Note parent-node has 2 child Notes; remove or move them first" {
+		t.Errorf("PlanRemove of a parent = %v; want a *tree.ChildrenError counting 2 child Notes", err)
 	}
 }
 

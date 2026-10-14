@@ -260,7 +260,7 @@ func TestNotes_FileProblems_PinKindsAndWording(t *testing.T) {
 			Code: diagnose.Frontmatter,
 			Path: dir + "unknown-key.md",
 			Line: 3,
-			Message: `unknown key "owner"; a note has title, labels, refs, retired, superseded-by ` +
+			Message: `unknown key "owner"; a Note has title, labels, refs, retired, superseded-by ` +
 				"and aliases",
 		},
 	}

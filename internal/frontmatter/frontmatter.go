@@ -49,7 +49,7 @@ func (e *Error) Error() string {
 // first later line that is a fence, `---` with at most one trailing carriage return
 // (rawfm.IsFrontmatterFence), so a closing `---\r` that ends the file closes it too; the body is
 // everything after that line, byte for byte. path names the file in an error, and noun names one
-// file of its kind with its article ("an issue", "a note").
+// file of its kind with its article ("an issue", "a Note").
 //
 // Split fails, with an *Error citing line 1, when data does not open with a `---` line ("an issue
 // file must start with a --- line") and when the frontmatter is never closed.

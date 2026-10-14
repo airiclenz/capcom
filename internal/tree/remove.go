@@ -17,7 +17,7 @@ type ChildrenError struct {
 	Node Node
 	// Count is the number of its children.
 	Count int
-	// Kind is the kind of node, as a noun phrase with its article: "an issue", "a note".
+	// Kind is the kind of node, as a noun phrase with its article: "an issue", "a Note".
 	Kind string
 }
 
@@ -34,7 +34,7 @@ type ChildrenDirError struct {
 	Dir string
 	// Entries is the number of entries it holds.
 	Entries int
-	// Kind is the kind of node, as a noun phrase with its article: "an issue", "a note".
+	// Kind is the kind of node, as a noun phrase with its article: "an issue", "a Note".
 	Kind string
 }
 
@@ -84,7 +84,7 @@ type Removal struct {
 }
 
 // PlanRemove works out the removal of the node with exact id id, changing nothing on disk. kind
-// names the kind of node as a noun phrase with its article ("an issue", "a note") for the errors
+// names the kind of node as a noun phrase with its article ("an issue", "a Note") for the errors
 // below. Every check runs here, before a caller reads any file for its rewrites; PlanRemove never
 // reads the node file, so a node whose file does not parse is removed like any other.
 //
@@ -208,7 +208,7 @@ func removeEmptyDir(dir string, remove func(path string) error) error {
 	return nil
 }
 
-// childCount phrases count children of the kind noun names: "1 child note", "2 child issues".
+// childCount phrases count children of the kind noun names: "1 child Note", "2 child issues".
 func childCount(count int, noun string) string {
 	if count == 1 {
 		return "1 child " + noun

@@ -79,7 +79,7 @@ type Tree struct {
 
 // Load reads the tree stored in dir. A missing dir loads as an empty tree. Names starting with a
 // dot and files not ending in .md are skipped. noun names one node of the kind in a message,
-// "issue" or "note". aliases may be nil when the kind has none.
+// "issue" or "Note". aliases may be nil when the kind has none.
 //
 // Load reports, as an *Error naming the file, an invalid id, an alias CheckAliases rejects (its
 // message naming the node by noun), an id or alias two files share (naming the other file in Other), and

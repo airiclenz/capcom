@@ -20,7 +20,7 @@ var errInjected = errors.New("injected rename failure")
 // issueKind and noteKind are the noun phrases issue and Note moves pass to PlanMove.
 const (
 	issueKind = "an issue"
-	noteKind  = "a note"
+	noteKind  = "a Note"
 )
 
 // moveNode plans and applies one move in dir, failing the test on any error.
@@ -238,8 +238,8 @@ func TestPlanMove_RenameOntoTakenIDOrAlias_RefusedNamingKind(t *testing.T) {
 	}{
 		{newID: "taken-node", kind: issueKind, want: `duplicate id "taken-node": already taken by issue taken-node`},
 		{newID: "taken-alias", kind: issueKind, want: `duplicate id "taken-alias": already an alias of issue taken-node`},
-		{newID: "taken-node", kind: noteKind, want: `duplicate id "taken-node": already taken by note taken-node`},
-		{newID: "taken-alias", kind: noteKind, want: `duplicate id "taken-alias": already an alias of note taken-node`},
+		{newID: "taken-node", kind: noteKind, want: `duplicate id "taken-node": already taken by Note taken-node`},
+		{newID: "taken-alias", kind: noteKind, want: `duplicate id "taken-alias": already an alias of Note taken-node`},
 	}
 
 	for _, tc := range cases {

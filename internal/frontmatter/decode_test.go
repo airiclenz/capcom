@@ -21,7 +21,7 @@ var (
 		},
 	}
 	noteKind = frontmatter.Kind{
-		Noun: "a note",
+		Noun: "a Note",
 		Keys: []string{"title", "labels", "refs", "retired", "superseded-by", "aliases"},
 	}
 )
@@ -93,7 +93,7 @@ func TestDecode_Failures_CiteFileLine(t *testing.T) {
 			name:    "no opening fence, note",
 			kind:    noteKind,
 			content: "title: T\n",
-			want:    testPath + ":1: a note file must start with a --- line",
+			want:    testPath + ":1: a Note file must start with a --- line",
 		},
 		{
 			name:    "never closed",
@@ -112,7 +112,7 @@ func TestDecode_Failures_CiteFileLine(t *testing.T) {
 			name:    "unknown key, note",
 			kind:    noteKind,
 			content: "---\ntitle: T\nstatus: open\n---\n",
-			want:    testPath + `:3: unknown key "status"; a note has title, labels, refs, retired, superseded-by and aliases`,
+			want:    testPath + `:3: unknown key "status"; a Note has title, labels, refs, retired, superseded-by and aliases`,
 		},
 		{
 			name:    "duplicate key",
@@ -379,7 +379,7 @@ func TestSplit(t *testing.T) {
 
 	content := []byte("---\r\ntitle: T\r\n---\r\nbody\r\n")
 
-	front, body, err := frontmatter.Split(testPath, content, "a note")
+	front, body, err := frontmatter.Split(testPath, content, "a Note")
 
 	if err != nil || front != "title: T\n" || body != "body\n" {
 		t.Errorf("Split = %q, %q, %v; want the frontmatter and body with LF endings", front, body, err)
@@ -389,7 +389,7 @@ func TestSplit(t *testing.T) {
 func TestSplit_Fences(t *testing.T) {
 	t.Parallel()
 	const neverClosed = testPath + ":1: the frontmatter opened here is never closed by a --- line"
-	const noOpening = testPath + ":1: a note file must start with a --- line"
+	const noOpening = testPath + ":1: a Note file must start with a --- line"
 	cases := []struct {
 		name    string
 		content string
@@ -419,7 +419,7 @@ func TestSplit_Fences(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			front, body, err := frontmatter.Split(testPath, []byte(tc.content), "a note")
+			front, body, err := frontmatter.Split(testPath, []byte(tc.content), "a Note")
 
 			gotErr := ""
 			if err != nil {

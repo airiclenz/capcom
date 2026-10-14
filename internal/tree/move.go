@@ -26,7 +26,7 @@ type TakenError struct {
 	ID string
 	// Owner is the node that holds it.
 	Owner Node
-	// Kind is the kind of node, as a noun phrase with its article: "an issue", "a note".
+	// Kind is the kind of node, as a noun phrase with its article: "an issue", "a Note".
 	Kind string
 }
 
@@ -89,7 +89,7 @@ type Move struct {
 
 // PlanMove works out the move of the node with exact id id to the destination to, changing
 // nothing on disk. kind names the kind of node as a noun phrase with its article ("an issue",
-// "a note") for the errors below. The node's children directory, with its whole subtree, moves
+// "a Note") for the errors below. The node's children directory, with its whole subtree, moves
 // along with it. Every check runs here, before a caller reads any file for its rewrites.
 //
 // PlanMove fails with ErrInvalidID for an invalid new id, a *TakenError for a new id another node

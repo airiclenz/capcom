@@ -299,7 +299,7 @@ func TestNoteReader_Decode_SortsItsFindings(t *testing.T) {
 				Code:    diagnose.Frontmatter,
 				Path:    "alpha.md",
 				Line:    3,
-				Message: "unknown key \"bogus\"; a note has title, labels, refs, retired, superseded-by and aliases",
+				Message: "unknown key \"bogus\"; a Note has title, labels, refs, retired, superseded-by and aliases",
 			}},
 		},
 		{

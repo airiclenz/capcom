@@ -616,12 +616,12 @@ func TestCheckAliases_EachProblem_ReportedWithItsMessage(t *testing.T) {
 func TestCheckAliases_RepeatedAlias_IsADuplicate(t *testing.T) {
 	t.Parallel()
 
-	_, problems := tree.CheckAliases("login-flow.md", "note", "login-flow", []string{"login-flow"})
+	_, problems := tree.CheckAliases("login-flow.md", "Note", "login-flow", []string{"login-flow"})
 
 	if len(problems) != 1 || !errors.Is(problems[0], tree.ErrDuplicate) {
 		t.Fatalf("problems = %v, want one wrapping ErrDuplicate", problems)
 	}
-	if want := `alias "login-flow" repeats the note's own id`; problems[0].Message() != want {
+	if want := `alias "login-flow" repeats the Note's own id`; problems[0].Message() != want {
 		t.Errorf("Message = %q, want %q", problems[0].Message(), want)
 	}
 }
@@ -631,7 +631,7 @@ func TestLoad_RepeatedAliases_DropOnlyTheOffendingAlias(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "login-flow.md")
 
-	loaded, err := tree.Load(dir, "note", aliasesByFile(map[string][]string{
+	loaded, err := tree.Load(dir, "Note", aliasesByFile(map[string][]string{
 		"login-flow.md": {"login-flow", "apogee-qi3", "apogee-qi3"},
 	}))
 
@@ -644,7 +644,7 @@ func TestLoad_RepeatedAliases_DropOnlyTheOffendingAlias(t *testing.T) {
 		got = append(got, problem.Message())
 	}
 	want := []string{
-		`alias "login-flow" repeats the note's own id`,
+		`alias "login-flow" repeats the Note's own id`,
 		`alias "apogee-qi3" is listed twice`,
 	}
 	if !reflect.DeepEqual(got, want) {

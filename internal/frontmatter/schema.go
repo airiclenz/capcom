@@ -17,7 +17,7 @@ type SchemaField[T any] struct {
 	encode func(node T, out *Encoder)
 }
 
-// NewSchema returns the schema of the kind of file whose noun is noun ("an issue", "a note"),
+// NewSchema returns the schema of the kind of file whose noun is noun ("an issue", "a Note"),
 // with fields in the order Encode writes them. Each field's key must be distinct.
 func NewSchema[T any](noun string, fields ...SchemaField[T]) Schema[T] {
 	keys := make([]string, 0, len(fields))
