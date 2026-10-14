@@ -1,10 +1,12 @@
 ---
 title: Agents never learn the Tree lock exists
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-14 - 01 - lock-visibility-plan
 created: 2026-10-14T15:04:20Z
+closed: 2026-10-14T15:20:18Z
+reason: Resolved by 2026-10-14 - 01 - lock-visibility-plan (fe974f6)
 ---
 
 Nothing an agent always reads mentions the Tree lock. The Managed block of AGENTS.md
