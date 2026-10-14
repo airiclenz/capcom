@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/hooks"
 	"github.com/airiclenz/capcom/internal/store"
@@ -186,6 +187,12 @@ func mergeDriverConfigText() string {
 		strings.Join(mergeDriverConfig, "\n  ") + "\n"
 }
 
+// agentsHint is the line init prints after creating a store: init writes no agent guide, so it
+// names the command that does.
+const agentsHint = "run capcom agents to write the capcom block into " + agents.FileName + "\n"
+
+// initText reports the store init found at root, or created with the paths in created, followed,
+// for a store it created, by agentsHint.
 func initText(root string, created []string) string {
 	if len(created) == 0 {
 		return "capcom store already initialized at " + root + "\n"
@@ -195,6 +202,7 @@ func initText(root string, created []string) string {
 	for _, path := range created {
 		text.WriteString("created " + path + "\n")
 	}
+	text.WriteString(agentsHint)
 	return text.String()
 }
 

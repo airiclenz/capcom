@@ -167,7 +167,9 @@ internal/briefing/briefing.go — readHealth
 
 **Commit:** `feat(check): report an agent guide that does not reach the Managed block`
 
-## 4. capcom agents imports and checks the guides; init hints at it
+## 4. capcom agents imports and checks the guides; init hints at it — ✅ DONE (2026-10-14)
+NOTES (2026-10-14): the init hint line prints only when init creates something (a new store, or a missing config.yaml); a re-run on a complete store keeps its single `capcom store already initialized` line.
+NOTES (2026-10-14): docs/site/reference/cli/capcom_init.md is unchanged: gendocs regenerated it byte-identical, since init's help text does not change.
 
 Depends on items 1 and 2.
 

@@ -253,3 +253,125 @@ func TestAgents_UnusableTopLevelNote_IsInNeitherTheBlockNorKnowTreeAndCheckRepor
 		}
 	}
 }
+
+// writeGuideFile writes content as the agent guide name of the working tree at root.
+func writeGuideFile(t *testing.T, root string, name string, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+// readGuideFile returns the agent guide name of the working tree at root.
+func readGuideFile(t *testing.T, root string, name string) string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	return string(content)
+}
+
+func TestAgents_UnreachedGuide_GetsTheImportOnceAndTheBlockStaysInAgentsMD(t *testing.T) {
+	root := newKnowStore(t)
+	writeAgentsGuide(t, root, "# Guide\n")
+	writeGuideFile(t, root, "CLAUDE.md", "# Claude\n")
+
+	first := mustRun(t, root, "agents")
+	imported := readGuideFile(t, root, "CLAUDE.md")
+	second := mustRun(t, root, "agents")
+
+	if first != "wrote the capcom block to AGENTS.md\nadded @AGENTS.md to CLAUDE.md\n" {
+		t.Errorf("agents output = %q; want the block written and the import added", first)
+	}
+	if imported != "# Claude\n\n@AGENTS.md\n" {
+		t.Errorf("CLAUDE.md = %q; want the import line appended after a blank line", imported)
+	}
+	if second != "the capcom block of AGENTS.md is current\n" || readGuideFile(t, root, "CLAUDE.md") != imported {
+		t.Errorf("agents re-run = %q, CLAUDE.md %q; want current and CLAUDE.md byte-identical",
+			second, readGuideFile(t, root, "CLAUDE.md"))
+	}
+	agentsBlockOf(t, readAgentsGuide(t, root))
+	if _, err := os.Stat(filepath.Join(root, "GEMINI.md")); !os.IsNotExist(err) {
+		t.Errorf("agents created GEMINI.md: %v", err)
+	}
+}
+
+func TestAgentsCheck_UnreachedGuides_FailNamingTheFirstGuide(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "agents")
+	writeGuideFile(t, root, "CLAUDE.md", "# Claude\n")
+	writeGuideFile(t, root, "GEMINI.md", "# Gemini\n")
+
+	stdout, stderr, exitCode := runCLI(t, root, "agents", "--check")
+
+	want := "capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md\n"
+	if exitCode != ExitError || stdout != "" || stderr != want {
+		t.Errorf("agents --check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
+	}
+	if readGuideFile(t, root, "CLAUDE.md") != "# Claude\n" || readGuideFile(t, root, "GEMINI.md") != "# Gemini\n" {
+		t.Errorf("agents --check wrote a guide")
+	}
+}
+
+func TestAgentsCheck_GuideReachesOrBlockAbsent_ExitsZeroWithTheGuidesInJSON(t *testing.T) {
+	root := newKnowStore(t)
+	writeAgentsGuide(t, root, "# Guide\n")
+	writeGuideFile(t, root, "CLAUDE.md", "# Claude\n")
+
+	blockless, _, blocklessExit := runCLI(t, root, "agents", "--check")
+	mustRun(t, root, "agents")
+	current, _, currentExit := runCLI(t, root, "agents", "--check")
+	jsonOut, _, jsonExit := runCLI(t, root, "agents", "--check", "--json")
+
+	if blocklessExit != ExitOK || blockless != "AGENTS.md has no capcom block\n" {
+		t.Errorf("agents --check without the block = %d %q; want 0 and no block", blocklessExit, blockless)
+	}
+	if currentExit != ExitOK || current != "the capcom block of AGENTS.md is current\n" {
+		t.Errorf("agents --check with the guide reaching the block = %d %q; want 0 and current", currentExit, current)
+	}
+	data, _ := decodeEnvelope(t, jsonOut)["data"].(map[string]any)
+	guides, _ := data["guides"].([]any)
+	want := []map[string]any{{"path": "CLAUDE.md", "state": "reaches"}, {"path": "GEMINI.md", "state": "missing"}}
+	if jsonExit != ExitOK || len(guides) != len(want) {
+		t.Fatalf("agents --check --json = %d, data %v; want 0 and guides %v", jsonExit, data, want)
+	}
+	for index, guide := range guides {
+		entry, _ := guide.(map[string]any)
+		if entry["path"] != want[index]["path"] || entry["state"] != want[index]["state"] {
+			t.Errorf("guides[%d] = %v; want %v", index, entry, want[index])
+		}
+	}
+}
+
+func TestAgents_GuideLinkedOutsideTheTree_IsSkippedAndLeftUntouched(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	root := newKnowStore(t)
+	const original = "# Shell profile\n"
+	outside := filepath.Join(t.TempDir(), "bashrc")
+	if err := os.WriteFile(outside, []byte(original), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "CLAUDE.md")); err != nil {
+		t.Skipf("Symlink: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "agents")
+	_, _, checkExit := runCLI(t, root, "agents", "--check")
+
+	want := "wrote the capcom block to AGENTS.md\nskipped CLAUDE.md: links outside the working tree\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("agents = %d, stdout %q, stderr %q; want 0 and %q", exitCode, stdout, stderr, want)
+	}
+	if checkExit != ExitOK {
+		t.Errorf("agents --check = %d; want 0 for a guide outside the working tree", checkExit)
+	}
+	if content, readErr := os.ReadFile(outside); readErr != nil || string(content) != original {
+		t.Errorf("outside file = %q, %v; want it untouched", content, readErr)
+	}
+}

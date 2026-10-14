@@ -55,6 +55,24 @@ func TestInit_NewRepository_CreatesStore(t *testing.T) {
 	}
 }
 
+func TestInit_NewStore_HintsAtCapcomAgents(t *testing.T) {
+	root := newGitRepo(t)
+
+	first := mustRun(t, root, "init")
+	again := mustRun(t, root, "init")
+
+	hint := "\nrun capcom agents to write the capcom block into AGENTS.md\n"
+	if !strings.Contains(first, "\ncreated .capcom/config.yaml"+hint) {
+		t.Errorf("init stdout:\n%s\nwant the hint line after the created paths", first)
+	}
+	if strings.Contains(again, hint) {
+		t.Errorf("init on an existing store:\n%s\nwant no hint line", again)
+	}
+	if _, err := os.Stat(filepath.Join(root, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Errorf("init wrote AGENTS.md: %v", err)
+	}
+}
+
 func TestInit_WrittenConfig_DeclaresCurrentFormat(t *testing.T) {
 	root := newGitRepo(t)
 	runCLI(t, root, "init")

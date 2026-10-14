@@ -20,6 +20,7 @@ created .capcom
 created .capcom/issues
 created .capcom/knowledge
 created .capcom/config.yaml
+run capcom agents to write the capcom block into AGENTS.md
 
 To brief Claude Code at every session start and before compaction, add to .claude/settings.json (or run capcom init --claude-hooks):
 {

@@ -52,6 +52,7 @@ created .capcom
 created .capcom/issues
 created .capcom/knowledge
 created .capcom/config.yaml
+run capcom agents to write the capcom block into AGENTS.md
 added the capcom prime hooks to .claude/settings.json
 ```
 
