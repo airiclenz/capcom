@@ -80,7 +80,7 @@ func ids(nodes []tree.Node) []string {
 // mustLoad loads dir and fails the test on error.
 func mustLoad(t *testing.T, dir string, aliases tree.AliasFunc) *tree.Tree {
 	t.Helper()
-	loaded, err := tree.Load(dir, aliases)
+	loaded, err := tree.Load(dir, "issue", aliases)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestLoad_DirectoryWithoutNodeFile_Fails(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "login-flow/login-timeout-race.md")
 
-	_, err := tree.Load(dir, nil)
+	_, err := tree.Load(dir, "issue", nil)
 
 	if !errors.Is(err, tree.ErrOrphanDirectory) {
 		t.Fatalf("Load = %v, want ErrOrphanDirectory", err)
@@ -324,7 +324,7 @@ func TestLoad_InvalidID_FailsNamingFile(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "login-flow.md", "login-flow/Bad_Name.md")
 
-	_, err := tree.Load(dir, nil)
+	_, err := tree.Load(dir, "issue", nil)
 
 	var treeErr *tree.Error
 	if !errors.As(err, &treeErr) || !errors.Is(err, tree.ErrInvalidID) {
@@ -345,7 +345,7 @@ func TestLoad_DuplicateIDInTwoSubtrees_FailsNamingBoth(t *testing.T) {
 		"export-csv/timeout-race.md",
 	)
 
-	_, err := tree.Load(dir, nil)
+	_, err := tree.Load(dir, "issue", nil)
 
 	if !errors.Is(err, tree.ErrDuplicate) {
 		t.Fatalf("Load = %v, want ErrDuplicate", err)
@@ -365,7 +365,7 @@ func TestLoad_DuplicateIDWithChildren_LeavesBothFilesAndTheSubtreeOut(t *testing
 	dir := t.TempDir()
 	writeNodes(t, dir, "a.md", "a/x.md", "b.md", "b/x.md", "b/x/c2.md")
 
-	loaded, err := tree.Load(dir, nil)
+	loaded, err := tree.Load(dir, "issue", nil)
 
 	var problems tree.Errors
 	if !errors.As(err, &problems) || loaded == nil {
@@ -434,7 +434,7 @@ func TestLoad_AliasConflicts_Fail(t *testing.T) {
 			dir := t.TempDir()
 			writeNodes(t, dir, "login-flow.md", "export-csv.md")
 
-			_, err := tree.Load(dir, aliasesByFile(testCase.aliases))
+			_, err := tree.Load(dir, "issue", aliasesByFile(testCase.aliases))
 
 			if !errors.Is(err, testCase.want) {
 				t.Fatalf("Load = %v, want %v", err, testCase.want)
@@ -449,7 +449,7 @@ func TestLoad_AliasFuncError_ReturnedUnchanged(t *testing.T) {
 	writeNodes(t, dir, "login-flow.md")
 	failure := errors.New("login-flow.md:3: bad front matter")
 
-	_, err := tree.Load(dir, func(string) ([]string, error) { return nil, failure })
+	_, err := tree.Load(dir, "issue", func(string) ([]string, error) { return nil, failure })
 
 	if err != failure {
 		t.Fatalf("Load = %v, want %v", err, failure)
@@ -461,7 +461,7 @@ func TestLoad_DuplicateAlias_NamesTheOtherFileApart(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "export-csv.md", "login-flow.md")
 
-	_, err := tree.Load(dir, aliasesByFile(map[string][]string{
+	_, err := tree.Load(dir, "issue", aliasesByFile(map[string][]string{
 		"export-csv.md": {"apogee-qi3"},
 		"login-flow.md": {"apogee-qi3"},
 	}))
@@ -520,7 +520,7 @@ func TestLoad_DroppedFileAliasAnotherFileClaims_IsADuplicateNamingBoth(t *testin
 			dir := t.TempDir()
 			writeNodes(t, dir, testCase.files...)
 
-			_, err := tree.Load(dir, aliasesByPath(dir, testCase.aliases))
+			_, err := tree.Load(dir, "issue", aliasesByPath(dir, testCase.aliases))
 
 			var problems tree.Errors
 			if !errors.As(err, &problems) {
@@ -550,7 +550,7 @@ func TestLoad_AliasOnlyADroppedFileLists_IsNoProblem(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "foo.md", "sub.md", "sub/foo.md")
 
-	_, err := tree.Load(dir, aliasesByPath(dir, map[string][]string{"sub/foo.md": {"legacy-1"}}))
+	_, err := tree.Load(dir, "issue", aliasesByPath(dir, map[string][]string{"sub/foo.md": {"legacy-1"}}))
 
 	var problems tree.Errors
 	if !errors.As(err, &problems) || len(problems) != 1 || problems[0].Alias != "" {
@@ -631,7 +631,7 @@ func TestLoad_RepeatedAliases_DropOnlyTheOffendingAlias(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "login-flow.md")
 
-	loaded, err := tree.Load(dir, aliasesByFile(map[string][]string{
+	loaded, err := tree.Load(dir, "note", aliasesByFile(map[string][]string{
 		"login-flow.md": {"login-flow", "apogee-qi3", "apogee-qi3"},
 	}))
 
@@ -644,7 +644,7 @@ func TestLoad_RepeatedAliases_DropOnlyTheOffendingAlias(t *testing.T) {
 		got = append(got, problem.Message())
 	}
 	want := []string{
-		`alias "login-flow" repeats the node's own id`,
+		`alias "login-flow" repeats the note's own id`,
 		`alias "apogee-qi3" is listed twice`,
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -666,7 +666,7 @@ func TestLoad_ManyProblems_AllReportedWithTheRestOfTheTree(t *testing.T) {
 		"export-csv/login-flow.md",
 	)
 
-	loaded, err := tree.Load(dir, aliasesByFile(map[string][]string{"export-csv.md": {"Bad Alias"}}))
+	loaded, err := tree.Load(dir, "issue", aliasesByFile(map[string][]string{"export-csv.md": {"Bad Alias"}}))
 
 	var problems tree.Errors
 	if !errors.As(err, &problems) {
@@ -736,7 +736,7 @@ func TestLoad_NonRegularAndOversizeFiles_LeftOutAndWarnedOnce(t *testing.T) {
 	makeFIFO(t, filepath.Join(dir, "y.md"))
 	writeSizedFile(t, filepath.Join(dir, "z.md"), 1<<20+1)
 
-	loaded, err := tree.Load(dir, nil)
+	loaded, err := tree.Load(dir, "issue", nil)
 
 	if got := ids(loaded.Nodes()); !reflect.DeepEqual(got, []string{"good-node"}) {
 		t.Errorf("Nodes = %v, want [good-node]", got)

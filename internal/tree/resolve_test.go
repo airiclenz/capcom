@@ -184,7 +184,7 @@ func TestLookup_IgnoresPrefixes(t *testing.T) {
 // unless Load reports ErrDuplicate together with the tree of what it could place.
 func loadWithDuplicates(t *testing.T, dir string, aliases tree.AliasFunc) *tree.Tree {
 	t.Helper()
-	loaded, err := tree.Load(dir, aliases)
+	loaded, err := tree.Load(dir, "issue", aliases)
 	if !errors.Is(err, tree.ErrDuplicate) || loaded == nil {
 		t.Fatalf("Load = %v, %v; want a tree and ErrDuplicate", loaded, err)
 	}
@@ -403,7 +403,7 @@ func unusableClaimsFixture(t *testing.T) (string, *tree.Tree) {
 		"ghost/orphan.md", "orphan-twin.md", "spooky-tale.md", "huge-hit.md",
 	)
 	writeSizedFile(t, filepath.Join(dir, "huge.md"), 1<<20+1)
-	loaded, err := tree.LoadContent(dir, contentByPath(dir, map[string]tree.Content{
+	loaded, err := tree.LoadContent(dir, "issue", contentByPath(dir, map[string]tree.Content{
 		"zzz.md":          {Aliases: []string{"foo"}, Parse: tree.UnparsedFile},
 		"bad.md":          {Aliases: []string{"worse"}, Parse: tree.ParsedFile},
 		"odd.md":          {Aliases: []string{"odd"}, Parse: tree.ParsedFile, IsUsable: true},

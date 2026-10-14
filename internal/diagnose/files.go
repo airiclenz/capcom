@@ -85,14 +85,20 @@ func fieldFindings(problems []*frontmatter.Error) []Finding {
 // AliasFindings returns a finding for every alias of the node file at relPath that
 // tree.CheckAliases rejects: an InvalidAlias finding for one that is not a valid name, and a
 // RepeatedAlias finding for one that repeats id, the node's own, or is listed twice. kind names
-// the node in a message, as CheckAliases words it. A finding cites no line.
-func AliasFindings(relPath, kind, id string, aliases []string) []Finding {
+// the node in a message, "issue" or "note", as CheckAliases words it. Every finding cites line,
+// the line of the file's aliases key, as check cites it; 0 when it is unknown.
+func AliasFindings(relPath, kind, id string, aliases []string, line int) []Finding {
 	_, rejected := tree.CheckAliases(relPath, kind, id, aliases)
 	var findings []Finding
 	for _, problem := range rejected {
 		// CheckAliases rejects an alias only as invalid or repeated, both sentinels TreeKind knows.
 		problemKind, _ := TreeKind(problem)
-		findings = append(findings, Finding{Code: problemKind, Path: problem.Path, Message: problem.Message()})
+		findings = append(findings, Finding{
+			Code:    problemKind,
+			Path:    problem.Path,
+			Line:    line,
+			Message: problem.Message(),
+		})
 	}
 	return findings
 }

@@ -186,9 +186,9 @@ func claimantAnswer(t *testing.T, dir string, claim tree.Claim, isFound bool, er
 
 // loadAgreementTree loads the kind's tree of s as commands do, keeping the tree LoadContent
 // returns beside the problems it reports.
-func loadAgreementTree(t *testing.T, dir string, content tree.ContentFunc) *tree.Tree {
+func loadAgreementTree(t *testing.T, dir string, noun string, content tree.ContentFunc) *tree.Tree {
 	t.Helper()
-	loaded, err := tree.LoadContent(dir, content)
+	loaded, err := tree.LoadContent(dir, noun, content)
 	var problems tree.Errors
 	if err != nil && !errors.As(err, &problems) {
 		t.Fatalf("LoadContent: %v", err)
@@ -350,7 +350,7 @@ func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlike(t *testing.T) {
 					s := newStore(t)
 					kind.write(t, s, fixture)
 					read, recover := kind.aliasFuncs(s)
-					loaded := loadAgreementTree(t, kind.dir(s), read)
+					loaded := loadAgreementTree(t, kind.dir(s), kind.name, read)
 					x := openIndex(t, s)
 					refresh(t, x)
 
@@ -397,7 +397,7 @@ func TestAgreement_UnreadableDirectoryInOrphan_ReadableFilesClaimAndClaimantFail
 			}
 			t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 			read, recover := kind.aliasFuncs(s)
-			loaded := loadAgreementTree(t, kind.dir(s), read)
+			loaded := loadAgreementTree(t, kind.dir(s), kind.name, read)
 			x := openIndex(t, s)
 			refresh(t, x)
 

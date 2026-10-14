@@ -13,7 +13,7 @@ import (
 // with tree.Errors.
 func loadAllowingProblems(t *testing.T, dir string, aliases tree.AliasFunc) *tree.Tree {
 	t.Helper()
-	loaded, err := tree.Load(dir, aliases)
+	loaded, err := tree.Load(dir, "issue", aliases)
 	var problems tree.Errors
 	if loaded == nil || (err != nil && !errors.As(err, &problems)) {
 		t.Fatalf("Load = %v, %v; want a tree", loaded, err)

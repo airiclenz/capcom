@@ -14,11 +14,12 @@ func parseIssue(file foundFile, data []byte, cfg config.Config) (issue.Issue, []
 		return issue.Issue{}, problems
 	}
 	problems = diagnose.ValidateIssue(file.path, parsed, cfg)
-	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
+	return parsed, append(problems, aliasProblems(file, parsed.Aliases, parsed.AliasesLine())...)
 }
 
 // aliasProblems returns a problem for every alias of the node file that tree.CheckAliases rejects:
-// one that is invalid, repeats the node's own id or is listed twice.
-func aliasProblems(file foundFile, aliases []string) []diagnose.Finding {
-	return diagnose.AliasFindings(file.path, file.kind, file.id, aliases)
+// one that is invalid, repeats the node's own id or is listed twice. Each cites aliasesLine, the
+// line of the file's aliases key, and names the node by the file's kind, as check words it.
+func aliasProblems(file foundFile, aliases []string, aliasesLine int) []diagnose.Finding {
+	return diagnose.AliasFindings(file.path, file.kind, file.id, aliases, aliasesLine)
 }

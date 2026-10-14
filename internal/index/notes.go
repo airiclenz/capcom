@@ -54,7 +54,7 @@ func parseNote(file foundFile, data []byte) (knowledge.Note, []diagnose.Finding)
 		return knowledge.Note{}, problems
 	}
 	problems = diagnose.ValidateNote(file.path, parsed)
-	return parsed, append(problems, aliasProblems(file, parsed.Aliases)...)
+	return parsed, append(problems, aliasProblems(file, parsed.Aliases, parsed.AliasesLine())...)
 }
 
 // insertNote writes the rows of one valid Note.

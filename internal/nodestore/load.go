@@ -11,7 +11,7 @@ import (
 // place. A failure that returns no tree is returned with its files relative to the working tree
 // root.
 func (k *Kind[T]) load() (*tree.Tree, tree.Errors, error) {
-	nodes, err := tree.LoadContent(k.dir, k.ReadContent)
+	nodes, err := tree.LoadContent(k.dir, k.codec.Noun, k.ReadContent)
 	if err == nil {
 		return nodes, nil, nil
 	}

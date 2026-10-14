@@ -37,9 +37,14 @@ func DuplicateIDDirectoryError(dir, id string) *Error {
 // passes; one with an alias CheckAliases rejects is unusable. A node that does not parse keeps nil
 // Aliases, and its fact claims the recovered aliases CheckAliases passes, their problems left
 // unreported. It returns the problems of the aliases CheckAliases rejects in the files that parse,
-// in node order, and the error content returned for each node, by index; a node whose read failed
-// claims its id alone. A nil content reads none and leaves every fact UnreadFile.
-func readContentFacts(nodes []Node, content ContentFunc) ([]FileFact, Errors, map[int]error) {
+// in node order, each naming the node by noun, and the error content returned for each node, by
+// index; a node whose read failed claims its id alone. A nil content reads none and leaves every
+// fact UnreadFile.
+func readContentFacts(
+	nodes []Node,
+	noun string,
+	content ContentFunc,
+) ([]FileFact, Errors, map[int]error) {
 	facts := make([]FileFact, 0, len(nodes))
 	var rejected Errors
 	failures := map[int]error{}
@@ -64,7 +69,7 @@ func readContentFacts(nodes []Node, content ContentFunc) ([]FileFact, Errors, ma
 			facts = append(facts, fact)
 			continue
 		}
-		kept, problems := CheckAliases(node.Path, "node", node.ID, read.Aliases)
+		kept, problems := CheckAliases(node.Path, noun, node.ID, read.Aliases)
 		fact.Aliases, fact.Parse = kept, read.Parse
 		fact.IsUsable = read.IsUsable && len(problems) == 0
 		if read.Parse == ParsedFile {
@@ -83,8 +88,8 @@ func readContentFacts(nodes []Node, content ContentFunc) ([]FileFact, Errors, ma
 // recovered ones of a file that does not parse included. Walk has already reported each such
 // directory, so a directory below one that cannot be listed claims nothing while the files listed
 // beside it still claim theirs, and a file content fails to read claims its id alone. A nil content
-// reads no aliases.
-func claimOnlyFacts(problems Errors, content ContentFunc) []FileFact {
+// reads no aliases. noun names one node of the kind, as CheckAliases takes it.
+func claimOnlyFacts(problems Errors, noun string, content ContentFunc) []FileFact {
 	var facts []FileFact
 	for _, problem := range problems {
 		isUnread := errors.Is(problem, ErrNotRegular) || errors.Is(problem, ErrTooLarge)
@@ -101,7 +106,7 @@ func claimOnlyFacts(problems Errors, content ContentFunc) []FileFact {
 			}
 			if content != nil && file.IsRegular {
 				if read, err := content(file.Path); err == nil {
-					fact.Aliases, _ = CheckAliases(file.Path, "node", fact.ID, read.Aliases)
+					fact.Aliases, _ = CheckAliases(file.Path, noun, fact.ID, read.Aliases)
 					fact.Parse = read.Parse
 				}
 			}

@@ -228,6 +228,7 @@ func TestNotes_FileProblems_PinKindsAndWording(t *testing.T) {
 		{
 			Code:    diagnose.InvalidAlias,
 			Path:    dir + "bad-alias.md",
+			Line:    3,
 			Message: `invalid alias "Bad_Alias": must use only a-z, 0-9, dots and hyphens`,
 		},
 		{
@@ -246,6 +247,7 @@ func TestNotes_FileProblems_PinKindsAndWording(t *testing.T) {
 		{
 			Code:    diagnose.RepeatedAlias,
 			Path:    dir + "own-alias.md",
+			Line:    3,
 			Message: `alias "own-alias" repeats the note's own id`,
 		},
 		{

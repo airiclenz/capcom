@@ -47,7 +47,7 @@ func (c *checker) issues() error {
 		return found.Aliases, nil
 	}
 	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
-	loaded, err := c.loadTree(c.store.IssuesDir(), readAliases, aliasesLine)
+	loaded, err := c.loadTree(c.store.IssuesDir(), "issue", readAliases, aliasesLine)
 	if err != nil {
 		return err
 	}

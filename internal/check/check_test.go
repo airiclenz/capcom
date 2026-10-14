@@ -556,7 +556,7 @@ func TestRun_RepeatedAliases_WordedByTheSharedAliasCheck(t *testing.T) {
 		got = append(got, string(problem.Code)+" "+problem.String())
 	}
 	want := []string{
-		string(diagnose.Duplicate) + " " + issues + `login-flow.md:7: alias "login-flow" repeats the node's own id`,
+		string(diagnose.Duplicate) + " " + issues + `login-flow.md:7: alias "login-flow" repeats the issue's own id`,
 		string(diagnose.Duplicate) + " " + issues + `login-flow.md:7: alias "old-name" is listed twice`,
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -608,7 +608,7 @@ func TestRun_FileProblems_PinCodesAndWording(t *testing.T) {
 		string(diagnose.Duplicate) + " " + issues + `dup-issue.md: duplicate id "dup-issue": also the id of ` +
 			issues + "top-issue/dup-issue.md; both are left out",
 		string(diagnose.NotRegular) + " " + issues + "link-issue.md: not a regular file",
-		string(diagnose.Duplicate) + " " + issues + `own-alias.md:7: alias "own-alias" repeats the node's own id`,
+		string(diagnose.Duplicate) + " " + issues + `own-alias.md:7: alias "own-alias" repeats the issue's own id`,
 		string(diagnose.Duplicate) + " " + issues + `top-issue/dup-issue.md: duplicate id "dup-issue": also the id of ` +
 			issues + "dup-issue.md; both are left out",
 		string(diagnose.Frontmatter) + " " + issues + `unknown-key.md:7: unknown key "estimate"; an issue has ` +
@@ -856,7 +856,7 @@ func TestRun_NoteFileProblems_PinCodesAndWording(t *testing.T) {
 		string(diagnose.Duplicate) + " " + knowledge + `dup-note.md: duplicate id "dup-note": also the id of ` +
 			knowledge + "top-note/dup-note.md; both are left out",
 		string(diagnose.NotRegular) + " " + knowledge + "link-note.md: not a regular file",
-		string(diagnose.Duplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the node's own id`,
+		string(diagnose.Duplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the note's own id`,
 		string(diagnose.Duplicate) + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note": also the id of ` +
 			knowledge + "dup-note.md; both are left out",
 		string(diagnose.Frontmatter) + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a note has ` +

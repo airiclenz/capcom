@@ -728,12 +728,12 @@ func TestCreate_IndexWarnedFileSelfAlias_WarnsOnce(t *testing.T) {
 		{
 			name:    "alias repeats its own id",
 			aliases: "aliases: [self-alias]\n",
-			want:    `.capcom/issues/self-alias.md: alias "self-alias" repeats the issue's own id`,
+			want:    `.capcom/issues/self-alias.md:6: alias "self-alias" repeats the issue's own id`,
 		},
 		{
 			name:    "alias listed twice",
 			aliases: "aliases: [old-name, old-name]\n",
-			want:    `.capcom/issues/self-alias.md: alias "old-name" is listed twice`,
+			want:    `.capcom/issues/self-alias.md:6: alias "old-name" is listed twice`,
 		},
 	}
 	for _, tc := range cases {
@@ -750,6 +750,12 @@ func TestCreate_IndexWarnedFileSelfAlias_WarnsOnce(t *testing.T) {
 			}
 			readStoreFile(t, root, "good-one.md")
 			assertWarnedOnce(t, stdout+stderr, ".capcom/issues/self-alias.md", tc.want)
+
+			// check reports the same alias problem exactly as the index warns it.
+			checkOut, checkErr, checkCode := runCLI(t, root, "check")
+			if checkCode != ExitError || checkOut != tc.want+"\n" || checkErr != "" {
+				t.Errorf("check = %d, stdout %q, stderr %q; want 1 and %q", checkCode, checkOut, checkErr, tc.want)
+			}
 		})
 	}
 }

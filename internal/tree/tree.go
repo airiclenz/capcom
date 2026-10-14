@@ -78,10 +78,11 @@ type Tree struct {
 }
 
 // Load reads the tree stored in dir. A missing dir loads as an empty tree. Names starting with a
-// dot and files not ending in .md are skipped. aliases may be nil when the kind has none.
+// dot and files not ending in .md are skipped. noun names one node of the kind in a message,
+// "issue" or "note". aliases may be nil when the kind has none.
 //
 // Load reports, as an *Error naming the file, an invalid id, an alias CheckAliases rejects (its
-// message naming the "node"), an id or alias two files share (naming the other file in Other), and
+// message naming the node by noun), an id or alias two files share (naming the other file in Other), and
 // every entry Walk leaves out (an entry that is not a regular file, a node file over 1 MiB, a child
 // directory without its node file), as Walk words it. It finds every such problem in one pass and
 // returns them all as Errors, together with the tree of what it could place: a file with an invalid
@@ -103,7 +104,7 @@ type Tree struct {
 // as a node file the walk left out unread claims it. Resolve refuses as unusable claims, too, every
 // name of a file with an alias CheckAliases rejects, and an alias only a file left out for a
 // repeated id lists.
-func Load(dir string, aliases AliasFunc) (*Tree, error) {
+func Load(dir string, noun string, aliases AliasFunc) (*Tree, error) {
 	var content ContentFunc
 	if aliases != nil {
 		content = func(path string) (Content, error) {
@@ -111,7 +112,7 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 			return Content{Aliases: names, Parse: ParsedFile, IsUsable: true}, err
 		}
 	}
-	return load(dir, content, aliases)
+	return load(dir, noun, content, aliases)
 }
 
 // LoadContent reads the tree stored in dir as Load does, reading every node file with content
@@ -119,12 +120,12 @@ func Load(dir string, aliases AliasFunc) (*Tree, error) {
 // that fails its kind's validation is a node as any other. Resolve refuses every name such a file
 // claims, its recovered aliases included, as an unusable claim, except the exact id of a node whose
 // file does not parse. Nodes, ChildrenOf and LeftOut are as Load gives them.
-func LoadContent(dir string, content ContentFunc) (*Tree, error) {
+func LoadContent(dir string, noun string, content ContentFunc) (*Tree, error) {
 	var aliases AliasFunc
 	if content != nil {
 		aliases = parsedAliases(content)
 	}
-	return load(dir, content, aliases)
+	return load(dir, noun, content, aliases)
 }
 
 // parsedAliases returns the AliasFunc of content: the Aliases of a file that parses, none for any
@@ -139,15 +140,15 @@ func parsedAliases(content ContentFunc) AliasFunc {
 	}
 }
 
-// load is Load and LoadContent: content reads every node file, nil reading none, and aliases is
-// the AliasFunc the tree keeps for Claimant.
-func load(dir string, content ContentFunc, aliases AliasFunc) (*Tree, error) {
+// load is Load and LoadContent: noun names one node of the kind in a message, content reads every
+// node file, nil reading none, and aliases is the AliasFunc the tree keeps for Claimant.
+func load(dir string, noun string, content ContentFunc, aliases AliasFunc) (*Tree, error) {
 	nodes, problems, err := Walk(dir)
 	if err != nil {
 		return nil, err
 	}
-	facts, rejected, failures := readContentFacts(nodes, content)
-	facts = append(facts, claimOnlyFacts(problems, content)...)
+	facts, rejected, failures := readContentFacts(nodes, noun, content)
+	facts = append(facts, claimOnlyFacts(problems, noun, content)...)
 	membership := DecideMembership(facts)
 	dirProblems, err := RepeatedIDDirProblems(membership.RepeatedIDDirs)
 	if err != nil {

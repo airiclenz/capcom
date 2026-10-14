@@ -372,7 +372,11 @@ NOTES (2026-10-14): TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode gai
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestCheck_|TestPrime_'`
 **Commit:** `feat(check): report both files of a repeated id`
 
-## P2.8 Alias findings give the line and the kind noun
+## P2.8 Alias findings give the line and the kind noun — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from "tree.CheckAliases takes the kind noun" — it already did; the alias check of tree.Load still lives in claims.go (readContentFacts, claimOnlyFacts), not membership.go, so membership.go is unchanged. tree.Load and tree.LoadContent gain a noun parameter (check passes "issue"/"note", agents/block.go "note", nodestore/load.go its Codec.Noun), and every caller found by the plan's grep rule, LoadContent's included, is updated: internal/check/problem.go, issues.go, notes.go, internal/agents/block.go, internal/nodestore/load.go, and the test callers internal/tree/claims_test.go, resolve_test.go, internal/index/agreement_test.go.
+NOTES (2026-10-14): diagnose.AliasFindings takes the aliases line and sets it on every finding; index's aliasProblems passes the parsed issue's or Note's AliasesLine(). The cross-producer assertion lives in TestCreate_IndexWarnedFileSelfAlias_WarnsOnce: it now also runs `capcom check` on the same fixture and requires check's output to be exactly the index's warning line.
+NOTES (2026-10-14): index schemaVersion is not bumped: P2.6 already raised it to 8 in this unreleased run, so every index a released binary built is rebuilt on upgrade and its stored alias findings gain the line then. index/duplicates.go claimedAliases still passes "node" to tree.CheckAliases; it discards the messages, so no user sees that noun.
 
 **What:**
 **Goal:** check and the index report an alias problem with the frontmatter `aliases` line and the noun "issue" or "note", identically.

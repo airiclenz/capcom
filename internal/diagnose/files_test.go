@@ -100,13 +100,19 @@ func TestValidateNote_MissingTitle_ReturnsAFieldFinding(t *testing.T) {
 }
 
 func TestAliasFindings_RejectedAliases_ReturnsTheirKinds(t *testing.T) {
-	findings := diagnose.AliasFindings("alpha.md", "issue", "alpha", []string{"alpha", "Not Valid", "ok"})
+	findings := diagnose.AliasFindings("alpha.md", "issue", "alpha", []string{"alpha", "Not Valid", "ok"}, 5)
 
 	want := []diagnose.Finding{
-		{Code: diagnose.RepeatedAlias, Path: "alpha.md", Message: "alias \"alpha\" repeats the issue's own id"},
+		{
+			Code:    diagnose.RepeatedAlias,
+			Path:    "alpha.md",
+			Line:    5,
+			Message: "alias \"alpha\" repeats the issue's own id",
+		},
 		{
 			Code:    diagnose.InvalidAlias,
 			Path:    "alpha.md",
+			Line:    5,
 			Message: "invalid alias \"Not Valid\": must use only a-z, 0-9, dots and hyphens",
 		},
 	}
@@ -122,7 +128,7 @@ func TestFindings_CleanFile_ReturnsNone(t *testing.T) {
 	findings := slices.Concat(
 		parseFindings,
 		diagnose.ValidateIssue("alpha.md", parsed, config.Default()),
-		diagnose.AliasFindings("alpha.md", "issue", "alpha", parsed.Aliases),
+		diagnose.AliasFindings("alpha.md", "issue", "alpha", parsed.Aliases, parsed.AliasesLine()),
 	)
 
 	if findings != nil {

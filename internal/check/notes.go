@@ -38,7 +38,7 @@ func (c *checker) notes() error {
 		return found.Aliases, nil
 	}
 	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
-	loaded, err := c.loadTree(c.store.KnowledgeDir(), readAliases, aliasesLine)
+	loaded, err := c.loadTree(c.store.KnowledgeDir(), "note", readAliases, aliasesLine)
 	if err != nil {
 		return err
 	}

@@ -157,7 +157,7 @@ func topNotes(knowledgeDir string) ([]Note, error) {
 		parsed[path] = note
 		return note.Aliases, nil
 	}
-	loaded, err := tree.Load(knowledgeDir, readAliases)
+	loaded, err := tree.Load(knowledgeDir, "note", readAliases)
 	var problems tree.Errors
 	if err != nil && !errors.As(err, &problems) {
 		return nil, err
