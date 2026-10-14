@@ -3,7 +3,6 @@ package briefing
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
@@ -53,19 +52,16 @@ type Briefing struct {
 	// Work is the Ready work and the issues in progress, nil when the store, the index, the
 	// Ready-list or the doing query failed.
 	Work *Work
-	// Locks is every worktree's held Tree lock, ordered by key: nil when they could not be listed,
-	// and never nil otherwise.
-	Locks []lock.Status
-	// WorktreeKey is the lock key of the worktree the store belongs to. It is empty when Locks is
-	// nil, and when that worktree's lock record holds no valid lock, since its state is then unknown.
-	WorktreeKey string
+	// LockOverview is the Lock overview of the repository, with the state of the worktree the
+	// store belongs to: nil when the lock directory could not be listed.
+	LockOverview *lock.Overview
 	// Health is what check found, nil when check failed.
 	Health *Health
 	// Elsewhere is the issue changes on other branches, nil when there are none.
 	Elsewhere []elsewhere.Entry
 	// Failures are in the order Compose reads the sources: store, index, ready, doing, locks (one
-	// per invalid lock record when the rest were listed), check, then one per Elsewhere scan
-	// warning, worded as the scan wrote it.
+	// per invalid or unreadable lock record when the rest were listed), check, then one per
+	// Elsewhere scan warning, worded as the scan wrote it.
 	Failures []Failure
 }
 
@@ -157,23 +153,17 @@ func (b *Briefing) readWork(s *store.Store) {
 	b.Work = work
 }
 
-// readLocks sets Locks to the Tree lock of every worktree that has one, and WorktreeKey to the key
-// of s's worktree; each lock record that holds no valid lock becomes one Failure of SectionLocks.
+// readLocks sets LockOverview to the Lock overview with s's worktree's state; each lock record
+// that is invalid or cannot be read becomes one Failure of SectionLocks.
 func (b *Briefing) readLocks(s *store.Store) {
-	held, warnings, err := lock.Open(s.GitCommonDir, s.Config.Lock.TTL).List()
+	overview, err := lock.ForWorktree(s).Overview()
 	if err != nil {
 		b.fail(SectionLocks, err)
 		return
 	}
-	b.Locks = append([]lock.Status{}, held...)
-	worktree := lock.ForWorktree(s)
-	b.WorktreeKey = worktree.Key()
-	for _, warning := range warnings {
-		b.fail(SectionLocks, warning)
-		// List skips an invalid record, but acquire fails on it, so this worktree is not free.
-		if strings.HasPrefix(warning.Error(), worktree.RecordPath()+":") {
-			b.WorktreeKey = ""
-		}
+	b.LockOverview = &overview
+	for _, problem := range overview.Problems {
+		b.fail(SectionLocks, problem)
 	}
 }
 

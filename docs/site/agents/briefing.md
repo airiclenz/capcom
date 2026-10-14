@@ -44,9 +44,14 @@ Section by section:
     the worktree, so do not edit it.
   - `stale`: its holder stopped sending heartbeats; resume with your `--token` if it is yours,
     otherwise ask the user before taking it over with `--take-stale`.
+  - `invalid`: its lock record does not parse, so `capcom lock acquire` fails; ask the user before
+    `capcom lock break` frees it.
+  - `unreadable`: its lock record cannot be read; ask the user before editing the worktree.
 
-  The line is left out when the locks cannot be listed, and when this worktree's lock record is
-  damaged; the warning then names the record.
+  A lock record that is invalid or cannot be read, this worktree's or another's, is one
+  `warning: locks: <record path>: …` line, and the other locks are still listed. The section and
+  its `this worktree:` line are left out only when the locks directory cannot be listed; the
+  warning then names it.
 - **`broken Note refs`**: the [Refs](../concepts/knowledge.md#ref-and-suspect-notes) of Notes that
   no longer resolve, each as `path:line: ref "<ref>": <why>`. Those Notes are suspect: read them
   with care, and fix them when the work touches them.

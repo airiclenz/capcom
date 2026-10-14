@@ -28,6 +28,10 @@ const (
 		"capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it"
 	worktreeLockStale = "this worktree: stale; resume with your --token, " +
 		"otherwise ask the user before taking it over with --take-stale"
+	worktreeLockInvalid = "this worktree: invalid; its lock record does not parse, so acquire fails; " +
+		"ask the user before capcom lock break frees it"
+	worktreeLockUnreadable = "this worktree: unreadable; its lock record cannot be read; " +
+		"ask the user before editing it"
 )
 
 // primeListCap is how many issues each Ready list of the Briefing shows; the count covers all.
@@ -113,8 +117,8 @@ func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Re
 		fmt.Fprintf(&text, "doing: %d\n", len(work.Doing))
 		text.WriteString(indentLines(issueLines(work.Doing, "")))
 	}
-	if composed.Locks != nil {
-		data.Locks = addLocks(&text, composed.Locks, composed.WorktreeKey, now)
+	if overview := composed.LockOverview; overview != nil {
+		data.Locks = addLocks(&text, *overview, now)
 	}
 	if health := composed.Health; health != nil {
 		data.BrokenRefs = append([]check.Problem{}, health.BrokenRefs...)
@@ -160,8 +164,9 @@ func addCappedList(text *strings.Builder, heading string, entries []index.Entry)
 }
 
 // addLocks writes the Tree lock of every worktree that has one, with its age and stale flag, then
-// the advice on the lock of the worktree keyed worktreeKey, unless worktreeKey is empty.
-func addLocks(text *strings.Builder, held []lock.Status, worktreeKey string, now time.Time) []lockData {
+// the advice on the lock of the overview's own worktree.
+func addLocks(text *strings.Builder, overview lock.Overview, now time.Time) []lockData {
+	held := overview.Locks
 	data := make([]lockData, 0, len(held))
 	fmt.Fprintf(text, "locks: %d\n", len(held))
 	for _, status := range held {
@@ -179,25 +184,24 @@ func addLocks(text *strings.Builder, held []lock.Status, worktreeKey string, now
 		}
 		text.WriteString("\n")
 	}
-	if worktreeKey != "" {
-		text.WriteString(worktreeLockAdvice(held, worktreeKey) + "\n")
-	}
+	text.WriteString(worktreeLockAdvice(overview.State) + "\n")
 	return data
 }
 
-// worktreeLockAdvice returns the advice on the lock of the worktree keyed worktreeKey: free when
-// held lists no lock of it, otherwise held or stale.
-func worktreeLockAdvice(held []lock.Status, worktreeKey string) string {
-	for _, status := range held {
-		if status.Key != worktreeKey {
-			continue
-		}
-		if status.IsStale {
-			return worktreeLockStale
-		}
+// worktreeLockAdvice returns the advice on a worktree's lock in state, one line per state.
+func worktreeLockAdvice(state lock.State) string {
+	switch state {
+	case lock.StateHeld:
 		return worktreeLockHeld
+	case lock.StateStale:
+		return worktreeLockStale
+	case lock.StateInvalid:
+		return worktreeLockInvalid
+	case lock.StateUnreadable:
+		return worktreeLockUnreadable
+	default:
+		return worktreeLockFree
 	}
-	return worktreeLockFree
 }
 
 // addHealth writes the broken Note refs and the count of every check problem.

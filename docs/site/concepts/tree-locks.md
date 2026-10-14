@@ -118,7 +118,8 @@ capcom lock check --token "$CAPCOM_TOKEN" || exit 1
 ```
 
 `capcom prime` lists the held locks at the start of every session, then says what to do about the
-lock of the worktree it runs in (`free`, `held` or `stale`):
+lock of the worktree it runs in (`free`, `held`, `stale`, `invalid` when its record does not parse,
+or `unreadable` when it cannot be read):
 
 ```text
 locks: 1

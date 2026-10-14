@@ -111,7 +111,7 @@ func TestCompose_FixtureStore_ReturnsEverySection(t *testing.T) {
 
 	got := Compose(root, time.Now())
 
-	if len(got.Failures) != 0 || got.Work == nil || got.Locks == nil || got.Health == nil {
+	if len(got.Failures) != 0 || got.Work == nil || got.LockOverview == nil || got.Health == nil {
 		t.Fatalf("Compose = %+v; want every section and no failure", got)
 	}
 	if planned := entryIDs(got.Work.ReadyPlanned); !slices.Equal(planned, []string{"plan-work"}) {
@@ -123,11 +123,11 @@ func TestCompose_FixtureStore_ReturnsEverySection(t *testing.T) {
 	if doing := entryIDs(got.Work.Doing); !slices.Equal(doing, []string{"busy-work"}) {
 		t.Errorf("Doing = %v, want [busy-work]", doing)
 	}
-	if len(got.Locks) != 0 || got.Elsewhere != nil {
-		t.Errorf("Locks = %v, Elsewhere = %v; want no lock and nothing elsewhere", got.Locks, got.Elsewhere)
+	if overview := got.LockOverview; len(overview.Locks) != 0 || got.Elsewhere != nil {
+		t.Errorf("Locks = %v, Elsewhere = %v; want no lock and nothing elsewhere", overview.Locks, got.Elsewhere)
 	}
-	if got.WorktreeKey != lock.MainWorktreeKey {
-		t.Errorf("WorktreeKey = %q, want %q", got.WorktreeKey, lock.MainWorktreeKey)
+	if overview := got.LockOverview; overview.Key != lock.MainWorktreeKey || overview.State != lock.StateFree {
+		t.Errorf("lock %q is %q, want %q free", overview.Key, overview.State, lock.MainWorktreeKey)
 	}
 	wantRef := check.Problem{Path: ".capcom/knowledge/build-notes.md", Line: 3, Code: diagnose.BrokenRef}
 	if got.Health.ProblemCount != 1 || len(got.Health.BrokenRefs) != 1 ||
@@ -163,7 +163,7 @@ func TestCompose_WithoutStore_FailsTheStoreAndLeavesEverySectionOut(t *testing.T
 	if sections := failedSections(got.Failures); !slices.Equal(sections, []Section{SectionStore}) {
 		t.Errorf("failed sections = %v, want [store]", sections)
 	}
-	if got.Work != nil || got.Locks != nil || got.Health != nil || got.Elsewhere != nil {
+	if got.Work != nil || got.LockOverview != nil || got.Health != nil || got.Elsewhere != nil {
 		t.Errorf("Compose = %+v; want every section left out", got)
 	}
 }
@@ -179,11 +179,30 @@ func TestCompose_BrokenIndexAndLocks_FailInOrderAndKeepTheRest(t *testing.T) {
 	if sections := failedSections(got.Failures); !slices.Equal(sections, []Section{SectionIndex, SectionLocks}) {
 		t.Errorf("failed sections = %v, want [index locks]", sections)
 	}
-	if got.Work != nil || got.Locks != nil || got.Health == nil {
-		t.Errorf("Compose = %+v; want Work and Locks left out and Health kept", got)
+	if got.Work != nil || got.LockOverview != nil || got.Health == nil {
+		t.Errorf("Compose = %+v; want Work and LockOverview left out and Health kept", got)
 	}
 	if len(got.Failures) > 0 && !strings.HasSuffix(got.Failures[0].Err.Error(), "; run capcom reindex") {
 		t.Errorf("index failure = %v; want it to end with the reindex hint", got.Failures[0].Err)
+	}
+}
+
+func TestCompose_InvalidOwnLockRecord_IsOneLocksFailureAndKeepsTheOverview(t *testing.T) {
+	files := briefingStore()
+	files[".git/capcom/locks/_main.json"] = "not json"
+	root := newBriefingRepo(t, files)
+
+	got := Compose(root, time.Now())
+
+	if sections := failedSections(got.Failures); !slices.Equal(sections, []Section{SectionLocks}) {
+		t.Fatalf("failed sections = %v (failures %v), want [locks]", sections, got.Failures)
+	}
+	recordPath := filepath.Join(root, ".git", "capcom", "locks", "_main.json")
+	if warning := got.Failures[0].Err.Error(); !strings.HasPrefix(warning, recordPath+": invalid lock record: ") {
+		t.Errorf("locks failure = %q, want it to start with %q", warning, recordPath+": invalid lock record: ")
+	}
+	if got.LockOverview == nil || got.LockOverview.State != lock.StateInvalid {
+		t.Errorf("LockOverview = %+v; want it kept, its worktree invalid", got.LockOverview)
 	}
 }
 
@@ -224,8 +243,8 @@ func TestCompose_ReadyOrDoingFails_FailsThatSectionAndKeepsTheRest(t *testing.T)
 			if len(got.Failures) > 0 && !errors.Is(got.Failures[0].Err, sourceErr) {
 				t.Errorf("failure = %v, want the %s error", got.Failures[0].Err, tc.name)
 			}
-			if got.Work != nil || got.Locks == nil || got.Health == nil {
-				t.Errorf("Compose = %+v; want Work left out and Locks and Health kept", got)
+			if got.Work != nil || got.LockOverview == nil || got.Health == nil {
+				t.Errorf("Compose = %+v; want Work left out and LockOverview and Health kept", got)
 			}
 		})
 	}
@@ -251,8 +270,8 @@ func TestCompose_CheckFailsAndElsewhereWarns_FailInOrderAndKeepTheRest(t *testin
 	if warning := got.Failures[1].Err.Error(); !strings.HasPrefix(warning, "elsewhere: list branches: ") {
 		t.Errorf("Elsewhere warning = %q, want it to start with \"elsewhere: list branches: \"", warning)
 	}
-	if got.Health != nil || got.Work == nil || got.Locks == nil {
-		t.Errorf("Compose = %+v; want Health left out and Work and Locks kept", got)
+	if got.Health != nil || got.Work == nil || got.LockOverview == nil {
+		t.Errorf("Compose = %+v; want Health left out and Work and LockOverview kept", got)
 	}
 }
 
@@ -268,7 +287,7 @@ func TestCompose_PanickingSource_IsOneInternalFailureAndNoSection(t *testing.T) 
 		got.Failures[0].Err.Error() != "internal error: check exploded" {
 		t.Errorf("Failures = %+v; want one internal failure reading \"internal error: check exploded\"", got.Failures)
 	}
-	if got.Work != nil || got.Locks != nil || got.Health != nil || got.Elsewhere != nil {
+	if got.Work != nil || got.LockOverview != nil || got.Health != nil || got.Elsewhere != nil {
 		t.Errorf("Compose = %+v; want every section left out", got)
 	}
 }

@@ -339,7 +339,11 @@ internal/store/store_test.go — TestInit_ReRunOnReadOnlyStore_SucceedsAndCreate
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/`; `go build -o <scratchpad>/capcom ./cmd/capcom`; `<scratchpad>/capcom know show lock-overview`; `<scratchpad>/capcom check` exits 0
 **Commit:** `feat(lock): a Lock overview of every lock and this worktree's state`
 
-## P4.2 The Briefing and prime read the Lock overview
+## P4.2 The Briefing and prime read the Lock overview — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the Briefing's `Locks` and `WorktreeKey` fields are replaced by one `LockOverview *lock.Overview` field (nil when the locks directory cannot be listed); every lock-record problem becomes one SectionLocks failure carrying the overview's RecordProblem, so no code matches lock error text.
+
+NOTES (2026-10-14): added `TestCompose_InvalidOwnLockRecord_IsOneLocksFailureAndKeepsTheOverview` (briefing) and `TestPrime_DirectoryAtTheLockRecord_AdvisesItIsUnreadable` (own unreadable advice via a directory at the record, so it also runs on Windows) beyond the plan's listed tests; `TestPrime_GarbageLockRecord_GivesNoWorktreeAdvice` is renamed `TestPrime_GarbageLockRecord_AdvisesItIsInvalid`.
 
 **What:**
 **Goal:** the Briefing carries the Lock overview, not `Locks` plus a `WorktreeKey` where empty means invalid; no code matches lock error text. One unreadable foreign record leaves `prime` listing the other locks and this worktree's advice, with one `warning: locks: <path>: …` line. `prime` gives two new advice lines, `this worktree: invalid; its lock record does not parse, so acquire fails; ask the user before capcom lock break frees it` and `this worktree: unreadable; its lock record cannot be read; ask the user before editing it`. `prime --json` data is unchanged.

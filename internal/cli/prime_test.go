@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -169,25 +170,67 @@ func TestPrime_FreshLock_AdvisesItIsHeld(t *testing.T) {
 	}
 }
 
-// List skips a corrupt record of this worktree, but acquire fails on it, so the Briefing must not
-// call the worktree free.
-func TestPrime_GarbageLockRecord_GivesNoWorktreeAdvice(t *testing.T) {
-	root := newIssueStore(t, nil)
-	recordPath := filepath.Join(root, ".git", "capcom", "locks", "_main.json")
-	if err := os.MkdirAll(filepath.Dir(recordPath), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
+// Acquire fails on a corrupt record of this worktree, so the Briefing calls the worktree invalid,
+// never free.
+func TestPrime_GarbageLockRecord_AdvisesItIsInvalid(t *testing.T) {
+	root := newLockStore(t)
+	writeLockRecord(t, root, "_main", "not json")
+
+	stdout, _, exitCode := runCLI(t, root, "prime")
+
+	if exitCode != ExitOK || !strings.Contains(stdout, "locks: 0\n"+worktreeLockInvalid+"\n") {
+		t.Errorf("prime = %d, stdout:\n%s\nwant the invalid advice after the locks list", exitCode, stdout)
 	}
-	if err := os.WriteFile(recordPath, []byte("not json"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
+	warning := regexp.MustCompile(`(?m)^warning: locks: [^\n]*_main\.json: invalid lock record: `)
+	if !warning.MatchString(stdout) {
+		t.Errorf("stdout:\n%s\nwant the invalid record warning", stdout)
+	}
+}
+
+func TestPrime_DirectoryAtTheLockRecord_AdvisesItIsUnreadable(t *testing.T) {
+	root := newLockStore(t)
+	recordPath := filepath.Join(root, ".git", "capcom", "locks", "_main.json")
+	if err := os.MkdirAll(recordPath, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
 	}
 
 	stdout, _, exitCode := runCLI(t, root, "prime")
 
-	if exitCode != ExitOK || !strings.Contains(stdout, "locks: 0\n") || strings.Contains(stdout, "this worktree:") {
-		t.Errorf("prime = %d, stdout:\n%s\nwant the locks list and no this worktree: line", exitCode, stdout)
+	if exitCode != ExitOK || !strings.Contains(stdout, "locks: 0\n"+worktreeLockUnreadable+"\n") {
+		t.Errorf("prime = %d, stdout:\n%s\nwant the unreadable advice after the locks list", exitCode, stdout)
 	}
-	if !strings.Contains(stdout, "_main.json: invalid lock record") {
-		t.Errorf("stdout:\n%s\nwant the invalid record warning", stdout)
+	warnings := regexp.MustCompile(`(?m)^warning: locks: [^\n]*_main\.json: `).FindAllString(stdout, -1)
+	if len(warnings) != 1 {
+		t.Errorf("stdout:\n%s\nwant exactly one warning naming the record", stdout)
+	}
+}
+
+func TestPrime_UnreadableForeignLockRecord_ListsTheOtherLocksWithOneWarning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("an unreadable file test does not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("an unreadable file test does not run as root")
+	}
+	root := newLockStore(t)
+	mustRun(t, root, "lock", "acquire", "--purpose", "refactor the parser", "--holder", "bob")
+	writeLockRecord(t, root, "wt-ghost", "{}")
+	foreignPath := filepath.Join(root, ".git", "capcom", "locks", "wt-ghost.json")
+	if err := os.Chmod(foreignPath, 0o000); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+	pattern := regexp.MustCompile(`(?m)^locks: 1\n  _main: held by bob for [^\n]*: refactor the parser\n` +
+		regexp.QuoteMeta(worktreeLockHeld) + `$`)
+	if exitCode != ExitOK || stderr != "" || !pattern.MatchString(stdout) {
+		t.Errorf("prime = %d, stderr %q, stdout:\n%s\nwant the held lock and its advice", exitCode, stderr, stdout)
+	}
+	warnings := regexp.MustCompile(`(?m)^warning: .*$`).FindAllString(stdout, -1)
+	if len(warnings) != 1 || !strings.HasPrefix(warnings[0], "warning: locks: ") ||
+		!strings.Contains(warnings[0], "wt-ghost.json: ") {
+		t.Errorf("warnings = %q, want one locks warning naming wt-ghost.json", warnings)
 	}
 }
 
