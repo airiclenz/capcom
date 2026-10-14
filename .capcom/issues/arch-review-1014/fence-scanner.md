@@ -1,10 +1,12 @@
 ---
 title: One frontmatter fence predicate
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-10-14 - 00 - architecture-review-fixes-plan
 created: 2026-10-14T08:35:11Z
+closed: 2026-10-14T11:17:48Z
+reason: Resolved by plan "2026-10-14 - 00 - architecture-review-fixes-plan" (b1ff6b8).
 ---
 
 Three places find where a file's frontmatter ends: `rawfm`'s `bodyStartIndex` (conflict

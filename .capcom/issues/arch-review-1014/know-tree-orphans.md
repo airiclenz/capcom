@@ -23,3 +23,7 @@ keep applying.
 - `go vet ./...` is clean and `GOMEMLIMIT=2GiB go test ./internal/cli/` passes.
 
 Source: docs/reviews/architecture-review-2026-10-14-0848.html, Smaller locality fixes (Visible-subtree outline).
+
+## Log
+
+- 2026-10-14 Airic Lenz: Plan "2026-10-14 - 00 - architecture-review-fixes-plan" (b1ff6b8) landed: know tree prints a Note below an unparseable or invalid-frontmatter Note at the root, also inside background or retired subtrees; left open: a Note below a repeated-id or invalid-id parent is still left out with a warning.

@@ -1,10 +1,12 @@
 ---
 title: mv, rm and --parent prefix-match past a name a broken file claims
-status: open
+status: done
 type: bug
 priority: 1
 plan: 2026-10-14 - 00 - architecture-review-fixes-plan
 created: 2026-10-14T08:35:10Z
+closed: 2026-10-14T11:17:47Z
+reason: Resolved by plan "2026-10-14 - 00 - architecture-review-fixes-plan" (b1ff6b8).
 ---
 
 A name that a file capcom cannot use claims (its id or an alias) is not reserved when a write

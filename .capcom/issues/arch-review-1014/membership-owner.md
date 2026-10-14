@@ -51,3 +51,7 @@ Index warning wording stays as it is except where a call above changes what is r
 - `go vet ./...` is clean and the touched packages' tests pass.
 
 Source: docs/reviews/architecture-review-2026-10-14-0848.html, 1 · One owner for Tree membership and resolution.
+
+## Log
+
+- 2026-10-14 Airic Lenz: Plan "2026-10-14 - 00 - architecture-review-fixes-plan" (b1ff6b8) landed tree.DecideMembership, persisted index verdicts and one resolver (tree.ResolveIn over NameReader); left open: tree and index still diverge when two unusable files share a name with no node row (index: not found, tree: duplicate) and on a recovered alias of an unparsed file below a repeated id (index: duplicate, tree: unusable claim), neither covered by the agreement test.

@@ -1,11 +1,13 @@
 ---
 title: One finding type and code set for check and the index
-status: open
+status: done
 type: task
 priority: 2
 deps: [membership-owner]
 plan: 2026-10-14 - 00 - architecture-review-fixes-plan
 created: 2026-10-14T08:35:11Z
+closed: 2026-10-14T11:17:48Z
+reason: Resolved by plan "2026-10-14 - 00 - architecture-review-fixes-plan" (b1ff6b8).
 ---
 
 "Is this Tree valid" has two vocabularies. The index reports `Warning`s (re-exports of
