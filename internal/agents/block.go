@@ -4,7 +4,10 @@
 // its markers, or appends it when absent, keeping every byte outside the markers and the file's
 // line ending. Sync is the one way callers reconcile the block with the Knowledge tree: it reads the
 // top level and inspects, refreshes or writes in one pass. The block is read and written only in a
-// file inside the working tree: an AGENTS.md that links outside it is never read or written.
+// file inside the working tree: an AGENTS.md that links outside it is never read or written. Guides
+// checks that the other agent guides beside AGENTS.md (CLAUDE.md, GEMINI.md) reach the block, by
+// being AGENTS.md through a link or by an `@AGENTS.md` import line, and appends that line to the
+// ones that do not.
 package agents
 
 import (
@@ -124,7 +127,8 @@ type Status struct {
 // Error is an AGENTS.md whose markers cannot be told apart: a marker repeated, an end marker
 // before the begin marker, or a begin marker never closed. Line is the offending marker's line.
 // It is also an AGENTS.md that cannot be read, being not a regular file or larger than 1 MiB, and
-// one a write refuses because it links outside the working tree; Line is 0 then.
+// one a write refuses because it links outside the working tree; Line is 0 then. Path is the file's
+// name in the working tree: AGENTS.md, or the agent guide Guides refuses to read.
 type Error struct {
 	Path    string
 	Line    int
@@ -141,7 +145,13 @@ func (e *Error) Error() string {
 
 // guidePath returns the AGENTS.md of the working tree at worktreeRoot.
 func guidePath(worktreeRoot string) string {
-	return filepath.Join(worktreeRoot, FileName)
+	return namedGuidePath(worktreeRoot, FileName)
+}
+
+// namedGuidePath returns the agent guide name, a path relative to the working tree in slash form,
+// of the working tree at worktreeRoot.
+func namedGuidePath(worktreeRoot, name string) string {
+	return filepath.Join(worktreeRoot, filepath.FromSlash(name))
 }
 
 // topNotes reads the top level of the Knowledge tree in knowledgeDir, ordered by id, straight from
@@ -268,7 +278,7 @@ func Sync(worktreeRoot, knowledgeDir string, mode Mode) (Status, error) {
 // notes and, when mode calls for it, writes the block render produces for notes to the same file.
 // A guide that links outside the working tree is neither read nor written.
 func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
-	guide, err := resolveGuide(worktreeRoot)
+	guide, err := resolveGuide(worktreeRoot, FileName)
 	if err != nil {
 		return Status{}, fmt.Errorf("%s: %w", FileName, err)
 	}
@@ -299,8 +309,11 @@ func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 	return status, nil
 }
 
-// guideFile is the file the AGENTS.md of a working tree is read from and written to.
+// guideFile is the file an agent guide of a working tree, AGENTS.md or another, is read from and
+// written to.
 type guideFile struct {
+	// name is the guide's path relative to the working tree, in slash form, as errors name it.
+	name string
 	// path is the guide's resolved target, so a symlinked guide stays a link, or the guide's own
 	// path when it is missing.
 	path string
@@ -312,14 +325,15 @@ type guideFile struct {
 	isOutside bool
 }
 
-// resolveGuide resolves the AGENTS.md of worktreeRoot to the file it is read from and written to.
-// A missing guide, or one whose link dangles, is the guide's own path with newFilePermissions. A
-// target outside the working tree is marked isOutside and is not touched.
-func resolveGuide(worktreeRoot string) (guideFile, error) {
-	path := guidePath(worktreeRoot)
+// resolveGuide resolves the agent guide name, a path relative to worktreeRoot in slash form, to the
+// file it is read from and written to. A missing guide, or one whose link dangles, is the guide's
+// own path with newFilePermissions. A target outside the working tree is marked isOutside and is
+// not touched.
+func resolveGuide(worktreeRoot, name string) (guideFile, error) {
+	path := namedGuidePath(worktreeRoot, name)
 	target, err := filepath.EvalSymlinks(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return guideFile{path: path, perm: newFilePermissions, isMissing: true}, nil
+		return guideFile{name: name, path: path, perm: newFilePermissions, isMissing: true}, nil
 	}
 	if err != nil {
 		return guideFile{}, err
@@ -330,13 +344,13 @@ func resolveGuide(worktreeRoot string) (guideFile, error) {
 		return guideFile{}, err
 	}
 	if !isInside {
-		return guideFile{path: target, isOutside: true}, nil
+		return guideFile{name: name, path: target, isOutside: true}, nil
 	}
 	info, err := os.Stat(target)
 	if err != nil {
 		return guideFile{}, err
 	}
-	return guideFile{path: target, perm: info.Mode().Perm()}, nil
+	return guideFile{name: name, path: target, perm: info.Mode().Perm()}, nil
 }
 
 // isInsideTree reports whether target, a path with its links resolved, lies inside the working tree
@@ -403,19 +417,19 @@ func readGuide(guide guideFile) ([]byte, error) {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil, nil
 	case errors.Is(err, tree.ErrNotRegular):
-		return nil, unreadableError(tree.ErrNotRegular)
+		return nil, unreadableError(guide.name, tree.ErrNotRegular)
 	case errors.Is(err, tree.ErrTooLarge):
-		return nil, unreadableError(tree.ErrTooLarge)
+		return nil, unreadableError(guide.name, tree.ErrTooLarge)
 	case err != nil:
-		return nil, fmt.Errorf("%s: %w", FileName, err)
+		return nil, fmt.Errorf("%s: %w", guide.name, err)
 	}
 	return content, nil
 }
 
-// unreadableError is the refusal of a guide that the guarded reader refused with refusal, its
-// message the refusal's own text.
-func unreadableError(refusal error) *Error {
-	return &Error{Path: FileName, Message: refusal.Error()}
+// unreadableError is the refusal of the guide name that the guarded reader refused with refusal,
+// its message the refusal's own text.
+func unreadableError(name string, refusal error) *Error {
+	return &Error{Path: name, Message: refusal.Error()}
 }
 
 // blockSpan locates the block in a file: from the start of the begin marker to the end of the end

@@ -86,7 +86,10 @@ internal/config/config_test.go — TestParse_NewerFormat_FailsAsTooNewWithLine; 
 
 **Commit:** `feat(config): agents.guides lists the agent guides that must reach the Managed block`
 
-## 2. agents.Guides inspects and imports the block into agent guides
+## 2. agents.Guides inspects and imports the block into agent guides — ✅ DONE (2026-10-14)
+NOTES (2026-10-14): the unreached-guide message is built once by `Guide.Problem()` (empty for any state but GuideUnreached); `Guide` carries an `ImportLine` field (`@AGENTS.md` / `@../AGENTS.md`) so the method can name it. Items 3 and 4 prefix `Guide.Path` themselves.
+NOTES (2026-10-14): `guidePath(root)` kept for AGENTS.md and now delegates to the new `namedGuidePath(root, name)`; the guide's name travels on `guideFile.name`, which `readGuide`/`unreadableError` use, so block tests are unchanged.
+NOTES (2026-10-14): the import line is appended by reusing `splice(content, blockSpan{}, importLine)`, which already implements the append rule (CRLF when any CRLF, missing final line ending added, blank line before on a non-empty file).
 
 **What:** Recast at the regression check (2026-10-14).
 **Goal:** `agents.Guides(worktreeRoot string, names []string, mode Mode) ([]Guide, error)` reports
