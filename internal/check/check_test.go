@@ -970,6 +970,7 @@ func TestCodes_ClosedSet_PinsEveryCodeString(t *testing.T) {
 		"MissingPlan":         "missing-plan",
 		"BrokenRef":           "broken-ref",
 		"AgentsBlock":         "agents-block",
+		"AgentsGuide":         "agents-guide",
 	}
 
 	declared := codeConstants(t)

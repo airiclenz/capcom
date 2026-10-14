@@ -168,3 +168,115 @@ func TestRun_UnreadableAgentsFile_ReportsAnAgentsBlockProblem(t *testing.T) {
 		})
 	}
 }
+
+// unreachedGuideMessage is how check reports an agent guide at the working tree root that does not
+// reach the block.
+const unreachedGuideMessage = "does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md"
+
+// writeCurrentBlock writes the AGENTS.md of root carrying a block that is up to date.
+func writeCurrentBlock(t *testing.T, root string) {
+	t.Helper()
+	opened, err := store.Open(root)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), agents.ModeWrite); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+}
+
+func TestRun_UnreachedAgentGuide_ReportsAnAgentsGuideProblem(t *testing.T) {
+	root := newRepo(t)
+	writeCurrentBlock(t, root)
+	writeFiles(t, root, map[string]string{"CLAUDE.md": "# Claude\n"})
+
+	problems := runCheck(t, root)
+
+	want := []string{string(diagnose.AgentsGuide) + " CLAUDE.md: " + unreachedGuideMessage}
+	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+func TestRun_AgentGuideWithoutABlockToReach_ReportsNothing(t *testing.T) {
+	cases := []struct {
+		name  string
+		setUp func(t *testing.T, root string)
+	}{
+		{"no block", func(t *testing.T, root string) {
+			writeGuide(t, root, "# Guide\n\nHand-written guidance only.\n")
+		}},
+		{"no guides configured", func(t *testing.T, root string) {
+			writeFiles(t, root, map[string]string{".capcom/config.yaml": "format: 4\nagents:\n  guides: []\n"})
+			writeCurrentBlock(t, root)
+		}},
+		{"AGENTS.md linked outside the tree", func(t *testing.T, root string) {
+			outside := filepath.Join(t.TempDir(), "AGENTS.md")
+			content := agents.BeginMarker + "\nan older block\n" + agents.EndMarker + "\n"
+			if err := os.WriteFile(outside, []byte(content), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+			makeSymlink(t, outside, filepath.Join(root, agents.FileName))
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newRepo(t)
+			testCase.setUp(t, root)
+			writeFiles(t, root, map[string]string{"CLAUDE.md": "# Claude\n"})
+
+			problems := runCheck(t, root)
+
+			if len(problems) != 0 {
+				t.Errorf("problems = %v, want none", problems)
+			}
+		})
+	}
+}
+
+func TestRun_UnreadableAgentGuide_ReportsAnAgentsGuideProblem(t *testing.T) {
+	cases := []struct {
+		name  string
+		setUp func(t *testing.T, path string)
+	}{
+		{"named pipe", func(t *testing.T, path string) {
+			makeFIFO(t, path)
+		}},
+		{"directory", func(t *testing.T, path string) {
+			if err := os.Mkdir(path, 0o755); err != nil {
+				t.Fatalf("Mkdir: %v", err)
+			}
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newRepo(t)
+			writeCurrentBlock(t, root)
+			testCase.setUp(t, filepath.Join(root, "CLAUDE.md"))
+
+			problems := runCheckWithin(t, root)
+
+			want := []string{string(diagnose.AgentsGuide) + " CLAUDE.md: not a regular file"}
+			if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
+				t.Errorf("problems = %q\nwant %q", got, want)
+			}
+		})
+	}
+}
+
+func TestRun_UnreachedGuideInASubdirectory_NamesTheImportFromItsDirectory(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml": "format: 4\nagents:\n  guides: [docs/AI.md]\n",
+		"docs/AI.md":          "# AI\n",
+	})
+	writeCurrentBlock(t, root)
+
+	problems := runCheck(t, root)
+
+	want := []string{string(diagnose.AgentsGuide) +
+		" docs/AI.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @../AGENTS.md"}
+	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}

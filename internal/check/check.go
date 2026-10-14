@@ -7,7 +7,9 @@
 // Problem citing the file and, when known, the line (ADR 0006). It also reports an AGENTS.md whose
 // capcom Managed block is out of date or whose markers are tangled, and one that cannot be read,
 // being not a regular file or larger than 1 MiB; an AGENTS.md without the block, or no AGENTS.md
-// at all, is no problem.
+// at all, is no problem. When AGENTS.md carries the block, it reports each agent guide config.yaml
+// lists under agents.guides that neither resolves to AGENTS.md nor imports it, and one that cannot
+// be read; a missing guide, or one that links outside the working tree, is no problem.
 package check
 
 import (

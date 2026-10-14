@@ -57,6 +57,9 @@ const (
 	// AgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled, or
 	// one that is not a regular file or is larger than 1 MiB.
 	AgentsBlock Kind = "agents-block"
+	// AgentsGuide is an agent guide that does not reach the Managed block of AGENTS.md, or one that
+	// is not a regular file or is larger than 1 MiB.
+	AgentsGuide Kind = "agents-guide"
 )
 
 // TreeKind returns the Kind of a problem tree.Walk, tree.Load or tree.CheckAliases reports, by the

@@ -155,6 +155,21 @@ func TestCheck_StaleAgentsBlock_ReportedAtTheMarkerLine(t *testing.T) {
 	}
 }
 
+func TestCheck_UnreachedAgentGuide_ReportedAtItsPath(t *testing.T) {
+	root := newKnowStore(t)
+	mustRun(t, root, "agents")
+	if err := os.WriteFile(filepath.Join(root, "CLAUDE.md"), []byte("# Claude\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	want := "CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md\n"
+	if exitCode != ExitError || stdout != want {
+		t.Errorf("check = %d, stdout %q; want 1 and %q", exitCode, stdout, want)
+	}
+}
+
 func TestCheck_WithoutAgentsGuide_ExitsZero(t *testing.T) {
 	root := newKnowStore(t)
 

@@ -133,7 +133,9 @@ internal/nodefile/atomic.go — ReplaceFileVerbatim; internal/agents/fifo_unix_t
 
 **Commit:** `feat(agents): agent guides reach the Managed block through an import line`
 
-## 3. capcom check reports a guide that does not reach the block
+## 3. capcom check reports a guide that does not reach the block — ✅ DONE (2026-10-14)
+NOTES (2026-10-14): the guide check is a separate `checker.agentsGuides` called from `agentsBlock` only after a current or stale block; the store's already-loaded `c.store.Config.Agents.Guides` is the list. Only an `*agents.Error` from `agents.Guides` becomes a problem; any other error (a guide that cannot be resolved or read) fails the run, as it does for AGENTS.md.
+NOTES (2026-10-14): `docs/site/reference/file-format.md` still names only `agents-block` among the AGENTS.md check problems; item 5 owns that file's guide-rule wording.
 
 Depends on items 1 and 2.
 
