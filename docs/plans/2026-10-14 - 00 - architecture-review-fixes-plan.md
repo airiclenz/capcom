@@ -183,7 +183,13 @@ NOTES (2026-10-14): consequential edit — docs/site/reference/file-format.md: m
 **Closes:** claimed-name-prefix
 **Commit:** `fix(tree): refuse names that unusable files claim`
 
-## P1.5 Index prefix candidates count every file's id
+## P1.5 Index prefix candidates count every file's id — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): re-derived from "resolveID adds excluded and claim-only ids to the candidate set": a claims row counts as a candidate only when its file has a files row (a file with problems the refresh read), so a file the walk leaves out unread (non-regular, over 1 MiB) or under an orphan directory is no candidate, matching tree.prefixCandidates (agreement row "zer"). The flipped TestResolve_NameOfExcludedNode `fo` assertion is therefore ambiguous for the duplicated-id, invalid and unparseable cases and stays foo-bar for the oversize, symlink and orphan-directory ones.
+NOTES (2026-10-14): the Resolution order lands in the index as unusableConflict under refusedClaim: a claims-table file and a row of the kind (id or alias, excluded or not) sharing a name refuse it as a duplicate naming both. Two unusable files sharing a name with no row stay the unusable-claim refusal (not found), as before; the tree refuses that as a duplicate. A new agreement fixture ("id an unusable file also claims") pins tree and index alike for the order.
+NOTES (2026-10-14): agreement table: the "du", "ba", "later", "dup" and "dup-" rows were reconciled and dropped, with callPrefixCandidates; "zzz" (callUnparsedRemoval) stays.
+NOTES (2026-10-14): consequential edit — internal/cli/rm_test.go: made necessary by the index wording the later-only alias refusal as the tree does (unusableClaimStore.isIndexAlike, now true for every fixture, is removed and show foo is always checked)
+NOTES (2026-10-14): consequential edit — docs/site/reference/file-format.md: made necessary by the wider prefix candidates and the Resolution order ("Naming a node")
 
 **What:**
 **Goal:** through the index, a prefix that matches the id of any file — unparsed, invalid, excluded or left out included — and another id is refused as ambiguous naming every candidate; an alias listed only by a left-out repeated-id file gets the unusable-claim refusal, not a duplicate error.

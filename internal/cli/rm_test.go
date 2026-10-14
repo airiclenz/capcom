@@ -396,9 +396,6 @@ type unusableClaimStore struct {
 	files map[string]string
 	// claimant is the file that claims foo, relative to the working tree root.
 	claimant string
-	// isIndexAlike reports whether show foo words its refusal as the tree does today; an alias only
-	// a left-out repeated-id file lists is still a duplicate through the index.
-	isIndexAlike bool
 }
 
 // unusableClaimStores are the stores of every kind of unusable file that can claim foo.
@@ -408,24 +405,21 @@ var unusableClaimStores = []unusableClaimStore{
 		files: map[string]string{
 			"zzz.md": "---\ntitle: [unclosed\naliases: [foo]\n---\n",
 		},
-		claimant:     ".capcom/issues/zzz.md",
-		isIndexAlike: true,
+		claimant: ".capcom/issues/zzz.md",
 	},
 	{
 		name: "id of a file that fails validation",
 		files: map[string]string{
 			"foo.md": readIssue("Foo", "bogus", "", ""),
 		},
-		claimant:     ".capcom/issues/foo.md",
-		isIndexAlike: true,
+		claimant: ".capcom/issues/foo.md",
 	},
 	{
 		name: "id of a node file below an orphan directory",
 		files: map[string]string{
 			"ghost/foo.md": readIssue("Foo", "open", "", ""),
 		},
-		claimant:     ".capcom/issues/ghost/foo.md",
-		isIndexAlike: true,
+		claimant: ".capcom/issues/ghost/foo.md",
 	},
 	{
 		name: "alias only the later file of a repeated id lists",
@@ -454,8 +448,8 @@ func newUnusableClaimStore(t *testing.T, fixture unusableClaimStore) (string, ma
 
 // assertUnusableClaimRefusal fails the test unless a command exited not found with stderr giving
 // the refusal of the name foo that fixture's claimant claims, with no absolute path inside root,
-// and left every issue file of the store as it was. When the index already words the refusal
-// alike, show foo must give the same one.
+// and left every issue file of the store as it was, and show foo, through the index, gives the
+// same refusal.
 func assertUnusableClaimRefusal(
 	t *testing.T,
 	root string,
@@ -473,9 +467,6 @@ func assertUnusableClaimRefusal(
 		t.Errorf("stderr = %q names an absolute path", stderr)
 	}
 	assertIssueFilesUnchanged(t, root, files)
-	if !fixture.isIndexAlike {
-		return
-	}
 	if _, showStderr, _ := runCLI(t, root, "show", "foo"); !strings.Contains(showStderr, refusal) {
 		t.Errorf("show foo stderr = %q, want the same refusal %q", showStderr, refusal)
 	}

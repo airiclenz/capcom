@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -264,53 +265,65 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 		symlink   string
 		isInvalid bool
 		paths     []string
+		// prefixed is the answer to fo, as agreementAnswer renders it: the id of every file the
+		// tree holds counts as a candidate, one the walk leaves out unread or under an orphan
+		// directory none.
+		prefixed string
 	}{
 		{
-			name:  "duplicated id",
-			files: map[string]string{"foo.md": issueText("A", "open", ""), "foo-bar/foo.md": issueText("B", "open", "")},
-			paths: []string{".capcom/issues/foo.md", ".capcom/issues/foo-bar/foo.md"},
+			name:     "duplicated id",
+			files:    map[string]string{"foo.md": issueText("A", "open", ""), "foo-bar/foo.md": issueText("B", "open", "")},
+			paths:    []string{".capcom/issues/foo.md", ".capcom/issues/foo-bar/foo.md"},
+			prefixed: "ambiguous foo,foo-bar",
 		},
 		{
 			name:      "invalid file",
 			files:     map[string]string{"foo.md": "---\nstatus: open\n---\n"},
 			isInvalid: true,
 			paths:     []string{".capcom/issues/foo.md"},
+			prefixed:  "ambiguous foo,foo-bar",
 		},
 		{
 			name:      "alias of an invalid file",
 			files:     map[string]string{"foo-rework.md": issueWith("Rework", "bogus", "aliases: [foo]\n")},
 			isInvalid: true,
 			paths:     []string{".capcom/issues/foo-rework.md"},
+			prefixed:  "ambiguous foo-bar,foo-rework",
 		},
 		{
 			name:      "alias of an unparseable file",
 			files:     map[string]string{"foo-rework.md": "---\naliases: [foo]\ntitle: [unclosed\n---\n"},
 			isInvalid: true,
 			paths:     []string{".capcom/issues/foo-rework.md"},
+			prefixed:  "ambiguous foo-bar,foo-rework",
 		},
 		{
 			name:      "file over 1 MiB",
 			files:     map[string]string{"foo.md": oversizeIssueText("Huge")},
 			isInvalid: true,
 			paths:     []string{".capcom/issues/foo.md"},
+			prefixed:  "id foo-bar",
 		},
 		{
 			name:      "symlinked file",
 			symlink:   "foo.md",
 			isInvalid: true,
 			paths:     []string{".capcom/issues/foo.md"},
+			prefixed:  "id foo-bar",
 		},
 		{
 			name:      "file inside an orphan directory",
 			files:     map[string]string{"orphan-dir/foo.md": issueText("A", "open", "")},
 			isInvalid: true,
 			paths:     []string{".capcom/issues/orphan-dir/foo.md"},
+			prefixed:  "id foo-bar",
 		},
 		{
 			name:      "alias of a file inside an orphan directory",
 			files:     map[string]string{"orphan-dir/deeper/foo-rework.md": aliasing("Rework", "foo")},
 			isInvalid: true,
 			paths:     []string{".capcom/issues/orphan-dir/deeper/foo-rework.md"},
+			prefixed:  "id foo-bar",
 		},
 	}
 
@@ -339,8 +352,8 @@ func TestResolve_NameOfExcludedNode_RefusesInsteadOfPrefixMatching(t *testing.T)
 					t.Errorf("Resolve(Foo) err = %v, want it to name %s", err, path)
 				}
 			}
-			if prefixErr != nil || prefixed.ID != "foo-bar" {
-				t.Errorf("Resolve(fo) = %q, %v; want foo-bar", prefixed.ID, prefixErr)
+			if got := agreementAnswer(prefixed.ID, prefixErr); got != tc.prefixed {
+				t.Errorf("Resolve(fo) = %q, want %q", got, tc.prefixed)
 			}
 		})
 	}
@@ -403,6 +416,156 @@ func TestResolve_AliasClash_RefusesOnlyTheSharedName(t *testing.T) {
 			for _, path := range tc.paths {
 				if refusedErr == nil || !strings.Contains(refusedErr.Error(), path) {
 					t.Errorf("Resolve(%s) err = %v, want it to name %s", tc.refused, refusedErr, path)
+				}
+			}
+		})
+	}
+}
+
+func TestResolve_PrefixOfUnusableID_CountsAsACandidate(t *testing.T) {
+	t.Parallel()
+	repeated := map[string]string{
+		"a.md":     issueText("A", "open", ""),
+		"b.md":     issueText("B", "open", ""),
+		"a/dup.md": issueText("Dup", "open", ""),
+		"b/dup.md": issueText("Dup too", "open", ""),
+	}
+	withUsable := maps.Clone(repeated)
+	withUsable["dup-y.md"] = issueText("Dup y", "open", "")
+	cases := []struct {
+		name  string
+		files map[string]string
+		arg   string
+		// want is the answer, as agreementAnswer renders it; a refusal names every file of paths.
+		want  string
+		paths []string
+	}{
+		{
+			name:  "repeated id alone",
+			files: repeated,
+			arg:   "du",
+			want:  "duplicate",
+			paths: []string{".capcom/issues/a/dup.md", ".capcom/issues/b/dup.md"},
+		},
+		{
+			name:  "repeated id and a usable id",
+			files: withUsable,
+			arg:   "du",
+			want:  "ambiguous dup,dup-y",
+		},
+		{
+			name:  "invalid file alone",
+			files: map[string]string{"bad.md": issueText("Bad", "bogus", "")},
+			arg:   "ba",
+			want:  "not found",
+			paths: []string{".capcom/issues/bad.md"},
+		},
+		{
+			name: "invalid file and a usable id",
+			files: map[string]string{
+				"bad.md":      issueText("Bad", "bogus", ""),
+				"bad-luck.md": issueText("Bad luck", "open", ""),
+			},
+			arg:  "ba",
+			want: "ambiguous bad,bad-luck",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			for name, content := range tc.files {
+				writeIssue(t, s, name, content)
+			}
+			x := openIndex(t, s)
+			refresh(t, x)
+
+			entry, err := x.Resolve(tc.arg)
+
+			if got := agreementAnswer(entry.ID, err); got != tc.want {
+				t.Errorf("Resolve(%s) = %q, want %q", tc.arg, got, tc.want)
+			}
+			for _, path := range tc.paths {
+				if err == nil || !strings.Contains(err.Error(), path) {
+					t.Errorf("Resolve(%s) err = %v, want it to name %s", tc.arg, err, path)
+				}
+			}
+		})
+	}
+}
+
+func TestResolve_AliasOfARepeatedIDFile_RefusedByWhichFileListsIt(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "a.md", issueText("A", "open", ""))
+	writeIssue(t, s, "b.md", issueText("B", "open", ""))
+	writeIssue(t, s, "a/dup.md", issueWith("Dup", "open", "aliases: [earlier]\n"))
+	writeIssue(t, s, "b/dup.md", issueWith("Dup too", "open", "aliases: [later]\n"))
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	_, laterErr := x.Resolve("later")
+	_, earlierErr := x.Resolve("earlier")
+
+	refusal := `id "later" not found: .capcom/issues/b/dup.md is invalid`
+	if !errors.Is(laterErr, tree.ErrNotFound) || laterErr.Error() != refusal {
+		t.Errorf("Resolve(later) err = %v, want %q", laterErr, refusal)
+	}
+	if !errors.Is(earlierErr, tree.ErrDuplicate) || !strings.Contains(earlierErr.Error(), ".capcom/issues/b/dup.md") {
+		t.Errorf("Resolve(earlier) err = %v, want the duplicate id naming both files", earlierErr)
+	}
+}
+
+func TestResolve_NameAnUnusableFileAlsoClaims_RefusesNamingBothFiles(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		files map[string]string
+		// paths are the files the refusal of foo names.
+		paths []string
+	}{
+		{
+			name:  "alias of an invalid file",
+			files: map[string]string{"bad.md": issueWith("Bad", "bogus", "aliases: [foo]\n")},
+			paths: []string{".capcom/issues/bad.md", ".capcom/issues/foo.md"},
+		},
+		{
+			name:  "alias of an unparseable file",
+			files: map[string]string{"zzz.md": "---\naliases: [foo]\ntitle: [unclosed\n---\n"},
+			paths: []string{".capcom/issues/zzz.md", ".capcom/issues/foo.md"},
+		},
+		{
+			name:  "id of an invalid file",
+			files: map[string]string{"sub.md": issueText("Sub", "open", ""), "sub/foo.md": issueText("Foo", "bogus", "")},
+			paths: []string{".capcom/issues/sub/foo.md", ".capcom/issues/foo.md"},
+		},
+		{
+			name:  "id of a file inside an orphan directory",
+			files: map[string]string{"ghost/foo.md": issueText("Foo", "open", "")},
+			paths: []string{".capcom/issues/ghost/foo.md", ".capcom/issues/foo.md"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			writeIssue(t, s, "foo.md", issueText("Foo", "open", ""))
+			for name, content := range tc.files {
+				writeIssue(t, s, name, content)
+			}
+			x := openIndex(t, s)
+			refresh(t, x)
+
+			_, err := x.Resolve("foo")
+
+			if !errors.Is(err, tree.ErrDuplicate) {
+				t.Errorf("Resolve(foo) err = %v, want a duplicate", err)
+			}
+			for _, path := range tc.paths {
+				if err == nil || !strings.Contains(err.Error(), path) {
+					t.Errorf("Resolve(foo) err = %v, want it to name %s", err, path)
 				}
 			}
 		})

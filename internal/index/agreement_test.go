@@ -203,9 +203,6 @@ const (
 	// callUnparsedRemoval: the one exception to "Unusable claims": the exact id of an unparsed live
 	// file still resolves in the tree, so rm and know rm can remove it. This row stays.
 	callUnparsedRemoval = "Unusable claims, the rm exception"
-	// callPrefixCandidates: every file's id counts as a prefix candidate, unusable ones included,
-	// and an alias only a left-out repeated-id file lists gets the unusable-claim refusal.
-	callPrefixCandidates = "Prefix candidates"
 )
 
 // agreementFixtures are the membership fixtures. Every path is below the kind's tree, and the
@@ -219,14 +216,11 @@ var agreementFixtures = []agreementFixture{
 		},
 		queries: []agreementQuery{
 			{name: "dup", resolve: "duplicate", claimant: "duplicate a/dup.md"},
-			{name: "du", claimant: "none"},
+			{name: "du", resolve: "duplicate", claimant: "none"},
 			{name: "kid", resolve: "duplicate", claimant: "orphan a/dup/kid.md"},
 			{name: "ki", resolve: "duplicate", claimant: "none"},
 			{name: "kid-alias", resolve: "duplicate", claimant: "orphan a/dup/kid.md alias"},
 			{name: "a", resolve: "id a", claimant: "live a.md"},
-		},
-		divergences: map[string]agreementDivergence{
-			"du": {tree: "duplicate", index: "not found", call: callPrefixCandidates},
 		},
 	},
 	{
@@ -277,12 +271,9 @@ var agreementFixtures = []agreementFixture{
 		},
 		queries: []agreementQuery{
 			{name: "bad", resolve: "not found", claimant: "live bad.md"},
-			{name: "ba", claimant: "none"},
+			{name: "ba", resolve: "ambiguous bad,bad-luck", claimant: "none"},
 			{name: "worse", resolve: "not found", claimant: "live bad.md alias"},
 			{name: "bad-luck", resolve: "id bad-luck", claimant: "live bad-luck.md"},
-		},
-		divergences: map[string]agreementDivergence{
-			"ba": {tree: "ambiguous bad,bad-luck", index: "id bad-luck", call: callPrefixCandidates},
 		},
 	},
 	{
@@ -292,12 +283,9 @@ var agreementFixtures = []agreementFixture{
 			{path: "a/dup.md"}, {path: "b/dup.md", aliases: []string{"later"}},
 		},
 		queries: []agreementQuery{
-			{name: "later", claimant: "duplicate b/dup.md alias"},
+			{name: "later", resolve: "not found", claimant: "duplicate b/dup.md alias"},
 			{name: "lat", resolve: "not found", claimant: "none"},
 			{name: "dup", resolve: "duplicate", claimant: "duplicate a/dup.md"},
-		},
-		divergences: map[string]agreementDivergence{
-			"later": {tree: "not found", index: "duplicate", call: callPrefixCandidates},
 		},
 	},
 	{
@@ -307,14 +295,24 @@ var agreementFixtures = []agreementFixture{
 			{path: "a/dup-x.md"}, {path: "b/dup-x.md"}, {path: "dup-y.md"},
 		},
 		queries: []agreementQuery{
-			{name: "dup", claimant: "none"},
-			{name: "dup-", claimant: "none"},
+			{name: "dup", resolve: "ambiguous dup-x,dup-y", claimant: "none"},
+			{name: "dup-", resolve: "ambiguous dup-x,dup-y", claimant: "none"},
 			{name: "dup-x", resolve: "duplicate", claimant: "duplicate a/dup-x.md"},
 			{name: "dup-y", resolve: "id dup-y", claimant: "live dup-y.md"},
 		},
-		divergences: map[string]agreementDivergence{
-			"dup":  {tree: "ambiguous dup-x,dup-y", index: "id dup-y", call: callPrefixCandidates},
-			"dup-": {tree: "ambiguous dup-x,dup-y", index: "id dup-y", call: callPrefixCandidates},
+	},
+	{
+		name: "id an unusable file also claims",
+		files: []agreementFile{
+			{path: "foo.md"}, {path: "bad.md", form: formInvalid, aliases: []string{"foo"}},
+			{path: "bar.md"}, {path: "ghost/bar.md"},
+			{path: "baz.md"}, {path: "zzz.md", form: formBroken, aliases: []string{"baz"}},
+		},
+		queries: []agreementQuery{
+			{name: "foo", resolve: "duplicate", claimant: "live foo.md"},
+			{name: "bar", resolve: "duplicate", claimant: "live bar.md"},
+			{name: "baz", resolve: "duplicate", claimant: "live baz.md"},
+			{name: "fo", resolve: "id foo", claimant: "none"},
 		},
 	},
 	{

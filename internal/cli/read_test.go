@@ -956,3 +956,60 @@ func TestShow_IDAnotherIssueAliases_RefusesTheIDAndShowsTheOther(t *testing.T) {
 		t.Errorf("show baz exit = %d stdout = %q, want baz shown", shownExit, shown)
 	}
 }
+
+func TestShow_PrefixOfRepeatedIDAndUsableID_NamesBothCandidates(t *testing.T) {
+	root := newIssueStore(t, nil)
+	writeIssueFiles(t, root, map[string]string{
+		"a.md":       readIssue("A", "open", "", ""),
+		"b.md":       readIssue("B", "open", "", ""),
+		"a/dup-x.md": readIssue("Dup x", "open", "", ""),
+		"b/dup-x.md": readIssue("Dup x too", "open", "", ""),
+		"dup-y.md":   readIssue("Dup y", "open", "", ""),
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "show", "dup")
+
+	if exitCode != ExitError || !strings.Contains(stderr, "dup-x, dup-y") {
+		t.Errorf("exit = %d stderr = %q, want an ambiguity naming dup-x and dup-y", exitCode, stderr)
+	}
+}
+
+func TestShow_IDAnUnusableFileAlsoClaims_FailsNamingBothFiles(t *testing.T) {
+	cases := []struct {
+		name  string
+		files map[string]string
+		// claimant is the unusable file that claims foo, relative to the working tree root.
+		claimant string
+	}{
+		{
+			name:     "alias of a file that fails validation",
+			files:    map[string]string{"bad.md": readIssue("Bad", "bogus", "aliases: [foo]\n", "")},
+			claimant: ".capcom/issues/bad.md",
+		},
+		{
+			name:     "alias of a file that does not parse",
+			files:    map[string]string{"zzz.md": "---\ntitle: [unclosed\naliases: [foo]\n---\n"},
+			claimant: ".capcom/issues/zzz.md",
+		},
+		{
+			name:     "id of a node file below an orphan directory",
+			files:    map[string]string{"ghost/foo.md": readIssue("Foo too", "open", "", "")},
+			claimant: ".capcom/issues/ghost/foo.md",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newIssueStore(t, nil)
+			writeIssueFiles(t, root, map[string]string{"foo.md": readIssue("Foo", "open", "", "")})
+			writeIssueFiles(t, root, tc.files)
+
+			stdout, stderr, exitCode := runCLI(t, root, "show", "foo")
+
+			assertDuplicateRefusal(t, root, stderr, exitCode, tc.claimant, ".capcom/issues/foo.md")
+			if stdout != "" {
+				t.Errorf("stdout = %q, want nothing shown", stdout)
+			}
+		})
+	}
+}
