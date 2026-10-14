@@ -9,50 +9,6 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// The closed set of Problem codes, each the diagnose.Kind of the same name. A repeated alias is
-// reported as CodeDuplicate (see kindCode).
-const (
-	// CodeConfig is a config.yaml that cannot be used.
-	CodeConfig = diagnose.Config
-	// CodeInvalidID is a node file whose name is not a valid id.
-	CodeInvalidID = diagnose.InvalidID
-	// CodeInvalidAlias is an alias outside the allowed characters.
-	CodeInvalidAlias = diagnose.InvalidAlias
-	// CodeDuplicate is an id or alias used twice in one tree.
-	CodeDuplicate = diagnose.Duplicate
-	// CodeOrphanDirectory is a directory without the node file of the same name.
-	CodeOrphanDirectory = diagnose.OrphanDirectory
-	// CodeNotRegular is an entry left out unread because it is not a regular file (a symlink, a
-	// named pipe, a device) or is a node file larger than 1 MiB.
-	CodeNotRegular = diagnose.NotRegular
-	// CodeFrontmatter is an issue or Note file that does not parse: a malformed frontmatter, an
-	// unknown or repeated key, a value of the wrong shape.
-	CodeFrontmatter = diagnose.Frontmatter
-	// CodeConflict is a git conflict marker left in an issue or Note file by a merge.
-	CodeConflict = diagnose.Conflict
-	// CodeField is a parsed issue or Note whose values are not usable: a missing title, an
-	// undeclared status or type, a closed issue without closed or reason, and the like.
-	CodeField = diagnose.Field
-	// CodeMissingDep is a dependency that names no issue.
-	CodeMissingDep = diagnose.MissingDep
-	// CodeMissingRelated is a related link that names no issue.
-	CodeMissingRelated = diagnose.MissingRelated
-	// CodeMissingSupersededBy is a superseded-by link that names no Note.
-	CodeMissingSupersededBy = diagnose.MissingSupersededBy
-	// CodeFormatTooOld is an issue or Note key the store's declared format does not hold yet:
-	// related in a store below format 2, retired or superseded-by in a store below format 3.
-	CodeFormatTooOld = diagnose.FormatTooOld
-	// CodeCycle is a dependency cycle.
-	CodeCycle = diagnose.Cycle
-	// CodeMissingPlan is a plan found in none of the configured plans directories.
-	CodeMissingPlan = diagnose.MissingPlan
-	// CodeBrokenRef is a Note Ref that does not resolve in the working tree.
-	CodeBrokenRef = diagnose.BrokenRef
-	// CodeAgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled,
-	// or one that is not a regular file or is larger than 1 MiB.
-	CodeAgentsBlock = diagnose.AgentsBlock
-)
-
 // Problem is one thing wrong with the store. Path is relative to the working tree root with
 // forward slashes; Line is 1-based, or 0 when no single line is to blame.
 type Problem struct {
@@ -73,7 +29,7 @@ func (p Problem) String() string {
 // addFormatTooOld records a format-too-old problem at line, the line of key, a key that needs
 // store format needed in a store declaring format declared.
 func (c *checker) addFormatTooOld(path string, line int, key string, needed int, declared int) {
-	c.add(path, line, CodeFormatTooOld, fmt.Sprintf(
+	c.add(path, line, diagnose.FormatTooOld, fmt.Sprintf(
 		"%s needs store format %d, but the store declares format %d: set format: %d in %s, "+
 			"or run a capcom write verb that raises it",
 		key,
@@ -106,7 +62,7 @@ func (c *checker) loadTree(
 		}
 		// Every problem tree.Load reports wraps a sentinel TreeKind knows; any other is reported
 		// as a duplicate.
-		code := CodeDuplicate
+		code := diagnose.Duplicate
 		if kind, isKnown := diagnose.TreeKind(problem); isKnown {
 			code = kindCode(kind)
 		}
@@ -119,7 +75,7 @@ func (c *checker) loadTree(
 // other Kind is its own code.
 func kindCode(kind diagnose.Kind) diagnose.Kind {
 	if kind == diagnose.RepeatedAlias {
-		return CodeDuplicate
+		return diagnose.Duplicate
 	}
 	return kind
 }
@@ -131,7 +87,7 @@ func kindCode(kind diagnose.Kind) diagnose.Kind {
 func (c *checker) readFile(path string) (data []byte, isRead bool, err error) {
 	data, err = nodefile.ReadRegularFile(path)
 	if refusal := diagnose.ReadRefusal(err); refusal != nil {
-		c.add(path, 0, CodeNotRegular, refusal.Error())
+		c.add(path, 0, diagnose.NotRegular, refusal.Error())
 		return nil, false, nil
 	}
 	if err != nil {

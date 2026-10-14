@@ -7,6 +7,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/check"
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/elsewhere"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/lock"
@@ -174,7 +175,7 @@ func (b *Briefing) readHealth(s *store.Store) {
 	}
 	health := &Health{BrokenRefs: []check.Problem{}, ProblemCount: len(problems)}
 	for _, problem := range problems {
-		if problem.Code == check.CodeBrokenRef {
+		if problem.Code == diagnose.BrokenRef {
 			health.BrokenRefs = append(health.BrokenRefs, problem)
 		}
 	}

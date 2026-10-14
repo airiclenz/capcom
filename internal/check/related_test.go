@@ -3,7 +3,7 @@ package check_test
 import (
 	"testing"
 
-	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/diagnose"
 )
 
 func TestRun_RelatedNamingTheIssueItself_ReportsOneFieldProblemNamingIt(t *testing.T) {
@@ -36,8 +36,8 @@ func TestRun_RelatedNamingTheIssueItself_ReportsOneFieldProblemNamingIt(t *testi
 			if len(problems) != 1 {
 				t.Fatalf("problems = %v, want exactly one", problems)
 			}
-			if problems[0].Code != check.CodeField {
-				t.Errorf("code = %q, want %q", problems[0].Code, check.CodeField)
+			if problems[0].Code != diagnose.Field {
+				t.Errorf("code = %q, want %q", problems[0].Code, diagnose.Field)
 			}
 			if problems[0].Message != test.want {
 				t.Errorf("message = %q, want %q", problems[0].Message, test.want)

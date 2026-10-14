@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -118,31 +119,31 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 		{
 			name:  "unknown issue key",
 			files: map[string]string{issues + "login-flow.md": issueFile("estimate: 3\n")},
-			want:  issues + "login-flow.md:7:" + string(check.CodeFrontmatter),
+			want:  issues + "login-flow.md:7:" + string(diagnose.Frontmatter),
 		},
 		{
 			name: "undeclared status",
 			files: map[string]string{issues + "login-flow.md": strings.Replace(
 				issueFile(""), "status: open", "status: wip", 1,
 			)},
-			want: issues + "login-flow.md:3:" + string(check.CodeField),
+			want: issues + "login-flow.md:3:" + string(diagnose.Field),
 		},
 		{
 			name: "undeclared type",
 			files: map[string]string{issues + "login-flow.md": strings.Replace(
 				issueFile(""), "type: task", "type: epic", 1,
 			)},
-			want: issues + "login-flow.md:4:" + string(check.CodeField),
+			want: issues + "login-flow.md:4:" + string(diagnose.Field),
 		},
 		{
 			name:  "malformed id",
 			files: map[string]string{issues + "Login_Flow.md": issueFile("")},
-			want:  issues + "Login_Flow.md:0:" + string(check.CodeInvalidID),
+			want:  issues + "Login_Flow.md:0:" + string(diagnose.InvalidID),
 		},
 		{
 			name:  "orphan directory",
 			files: map[string]string{issues + "login-flow/session-timeout.md": issueFile("")},
-			want:  issues + "login-flow:0:" + string(check.CodeOrphanDirectory),
+			want:  issues + "login-flow:0:" + string(diagnose.OrphanDirectory),
 		},
 		{
 			name: "duplicate id",
@@ -152,7 +153,7 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				issues + "export-csv.md":                 issueFile(""),
 				issues + "export-csv/session-timeout.md": issueFile(""),
 			},
-			want: issues + "login-flow/session-timeout.md:0:" + string(check.CodeDuplicate),
+			want: issues + "login-flow/session-timeout.md:0:" + string(diagnose.Duplicate),
 		},
 		{
 			name: "duplicate alias",
@@ -160,12 +161,12 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				issues + "login-flow.md": issueFile("aliases: [apogee-qi3]\n"),
 				issues + "export-csv.md": issueFile("aliases: [apogee-qi3]\n"),
 			},
-			want: issues + "login-flow.md:7:" + string(check.CodeDuplicate),
+			want: issues + "login-flow.md:7:" + string(diagnose.Duplicate),
 		},
 		{
 			name:  "dep resolving to nothing",
 			files: map[string]string{issues + "login-flow.md": issueFile("labels: [auth]\ndeps: [no-such-issue]\n")},
-			want:  issues + "login-flow.md:8:" + string(check.CodeMissingDep),
+			want:  issues + "login-flow.md:8:" + string(diagnose.MissingDep),
 		},
 		{
 			name: "related resolving to nothing",
@@ -173,7 +174,7 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				".capcom/config.yaml":    "format: 2\n",
 				issues + "login-flow.md": issueFile("labels: [auth]\nrelated: [no-such-issue]\n"),
 			},
-			want: issues + "login-flow.md:8:" + string(check.CodeMissingRelated),
+			want: issues + "login-flow.md:8:" + string(diagnose.MissingRelated),
 		},
 		{
 			name: "related naming the issue itself",
@@ -181,7 +182,7 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				".capcom/config.yaml":    "format: 2\n",
 				issues + "login-flow.md": issueFile("related: [login-flow]\n"),
 			},
-			want: issues + "login-flow.md:7:" + string(check.CodeField),
+			want: issues + "login-flow.md:7:" + string(diagnose.Field),
 		},
 		{
 			name: "related naming the issue itself by its alias",
@@ -189,34 +190,34 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				".capcom/config.yaml":    "format: 2\n",
 				issues + "login-flow.md": issueFile("aliases: [old-flow]\nrelated: [old-flow]\n"),
 			},
-			want: issues + "login-flow.md:8:" + string(check.CodeField),
+			want: issues + "login-flow.md:8:" + string(diagnose.Field),
 		},
 		{
 			name: "closed without closed",
 			files: map[string]string{issues + "login-flow.md": strings.Replace(
 				issueFile("reason: finished\n"), "status: open", "status: done", 1,
 			)},
-			want: issues + "login-flow.md:3:" + string(check.CodeField),
+			want: issues + "login-flow.md:3:" + string(diagnose.Field),
 		},
 		{
 			name:  "plan in no plans dir",
 			files: map[string]string{issues + "login-flow.md": issueFile("plan: 2026-10-01 - 00 - nowhere\n")},
-			want:  issues + "login-flow.md:7:" + string(check.CodeMissingPlan),
+			want:  issues + "login-flow.md:7:" + string(diagnose.MissingPlan),
 		},
 		{
 			name:  "note with an unknown key",
 			files: map[string]string{knowledge + "testing-rules.md": "---\ntitle: Testing rules\nowner: me\n---\n"},
-			want:  knowledge + "testing-rules.md:3:" + string(check.CodeFrontmatter),
+			want:  knowledge + "testing-rules.md:3:" + string(diagnose.Frontmatter),
 		},
 		{
 			name:  "note without a title",
 			files: map[string]string{knowledge + "testing-rules.md": "---\nlabels: [invariant]\n---\n"},
-			want:  knowledge + "testing-rules.md:0:" + string(check.CodeField),
+			want:  knowledge + "testing-rules.md:0:" + string(diagnose.Field),
 		},
 		{
 			name:  "broken note ref",
 			files: map[string]string{knowledge + "testing-rules.md": "---\ntitle: Testing rules\nrefs:\n  - no/such/file.go\n---\n"},
-			want:  knowledge + "testing-rules.md:4:" + string(check.CodeBrokenRef),
+			want:  knowledge + "testing-rules.md:4:" + string(diagnose.BrokenRef),
 		},
 		{
 			name: "superseded-by resolving to nothing",
@@ -224,7 +225,7 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				".capcom/config.yaml":     "format: 3\n",
 				knowledge + "old-flow.md": "---\ntitle: Old flow\nlabels: [flow]\nsuperseded-by: [no-such-note]\n---\n",
 			},
-			want: knowledge + "old-flow.md:4:" + string(check.CodeMissingSupersededBy),
+			want: knowledge + "old-flow.md:4:" + string(diagnose.MissingSupersededBy),
 		},
 		{
 			name: "retired false in a format-2 store",
@@ -232,7 +233,7 @@ func TestRun_OneFixturePerProblemClass_ReportsPathLineAndCode(t *testing.T) {
 				".capcom/config.yaml":     "format: 2\n",
 				knowledge + "old-flow.md": "---\ntitle: Old flow\nretired: false\n---\n",
 			},
-			want: knowledge + "old-flow.md:3:" + string(check.CodeFormatTooOld),
+			want: knowledge + "old-flow.md:3:" + string(diagnose.FormatTooOld),
 		},
 	}
 	for _, testCase := range cases {
@@ -260,7 +261,7 @@ func TestConfigProblems_UnusableConfig_ReportsTheOneConfigProblem(t *testing.T) 
 
 	problems := check.ConfigProblems(err)
 
-	want := []string{".capcom/config.yaml:2:" + string(check.CodeConfig)}
+	want := []string{".capcom/config.yaml:2:" + string(diagnose.Config)}
 	if got := locations(t, problems); !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %v, want %v", problems, want)
 	}
@@ -298,8 +299,8 @@ func TestRun_RetiredSubtree_SkipsRefChecksButStillValidatesFields(t *testing.T) 
 
 	got := locations(t, problems)
 	want := []string{
-		knowledge + "live-flow.md:3:" + string(check.CodeBrokenRef),
-		knowledge + "old-flow.md:4:" + string(check.CodeField),
+		knowledge + "live-flow.md:3:" + string(diagnose.BrokenRef),
+		knowledge + "old-flow.md:4:" + string(diagnose.Field),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %v, want %v", problems, want)
@@ -348,7 +349,7 @@ func TestRun_RelatedBelowFormatTwo_ReportsFormatTooOldAtTheRelatedLine(t *testin
 				got = append(got, string(problem.Code)+" "+problem.String())
 			}
 			want := []string{
-				string(check.CodeFormatTooOld) + " " + issues + "login-flow.md:8: related needs store format 2, " +
+				string(diagnose.FormatTooOld) + " " + issues + "login-flow.md:8: related needs store format 2, " +
 					"but the store declares format 1: set format: 2 in .capcom/config.yaml, " +
 					"or run a capcom write verb that raises it",
 			}
@@ -375,11 +376,11 @@ func TestRun_SupersessionKeysWithoutConfig_ReportFormatTooOldAtEachKey(t *testin
 	}
 	const advice = ": set format: 3 in .capcom/config.yaml, or run a capcom write verb that raises it"
 	want := []string{
-		string(check.CodeFormatTooOld) + " " + knowledge +
+		string(diagnose.FormatTooOld) + " " + knowledge +
 			"live-flow.md:3: superseded-by needs store format 3, but the store declares format 1" + advice,
-		string(check.CodeFormatTooOld) + " " + knowledge +
+		string(diagnose.FormatTooOld) + " " + knowledge +
 			"old-flow.md:3: retired needs store format 3, but the store declares format 1" + advice,
-		string(check.CodeFormatTooOld) + " " + knowledge +
+		string(diagnose.FormatTooOld) + " " + knowledge +
 			"old-flow.md:4: superseded-by needs store format 3, but the store declares format 1" + advice,
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -413,7 +414,7 @@ func TestRun_SupersededByNamingOnlyAnIDPrefix_ReportsMissingSupersededBy(t *test
 	problems := runCheck(t, root)
 
 	got := locations(t, problems)
-	want := []string{knowledge + "old-flow.md:4:" + string(check.CodeMissingSupersededBy)}
+	want := []string{knowledge + "old-flow.md:4:" + string(diagnose.MissingSupersededBy)}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %v, want %v", problems, want)
 	}
@@ -435,8 +436,8 @@ func TestRun_SupersededByNamingALeftOutNote_ReportsNoMissingSupersededBy(t *test
 
 	got := locations(t, problems)
 	want := []string{
-		knowledge + "new-flow:0:" + string(check.CodeOrphanDirectory),
-		knowledge + "zz-other/new-flow.md:0:" + string(check.CodeDuplicate),
+		knowledge + "new-flow:0:" + string(diagnose.OrphanDirectory),
+		knowledge + "zz-other/new-flow.md:0:" + string(diagnose.Duplicate),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %v, want %v", problems, want)
@@ -491,12 +492,12 @@ func TestRun_DroppedDuplicateIDFiles_AliasClashAndParseFailureReported(t *testin
 	}
 	keptTwin := issues + "export-csv/session-timeout.md"
 	want := []string{
-		string(check.CodeDuplicate) + " " + issues + `login-flow/session-timeout.md: duplicate id "session-timeout", also at ` +
+		string(diagnose.Duplicate) + " " + issues + `login-flow/session-timeout.md: duplicate id "session-timeout", also at ` +
 			keptTwin,
-		string(check.CodeDuplicate) + " " + issues + `login-flow/session-timeout.md:7: duplicate alias "apogee-qi3": ` +
+		string(diagnose.Duplicate) + " " + issues + `login-flow/session-timeout.md:7: duplicate alias "apogee-qi3": ` +
 			"also an alias of " + issues + "export-csv.md",
-		string(check.CodeDuplicate) + " " + issues + `session-timeout.md: duplicate id "session-timeout", also at ` + keptTwin,
-		string(check.CodeFrontmatter) + " " + issues + `session-timeout.md:7: unknown key "estimate"; an issue has ` +
+		string(diagnose.Duplicate) + " " + issues + `session-timeout.md: duplicate id "session-timeout", also at ` + keptTwin,
+		string(diagnose.Frontmatter) + " " + issues + `session-timeout.md:7: unknown key "estimate"; an issue has ` +
 			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -519,11 +520,11 @@ func TestRun_DirectoryProblems_WordedAsTheIndexWarnsThem(t *testing.T) {
 		got = append(got, string(problem.Code)+" "+problem.String())
 	}
 	want := []string{
-		string(check.CodeOrphanDirectory) + " " + issues +
+		string(diagnose.OrphanDirectory) + " " + issues +
 			"Bad_Name: directory left out: its node file Bad_Name.md has an invalid id",
-		string(check.CodeInvalidID) + " " + issues + `Bad_Name.md: invalid id "Bad_Name": ` +
+		string(diagnose.InvalidID) + " " + issues + `Bad_Name.md: invalid id "Bad_Name": ` +
 			"must be 1 to 4 words of a-z and 0-9 joined by single hyphens",
-		string(check.CodeOrphanDirectory) + " " + issues +
+		string(diagnose.OrphanDirectory) + " " + issues +
 			"orphan-dir: directory without its node file: no orphan-dir.md beside it; left out",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -544,8 +545,8 @@ func TestRun_RepeatedAliases_WordedByTheSharedAliasCheck(t *testing.T) {
 		got = append(got, string(problem.Code)+" "+problem.String())
 	}
 	want := []string{
-		string(check.CodeDuplicate) + " " + issues + `login-flow.md:7: alias "login-flow" repeats the node's own id`,
-		string(check.CodeDuplicate) + " " + issues + `login-flow.md:7: alias "old-name" is listed twice`,
+		string(diagnose.Duplicate) + " " + issues + `login-flow.md:7: alias "login-flow" repeats the node's own id`,
+		string(diagnose.Duplicate) + " " + issues + `login-flow.md:7: alias "old-name" is listed twice`,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %q\nwant %q", got, want)
@@ -589,15 +590,15 @@ func TestRun_FileProblems_PinCodesAndWording(t *testing.T) {
 		got = append(got, string(problem.Code)+" "+problem.String())
 	}
 	want := []string{
-		string(check.CodeInvalidAlias) + " " + issues + `bad-alias.md:7: invalid alias "Bad_Alias": ` +
+		string(diagnose.InvalidAlias) + " " + issues + `bad-alias.md:7: invalid alias "Bad_Alias": ` +
 			"must use only a-z, 0-9, dots and hyphens",
-		string(check.CodeField) + " " + issues + `bad-status.md:3: status "wip" is not declared in config; ` +
+		string(diagnose.Field) + " " + issues + `bad-status.md:3: status "wip" is not declared in config; ` +
 			"use one of [open active parked done dropped]",
-		string(check.CodeNotRegular) + " " + issues + "link-issue.md: not a regular file",
-		string(check.CodeDuplicate) + " " + issues + `own-alias.md:7: alias "own-alias" repeats the node's own id`,
-		string(check.CodeDuplicate) + " " + issues + `top-issue/dup-issue.md: duplicate id "dup-issue", also at ` +
+		string(diagnose.NotRegular) + " " + issues + "link-issue.md: not a regular file",
+		string(diagnose.Duplicate) + " " + issues + `own-alias.md:7: alias "own-alias" repeats the node's own id`,
+		string(diagnose.Duplicate) + " " + issues + `top-issue/dup-issue.md: duplicate id "dup-issue", also at ` +
 			issues + "dup-issue.md",
-		string(check.CodeFrontmatter) + " " + issues + `unknown-key.md:7: unknown key "estimate"; an issue has ` +
+		string(diagnose.Frontmatter) + " " + issues + `unknown-key.md:7: unknown key "estimate"; an issue has ` +
 			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -618,7 +619,7 @@ func TestRun_ThreeCycle_ReportedExactlyOnce(t *testing.T) {
 	want := []check.Problem{{
 		Path:    issues + "alpha-task.md",
 		Line:    7,
-		Code:    check.CodeCycle,
+		Code:    diagnose.Cycle,
 		Message: "dependency cycle: alpha-task -> beta-task -> gamma-task -> alpha-task",
 	}}
 	if !reflect.DeepEqual(problems, want) {
@@ -640,14 +641,14 @@ func TestRun_ManyProblems_AllReportedInOneRunInPathOrder(t *testing.T) {
 	problems := runCheck(t, root)
 
 	want := []string{
-		issues + "Bad_Name.md:0:" + string(check.CodeInvalidID),
-		issues + "export-csv.md:4:" + string(check.CodeField),
-		issues + "export-csv.md:7:" + string(check.CodeMissingDep),
-		issues + "login-flow.md:7:" + string(check.CodeFrontmatter),
-		issues + "orphan-dir:0:" + string(check.CodeOrphanDirectory),
-		knowledge + "testing-rules.md:0:" + string(check.CodeField),
-		knowledge + "testing-rules.md:2:" + string(check.CodeBrokenRef),
-		knowledge + "testing-rules/cli-tests.md:3:" + string(check.CodeFrontmatter),
+		issues + "Bad_Name.md:0:" + string(diagnose.InvalidID),
+		issues + "export-csv.md:4:" + string(diagnose.Field),
+		issues + "export-csv.md:7:" + string(diagnose.MissingDep),
+		issues + "login-flow.md:7:" + string(diagnose.Frontmatter),
+		issues + "orphan-dir:0:" + string(diagnose.OrphanDirectory),
+		knowledge + "testing-rules.md:0:" + string(diagnose.Field),
+		knowledge + "testing-rules.md:2:" + string(diagnose.BrokenRef),
+		knowledge + "testing-rules/cli-tests.md:3:" + string(diagnose.Frontmatter),
 	}
 	if got := locations(t, problems); !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %v\nwant %v", got, want)
@@ -664,7 +665,7 @@ func TestRun_ConflictMarkers_ReportedAtEachMarkerLine(t *testing.T) {
 	conflictAt := func(path string, lines ...int) []string {
 		result := make([]string, 0, len(lines))
 		for _, line := range lines {
-			result = append(result, path+":"+strconv.Itoa(line)+":"+string(check.CodeConflict))
+			result = append(result, path+":"+strconv.Itoa(line)+":"+string(diagnose.Conflict))
 		}
 		return result
 	}
@@ -737,7 +738,7 @@ func TestRun_ConflictMarker_MessageQuotesTheMarkerAndSaysHowToResolve(t *testing
 	want := check.Problem{
 		Path:    issues + "login-flow.md",
 		Line:    13,
-		Code:    check.CodeConflict,
+		Code:    diagnose.Conflict,
 		Message: `git conflict marker "<<<<<<< HEAD"; resolve the conflict and delete the markers`,
 	}
 	if len(problems) == 0 || !reflect.DeepEqual(problems[0], want) {
@@ -758,7 +759,7 @@ func TestRun_ConflictMarkersInFrontmatter_ReportedOnceWithoutAFrontmatterProblem
 		return check.Problem{
 			Path:    issues + "login-flow.md",
 			Line:    line,
-			Code:    check.CodeConflict,
+			Code:    diagnose.Conflict,
 			Message: "git conflict marker " + strconv.Quote(marker) + "; resolve the conflict and delete the markers",
 		}
 	}
@@ -797,7 +798,7 @@ func TestRun_NamedPipeIssueFile_ReportedNotRegularWithoutBlocking(t *testing.T) 
 
 	select {
 	case problems := <-done:
-		want := []string{issues + "stuck-issue.md:0:" + string(check.CodeNotRegular)}
+		want := []string{issues + "stuck-issue.md:0:" + string(diagnose.NotRegular)}
 		if got := locations(t, problems); !reflect.DeepEqual(got, want) {
 			t.Errorf("problems = %v, want %v", problems, want)
 		}
@@ -835,15 +836,15 @@ func TestRun_NoteFileProblems_PinCodesAndWording(t *testing.T) {
 		got = append(got, string(problem.Code)+" "+problem.String())
 	}
 	want := []string{
-		string(check.CodeInvalidAlias) + " " + knowledge + `bad-alias.md:3: invalid alias "Bad_Alias": ` +
+		string(diagnose.InvalidAlias) + " " + knowledge + `bad-alias.md:3: invalid alias "Bad_Alias": ` +
 			"must use only a-z, 0-9, dots and hyphens",
-		string(check.CodeField) + " " + knowledge + `bad-ref.md:3: ref "#Symbol" names no path; ` +
+		string(diagnose.Field) + " " + knowledge + `bad-ref.md:3: ref "#Symbol" names no path; ` +
 			"write path or path#symbol",
-		string(check.CodeNotRegular) + " " + knowledge + "link-note.md: not a regular file",
-		string(check.CodeDuplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the node's own id`,
-		string(check.CodeDuplicate) + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note", also at ` +
+		string(diagnose.NotRegular) + " " + knowledge + "link-note.md: not a regular file",
+		string(diagnose.Duplicate) + " " + knowledge + `own-alias.md:3: alias "own-alias" repeats the node's own id`,
+		string(diagnose.Duplicate) + " " + knowledge + `top-note/dup-note.md: duplicate id "dup-note", also at ` +
 			knowledge + "dup-note.md",
-		string(check.CodeFrontmatter) + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a note has ` +
+		string(diagnose.Frontmatter) + " " + knowledge + `unknown-key.md:3: unknown key "owner"; a note has ` +
 			"title, labels, refs, retired, superseded-by and aliases",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -851,24 +852,19 @@ func TestRun_NoteFileProblems_PinCodesAndWording(t *testing.T) {
 	}
 }
 
-// codeConstants returns the value of every exported Code constant declared in the check package's
-// non-test source files, keyed by the constant's name. A Code constant names a diagnose.Kind, whose
-// value is read from the diagnose package's source.
+// codeConstants returns the value of every check code, keyed by its diagnose.Kind's name: every Kind
+// the diagnose package's non-test source files declare, but RepeatedAlias, which check reports as
+// Duplicate (see kindCode).
 func codeConstants(t *testing.T) map[string]string {
 	t.Helper()
-	kinds := stringConstants(t, filepath.Join("..", "diagnose", "*.go"), "", nil)
-	return stringConstants(t, "*.go", "Code", kinds)
+	kinds := stringConstants(t, filepath.Join("..", "diagnose", "*.go"))
+	delete(kinds, "RepeatedAlias")
+	return kinds
 }
 
-// stringConstants returns the value of every constant whose name starts with prefix, declared in
-// the non-test source files pattern matches, keyed by the constant's name. A value is a string
-// literal or a diagnose.Name selector, resolved through kinds.
-func stringConstants(
-	t *testing.T,
-	pattern string,
-	prefix string,
-	kinds map[string]string,
-) map[string]string {
+// stringConstants returns the value of every constant declared in the non-test source files
+// pattern matches, keyed by the constant's name. Every such constant must be a string literal.
+func stringConstants(t *testing.T, pattern string) map[string]string {
 	t.Helper()
 	sources, err := filepath.Glob(pattern)
 	if err != nil {
@@ -890,10 +886,7 @@ func stringConstants(
 			}
 			for _, spec := range general.Specs {
 				for i, name := range spec.(*ast.ValueSpec).Names {
-					if !strings.HasPrefix(name.Name, prefix) {
-						continue
-					}
-					constants[name.Name] = constantValue(t, name.Name, spec.(*ast.ValueSpec).Values[i], kinds)
+					constants[name.Name] = constantValue(t, name.Name, spec.(*ast.ValueSpec).Values[i])
 				}
 			}
 		}
@@ -901,21 +894,12 @@ func stringConstants(
 	return constants
 }
 
-// constantValue returns the string value of the constant name declared as value: a string literal,
-// or a diagnose.Name selector looked up in kinds.
-func constantValue(t *testing.T, name string, value ast.Expr, kinds map[string]string) string {
+// constantValue returns the string value of the constant name declared as value, a string literal.
+func constantValue(t *testing.T, name string, value ast.Expr) string {
 	t.Helper()
-	if selector, isSelector := value.(*ast.SelectorExpr); isSelector {
-		qualifier, isIdent := selector.X.(*ast.Ident)
-		kind, isKind := kinds[selector.Sel.Name]
-		if !isIdent || qualifier.Name != "diagnose" || !isKind {
-			t.Fatalf("%s is not a diagnose kind", name)
-		}
-		return kind
-	}
 	literal, isLiteral := value.(*ast.BasicLit)
 	if !isLiteral {
-		t.Fatalf("%s is not a string literal or a diagnose kind", name)
+		t.Fatalf("%s is not a string literal", name)
 	}
 	unquoted, err := strconv.Unquote(literal.Value)
 	if err != nil {
@@ -925,52 +909,30 @@ func constantValue(t *testing.T, name string, value ast.Expr, kinds map[string]s
 }
 
 // The codes are part of check --json and prime --json: a code added, renamed or removed changes
-// what a script reading them sees, so the whole set is pinned here.
+// what a script reading them sees, so the whole set is pinned here. Every code is a diagnose.Kind.
 func TestCodes_ClosedSet_PinsEveryCodeString(t *testing.T) {
 	want := map[string]string{
-		"CodeConfig":              "config",
-		"CodeInvalidID":           "invalid-id",
-		"CodeInvalidAlias":        "invalid-alias",
-		"CodeDuplicate":           "duplicate",
-		"CodeOrphanDirectory":     "orphan-directory",
-		"CodeNotRegular":          "not-regular",
-		"CodeFrontmatter":         "frontmatter",
-		"CodeConflict":            "conflict",
-		"CodeField":               "field",
-		"CodeMissingDep":          "missing-dep",
-		"CodeMissingRelated":      "missing-related",
-		"CodeMissingSupersededBy": "missing-superseded-by",
-		"CodeFormatTooOld":        "format-too-old",
-		"CodeCycle":               "cycle",
-		"CodeMissingPlan":         "missing-plan",
-		"CodeBrokenRef":           "broken-ref",
-		"CodeAgentsBlock":         "agents-block",
-	}
-	exported := map[string]string{
-		"CodeConfig":              string(check.CodeConfig),
-		"CodeInvalidID":           string(check.CodeInvalidID),
-		"CodeInvalidAlias":        string(check.CodeInvalidAlias),
-		"CodeDuplicate":           string(check.CodeDuplicate),
-		"CodeOrphanDirectory":     string(check.CodeOrphanDirectory),
-		"CodeNotRegular":          string(check.CodeNotRegular),
-		"CodeFrontmatter":         string(check.CodeFrontmatter),
-		"CodeConflict":            string(check.CodeConflict),
-		"CodeField":               string(check.CodeField),
-		"CodeMissingDep":          string(check.CodeMissingDep),
-		"CodeMissingRelated":      string(check.CodeMissingRelated),
-		"CodeMissingSupersededBy": string(check.CodeMissingSupersededBy),
-		"CodeFormatTooOld":        string(check.CodeFormatTooOld),
-		"CodeCycle":               string(check.CodeCycle),
-		"CodeMissingPlan":         string(check.CodeMissingPlan),
-		"CodeBrokenRef":           string(check.CodeBrokenRef),
-		"CodeAgentsBlock":         string(check.CodeAgentsBlock),
+		"Config":              "config",
+		"InvalidID":           "invalid-id",
+		"InvalidAlias":        "invalid-alias",
+		"Duplicate":           "duplicate",
+		"OrphanDirectory":     "orphan-directory",
+		"NotRegular":          "not-regular",
+		"Frontmatter":         "frontmatter",
+		"Conflict":            "conflict",
+		"Field":               "field",
+		"MissingDep":          "missing-dep",
+		"MissingRelated":      "missing-related",
+		"MissingSupersededBy": "missing-superseded-by",
+		"FormatTooOld":        "format-too-old",
+		"Cycle":               "cycle",
+		"MissingPlan":         "missing-plan",
+		"BrokenRef":           "broken-ref",
+		"AgentsBlock":         "agents-block",
 	}
 
 	declared := codeConstants(t)
 
-	if !reflect.DeepEqual(exported, want) {
-		t.Errorf("code values = %v\nwant %v", exported, want)
-	}
 	if !reflect.DeepEqual(declared, want) {
 		t.Errorf("declared codes = %v\nwant exactly %v", declared, want)
 	}

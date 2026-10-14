@@ -10,6 +10,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -68,7 +69,7 @@ func TestRun_StaleAgentsBlock_ReportsOneProblemAtTheBeginMarkerLine(t *testing.T
 	problems := runCheck(t, root)
 
 	want := []string{
-		string(check.CodeAgentsBlock) + " " + agents.FileName +
+		string(diagnose.AgentsBlock) + " " + agents.FileName +
 			":3: the capcom block is out of date; run capcom agents to refresh it",
 	}
 	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
@@ -98,7 +99,7 @@ func TestRun_TangledAgentsMarkers_ReportsTheMarkerErrorWithoutFailing(t *testing
 
 			problems := runCheck(t, root)
 
-			want := []string{string(check.CodeAgentsBlock) + " " + agents.FileName + testCase.wantLine}
+			want := []string{string(diagnose.AgentsBlock) + " " + agents.FileName + testCase.wantLine}
 			if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
 				t.Errorf("problems = %q\nwant %q", got, want)
 			}
@@ -160,7 +161,7 @@ func TestRun_UnreadableAgentsFile_ReportsAnAgentsBlockProblem(t *testing.T) {
 
 			problems := runCheckWithin(t, root)
 
-			want := []string{string(check.CodeAgentsBlock) + " " + agents.FileName + ": " + testCase.wantMessage}
+			want := []string{string(diagnose.AgentsBlock) + " " + agents.FileName + ": " + testCase.wantMessage}
 			if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
 				t.Errorf("problems = %q\nwant %q", got, want)
 			}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/check"
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/elsewhere"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/store"
@@ -124,7 +125,7 @@ func TestCompose_FixtureStore_ReturnsEverySection(t *testing.T) {
 	if len(got.Locks) != 0 || got.Elsewhere != nil {
 		t.Errorf("Locks = %v, Elsewhere = %v; want no lock and nothing elsewhere", got.Locks, got.Elsewhere)
 	}
-	wantRef := check.Problem{Path: ".capcom/knowledge/build-notes.md", Line: 3, Code: check.CodeBrokenRef}
+	wantRef := check.Problem{Path: ".capcom/knowledge/build-notes.md", Line: 3, Code: diagnose.BrokenRef}
 	if got.Health.ProblemCount != 1 || len(got.Health.BrokenRefs) != 1 ||
 		got.Health.BrokenRefs[0].Path != wantRef.Path || got.Health.BrokenRefs[0].Line != wantRef.Line ||
 		got.Health.BrokenRefs[0].Code != wantRef.Code {

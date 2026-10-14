@@ -324,7 +324,10 @@ NOTES (2026-10-14): the P2.1 closed-set pin's helper `codeConstants` (check_test
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/diagnose/`; `GOMEMLIMIT=2GiB go test ./internal/check/`
 **Commit:** `refactor(diagnose): own every check code`
 
-## P2.5 One code set, part 2: delete check's code constants
+## P2.5 One code set, part 2: delete check's code constants — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the P2.1 closed-set pin `TestCodes_ClosedSet_PinsEveryCodeString` (check_test.go) now keys its want by Kind name and reads the code set from the diagnose package's source (every Kind but RepeatedAlias, which check folds into Duplicate); its compile-time `exported` map of `check.CodeX` values is gone, and the P2.4 helpers `stringConstants`/`constantValue` drop the prefix filter and the diagnose-selector resolution that only the deleted aliases needed.
+NOTES (2026-10-14): `go build ./...` fails on the gitignored Go copies under docs/skill-runs/release-notes-capcom/2026-10-14/scratch (pre-existing, outside the repo's tracked tree); `go build ./cmd/... ./internal/...` builds clean.
 
 **What:**
 **Goal:** no `check.CodeX` constants remain; callers and tests use `diagnose` kinds.

@@ -89,7 +89,7 @@ func (c *checker) checkSupersession(
 			continue
 		}
 		if _, isFound := notes.Lookup(successor); !isFound {
-			c.add(path, note.SupersededByLine(i), CodeMissingSupersededBy, fmt.Sprintf(
+			c.add(path, note.SupersededByLine(i), diagnose.MissingSupersededBy, fmt.Sprintf(
 				"superseded-by %q names no note by id or by an alias only one note has",
 				successor,
 			))
@@ -151,7 +151,7 @@ func (c *checker) checkNote(node tree.Node, note knowledge.Note, isRetired bool)
 		if refPath, _, _ := strings.Cut(finding.Ref, refSymbolSeparator); refPath == "" {
 			continue // Validate already reported a Ref without a path
 		}
-		c.add(path, finding.Line, CodeBrokenRef, fmt.Sprintf("ref %q: %s", finding.Ref, finding.Message))
+		c.add(path, finding.Line, diagnose.BrokenRef, fmt.Sprintf("ref %q: %s", finding.Ref, finding.Message))
 	}
 	return nil
 }

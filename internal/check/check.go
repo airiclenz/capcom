@@ -52,7 +52,7 @@ func ConfigProblems(err error) []Problem {
 	return []Problem{{
 		Path:    configFailure.Path,
 		Line:    configFailure.Line,
-		Code:    CodeConfig,
+		Code:    diagnose.Config,
 		Message: configFailure.Message,
 	}}
 }
@@ -89,7 +89,7 @@ func (c *checker) relative(path string) string {
 // checkConflictMarkers records every git conflict marker in the issue or Note file at path.
 func (c *checker) checkConflictMarkers(path string, data []byte) {
 	for _, marker := range rawfm.ConflictMarkers(data) {
-		c.add(path, marker.Line, CodeConflict, rawfm.ConflictMessage(marker))
+		c.add(path, marker.Line, diagnose.Conflict, rawfm.ConflictMessage(marker))
 	}
 }
 
@@ -98,9 +98,9 @@ func (c *checker) checkConflictMarkers(path string, data []byte) {
 // problem's own words, which checkConflictMarkers has already recorded, so that failure is not
 // recorded twice.
 func (c *checker) addParseFailure(path string, failure diagnose.Finding) {
-	conflict := Problem{Path: c.relative(path), Line: failure.Line, Code: CodeConflict, Message: failure.Message}
+	conflict := Problem{Path: c.relative(path), Line: failure.Line, Code: diagnose.Conflict, Message: failure.Message}
 	if slices.Contains(c.problems, conflict) {
 		return
 	}
-	c.add(path, failure.Line, CodeFrontmatter, failure.Message)
+	c.add(path, failure.Line, diagnose.Frontmatter, failure.Message)
 }

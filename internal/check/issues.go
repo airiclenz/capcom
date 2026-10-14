@@ -92,7 +92,7 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 		c.add(path, finding.Line, kindCode(finding.Kind), finding.Message)
 	}
 	if plan := entry.issue.Plan; plan != "" && !c.isPlanFound(plan) {
-		c.add(path, entry.issue.PlanLine(), CodeMissingPlan, fmt.Sprintf(
+		c.add(path, entry.issue.PlanLine(), diagnose.MissingPlan, fmt.Sprintf(
 			"plan %q is in none of the plans directories %v",
 			plan,
 			c.store.Config.Plans,
@@ -100,7 +100,7 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	}
 	for _, dep := range entry.issue.Deps {
 		if _, isFound := graph.Resolve(dep); !isFound {
-			c.add(path, entry.issue.DepsLine(), CodeMissingDep, fmt.Sprintf(
+			c.add(path, entry.issue.DepsLine(), diagnose.MissingDep, fmt.Sprintf(
 				"dependency %q names no issue by id or by an alias only one issue has",
 				dep,
 			))
@@ -120,12 +120,12 @@ func (c *checker) checkRelated(entry parsedIssue, graph issue.DepGraph) {
 		id, isFound := graph.Resolve(related)
 		switch {
 		case !isFound:
-			c.add(path, entry.issue.RelatedLine(), CodeMissingRelated, fmt.Sprintf(
+			c.add(path, entry.issue.RelatedLine(), diagnose.MissingRelated, fmt.Sprintf(
 				"related %q names no issue by id or by an alias only one issue has",
 				related,
 			))
 		case id == entry.node.ID:
-			c.add(path, entry.issue.RelatedLine(), CodeField, fmt.Sprintf(
+			c.add(path, entry.issue.RelatedLine(), diagnose.Field, fmt.Sprintf(
 				"related %q names the issue itself",
 				related,
 			))
@@ -162,7 +162,7 @@ func (c *checker) checkCycles(entries []parsedIssue, graph issue.DepGraph) {
 	}
 	for _, cycle := range graph.Cycles() {
 		first := byID[cycle[0]]
-		c.add(first.node.Path, first.issue.DepsLine(), CodeCycle, fmt.Sprintf(
+		c.add(first.node.Path, first.issue.DepsLine(), diagnose.Cycle, fmt.Sprintf(
 			"dependency cycle: %s",
 			strings.Join(cycle, " -> "),
 		))
