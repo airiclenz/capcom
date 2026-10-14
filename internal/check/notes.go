@@ -2,12 +2,12 @@ package check
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -25,20 +25,23 @@ const (
 func (c *checker) notes() error {
 	parsed := map[string]knowledge.Note{}
 	fields := map[string][]diagnose.Finding{}
+	reader := nodestore.NoteReader()
+	// Only the reading's Field findings are check's own: its parse finding goes to addParseFailure,
+	// and loadTree reports the alias problems.
 	readAliases := func(path string) ([]string, error) {
 		data, isRead, err := c.readFile(path)
 		if !isRead {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
-		verdict := diagnose.NoteFile(c.store.Relative(path), tree.IDOf(filepath.Base(path)), data)
-		if !verdict.IsParsed() {
-			c.addParseFailure(path, verdict.Parse[0])
+		reading := reader.Decode(c.store.Relative(path), data)
+		if !reading.IsParsed() {
+			c.addParseFailure(path, reading.Parse[0])
 			return nil, nil
 		}
-		parsed[path] = verdict.Parsed
-		fields[path] = verdict.Fields
-		return verdict.Parsed.Aliases, nil
+		parsed[path] = reading.Node
+		fields[path] = reading.Fields
+		return reading.Aliases, nil
 	}
 	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
 	loaded, err := c.loadTree(c.store.KnowledgeDir(), "note", readAliases, aliasesLine)
@@ -137,7 +140,7 @@ func retiredSubtrees(nodes []tree.Node, parsed map[string]knowledge.Note) map[st
 }
 
 // checkNote checks one parsed Note: its fields, reporting fieldFindings, the Field findings of its
-// verdict, then, unless isRetired says it sits in a retired subtree, whether each Ref resolves.
+// Reading, then, unless isRetired says it sits in a retired subtree, whether each Ref resolves.
 func (c *checker) checkNote(
 	node tree.Node,
 	note knowledge.Note,

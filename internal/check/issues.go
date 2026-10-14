@@ -10,6 +10,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -24,7 +25,7 @@ type parsedIssue struct {
 	node     tree.Node
 	issue    issue.Issue
 	isParsed bool
-	// fields is the Field findings of the file's verdict.
+	// fields is the Field findings of the file's Reading.
 	fields []diagnose.Finding
 }
 
@@ -35,21 +36,23 @@ type parsedIssue struct {
 func (c *checker) issues() error {
 	parsed := map[string]issue.Issue{}
 	fields := map[string][]diagnose.Finding{}
+	reader := nodestore.IssueReader(c.store.Config)
+	// Only the reading's Field findings are check's own: its parse finding goes to addParseFailure,
+	// and loadTree reports the alias problems.
 	readAliases := func(path string) ([]string, error) {
 		data, isRead, err := c.readFile(path)
 		if !isRead {
 			return nil, err
 		}
 		c.checkConflictMarkers(path, data)
-		id := tree.IDOf(filepath.Base(path))
-		verdict := diagnose.IssueFile(c.store.Relative(path), id, data, c.store.Config)
-		if !verdict.IsParsed() {
-			c.addParseFailure(path, verdict.Parse[0])
+		reading := reader.Decode(c.store.Relative(path), data)
+		if !reading.IsParsed() {
+			c.addParseFailure(path, reading.Parse[0])
 			return nil, nil
 		}
-		parsed[path] = verdict.Parsed
-		fields[path] = verdict.Fields
-		return verdict.Parsed.Aliases, nil
+		parsed[path] = reading.Node
+		fields[path] = reading.Fields
+		return reading.Aliases, nil
 	}
 	aliasesLine := func(path string) int { return parsed[path].AliasesLine() }
 	loaded, err := c.loadTree(c.store.IssuesDir(), "issue", readAliases, aliasesLine)
@@ -94,7 +97,7 @@ func graphNodes(entries []parsedIssue) []issue.Node {
 	return nodes
 }
 
-// checkIssue checks one parsed issue: its fields against the config, as its verdict found them, its
+// checkIssue checks one parsed issue: its fields against the config, as its Reading found them, its
 // plan, its deps and its related links, and that its related key, however it is set, sits in a
 // store declaring format 2.
 func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {

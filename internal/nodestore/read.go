@@ -6,6 +6,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
+	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -17,14 +18,18 @@ import (
 var errUnparsed = errors.New("node file does not parse")
 
 // Reader is the Kind reader of one Tree kind: the one place a node file of the kind is read and
-// decoded. It is built without a store, from what builds the kind's Descriptor, so every reader of
-// node files judges a file exactly as the Kind does.
+// decoded. It is built without a store, from the kind's Descriptor, so every reader of node files
+// judges a file exactly as the Kind does.
 type Reader[T any] struct {
-	// verdict decodes data, the node file at relPath whose id is id, as the kind's Descriptor
-	// describes it.
-	verdict func(relPath, id string, data []byte) diagnose.Verdict[T]
+	// descriptor describes the kind: the noun its alias findings name a node with, and how a parsed
+	// node is validated.
+	descriptor Descriptor[T]
+	// parse parses data, the node file at relPath.
+	parse func(relPath string, data []byte) (T, error)
 	// aliases returns the Aliases a parsed node records.
 	aliases func(node T) []string
+	// aliasesLine returns the 1-based line of a parsed node's aliases key, or 0 when it has none.
+	aliasesLine func(node T) int
 }
 
 // Reading is what a Reader finds in one node file: the node, the file's etag and Aliases, and
@@ -77,18 +82,20 @@ func (r Reading[T]) IsUsable() bool {
 // cfg declares the statuses and types a usable issue may carry.
 func IssueReader(cfg config.Config) Reader[issue.Issue] {
 	return Reader[issue.Issue]{
-		verdict: func(relPath, id string, data []byte) diagnose.Verdict[issue.Issue] {
-			return diagnose.IssueFile(relPath, id, data, cfg)
-		},
-		aliases: func(node issue.Issue) []string { return node.Aliases },
+		descriptor:  IssueDescriptor(cfg),
+		parse:       issue.Parse,
+		aliases:     func(node issue.Issue) []string { return node.Aliases },
+		aliasesLine: issue.Issue.AliasesLine,
 	}
 }
 
 // NoteReader is the Kind reader of the Knowledge tree, whose files NoteDescriptor describes.
 func NoteReader() Reader[knowledge.Note] {
 	return Reader[knowledge.Note]{
-		verdict: diagnose.NoteFile,
-		aliases: func(node knowledge.Note) []string { return node.Aliases },
+		descriptor:  NoteDescriptor(),
+		parse:       knowledge.Parse,
+		aliases:     func(node knowledge.Note) []string { return node.Aliases },
+		aliasesLine: knowledge.Note.AliasesLine,
 	}
 }
 
@@ -111,21 +118,60 @@ func (r Reader[T]) Read(path, relPath string) (Reading[T], error) {
 }
 
 // Decode decodes data, the content already read of the node file relPath names relative to the
-// working tree root with forward slashes; the node's id is the file's name.
+// working tree root with forward slashes; the node's id is the file's name. A file that does not
+// parse has the zero node and only its Parse finding, placed at the path and line the parser
+// blamed, or at relPath with no line when it blamed none. One that parses has a Field finding for
+// every value the Descriptor's Validate rejects, and the findings of diagnose.AliasFindings for
+// its Aliases.
 func (r Reader[T]) Decode(relPath string, data []byte) Reading[T] {
-	verdict := r.verdict(relPath, tree.IDOf(relPath), data)
-	aliases, _ := tree.ReadAliases(data, func([]byte) ([]string, error) {
-		if !verdict.IsParsed() {
+	reading := Reading[T]{ETag: nodefile.ETag(data)}
+	parsed, err := r.parse(relPath, data)
+	if err != nil {
+		reading.Parse = []diagnose.Finding{parseFinding(relPath, err)}
+	} else {
+		reading.Node = parsed
+		reading.Fields = fieldFindings(r.descriptor.Validate(relPath, parsed))
+		reading.AliasFindings = diagnose.AliasFindings(
+			relPath,
+			r.descriptor.Noun,
+			tree.IDOf(relPath),
+			r.aliases(parsed),
+			r.aliasesLine(parsed),
+		)
+	}
+	reading.Aliases, _ = tree.ReadAliases(data, func([]byte) ([]string, error) {
+		if err != nil {
 			return nil, errUnparsed
 		}
-		return r.aliases(verdict.Parsed), nil
+		return r.aliases(parsed), nil
 	})
-	return Reading[T]{
-		Node:          verdict.Parsed,
-		ETag:          nodefile.ETag(data),
-		Aliases:       aliases,
-		Parse:         verdict.Parse,
-		Fields:        verdict.Fields,
-		AliasFindings: verdict.Aliases,
+	return reading
+}
+
+// parseFinding is the Frontmatter finding of err, the failure to parse the file at relPath.
+func parseFinding(relPath string, err error) diagnose.Finding {
+	var failure *frontmatter.Error
+	if errors.As(err, &failure) {
+		return diagnose.Finding{
+			Code:    diagnose.Frontmatter,
+			Path:    failure.Path,
+			Line:    failure.Line,
+			Message: failure.Message,
+		}
 	}
+	return diagnose.Finding{Code: diagnose.Frontmatter, Path: relPath, Message: err.Error()}
+}
+
+// fieldFindings turns the problems a validator reports into Field findings, in order.
+func fieldFindings(problems []*frontmatter.Error) []diagnose.Finding {
+	var findings []diagnose.Finding
+	for _, problem := range problems {
+		findings = append(findings, diagnose.Finding{
+			Code:    diagnose.Field,
+			Path:    problem.Path,
+			Line:    problem.Line,
+			Message: problem.Message,
+		})
+	}
+	return findings
 }

@@ -128,7 +128,13 @@ internal/index/notes.go — parseNote, insertNote; internal/index/agreement_test
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`; `grep -rn 'func parseIssue\|func parseNote\|func aliasParser' internal/index` prints nothing; `grep -rn 'issue\.Parse\|knowledge\.Parse\|diagnose\.IssueFile\|diagnose\.NoteFile\|tree\.ReadAliases' internal/index --include='*.go' | grep -v _test` prints nothing
 **Commit:** `refactor(index): read node files through the Kind reader`
 
-## P1.4 check reads through the Kind reader; diagnose's file verdict moves into nodestore
+## P1.4 check reads through the Kind reader; diagnose's file verdict moves into nodestore — ✅ DONE (2026-10-14)
+
+NOTES (2026-10-14): the Reader is now built from the kind's Descriptor (its Noun names a node in the alias findings, its Validate gives the Field findings) plus the kind's parse and aliases/aliasesLine accessors; `IssueFile`/`NoteFile`/`Verdict` are folded into `Reader.Decode` rather than kept as separate functions in read.go, with `parseFinding`/`fieldFindings` moved in unexported.
+
+NOTES (2026-10-14): `internal/check/problem.go` needed no change (loadTree, readFile and kindCode already fit); check's readAliases closures return the Reading's Aliases, which for a parsed file are the parsed node's.
+
+NOTES (2026-10-14): ported verdict tests are named `TestIssueReader_Decode_SortsItsFindings`/`TestNoteReader_Decode_SortsItsFindings` with helper `assertReadingFindings`; the "verdict" wording in check's parsedIssue/checkIssue/checkNote comments now says "Reading".
 
 **What:**
 **Goal:** `internal/check` reads node files only through the Kind reader; `diagnose.IssueFile`, `NoteFile` and `Verdict` are gone, their logic living in the reader; check output is unchanged.
