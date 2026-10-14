@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-14
+
 - Reading an issue or Note file no longer follows a symlink, or hangs on a named pipe, that replaced the file between capcom's check of it and its open: such a file is refused as not a regular file, like one that was a symlink or pipe from the start.
 - A symlinked `AGENTS.md` keeps its link only within the working tree: `capcom agents` and the automatic Managed-block refresh write the block to the file the link points to only when that file lies inside the working tree (`AGENTS.md -> CLAUDE.md` keeps working). An `AGENTS.md` that links outside it (for example to `~/.bashrc`) is never read or written: `capcom agents` fails with `AGENTS.md: links to <target>, outside the working tree; the capcom block is not read or written`, and `capcom check`, `capcom agents --check` and Note writes treat it as having no block. This supersedes the earlier entry that kept a symlinked `AGENTS.md` a link with no such limit.
 - `AGENTS.md` is now read through the same guarded reader as the store's files: a named pipe, a directory, or a file larger than 1 MiB in its place (or behind an in-tree link) no longer hangs or exhausts memory in `capcom prime`, `check`, `agents` and Note writes. `capcom agents` and `capcom agents --check` fail with `AGENTS.md: not a regular file` or `AGENTS.md: file is larger than 1 MiB`, `capcom check` reports it as an `agents-block` problem, `capcom prime` counts it in its check line, and a Note write warns that the block was not refreshed. A missing `AGENTS.md`, or one whose link dangles, still reads as having no block.
