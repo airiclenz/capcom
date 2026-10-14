@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review — capcom</title>
+    <script src="https://cdn.tailwindcss.com/3.4.5"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose", flowchart: { htmlLabels: true } });
+    </script>
+    <style>
+      .seam { border-style: dashed; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+      .lbl { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; }
+      .diagram { min-height: 300px; }
+      pre.mermaid { background: transparent; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+
+      <header class="space-y-4">
+        <p class="lbl text-slate-500">Architecture review · 2026-10-14 · v0.6.0 (ca35b73)</p>
+        <h1 class="font-serif text-4xl">capcom</h1>
+        <div class="flex flex-wrap gap-4 text-sm text-slate-600">
+          <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 border-2 border-slate-500 bg-white"></span>module</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-dashed border-slate-500"></span>seam</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-6 border-t-2 border-red-600"></span>leakage / duplicated rule</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-5 h-4 deep"></span>deep module</span>
+        </div>
+        <nav class="text-sm text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
+          <a class="underline" href="#c1">1 Claims</a>
+          <a class="underline" href="#c2">2 Validation</a>
+          <a class="underline" href="#c3">3 Ref lists</a>
+          <a class="underline" href="#c4">4 Reading nodes</a>
+          <a class="underline" href="#c5">5 Kind descriptor</a>
+          <a class="underline" href="#c6">6 Node patch</a>
+          <a class="underline" href="#c7">7 Write effects</a>
+          <a class="underline" href="#c8">8 Issue graph facts</a>
+          <a class="underline" href="#c9">9 tree behind nodestore</a>
+          <a class="underline" href="#c10">10 Opening the store</a>
+          <a class="underline" href="#small">Small fixes</a>
+          <a class="underline" href="#defects">Defect leads</a>
+          <a class="underline" href="#top">Top recommendation</a>
+        </nav>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+
+        <!-- 1 -->
+        <article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">1 · One owner for Tree membership and resolution</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-1">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/tree/claims.go · tree.go · resolve.go</li>
+            <li>internal/index/walk.go · refresh.go · duplicates.go · query.go</li>
+            <li>internal/nodestore/refs.go</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before</p>
+              <pre class="mermaid">
+flowchart TB
+  T["tree.Load / Claimant / Resolve<br/>repeatedIDs · orphanClaim · unparsedClaim"]
+  I["index (Go)<br/>leaveOutRepeatedIDSubtrees · orphanDirectoryClaims"]
+  Q["index (SQL)<br/>excludeDuplicates · resolveID · duplicateClaim"]
+  R["nodestore/refs.go<br/>parsed aliases, else rawfm"]
+  C[check] --> T
+  N[nodestore] --> T
+  T -. "'the way tree.Load does'" .-> I
+  T -. "'as tree.Resolve counts'" .-> Q
+  T -. third alias fallback .-> R
+  linkStyle 2,3,4 stroke:#dc2626,stroke-width:2px
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <pre class="mermaid">
+flowchart TB
+  M["Tree membership module<br/>ids · Aliases · orphans · repeated ids · unparsed files · resolution"]
+  C[check] --> M
+  N[nodestore] --> M
+  X["index: cache + queries<br/>stores what M decided"] --> M
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a
+  class M deep
+              </pre>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> The membership rules (who holds an id or Alias, repeated-id subtrees, orphans, prefix resolution) exist in tree, again in index Go, again in index SQL; comments admit the copying, no test checks agreement, and alias reading has already drifted.</p>
+          <p><strong>Solution.</strong> One module decides membership and resolution; the index persists its verdicts and answers queries over them.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Locality: claim rules in one module</li>
+            <li>Edge cases tested once</li>
+            <li>Index tests shrink to persistence</li>
+            <li>Drift between copies becomes impossible</li>
+          </ul>
+          <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2">Touches ADR-0001 (directory tree is the hierarchy) and ADR-0002 (ids and Aliases) — consistent with both; it changes who implements them, not what they say.</div>
+        </article>
+
+        <!-- 2 -->
+        <article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">2 · One answer to "is this Tree valid"</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-1">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/diagnose/files.go</li>
+            <li>internal/check/problem.go · issues.go · notes.go</li>
+            <li>internal/index/problems.go · index.go:73–104</li>
+            <li>internal/briefing/briefing.go</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before</p>
+              <pre class="mermaid">
+flowchart LR
+  D["diagnose<br/>Finding / Kind<br/>(ParseIssue, ValidateIssue: 1:1 wraps)"]
+  IX["index Warnings<br/>(re-exports diagnose)"]
+  CK["check Problems<br/>check.Code"]
+  D --> IX
+  D -- "kindCode translate" --> CK
+  CK -- "Finding → issue.Error<br/>→ addParseFailure" --> CK
+  P[prime / briefing] --> IX
+  P --> CK
+  P -. "drops index warnings<br/>to avoid double count" .-> IX
+  linkStyle 1,2,5 stroke:#dc2626,stroke-width:2px
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <pre class="mermaid">
+flowchart TB
+  V["Validation module<br/>one finding type · one code set<br/>per-file verdicts + whole-Tree rules"]
+  IX[index] -- "per-file verdicts" --> V
+  CK[check] -- "all rules" --> V
+  P[prime] --> CK
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a
+  class V deep
+              </pre>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> Two vocabularies (index Warnings, check Problems) cover overlapping rules; translation, round-tripping and a deliberate discard in prime keep them in step, and diagnose is shallow.</p>
+          <p><strong>Solution.</strong> One validation module with one finding type; the index stores per-file verdicts, check layers whole-Tree rules (deps, cycles, plans, refs) on top.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Each rule asserted once</li>
+            <li>Delete diagnose's 1:1 wrappers</li>
+            <li>Delete kindCode translation</li>
+            <li>prime stops de-duplicating by hand</li>
+          </ul>
+          <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2">Keep: check reads files, not the index — documented and deliberate. This candidate shares rules, not the read path.</div>
+        </article>
+
+        <!-- 3 -->
+        <article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">3 · One module for reference-list edits</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 text-xs px-2 py-1">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/cli/dep.go · related.go · know_update.go</li>
+            <li>internal/cli/dep_graph.go · create.go (resolveDeps) · show.go (resolveFailure)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before — rule × command</p>
+              <table class="w-full text-xs border-collapse">
+                <thead><tr class="lbl text-slate-500"><th class="text-left py-1">rule</th><th>dep</th><th>related</th><th>know update</th></tr></thead>
+                <tbody class="text-center">
+                  <tr class="border-t"><td class="text-left py-2">self-link refusal</td><td>dep.go:74</td><td>related.go:76</td><td>know_update.go:177</td></tr>
+                  <tr class="border-t"><td class="text-left py-2">already present</td><td>✓</td><td>✓</td><td>—</td></tr>
+                  <tr class="border-t"><td class="text-left py-2">remove by text or id</td><td colspan="2" class="text-red-700">isRemovedByText</td><td class="text-red-700">removedSuccessors + isResolveMiss</td></tr>
+                  <tr class="border-t"><td class="text-left py-2">ErrDuplicate = miss?</td><td colspan="2">no (resolveFailure)</td><td class="text-red-700">yes</td></tr>
+                </tbody>
+              </table>
+              <p class="text-xs text-slate-500 mt-3">5 mirrored runCLI test pairs in dep_test.go / related_test.go.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <pre class="mermaid">
+flowchart TB
+  dep[dep add/rm] --> R
+  rel[related add/rm] --> R
+  ku["know update --superseded-by"] --> R
+  cr["create --dep"] --> R
+  R["Reference list module<br/>add / remove 'node named X'<br/>→ canonical id · entries to drop · refusal"]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a
+  class R deep
+              </pre>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> deps, related and superseded-by edits are hand-written per command in cli, and the copies already disagree on removal and on duplicate-prefix handling.</p>
+          <p><strong>Solution.</strong> A domain module takes the Tree or dep graph plus the argument and returns the canonical id, the entries to drop, or a refusal (self-link, cycle, not found); cli maps flags only.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Leverage: one interface, four commands</li>
+            <li>10 runCLI tests → one table test</li>
+            <li>Removal rules stop diverging</li>
+          </ul>
+        </article>
+
+        <!-- 4 -->
+        <article id="c4" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">4 · nodestore.Kind owns reading, not just writing</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-1">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/nodestore/kind.go:146 (ReadAliases) · load.go</li>
+            <li>internal/agents/block.go:143–147 (topNotes)</li>
+            <li>internal/check/issues.go:35 · notes.go:26</li>
+            <li>internal/cli/show.go:109,134 · know_show.go:76–101 · know_verify.go:72 · close.go:228 · update.go:190</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before</p>
+              <div class="space-y-2 text-xs">
+                <div class="rounded border-2 border-slate-800 p-2"><span class="lbl">Kind — write side</span><div class="text-slate-500">Create · Edit · Move · Remove · Format</div></div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="rounded border border-red-400 p-2"><span class="lbl">Load tree + parse ×4</span><div class="text-slate-500">ReadRegularFile → skip refused → Parse → side map<br/>nodestore · agents · check×2</div></div>
+                  <div class="rounded border border-red-400 p-2"><span class="lbl">Read one node ×5</span><div class="text-slate-500">read → ETag → Parse → frontmatterFailure<br/>show · know show · know verify · close · update</div></div>
+                </div>
+                <div class="rounded border border-red-400 p-2"><span class="lbl">prime walks Knowledge 3×</span><div class="text-slate-500">index refresh · check.notes · agents.Sync</div></div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <div class="rounded-lg deep p-4 space-y-3 text-xs">
+                <span class="lbl">Kind — whole node lifecycle</span>
+                <div class="grid grid-cols-2 gap-2 opacity-80">
+                  <div class="rounded border border-slate-500 p-2">read one node<br/><span class="text-slate-400">node · etag · typed failure</span></div>
+                  <div class="rounded border border-slate-500 p-2">loaded Tree<br/><span class="text-slate-400">parsed nodes · refused/unparsed hook</span></div>
+                  <div class="rounded border border-slate-500 p-2 col-span-2">Create · Edit · Move · Remove · Format</div>
+                </div>
+              </div>
+              <div class="flex gap-2 mt-3 text-xs flex-wrap">
+                <span class="rounded border px-2 py-1">cli verbs</span><span class="rounded border px-2 py-1">check</span><span class="rounded border px-2 py-1">agents</span>
+              </div>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> Writes go through one deep module; reads don't — four adapters rebuild "load a Tree with parsed nodes" and five cli verbs rebuild "read one node with its etag", so the <code>--if-match</code> rule is enforced per call site.</p>
+          <p><strong>Solution.</strong> Kind also reads one node and loads a parsed Tree; a command can hand one loaded Tree to check, agents and nodestore.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Etag/parse coupling tested once</li>
+            <li>Fewer walks per command</li>
+            <li>Fewer swappable race-window hooks</li>
+          </ul>
+        </article>
+
+        <!-- 5 -->
+        <article id="c5" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">5 · One descriptor per node kind: keys, formats, ref fields, noun</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-1">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/nodestore/codec.go (requiredFormat, refs tables, Noun, nounPhrase)</li>
+            <li>internal/check/issues.go:112 · notes.go:100–114</li>
+            <li>internal/config/format.go · internal/issue/file.go · internal/knowledge/note.go</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before — adding one key</p>
+              <pre class="mermaid">
+flowchart LR
+  K((new key)) --> S["issue/knowledge<br/>field table"]
+  K --> CF["config/format.go<br/>bump format"]
+  K --> NC["nodestore codec<br/>requiredFormat · refs"]
+  K --> CH["check<br/>format-too-old · ref checks"]
+  linkStyle 0,1,2,3 stroke:#dc2626,stroke-width:2px
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <pre class="mermaid">
+flowchart LR
+  K((new key)) --> D["Kind descriptor<br/>key · format needed · ref? · noun"]
+  NC[nodestore writer] --> D
+  CH[check] --> D
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a
+  class D deep
+              </pre>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> ADR-0009 makes every new key raise the format, and that fact plus each key's ref-ness is coded separately in codec and check; the kind's noun is written three times.</p>
+          <p><strong>Solution.</strong> Each kind declares its keys, the format each needs, its ref fields and its noun once; writer and check both read it.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Locality: new key = one edit</li>
+            <li>One table test per kind</li>
+            <li>check stops re-testing per key</li>
+          </ul>
+          <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2">Implements ADR-0009 more faithfully; does not contradict it.</div>
+        </article>
+
+        <!-- 6 -->
+        <article id="c6" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">6 · Node patch and creation defaults leave cli</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-1">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/cli/create.go (newIssue, defaultType) · update.go:100–141 (applyUpdate)</li>
+            <li>internal/cli/know_update.go:276–320 (applyNoteUpdate)</li>
+            <li>internal/edit/edit.go · internal/issue/mutate.go</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before — mass</p>
+              <div class="flex items-end gap-6 h-56 text-xs">
+                <div class="flex flex-col items-center gap-1"><div class="w-16 h-36 border-2 border-slate-500 bg-slate-100"></div><div class="w-16 h-40 border-2 border-slate-500 bg-slate-200"></div><span class="lbl">edit</span></div>
+                <div class="flex flex-col items-center gap-1"><div class="w-16 h-24 border-2 border-red-500 bg-red-50"></div><span class="lbl text-center">applyUpdate<br/>(cobra Changed)</span></div>
+                <div class="flex flex-col items-center gap-1"><div class="w-16 h-24 border-2 border-red-500 bg-red-50"></div><span class="lbl text-center">applyNote<br/>Update</span></div>
+              </div>
+              <p class="text-xs text-slate-500 mt-2">edit: interface ≈ implementation. Same title → labels → body sequence twice, keyed off cobra flags.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After — mass</p>
+              <div class="flex items-end gap-6 h-56 text-xs">
+                <div class="flex flex-col items-center gap-1"><div class="w-24 h-8 border-2 border-slate-900 bg-slate-100"></div><div class="w-24 h-44 deep"></div><span class="lbl text-center">Node patch<br/>(issue · knowledge)</span></div>
+                <div class="flex flex-col items-center gap-1"><div class="w-14 h-10 border-2 border-slate-400"></div><span class="lbl text-center">cli: flags<br/>→ patch</span></div>
+              </div>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> Default status, closed-category refusal, default type and the field-patch order live in cli and need a cobra.Command; the two patch functions already disagree on error typing.</p>
+          <p><strong>Solution.</strong> issue and knowledge own creation defaults and a "set of optional changes" patch; cli only translates flags into it.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Interface shrinks; edit absorbed</li>
+            <li>~25 runCLI tests → unit tests</li>
+            <li>One error type per failure</li>
+          </ul>
+        </article>
+
+        <!-- 7 -->
+        <article id="c7" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">7 · Write results carry their own Effects</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-1">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/cli/node_verbs.go (afterWrite) · node_edit.go</li>
+            <li>internal/cli/related.go:99–100,184 · know_update.go:253 · know_add.go:127</li>
+            <li>internal/cli/log.go:45 · dep.go:109,153 · related.go:145 · reopen.go:68 · update.go:77</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before — who renders written.Effects</p>
+              <div class="space-y-2 text-xs">
+                <div class="h-10 border-l-4 border-emerald-600 bg-emerald-50 px-3 flex items-center">afterWrite (kind-level): create · mv · rm</div>
+                <div class="h-10 border-l-4 border-amber-500 bg-amber-50 px-3 flex items-center">by hand: related · know update · know add</div>
+                <div class="h-16 border-l-4 border-red-600 bg-red-50 px-3 flex items-center">dropped (6 sites): log · dep add · dep rm · related rm · reopen · update</div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <div class="space-y-2 text-xs">
+                <div class="h-28 deep rounded px-3 flex items-center">createNode / editNode → finished write result<br/>(format raise warning · AGENTS.md sync, per kind)</div>
+                <div class="h-10 border-l-4 border-slate-400 px-3 flex items-center">every handler: render result</div>
+              </div>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> Each handler must know which format raises or AGENTS.md syncs its change can trigger; six drop them.</p>
+          <p><strong>Solution.</strong> The write module applies per-kind Effects and returns a finished result.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>One test per Effect per kind</li>
+            <li>New verbs can't forget Effects</li>
+          </ul>
+        </article>
+
+        <!-- 8 -->
+        <article id="c8" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">8 · Issue graph facts in one place</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-1">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/cli/show.go (loadShowGraph, showLinks, issueFromFile:133) · know_show.go:100</li>
+            <li>internal/cli/issue_render.go:105 (childProgress) · close.go (closeResult, issueNodes)</li>
+            <li>internal/briefing (ReadyList) · internal/index/refresh.go:359</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before</p>
+              <pre class="mermaid">
+flowchart TB
+  S["show: own Ready map · DepGraph · Related merge"]
+  CL["close: Newly Ready, incremental"]
+  B["briefing.ReadyList"]
+  IFF["cli issueFromFile"] -. copy of .-> IE["index Issue→Entry"]
+  S -.-> B
+  CL -.-> B
+  linkStyle 0,1,2 stroke:#dc2626,stroke-width:2px
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a
+  class B deep
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <pre class="mermaid">
+flowchart TB
+  G["Issue graph facts<br/>facts about these Issues · what closing these makes Ready"]
+  S[show] --> G
+  CL[close] --> G
+  R[ready / prime] --> G
+  G --> E["index: Issue→Entry (one projection)"]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a
+  class G deep
+              </pre>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> Ready, Newly Ready and link facts are assembled separately by show, close and briefing; the file→Entry projection is copied in cli.</p>
+          <p><strong>Solution.</strong> briefing (or index) answers both questions; the projection lives next to the index's own.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Close / show tests become unit tests</li>
+            <li>One Ready verdict</li>
+          </ul>
+        </article>
+
+        <!-- 9 -->
+        <article id="c9" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">9 · Narrow tree's interface behind nodestore</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 text-xs px-2 py-1">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">in-process</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/tree/move.go · plan.go · errors.go</li>
+            <li>internal/nodestore/move.go · remove.go · kind.go:137</li>
+            <li>agents/block.go:147 · diagnose (ReadRefusal) · nodestore (isRefusedRead)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before</p>
+              <pre class="mermaid">
+flowchart TB
+  NS[nodestore.Move / Remove] -- "returns tree.Errors" --> CLI[cli]
+  NS --> TP["tree Plan / Move / Removal / Rewrite<br/>Destination (dup) · Move.Apply (tests only)"]
+  TP -- "re-exports ErrNotRegular, ErrTooLarge" --> NF[nodefile]
+  X["26 non-test importers of tree"] --> TP
+  linkStyle 0,2,3 stroke:#dc2626,stroke-width:2px
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <pre class="mermaid">
+flowchart TB
+  CLI[cli] --> NS
+  NS["nodestore<br/>Move · Remove · own errors<br/>(Plan/Rewrite internal)"]
+  NS --> T["tree: Walk · Load · Resolve · ids"]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a
+  class NS deep
+              </pre>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> Move/remove planning leaks across the tree↔nodestore seam: tree's errors and types surface through nodestore, Destination is duplicated, and the refused-read check is written three times.</p>
+          <p><strong>Solution.</strong> Planning is reachable only through nodestore; tree's interface narrows to Walk/Load/Resolve/ids.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Delete Move.Apply pass-through</li>
+            <li>tree/move_test.go folds into nodestore</li>
+            <li>Callers see one error vocabulary</li>
+          </ul>
+          <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2">ADR-0001 (directory tree is the hierarchy) stands; this moves the planning, not the model.</div>
+        </article>
+
+        <!-- 10 -->
+        <article id="c10" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">10 · One way to open the store, index and locks</h2>
+            <span class="rounded-full bg-slate-200 text-slate-700 text-xs px-2 py-1">Speculative</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-2 py-1">local-substitutable</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-700 leading-6">
+            <li>internal/cli/root.go:48–51,155 (prepareIndex) · check.go:64</li>
+            <li>internal/briefing/briefing.go:17–24,97,122 (Compose)</li>
+          </ul>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">Before — three opening sequences</p>
+              <div class="space-y-2 text-xs">
+                <div class="h-12 border-l-4 border-slate-500 bg-slate-50 px-3 flex items-center">root.go: store + index per cobra annotation</div>
+                <div class="h-12 border-l-4 border-red-600 bg-red-50 px-3 flex items-center">check: store again · ConfigProblems</div>
+                <div class="h-12 border-l-4 border-red-600 bg-red-50 px-3 flex items-center">briefing.Compose(cwd): store · index · locks · swappable globals</div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-3 diagram">
+              <p class="lbl text-slate-500 mb-2">After</p>
+              <div class="space-y-2 text-xs">
+                <div class="h-24 deep rounded px-3 flex items-center">Open: store · index · lock handle · failure rules (incl. prime-only format warning)</div>
+                <div class="h-12 border-l-4 border-slate-400 px-3 flex items-center">briefing / check receive open sources</div>
+              </div>
+            </div>
+          </div>
+          <p><strong>Problem.</strong> Three opening sequences with their own failure rules; briefing tests swap package globals because Compose takes a cwd.</p>
+          <p><strong>Solution.</strong> One opening module; briefing and check receive what's already open.</p>
+          <ul class="list-disc pl-6 text-sm space-y-1">
+            <li>Failure paths driven via interface</li>
+            <li>Delete swappable globals</li>
+          </ul>
+          <div class="rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-sm px-3 py-2">Touches ADR-0007 (real temp files, SQLite, git in tests) and ADR-0009 — compatible with both.</div>
+        </article>
+
+        <!-- small -->
+        <article id="small" class="rounded-xl border border-slate-200 bg-white p-6 space-y-4 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-serif text-2xl mr-2">Smaller locality fixes</h2>
+            <span class="rounded-full bg-slate-200 text-slate-700 text-xs px-2 py-1">Speculative</span>
+          </div>
+          <ul class="text-sm space-y-2">
+            <li><strong>One fence scanner.</strong> <span class="font-mono">rawfm/conflict.go</span> (bodyStartIndex), <span class="font-mono">rawfm/aliases.go</span> (frontmatterEndIndex), <span class="font-mono">frontmatter.Split</span> each find the frontmatter end. rawfm also carries Log-only code-fence tracking.</li>
+            <li><strong>Worktree-relative paths.</strong> Written 5×: store.go:278, check.go:78, nodestore/kind.go:221, index/walk.go:284, cli/issue_render.go:239. Store owns it.</li>
+            <li><strong>index Warning re-exports.</strong> <span class="font-mono">index/index.go:73–104</span> — no non-test callers; fails the deletion test.</li>
+            <li><strong>Visible-subtree outline.</strong> <span class="font-mono">cli/list.go</span>, <span class="font-mono">know.go</span>, <span class="font-mono">know_tree.go:121–127</span> — grouping and hiding per kind; one module with a per-kind visibility rule.</li>
+            <li><strong>Multi-argument results.</strong> <span class="font-mono">cli/show.go:62–126</span>, <span class="font-mono">close.go:100–153</span> — same first-failure / separator / KV record logic. Two callers; wait for a third.</li>
+          </ul>
+        </article>
+
+        <!-- rejected -->
+        <article class="rounded-xl border border-slate-200 bg-white p-6 space-y-3 shadow-sm">
+          <h2 class="font-serif text-2xl">Looked shallow, earns its keep</h2>
+          <ul class="text-sm space-y-1 list-disc pl-6">
+            <li><span class="font-mono">nodestore.Kind</span> — nine-step ordered Edit contract; deletion spreads it into every verb.</li>
+            <li><span class="font-mono">nodefile</span> — mostly OS build-tag variants; <span class="font-mono">atomic.go</span> is deep.</li>
+            <li><span class="font-mono">frontmatter</span> — the one format engine both kinds share.</li>
+            <li><span class="font-mono">rawfm</span> as a tolerant reader — real separate responsibility (only the fence scan duplicates).</li>
+            <li>Merging <span class="font-mono">issue</span> and <span class="font-mono">knowledge</span> — remaining differences are real (ADR-0003, ADR-0010).</li>
+            <li>store / lock / gitx — <span class="font-mono">lock.ForWorktree</span> already sequences; writes skip the lock by design (ADR-0005).</li>
+            <li><span class="font-mono">hooks</span> (two adapters: Claude, Codex), <span class="font-mono">elsewhere</span>, <span class="font-mono">agents.Sync</span>, cli <span class="font-mono">output</span> Renderer — real seams or deep.</li>
+            <li>Generic <span class="font-mono">nodeVerbs[T]</span> for mv/rm — already merged.</li>
+          </ul>
+        </article>
+
+        <!-- defects -->
+        <article id="defects" class="rounded-xl border border-red-200 bg-red-50 p-6 space-y-3">
+          <h2 class="font-serif text-2xl text-red-900">Defect leads (unverified — run <span class="font-mono">/code-audit</span>)</h2>
+          <ul class="text-sm space-y-1 list-disc pl-6 text-red-900">
+            <li>Orphan-file Aliases read differently: index uses <span class="font-mono">rawfm.Aliases</span>, tree's <span class="font-mono">orphanClaim</span> only parses.</li>
+            <li><span class="font-mono">isResolveMiss</span> treats <span class="font-mono">tree.ErrDuplicate</span> as a miss; <span class="font-mono">resolveFailure</span> (show.go:214) does not.</li>
+            <li>Six write sites drop <span class="font-mono">written.Effects</span> — possible missing format-raise warnings.</li>
+            <li><span class="font-mono">update</span> wraps a ReplaceBody failure as invalid (update.go:131); <span class="font-mono">know update</span> returns it raw.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="top" class="rounded-2xl deep p-8 space-y-3">
+        <p class="lbl text-slate-400">Top recommendation</p>
+        <h2 class="font-serif text-3xl"><a class="underline decoration-emerald-400" href="#c1">1 · One owner for Tree membership and resolution</a></h2>
+        <p class="text-slate-300">The same rules are implemented three times (tree, index Go, index SQL), the copies have already drifted, and every other candidate that reads a Tree builds on them — fix it first.</p>
+      </section>
+    </main>
+  </body>
+</html>
