@@ -375,3 +375,28 @@ func TestAgents_GuideLinkedOutsideTheTree_IsSkippedAndLeftUntouched(t *testing.T
 		t.Errorf("outside file = %q, %v; want it untouched", content, readErr)
 	}
 }
+
+func TestAgents_TwoGuidesSharingAFile_ReportOneAddedLine(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("symlink tests do not run as root")
+	}
+	root := newKnowStore(t)
+	writeAgentsGuide(t, root, "# Guide\n")
+	writeGuideFile(t, root, "CLAUDE.md", "# Claude\n")
+	if err := os.Symlink("CLAUDE.md", filepath.Join(root, "GEMINI.md")); err != nil {
+		t.Skipf("Symlink: %v", err)
+	}
+
+	stdout := mustRun(t, root, "agents")
+
+	want := "wrote the capcom block to AGENTS.md\nadded @AGENTS.md to CLAUDE.md\n"
+	if stdout != want {
+		t.Errorf("agents = %q; want %q", stdout, want)
+	}
+	if got := readGuideFile(t, root, "CLAUDE.md"); got != "# Claude\n\n@AGENTS.md\n" {
+		t.Errorf("CLAUDE.md = %q; want one import line", got)
+	}
+}

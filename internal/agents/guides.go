@@ -70,7 +70,8 @@ type blockHome struct {
 // white space trimmed, is `@<rel>` or `@./<rel>`, <rel> being the root AGENTS.md relative to the
 // directory of the file the guide resolves to, in slash form. ModeWrite appends `@<rel>` to each
 // guide that does not reach it, after a blank line and in the file's line ending, keeping its
-// permissions; no other mode writes. Guides sharing one resolved file are read, and written, once.
+// permissions; no other mode writes. Guides sharing one resolved file are read, and written, once:
+// the first name the import line was appended through is GuideImported, the later ones GuideReaches.
 //
 // Guides returns nil, nil when AGENTS.md carries no block: when it is missing, links outside the
 // working tree, cannot be read or has markers that cannot be told apart, which the block inspection
@@ -99,6 +100,9 @@ func Guides(worktreeRoot string, names []string, mode Mode) ([]Guide, error) {
 				return nil, err
 			}
 			foundByTarget[guide.path] = found
+		} else if found.State == GuideImported {
+			// The import line is already in the shared file: this name reaches the block through it.
+			found.State = GuideReaches
 		}
 		found.Path = slashName
 		guides = append(guides, found)

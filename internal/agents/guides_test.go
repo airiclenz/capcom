@@ -249,7 +249,7 @@ func TestGuides_TwoGuidesSharingAFile_ImportOnce(t *testing.T) {
 
 	want := []Guide{
 		{Path: "CLAUDE.md", State: GuideImported, ImportLine: "@AGENTS.md"},
-		{Path: "GEMINI.md", State: GuideImported, ImportLine: "@AGENTS.md"},
+		{Path: "GEMINI.md", State: GuideReaches, ImportLine: "@AGENTS.md"},
 	}
 	if err != nil || len(guides) != len(want) || guides[0] != want[0] || guides[1] != want[1] {
 		t.Errorf("Guides = %+v, %v; want %+v", guides, err, want)
