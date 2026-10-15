@@ -1,9 +1,11 @@
 ---
 title: "Managed block teaches the work loop: claim, log, close, reopen"
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-13T11:59:13Z
+closed: 2026-10-15T07:52:56Z
+reason: "Plan \"2026-10-15 - 00 - pre-release-fixes-plan\" (9ec93fc) item 1: the Managed block teaches the work loop (ready, show, claim with the configured doing status, log, close, reopen) and points at capcom <cmd> --help; AGENTS.md refreshed."
 ---
 
 The Managed block of AGENTS.md (`blockIntro` in `internal/agents/block.go`) teaches an agent how to

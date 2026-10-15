@@ -1,10 +1,12 @@
 ---
 title: Architecture review 2026-10-14
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-14 - 00 - architecture-review-fixes-plan
 created: 2026-10-14T08:35:10Z
+closed: 2026-10-15T07:52:56Z
+reason: "Plan \"2026-10-15 - 00 - pre-release-fixes-plan\" (9ec93fc): its last open children (membership-owner, know-tree-orphans) are closed; every child issue is closed."
 ---
 
 Parent of the issues filed from the architecture review of 2026-10-14

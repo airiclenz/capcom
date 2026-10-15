@@ -1,11 +1,13 @@
 ---
 title: One owner for Tree membership and resolution
-status: open
+status: done
 type: task
 priority: 2
 deps: [claimed-name-prefix]
 plan: 2026-10-14 - 00 - architecture-review-fixes-plan
 created: 2026-10-14T08:35:10Z
+closed: 2026-10-15T07:52:56Z
+reason: "Plan \"2026-10-15 - 00 - pre-release-fixes-plan\" (9ec93fc) item 6 (with items 3-5): the index runs tree.DecideMembership once per refresh and holds no membership logic of its own; tree and index agree on every fixture, including the two divergences left open by b1ff6b8."
 ---
 
 The Tree membership rules (who holds an id or an Alias, repeated-id subtrees, orphan

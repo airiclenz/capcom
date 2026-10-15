@@ -1,10 +1,12 @@
 ---
 title: know tree drops the children of an unparseable Note
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-14 - 00 - architecture-review-fixes-plan
 created: 2026-10-14T08:35:11Z
+closed: 2026-10-15T07:52:56Z
+reason: "Plan \"2026-10-15 - 00 - pre-release-fixes-plan\" (9ec93fc) item 7, per the ratified Orphans scope call (user, 2026-10-15): a Note below a repeated-id or invalid-id parent is left out with a warning by ADR 0002 (now pinned by tests and stated in the ADR), and a Note below an unparseable parent prints at the root since b1ff6b8."
 ---
 
 `capcom know tree` leaves out a Note whose parent Note is not indexed (its file does not parse,
