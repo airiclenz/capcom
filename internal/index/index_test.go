@@ -919,6 +919,26 @@ func TestRelatedBy_DuplicateExcludedHolder_IsSkipped(t *testing.T) {
 	}
 }
 
+func TestRelatedBy_AliasAFileBelowARepeatedIDShares_NamesNoHolder(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "target-issue.md", relatedIssueText("Target", "aliases: [old-target]\n"))
+	writeIssue(t, s, "holder-issue.md", relatedIssueText("Holder", "related: [old-target]\n"))
+	writeIssue(t, s, "a.md", issueText("A", "open", ""))
+	writeIssue(t, s, "a/x.md", issueText("X one", "open", ""))
+	writeIssue(t, s, "b.md", issueText("B", "open", ""))
+	writeIssue(t, s, "b/x.md", issueText("X two", "open", ""))
+	writeIssue(t, s, "b/x/below-issue.md", relatedIssueText("Below", "aliases: [old-target]\n"))
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+
+	holders := mustRelatedBy(t, x, "target-issue")
+
+	if len(holders) != 0 {
+		t.Errorf("RelatedBy(target-issue) = %v, want none: a file below the repeated id x shares old-target", holders)
+	}
+}
+
 func TestRefresh_IndexFromBeforeRelatedLinks_RebuildsWithThem(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

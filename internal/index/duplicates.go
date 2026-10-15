@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
+	"slices"
 
 	"github.com/airiclenz/capcom/internal/diagnose"
+	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
@@ -95,13 +98,17 @@ func (r *refresher) persistMembership() error {
 }
 
 // persistMembershipOf runs persistMembership over the files of one kind and marks each node row
-// left out for a repeated id as excluded.
+// left out for a repeated id as excluded. Its one tree.DecideMembership both splits the files and
+// gives the verdicts it stores.
 func (r *refresher) persistMembershipOf(nodes nodeTable) error {
 	read, err := r.membershipFacts(nodes.kind)
 	if err != nil {
 		return fmt.Errorf("read indexed names: %w", err)
 	}
 	membership := tree.DecideMembership(read.facts)
+	if err := r.warnBelowRepeatedIDs(read, membership); err != nil {
+		return err
+	}
 	r.warnings = append(r.warnings, diagnose.NameClashes(membership.IDConflicts)...)
 	for _, conflict := range membership.AliasConflicts {
 		// A file with problems is warned about by its own problems, and a file left out below a
@@ -136,6 +143,47 @@ func (r *refresher) persistMembershipOf(nodes nodeTable) error {
 	return nil
 }
 
+// warnBelowRepeatedIDs leaves the files membership, the verdict on read's facts, leaves out below a
+// repeated id out of the warnings: each stops being one of read's clean files, so no alias conflict
+// of its is warned about, and the findings of its own file leave r.warnings, the directory it lies
+// in standing for them. A file of a repeated id itself stays clean and keeps its findings. It then
+// warns about each directory beside a file of a repeated id that is a directory on disk, as
+// tree.RepeatedIDDirProblems finds them, naming it relative to the working tree root. A directory
+// whose Lstat fails other than by being gone fails the refresh, naming it relative too.
+func (r *refresher) warnBelowRepeatedIDs(read kindFacts, membership tree.Membership) error {
+	isBelow := map[string]bool{}
+	for _, file := range membership.LeftOut {
+		if file.Reason != tree.BelowRepeatedID {
+			continue
+		}
+		key := read.facts[file.Fact].Key
+		isBelow[key] = true
+		delete(read.isClean, key)
+	}
+	if len(isBelow) > 0 {
+		r.warnings = slices.DeleteFunc(r.warnings, func(finding diagnose.Finding) bool {
+			return isBelow[finding.Path]
+		})
+	}
+
+	// The facts' keys are slash paths relative to the working tree root; the dirs are Lstat'ed
+	// on disk.
+	dirs := make([]tree.RepeatedIDDir, len(membership.RepeatedIDDirs))
+	for i, dir := range membership.RepeatedIDDirs {
+		dirs[i] = tree.RepeatedIDDir{Path: filepath.Join(r.worktreeRoot, filepath.FromSlash(dir.Path)), ID: dir.ID}
+	}
+	problems, err := tree.RepeatedIDDirProblems(dirs)
+	if err != nil {
+		return relativePathError(r.worktreeRoot, err)
+	}
+	for _, problem := range problems {
+		kind, _ := diagnose.TreeKind(problem)
+		problemPath, _ := store.RelativePath(r.worktreeRoot, problem.Path)
+		r.warn(kind, problemPath, 0, problem.Message())
+	}
+	return nil
+}
+
 // firstCleanClaimant returns the first of claims, a name's claims in DecideMembership's order,
 // whose file is clean and comes before the file key, and whether there is one.
 func (k kindFacts) firstCleanClaimant(claims []tree.NameClaim, key string) (tree.NameClaim, bool) {
@@ -152,12 +200,11 @@ func (k kindFacts) firstCleanClaimant(claims []tree.NameClaim, key string) (tree
 }
 
 // membershipFacts builds the facts of every file of kind from the rows of this refresh, reading no
-// file. Every files row is a walk file: a clean one with the aliases its aliases rows record, a
-// file with problems with the aliases and the parse state its claims rows record, which is
-// unusable. Every node file the walk left out below a repeated id is a walk file too, with the
-// aliases the claims of its orphan directory record. Every other claims row is a claim-only
-// file's, with its parse state: a file the walk refused to read or a node file under an orphan
-// directory, which refuses names and never leaves a file out.
+// file. Every files row is a walk file, the ones below a repeated id included: a clean one with the
+// aliases its aliases rows record, a file with problems with the aliases and the parse state its
+// claims rows record, which is unusable. Every other claims row is a claim-only file's, with its
+// parse state: a file the walk refused to read or a node file under an orphan directory, which
+// refuses names and never leaves a file out.
 func (r *refresher) membershipFacts(kind string) (kindFacts, error) {
 	read := kindFacts{isClean: map[string]bool{}}
 	aliasesOf, _, err := namesByPath(r.ctx, r.tx,
@@ -197,14 +244,6 @@ func (r *refresher) membershipFacts(kind string) (kindFacts, error) {
 		fact := walkFact(file.path, id, claimedAliases(file.path, claimsOf[file.path]), parseOf[file.path])
 		fact.IsUsable = false
 		read.facts = append(read.facts, fact)
-	}
-	for _, node := range r.leftOut {
-		if node.kind != kind {
-			continue
-		}
-		isTaken[node.path] = true
-		aliases := claimedAliases(node.path, claimsOf[node.path])
-		read.facts = append(read.facts, walkFact(node.path, node.id, aliases, tree.ParsedFile))
 	}
 	for _, claimPath := range claimPaths {
 		if isTaken[claimPath] {

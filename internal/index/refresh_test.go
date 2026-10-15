@@ -185,3 +185,43 @@ func TestRefresh_InvalidFileListsAnAliasFirst_WarnsNamingTheFirstCleanClaimant(t
 		t.Errorf("duplicate warnings = %q, want only %q", duplicates, want)
 	}
 }
+
+func TestRefresh_NodesBelowARepeatedID_LeftOutWithTheDirectoryWarningAlone(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeDuplicateIDWithChildren(t, s)
+	writeIssue(t, s, "b/x/bad.md", issueWith("Bad", "bogus", ""))
+	writeIssue(t, s, "kept.md", issueWith("Kept", "open", "aliases: [old-c]\n"))
+	writeNote(t, s, "a.md", "---\ntitle: A\n---\nBody.\n")
+	writeNote(t, s, "a/x.md", "---\ntitle: X one\n---\nBody.\n")
+	writeNote(t, s, "b.md", "---\ntitle: B\n---\nBody.\n")
+	writeNote(t, s, "b/x.md", "---\ntitle: X two\n---\nBody.\n")
+	writeNote(t, s, "b/x/bad.md", "---\ntitle: \"\"\n---\nBody.\n")
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	for _, id := range []string{"c2", "bad"} {
+		if isIndexed(t, x, id) {
+			t.Errorf("issue %s is indexed, want it left out with the directory of the repeated id x", id)
+		}
+	}
+	if _, found, err := x.Note("bad"); err != nil || found {
+		t.Errorf("Note(bad) = %t, %v; want it left out with the directory of the repeated id x", found, err)
+	}
+	for _, dir := range []string{".capcom/issues/b/x", ".capcom/knowledge/b/x"} {
+		want := diagnose.Finding{
+			Code:    diagnose.OrphanDirectory,
+			Path:    dir,
+			Message: "directory left out: its node file x.md has a duplicate id",
+		}
+		if !slices.Contains(report.Warnings, want) {
+			t.Errorf("warnings = %q, want %q", warningStrings(report), want.String())
+		}
+	}
+	for _, warning := range report.Warnings {
+		if strings.HasPrefix(warning.Path, ".capcom/issues/b/x/") || strings.HasPrefix(warning.Path, ".capcom/knowledge/b/x/") {
+			t.Errorf("warnings = %q, want none of a file below the repeated id x", warningStrings(report))
+		}
+	}
+}

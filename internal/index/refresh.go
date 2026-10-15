@@ -64,12 +64,13 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 		return Report{}, x.databaseError(err)
 	}
 	r := &refresher{
-		ctx:       ctx,
-		tx:        tx,
-		config:    x.store.Config,
-		issues:    nodestore.IssueReader(x.store.Config),
-		notes:     nodestore.NoteReader(),
-		refreshed: start.UnixNano(),
+		ctx:          ctx,
+		tx:           tx,
+		config:       x.store.Config,
+		issues:       nodestore.IssueReader(x.store.Config),
+		notes:        nodestore.NoteReader(),
+		worktreeRoot: x.store.WorktreeRoot,
+		refreshed:    start.UnixNano(),
 	}
 	found, err := walkStore(x.store, r)
 	if err != nil {
@@ -100,8 +101,8 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 }
 
 // walkStore lists the node files of the issue tree and then of the Knowledge tree, each in path
-// order and marked with its kind, and keeps on r the claims of the files each walk leaves out and
-// the node files it leaves out below a repeated id, marked with the same kind.
+// order and marked with its kind, and keeps on r the claims of the files each walk leaves out,
+// marked with the same kind.
 func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	trees := []struct {
 		dir     string
@@ -113,7 +114,7 @@ func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	}
 	var found []foundFile
 	for _, current := range trees {
-		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, current.content, r)
+		files, claims, err := walkIssues(s.WorktreeRoot, current.dir, current.content, r)
 		if err != nil {
 			return nil, err
 		}
@@ -123,12 +124,8 @@ func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 		for i := range claims {
 			claims[i].kind = current.kind
 		}
-		for i := range leftOut {
-			leftOut[i].kind = current.kind
-		}
 		found = append(found, files...)
 		r.walkClaims = append(r.walkClaims, claims...)
-		r.leftOut = append(r.leftOut, leftOut...)
 	}
 	return found, nil
 }
@@ -153,14 +150,13 @@ type refresher struct {
 	// decode of every node file the refresh reads.
 	issues nodestore.Reader[issue.Issue]
 	notes  nodestore.Reader[knowledge.Note]
+	// worktreeRoot is the working tree root the files rows' paths are relative to.
+	worktreeRoot string
 	// refreshed is the refresh start, truncated to racyGranularity, in Unix nanoseconds.
 	refreshed int64
 	warnings  []diagnose.Finding
 	// walkClaims are the names the files the walk left out claim, which replaceWalkClaims stores.
 	walkClaims []claim
-	// leftOut are the node files the walk left out below a repeated id, which persistMembership
-	// decides on beside the files rows.
-	leftOut []leftOutNode
 }
 
 // warn records a warning of kind about one file.

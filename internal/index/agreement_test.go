@@ -398,6 +398,19 @@ var agreementFixtures = []agreementFixture{
 			{name: "kid-x", resolve: "id kid-x", claimant: "live kid-x.md"},
 		},
 	},
+	{
+		name: "unparsed file with a recovered alias below a repeated id",
+		files: []agreementFile{
+			{path: "a.md"}, {path: "b.md"},
+			{path: "a/dup.md"}, {path: "b/dup.md"},
+			{path: "a/dup/kid.md", form: formBroken, aliases: []string{"kid-alias"}},
+		},
+		queries: []agreementQuery{
+			{name: "kid-alias", resolve: "not found", claimant: "unparsed a/dup/kid.md alias"},
+			{name: "kid", resolve: "duplicate", claimant: "orphan a/dup/kid.md"},
+			{name: "dup", resolve: "duplicate", claimant: "duplicate a/dup.md"},
+		},
+	},
 }
 
 func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlike(t *testing.T) {

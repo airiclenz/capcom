@@ -243,7 +243,12 @@ comparison helper. A refresh test with `aaa.md` invalid `aliases: [s]`, `mmm.md`
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'TestClose_|TestShow_'`
 **Commit:** `fix(index): membership facts keep the parse state tree reads`
 
-## 6. The index runs DecideMembership once
+## 6. The index runs DecideMembership once — ✅ DONE (2026-10-15)
+
+NOTES (2026-10-15): files below a repeated id are now indexed (files, node and alias or claims rows) and left out by the one tree.DecideMembership in persistMembershipOf (new warnBelowRepeatedIDs: drops them from isClean and their own findings from r.warnings, then Lstats the repeated-id dirs joined onto refresher.worktreeRoot and warns them relative); leaveOutBelowRepeatedIDs, withoutKeptFiles, leftOutNode and refresher.leftOut are removed, and the walk no longer passes repeated-id dirs to ClaimOnlyFacts, as tree.Load does not.
+NOTES (2026-10-15): RelatedBy's two NOT EXISTS subqueries stay unfiltered: an alias a file below a repeated id shares with the target now refuses the link, matching tree's checkLeftOutAliases refusal; pinned by TestRelatedBy_AliasAFileBelowARepeatedIDShares_NamesNoHolder.
+NOTES (2026-10-15): consequential edit — internal/tree/claims.go: made necessary by moving the repeated-id directory Lstat from the index walk to the refresh (RepeatedIDDirProblems doc said "the index's walk").
+NOTES (2026-10-15): no CHANGELOG entry: the divergence fixed (index b1ff6b8) is in no released version, and the Unreleased entries already state the behaviour now reached (a recovered alias of an unparsed file fails as invalid; a related link by a shared alias lists no issue).
 
 Depends on item 5.
 **What:**

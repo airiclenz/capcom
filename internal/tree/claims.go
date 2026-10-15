@@ -179,7 +179,7 @@ func DuplicateAliasError(path, other, alias string, isOtherAlias bool) *Error {
 // RepeatedIDDirProblems returns the problem of each of dirs, DecideMembership's RepeatedIDDirs,
 // that is a directory on disk, as left out for the duplicate id of its node file. A dir that is
 // gone, or is no directory, is no problem; any other failed Lstat is returned unchanged, an
-// *fs.PathError naming the dir. Load and the index's walk both Lstat through it.
+// *fs.PathError naming the dir. Load and the index refresh both Lstat through it.
 func RepeatedIDDirProblems(dirs []RepeatedIDDir) (Errors, error) {
 	var problems Errors
 	for _, dir := range dirs {
