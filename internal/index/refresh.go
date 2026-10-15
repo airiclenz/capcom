@@ -18,6 +18,7 @@ import (
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // racyGranularity is the coarsest file mtime resolution the racy-clean rule allows for: a file
@@ -103,16 +104,16 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 // the node files it leaves out below a repeated id, marked with the same kind.
 func walkStore(s *store.Store, r *refresher) ([]foundFile, error) {
 	trees := []struct {
-		dir         string
-		kind        string
-		readAliases aliasReader
+		dir     string
+		kind    string
+		content tree.ContentFunc
 	}{
-		{s.IssuesDir(), kindIssue, aliasesThrough(r.issues)},
-		{s.KnowledgeDir(), kindNote, aliasesThrough(r.notes)},
+		{s.IssuesDir(), kindIssue, contentThrough(s.WorktreeRoot, r.issues)},
+		{s.KnowledgeDir(), kindNote, contentThrough(s.WorktreeRoot, r.notes)},
 	}
 	var found []foundFile
 	for _, current := range trees {
-		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, current.readAliases, r)
+		files, claims, leftOut, err := walkIssues(s.WorktreeRoot, current.dir, current.content, r)
 		if err != nil {
 			return nil, err
 		}

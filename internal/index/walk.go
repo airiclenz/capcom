@@ -27,13 +27,14 @@ var lstat = os.Lstat
 // skipped. Every node file under the directory beside a file of a repeated id is left out with
 // that directory, which is warned about as an orphan directory. A walk or stat failure names its
 // path relative to worktreeRoot.
-// It also returns the names the files the walk leaves out claim, as problemClaims finds them with
-// readAliases, the aliasReader of the tree's kind, and
-// the node files it leaves out below a repeated id, as leaveOutBelowRepeatedIDs finds them, both
-// without their kind.
+// It also returns the names the files the walk leaves out claim, as tree.ClaimOnlyFacts, the one
+// builder tree.Load claims through, finds them with content, the ContentFunc of the tree's kind,
+// over the walk problems and the directories beside the files of a repeated id, and the node files
+// it leaves out below a repeated id, as leaveOutBelowRepeatedIDs finds them, both without their
+// kind.
 func walkIssues(
 	worktreeRoot, issuesDir string,
-	readAliases aliasReader,
+	content tree.ContentFunc,
 	r *refresher,
 ) ([]foundFile, []claim, []leftOutNode, error) {
 	nodes, problems, err := tree.Walk(issuesDir)
@@ -44,16 +45,18 @@ func walkIssues(
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	// The directories beside the files of a repeated id are passed too: their claims are the only
+	// aliases the node files left out below a repeated id get.
 	problems = append(problems, directoryProblems...)
-	var claims []claim
 	for _, problem := range problems {
 		// A walk reports only invalid ids, entries left out unread and orphan directories, each
 		// wrapping a sentinel TreeKind knows.
 		kind, _ := diagnose.TreeKind(problem)
 		path, _ := store.RelativePath(worktreeRoot, problem.Path)
 		r.warn(kind, path, 0, problem.Message())
-		claims = append(claims, problemClaims(worktreeRoot, problem, readAliases)...)
 	}
+	// The noun only words the alias problems ClaimOnlyFacts drops.
+	claims := factClaims(worktreeRoot, tree.ClaimOnlyFacts(problems, "node", content))
 	claims = withoutKeptFiles(claims, worktreeRoot, nodes)
 
 	found := make([]foundFile, 0, len(nodes))
@@ -160,79 +163,38 @@ func withoutKeptFiles(claims []claim, worktreeRoot string, nodes []tree.Node) []
 	})
 }
 
-// problemClaims returns the names a file the walk leaves out claims, so a resolve refuses them
-// instead of matching them as a prefix. A node file left out unread (not a regular file, or over
-// 1 MiB) whose name is a valid id claims that id; a directory left out claims the names of every
-// node file below it, as orphanDirectoryClaims finds them with readAliases; a file with an invalid id
-// claims nothing. Each claim's path is relative to worktreeRoot and its kind is left for the caller
-// to set.
-func problemClaims(worktreeRoot string, problem *tree.Error, readAliases aliasReader) []claim {
-	switch {
-	case errors.Is(problem, tree.ErrOrphanDirectory):
-		return orphanDirectoryClaims(worktreeRoot, problem.Path, readAliases)
-	case errors.Is(problem, tree.ErrNotRegular), errors.Is(problem, tree.ErrTooLarge):
-		id, isNode := nodeFileID(problem.Path)
-		if !isNode {
-			return nil
-		}
-		path, _ := store.RelativePath(worktreeRoot, problem.Path)
-		return []claim{{name: id, path: path}}
-	}
-	return nil
-}
-
-// orphanDirectoryClaims returns the names claimed by every node file with a valid id that
-// tree.ListOrphanFiles lists below dir, a directory the walk left out: each file's id, plus the
-// Aliases readAliases reads from a regular file. A file that is not a regular file, or that the
-// Kind reader refuses unread, claims its id only.
-//
-// The walk has already warned about dir itself, so an entry below it that cannot be read (an
-// unreadable directory, dir or a file removed since the walk, a failed read) only leaves its names
-// unclaimed, never those of the files listed beside it; it never fails the refresh.
-func orphanDirectoryClaims(worktreeRoot, dir string, readAliases aliasReader) []claim {
-	files, _ := tree.ListOrphanFiles(dir)
+// factClaims returns the claims of facts, as tree.ClaimOnlyFacts builds them: each fact's id and
+// its Aliases, at its Key relative to worktreeRoot, its kind left for the caller to set.
+func factClaims(worktreeRoot string, facts []tree.FileFact) []claim {
 	var claims []claim
-	for _, file := range files {
-		id, isNode := nodeFileID(file.Path)
-		if !isNode {
-			continue
-		}
-		path, _ := store.RelativePath(worktreeRoot, file.Path)
-		names := []string{id}
-		if file.IsRegular {
-			aliases, err := readAliases(file.Path, path)
-			if err != nil {
-				continue
-			}
-			names = append(names, aliases...)
-		}
-		for _, name := range names {
-			claims = append(claims, claim{name: name, path: path})
+	for _, fact := range facts {
+		path, _ := store.RelativePath(worktreeRoot, fact.Key)
+		claims = append(claims, claim{name: fact.ID, path: path})
+		for _, alias := range fact.Aliases {
+			claims = append(claims, claim{name: alias, path: path})
 		}
 	}
 	return claims
 }
 
-// aliasReader reads the Aliases of the node file at path, which relPath names relative to the
-// working tree root with forward slashes: the ones its parse gives or, when its frontmatter does
-// not parse, the ones it recovers. A file the read refuses unread has none; any other read failure
-// is returned.
-type aliasReader func(path, relPath string) ([]string, error)
-
-// aliasesThrough returns the aliasReader that reads through reader, the Kind reader of one tree.
-func aliasesThrough[T any](reader nodestore.Reader[T]) aliasReader {
-	return func(path, relPath string) ([]string, error) {
+// contentThrough returns the tree.ContentFunc that reads through reader, the Kind reader of one
+// tree, naming each file relative to worktreeRoot: a file that parses gives its Aliases, one that
+// does not gives the ones its raw frontmatter still recovers, and one the reader refuses unread
+// gives none. Any other read failure is returned.
+func contentThrough[T any](worktreeRoot string, reader nodestore.Reader[T]) tree.ContentFunc {
+	return func(path string) (tree.Content, error) {
+		relPath, _ := store.RelativePath(worktreeRoot, path)
 		reading, err := reader.Read(path, relPath)
-		return reading.Aliases, err
+		switch {
+		case err != nil:
+			return tree.Content{}, err
+		case !reading.IsRead():
+			return tree.Content{Parse: tree.UnreadFile}, nil
+		case !reading.IsParsed():
+			return tree.Content{Aliases: reading.Aliases, Parse: tree.UnparsedFile}, nil
+		}
+		return tree.Content{Aliases: reading.Aliases, Parse: tree.ParsedFile, IsUsable: reading.IsUsable()}, nil
 	}
-}
-
-// nodeFileID returns the id a node file at path is named by, and whether its name is a node file's
-// with a valid id.
-func nodeFileID(path string) (string, bool) {
-	name := filepath.Base(path)
-	id := tree.IDOf(name)
-	return id, id != name && tree.ValidateID(id) == nil
 }
 
 // relativePathError returns err naming its path relative to worktreeRoot when it is an

@@ -81,15 +81,19 @@ func readContentFacts(
 	return facts, rejected, failures
 }
 
-// claimOnlyFacts returns the facts of the files Walk left out that still claim names, among
-// problems, Walk's: each node file with a valid id it left out unread (not a regular file, or over
-// 1 MiB), claiming its id, and each node file with a valid id ListOrphanFiles lists below an orphan
-// directory it reported, claiming its id and, for a regular file, the aliases content reads, the
-// recovered ones of a file that does not parse included. Walk has already reported each such
-// directory, so a directory below one that cannot be listed claims nothing while the files listed
-// beside it still claim theirs, and a file content fails to read claims its id alone. A nil content
-// reads no aliases. noun names one node of the kind, as CheckAliases takes it.
-func claimOnlyFacts(problems Errors, noun string, content ContentFunc) []FileFact {
+// ClaimOnlyFacts is the one builder of the facts of the files a walk refuses that still claim
+// names, among problems: Walk's, plus any orphan-directory problems the caller adds, such as the
+// directories beside the files of a repeated id. Each node file with a valid id left out unread
+// (not a regular file, or over 1 MiB) claims its id; each node file with a valid id ListOrphanFiles
+// lists below an ErrOrphanDirectory problem claims its id and, for a regular file, the aliases
+// content reads that CheckAliases passes, the recovered ones of a file that does not parse
+// included. Every orphan directory is listed once, the ones below another skipped, whatever the
+// order of problems. The orphan directories have already been reported, so a directory below one
+// that cannot be listed claims nothing while the files listed beside it still claim theirs, and a
+// file content fails to read claims its id alone. A nil content reads no aliases. noun names one
+// node of the kind, as CheckAliases takes it. Each fact's Key is the file's path as problems name
+// it, and its Origin is ClaimOnlyOrigin. tree.Load and the index refresh both build through it.
+func ClaimOnlyFacts(problems Errors, noun string, content ContentFunc) []FileFact {
 	var facts []FileFact
 	for _, problem := range problems {
 		isUnread := errors.Is(problem, ErrNotRegular) || errors.Is(problem, ErrTooLarge)
@@ -415,19 +419,25 @@ func holdsAlias(aliases AliasFunc, path string, name string) (bool, error) {
 	return slices.Contains(names, name), nil
 }
 
-// outermostOrphanDirs returns the Paths of the ErrOrphanDirectory problems among problems, which
-// are ordered by path, that lie under no other of them: listing those reaches every node file below
-// any of them.
+// outermostOrphanDirs returns the Paths of the ErrOrphanDirectory problems among problems, in
+// any order, that lie under no other of them, ordered by path and each once: listing those reaches
+// every node file below any of them exactly once.
 func outermostOrphanDirs(problems Errors) []string {
-	var dirs []string
+	var paths []string
 	for _, problem := range problems {
-		if !errors.Is(problem, ErrOrphanDirectory) {
-			continue
+		if errors.Is(problem, ErrOrphanDirectory) {
+			paths = append(paths, problem.Path)
 		}
-		if n := len(dirs); n > 0 && isBelow(problem.Path, dirs[n-1]) {
-			continue
+	}
+	slices.Sort(paths)
+	var dirs []string
+	for _, path := range paths {
+		isCovered := slices.ContainsFunc(dirs, func(dir string) bool {
+			return path == dir || isBelow(path, dir)
+		})
+		if !isCovered {
+			dirs = append(dirs, path)
 		}
-		dirs = append(dirs, problem.Path)
 	}
 	return dirs
 }

@@ -149,7 +149,12 @@ query `ba`).
 - `GOMEMLIMIT=2GiB go test ./internal/index/ -run Agreement`
 **Commit:** `fix(tree): a prefix of an unusable node's id resolves as the index resolves it`
 
-## 4. One claim-fact builder for files the walk refuses
+## 4. One claim-fact builder for files the walk refuses — ✅ DONE (2026-10-15)
+
+NOTES (2026-10-15): consequential edit — internal/tree/tree.go: made necessary by renaming claimOnlyFacts to the exported tree.ClaimOnlyFacts (load's one call site).
+NOTES (2026-10-15): outermostOrphanDirs now sorts the orphan-directory paths itself and skips any below an already chosen one, since the index passes its repeated-id directory problems unsorted after Walk's; with the old "compare to the last one" rule a nested directory behind a sibling such as `a/dup-x` was listed twice, giving two facts for one file. Load's orphanDirs for Claimant gets the same de-duplicated list.
+NOTES (2026-10-15): the index's aliasReader/aliasesThrough are replaced by contentThrough, a tree.ContentFunc over the Kind reader, so the index feeds ClaimOnlyFacts the same way Load does; claims rows now carry the aliases CheckAliases passes (membershipFacts filters through CheckAliases anyway). internal/index/duplicates.go needed no change: membershipFacts already reads the claims rows the builder's facts become, and its comments stay true.
+NOTES (2026-10-15): no CHANGELOG entry: the regression (b1ff6b8) is in no released version, and the Unreleased entry on files below a left-out directory already describes the behaviour this restores.
 
 Depends on item 3.
 **What:**

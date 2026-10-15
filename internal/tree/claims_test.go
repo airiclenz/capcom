@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/tree"
@@ -324,5 +326,60 @@ func TestClaimant_NonRegularFileInOrphan_ClaimsItsIDNeverAnAlias(t *testing.T) {
 
 	if err != nil || found {
 		t.Errorf("Claimant(held) = %+v, %t, %v; want none", claim, found, err)
+	}
+}
+
+func TestClaimOnlyFacts_NestedOrphanDirsOutOfOrder_ListEachFileOnceAndKeepFailedReadsID(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for _, name := range []string{"a/dup/kid.md", "a/dup/deep/far.md", "a/dup-x/near.md", "a/dup/Bad_ID.md"} {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("x\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+	outer := filepath.Join(dir, "a", "dup")
+	inner := filepath.Join(outer, "deep")
+	sibling := filepath.Join(dir, "a", "dup-x")
+	link := filepath.Join(dir, "link.md")
+	failing := filepath.Join(outer, "kid.md")
+	problems := tree.Errors{
+		tree.DuplicateIDDirectoryError(inner, "deep"),
+		tree.DuplicateIDDirectoryError(sibling, "dup-x"),
+		tree.DuplicateIDDirectoryError(outer, "dup"),
+		{Path: link, Err: tree.ErrNotRegular},
+	}
+	content := func(path string) (tree.Content, error) {
+		if path == failing {
+			return tree.Content{}, errors.New("read failed")
+		}
+		return tree.Content{Aliases: []string{tree.IDOf(path) + "-alias"}, Parse: tree.ParsedFile, IsUsable: true}, nil
+	}
+
+	facts := tree.ClaimOnlyFacts(problems, "issue", content)
+
+	type claimed struct {
+		key     string
+		id      string
+		aliases string
+	}
+	var got []claimed
+	for _, fact := range facts {
+		if fact.Origin != tree.ClaimOnlyOrigin {
+			t.Errorf("%s: Origin = %v, want ClaimOnlyOrigin", fact.Key, fact.Origin)
+		}
+		got = append(got, claimed{fact.Key, fact.ID, strings.Join(fact.Aliases, ",")})
+	}
+	want := []claimed{
+		{link, "link", ""},
+		{failing, "kid", ""},
+		{filepath.Join(inner, "far.md"), "far", "far-alias"},
+		{filepath.Join(sibling, "near.md"), "near", "near-alias"},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("ClaimOnlyFacts = %+v\nwant %+v", got, want)
 	}
 }

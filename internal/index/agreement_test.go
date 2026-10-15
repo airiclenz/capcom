@@ -351,6 +351,19 @@ var agreementFixtures = []agreementFixture{
 			{name: "zero-day", resolve: "id zero-day", claimant: "live zero-day.md"},
 		},
 	},
+	{
+		name: "two unusable files share a name with no node row",
+		files: []agreementFile{
+			{path: "ghost/kid.md", aliases: []string{"far"}}, {path: "kid.md", form: formSymlink},
+			{path: "haunt/far.md"}, {path: "kid-x.md"},
+		},
+		queries: []agreementQuery{
+			{name: "kid", resolve: "duplicate", claimant: "orphan ghost/kid.md"},
+			{name: "far", resolve: "duplicate", claimant: "orphan ghost/kid.md alias"},
+			{name: "ki", resolve: "id kid-x", claimant: "none"},
+			{name: "kid-x", resolve: "id kid-x", claimant: "live kid-x.md"},
+		},
+	},
 }
 
 func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlike(t *testing.T) {
@@ -426,6 +439,40 @@ func TestAgreement_UnreadableDirectoryInOrphan_ReadableFilesClaimAndClaimantFail
 			claim, isFound, err := loaded.Claimant("alpha", "", recover)
 			if !errors.Is(err, fs.ErrPermission) {
 				t.Errorf("Claimant(alpha) = %+v, %t, %v; want a permission failure", claim, isFound, err)
+			}
+		})
+	}
+}
+
+func TestAgreement_UnreadableFileInOrphan_KeepsItsIDClaimBesideAnotherUnusableFile(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("file permissions do not bind root")
+	}
+	fixture := agreementFixture{files: []agreementFile{
+		{path: "ghost/kid.md"}, {path: "kid.md", form: formSymlink}, {path: "kid-x.md"},
+	}}
+	for _, kind := range agreementKinds {
+		t.Run(kind.name, func(t *testing.T) {
+			s := newStore(t)
+			kind.write(t, s, fixture)
+			locked := filepath.Join(kind.dir(s), "ghost", "kid.md")
+			if err := os.Chmod(locked, 0o000); err != nil {
+				t.Fatalf("Chmod: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(locked, 0o644) })
+			read, _ := kind.aliasFuncs(s)
+			loaded := loadAgreementTree(t, kind.dir(s), kind.name, read)
+			x := openIndex(t, s)
+			refresh(t, x)
+
+			treeAnswer := agreementAnswer(tree.ResolveIn(loaded, "kid"))
+			indexAnswer := agreementAnswer(kind.resolve(x, "kid"))
+			if treeAnswer != "duplicate" || indexAnswer != "duplicate" {
+				t.Errorf("kid: tree.ResolveIn = %q, index = %q; want duplicate for both", treeAnswer, indexAnswer)
 			}
 		})
 	}
