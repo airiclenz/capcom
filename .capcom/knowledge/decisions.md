@@ -19,3 +19,6 @@ The records:
 - `adr-0008`: The repo owns its release pipeline: two committed skills write the notes, a Go dev tool publishes
 - `adr-0009`: The store declares its format version, and a binary refuses a store newer than it understands
 - `adr-0010`: Knowledge holds a glossary and decision records as Note trees
+- `adr-0011`: A per-user config holds personal settings, created only by capcom ui
+- `adr-0012`: The CLI and the UI share one write path in an ops package
+- `adr-0013`: capcom ui shows the Tree lock and asks before writing while another session holds it
