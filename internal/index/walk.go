@@ -164,14 +164,15 @@ func withoutKeptFiles(claims []claim, worktreeRoot string, nodes []tree.Node) []
 }
 
 // factClaims returns the claims of facts, as tree.ClaimOnlyFacts builds them: each fact's id and
-// its Aliases, at its Key relative to worktreeRoot, its kind left for the caller to set.
+// its Aliases, at its Key relative to worktreeRoot and with its parse state, its kind left for the
+// caller to set.
 func factClaims(worktreeRoot string, facts []tree.FileFact) []claim {
 	var claims []claim
 	for _, fact := range facts {
 		path, _ := store.RelativePath(worktreeRoot, fact.Key)
-		claims = append(claims, claim{name: fact.ID, path: path})
+		claims = append(claims, claim{name: fact.ID, path: path, parse: fact.Parse})
 		for _, alias := range fact.Aliases {
-			claims = append(claims, claim{name: alias, path: path})
+			claims = append(claims, claim{name: alias, path: path, parse: fact.Parse})
 		}
 	}
 	return claims

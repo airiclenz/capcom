@@ -163,3 +163,25 @@ func TestRefresh_RepeatedIDBelowARepeatedID_StaysADuplicate(t *testing.T) {
 		}
 	}
 }
+
+func TestRefresh_InvalidFileListsAnAliasFirst_WarnsNamingTheFirstCleanClaimant(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "aaa.md", issueWith("A", "bogus", "aliases: [s]\n"))
+	writeIssue(t, s, "mmm.md", issueWith("M", "open", "aliases: [s]\n"))
+	writeIssue(t, s, "zzz.md", issueWith("Z", "open", "aliases: [s]\n"))
+	x := openIndex(t, s)
+
+	report := refresh(t, x)
+
+	var duplicates []string
+	for _, warning := range report.Warnings {
+		if warning.Code == diagnose.Duplicate {
+			duplicates = append(duplicates, warning.String())
+		}
+	}
+	want := []string{`.capcom/issues/zzz.md: duplicate alias "s": also an alias of .capcom/issues/mmm.md`}
+	if !slices.Equal(duplicates, want) {
+		t.Errorf("duplicate warnings = %q, want only %q", duplicates, want)
+	}
+}

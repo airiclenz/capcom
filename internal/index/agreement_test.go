@@ -155,6 +155,28 @@ func agreementAnswer(id string, err error) string {
 	}
 }
 
+// conflictFiles renders the files the refusal a resolve fails with names: the Path and Other of a
+// *tree.Error, or the Path of a *tree.UnusableError; "" for any other outcome. A relative path, as
+// the index names a file, is joined onto worktreeRoot, so the tree's absolute paths and the
+// index's compare alike.
+func conflictFiles(err error, worktreeRoot string) string {
+	var problem *tree.Error
+	var unusable *tree.UnusableError
+	var files []string
+	switch {
+	case errors.As(err, &problem):
+		files = []string{problem.Path, problem.Other}
+	case errors.As(err, &unusable):
+		files = []string{unusable.Path}
+	}
+	for i, file := range files {
+		if file != "" && !filepath.IsAbs(file) {
+			files[i] = filepath.Join(worktreeRoot, filepath.FromSlash(file))
+		}
+	}
+	return strings.Join(files, " | ")
+}
+
 // claimKindNames name each tree.ClaimKind in a claimant answer.
 var claimKindNames = map[tree.ClaimKind]string{
 	tree.LiveClaim:      "live",
@@ -262,6 +284,18 @@ var agreementFixtures = []agreementFixture{
 			{name: "ba", resolve: "ambiguous bad,bad-luck", claimant: "none"},
 			{name: "worse", resolve: "not found", claimant: "live bad.md alias"},
 			{name: "bad-luck", resolve: "id bad-luck", claimant: "live bad-luck.md"},
+		},
+	},
+	{
+		name: "file that parses but fails validation lists another file's alias",
+		files: []agreementFile{
+			{path: "aaa.md", form: formInvalid, aliases: []string{"shared"}},
+			{path: "zzz.md", aliases: []string{"shared"}},
+		},
+		queries: []agreementQuery{
+			{name: "shared", resolve: "duplicate", claimant: "live aaa.md alias"},
+			{name: "aaa", resolve: "not found", claimant: "live aaa.md"},
+			{name: "zzz", resolve: "id zzz", claimant: "live zzz.md"},
 		},
 	},
 	{
@@ -381,14 +415,21 @@ func TestAgreement_MembershipFixtures_TreeAndIndexAnswerAlike(t *testing.T) {
 					refresh(t, x)
 
 					for _, query := range fixture.queries {
-						treeAnswer := agreementAnswer(tree.ResolveIn(loaded, query.name))
-						indexAnswer := agreementAnswer(kind.resolve(x, query.name))
+						treeID, treeErr := tree.ResolveIn(loaded, query.name)
+						indexID, indexErr := kind.resolve(x, query.name)
+						treeAnswer, indexAnswer := agreementAnswer(treeID, treeErr), agreementAnswer(indexID, indexErr)
+						treeFiles := conflictFiles(treeErr, s.WorktreeRoot)
+						indexFiles := conflictFiles(indexErr, s.WorktreeRoot)
 						claim, isFound, claimErr := loaded.Claimant(tree.NormalizeArg(query.name), "", recover)
 						claimant := claimantAnswer(t, kind.dir(s), claim, isFound, claimErr)
 
 						if treeAnswer != query.resolve || indexAnswer != query.resolve {
 							t.Errorf("%q: tree.ResolveIn = %q, index = %q; want %q for both",
 								query.name, treeAnswer, indexAnswer, query.resolve)
+						}
+						if treeFiles != indexFiles {
+							t.Errorf("%q: tree.ResolveIn refuses naming %q, index naming %q; want the same files",
+								query.name, treeFiles, indexFiles)
 						}
 						if claimant != query.claimant {
 							t.Errorf("%q: tree.Claimant = %q, want %q", query.name, claimant, query.claimant)

@@ -14,7 +14,7 @@ import (
 
 // schemaVersion identifies the table layout below. Bump it whenever the layout or the meaning of a
 // column changes: an index recorded under another version is dropped and rebuilt.
-const schemaVersion = 9
+const schemaVersion = 10
 
 // Keys of the meta table.
 const (
@@ -51,7 +51,7 @@ var (
 // superseded-by ids of Notes as written, in file order; claims holds, by kind, every name a file
 // with problems, a file the walk leaves out unread, or a node file under a directory the walk
 // leaves out claims (its id and its aliases), in file order, for the membership verdicts to decide
-// from. file_verdicts and name_verdicts hold the membership verdicts of the latest refresh,
+// from, each row with the file's parse state as tree reads it (one of parseStateNames). file_verdicts and name_verdicts hold the membership verdicts of the latest refresh,
 // rebuilt whole by each one: file_verdicts holds, by kind, every node file the walk found, kept or
 // left out for a repeated id it has or lies below, and name_verdicts every name of a kind that must
 // not be resolved, why, and the conflict that refuses it (its file in path, the other file claiming
@@ -106,7 +106,7 @@ var schemaStatements = []string{
 	`CREATE INDEX refs_by_path ON refs (path)`,
 	`CREATE TABLE supersedes (path TEXT NOT NULL, from_id TEXT NOT NULL, to_id TEXT NOT NULL)`,
 	`CREATE INDEX supersedes_by_path ON supersedes (path)`,
-	`CREATE TABLE claims (path TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL)`,
+	`CREATE TABLE claims (path TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL, parse TEXT NOT NULL)`,
 	`CREATE INDEX claims_by_path ON claims (path)`,
 	`CREATE TABLE file_verdicts (
 		path TEXT PRIMARY KEY,

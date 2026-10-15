@@ -272,7 +272,8 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 
 // indexFile reads one file, decodes it through the Kind reader of its kind and replaces its rows.
 // A file with problems keeps only its files row, which carries the problems so the next refresh
-// reports them again, and its claims rows, one per name claimedNames gives it. The file is read
+// reports them again, and its claims rows, one per name claimedNames gives it, each with the
+// file's parse state as readingParse gives it. The file is read
 // through nodefile.ReadRegularFile: one that is no longer a regular file, or has grown past 1 MiB,
 // since the walk kept it is left out unread with a diagnose.NotRegular, never failing the
 // refresh. A file removed since the walk kept it is left without rows, and isGone reports it.
@@ -288,6 +289,7 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	var problems []diagnose.Finding
 	var aliases []string
 	var insert func() error
+	parse := tree.UnreadFile
 	refusal := diagnose.ReadRefusal(err)
 	switch {
 	case refusal != nil:
@@ -298,11 +300,11 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 		return false, fmt.Errorf("%s: %w", file.path, err)
 	case file.kind == kindNote:
 		reading := r.notes.Decode(file.path, data)
-		problems, aliases = reading.Findings(), reading.Aliases
+		problems, aliases, parse = reading.Findings(), reading.Aliases, readingParse(reading)
 		insert = func() error { return r.insertNote(file, reading.Node) }
 	default:
 		reading := r.issues.Decode(file.path, data)
-		problems, aliases = reading.Findings(), reading.Aliases
+		problems, aliases, parse = reading.Findings(), reading.Aliases, readingParse(reading)
 		insert = func() error { return r.insertIssue(file, reading.Node) }
 	}
 	var stored sql.NullString
@@ -323,9 +325,21 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 		return false, fmt.Errorf("index %s: %w", file.path, err)
 	}
 	if len(problems) > 0 {
-		return false, r.insertClaims(file, claimedNames(file, aliases))
+		return false, r.insertClaims(file, claimedNames(file, aliases), parse)
 	}
 	return false, insert()
+}
+
+// readingParse returns the parse state of reading as tree reads the same file: refused unread,
+// read but not parsed, or parsed.
+func readingParse[T any](reading nodestore.Reading[T]) tree.ParseState {
+	switch {
+	case !reading.IsRead():
+		return tree.UnreadFile
+	case !reading.IsParsed():
+		return tree.UnparsedFile
+	}
+	return tree.ParsedFile
 }
 
 // claimedNames returns the names a node file with problems claims: its id, plus aliases, the
@@ -336,14 +350,17 @@ func claimedNames(file foundFile, aliases []string) []string {
 	return append([]string{file.id}, aliases...)
 }
 
-// insertClaimQuery writes one claims row: a file's path, its kind and one name it claims.
-const insertClaimQuery = `INSERT INTO claims (path, kind, name) VALUES (?, ?, ?)`
+// insertClaimQuery writes one claims row: a file's path, its kind, one name it claims and its
+// parse state, as parseStateNames names it.
+const insertClaimQuery = `INSERT INTO claims (path, kind, name, parse) VALUES (?, ?, ?, ?)`
 
-// insertClaims writes one claims row per name a node file with problems claims.
-func (r *refresher) insertClaims(file foundFile, names []string) error {
+// insertClaims writes one claims row per name a node file with problems claims, each with parse,
+// the file's parse state.
+func (r *refresher) insertClaims(file foundFile, names []string, parse tree.ParseState) error {
 	statements := make([]statement, 0, len(names))
 	for _, name := range names {
-		statements = append(statements, statement{insertClaimQuery, []any{file.path, file.kind, name}})
+		args := []any{file.path, file.kind, name, parseStateNames[parse]}
+		statements = append(statements, statement{insertClaimQuery, args})
 	}
 	return r.exec(file, statements)
 }
@@ -358,7 +375,9 @@ func (r *refresher) replaceWalkClaims() error {
 		return fmt.Errorf("drop the claims of left-out files from index: %w", err)
 	}
 	for _, current := range r.walkClaims {
-		_, err := r.tx.ExecContext(r.ctx, insertClaimQuery, current.path, current.kind, current.name)
+		_, err := r.tx.ExecContext(
+			r.ctx, insertClaimQuery, current.path, current.kind, current.name, parseStateNames[current.parse],
+		)
 		if err != nil {
 			return fmt.Errorf("index %s: %w", current.path, err)
 		}

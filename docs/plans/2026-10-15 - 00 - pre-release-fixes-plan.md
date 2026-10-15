@@ -192,7 +192,13 @@ name with no node row.
 - `grep -nE 'func (orphanDirectoryClaims|problemClaims|nodeFileID)' internal/index/*.go` prints nothing
 **Commit:** `fix(index): claims of refused files come from tree's one fact builder`
 
-## 5. Index facts carry the parse state tree reads
+## 5. Index facts carry the parse state tree reads — ✅ DONE (2026-10-15)
+
+NOTES (2026-10-15): the parse state is a `parse TEXT NOT NULL` column on `claims` (named through `parseStateNames`: parsed, unparsed, unread; `schemaVersion` 9 -> 10). indexFile takes it from `Reading.IsRead`/`IsParsed` (new `readingParse`; a file refused unread is `unread`), factClaims from the `tree.ClaimOnlyFacts` fact. membershipFacts reads it back for problem files and claim-only files; the left-out-below-repeated-id nodes keep `tree.ParsedFile` for item 6, as the regression guard says.
+NOTES (2026-10-15): `claimedAliases` keeps running `tree.CheckAliases` on read-back (the guard's first option), so a problem file's id row never becomes an alias and invalid `foo.md` still answers "not found".
+NOTES (2026-10-15): duplicate-alias warning: when Key is clean and Other is not, persistMembershipOf now names the first clean claimant before Key in `membership.Names[Name].Claims` (new `kindFacts.firstCleanClaimant`), and warns nothing when there is none.
+NOTES (2026-10-15): agreement test: `conflictFiles` is the one conflict-file comparison (Path/Other of *tree.Error, Path of *tree.UnusableError, relative index paths joined onto the worktree root), applied to every fixture query; every existing fixture already agrees. The new fixture fails on the pre-item tree (index named aaa.md | zzz.md, tree zzz.md | aaa.md).
+NOTES (2026-10-15): no CHANGELOG entry: the regression (b1ff6b8) is in no released version, the Unreleased entries already state the behaviour this restores (a name a file with problems also claims is refused naming both files) and that the index rebuilds itself once.
 
 Depends on item 4.
 **What:**
