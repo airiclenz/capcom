@@ -1,8 +1,8 @@
 // Package agents owns the Managed block of AGENTS.md: the part of the hand-written agent guide
 // between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes. The block is
-// rendered deterministically from the top level of the Knowledge tree, and a write splices it in by
-// its markers, or appends it when absent, keeping every byte outside the markers and the file's
-// line ending. Sync is the one way callers reconcile the block with the Knowledge tree: it reads the
+// rendered deterministically from the top level of the Knowledge tree and the configured doing
+// status, the one its claim line names, and a write splices it in by its markers, or appends it
+// when absent, keeping every byte outside the markers and the file's line ending. Sync is the one way callers reconcile the block with the Knowledge tree: it reads the
 // top level and inspects, refreshes or writes in one pass. The block is read and written only in a
 // file inside the working tree: an AGENTS.md that links outside it is never read or written. Guides
 // checks that the other agent guides beside AGENTS.md (CLAUDE.md, GEMINI.md) reach the block, by
@@ -44,8 +44,8 @@ const (
 // newFilePermissions are the permissions of a newly created AGENTS.md.
 const newFilePermissions = 0o644
 
-// blockIntro is the fixed part of the block, between the begin marker and the Knowledge list.
-const blockIntro = `<!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->
+// blockHeader is the fixed part of the block between the begin marker and the command list.
+const blockHeader = `<!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->
 ## Issues and knowledge: capcom
 
 capcom is the issue register of record for this repository. Issues and Knowledge Notes are
@@ -53,15 +53,33 @@ markdown files under ` + "`.capcom/`" + `, versioned with the code; track work t
 
 Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclenz/capcom#install.
 
-- ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
-- ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
-- ` + "`capcom create --id <slug> --title <title> [--dep <id>]`" + `: file a new issue
-- ` + "`capcom dep add <id> <dep-id>`" + `: make an issue wait for another; ` + "`capcom dep list <id>`" + ` shows both sides
-- ` + "`capcom close <id> --reason <text>`" + `: close an issue; it names the issues this made ready
-- ` + "`capcom list --tree --depth 2`" + `: the outline of the issues
-- ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+`
 
-An issue's body says what is wrong or wanted, why, and how to tell it is done (` + "`## Acceptance`" + `),
+// loopOpening is the command list up to the claim line: finding work and reading it.
+const loopOpening = "- `capcom ready`: the issues ready to work on, most urgent first\n" +
+	"- `capcom show <id>`: one issue in full, with what blocks it\n"
+
+// claimCommand opens the claim line; the configured doing status follows it.
+const claimCommand = "- `capcom update <id> --status "
+
+// claimPurpose closes the claim line after the doing status.
+const claimPurpose = "`: claim it before you start\n"
+
+// loopClosing is the command list after the claim line: the rest of the work loop, then the other
+// commands, then where their flags are.
+const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" +
+	"- `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready\n" +
+	"- `capcom reopen <id> --reason <text>`: undo a close\n" +
+	"- `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue\n" +
+	"- `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides\n" +
+	"- `capcom list --tree --depth 2`: the outline of the issues\n" +
+	"- `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>` reads a Note\n" +
+	"\n" +
+	"Each command's flags are in `capcom <cmd> --help`.\n" +
+	"\n"
+
+// blockGuidance is the fixed part of the block between the command list and the Knowledge list.
+const blockGuidance = `An issue's body says what is wrong or wanted, why, and how to tell it is done (` + "`## Acceptance`" + `),
 readable on its own; a plan says how and in what order.
 
 Where things are: an issue is ` + "`.capcom/issues/<id>.md`" + `, and its children sit in the directory
@@ -222,12 +240,20 @@ func relativeTo(dir, path string) string {
 	return relative
 }
 
-// render returns the block for notes, the begin and end markers included, with LF line endings
-// and no line ending after the end marker. Titles are flattened onto one line.
-func render(notes []Note) string {
+// render returns the block for notes and doingStatus, the begin and end markers included, with LF
+// line endings and no line ending after the end marker. The claim line names doingStatus, and is
+// left out when doingStatus is empty, the config declaring no doing status. Titles are flattened
+// onto one line.
+func render(notes []Note, doingStatus string) string {
 	var block strings.Builder
 	block.WriteString(BeginMarker + lineFeed)
-	block.WriteString(blockIntro)
+	block.WriteString(blockHeader)
+	block.WriteString(loopOpening)
+	if doingStatus != "" {
+		block.WriteString(claimCommand + doingStatus + claimPurpose)
+	}
+	block.WriteString(loopClosing)
+	block.WriteString(blockGuidance)
 	if len(notes) == 0 {
 		block.WriteString(noNotesLine + lineFeed)
 	} else {
@@ -241,43 +267,47 @@ func render(notes []Note) string {
 }
 
 // inspect reads the AGENTS.md of worktreeRoot and reports whether its block is absent, current or
-// stale against notes. A missing file is StateAbsent, and so is one that links outside the working
+// stale against notes and doingStatus. A missing file is StateAbsent, and so is one that links outside the working
 // tree, which is not read. Line endings are ignored in the comparison, so a CRLF file holding the
 // current block is current. It fails with an *Error on markers that cannot be told apart and on a
 // file that is not a regular file or is larger than 1 MiB, and when the file cannot be read.
-func inspect(worktreeRoot string, notes []Note) (Status, error) {
-	return reconcile(worktreeRoot, notes, ModeInspect)
+func inspect(worktreeRoot string, notes []Note, doingStatus string) (Status, error) {
+	return reconcile(worktreeRoot, notes, doingStatus, ModeInspect)
 }
 
-// write brings the block of the AGENTS.md of worktreeRoot up to date with notes and returns the
+// write brings the block of the AGENTS.md of worktreeRoot up to date with notes and doingStatus and
+// returns the
 // Status found before writing. A stale block is replaced in place, an absent one is appended after
 // a blank line, and a missing file is created holding the block alone; a current block leaves the
 // file untouched. Every byte outside the markers is kept, and the block takes the file's line
 // ending (CRLF when the file has any). It fails as inspect does, and when the file cannot be
 // written. An AGENTS.md that links outside the working tree fails it with an *Error, the file it
 // links to neither read nor written.
-func write(worktreeRoot string, notes []Note) (Status, error) {
-	return reconcile(worktreeRoot, notes, ModeWrite)
+func write(worktreeRoot string, notes []Note, doingStatus string) (Status, error) {
+	return reconcile(worktreeRoot, notes, doingStatus, ModeWrite)
 }
 
 // Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
-// tree in knowledgeDir, as mode says, and returns the Status found before any write. It reads the
+// tree in knowledgeDir and with doingStatus, the configured doing status the claim line names (the
+// empty string when the config declares none, which leaves the claim line out), as mode says, and
+// returns the Status found before any write. Renaming the doing status therefore stales the block. It reads the
 // file once: the Status it reports is the one it acted on. It fails as topNotes does, as inspect
 // does, and, when mode writes, when the file cannot be written. An AGENTS.md that links outside the
 // working tree is never read: ModeWrite fails as write does, and the other modes report
 // StateAbsent.
-func Sync(worktreeRoot, knowledgeDir string, mode Mode) (Status, error) {
+func Sync(worktreeRoot, knowledgeDir, doingStatus string, mode Mode) (Status, error) {
 	notes, err := topNotes(knowledgeDir)
 	if err != nil {
 		return Status{}, err
 	}
-	return reconcile(worktreeRoot, notes, mode)
+	return reconcile(worktreeRoot, notes, doingStatus, mode)
 }
 
 // reconcile resolves the AGENTS.md of worktreeRoot, reads it, finds its block's Status against
-// notes and, when mode calls for it, writes the block render produces for notes to the same file.
+// notes and doingStatus and, when mode calls for it, writes the block render produces for them to
+// the same file.
 // A guide that links outside the working tree is neither read nor written.
-func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
+func reconcile(worktreeRoot string, notes []Note, doingStatus string, mode Mode) (Status, error) {
 	guide, err := resolveGuide(worktreeRoot, FileName)
 	if err != nil {
 		return Status{}, fmt.Errorf("%s: %w", FileName, err)
@@ -297,11 +327,12 @@ func reconcile(worktreeRoot string, notes []Note, mode Mode) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	status := statusOf(content, span, notes)
+	block := render(notes, doingStatus)
+	status := statusOf(content, span, block)
 	if !mode.writes(status.State) {
 		return status, nil
 	}
-	spliced := splice(content, span, render(notes))
+	spliced := splice(content, span, block)
 	err = nodefile.WriteFileAtomicVerbatim(guide.path, bytes.NewReader(spliced), guide.perm)
 	if err != nil {
 		return status, fmt.Errorf("%s: %w", FileName, err)
@@ -391,14 +422,14 @@ func (m Mode) writes(state State) bool {
 	}
 }
 
-// statusOf compares the block span locates in content with the block render produces for notes,
+// statusOf compares the block span locates in content with block, the one render produces now,
 // carriage returns stripped.
-func statusOf(content []byte, span blockSpan, notes []Note) Status {
+func statusOf(content []byte, span blockSpan, block string) Status {
 	if !span.isFound {
 		return Status{State: StateAbsent}
 	}
 	existing := strings.ReplaceAll(string(content[span.start:span.end]), carriageReturn, "")
-	if existing == render(notes) {
+	if existing == block {
 		return Status{State: StateCurrent, Line: span.line}
 	}
 	return Status{State: StateStale, Line: span.line}

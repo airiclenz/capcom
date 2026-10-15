@@ -43,7 +43,10 @@ membership logic of its own. know-tree-orphans is closed at the scope ADR 0002 a
 - 5 (re-check): guard folded (duplicate-alias warning names the first clean claimant; one conflict-file comparison over `*tree.Error` and `*tree.UnusableError`)
 - 6 (re-check): guard folded (RelatedBy subqueries stay unfiltered; only BelowRepeatedID leaves `isClean`; reuses item 5's comparison)
 
-## 1. Managed block teaches the work loop
+## 1. Managed block teaches the work loop — ✅ DONE (2026-10-15)
+
+NOTES (2026-10-15): Sync takes the doing status as a plain string, the empty string for none (the plan allowed "a string plus ok, or the empty string"); the three CLI call sites share one helper, syncAgentsBlock in internal/cli/agents.go, and statusOf now takes the rendered block so reconcile renders once.
+NOTES (2026-10-15): internal/agents/guides_test.go needed no change (it uses goldenBlock only); a blank line separates the command bullets from the --help line so Markdown does not fold it into the last bullet.
 
 **What:**
 **Goal:** `render` in `internal/agents` emits the work loop in its command bullets, naming the

@@ -4,13 +4,17 @@ import (
 	"errors"
 
 	"github.com/airiclenz/capcom/internal/agents"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 )
 
-// agentsBlock checks the Managed block of AGENTS.md against the Knowledge tree's top level, and,
-// when AGENTS.md carries the block, that each configured agent guide reaches it.
+// agentsBlock checks the Managed block of AGENTS.md against the Knowledge tree's top level and the
+// configured doing status, and, when AGENTS.md carries the block, that each configured agent guide
+// reaches it.
 func (c *checker) agentsBlock() error {
-	status, err := agents.Sync(c.store.WorktreeRoot, c.store.KnowledgeDir(), agents.ModeInspect)
+	// No doing status configured is the empty string, which leaves the claim line out.
+	doingStatus, _ := c.store.Config.DefaultStatus(config.CategoryDoing)
+	status, err := agents.Sync(c.store.WorktreeRoot, c.store.KnowledgeDir(), doingStatus, agents.ModeInspect)
 	var tangled *agents.Error
 	if errors.As(err, &tangled) {
 		c.add(tangled.Path, tangled.Line, diagnose.AgentsBlock, tangled.Message)

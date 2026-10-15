@@ -8,6 +8,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -103,7 +104,7 @@ func (a *app) newAgentsCommand() *cobra.Command {
 // writeAgentsBlock brings the block up to date, appends the import line to each agent guide that
 // does not reach it, and reports what it did.
 func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
-	status, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), agents.ModeWrite)
+	status, err := syncAgentsBlock(opened, agents.ModeWrite)
 	if err != nil {
 		return agentsFailure(err)
 	}
@@ -125,6 +126,14 @@ func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 	return a.emit(cmd, output.Result{Kind: "agents", Data: data, Text: text + guidesText(guides)})
 }
 
+// syncAgentsBlock reconciles the capcom block of the AGENTS.md of opened with its Knowledge top level
+// and its configured doing status, as mode says; see agents.Sync.
+func syncAgentsBlock(opened *store.Store, mode agents.Mode) (agents.Status, error) {
+	// No doing status configured is the empty string, which leaves the claim line out.
+	doingStatus, _ := opened.Config.DefaultStatus(config.CategoryDoing)
+	return agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), doingStatus, mode)
+}
+
 // guidesText reports each guide capcom agents added the import line to, and each it skipped
 // because it links outside the working tree, one line each.
 func guidesText(guides []agents.Guide) string {
@@ -144,7 +153,7 @@ func guidesText(guides []agents.Guide) string {
 // marker line, and, the block current, the first guide that does not reach it fails invalid at
 // that guide.
 func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
-	status, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), agents.ModeInspect)
+	status, err := syncAgentsBlock(opened, agents.ModeInspect)
 	if err != nil {
 		return agentsFailure(err)
 	}

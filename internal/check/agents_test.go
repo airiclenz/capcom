@@ -10,6 +10,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -74,6 +75,18 @@ func TestRun_StaleAgentsBlock_ReportsOneProblemAtTheBeginMarkerLine(t *testing.T
 	}
 	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+func TestRun_RenamedDoingStatus_ReportsTheBlockOutOfDate(t *testing.T) {
+	root := newRepo(t)
+	writeCurrentBlock(t, root)
+	writeFiles(t, root, map[string]string{".capcom/config.yaml": "statuses:\n  open: todo\n  wip: doing\n  closed: done\n"})
+
+	problems := runCheck(t, root)
+
+	if got := codedProblems(problems); len(got) != 1 || !strings.Contains(got[0], "the capcom block is out of date") {
+		t.Errorf("problems = %q\nwant one stale-block problem", got)
 	}
 }
 
@@ -180,7 +193,8 @@ func writeCurrentBlock(t *testing.T, root string) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	if _, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), agents.ModeWrite); err != nil {
+	doingStatus, _ := opened.Config.DefaultStatus(config.CategoryDoing)
+	if _, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), doingStatus, agents.ModeWrite); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 }

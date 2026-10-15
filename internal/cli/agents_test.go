@@ -69,6 +69,30 @@ func TestAgents_AppendsThenRefreshesInPlace(t *testing.T) {
 	}
 }
 
+// renamedDoingConfig is a config.yaml whose doing status is wip, not the default active.
+const renamedDoingConfig = `statuses:
+  open: todo
+  wip: doing
+  closed: done
+`
+
+func TestAgents_RenamedDoingStatus_WritesItIntoTheClaimLine(t *testing.T) {
+	root := newKnowStore(t)
+	if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(renamedDoingConfig), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	mustRun(t, root, "agents")
+
+	block := agentsBlockOf(t, readAgentsGuide(t, root))
+	if !strings.Contains(block, "- `capcom update <id> --status wip`: claim it before you start\n") {
+		t.Errorf("block lacks the claim line naming wip:\n%s", block)
+	}
+	if strings.Contains(block, "--status active") {
+		t.Errorf("block names the default doing status active:\n%s", block)
+	}
+}
+
 func TestAgents_CRLFGuide_StaysCRLFAndIsNotStale(t *testing.T) {
 	root := newKnowStore(t)
 	writeAgentsGuide(t, root, "# Guide\r\n\r\nRules.\r\n")

@@ -16,7 +16,10 @@ var goldenNotes = []Note{
 	{ID: "testing-rules", Title: "Testing rules\nand fixtures"},
 }
 
-// goldenBlock is render(goldenNotes), byte for byte.
+// goldenDoing is the doing status the golden block's claim line names.
+const goldenDoing = "active"
+
+// goldenBlock is render(goldenNotes, goldenDoing), byte for byte.
 const goldenBlock = `<!-- BEGIN CAPCOM -->
 <!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->
 ## Issues and knowledge: capcom
@@ -28,11 +31,16 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
 - ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
+- ` + "`capcom update <id> --status active`" + `: claim it before you start
+- ` + "`capcom log <id> <text>`" + `: note progress as work lands
+- ` + "`capcom close <id> --reason <text>`" + `: close an issue; it names the issues this made ready
+- ` + "`capcom reopen <id> --reason <text>`" + `: undo a close
 - ` + "`capcom create --id <slug> --title <title> [--dep <id>]`" + `: file a new issue
 - ` + "`capcom dep add <id> <dep-id>`" + `: make an issue wait for another; ` + "`capcom dep list <id>`" + ` shows both sides
-- ` + "`capcom close <id> --reason <text>`" + `: close an issue; it names the issues this made ready
 - ` + "`capcom list --tree --depth 2`" + `: the outline of the issues
 - ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+
+Each command's flags are in ` + "`capcom <cmd> --help`" + `.
 
 An issue's body says what is wrong or wanted, why, and how to tell it is done (` + "`## Acceptance`" + `),
 readable on its own; a plan says how and in what order.
@@ -127,21 +135,47 @@ func readGuideText(t *testing.T, root string) string {
 func TestRender_Notes_MatchesGolden(t *testing.T) {
 	t.Parallel()
 
-	block := render(goldenNotes)
+	block := render(goldenNotes, goldenDoing)
 
 	if block != goldenBlock {
 		t.Errorf("render =\n%s\nwant\n%s", block, goldenBlock)
 	}
 }
 
+func TestRender_WorkLoop_NamesTheDoingStatus(t *testing.T) {
+	t.Parallel()
+
+	block := render(goldenNotes, "wip")
+
+	if !strings.Contains(block, "- `capcom update <id> --status wip`: claim it before you start\n") {
+		t.Errorf("render =\n%s\nwant the claim line to name the doing status wip", block)
+	}
+	if strings.Contains(block, "--status active") {
+		t.Errorf("render =\n%s\nwant no claim line naming active", block)
+	}
+}
+
+func TestRender_NoDoingStatus_LeavesOutTheClaimLine(t *testing.T) {
+	t.Parallel()
+
+	block := render(goldenNotes, "")
+
+	if strings.Contains(block, "capcom update") {
+		t.Errorf("render =\n%s\nwant no claim line", block)
+	}
+	if want := "with what blocks it\n- `capcom log <id> <text>`"; !strings.Contains(block, want) {
+		t.Errorf("render =\n%s\nwant the log line right after the show line", block)
+	}
+}
+
 func TestRender_NoNotes_RecommendsTheTreeLock(t *testing.T) {
 	t.Parallel()
 
-	block := render(nil)
+	block := render(nil, goldenDoing)
 
 	for _, want := range []string{"capcom lock acquire --purpose <text>", "--token <token>", "capcom lock check"} {
 		if !strings.Contains(block, want) {
-			t.Errorf("render(nil) =\n%s\nwant it to contain %q", block, want)
+			t.Errorf("render(nil, goldenDoing) =\n%s\nwant it to contain %q", block, want)
 		}
 	}
 }
@@ -149,10 +183,10 @@ func TestRender_NoNotes_RecommendsTheTreeLock(t *testing.T) {
 func TestRender_NoNotes_SaysSo(t *testing.T) {
 	t.Parallel()
 
-	block := render(nil)
+	block := render(nil, goldenDoing)
 
 	if !strings.HasSuffix(block, "Knowledge tree, top level: no Notes yet.\n"+EndMarker) {
-		t.Errorf("render(nil) =\n%s\nwant the no-Notes line before the end marker", block)
+		t.Errorf("render(nil, goldenDoing) =\n%s\nwant the no-Notes line before the end marker", block)
 	}
 }
 
@@ -161,7 +195,7 @@ func TestWrite_ExistingGuideWithoutBlock_AppendsAfterABlankLine(t *testing.T) {
 	hand := "# Guide\n\nHand-written rules."
 	root := writeGuide(t, hand)
 
-	status, err := write(root, goldenNotes)
+	status, err := write(root, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateAbsent {
 		t.Fatalf("write = %+v, %v; want absent before writing", status, err)
@@ -175,9 +209,9 @@ func TestWrite_StaleBlock_RefreshesInPlaceKeepingSurroundingBytes(t *testing.T) 
 	t.Parallel()
 	before := "# Guide\n\n  "
 	after := "  \n\n## Hand-written tail\n\nKeep  this\ttext.\n"
-	root := writeGuide(t, before+render(goldenNotes[:1])+after)
+	root := writeGuide(t, before+render(goldenNotes[:1], goldenDoing)+after)
 
-	status, err := write(root, goldenNotes)
+	status, err := write(root, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateStale || status.Line != 3 {
 		t.Fatalf("write = %+v, %v; want stale at line 3", status, err)
@@ -193,7 +227,7 @@ func TestWrite_BlockWithoutInstallLine_PutsItInsideTheMarkersKeepingSurroundingB
 	after := "  \n\n## Hand-written tail\n\nKeep  this\ttext.\n"
 	root := writeGuide(t, before+preInstallLineBlock+after)
 
-	status, err := write(root, goldenNotes)
+	status, err := write(root, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateStale || status.Line != 3 {
 		t.Fatalf("write = %+v, %v; want stale at line 3", status, err)
@@ -213,7 +247,7 @@ func TestWrite_CurrentBlock_LeavesTheFileAlone(t *testing.T) {
 	root := writeGuide(t, goldenBlock+"\n")
 	before := mustStat(t, root)
 
-	status, err := write(root, goldenNotes)
+	status, err := write(root, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateCurrent || status.Line != 1 {
 		t.Fatalf("write = %+v, %v; want current at line 1", status, err)
@@ -227,7 +261,7 @@ func TestWrite_MissingGuide_CreatesItWithTheBlock(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 
-	_, err := write(root, goldenNotes)
+	_, err := write(root, goldenNotes, goldenDoing)
 
 	if got := readGuideText(t, root); err != nil || got != goldenBlock+"\n" {
 		t.Errorf("write err %v, AGENTS.md =\n%q\nwant the block alone", err, got)
@@ -237,10 +271,10 @@ func TestWrite_MissingGuide_CreatesItWithTheBlock(t *testing.T) {
 func TestWrite_CRLFGuide_StaysCRLFAndIsThenCurrent(t *testing.T) {
 	t.Parallel()
 	crlfOf := func(text string) string { return strings.ReplaceAll(text, "\n", "\r\n") }
-	root := writeGuide(t, crlfOf("# Guide\n\n"+render(nil)+"\n\nTail.\n"))
+	root := writeGuide(t, crlfOf("# Guide\n\n"+render(nil, goldenDoing)+"\n\nTail.\n"))
 
-	_, err := write(root, goldenNotes)
-	status, inspectErr := inspect(root, goldenNotes)
+	_, err := write(root, goldenNotes, goldenDoing)
+	status, inspectErr := inspect(root, goldenNotes, goldenDoing)
 
 	if err != nil || inspectErr != nil || status.State != StateCurrent {
 		t.Fatalf("write %v, inspect = %+v, %v; want current", err, status, inspectErr)
@@ -260,7 +294,7 @@ func TestWrite_PrivateGuide_KeepsItsMode(t *testing.T) {
 		t.Fatalf("Chmod: %v", err)
 	}
 
-	_, err := write(root, goldenNotes)
+	_, err := write(root, goldenNotes, goldenDoing)
 
 	if err != nil {
 		t.Fatalf("write: %v", err)
@@ -287,7 +321,7 @@ func TestWrite_SymlinkedGuide_StaysALinkAndItsTargetGetsTheBlock(t *testing.T) {
 		t.Fatalf("Symlink: %v", err)
 	}
 
-	_, err := write(root, goldenNotes)
+	_, err := write(root, goldenNotes, goldenDoing)
 
 	if err != nil {
 		t.Fatalf("write: %v", err)
@@ -320,7 +354,7 @@ func TestWrite_ReadOnlyDirectory_FailsNamingTheGuideAndLeavesItIntact(t *testing
 	}
 	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
 
-	_, err := write(root, goldenNotes)
+	_, err := write(root, goldenNotes, goldenDoing)
 
 	if err == nil || !strings.HasPrefix(err.Error(), FileName+": ") {
 		t.Errorf("write err = %v, want an error starting %q", err, FileName+": ")
@@ -344,17 +378,18 @@ func TestInspect_States(t *testing.T) {
 		{"no markers", "# Guide\n", StateAbsent},
 		{"current", "# Guide\n\n" + goldenBlock + "\n", StateCurrent},
 		{"current in CRLF", strings.ReplaceAll(goldenBlock, "\n", "\r\n") + "\r\n", StateCurrent},
-		{"stale", render(nil) + "\n", StateStale},
+		{"stale", render(nil, goldenDoing) + "\n", StateStale},
 		{"hand-edited inside", strings.Replace(goldenBlock, "most urgent", "least urgent", 1), StateStale},
 		{"without the install line", "# Guide\n\n" + preInstallLineBlock + "\n", StateStale},
 		{"before the store map", "# Guide\n\n" + preStoreMapBlock + "\n", StateStale},
+		{"another doing status", "# Guide\n\n" + render(goldenNotes, "wip") + "\n", StateStale},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			root := writeGuide(t, testCase.content)
 
-			status, err := inspect(root, goldenNotes)
+			status, err := inspect(root, goldenNotes, goldenDoing)
 
 			if err != nil || status.State != testCase.wantState {
 				t.Errorf("inspect = %+v, %v; want state %d", status, err, testCase.wantState)
@@ -366,7 +401,7 @@ func TestInspect_States(t *testing.T) {
 func TestInspect_MissingGuide_IsAbsent(t *testing.T) {
 	t.Parallel()
 
-	status, err := inspect(t.TempDir(), goldenNotes)
+	status, err := inspect(t.TempDir(), goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateAbsent {
 		t.Errorf("inspect = %+v, %v; want absent", status, err)
@@ -390,7 +425,7 @@ func TestInspect_TangledMarkers_FailAtTheMarkerLine(t *testing.T) {
 			t.Parallel()
 			root := writeGuide(t, testCase.content)
 
-			_, err := inspect(root, goldenNotes)
+			_, err := inspect(root, goldenNotes, goldenDoing)
 
 			var failure *Error
 			if !errors.As(err, &failure) || failure.Line != testCase.wantLine || failure.Path != FileName {
@@ -603,8 +638,8 @@ func writeKnowledge(t *testing.T) (string, []Note) {
 func TestSync_EachModeAndState_ReportsTheStateFoundAndWritesOnlyWhatTheModeAllows(t *testing.T) {
 	t.Parallel()
 	_, notes := writeKnowledge(t)
-	current := "# Guide\n\n" + render(notes) + "\n"
-	stale := "# Guide\n\n" + render(nil) + "\n"
+	current := "# Guide\n\n" + render(notes, goldenDoing) + "\n"
+	stale := "# Guide\n\n" + render(nil, goldenDoing) + "\n"
 	const withoutBlock = "# Guide\n"
 	const missing = ""
 	cases := []struct {
@@ -624,8 +659,8 @@ func TestSync_EachModeAndState_ReportsTheStateFoundAndWritesOnlyWhatTheModeAllow
 		{"refresh missing", ModeRefresh, missing, StateAbsent, missing},
 		{"write current", ModeWrite, current, StateCurrent, current},
 		{"write stale", ModeWrite, stale, StateStale, current},
-		{"write without block", ModeWrite, withoutBlock, StateAbsent, withoutBlock + "\n" + render(notes) + "\n"},
-		{"write missing", ModeWrite, missing, StateAbsent, render(notes) + "\n"},
+		{"write without block", ModeWrite, withoutBlock, StateAbsent, withoutBlock + "\n" + render(notes, goldenDoing) + "\n"},
+		{"write missing", ModeWrite, missing, StateAbsent, render(notes, goldenDoing) + "\n"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -636,7 +671,7 @@ func TestSync_EachModeAndState_ReportsTheStateFoundAndWritesOnlyWhatTheModeAllow
 				root = writeGuide(t, testCase.content)
 			}
 
-			status, err := Sync(root, knowledgeDir, testCase.mode)
+			status, err := Sync(root, knowledgeDir, goldenDoing, testCase.mode)
 
 			if err != nil || status.State != testCase.wantState {
 				t.Fatalf("Sync = %+v, %v; want state %d", status, err, testCase.wantState)
@@ -654,7 +689,7 @@ func TestSync_TangledMarkers_FailsAtTheMarkerLineWithoutWriting(t *testing.T) {
 	content := "# Guide\n" + BeginMarker + "\ntext\n"
 	root := writeGuide(t, content)
 
-	_, err := Sync(root, knowledgeDir, ModeWrite)
+	_, err := Sync(root, knowledgeDir, goldenDoing, ModeWrite)
 
 	var failure *Error
 	if !errors.As(err, &failure) || failure.Line != 2 {
@@ -725,8 +760,8 @@ func linkGuideOutside(t *testing.T, content string) (string, string) {
 func TestSync_GuideLinkedOutsideTheTree_FailsAndLeavesTheTargetAlone(t *testing.T) {
 	t.Parallel()
 	_, notes := writeKnowledge(t)
-	current := "# Guide\n\n" + render(notes) + "\n"
-	stale := "# Guide\n\n" + render(nil) + "\n"
+	current := "# Guide\n\n" + render(notes, goldenDoing) + "\n"
+	stale := "# Guide\n\n" + render(nil, goldenDoing) + "\n"
 	const withoutBlock = "# Guide\n"
 	cases := []struct {
 		name      string
@@ -745,7 +780,7 @@ func TestSync_GuideLinkedOutsideTheTree_FailsAndLeavesTheTargetAlone(t *testing.
 			knowledgeDir, _ := writeKnowledge(t)
 			root, outside := linkGuideOutside(t, testCase.content)
 
-			status, err := Sync(root, knowledgeDir, testCase.mode)
+			status, err := Sync(root, knowledgeDir, goldenDoing, testCase.mode)
 
 			if testCase.isRefused {
 				want := FileName + ": links to " + outside +
@@ -807,7 +842,7 @@ func syncWithin(t *testing.T, root, knowledgeDir string, mode Mode) (Status, err
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		status, err := Sync(root, knowledgeDir, mode)
+		status, err := Sync(root, knowledgeDir, goldenDoing, mode)
 		done <- outcome{status, err}
 	}()
 	select {
@@ -828,7 +863,7 @@ func assertDanglingGuideRead(t *testing.T, root string, notes []Note, mode Mode,
 		t.Fatalf("Sync = %+v, %v; want StateAbsent and no error", status, err)
 	}
 	if mode == ModeWrite {
-		if got, want := readGuideText(t, root), render(notes)+"\n"; got != want {
+		if got, want := readGuideText(t, root), render(notes, goldenDoing)+"\n"; got != want {
 			t.Errorf("AGENTS.md =\n%q\nwant\n%q", got, want)
 		}
 		return

@@ -113,7 +113,7 @@ func (a *app) notes(resolver nodestore.Resolver) *nodestore.Kind[knowledge.Note]
 // syncAgents refreshes the capcom block of AGENTS.md, reporting whether it was stale and so
 // rewritten. Only a stale block is rewritten; an AGENTS.md without the block is left alone.
 func (a *app) syncAgents() (bool, error) {
-	status, err := agents.Sync(a.store.WorktreeRoot, a.store.KnowledgeDir(), agents.ModeRefresh)
+	status, err := syncAgentsBlock(a.store, agents.ModeRefresh)
 	if err != nil {
 		return false, err
 	}
