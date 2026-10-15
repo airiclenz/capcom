@@ -52,8 +52,10 @@ The file formats are in the [File format](../reference/file-format.md) reference
    under `SessionStart`, `PreToolUse` or any other event, then run `capcom init --claude-hooks`,
    `capcom init --codex-hooks` or both. The flags only add capcom's `SessionStart` and `PreCompact`
    groups and keep every existing group, so they remove nothing; capcom has no `PreToolUse` hook,
-   so a beads `PreToolUse` group goes without a replacement. Delete `.beads/`. Commit `.capcom/`
-   and the removal of `.beads/` together, so no commit holds both trackers or neither.
+   so a beads `PreToolUse` group goes without a replacement. Delete `.beads/`. Commit `.capcom/`,
+   `AGENTS.md`, each agent guide `capcom agents` added `@AGENTS.md` to (`CLAUDE.md`, `GEMINI.md`),
+   the hook files you changed and the removal of `.beads/` together, so no commit holds both
+   trackers or neither.
 
 ## Field mapping
 
