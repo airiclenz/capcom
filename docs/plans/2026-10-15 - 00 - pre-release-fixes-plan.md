@@ -292,7 +292,9 @@ bite (walk.go:43-47 never reads those files today); the bite is the agreement fi
 **Commit:** `refactor(index): one membership decision per refresh`
 **Closes:** membership-owner
 
-## 7. Left-out subtrees are pinned in know tree and list --tree
+## 7. Left-out subtrees are pinned in know tree and list --tree — ✅ DONE (2026-10-15)
+
+NOTES (2026-10-15): the ADR sentence lands as its own "Invalid id." bullet right after the "Repeated id." bullet, matching the Note's bullet shape; know-tree-orphans close reason per the ratified Orphans scope call: a Note below a repeated-id or invalid-id parent is left out with a warning by ADR 0002, and a Note below an unparseable parent prints at the root since b1ff6b8.
 
 **What:**
 **Goal:** runCLI tests pin that `capcom know tree` and `capcom list --tree` leave out a node below a

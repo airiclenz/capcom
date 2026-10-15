@@ -316,7 +316,7 @@ func TestListTree_ClosedParent_LeavesOutItsSubtree(t *testing.T) {
 	}
 }
 
-func TestListTree_ChildOfInvalidParent_PrintsAsRoot(t *testing.T) {
+func TestListTree_ChildOfUnparseableParent_PrintsAsRoot(t *testing.T) {
 	root := newReadStore(t)
 	writeIssueFiles(t, root, map[string]string{"login-flow.md": "no frontmatter here\n"})
 
@@ -327,6 +327,45 @@ func TestListTree_ChildOfInvalidParent_PrintsAsRoot(t *testing.T) {
 		"release-checklist  open  P0  Release checklist\nwarning: "
 	if exitCode != ExitOK || !strings.HasPrefix(stdout, want) {
 		t.Errorf("list --tree exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
+	}
+}
+
+func TestListTree_ChildOfLeftOutParent_LeftOutWithWarning(t *testing.T) {
+	cases := []struct {
+		name    string
+		files   map[string]string
+		want    string
+		warning string
+	}{
+		{
+			"below a repeated id",
+			map[string]string{"release-checklist/login-flow.md": validIssue},
+			"release-checklist  open  P0  Release checklist\n",
+			".capcom/issues/login-flow: directory left out: its node file login-flow.md has a duplicate id\n",
+		},
+		{
+			"below an invalid id",
+			map[string]string{
+				"Bad_Name.md":             validIssue,
+				"Bad_Name/child-issue.md": validIssue,
+			},
+			readStoreTree,
+			".capcom/issues/Bad_Name: directory left out: its node file Bad_Name.md has an invalid id\n",
+		},
+	}
+
+	for _, current := range cases {
+		root := newReadStore(t)
+		writeIssueFiles(t, root, current.files)
+
+		stdout, stderr, exitCode := runCLI(t, root, "list", "--tree")
+
+		// The warnings follow the outline, path-sorted, so the directory's may not be the first.
+		if exitCode != ExitOK || !strings.HasPrefix(stdout, current.want+"warning: ") ||
+			!strings.Contains(stdout, current.warning) {
+			t.Errorf("%s: list --tree = %d\nstdout = %q\nstderr = %q\nwant %q\nand %q",
+				current.name, exitCode, stdout, stderr, current.want+"warning: ...", current.warning)
+		}
 	}
 }
 

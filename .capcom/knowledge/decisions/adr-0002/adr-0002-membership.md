@@ -10,6 +10,8 @@ verdicts, so `show`, `close` and the other index readers answer every name as `r
 - **Repeated id.** Every file of a repeated id is left out, with every node file below the
   directory beside it; each claimant gets one finding, saying both are left out. Their names are
   refused as duplicates naming both files.
+- **Invalid id.** A node file with an invalid id has its directory left out, with every node file
+  below it, and a warning names the directory.
 - **Alias clash.** Two nodes that list the same alias both stay usable; only the shared alias is
   refused, naming both files.
 - **Unusable claims.** A name only an unparsed, invalid, orphan or left-out file claims is refused

@@ -311,7 +311,7 @@ func TestKnowTree_JSON_LeavesOutBackgroundUnlessBackground(t *testing.T) {
 	}
 }
 
-func TestKnowTree_ChildOfInvalidParent_PrintsAsRoot(t *testing.T) {
+func TestKnowTree_ChildOfUnparseableParent_PrintsAsRoot(t *testing.T) {
 	currentLines := "testing-rules  Testing rules\n  cli-tests  CLI tests\n    no-parallel  No parallel\n" +
 		"  git-fixtures  Git fixtures\n"
 	cases := []struct {
@@ -352,6 +352,46 @@ func TestKnowTree_ChildOfInvalidParent_PrintsAsRoot(t *testing.T) {
 		// The unusable file's warning follows the outline.
 		if exitCode != ExitOK || !strings.HasPrefix(stdout, current.want+"warning: ") {
 			t.Errorf("%s: know tree = %d\n%s%s\nwant\n%swarning: ...", current.name, exitCode, stdout, stderr, current.want)
+		}
+	}
+}
+
+func TestKnowTree_ChildOfLeftOutParent_LeftOutWithWarning(t *testing.T) {
+	cases := []struct {
+		name    string
+		files   map[string]string
+		want    string
+		warning string
+	}{
+		{
+			"below a repeated id",
+			map[string]string{"release-flow/cli-tests.md": "---\ntitle: CLI tests again\n---\n"},
+			"release-flow  Release flow\ntesting-rules  Testing rules\n  git-fixtures  Git fixtures\n",
+			".capcom/knowledge/testing-rules/cli-tests: directory left out: its node file cli-tests.md has a duplicate id\n",
+		},
+		{
+			"below an invalid id",
+			map[string]string{
+				"testing-rules/Bad_Name.md":            "---\ntitle: Bad name\n---\n",
+				"testing-rules/Bad_Name/child-note.md": "---\ntitle: Child note\n---\n",
+			},
+			"release-flow  Release flow\ntesting-rules  Testing rules\n  cli-tests  CLI tests\n" +
+				"    no-parallel  No parallel\n  git-fixtures  Git fixtures\n",
+			".capcom/knowledge/testing-rules/Bad_Name: directory left out: its node file Bad_Name.md has an invalid id\n",
+		},
+	}
+
+	for _, current := range cases {
+		root := newBackgroundKnowStore(t)
+		writeNoteFiles(t, root, current.files)
+
+		stdout, stderr, exitCode := runCLI(t, root, "know", "tree")
+
+		// The warnings follow the outline, path-sorted, so the directory's may not be the first.
+		if exitCode != ExitOK || !strings.HasPrefix(stdout, current.want+"warning: ") ||
+			!strings.Contains(stdout, current.warning) {
+			t.Errorf("%s: know tree = %d\n%s%s\nwant\n%swarning: ...\nand %q",
+				current.name, exitCode, stdout, stderr, current.want, current.warning)
 		}
 	}
 }
