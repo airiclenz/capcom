@@ -90,7 +90,10 @@ that `capcom agents` in a store with a renamed doing status writes that name int
 **Commit:** `feat(agents): Managed block teaches the work loop with the configured doing status`
 **Closes:** block-work-loop
 
-## 2. Manual copy of the Managed block matches the new text
+## 2. Manual copy of the Managed block matches the new text — ✅ DONE (2026-10-15)
+
+NOTES (2026-10-15): the page's sample block was checked byte for byte against `capcom agents` output in a fresh default-config repository with no Notes (identical); the sample keeps the page's empty-tree line rather than this repository's Knowledge list.
+NOTES (2026-10-15): the glossary Note `managed-block` still summarises the block as "the core commands" without naming the work loop; not made false by this item and outside its Files, left as is.
 
 Depends on item 1.
 **What:**

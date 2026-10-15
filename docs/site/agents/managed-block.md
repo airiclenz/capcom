@@ -6,7 +6,9 @@ sidebar: { order: 3 }
 
 `AGENTS.md` at the root of a repository is the instructions file most coding agents read when a
 session starts. capcom owns one marked section of it, the **Managed block**: a pointer to capcom,
-the core commands, a map of the store, a recommendation to take the
+the work loop as commands in the order an agent runs them (find an issue, read it, claim it with
+the repository's doing status, log progress, close it, reopen it), a few more core commands, a
+pointer to each command's `--help`, a map of the store, a recommendation to take the
 [Tree lock](../concepts/tree-locks.md) before an extensive change, and the top level of the
 [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is your own hand-written
 guide, and capcom never touches it.
@@ -44,11 +46,16 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 
 - `capcom ready`: the issues ready to work on, most urgent first
 - `capcom show <id>`: one issue in full, with what blocks it
+- `capcom update <id> --status active`: claim it before you start
+- `capcom log <id> <text>`: note progress as work lands
+- `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready
+- `capcom reopen <id> --reason <text>`: undo a close
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue
 - `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides
-- `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready
 - `capcom list --tree --depth 2`: the outline of the issues
 - `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>` reads a Note
+
+Each command's flags are in `capcom <cmd> --help`.
 
 An issue's body says what is wrong or wanted, why, and how to tell it is done (`## Acceptance`),
 readable on its own; a plan says how and in what order.
@@ -69,6 +76,11 @@ Knowledge tree, top level: no Notes yet.
 <!-- END CAPCOM -->
 ```
 
+The claim line names the repository's own doing status, the first status of the `doing` category
+in [`config.yaml`](../reference/file-format.md#config): `active` in the default config, and
+whatever that status is renamed to in yours. A config that declares no doing status leaves the
+claim line out.
+
 Write anything you want agents to know outside the markers: edits inside them are overwritten on
 the next refresh.
 
@@ -88,7 +100,8 @@ A [Retired](../concepts/knowledge.md#retired-notes-and-supersession) top-level N
 and so is a [Background](../concepts/knowledge.md#background-note) one. So is a top-level Note that
 does not parse or validate (a blank title, a ref that names no path), or that shares its id or an
 alias with another Note: `capcom know tree` hides it too, and `capcom check` reports it. The block
-is rendered from the Note files alone, so the same Tree always produces the same block.
+is rendered from the Note files and the configured doing status alone, so the same Tree and config
+always produce the same block.
 
 ## Keeping it current
 
@@ -108,7 +121,8 @@ title or its `background` label. A write below the top level changes nothing, si
 lists only the top level. A Note write never adds a block to a file that has none: the block is
 opt-in, through `capcom agents`.
 
-A hand edit of a Note refreshes nothing. `capcom check` then reports the block as out of date, at
+A hand edit of a Note refreshes nothing, and neither does renaming the doing status in
+`config.yaml`. `capcom check` then reports the block as out of date, at
 the line of its begin marker, and `capcom agents --check` fails the same way:
 
 ```console
