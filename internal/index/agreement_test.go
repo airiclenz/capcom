@@ -304,6 +304,19 @@ var agreementFixtures = []agreementFixture{
 		},
 	},
 	{
+		name: "prefix of an unusable node's id another file claims",
+		files: []agreementFile{
+			{path: "zzz.md", form: formBroken}, {path: "ghost/zzz.md"},
+			{path: "bad.md", form: formInvalid}, {path: "ghost/bad.md"},
+		},
+		queries: []agreementQuery{
+			{name: "zz", resolve: "duplicate", claimant: "none"},
+			{name: "ba", resolve: "duplicate", claimant: "none"},
+			{name: "zzz", resolve: "duplicate", claimant: "live zzz.md"},
+			{name: "bad", resolve: "duplicate", claimant: "live bad.md"},
+		},
+	},
+	{
 		name: "parsed file in an orphan directory lists aliases over several lines",
 		files: []agreementFile{
 			{path: "ghost/kid.md", aliases: []string{"far-one", "far-two"}, isMultiLine: true},

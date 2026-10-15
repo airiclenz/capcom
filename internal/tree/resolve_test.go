@@ -483,6 +483,38 @@ func TestResolveIn_ExactIDOfAnUnparsedNode_FailsAsAnUnusableClaim(t *testing.T) 
 	}
 }
 
+func TestResolve_PrefixOfAnUnusableNodesIDAnotherFileClaims_FailsAsDuplicate(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		file    string
+		content tree.Content
+		arg     string
+	}{
+		{"node file that does not parse", "zzz.md", tree.Content{Parse: tree.UnparsedFile}, "zz"},
+		{"node file that fails validation", "bad.md", tree.Content{Parse: tree.ParsedFile}, "ba"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			writeNodes(t, dir, testCase.file, "ghost/"+testCase.file)
+			loaded, err := tree.LoadContent(dir, "issue", contentByPath(dir, map[string]tree.Content{
+				testCase.file: testCase.content,
+			}))
+			if loaded == nil {
+				t.Fatalf("LoadContent = nil, %v; want a tree", err)
+			}
+
+			node, err := loaded.Resolve(testCase.arg)
+
+			if !errors.Is(err, tree.ErrDuplicate) {
+				t.Errorf("Resolve(%q) = %q, %v; want a failure wrapping ErrDuplicate", testCase.arg, node.ID, err)
+			}
+		})
+	}
+}
+
 // failingNames is a NameReader whose Match fails for one name and whose PrefixCandidates fail
 // outright; every other name matches nothing.
 type failingNames struct {

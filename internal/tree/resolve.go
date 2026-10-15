@@ -77,8 +77,9 @@ type NameReader interface {
 // NameMatch is what a NameReader knows of one exact name: the membership verdict that refuses it, and the
 // node of the tree it names.
 type NameMatch struct {
-	// ID is the id of the node of the tree whose id is the name, or, with IsAlias set, of the node
-	// that has the name as an Alias; "" when no node answers to it.
+	// ID is the id of the usable node of the tree whose id is the name, or, with IsAlias set, of the
+	// node that has the name as an Alias; "" when no node answers to it. A node whose file is not
+	// usable answers to no id, so a prefix of its id alone fails as that id is refused.
 	ID      string
 	IsAlias bool
 	// Refusal is why the name must not be resolved; zero when nothing refuses it.
@@ -181,11 +182,12 @@ func (t *Tree) Resolve(arg string) (Node, error) {
 }
 
 // Match returns the refusal Load's membership verdicts give name, and the node whose id or alias
-// it is. It never fails.
+// it is; the id of a node whose file is not usable matches no node, as NameMatch.ID says. It never
+// fails.
 func (t *Tree) Match(name string) (NameMatch, error) {
 	verdict := t.refusals[name]
 	match := NameMatch{Refusal: verdict.Refusal, Conflict: verdict.Conflict}
-	if i, found := t.byID[name]; found {
+	if i, found := t.byID[name]; found && !t.unusableIDs[name] {
 		match.ID = t.nodes[i].ID
 	} else if i, found := t.byAlias[name]; found {
 		match.ID, match.IsAlias = t.nodes[i].ID, true

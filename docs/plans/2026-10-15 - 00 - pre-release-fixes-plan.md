@@ -116,7 +116,10 @@ docs/site/reference/file-format.md — "The Managed block in AGENTS.md"; AGENTS.
 - `sed -n '1,13p' docs/site/agents/managed-block.md | grep -c 'work loop'` prints at least 1
 **Commit:** `docs(site): Managed block page shows the work loop`
 
-## 3. Prefix of an unusable node's id resolves as the index does
+## 3. Prefix of an unusable node's id resolves as the index does — ✅ DONE (2026-10-15)
+
+NOTES (2026-10-15): no CHANGELOG entry: the regression (b1ff6b8) never shipped in a release, and the existing Unreleased entry already states the fixed behaviour ("a prefix matching only such an id fails as that id does").
+NOTES (2026-10-15): *Tree.Match falls through to the alias lookup when the id's node is unusable, as snapshotNames.Match does (its exact-id query skips excluded rows); no observable change, since such a name is always refused before Match.ID is read.
 
 **What:**
 **Goal:** a prefix that matches only the id of a node that is not usable (left out as a duplicate

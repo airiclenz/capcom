@@ -68,6 +68,9 @@ type Tree struct {
 	refusals map[string]NameVerdict
 	// unparsedIDs holds the id of every node whose file does not parse.
 	unparsedIDs map[string]bool
+	// unusableIDs holds the id of every node whose file is not usable: it does not parse, fails its
+	// kind's validation or has an alias CheckAliases rejects.
+	unusableIDs map[string]bool
 	// aliases is the AliasFunc Load read the Aliases with; nil when the kind has none.
 	aliases AliasFunc
 	// repeatedFiles index the files of leftOut that carry a repeated id, in leftOut's order.
@@ -185,12 +188,16 @@ func newTree(dir string, aliases AliasFunc, nodes []Node, facts []FileFact, memb
 		children:    map[string][]int{},
 		refusals:    map[string]NameVerdict{},
 		unparsedIDs: map[string]bool{},
+		unusableIDs: map[string]bool{},
 	}
 	keptAt := map[int]int{}
 	for _, i := range membership.Kept {
 		node := nodes[i]
 		if facts[i].Parse == UnparsedFile {
 			tree.unparsedIDs[node.ID] = true
+		}
+		if !facts[i].IsUsable {
+			tree.unusableIDs[node.ID] = true
 		}
 		keptAt[i] = len(tree.nodes)
 		tree.byID[node.ID] = len(tree.nodes)
