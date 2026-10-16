@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `capcom ui`: the tab bar's right end shows `v<version> · capcom` in the muted hints colour, its last character in the frame's last column; it is left out when the terminal is too narrow to keep two blank columns after the last tab, and a click on it opens no tab.
 - `capcom ui`: the detail pane's header shows every frontmatter key an issue holds: its type on the status line (`status: <status> · P<n> · <type>`), then labels, parent, deps, related issues, plan, aliases, the created and closed times (UTC, to the minute) and the close reason, each line left out when empty. Parent, deps and related issues naming an id are links.
 - `capcom ui`: the detail pane's header of a Note shows every frontmatter key it holds: labels, refs, `retired: true` (only when retired), superseded-by and aliases, each line left out when empty. Refs and superseded-by naming an id are links.
+- `ui.colors` in the user config takes two new roles, `lock-held` and `lock-free`, for the `capcom ui` status bar's lock badge: `lock-held` while another session holds the Tree lock, `lock-free` while it is free. The dark preset colours them `#f0883e` and `#43d389`, the light preset `#bc4c00` and `#115e59`.
+- `capcom ui`: the word `lock` opening the status bar is a badge coloured by the Tree lock: filled with the `lock-held` colour while another session holds the lock, live or stale, and with `lock-free` while it is free, its text black or white, whichever reads on the fill. Invalid, unreadable and the first read's `reading` leave it plain, and under `NO_COLOR` a held lock's badge is drawn in reverse. Both colours can be overridden under `ui.colors`.
 
 ## [0.7.0] - 2026-10-15
 
