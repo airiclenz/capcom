@@ -3,6 +3,7 @@ title: A link wrapped at a hyphen bleeds its underline across the screen
 status: open
 type: bug
 priority: 2
+plan: 2026-10-16 - 06 - ui-wrap-styles-and-lock-pad-plan
 created: 2026-10-16T19:41:57Z
 ---
 
