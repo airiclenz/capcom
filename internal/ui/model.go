@@ -74,11 +74,12 @@ type model struct {
 
 	width  int
 	height int
-	// sidebarColumns is the sidebar's width in columns the user set in the split layout, 0 for
-	// the default; sidebarWidth clamps it to the terminal without changing it. It starts on the
-	// width the state file holds.
-	sidebarColumns int
-	// stateSaver writes sidebarColumns to the state file, shared by every copy of the model.
+	// sidebarRatio is the sidebar's width the user set in the split layout, as a fraction of the
+	// terminal's width, 0 for the default; sidebarWidth scales it to the terminal and clamps it
+	// without changing it, so the split holds when the terminal resizes. It starts on the ratio
+	// the state file holds.
+	sidebarRatio float64
+	// stateSaver writes sidebarRatio to the state file, shared by every copy of the model.
 	// stateNotice reports a state file that could not be loaded or saved, empty when there is
 	// nothing to report; stateSavedRequest is the request of the last save it reported on, so an
 	// older save's report never overrides it.
@@ -145,21 +146,21 @@ type model struct {
 // without colours when options.NoColor is set.
 func newModel(options Options) model {
 	config, notice := loadUserConfig(options.UserConfigPath)
-	sidebarColumns, saver, stateNotice := loadUserState(options.UserStatePath)
+	sidebarRatio, saver, stateNotice := loadUserState(options.UserStatePath)
 	m := model{
-		session:        newSession(options.Store, options.Index),
-		tab:            options.Tab,
-		initialID:      options.ID,
-		userConfig:     config,
-		configNotice:   notice,
-		sidebarColumns: sidebarColumns,
-		stateSaver:     saver,
-		stateNotice:    stateNotice,
-		isNoColor:      options.NoColor,
-		lockText:       lockReadingText,
-		tick:           scheduleTick,
-		now:            time.Now,
-		execFn:         execEditor,
+		session:      newSession(options.Store, options.Index),
+		tab:          options.Tab,
+		initialID:    options.ID,
+		userConfig:   config,
+		configNotice: notice,
+		sidebarRatio: sidebarRatio,
+		stateSaver:   saver,
+		stateNotice:  stateNotice,
+		isNoColor:    options.NoColor,
+		lockText:     lockReadingText,
+		tick:         scheduleTick,
+		now:          time.Now,
+		execFn:       execEditor,
 	}
 	m.theme = m.themeOf()
 	m.markdownTheme = m.theme.markdown
@@ -193,11 +194,11 @@ func loadUserConfig(path string) (userconfig.Config, string) {
 }
 
 // loadUserState loads the state file at path, resolving the default path when path is empty. It
-// returns the sidebar width stored there, 0 for none, the saver that writes the state file at that
+// returns the sidebar ratio stored there, 0 for none, the saver that writes the state file at that
 // path, and the status-bar notice of an error, "" when there is none. A path that cannot be
-// resolved and a file that cannot be used both leave the width at 0; the saver of a path that
+// resolved and a file that cannot be used both leave the ratio at 0; the saver of a path that
 // cannot be resolved reports that error on every save and writes nothing.
-func loadUserState(path string) (int, *stateSaver, string) {
+func loadUserState(path string) (float64, *stateSaver, string) {
 	if path == "" {
 		resolved, err := userconfig.StatePath()
 		if err != nil {
@@ -210,7 +211,7 @@ func loadUserState(path string) (int, *stateSaver, string) {
 	if err != nil {
 		return 0, saver, stateNoticePrefix + err.Error() + defaultsNotice
 	}
-	return state.UI.SidebarWidth, saver, ""
+	return state.UI.SidebarRatio, saver, ""
 }
 
 // stateSavedMsg reports a write of the state file: request numbers the save it wrote, and err is
@@ -222,32 +223,32 @@ type stateSavedMsg struct {
 
 // stateSaver writes the state file. The model holds it by pointer, so every save command built
 // from any copy of the model shares it. Bubble Tea runs each command in its own goroutine, so save
-// commands can run out of order: each writes the latest width asked for, under the mutex, and one
-// that finds that width written already writes nothing. pathErr, when set, is why no path could
+// commands can run out of order: each writes the latest ratio asked for, under the mutex, and one
+// that finds that ratio written already writes nothing. pathErr, when set, is why no path could
 // be resolved; every save then reports it.
 type stateSaver struct {
 	path    string
 	pathErr error
 
 	mutex sync.Mutex
-	// width is the latest width asked for, asked the number of saves asked for so far and written
-	// the number of the last one written.
-	width   int
+	// ratio is the latest sidebar ratio asked for, asked the number of saves asked for so far and
+	// written the number of the last one written.
+	ratio   float64
 	asked   int
 	written int
 }
 
-// save makes width the latest width asked for and returns the command that writes it, reported
-// as a stateSavedMsg.
-func (s *stateSaver) save(width int) tea.Cmd {
+// save makes ratio the latest sidebar ratio asked for and returns the command that writes it,
+// reported as a stateSavedMsg.
+func (s *stateSaver) save(ratio float64) tea.Cmd {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.width = width
+	s.ratio = ratio
 	s.asked++
 	return s.write
 }
 
-// write writes the latest width asked for, 0 leaving the width out, and reports it as a
+// write writes the latest ratio asked for, 0 leaving the ratio out, and reports it as a
 // stateSavedMsg numbered by that save. It reports nothing when that save is written already.
 func (s *stateSaver) write() tea.Msg {
 	s.mutex.Lock()
@@ -258,15 +259,15 @@ func (s *stateSaver) write() tea.Msg {
 	s.written = s.asked
 	err := s.pathErr
 	if err == nil {
-		err = userconfig.SaveState(s.path, userconfig.State{UI: userconfig.UIState{SidebarWidth: s.width}})
+		err = userconfig.SaveState(s.path, userconfig.State{UI: userconfig.UIState{SidebarRatio: s.ratio}})
 	}
 	return stateSavedMsg{request: s.written, err: err}
 }
 
-// saveState returns the command that writes the sidebar's width as the user set it to the state
-// file, reported as a stateSavedMsg.
+// saveState returns the command that writes the sidebar's width as the user set it, as its ratio
+// of the terminal's width, to the state file, reported as a stateSavedMsg.
 func (m model) saveState() tea.Cmd {
-	return m.stateSaver.save(m.sidebarColumns)
+	return m.stateSaver.save(m.sidebarRatio)
 }
 
 // applyStateSaved shows a failed write of the state file in the status bar and clears the state

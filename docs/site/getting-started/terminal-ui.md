@@ -71,12 +71,13 @@ the detail pane, its scrollbar included, at least 40. A double-click on the divi
 the default width: a third of the terminal, between 28 and 48 columns. Below 90 columns the
 divider does not move.
 
-`capcom ui` remembers the width you set in `capcom/state.yaml`, beside your
-[user config](#theme), and starts on it the next time, in every repository. On a terminal too
-narrow for the remembered width the sidebar takes what fits, and the remembered width stays for a
-wider one; a double-click reset forgets it. A width that cannot be saved is reported in the status
-bar, and the new width still applies. The file is described under
-[The state file](../reference/file-format.md#the-state-file).
+The width you set is kept as a ratio of the terminal's width, so the split holds when you resize
+the terminal: a sidebar a third of the way across stays a third of the way across. `capcom ui`
+remembers that ratio in `capcom/state.yaml`, beside your [user config](#theme), and starts on it
+the next time, in every repository. Where the ratio would break a limit the sidebar takes what
+fits, and the ratio stays for a terminal where it fits again; a double-click reset forgets it. A
+width that cannot be saved is reported in the status bar, and the new width still applies. The
+file is described under [The state file](../reference/file-format.md#the-state-file).
 
 ## The tabs
 

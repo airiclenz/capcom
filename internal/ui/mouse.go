@@ -25,12 +25,15 @@ func (m model) isMouseIgnored() bool {
 
 // dividerDrag is a drag of the divider between the panes, from a left press on its hit area to the
 // release of the button. grabOffset is the column pressed counted from the separator, so the
-// divider keeps that distance from the pointer and never jumps to it; startColumns is
-// sidebarColumns at the press, which tells the release whether the width changed.
+// divider keeps that distance from the pointer and never jumps to it. startColumns is the
+// sidebar's width at the press and startRatio is sidebarRatio then: a motion back onto
+// startColumns restores startRatio, and the release compares the ratio with it to tell whether
+// the width changed.
 type dividerDrag struct {
 	isActive     bool
 	grabOffset   int
 	startColumns int
+	startRatio   float64
 }
 
 // mouseClick handles a left click: on the divider's hit area it starts a drag of the divider, or
@@ -75,19 +78,26 @@ func (m model) pressDivider(x int) (model, tea.Cmd) {
 	}
 	m.lastDividerPress = time.Time{}
 	m.drag = dividerDrag{}
-	m.sidebarColumns = 0
+	m.sidebarRatio = 0
 	return m.relayout(), m.saveState()
 }
 
 // startDrag starts a drag of the divider pressed at column x.
 func (m model) startDrag(x int) model {
-	m.drag = dividerDrag{isActive: true, grabOffset: x - m.dividerColumn(), startColumns: m.sidebarColumns}
+	m.drag = dividerDrag{
+		isActive:     true,
+		grabOffset:   x - m.dividerColumn(),
+		startColumns: m.sidebarWidth(),
+		startRatio:   m.sidebarRatio,
+	}
 	return m
 }
 
 // mouseMotion moves the divider with the pointer while it is dragged in the split layout, keeping
 // the column it was grabbed by under the pointer within the sidebar's limits, and repaints the
-// panes when the width changed. Without a drag it does nothing.
+// panes when the width changed. The width is kept as its ratio of the terminal's width; back on the
+// width it had at the press it takes the ratio it had then, so a drag with no net move changes
+// nothing. Without a drag it does nothing.
 func (m model) mouseMotion(msg tea.MouseMotionMsg) model {
 	if !m.drag.isActive || !m.isSplit() {
 		return m
@@ -96,7 +106,10 @@ func (m model) mouseMotion(msg tea.MouseMotionMsg) model {
 	if columns == m.sidebarWidth() {
 		return m
 	}
-	m.sidebarColumns = columns
+	m.sidebarRatio = m.ratioOf(columns)
+	if columns == m.drag.startColumns {
+		m.sidebarRatio = m.drag.startRatio
+	}
 	return m.relayout()
 }
 
@@ -108,7 +121,7 @@ func (m model) mouseRelease() (model, tea.Cmd) {
 	if !m.drag.isActive {
 		return m, nil
 	}
-	isChanged := m.sidebarColumns != m.drag.startColumns
+	isChanged := m.sidebarRatio != m.drag.startRatio
 	m.drag = dividerDrag{}
 	if !isChanged {
 		return m, nil

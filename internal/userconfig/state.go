@@ -16,12 +16,12 @@ import (
 // line.
 const (
 	stateFileName   = "state.yaml"
-	keySidebarWidth = "sidebar_width"
+	keySidebarRatio = "sidebar_ratio"
 	stateHeader     = "# capcom ui state: written by capcom ui, not meant for editing (ADR 0014).\n"
 	// stateTempPattern names the temp file SaveState writes before renaming it into place.
 	stateTempPattern = ".state-*.yaml.tmp"
-	// yamlIntTag is the tag yaml.v3 resolves a plain integer scalar to.
-	yamlIntTag = "!!int"
+	// yamlFloatTag is the tag yaml.v3 resolves a plain decimal scalar to.
+	yamlFloatTag = "!!float"
 )
 
 // State is what capcom ui remembers between runs. Unlike Config it is written by capcom ui itself,
@@ -32,9 +32,10 @@ type State struct {
 
 // UIState is the remembered layout of capcom ui.
 type UIState struct {
-	// SidebarWidth is the sidebar's width in columns, as the user last set it; 0 means none is
-	// stored and the default applies. It is never negative.
-	SidebarWidth int
+	// SidebarRatio is the sidebar's width as the user last set it, as a fraction of the terminal's
+	// width, so the split holds at every terminal width; 0 means none is stored and the default
+	// applies. It is 0 or more and less than 1.
+	SidebarRatio float64
 }
 
 // StatePath returns `<os.UserConfigDir>/capcom/state.yaml`, beside Path's config file. It fails
@@ -45,8 +46,8 @@ func StatePath() (string, error) {
 
 // LoadState reads the state file at path. A missing file is the zero State and no error, and is
 // never created. Unknown keys are ignored silently, so a newer capcom's state loads in an older
-// one. Malformed YAML, a sidebar_width that is not a whole number of 1 or more, and a file that
-// cannot be read are an *Error naming the file and, where known, the line; the State is then the
+// one. Malformed YAML, a sidebar_ratio that is not a fraction more than 0 and less than 1, and a
+// file that cannot be read are an *Error naming the file and, where known, the line; the State is then the
 // zero State, so the caller can run on the defaults.
 func LoadState(path string) (State, error) {
 	data, err := os.ReadFile(path)
@@ -71,10 +72,10 @@ func LoadState(path string) (State, error) {
 
 // SaveState writes state to path, creating its directory when missing. It writes a temp file in
 // the same directory and renames it over path, so a reader never sees a half-written file. A
-// negative SidebarWidth is an error and leaves the file untouched.
+// SidebarRatio below 0, of 1 or more, or NaN is an error and leaves the file untouched.
 func SaveState(path string, state State) error {
-	if state.UI.SidebarWidth < 0 {
-		return fmt.Errorf("save the state file: sidebar width %d is negative", state.UI.SidebarWidth)
+	if ratio := state.UI.SidebarRatio; !isStorableRatio(ratio) {
+		return fmt.Errorf("save the state file: sidebar ratio %v is not 0 or more and less than 1", ratio)
 	}
 	directory := filepath.Dir(path)
 	if err := os.MkdirAll(directory, directoryMode); err != nil {
@@ -91,10 +92,18 @@ func SaveState(path string, state State) error {
 func encodeState(state State) []byte {
 	var content strings.Builder
 	content.WriteString(stateHeader)
-	if state.UI.SidebarWidth > 0 {
-		fmt.Fprintf(&content, "%s:\n  %s: %d\n", keyUI, keySidebarWidth, state.UI.SidebarWidth)
+	if ratio := state.UI.SidebarRatio; ratio > 0 {
+		// The shortest form that parses back to the same float64, so a save and a load round trip.
+		formatted := strconv.FormatFloat(ratio, 'f', -1, 64)
+		fmt.Fprintf(&content, "%s:\n  %s: %s\n", keyUI, keySidebarRatio, formatted)
 	}
 	return []byte(content.String())
+}
+
+// isStorableRatio reports whether ratio is a SidebarRatio SaveState accepts: 0 for none, or a
+// fraction less than 1. NaN fails every comparison and so is never storable.
+func isStorableRatio(ratio float64) bool {
+	return ratio >= 0 && ratio < 1
 }
 
 // replaceFile writes data to a temp file beside path and renames it over path, removing the temp
@@ -150,22 +159,29 @@ func (p *parser) stateUI(node *yaml.Node, settings *UIState) error {
 		return p.errorAt(node, "%s: expected a mapping of keys", keyUI)
 	}
 	return p.eachKey(node, func(key, value *yaml.Node) error {
-		if key.Value != keySidebarWidth {
+		if key.Value != keySidebarRatio {
 			return nil
 		}
-		return p.sidebarWidth(value, settings)
+		return p.sidebarRatio(value, settings)
 	})
 }
 
-// sidebarWidth applies ui.sidebar_width onto settings; a null value stores nothing.
-func (p *parser) sidebarWidth(node *yaml.Node, settings *UIState) error {
+// sidebarRatio applies ui.sidebar_ratio onto settings; a null value stores nothing. Only a
+// decimal more than 0 and less than 1 is accepted: 0 and 1, an integer, NaN and an infinity are not.
+func (p *parser) sidebarRatio(node *yaml.Node, settings *UIState) error {
 	if isNull(node) {
 		return nil
 	}
-	width, err := strconv.Atoi(node.Value)
-	if node.Kind != yaml.ScalarNode || node.Tag != yamlIntTag || err != nil || width < 1 {
-		return p.errorAt(node, "%s.%s: expected a whole number of columns, 1 or more", keyUI, keySidebarWidth)
+	var ratio float64
+	if node.Kind != yaml.ScalarNode || node.Tag != yamlFloatTag || node.Decode(&ratio) != nil ||
+		ratio <= 0 || !isStorableRatio(ratio) {
+		return p.errorAt(
+			node,
+			"%s.%s: expected a fraction of the terminal's width, more than 0 and less than 1",
+			keyUI,
+			keySidebarRatio,
+		)
 	}
-	settings.SidebarWidth = width
+	settings.SidebarRatio = ratio
 	return nil
 }

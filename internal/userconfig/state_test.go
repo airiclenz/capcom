@@ -3,6 +3,7 @@ package userconfig_test
 import (
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,6 +15,9 @@ import (
 
 // stateHeader is the first line SaveState writes.
 const stateHeader = "# capcom ui state: written by capcom ui, not meant for editing (ADR 0014).\n"
+
+// ratioMessage is the error LoadState reports for a sidebar_ratio it cannot use.
+const ratioMessage = "ui.sidebar_ratio: expected a fraction of the terminal's width, more than 0 and less than 1"
 
 // statePath returns a state file path inside a fresh temp dir whose capcom directory does not exist
 // yet.
@@ -51,16 +55,16 @@ func TestStatePath_UserConfigDir_EndsInCapcomState(t *testing.T) {
 func TestSaveState_LoadState_RoundTrips(t *testing.T) {
 	tests := []struct {
 		name    string
-		width   int
+		ratio   float64
 		content string
 	}{
-		{"no width stored", 0, stateHeader},
-		{"a stored width", 36, stateHeader + "ui:\n  sidebar_width: 36\n"},
+		{"no ratio stored", 0, stateHeader},
+		{"a stored ratio", 44.0 / 120.0, stateHeader + "ui:\n  sidebar_ratio: 0.36666666666666664\n"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := statePath(t)
-			saved := userconfig.State{UI: userconfig.UIState{SidebarWidth: test.width}}
+			saved := userconfig.State{UI: userconfig.UIState{SidebarRatio: test.ratio}}
 
 			saveErr := userconfig.SaveState(path, saved)
 			loaded, loadErr := userconfig.LoadState(path)
@@ -79,8 +83,8 @@ func TestSaveState_LoadState_RoundTrips(t *testing.T) {
 }
 
 func TestSaveState_ExistingFile_ReplacesItAndLeavesNoTempFile(t *testing.T) {
-	path := writeState(t, "ui:\n  sidebar_width: 30\n")
-	want := userconfig.State{UI: userconfig.UIState{SidebarWidth: 44}}
+	path := writeState(t, "ui:\n  sidebar_ratio: 0.25\n")
+	want := userconfig.State{UI: userconfig.UIState{SidebarRatio: 0.4}}
 
 	err := userconfig.SaveState(path, want)
 
@@ -102,7 +106,7 @@ func TestSaveState_ExistingFile_ReplacesItAndLeavesNoTempFile(t *testing.T) {
 func TestSaveState_MissingDirectory_CreatesIt(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "absent", "capcom", "state.yaml")
 
-	err := userconfig.SaveState(path, userconfig.State{UI: userconfig.UIState{SidebarWidth: 36}})
+	err := userconfig.SaveState(path, userconfig.State{UI: userconfig.UIState{SidebarRatio: 0.3}})
 
 	if err != nil {
 		t.Fatalf("SaveState() error = %v", err)
@@ -112,29 +116,44 @@ func TestSaveState_MissingDirectory_CreatesIt(t *testing.T) {
 	}
 }
 
-func TestSaveState_Unwritable_Errors(t *testing.T) {
+func TestSaveState_ParentIsAFile_Errors(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "capcom")
+	if err := os.WriteFile(parent, nil, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	err := userconfig.SaveState(
+		filepath.Join(parent, "state.yaml"),
+		userconfig.State{UI: userconfig.UIState{SidebarRatio: 0.3}},
+	)
+
+	if err == nil {
+		t.Errorf("SaveState() error = nil, want an error")
+	}
+}
+
+func TestSaveState_RatioOutOfRange_ErrorsAndLeavesTheFile(t *testing.T) {
 	tests := []struct {
 		name  string
-		path  func(t *testing.T) string
-		width int
+		ratio float64
 	}{
-		{"parent is a file", func(t *testing.T) string {
-			parent := filepath.Join(t.TempDir(), "capcom")
-			if err := os.WriteFile(parent, nil, 0o644); err != nil {
-				t.Fatalf("WriteFile: %v", err)
-			}
-			return filepath.Join(parent, "state.yaml")
-		}, 36},
-		{"negative width", statePath, -1},
+		{"one", 1},
+		{"more than one", 1.5},
+		{"negative", -0.2},
+		{"NaN", math.NaN()},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			path := test.path(t)
+			const existing = "ui:\n  sidebar_ratio: 0.25\n"
+			path := writeState(t, existing)
 
-			err := userconfig.SaveState(path, userconfig.State{UI: userconfig.UIState{SidebarWidth: test.width}})
+			err := userconfig.SaveState(path, userconfig.State{UI: userconfig.UIState{SidebarRatio: test.ratio}})
 
 			if err == nil {
 				t.Errorf("SaveState() error = nil, want an error")
+			}
+			if got := readFile(t, path); got != existing {
+				t.Errorf("state file = %q, want it left as %q", got, existing)
 			}
 		})
 	}
@@ -153,13 +172,23 @@ func TestLoadState_MissingFile_ZeroAndNothingCreated(t *testing.T) {
 	}
 }
 
-func TestLoadState_UnknownKeys_IgnoredAndWidthKept(t *testing.T) {
-	path := writeState(t, "future: 1\nui:\n  sidebar_width: 36\n  theme: dark\n")
+func TestLoadState_UnknownKeys_IgnoredAndRatioKept(t *testing.T) {
+	path := writeState(t, "future: 1\nui:\n  sidebar_ratio: 0.3\n  theme: dark\n")
 
 	state, err := userconfig.LoadState(path)
 
-	if want := (userconfig.State{UI: userconfig.UIState{SidebarWidth: 36}}); err != nil || state != want {
+	if want := (userconfig.State{UI: userconfig.UIState{SidebarRatio: 0.3}}); err != nil || state != want {
 		t.Errorf("LoadState() = %#v, %v; want %#v and no error", state, err, want)
+	}
+}
+
+func TestLoadState_OnlyASidebarWidth_LoadsTheZeroState(t *testing.T) {
+	path := writeState(t, "ui:\n  sidebar_width: 36\n")
+
+	state, err := userconfig.LoadState(path)
+
+	if err != nil || state != (userconfig.State{}) {
+		t.Errorf("LoadState() = %#v, %v; want the zero State and no error", state, err)
 	}
 }
 
@@ -170,13 +199,16 @@ func TestLoadState_InvalidFile_ErrorsWithLineOnZero(t *testing.T) {
 		line    int
 		message string
 	}{
-		{"malformed YAML", "ui:\n  sidebar_width: 36\n  other: [\n", 3, "invalid YAML"},
-		{"width not a number", "ui:\n  sidebar_width: wide\n", 2, "ui.sidebar_width: expected a whole number"},
-		{"width zero", "ui:\n  sidebar_width: 0\n", 2, "ui.sidebar_width: expected a whole number"},
-		{"width negative", "ui:\n  sidebar_width: -4\n", 2, "ui.sidebar_width: expected a whole number"},
-		{"width quoted", "ui:\n  sidebar_width: \"36\"\n", 2, "ui.sidebar_width: expected a whole number"},
-		{"width fractional", "ui:\n  sidebar_width: 36.5\n", 2, "ui.sidebar_width: expected a whole number"},
-		{"width a list", "ui:\n  sidebar_width: [36]\n", 2, "ui.sidebar_width: expected a whole number"},
+		{"malformed YAML", "ui:\n  sidebar_ratio: 0.3\n  other: [\n", 3, "invalid YAML"},
+		{"ratio not a number", "ui:\n  sidebar_ratio: wide\n", 2, ratioMessage},
+		{"ratio zero", "ui:\n  sidebar_ratio: 0\n", 2, ratioMessage},
+		{"ratio one", "ui:\n  sidebar_ratio: 1\n", 2, ratioMessage},
+		{"ratio more than one", "ui:\n  sidebar_ratio: 1.5\n", 2, ratioMessage},
+		{"ratio negative", "ui:\n  sidebar_ratio: -0.2\n", 2, ratioMessage},
+		{"ratio NaN", "ui:\n  sidebar_ratio: .nan\n", 2, ratioMessage},
+		{"ratio infinite", "ui:\n  sidebar_ratio: .inf\n", 2, ratioMessage},
+		{"ratio quoted", "ui:\n  sidebar_ratio: \"0.3\"\n", 2, ratioMessage},
+		{"ratio a list", "ui:\n  sidebar_ratio: [0.3]\n", 2, ratioMessage},
 		{"ui of the wrong type", "ui: 36\n", 1, "ui: expected a mapping"},
 	}
 	for _, test := range tests {

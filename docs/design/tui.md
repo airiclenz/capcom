@@ -51,11 +51,13 @@ lock: free · ? help · q quit
   one). The selection and muted highlights start after the connectors.
 - **Divider**: ` │ `, the pane separator with a blank column either side. It moves: a drag on
   the `│` or a margin column, on any body row, or `<`/`>` (4 columns a press) set the sidebar's
-  width in columns, at least 20 for the sidebar and 40 for the detail pane (from `detailLeft` to
-  the right edge, scrollbar included). The panes reflow on every motion, and while the button is
+  width, moving it in columns, at least 20 for the sidebar and 40 for the detail pane (from
+  `detailLeft` to the right edge, scrollbar included). The panes reflow on every motion, and while the button is
   held the divider and its `┬`/`┴` joints draw bold in the accent colour. A double-click resets
-  the default, a third of the width within 28-48. The width is clamped to the limits at every
-  terminal size, never rewriting the value set, and persists across runs in
+  the default, a third of the width within 28-48. The width set is kept as `sidebarRatio`, its
+  ratio of the terminal's width, so the split holds when the terminal's width changes: at every
+  width the sidebar is the ratio times the width, rounded and clamped to the limits, and neither a
+  resize nor the clamp changes the ratio. The ratio persists across runs as `ui.sidebar_ratio` in
   `<os.UserConfigDir>/capcom/state.yaml` (ADR 0014), beside the user config, which stays
   hand-owned: it is written once per finished drag that changed it, per resize key and per reset,
   which clears it; a failed write is a status-bar notice and the width still applies. The narrow

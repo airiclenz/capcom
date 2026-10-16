@@ -696,20 +696,22 @@ and `>` (see [Resizing the sidebar](../getting-started/terminal-ui.md#resizing-t
 ```yaml
 # capcom ui state: written by capcom ui, not meant for editing (ADR 0014).
 ui:
-  sidebar_width: 36
+  sidebar_ratio: 0.3
 ```
 
-- **ui.sidebar_width** — the sidebar's width in columns, a whole number of 1 or more; the
-  default width, a third of the terminal between 28 and 48 columns, when absent. On every terminal
-  size it is clamped to the limits, at least 20 columns for the sidebar and 40 for the detail
-  pane, without being rewritten.
+- **ui.sidebar_ratio** — the sidebar's width as a ratio of the terminal's width, a decimal more
+  than 0 and less than 1, so the split holds when the terminal is resized or `capcom ui` starts in
+  a terminal of another width; the default width, a third of the terminal between 28 and 48
+  columns, when absent. On every terminal size the sidebar takes the ratio of its width, rounded
+  to a column and clamped to the limits, at least 20 columns for the sidebar and 40 for the detail
+  pane; neither a resize nor the clamp changes the stored ratio. A `sidebar_width` key is ignored.
 
 `capcom ui` reads the file once, when it starts, and does not create it then. It writes the file,
 creating its directory when missing, after a drag that changed the width, on each `<` or `>`, and
 on a double-click reset, which leaves only the first comment line. Each write replaces the whole
 file through a temp file renamed into place, so a key it does not know is not kept. When reading,
 an unknown key is ignored silently, so a newer capcom's file loads in an older one. Malformed YAML,
-a width that is not a whole number of 1 or more, or a file that cannot be read is reported in the
+a ratio that is not a decimal more than 0 and less than 1, or a file that cannot be read is reported in the
 status bar, and `capcom ui` starts on the default width; a failed write is reported there too, and
 the width still applies. Deleting the file is safe: it only forgets the width.
 

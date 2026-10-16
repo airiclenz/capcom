@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -68,13 +69,13 @@ func (m model) bodyHeight() int {
 	return max(m.height-frameRows, 0)
 }
 
-// sidebarWidth returns the sidebar's columns in the split layout: the width the user set, or else
-// a third of the terminal within sidebarMinWidth and sidebarMaxWidth, either clamped by
-// clampSidebarWidth to the terminal's width.
+// sidebarWidth returns the sidebar's columns in the split layout: the ratio the user set times the
+// terminal's width, rounded, or else a third of the terminal within sidebarMinWidth and
+// sidebarMaxWidth, either clamped by clampSidebarWidth to the terminal's width.
 func (m model) sidebarWidth() int {
-	desired := m.sidebarColumns
-	if desired <= 0 {
-		desired = min(max(m.width/sidebarShare, sidebarMinWidth), sidebarMaxWidth)
+	desired := min(max(m.width/sidebarShare, sidebarMinWidth), sidebarMaxWidth)
+	if m.sidebarRatio > 0 {
+		desired = int(math.Round(m.sidebarRatio * float64(m.width)))
 	}
 	return m.clampSidebarWidth(desired)
 }
@@ -88,14 +89,25 @@ func (m model) clampSidebarWidth(columns int) int {
 }
 
 // resizeSidebar moves the divider by delta columns, right when positive, within the sidebar's
-// limits, and repaints the panes at the new width. The width is kept as set by the user. It does
-// nothing outside the split layout.
+// limits, and repaints the panes at the new width. The width is kept as the user's ratio of the
+// terminal's width, so it holds when the terminal resizes. It does nothing outside the split
+// layout, and leaves the ratio as it was when the limits keep the width where it is.
 func (m model) resizeSidebar(delta int) model {
 	if m.isNarrow() {
 		return m
 	}
-	m.sidebarColumns = m.clampSidebarWidth(m.sidebarWidth() + delta)
+	columns := m.clampSidebarWidth(m.sidebarWidth() + delta)
+	if columns == m.sidebarWidth() {
+		return m
+	}
+	m.sidebarRatio = m.ratioOf(columns)
 	return m.relayout()
+}
+
+// ratioOf returns columns as a fraction of the terminal's width, the form sidebarRatio keeps a
+// width in. Only the split layout calls it, so the width is never 0.
+func (m model) ratioOf(columns int) float64 {
+	return float64(columns) / float64(m.width)
 }
 
 // body draws the bodyHeight rows under the tab bar's rule: the help screen when it is open, the two

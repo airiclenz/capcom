@@ -500,8 +500,8 @@ func TestMouse_DragTheDivider_MovesItAndSavesTheWidth(t *testing.T) {
 			if got := m.sidebarWidth(); got != before+10 {
 				t.Errorf("sidebarWidth() = %d, want %d", got, before+10)
 			}
-			if got := readStoredWidth(t, options.UserStatePath); got != before+10 {
-				t.Errorf("stored sidebar width = %d, want %d", got, before+10)
+			if got, want := readStoredRatio(t, options.UserStatePath), widthRatio(before+10, wideWidth); got != want {
+				t.Errorf("stored sidebar ratio = %v, want %v", got, want)
 			}
 		})
 	}
@@ -543,8 +543,8 @@ func TestMouse_PressAndReleaseOnTheDivider_WritesNothing(t *testing.T) {
 	if got := m.sidebarWidth(); got != before {
 		t.Errorf("sidebarWidth() = %d, want it left at %d", got, before)
 	}
-	if got := readStoredWidth(t, options.UserStatePath); got != 0 {
-		t.Errorf("stored sidebar width = %d, want none written", got)
+	if got := readStoredRatio(t, options.UserStatePath); got != 0 {
+		t.Errorf("stored sidebar ratio = %v, want none written", got)
 	}
 }
 
@@ -584,8 +584,8 @@ func TestMouse_MotionAndReleaseWithoutADrag_ChangeNothing(t *testing.T) {
 	if got := m.sidebarWidth(); got != before {
 		t.Errorf("sidebarWidth() = %d, want it left at %d", got, before)
 	}
-	if got := readStoredWidth(t, options.UserStatePath); got != 0 {
-		t.Errorf("stored sidebar width = %d, want none written", got)
+	if got := readStoredRatio(t, options.UserStatePath); got != 0 {
+		t.Errorf("stored sidebar ratio = %v, want none written", got)
 	}
 }
 
@@ -610,11 +610,11 @@ func TestMouse_DragOnANarrowTerminalOrUnderHelp_DoesNothing(t *testing.T) {
 
 			m = dragDivider(t, m, from, from+10)
 
-			if m.sidebarColumns != 0 {
-				t.Errorf("sidebarColumns = %d, want 0: no drag", m.sidebarColumns)
+			if m.sidebarRatio != 0 {
+				t.Errorf("sidebarRatio = %v, want 0: no drag", m.sidebarRatio)
 			}
-			if got := readStoredWidth(t, options.UserStatePath); got != 0 {
-				t.Errorf("stored sidebar width = %d, want none written", got)
+			if got := readStoredRatio(t, options.UserStatePath); got != 0 {
+				t.Errorf("stored sidebar ratio = %v, want none written", got)
 			}
 		})
 	}
@@ -630,8 +630,8 @@ func TestMouse_MidDrag_MatchesANSIGolden(t *testing.T) {
 	goldenANSI(t, "drag-divider-120x30", m.View())
 }
 
-// storedWidthAt is the sidebar width the double-click tests store in the state file before the
-// model starts, wide enough that a reset to the default width shows.
+// storedWidthAt is the sidebar width the double-click tests store in the state file, as its ratio
+// of wideWidth, before the model starts, wide enough that a reset to the default width shows.
 const storedWidthAt = 60
 
 // testClock is a clock a test moves on by hand, which stands in for time.Now in a model.
@@ -667,15 +667,15 @@ func pressDividerOnce(t *testing.T, m model) model {
 	return press(t, m, release(x, dragRow))
 }
 
-// assertNoStoredWidth fails the test unless the state file at path holds no sidebar_width key.
-func assertNoStoredWidth(t *testing.T, path string) {
+// assertNoStoredRatio fails the test unless the state file at path holds no sidebar_ratio key.
+func assertNoStoredRatio(t *testing.T, path string) {
 	t.Helper()
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	if strings.Contains(string(content), "sidebar_width") {
-		t.Errorf("state file = %q, want no sidebar_width key", content)
+	if strings.Contains(string(content), "sidebar_ratio") {
+		t.Errorf("state file = %q, want no sidebar_ratio key", content)
 	}
 }
 
@@ -685,8 +685,8 @@ func TestMouse_DoubleClickOnTheDivider_ResetsTheWidthAndClearsTheStoredOne(t *te
 	defaultWidth := m.sidebarWidth()
 	from := m.dividerColumn()
 	m = dragDivider(t, m, from, from+storedWidthAt-defaultWidth)
-	if got := readStoredWidth(t, options.UserStatePath); got != storedWidthAt {
-		t.Fatalf("stored sidebar width after the drag = %d, want %d", got, storedWidthAt)
+	if got, want := readStoredRatio(t, options.UserStatePath), widthRatio(storedWidthAt, wideWidth); got != want {
+		t.Fatalf("stored sidebar ratio after the drag = %v, want %v", got, want)
 	}
 	clock.advance(doubleClickWindow + time.Millisecond)
 
@@ -697,12 +697,12 @@ func TestMouse_DoubleClickOnTheDivider_ResetsTheWidthAndClearsTheStoredOne(t *te
 	if got := m.sidebarWidth(); got != defaultWidth {
 		t.Errorf("sidebarWidth() = %d, want the default %d", got, defaultWidth)
 	}
-	assertNoStoredWidth(t, options.UserStatePath)
+	assertNoStoredRatio(t, options.UserStatePath)
 }
 
 func TestMouse_DoubleClickOnTheDivider_StartsNoDrag(t *testing.T) {
 	options := newTestOptions(t, newTestStore(t, readyFiles))
-	writeTestFile(t, options.UserStatePath, fmt.Sprintf("ui:\n  sidebar_width: %d\n", storedWidthAt))
+	writeTestFile(t, options.UserStatePath, ratioState(storedWidthAt, wideWidth))
 	m, clock := startClockModel(t, options)
 	x := m.dividerColumn()
 	m = pressDividerOnce(t, m)
@@ -716,7 +716,7 @@ func TestMouse_DoubleClickOnTheDivider_StartsNoDrag(t *testing.T) {
 	if got := m.sidebarWidth(); got != defaultWidth {
 		t.Errorf("sidebarWidth() = %d, want it left at the default %d: no drag", got, defaultWidth)
 	}
-	assertNoStoredWidth(t, options.UserStatePath)
+	assertNoStoredRatio(t, options.UserStatePath)
 }
 
 func TestMouse_PressRightAfterADragThatMovedTheDivider_StartsADrag(t *testing.T) {
@@ -732,8 +732,8 @@ func TestMouse_PressRightAfterADragThatMovedTheDivider_StartsADrag(t *testing.T)
 	if got := m.sidebarWidth(); got != before+15 {
 		t.Errorf("sidebarWidth() = %d, want %d: a drag, no reset", got, before+15)
 	}
-	if got := readStoredWidth(t, options.UserStatePath); got != before+15 {
-		t.Errorf("stored sidebar width = %d, want %d", got, before+15)
+	if got, want := readStoredRatio(t, options.UserStatePath), widthRatio(before+15, wideWidth); got != want {
+		t.Errorf("stored sidebar ratio = %v, want %v", got, want)
 	}
 }
 
@@ -749,7 +749,7 @@ func TestMouse_TwoPressesOnTheDividerThatAreNoDoubleClick_KeepTheWidth(t *testin
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			options := newTestOptions(t, newTestStore(t, readyFiles))
-			writeTestFile(t, options.UserStatePath, fmt.Sprintf("ui:\n  sidebar_width: %d\n", storedWidthAt))
+			writeTestFile(t, options.UserStatePath, ratioState(storedWidthAt, wideWidth))
 			m, clock := startClockModel(t, options)
 
 			m = pressDividerOnce(t, m)
@@ -763,9 +763,60 @@ func TestMouse_TwoPressesOnTheDividerThatAreNoDoubleClick_KeepTheWidth(t *testin
 			if got := m.sidebarWidth(); got != storedWidthAt {
 				t.Errorf("sidebarWidth() = %d, want it left at %d", got, storedWidthAt)
 			}
-			if got := readStoredWidth(t, options.UserStatePath); got != storedWidthAt {
-				t.Errorf("stored sidebar width = %d, want it left at %d", got, storedWidthAt)
+			if got, want := readStoredRatio(t, options.UserStatePath), widthRatio(storedWidthAt, wideWidth); got != want {
+				t.Errorf("stored sidebar ratio = %v, want it left at %v", got, want)
 			}
 		})
+	}
+}
+
+func TestMouse_DragThenATerminalResize_KeepsTheDraggedRatio(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), wideWidth, wideHeight)
+	from := m.dividerColumn()
+	m = dragDivider(t, m, from, from+60-m.sidebarWidth())
+
+	m = press(t, m, tea.WindowSizeMsg{Width: 240, Height: wideHeight})
+
+	if got := m.sidebarWidth(); got != 120 {
+		t.Errorf("sidebarWidth() = %d, want 120: 60 of 120 columns kept at 240", got)
+	}
+}
+
+func TestMouse_DoubleClickResetThenATerminalResize_FollowsTheDefault(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	writeTestFile(t, options.UserStatePath, ratioState(storedWidthAt, wideWidth))
+	m, clock := startClockModel(t, options)
+	m = pressDividerOnce(t, m)
+	clock.advance(200 * time.Millisecond)
+	m = pressDividerOnce(t, m)
+
+	m = press(t, m, tea.WindowSizeMsg{Width: 200, Height: wideHeight})
+
+	if got := m.sidebarWidth(); got != 48 {
+		t.Errorf("sidebarWidth() = %d, want the default 48 at 200 columns", got)
+	}
+}
+
+func TestMouse_DragBackToThePressColumn_RestoresTheRatioAndSavesNothing(t *testing.T) {
+	const width = 97
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: 0.3\n")
+	m := startModel(t, options, width, wideHeight)
+	if got := m.sidebarWidth(); got != 29 {
+		t.Fatalf("sidebarWidth() = %d, want 29: 0.3 of %d columns", got, width)
+	}
+	asked := m.stateSaver.asked
+	from := m.dividerColumn()
+
+	m = press(t, m, click(from, dragRow))
+	m = press(t, m, motion(from+1, dragRow))
+	m = press(t, m, motion(from, dragRow))
+	m = press(t, m, release(from, dragRow))
+
+	if m.sidebarRatio != 0.3 {
+		t.Errorf("sidebarRatio = %v, want the stored 0.3 back", m.sidebarRatio)
+	}
+	if m.stateSaver.asked != asked {
+		t.Errorf("saves asked = %d, want %d: a drag with no net move saves nothing", m.stateSaver.asked, asked)
 	}
 }

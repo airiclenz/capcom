@@ -161,9 +161,9 @@ func nextTab(tab Tab) Tab {
 // command that saves the new width to the state file; a key that leaves the width as it was saves
 // nothing.
 func (m model) resizeSidebarKey(delta int) (model, tea.Cmd) {
-	before := m.sidebarColumns
+	before := m.sidebarRatio
 	m = m.resizeSidebar(delta)
-	if m.sidebarColumns == before {
+	if m.sidebarRatio == before {
 		return m, nil
 	}
 	return m, m.saveState()

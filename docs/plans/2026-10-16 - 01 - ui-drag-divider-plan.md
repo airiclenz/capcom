@@ -238,9 +238,12 @@ Depends on item 1.
 
 **Commit:** `docs(decisions): record the capcom ui state file as ADR 0014`
 
-## 8. Keep the divider's ratio when the terminal width changes
+## 8. Keep the divider's ratio when the terminal width changes — ✅ DONE (2026-10-16)
 
 NOTES (2026-10-16): the user asked for the split to hold when the terminal's "vertical size" changes; the divider's position depends only on the terminal's width, so this item covers width changes, and a height change leaves the divider where it is.
+NOTES (2026-10-16): resizeSidebar now returns the model unchanged when the limits keep the width where it is, so `<`/`>` at a limit no longer rewrites the ratio to the clamped columns (which would break "a clamp never changes the ratio") and saves nothing.
+NOTES (2026-10-16): test helpers readStoredWidth and assertNoStoredWidth renamed readStoredRatio and assertNoStoredRatio, with new helpers widthRatio and ratioState in layout_test.go, per the item's regression guard; "no save command built" is asserted through stateSaver.asked staying unchanged.
+NOTES (2026-10-16): LoadState decodes the !!float node with yaml.v3 (so `.nan` and `.inf` reach the range check) and rejects `.inf` too; userconfig tests also cover a quoted ratio and a list.
 
 Depends on items 3, 4 and 5.
 

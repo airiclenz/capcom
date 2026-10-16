@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -293,17 +294,63 @@ func TestModel_ResizeKeys_StopAtTheLimits(t *testing.T) {
 	}
 }
 
-func TestModel_StoredSidebarWidth_ClampsWithoutChangingIt(t *testing.T) {
-	m := newTestModel(t, newTestStore(t, nil), 120, 30)
-	m.sidebarColumns = 80
-
-	m = send(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
-
-	if got := m.sidebarWidth(); got != 57 {
-		t.Errorf("sidebarWidth() = %d, want 57: a stored 80 clamped at 100 columns", got)
+func TestModel_StoredSidebarRatio_ClampsWithoutChangingIt(t *testing.T) {
+	cases := []struct {
+		width int
+		want  int
+	}{
+		{width: 100, want: 57},
+		{width: 300, want: 240},
 	}
-	if m.sidebarColumns != 80 {
-		t.Errorf("sidebarColumns = %d, want the stored 80 unchanged by the clamp", m.sidebarColumns)
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%d columns", tc.width), func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, nil), 120, 30)
+			m.sidebarRatio = 0.8
+
+			m = send(t, m, tea.WindowSizeMsg{Width: tc.width, Height: 30})
+
+			if got := m.sidebarWidth(); got != tc.want {
+				t.Errorf("sidebarWidth() = %d, want %d: a stored 0.8 at %d columns", got, tc.want, tc.width)
+			}
+			if m.sidebarRatio != 0.8 {
+				t.Errorf("sidebarRatio = %v, want the stored 0.8 unchanged by the clamp", m.sidebarRatio)
+			}
+		})
+	}
+}
+
+func TestModel_TerminalWidthChanges_KeepTheSidebarRatio(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	m := startModel(t, options, 120, 30)
+	m = press(t, m, runeKey('>'))
+	ratio := m.sidebarRatio
+	asked := m.stateSaver.asked
+
+	for _, step := range []struct{ width, want int }{{240, 88}, {90, 33}, {120, 44}} {
+		m = press(t, m, tea.WindowSizeMsg{Width: step.width, Height: 30})
+
+		if got := m.sidebarWidth(); got != step.want {
+			t.Errorf("sidebarWidth() at %d columns = %d, want %d", step.width, got, step.want)
+		}
+		assertDividerAt(t, m)
+	}
+	if m.sidebarRatio != ratio {
+		t.Errorf("sidebarRatio = %v, want %v unchanged by the resizes", m.sidebarRatio, ratio)
+	}
+	if m.stateSaver.asked != asked {
+		t.Errorf("saves asked = %d, want %d: a resize saves nothing", m.stateSaver.asked, asked)
+	}
+}
+
+func TestModel_TerminalHeightChanges_LeaveTheDivider(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, nil), 120, 30)
+	m = press(t, m, runeKey('>'))
+	before := m.dividerColumn()
+
+	m = press(t, m, tea.WindowSizeMsg{Width: 120, Height: 50})
+
+	if got := m.dividerColumn(); got != before {
+		t.Errorf("dividerColumn() = %d, want it left at %d", got, before)
 	}
 }
 
@@ -315,8 +362,8 @@ func TestModel_ResizeKeys_DoNothingOnANarrowTerminal(t *testing.T) {
 		m = send(t, m, runeKey(key))
 	}
 
-	if m.sidebarColumns != 0 {
-		t.Errorf("sidebarColumns = %d, want 0: no width set on a narrow terminal", m.sidebarColumns)
+	if m.sidebarRatio != 0 {
+		t.Errorf("sidebarRatio = %v, want 0: no width set on a narrow terminal", m.sidebarRatio)
 	}
 	if got := m.View().Content; got != before {
 		t.Errorf("the screen changed on a narrow terminal:\n%s\nwant\n%s", got, before)
@@ -584,42 +631,60 @@ func TestModel_NoUserConfigDirectory_WarnsAndRunsOnDefaults(t *testing.T) {
 	}
 }
 
-func TestModel_StoredSidebarWidth_StartsTheSidebarOnIt(t *testing.T) {
-	options := newTestOptions(t, newTestStore(t, nil))
-	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_width: 36\n")
+func TestModel_StoredSidebarRatio_StartsTheSidebarOnIt(t *testing.T) {
+	cases := []struct {
+		width int
+		want  int
+	}{
+		{width: 120, want: 30},
+		{width: 200, want: 50},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%d columns", tc.width), func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, nil))
+			writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: 0.25\n")
 
-	m := startModel(t, options, 120, 30)
+			m := startModel(t, options, tc.width, 30)
 
-	if got := m.sidebarWidth(); got != 36 {
-		t.Errorf("sidebarWidth() = %d, want the stored 36", got)
+			if got := m.sidebarWidth(); got != tc.want {
+				t.Errorf("sidebarWidth() = %d, want %d: a stored 0.25 of %d columns", got, tc.want, tc.width)
+			}
+		})
 	}
 }
 
-func TestModel_ResizeKey_SavesTheWidthToTheStateFile(t *testing.T) {
+func TestModel_ResizeKey_SavesTheRatioToTheStateFile(t *testing.T) {
 	options := newTestOptions(t, newTestStore(t, nil))
-	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_width: 36\n")
+	writeTestFile(t, options.UserStatePath, ratioState(36, 120))
 	m := startModel(t, options, 120, 30)
 
 	press(t, m, runeKey('>'))
 
-	if got := readStoredWidth(t, options.UserStatePath); got != 40 {
-		t.Errorf("stored sidebar width = %d, want 40", got)
+	if got, want := readStoredRatio(t, options.UserStatePath), widthRatio(40, 120); got != want {
+		t.Errorf("stored sidebar ratio = %v, want %v: 40 of 120 columns", got, want)
+	}
+	content, err := os.ReadFile(options.UserStatePath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if !strings.Contains(string(content), "sidebar_ratio: ") {
+		t.Errorf("state file = %q, want a sidebar_ratio key", content)
 	}
 }
 
 func TestModel_SaveCommands_RunInReverseOrder_LeaveTheLaterWidth(t *testing.T) {
 	options := newTestOptions(t, newTestStore(t, nil))
 	m := startModel(t, options, 120, 30)
-	m.sidebarColumns = 30
+	m.sidebarRatio = 0.25
 	earlier := m.saveState()
-	m.sidebarColumns = 50
+	m.sidebarRatio = 0.5
 	later := m.saveState()
 
 	m = drive(t, m, later)
 	m = drive(t, m, earlier)
 
-	if got := readStoredWidth(t, options.UserStatePath); got != 50 {
-		t.Errorf("stored sidebar width = %d, want the later 50", got)
+	if got := readStoredRatio(t, options.UserStatePath); got != 0.5 {
+		t.Errorf("stored sidebar ratio = %v, want the later 0.5", got)
 	}
 	if m.stateNotice != "" {
 		t.Errorf("state notice = %q, want none after the saves succeeded", m.stateNotice)
@@ -628,15 +693,15 @@ func TestModel_SaveCommands_RunInReverseOrder_LeaveTheLaterWidth(t *testing.T) {
 
 func TestModel_MalformedStateFile_ShowsItsPathAndRunsOnTheDefaultWidth(t *testing.T) {
 	options := newTestOptions(t, newTestStore(t, nil))
-	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_width: wide\n")
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: wide\n")
 
 	m := startModel(t, options, wideStatusWidth, 30)
 
 	if got := statusRow(m); !strings.Contains(got, stateNoticePrefix+options.UserStatePath+":2: ") {
 		t.Errorf("status bar = %q, want the state file notice naming %s", got, options.UserStatePath)
 	}
-	if m.sidebarColumns != 0 {
-		t.Errorf("sidebarColumns = %d, want 0: the default width", m.sidebarColumns)
+	if m.sidebarRatio != 0 {
+		t.Errorf("sidebarRatio = %v, want 0: the default width", m.sidebarRatio)
 	}
 }
 
@@ -658,14 +723,26 @@ func TestModel_UnwritableStateFile_ShowsTheSaveNoticeAndStillResizes(t *testing.
 	}
 }
 
-// readStoredWidth returns the sidebar width the state file at path holds, 0 for none.
-func readStoredWidth(t *testing.T, path string) int {
+// readStoredRatio returns the sidebar ratio the state file at path holds, 0 for none.
+func readStoredRatio(t *testing.T, path string) float64 {
 	t.Helper()
 	state, err := userconfig.LoadState(path)
 	if err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
-	return state.UI.SidebarWidth
+	return state.UI.SidebarRatio
+}
+
+// widthRatio returns a sidebar of columns as the ratio the model keeps on a terminal width columns
+// wide.
+func widthRatio(columns, width int) float64 {
+	return float64(columns) / float64(width)
+}
+
+// ratioState returns a state file holding the sidebar ratio of columns on a terminal width columns
+// wide.
+func ratioState(columns, width int) string {
+	return "ui:\n  sidebar_ratio: " + strconv.FormatFloat(widthRatio(columns, width), 'f', -1, 64) + "\n"
 }
 
 // writeTestFile writes content at path, creating its directory.
