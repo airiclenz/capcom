@@ -9,6 +9,7 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/outline"
 )
 
 // Flags of capcom know show.
@@ -52,7 +53,7 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				shown = append(shown, newNoteTree(notes, nil).all(entry.ID)...)
+				shown = append(shown, outline.Notes(notes, true).Children(entry.ID)...)
 			}
 			result, err := a.noteShowResult(shown)
 			if err != nil {

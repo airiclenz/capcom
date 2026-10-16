@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"cmp"
-
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/index"
@@ -59,24 +57,6 @@ func (a *app) newKnowCommand() *cobra.Command {
 	know.AddCommand(a.newKnowUpdateCommand())
 	know.AddCommand(a.newKnowVerifyCommand())
 	return know
-}
-
-// newNoteTree groups notes under their parents, each group in id order, for an outline that
-// prints the Notes isShown accepts (every Note when nil). A Note whose parent is not among notes,
-// unparseable or left out, joins the top level, as an issue does in list --tree.
-func newNoteTree(notes []index.NoteEntry, isShown func(index.NoteEntry) bool) *visibleTree[index.NoteEntry] {
-	return newVisibleTree(
-		notes,
-		noteID,
-		noteParentID,
-		func(left, right index.NoteEntry) int { return cmp.Compare(left.ID, right.ID) },
-		isShown,
-	)
-}
-
-// noteParentID returns the id of the parent of entry, "" for a top-level Note.
-func noteParentID(entry index.NoteEntry) string {
-	return entry.ParentID
 }
 
 // resolveNote resolves one argument to its Note, typing the failure as resolveFailure does.

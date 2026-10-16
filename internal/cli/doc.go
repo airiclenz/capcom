@@ -22,7 +22,7 @@
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search
-//   - `know.go` — capcom know and the Note data, resolution and grouping its subcommands share
+//   - `know.go` — capcom know and the Note data and resolution its subcommands share
 //   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and AGENTS.md refresh
 //   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word
 //   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
@@ -36,7 +36,7 @@
 //   - `mv.go` — the destination, warnings and flags of mv and know mv, which node_verbs.go builds
 //   - `node_edit.go` — editIssue, editNode and written, the CLI side of the internal/ops writes every issue and Note edit verb goes through, and their shared helpers
 //   - `node_verbs.go` — nodeVerbs, the descriptor of a Tree kind, the mv and rm commands built from it for both kinds, and the write path of create and know add
-//   - `outline.go` — the visible-subtree outline and its walker, indented rows and their text, with the hint where --depth cut
+//   - `outline.go` — indented outline rows and their text, with the hint where --depth cut; internal/outline computes the rows
 //   - `output.go` — the Elsewhere scan of a result and the pathspec of the whole issue tree
 //   - `prime.go` — capcom prime: the session Briefing
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first

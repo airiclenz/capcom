@@ -10,6 +10,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/outline"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -229,7 +230,7 @@ type issueTreeItem struct {
 // issueTree is the issue hierarchy list --tree walks: every usable issue grouped under its parent,
 // Closed ones included so they count in their parent's progress, and the outline built so far.
 type issueTree struct {
-	tree  *visibleTree[index.Entry]
+	tree  *outline.Tree[index.Entry]
 	rows  []outlineRow
 	items []issueTreeItem
 }
@@ -252,33 +253,19 @@ func (a *app) issueTreeResult(options *listOptions) (output.Result, error) {
 		}
 		start = &resolved
 	}
-	isShown := func(entry index.Entry) bool {
-		return options.isAll || !entry.Category.IsClosed()
+	issues := &issueTree{tree: outline.Issues(entries, options.isAll), items: []issueTreeItem{}}
+	for _, row := range issues.tree.Rows(start, options.depth) {
+		issues.add(row)
 	}
-	outline := &issueTree{
-		tree:  newVisibleTree(entries, issueID, issueParentID, nil, isShown),
-		items: []issueTreeItem{},
-	}
-	outline.tree.walk(start, options.depth, outline.add)
-	return output.Result{Kind: "issue-list", Data: outline.items, Text: renderOutline(outline.rows)}, nil
+	return output.Result{Kind: "issue-list", Data: issues.items, Text: renderOutline(issues.rows)}, nil
 }
 
-// issueID returns the id of entry, the key its children are grouped under.
-func issueID(entry index.Entry) string {
-	return entry.ID
-}
-
-// issueParentID returns the id of the parent of entry, "" for a top-level issue.
-func issueParentID(entry index.Entry) string {
-	return entry.ParentID
-}
-
-// add appends the line of entry at indent, cutting more children that --depth moreDepth would show.
-func (t *issueTree) add(entry index.Entry, indent int, more int, moreDepth int) {
-	text := strings.TrimSuffix(issueLines([]index.Entry{entry}, ""), "\n")
-	if progress := progressOf(t.tree.all(entry.ID)); progress != nil {
+// add appends the line of row's issue, cutting the children --depth cut.
+func (t *issueTree) add(row outline.Row[index.Entry]) {
+	text := strings.TrimSuffix(issueLines([]index.Entry{row.Entry}, ""), "\n")
+	if progress := progressOf(t.tree.Children(row.ID)); progress != nil {
 		text += "  (" + childrenText(progress) + ")"
 	}
-	t.rows = append(t.rows, outlineRow{depth: indent, text: text, more: more, moreDepth: moreDepth})
-	t.items = append(t.items, issueTreeItem{issueData: newIssueData(entry), Depth: indent})
+	t.rows = append(t.rows, outlineRow{depth: row.Depth, text: text, more: row.More, moreDepth: row.MoreDepth})
+	t.items = append(t.items, issueTreeItem{issueData: newIssueData(row.Entry), Depth: row.Depth})
 }

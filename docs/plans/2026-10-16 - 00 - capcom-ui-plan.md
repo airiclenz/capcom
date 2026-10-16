@@ -168,8 +168,12 @@ same-second edit (`withClock`, as `TestRefresh_SameSizeEditInOneMtimeTick_IsSeen
 - `GOMEMLIMIT=2GiB go test ./internal/index/`
 **Commit:** `feat(index): export Refresh on an open index, reporting whether anything changed`
 
-## 4. Shared outline package
+## 4. Shared outline package — ✅ DONE (2026-10-16)
 
+NOTES (2026-10-16): `outline.Issues(entries, isAll)` and `outline.Notes(notes, isBackgroundIncluded)` return a `*outline.Tree[E]` (generic `NewTree`, `Children` = the all-children accessor, `Shown`, `Rows(start, maxDepth) []Row[E]`) rather than `[]Row` directly, so the same value serves the rows and the all-children accessor that list's progressOf and know show --with-children call; Row is generic over its Entry (index.Entry or index.NoteEntry) with ID, ParentID (the outline parent, "" at the top level), Depth, HasChildren (has shown children), More, MoreDepth; `outline.UnlimitedDepth = 0` beside cli's unchanged unlimitedDepth.
+NOTES (2026-10-16): internal/cli/outline_test.go is deleted: all three of its tests (and newTestTree) moved to internal/outline/outline_test.go under the same names, adapted to Children/Shown/Rows; new tests cover closed subtrees hidden unless --all, a hidden start shown, a depth cut's More/MoreDepth, Note id order and background subtrees hidden.
+NOTES (2026-10-16): internal/cli/issue_render.go is listed in Files but needed no edit: progressOf stays as it is and list.go now passes it `tree.Children(id)`. The cli helpers issueID, issueParentID, noteID, noteParentID and newNoteTree are removed (their only caller was the moved grouping).
+NOTES (2026-10-16): consequential edit — internal/cli/doc.go: made necessary by moving the grouping out of know.go and the tree and walker out of outline.go (both file-map lines reworded).
 **What:**
 **Goal:** the rows, order, depth and visibility of the `capcom list --tree` issue outline and the
 `capcom know tree` Note outline are computed in `internal/outline` as data, and both commands render

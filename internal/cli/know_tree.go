@@ -5,7 +5,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
-	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/outline"
 )
 
 // Flags of capcom know tree.
@@ -89,11 +89,6 @@ type outlineLine struct {
 	outlineRow
 }
 
-// noteID returns the id of entry, the key its children are grouped under.
-func noteID(entry index.NoteEntry) string {
-	return entry.ID
-}
-
 // noteOutlineLine returns the outline line of a Note at an indentation depth, cutting nothing.
 func noteOutlineLine(entry index.NoteEntry, depth int) outlineLine {
 	return outlineLine{entry, outlineRow{depth: depth, text: entry.ID + "  " + flatten(entry.Title)}}
@@ -123,20 +118,12 @@ func (a *app) outline(
 		}
 		start = &resolved
 	}
-	// Hiding a background Note hides its subtree too: the tree groups every indexed Note, so a
-	// Note below a background Note stays in its parent's group rather than joining the top level.
-	isShown := func(note index.NoteEntry) bool {
-		return isBackgroundIncluded || !knowledge.IsBackground(note.Labels)
+	rows := outline.Notes(notes, isBackgroundIncluded).Rows(start, maxDepth)
+	lines := make([]outlineLine, 0, len(rows))
+	for _, row := range rows {
+		line := noteOutlineLine(row.Entry, row.Depth)
+		line.more, line.moreDepth = row.More, row.MoreDepth
+		lines = append(lines, line)
 	}
-	var lines []outlineLine
-	newNoteTree(notes, isShown).walk(
-		start,
-		maxDepth,
-		func(entry index.NoteEntry, indent int, more int, moreDepth int) {
-			line := noteOutlineLine(entry, indent)
-			line.more, line.moreDepth = more, moreDepth
-			lines = append(lines, line)
-		},
-	)
 	return lines, nil
 }
