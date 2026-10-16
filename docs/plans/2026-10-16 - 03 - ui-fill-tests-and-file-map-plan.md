@@ -69,7 +69,10 @@ No key after 'd': base is waitsOn[0] (depFiles deps [base, shipped, ghost]) and 
 - `go vet ./internal/ui/` is clean.
 **Commit:** `test(ui): cover the selection fill in the dependency view`
 
-## 2. Test the selection fill on the Knowledge tab
+## 2. Test the selection fill on the Knowledge tab — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the claims are split into two tests: TestKnowledgeTab_SelectedRow_FillsTheBackgroundAfterTheConnector (fill on every span of setup and no fill on its connector) and TestKnowledgeTab_SelectedRetiredRow_IsFaintOverTheFill (relic: fill plus faint as its own SGR parameter, parsed by a new sgrAttributes helper that skips the 38/48/58 colour sub-parameters). A selectedNoteRow helper is added too. The tab is seated through newThemeModel's tweak (Tab=TabKnowledge), so no '3' is pressed, per the second-round recast.
+NOTES (2026-10-16): bite checks run and reverted, so tree.go and theme.go are unchanged. Painting with markOf(row.isMuted, false) in treeWidget.paint made both tests fail. Dropping .Faint(true) from selectionStyles' fill path made only the faint assertion fail.
 
 **What:** Recast at the regression check (2026-10-16). a test-only item. Depends on item 1 (it uses the generalised `newThemeModel`). Add a
 test in `internal/ui/knowledge_test.go` that opens the Knowledge tab over a store holding Notes

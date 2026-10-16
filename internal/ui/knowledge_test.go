@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/outline"
 )
 
@@ -224,5 +225,93 @@ func TestKnowledgeTab_SelectionLeavesARevealedNote_HidesItAgain(t *testing.T) {
 		selectedNoteID(m) != "setup" || len(mutedNoteIDs(m)) != 0 {
 		t.Errorf("j onto setup: visible %v selecting %q, want %v selecting setup, nothing muted",
 			got, selectedNoteID(m), want)
+	}
+}
+
+// selectedNoteRow returns the Knowledge sidebar row of the selected Note and that Note's tree
+// row, failing the test when the selection is not want.
+func selectedNoteRow(t *testing.T, m model, want string) (string, treeRow[index.NoteEntry]) {
+	t.Helper()
+	selected, isSelected := m.knowledge.tree.selection()
+	if !isSelected || selected.ID != want {
+		t.Fatalf("selected Note = %q, want %q", selected.ID, want)
+	}
+	text := selected.ID + noteRowSeparator + selected.Entry.Title
+	for _, row := range m.sidebar {
+		if strings.Contains(row, text) {
+			return row, selected
+		}
+	}
+	t.Fatalf("sidebar %q has no row %q", m.sidebar, text)
+	return "", selected
+}
+
+// sgrAttributes returns the parameters of the SGR parameter list sgr that stand on their own: a
+// colour's sub-parameters (the 2;r;g;b or 5;n after a 38, 48 or 58) are skipped.
+func sgrAttributes(sgr string) []string {
+	parameters := strings.Split(sgr, ";")
+	attributes := make([]string, 0, len(parameters))
+	for position := 0; position < len(parameters); position++ {
+		parameter := parameters[position]
+		attributes = append(attributes, parameter)
+		if parameter != "38" && parameter != "48" && parameter != "58" || position+1 >= len(parameters) {
+			continue
+		}
+		switch parameters[position+1] {
+		case "2":
+			position += 4
+		case "5":
+			position += 2
+		}
+	}
+	return attributes
+}
+
+func TestKnowledgeTab_SelectedRow_FillsTheBackgroundAfterTheConnector(t *testing.T) {
+	// dark's selection is #3a5fcd.
+	const fill = "48;2;58;95;205"
+	m := newThemeModel(t, knowledgeFiles, "ui:\n  theme: dark\n", false, func(options *Options) {
+		options.Tab = TabKnowledge
+		options.ID = "setup"
+	})
+
+	row, selected := selectedNoteRow(t, m, "setup")
+
+	for _, text := range []string{treeArrow(selected), "setup  Setup"} {
+		if got := sgrBefore(t, row, text); !strings.Contains(got, fill) {
+			t.Errorf("%q in row %q is drawn in %q, want it to carry %s", text, row, got, fill)
+		}
+	}
+	if selected.connector == "" {
+		t.Fatalf("setup has no tree connector: the check cannot tell")
+	}
+	lead := row[:strings.Index(row, selected.connector)+len(selected.connector)]
+	if strings.Contains(lead, fill) {
+		t.Errorf("connector %q in row %q is drawn with the fill %s, want the fill to start after it", selected.connector, row, fill)
+	}
+}
+
+func TestKnowledgeTab_SelectedRetiredRow_IsFaintOverTheFill(t *testing.T) {
+	// dark's selection is #3a5fcd; SGR 2 is faint.
+	const (
+		fill  = "48;2;58;95;205"
+		faint = "2"
+	)
+	// relic, under the retired old, is revealed, muted and selected.
+	m := newThemeModel(t, knowledgeFiles, "ui:\n  theme: dark\n", false, func(options *Options) {
+		options.Tab = TabKnowledge
+		options.ID = "relic"
+	})
+
+	row, selected := selectedNoteRow(t, m, "relic")
+
+	for _, text := range []string{treeArrow(selected), "relic  Relic"} {
+		got := sgrBefore(t, row, text)
+		if !strings.Contains(got, fill) {
+			t.Errorf("%q in row %q is drawn in %q, want it to carry %s", text, row, got, fill)
+		}
+		if !slices.Contains(sgrAttributes(got), faint) {
+			t.Errorf("%q in row %q is drawn in %q, want it faint (SGR %s)", text, row, got, faint)
+		}
 	}
 }
