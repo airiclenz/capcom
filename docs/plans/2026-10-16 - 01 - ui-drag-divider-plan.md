@@ -91,7 +91,12 @@ NOTES (2026-10-16): beyond the listed tests, SaveState rejects a negative Sideba
 
 **Commit:** `feat(ui): resize the sidebar with < and >`
 
-## 3. Persist the sidebar width in the state file
+## 3. Persist the sidebar width in the state file — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the saver is a stateSaver held by pointer in model.go: each save command writes the latest width asked for under its mutex and one finding that save already written writes nothing; stateSavedMsg carries the save's number and the model drops a report older than the last one applied.
+NOTES (2026-10-16): a `<`/`>` press that leaves sidebarColumns unchanged (narrow terminal, or already at a limit) builds no save command, so the file is written only when the width changed.
+NOTES (2026-10-16): a state path that cannot be resolved (no user config directory) shows a `ui state: ` load notice, and every save then reports that error instead of writing anywhere; internal/cli/ui.go needed no change (empty UserStatePath resolves the default).
+NOTES (2026-10-16): internal/ui/model.go grows to 453 lines, past the ~400 guideline; the saver stayed there because the item's Files list names no new file — a later split of the user-file loading (loadUserConfig, loadUserState, stateSaver) into its own file would bring it back under.
 
 Depends on items 1 and 2.
 

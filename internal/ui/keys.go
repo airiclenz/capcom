@@ -34,7 +34,8 @@ const (
 // screen. Esc from the sidebar clears the open tab's filter. On the Ready and Issues tabs a claims
 // the shown issue, s opens the status picker over it, c and R ask for a reason and close or reopen
 // it, and L asks for a line and appends it to its Log. On every tab e opens the selected issue or
-// Note file in the editor, and in the split layout < and > narrow and widen the sidebar.
+// Note file in the editor, and in the split layout < and > narrow and widen the sidebar and save
+// its new width to the state file.
 // Everywhere else the up and down arrows and j k move the sidebar's selection, and on a tree the
 // left and right arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
@@ -80,9 +81,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	case keyEdit:
 		return m.startEdit()
 	case keyShrinkSidebar:
-		return m.resizeSidebar(-sidebarStep), nil
+		return m.resizeSidebarKey(-sidebarStep)
 	case keyGrowSidebar:
-		return m.resizeSidebar(sidebarStep), nil
+		return m.resizeSidebarKey(sidebarStep)
 	default:
 		return m.sidebarOrScrollKey(msg)
 	}
@@ -154,6 +155,18 @@ func nextTab(tab Tab) Tab {
 		}
 	}
 	return tabOrder[0]
+}
+
+// resizeSidebarKey moves the divider by delta columns, as resizeSidebar does, and returns the
+// command that saves the new width to the state file; a key that leaves the width as it was saves
+// nothing.
+func (m model) resizeSidebarKey(delta int) (model, tea.Cmd) {
+	before := m.sidebarColumns
+	m = m.resizeSidebar(delta)
+	if m.sidebarColumns == before {
+		return m, nil
+	}
+	return m, m.saveState()
 }
 
 // halfPage returns the rows ctrl+u and ctrl+d scroll: half of page, at least one.

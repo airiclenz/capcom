@@ -62,7 +62,9 @@ func ParseTab(name string) (Tab, error) {
 // Options configure Run. Store and Index are open and stay owned by the caller, who closes the
 // index once Run returns; an index Run re-opens on a changed config.yaml it closes itself. ID, when set, names the Issue or Note to select in Tab. In and Out are
 // the terminal the program reads keys from and draws on. UserConfigPath names the user config
-// file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used. NoColor, set when the
+// file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used. UserStatePath names
+// the state file the sidebar's width is kept in; empty, the default
+// `<os.UserConfigDir>/capcom/state.yaml` is used. NoColor, set when the
 // NO_COLOR environment variable is non-empty, draws without any colour, whatever the user config
 // file says.
 type Options struct {
@@ -73,12 +75,15 @@ type Options struct {
 	In             io.Reader
 	Out            io.Writer
 	UserConfigPath string
+	UserStatePath  string
 	NoColor        bool
 }
 
 // Run runs the terminal UI until the user quits, with q or ctrl+c. It first loads the user config
 // file, creating it when it is missing; a file it cannot use is reported in the status bar and the
-// UI runs on the default config.
+// UI runs on the default config. It then loads the state file, never creating it, and starts the
+// sidebar on the width stored there; every width change a key makes is saved to it. A state file
+// it cannot load or save is reported in the status bar and the UI runs on.
 func Run(options Options) error {
 	initial := newModel(options)
 	program := tea.NewProgram(

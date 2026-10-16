@@ -69,7 +69,7 @@ func oneLine(text string) string {
 }
 
 // statusBar draws the bottom row: an open confirmation prompt's question or an open text prompt's
-// line in place of everything else, or the Tree lock, the open tab's filter, the user config notice, the notices of a
+// line in place of everything else, or the Tree lock, the open tab's filter, the user config notice, the state file notice, the notices of a
 // config.yaml that could not be reloaded and of a poll that failed or stopped, the notice of an id
 // that could not be selected and the report of the last write when there are any, and the key
 // hints, muted. A row too long for the terminal is cut before the hints, so they stay visible while
@@ -85,7 +85,7 @@ func (m model) statusBar() string {
 	if filter := m.filterStatus(); filter != "" {
 		text += statusSeparator + filter
 	}
-	for _, notice := range []string{m.configNotice, m.storeNotice, m.refreshNotice, m.notice, m.writeNotice} {
+	for _, notice := range []string{m.configNotice, m.stateNotice, m.storeNotice, m.refreshNotice, m.notice, m.writeNotice} {
 		if notice != "" {
 			text += statusSeparator + notice
 		}

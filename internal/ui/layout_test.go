@@ -567,6 +567,90 @@ func TestModel_NoUserConfigDirectory_WarnsAndRunsOnDefaults(t *testing.T) {
 	}
 }
 
+func TestModel_StoredSidebarWidth_StartsTheSidebarOnIt(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_width: 36\n")
+
+	m := startModel(t, options, 120, 30)
+
+	if got := m.sidebarWidth(); got != 36 {
+		t.Errorf("sidebarWidth() = %d, want the stored 36", got)
+	}
+}
+
+func TestModel_ResizeKey_SavesTheWidthToTheStateFile(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_width: 36\n")
+	m := startModel(t, options, 120, 30)
+
+	press(t, m, runeKey('>'))
+
+	if got := readStoredWidth(t, options.UserStatePath); got != 40 {
+		t.Errorf("stored sidebar width = %d, want 40", got)
+	}
+}
+
+func TestModel_SaveCommands_RunInReverseOrder_LeaveTheLaterWidth(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	m := startModel(t, options, 120, 30)
+	m.sidebarColumns = 30
+	earlier := m.saveState()
+	m.sidebarColumns = 50
+	later := m.saveState()
+
+	m = drive(t, m, later)
+	m = drive(t, m, earlier)
+
+	if got := readStoredWidth(t, options.UserStatePath); got != 50 {
+		t.Errorf("stored sidebar width = %d, want the later 50", got)
+	}
+	if m.stateNotice != "" {
+		t.Errorf("state notice = %q, want none after the saves succeeded", m.stateNotice)
+	}
+}
+
+func TestModel_MalformedStateFile_ShowsItsPathAndRunsOnTheDefaultWidth(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_width: wide\n")
+
+	m := startModel(t, options, wideStatusWidth, 30)
+
+	if got := statusRow(m); !strings.Contains(got, stateNoticePrefix+options.UserStatePath+":2: ") {
+		t.Errorf("status bar = %q, want the state file notice naming %s", got, options.UserStatePath)
+	}
+	if m.sidebarColumns != 0 {
+		t.Errorf("sidebarColumns = %d, want 0: the default width", m.sidebarColumns)
+	}
+}
+
+func TestModel_UnwritableStateFile_ShowsTheSaveNoticeAndStillResizes(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	parent := filepath.Join(t.TempDir(), "not-a-directory")
+	writeTestFile(t, parent, "a regular file\n")
+	options.UserStatePath = filepath.Join(parent, "state.yaml")
+	m := startModel(t, options, wideStatusWidth, 30)
+	before := m.sidebarWidth()
+
+	m = press(t, m, runeKey('>'))
+
+	if got := m.sidebarWidth(); got != before+sidebarStep {
+		t.Errorf("sidebarWidth() = %d, want %d: the width changes though it cannot be saved", got, before+sidebarStep)
+	}
+	if got := statusRow(m); !strings.Contains(got, stateSaveNoticePrefix) {
+		t.Errorf("status bar = %q, want the notice %q", got, stateSaveNoticePrefix)
+	}
+}
+
+// readStoredWidth returns the sidebar width the state file at path holds, 0 for none.
+func readStoredWidth(t *testing.T, path string) int {
+	t.Helper()
+	state, err := userconfig.LoadState(path)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	return state.UI.SidebarWidth
+}
+
 // writeTestFile writes content at path, creating its directory.
 func writeTestFile(t *testing.T, path, content string) {
 	t.Helper()

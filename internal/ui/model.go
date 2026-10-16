@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -12,8 +13,16 @@ import (
 // userConfigNoticePrefix opens a status-bar notice about the user config file.
 const userConfigNoticePrefix = "user config: "
 
-// defaultsNotice closes a user config notice whose error left the UI on the default config.
+// defaultsNotice closes a user config or state file notice whose error left the UI on the
+// defaults.
 const defaultsNotice = " (running on defaults)"
+
+// stateNoticePrefix opens a status-bar notice about a state file that could not be loaded, and
+// stateSaveNoticePrefix one about a sidebar width that could not be saved there.
+const (
+	stateNoticePrefix     = "ui state: "
+	stateSaveNoticePrefix = "cannot save the sidebar width: "
+)
 
 // model is the Bubble Tea model of the UI. It holds the session every store and index access goes
 // through, the open tab, the id to select there, the user config it runs on, the terminal size
@@ -62,8 +71,16 @@ type model struct {
 	width  int
 	height int
 	// sidebarColumns is the sidebar's width in columns the user set in the split layout, 0 for
-	// the default; sidebarWidth clamps it to the terminal without changing it.
+	// the default; sidebarWidth clamps it to the terminal without changing it. It starts on the
+	// width the state file holds.
 	sidebarColumns int
+	// stateSaver writes sidebarColumns to the state file, shared by every copy of the model.
+	// stateNotice reports a state file that could not be loaded or saved, empty when there is
+	// nothing to report; stateSavedRequest is the request of the last save it reported on, so an
+	// older save's report never overrides it.
+	stateSaver        *stateSaver
+	stateNotice       string
+	stateSavedRequest int
 
 	// isHelpOpen reports the help screen covering the panes.
 	isHelpOpen bool
@@ -112,20 +129,27 @@ type model struct {
 // newModel returns the model of a UI over options' store and index, opening on options.Tab and
 // selecting options.ID there when it is set. It loads the user config at options.UserConfigPath,
 // or at userconfig.Path when that is empty, creating the file when it is missing; a config that
-// cannot be used leaves the model on userconfig.Default with a notice in the status bar. The
-// theme starts on a dark background, and without colours when options.NoColor is set.
+// cannot be used leaves the model on userconfig.Default with a notice in the status bar. It
+// starts the sidebar on the width the state file at options.UserStatePath, or at
+// userconfig.StatePath when that is empty, holds; a state file that cannot be used leaves the
+// default width with a notice in the status bar. The theme starts on a dark background, and
+// without colours when options.NoColor is set.
 func newModel(options Options) model {
 	config, notice := loadUserConfig(options.UserConfigPath)
+	sidebarColumns, saver, stateNotice := loadUserState(options.UserStatePath)
 	m := model{
-		session:      newSession(options.Store, options.Index),
-		tab:          options.Tab,
-		initialID:    options.ID,
-		userConfig:   config,
-		configNotice: notice,
-		isNoColor:    options.NoColor,
-		lockText:     lockReadingText,
-		tick:         scheduleTick,
-		execFn:       execEditor,
+		session:        newSession(options.Store, options.Index),
+		tab:            options.Tab,
+		initialID:      options.ID,
+		userConfig:     config,
+		configNotice:   notice,
+		sidebarColumns: sidebarColumns,
+		stateSaver:     saver,
+		stateNotice:    stateNotice,
+		isNoColor:      options.NoColor,
+		lockText:       lockReadingText,
+		tick:           scheduleTick,
+		execFn:         execEditor,
 	}
 	m.theme = m.themeOf()
 	m.markdownTheme = m.theme.markdown
@@ -158,6 +182,98 @@ func loadUserConfig(path string) (userconfig.Config, string) {
 	return config, userConfigNoticePrefix + strings.Join(texts, "; ")
 }
 
+// loadUserState loads the state file at path, resolving the default path when path is empty. It
+// returns the sidebar width stored there, 0 for none, the saver that writes the state file at that
+// path, and the status-bar notice of an error, "" when there is none. A path that cannot be
+// resolved and a file that cannot be used both leave the width at 0; the saver of a path that
+// cannot be resolved reports that error on every save and writes nothing.
+func loadUserState(path string) (int, *stateSaver, string) {
+	if path == "" {
+		resolved, err := userconfig.StatePath()
+		if err != nil {
+			return 0, &stateSaver{pathErr: err}, stateNoticePrefix + err.Error() + defaultsNotice
+		}
+		path = resolved
+	}
+	saver := &stateSaver{path: path}
+	state, err := userconfig.LoadState(path)
+	if err != nil {
+		return 0, saver, stateNoticePrefix + err.Error() + defaultsNotice
+	}
+	return state.UI.SidebarWidth, saver, ""
+}
+
+// stateSavedMsg reports a write of the state file: request numbers the save it wrote, and err is
+// the write's error, nil when it succeeded.
+type stateSavedMsg struct {
+	request int
+	err     error
+}
+
+// stateSaver writes the state file. The model holds it by pointer, so every save command built
+// from any copy of the model shares it. Bubble Tea runs each command in its own goroutine, so save
+// commands can run out of order: each writes the latest width asked for, under the mutex, and one
+// that finds that width written already writes nothing. pathErr, when set, is why no path could
+// be resolved; every save then reports it.
+type stateSaver struct {
+	path    string
+	pathErr error
+
+	mutex sync.Mutex
+	// width is the latest width asked for, asked the number of saves asked for so far and written
+	// the number of the last one written.
+	width   int
+	asked   int
+	written int
+}
+
+// save makes width the latest width asked for and returns the command that writes it, reported
+// as a stateSavedMsg.
+func (s *stateSaver) save(width int) tea.Cmd {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.width = width
+	s.asked++
+	return s.write
+}
+
+// write writes the latest width asked for, 0 leaving the width out, and reports it as a
+// stateSavedMsg numbered by that save. It reports nothing when that save is written already.
+func (s *stateSaver) write() tea.Msg {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if s.written == s.asked {
+		return nil
+	}
+	s.written = s.asked
+	err := s.pathErr
+	if err == nil {
+		err = userconfig.SaveState(s.path, userconfig.State{UI: userconfig.UIState{SidebarWidth: s.width}})
+	}
+	return stateSavedMsg{request: s.written, err: err}
+}
+
+// saveState returns the command that writes the sidebar's width as the user set it to the state
+// file, reported as a stateSavedMsg.
+func (m model) saveState() tea.Cmd {
+	return m.stateSaver.save(m.sidebarColumns)
+}
+
+// applyStateSaved shows a failed write of the state file in the status bar and clears the state
+// file notice after a successful one; the report of a save older than the last one reported on
+// changes nothing.
+func (m model) applyStateSaved(msg stateSavedMsg) model {
+	if msg.request < m.stateSavedRequest {
+		return m
+	}
+	m.stateSavedRequest = msg.request
+	m.stateNotice = ""
+	if msg.err != nil {
+		m.stateNotice = stateSaveNoticePrefix + msg.err.Error()
+	}
+	return m
+}
+
 // Init reads this worktree's Tree lock for the status bar, the Ready queue, the issues of the
 // Issues tree and the Notes of the Knowledge tree, and schedules the first poll of the index; the
 // tab the UI opened on selects the id it was opened with. Under theme auto, with colours on, it
@@ -186,8 +302,8 @@ func (m model) initialIDFor(tab Tab) string {
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
-// index, a write's run, the status picker's statuses, an edit's steps, the painter's width
-// measure and the terminal's background colour, polls the index on a tick, and handles the keys:
+// index, a write's run, the status picker's statuses, an edit's steps, a save of the state file,
+// the painter's width measure and the terminal's background colour, polls the index on a tick, and handles the keys:
 // an open confirmation prompt takes
 // every key, then an open text prompt, then an open status picker, then the open filter line,
 // ahead of the dependency view's, then the model's own. While the dependency view is open it keeps the detail
@@ -229,6 +345,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyEdited(msg)
 	case checkedMsg:
 		return m.applyChecked(msg)
+	case stateSavedMsg:
+		m = m.applyStateSaved(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.

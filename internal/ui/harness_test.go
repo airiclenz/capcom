@@ -118,14 +118,17 @@ func newGitRepo(t *testing.T) string {
 }
 
 // newTestOptions returns the Options capcom ui would pass for the test store, on the Ready tab,
-// with the user config file at a path in a fresh temp dir, not yet created.
+// with the user config file and the state file at paths in a fresh temp dir, neither yet
+// created, so no test reads or writes the real user config directory.
 func newTestOptions(t *testing.T, ts *testStore) Options {
 	t.Helper()
+	directory := filepath.Join(t.TempDir(), "capcom")
 	return Options{
 		Store:          ts.store,
 		Index:          ts.index,
 		Tab:            TabReady,
-		UserConfigPath: filepath.Join(t.TempDir(), "capcom", "config.yaml"),
+		UserConfigPath: filepath.Join(directory, "config.yaml"),
+		UserStatePath:  filepath.Join(directory, "state.yaml"),
 	}
 }
 
