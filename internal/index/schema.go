@@ -205,6 +205,39 @@ func isSchemaCurrent(ctx context.Context, tx *sql.Tx, hash string) (bool, error)
 	return recorded[metaSchemaVersion] == strconv.Itoa(schemaVersion) && recorded[metaConfigHash] == hash, nil
 }
 
+// IsSchemaForeign reports whether the index now holds a schema version other than this binary's:
+// another capcom version rebuilt it since this Index last refreshed. A long-lived caller checks it
+// before Refresh, which would otherwise rebuild the index back. An index with no recorded version
+// is not foreign.
+func (x *Index) IsSchemaForeign() (bool, error) {
+	var isForeign bool
+	err := x.snapshot(func(q querier) error {
+		ctx := context.Background()
+		var tables int
+		err := q.QueryRowContext(
+			ctx,
+			`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'meta'`,
+		).Scan(&tables)
+		if err != nil || tables == 0 {
+			return err
+		}
+		var recorded string
+		err = q.QueryRowContext(ctx, `SELECT value FROM meta WHERE key = ?`, metaSchemaVersion).Scan(&recorded)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		isForeign = recorded != strconv.Itoa(schemaVersion)
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("read index schema version: %w", err)
+	}
+	return isForeign, nil
+}
+
 // dropTables drops every table, whatever schema version created it. Virtual tables go first,
 // since dropping one also drops its shadow tables.
 func dropTables(ctx context.Context, tx *sql.Tx) error {

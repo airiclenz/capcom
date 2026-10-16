@@ -2,11 +2,13 @@ package ui
 
 import (
 	"flag"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -33,8 +35,9 @@ type testStore struct {
 // newTestStore builds a store in a fresh temp git repository, as runCLI's tests do: the hermetic
 // git environment, the config.yaml capcom init writes, then files, keyed by their path relative
 // to .capcom with forward slashes (issues/a.md, knowledge/n.md), and an index refreshed over
-// them. The index is closed when the test ends. Tests using it never run in parallel: it sets
-// the process environment.
+// them. Every store file is backdated by backdateAge before the index opens, so the index records
+// them clean and an edit a test makes later is a change, never racily clean. The index is closed
+// when the test ends. Tests using it never run in parallel: it sets the process environment.
 func newTestStore(t *testing.T, files map[string]string) *testStore {
 	t.Helper()
 	root := newGitRepo(t)
@@ -51,6 +54,7 @@ func newTestStore(t *testing.T, files map[string]string) *testStore {
 			t.Fatalf("WriteFile %s: %v", name, err)
 		}
 	}
+	backdateTree(t, initialized.Root)
 	opened, err := store.Open(root)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
@@ -65,6 +69,25 @@ func newTestStore(t *testing.T, files map[string]string) *testStore {
 		}
 	})
 	return &testStore{root: root, store: opened, index: issueIndex}
+}
+
+// backdateAge is how far newTestStore backdates the store's files.
+const backdateAge = time.Hour
+
+// backdateTree sets the modification time of every file and directory under root backdateAge in
+// the past.
+func backdateTree(t *testing.T, root string) {
+	t.Helper()
+	then := time.Now().Add(-backdateAge)
+	err := filepath.WalkDir(root, func(path string, _ fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Chtimes(path, then, then)
+	})
+	if err != nil {
+		t.Fatalf("backdate %s: %v", root, err)
+	}
 }
 
 // newGitRepo creates an empty git repository in a symlink-free temp dir that git treats as
@@ -115,12 +138,19 @@ func newTestModel(t *testing.T, ts *testStore, width, height int) model {
 
 // startModel returns the model of options after its start as a program runs it: Init's commands
 // run and their messages handed back, then a tea.WindowSizeMsg of width by height as a terminal
-// would send it.
+// would send it. No real clock runs: the model schedules no tick, and a test polls the index by
+// sending tickMsg itself.
 func startModel(t *testing.T, options Options, width, height int) model {
 	t.Helper()
 	m := newModel(options)
+	m.tick = noTick
 	m = drive(t, m, m.Init())
 	return press(t, m, tea.WindowSizeMsg{Width: width, Height: height})
+}
+
+// noTick stands in for scheduleTick in tests: it schedules nothing.
+func noTick() tea.Cmd {
+	return nil
 }
 
 // press hands msg to the model's Update, then drives the command it returns, and returns the

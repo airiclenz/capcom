@@ -121,6 +121,13 @@ stats every file and re-parses only changed ones) and redraws when anything chan
 expanded nodes and scroll position survive a refresh; when the selected node vanished, the
 selection moves to its parent or nearest sibling.
 
+Each poll first compares `config.yaml`'s modification time and size with what the UI loaded: on a
+change it re-opens the store and the index on it, so a refresh never rebuilds the index under a
+stale config; a `config.yaml` it cannot use keeps the old one in effect, with the error in the
+status bar, until the file changes again. An index another capcom version rebuilt (its schema
+version is not this binary's) stops polling with `index changed by another capcom version: restart
+capcom ui`; the UI never rebuilds it back. The filter in effect is matched again on every reload.
+
 The index is not safe for concurrent use, so one goroutine owns it: the poll, reads and writes
 all run as Bubble Tea commands serialised through it. The index's `refresh` is exported for this
 (today only `index.Open` reaches it).

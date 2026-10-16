@@ -17,11 +17,23 @@ const defaultsNotice = " (running on defaults)"
 
 // model is the Bubble Tea model of the UI. It holds the session every store and index access goes
 // through, the open tab, the id to select there, the user config it runs on, the terminal size
-// from the last tea.WindowSizeMsg, and the state of the panes and the status bar.
+// from the last tea.WindowSizeMsg, live refresh's state, and the state of the panes and the
+// status bar.
 type model struct {
 	session   *session
 	tab       Tab
 	initialID string
+
+	// tick returns the command that asks for the next poll of the index: scheduleTick, which
+	// tests replace so no real clock runs.
+	tick func() tea.Cmd
+	// isPollingStopped reports polling ended for good, once another capcom version rebuilt the
+	// index.
+	isPollingStopped bool
+	// storeNotice reports a changed config.yaml that could not be used, and refreshNotice a poll
+	// that failed or stopped polling; each is empty when there is nothing to report.
+	storeNotice   string
+	refreshNotice string
 
 	// userConfig is the user config the UI runs on: Default when the file could not be used.
 	userConfig userconfig.Config
@@ -84,6 +96,7 @@ func newModel(options Options) model {
 		userConfig:   config,
 		configNotice: notice,
 		lockText:     lockReadingText,
+		tick:         scheduleTick,
 	}
 }
 
@@ -114,14 +127,15 @@ func loadUserConfig(path string) (userconfig.Config, string) {
 }
 
 // Init reads this worktree's Tree lock for the status bar, the Ready queue, the issues of the
-// Issues tree and the Notes of the Knowledge tree; the tab the UI opened on selects the id it was
-// opened with.
+// Issues tree and the Notes of the Knowledge tree, and schedules the first poll of the index; the
+// tab the UI opened on selects the id it was opened with.
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		readLock(m.session),
-		loadReady(m.session, m.initialIDFor(TabReady)),
-		loadIssues(m.session, m.initialIDFor(TabIssues)),
-		loadKnowledge(m.session, m.initialIDFor(TabKnowledge)),
+		loadReady(m.session, tabRead{wantedID: m.initialIDFor(TabReady)}),
+		loadIssues(m.session, tabRead{wantedID: m.initialIDFor(TabIssues)}),
+		loadKnowledge(m.session, tabRead{wantedID: m.initialIDFor(TabKnowledge)}),
+		m.tick(),
 	)
 }
 
@@ -134,8 +148,8 @@ func (m model) initialIDFor(tab Tab) string {
 }
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
-// Notes, the shown issue or Note, the dependency view's read, a matched filter and the painter's
-// width measure, and handles the keys: the open filter line takes every key, ahead of the
+// Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
+// index and the painter's width measure, polls the index on a tick, and handles the keys: the open filter line takes every key, ahead of the
 // dependency view's, then the model's own. While the dependency view is open it keeps the detail
 // pane over whatever else repaints it. Any other message reaches the open filter line, such as a
 // paste.
@@ -160,6 +174,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.applyDeps(msg)
 	case filterMsg:
 		return m.applyFilter(msg)
+	case tickMsg:
+		return m.tickUpdate()
+	case refreshedMsg:
+		return m.applyRefreshed(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.

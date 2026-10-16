@@ -28,12 +28,15 @@ const (
 // knowledgeMsg carries one read of the Notes for the Knowledge tab: every usable Note, retired
 // ones included, in tree order, or the error that kept them from being read. selectID is the Note
 // the read was asked to select, resolved to its id, and notice reports an id that resolved to no
-// Note; both are empty when no id was asked for.
+// Note; both are empty when no id was asked for. isReload marks a live refresh's read, and filter
+// is the Knowledge filter it matched again, nil when it matched none.
 type knowledgeMsg struct {
 	notes    []index.NoteEntry
 	selectID string
 	notice   string
 	err      error
+	isReload bool
+	filter   *sidebarFilter
 }
 
 // knowledgeTab is the Knowledge tab's state: the Notes of the last read, the tree over them, the
@@ -46,16 +49,18 @@ type knowledgeTab struct {
 }
 
 // loadKnowledge returns a command that reads every Note through the session, retired ones
-// included so a selected one can be revealed, and resolves wantedID, aliases included, when it
-// is not empty.
-func loadKnowledge(s *session, wantedID string) tea.Cmd {
+// included so a selected one can be revealed, matches read's filter again when it names one, and
+// resolves read's wanted id, aliases included, when it is not empty.
+func loadKnowledge(s *session, read tabRead) tea.Cmd {
+	wantedID := read.wantedID
 	return func() tea.Msg {
-		var msg knowledgeMsg
-		msg.err = s.do(func(_ *store.Store, issueIndex *index.Index) error {
+		msg := knowledgeMsg{isReload: read.isReload}
+		msg.err = s.do(func(opened *store.Store, issueIndex *index.Index) error {
 			notes, err := issueIndex.Notes(true)
 			if err != nil {
 				return err
 			}
+			msg.filter = read.rematch(opened.Config, issueIndex, TabKnowledge)
 			msg.notes = notes
 			if wantedID == "" {
 				return nil
@@ -89,19 +94,24 @@ func noteOutline(notes []index.NoteEntry) *outline.Tree[index.NoteEntry] {
 }
 
 // applyKnowledge takes in a read of the Notes: it builds the outline capcom know tree prints, or
-// what the Knowledge filter leaves of it, keeping the nodes expanded before it, selects the Note the read resolved, reporting the id in
-// the status bar when the tree does not hold it, and shows the selection.
+// what the Knowledge filter leaves of it, the one the read matched again when it did, keeping the
+// nodes expanded before it, the scroll and the selection or, when the read dropped the selected
+// Note, its replacement, selects the Note the read resolved, reporting the id in the status bar
+// when the tree does not hold it, and shows the selection; a reload's read also reads the shown
+// Note again.
 func (m model) applyKnowledge(msg knowledgeMsg) (model, tea.Cmd) {
+	m = m.takeRematched(TabKnowledge, msg.filter)
 	m.knowledge.err = msg.err
 	m.knowledge.notes = msg.notes
-	m.knowledge.tree = m.knowledgeTree(m.knowledge.tree.expanded)
+	m.knowledge.tree = m.knowledge.tree.carryInto(m.knowledgeTree(m.knowledge.tree.expanded))
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
 	if msg.selectID != "" && !m.knowledge.tree.selectID(msg.selectID) {
 		m.notice = fmt.Sprintf(notInKnowledgeFormat, msg.selectID)
 	}
-	return m.showKnowledgeSelection()
+	next, cmd := m.showKnowledgeSelection()
+	return next.withShownReloaded(TabKnowledge, msg.isReload, cmd)
 }
 
 // knowledgeKey moves, expands or collapses the Knowledge tree for a tree key and shows the Note

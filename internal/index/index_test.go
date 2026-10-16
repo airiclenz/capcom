@@ -619,6 +619,38 @@ func TestRefresh_SchemaVersionChanged_Rebuilds(t *testing.T) {
 	}
 }
 
+func TestIsSchemaForeign_CurrentIndex_IsFalse(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	x := openIndex(t, s)
+
+	isForeign, err := x.IsSchemaForeign()
+
+	if err != nil || isForeign {
+		t.Errorf("IsSchemaForeign = %v, %v, want false, nil", isForeign, err)
+	}
+}
+
+func TestIsSchemaForeign_OtherVersionRecorded_IsTrue(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	x := openIndex(t, s)
+	db, err := sql.Open(driverName, Path(s))
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	_, err = db.Exec(`UPDATE meta SET value = ? WHERE key = ?`, schemaVersion+1, metaSchemaVersion)
+	if closeErr := db.Close(); err != nil || closeErr != nil {
+		t.Fatalf("record another schema version: %v, %v", err, closeErr)
+	}
+
+	isForeign, err := x.IsSchemaForeign()
+
+	if err != nil || !isForeign {
+		t.Errorf("IsSchemaForeign = %v, %v, want true, nil", isForeign, err)
+	}
+}
+
 func TestSearch_BodyWord_FindsTheIssue(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

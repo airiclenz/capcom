@@ -68,19 +68,20 @@ func oneLine(text string) string {
 	return strings.Join(strings.Fields(text), " ")
 }
 
-// statusBar draws the bottom row: the Tree lock, the open tab's filter, the user config notice and
-// the notice of an id that could not be selected when there are any, and the key hints. A row too long for the terminal is cut before the hints, so they stay visible
-// while there is room for them.
+// statusBar draws the bottom row: the Tree lock, the open tab's filter, the user config notice,
+// the notices of a config.yaml that could not be reloaded and of a poll that failed or stopped,
+// and the notice of an id that could not be selected when there are any, and the key hints. A row
+// too long for the terminal is cut before the hints, so they stay visible while there is room for
+// them.
 func (m model) statusBar() string {
 	text := m.lockText
 	if filter := m.filterStatus(); filter != "" {
 		text += statusSeparator + filter
 	}
-	if m.configNotice != "" {
-		text += statusSeparator + m.configNotice
-	}
-	if m.notice != "" {
-		text += statusSeparator + m.notice
+	for _, notice := range []string{m.configNotice, m.storeNotice, m.refreshNotice, m.notice} {
+		if notice != "" {
+			text += statusSeparator + notice
+		}
 	}
 	hints := statusSeparator + m.keyHints()
 	room := m.width - ansi.StringWidth(hints)

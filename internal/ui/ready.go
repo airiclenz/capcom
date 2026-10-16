@@ -35,11 +35,15 @@ var selectedRowStyle = lipgloss.NewStyle().Reverse(true)
 // readyMsg carries one read of the Ready queue: its issues, most urgent first, or the error that
 // kept it from being read. selectID is the issue the read was asked to select, resolved to its id,
 // and notice reports an id that resolved to no issue; both are empty when no id was asked for.
+// isReload marks a live refresh's read, and filter is the Ready filter it matched again, nil when
+// it matched none.
 type readyMsg struct {
 	entries  []index.Entry
 	selectID string
 	notice   string
 	err      error
+	isReload bool
+	filter   *sidebarFilter
 }
 
 // readyTab is the Ready tab's state: the queue from the last read, its issues the Ready filter
@@ -53,15 +57,18 @@ type readyTab struct {
 }
 
 // loadReady returns a command that reads the Ready queue through the session, as capcom ready
-// with no flags lists it, and resolves wantedID, aliases included, when it is not empty.
-func loadReady(s *session, wantedID string) tea.Cmd {
+// with no flags lists it, matches read's filter again when it names one, and resolves read's
+// wanted id, aliases included, when it is not empty.
+func loadReady(s *session, read tabRead) tea.Cmd {
+	wantedID := read.wantedID
 	return func() tea.Msg {
-		var msg readyMsg
+		msg := readyMsg{isReload: read.isReload}
 		msg.err = s.do(func(opened *store.Store, issueIndex *index.Index) error {
 			listed, err := briefing.ReadyList(issueIndex, opened.Config, readyOptions)
 			if err != nil {
 				return err
 			}
+			msg.filter = read.rematch(opened.Config, issueIndex, TabReady)
 			msg.entries = make([]index.Entry, 0, len(listed))
 			for _, item := range listed {
 				msg.entries = append(msg.entries, item.Entry)
@@ -81,15 +88,26 @@ func loadReady(s *session, wantedID string) tea.Cmd {
 	}
 }
 
-// applyReady takes in a read of the Ready queue: it narrows the queue to the Ready filter, seats
-// the cursor on the issue the read resolved, when the queue holds it, reports the id in the status
-// bar when it does not, and shows the selection.
+// applyReady takes in a read of the Ready queue: it narrows the queue to the Ready filter, the
+// one the read matched again when it did, keeps the cursor on the issue it was on or, when the
+// read dropped that, on its replacement, seats it on the issue the read resolved, when the queue
+// holds it, reports the id in the status bar when it does not, and shows the selection; a
+// reload's read also reads the shown issue again.
 func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
+	previous, wasSelected := m.readySelection()
+	previousIDs := make([]string, 0, len(m.ready.entries))
+	for _, entry := range m.ready.entries {
+		previousIDs = append(previousIDs, entry.ID)
+	}
+	m = m.takeRematched(TabReady, msg.filter)
 	m.ready.all = msg.entries
 	m.ready.entries = keepMatched(msg.entries, entryID, m.filters[TabReady])
 	m.ready.err = msg.err
 	count := len(m.ready.entries)
 	m.ready.cursor.clampSelection(count)
+	if wasSelected {
+		m = m.keepReadySelection(previous, previousIDs)
+	}
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
@@ -101,7 +119,8 @@ func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
 			m.ready.cursor.seat(row, count)
 		}
 	}
-	return m.showReadySelection()
+	next, cmd := m.showReadySelection()
+	return next.withShownReloaded(TabReady, msg.isReload, cmd)
 }
 
 // readyKey moves the Ready tab's selection for a cursor key and shows the issue it lands on. It

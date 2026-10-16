@@ -1,13 +1,16 @@
 // Package ui is capcom's terminal UI, the program behind capcom ui (docs/design/tui.md): a Bubble
 // Tea v2 model over a store and its index that internal/cli has already opened. This package never
-// opens a store, never checks for a terminal and never closes the index; the caller does all
-// three.
+// checks for a terminal and never closes the index it is handed; the caller does both.
 //
-// Every store and index access from a tea.Cmd goes through session.do, which runs one access at
-// a time; nothing reaches the index outside it.
+// Every store and index access from a tea.Cmd goes through the session, which runs one access at
+// a time; nothing reaches the index outside it. About once a second the session polls: it
+// refreshes the index and re-reads the Tree lock, and the UI reloads its tabs when anything
+// changed. A changed config.yaml makes the session re-open the store and an index of its own on
+// it, which it closes itself.
 package ui
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -57,7 +60,7 @@ func ParseTab(name string) (Tab, error) {
 }
 
 // Options configure Run. Store and Index are open and stay owned by the caller, who closes the
-// index once Run returns. ID, when set, names the Issue or Note to select in Tab. In and Out are
+// index once Run returns; an index Run re-opens on a changed config.yaml it closes itself. ID, when set, names the Issue or Note to select in Tab. In and Out are
 // the terminal the program reads keys from and draws on. UserConfigPath names the user config
 // file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used.
 type Options struct {
@@ -74,13 +77,18 @@ type Options struct {
 // file, creating it when it is missing; a file it cannot use is reported in the status bar and the
 // UI runs on the default config.
 func Run(options Options) error {
+	initial := newModel(options)
 	program := tea.NewProgram(
-		newModel(options),
+		initial,
 		tea.WithInput(options.In),
 		tea.WithOutput(options.Out),
 	)
-	if _, err := program.Run(); err != nil {
-		return fmt.Errorf("run the terminal UI: %w", err)
+	_, err := program.Run()
+	if err != nil {
+		err = fmt.Errorf("run the terminal UI: %w", err)
 	}
-	return nil
+	if closeErr := initial.session.close(); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("close the re-opened index: %w", closeErr))
+	}
+	return err
 }

@@ -520,7 +520,9 @@ open leaves the filter kept.
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): filter the sidebar with /`
 
-## 15. Live refresh
+## 15. Live refresh — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that the work stays in the named files: keeping selection, scroll and the filter across a reload needed the tab reads and applies in ready.go, issues.go, knowledge.go, detail.go (same-id read keeps the scroll) and depview.go (re-read keeps the cursor), the notices in statusbar.go, and ui.go (Run closes an index the session re-opened; package doc); the schema check is the new exported Index.IsSchemaForeign in schema.go; the loadReady/loadIssues/loadKnowledge id parameter became a tabRead (wanted id, reload flag, filter text re-matched in the same read); tui.md's Live refresh section gained the config.yaml reload and schema-version stop.
 
 **What:** Recast at the regression check (2026-10-16).
 **Goal:** about once a second the UI calls `Index.Refresh` and re-reads the Tree lock; when anything

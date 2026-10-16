@@ -200,15 +200,20 @@ func (m model) closeDeps() model {
 }
 
 // applyDeps takes in a read of an issue's dependencies, unless the view has closed or moved to
-// another issue since it was asked for, and paints it with the cursor on its first row.
+// another issue since it was asked for, and paints it with the cursor on its first row; a read
+// over one already applied, as a live refresh takes, keeps the cursor and the scroll.
 func (m model) applyDeps(msg depsMsg) model {
 	if !m.deps.isOpen || m.deps.id != msg.id {
 		return m
 	}
+	wasLoaded := m.deps.isLoaded
 	m.deps.isLoaded = true
 	m.deps.waitsOn, m.deps.blocks, m.deps.err = msg.waitsOn, msg.blocks, msg.err
-	m.deps.cursor = listCursor{}
-	m.detailOffset = 0
+	if !wasLoaded {
+		m.deps.cursor = listCursor{}
+		m.detailOffset = 0
+	}
+	m.deps.cursor.clampSelection(len(m.deps.rows()))
 	return m.paintDeps()
 }
 
