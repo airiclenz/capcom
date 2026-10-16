@@ -9,14 +9,21 @@ lists them and `capcom know show <id>` reads one; without it, read the markdown 
 capcom needs the Go version named in [`go.mod`](go.mod).
 
 ```sh
-go build ./cmd/capcom
-go vet ./...
-go test ./...
+make build    # static ./capcom: CGO_ENABLED=0 go build -trimpath ./cmd/capcom
+make vet      # go vet ./...
+make test     # go test ./...
+make clean    # remove ./capcom
 ```
 
+Without `make`, as on stock Windows, run the `go` commands in the comments directly; every target
+is one of them. `make vet` and `make test` take `PKG=<package>` to narrow them, for example
+`make test PKG=./internal/ui/`. `make build` takes `BUILDFLAGS` and `LDFLAGS` for extra build
+flags. Releases never go through `make` (Note `adr-0008-amend-makefile`).
+
 CI runs `go vet ./...` and `go test ./...` on Linux, macOS and Windows. On a machine with little
-memory, such as a Raspberry Pi, test one package at a time with `GOMEMLIMIT=2GiB`, and never run
-`./...` with `-race` (see [`AGENTS.md`](AGENTS.md)).
+memory, such as a Raspberry Pi, test one package at a time with `GOMEMLIMIT=2GiB`
+(`GOMEMLIMIT=2GiB make test PKG=./internal/cli/`), and never run `./...` with `-race` (see
+[`AGENTS.md`](AGENTS.md)).
 
 ## Conventions and tests
 

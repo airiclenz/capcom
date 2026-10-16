@@ -38,8 +38,9 @@ asset (`dist` does not ship it) and imports nothing from `internal/`. Its verbs:
   holds the owner's auth on every OS; the notes arrive as a file outside the repo.
 - `smoke [vX.Y.Z]` checks a published release from the outside.
 
-There is no Makefile and there are no `-ldflags` variables. `VERSION` holds a bare `X.Y.Z`, the
-tag is `v` + VERSION, and `capcom version` prints what it always has. The `tag-on-version-bump`
+No release step uses a Makefile (the root `Makefile` is a local convenience, see
+`adr-0008-amend-makefile`) and there are no `-ldflags` variables. `VERSION` holds a bare `X.Y.Z`,
+the tag is `v` + VERSION, and `capcom version` prints what it always has. The `tag-on-version-bump`
 workflow tags the commit that changes `VERSION` on `main`; nothing tags by hand. Build provenance
 comes from the default `-buildvcs` stamp: `smoke` reads `vcs.revision` from each binary's build
 info and requires the tagged commit.

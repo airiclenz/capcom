@@ -1,20 +1,23 @@
 # Build capcom. Same recipe as the release tool: static binary, trimmed paths.
-BINARY   := capcom
-LDFLAGS  :=
-GOFLAGS  :=
+# BUILDFLAGS, not GOFLAGS: a make variable named GOFLAGS would replace the go tool's own
+# GOFLAGS environment variable in every recipe.
+BINARY     ?= capcom
+BUILDFLAGS ?=
+LDFLAGS    ?=
+PKG        ?= ./...
 
 .PHONY: all build vet test clean
 
 all: build
 
 build:
-	CGO_ENABLED=0 go build -trimpath $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/capcom
+	CGO_ENABLED=0 go build -trimpath $(BUILDFLAGS) -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/capcom
 
 vet:
-	go vet ./...
+	go vet $(PKG)
 
 test:
-	go test ./...
+	go test $(PKG)
 
 clean:
 	rm -f $(BINARY) $(BINARY).exe
