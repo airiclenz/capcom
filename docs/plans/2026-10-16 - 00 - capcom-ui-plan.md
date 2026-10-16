@@ -366,7 +366,18 @@ a URL rendered but unrecorded; a nested blockquote with a list.
 - `go vet ./internal/ui/markdown/ && GOMEMLIMIT=2GiB go test ./internal/ui/markdown/`
 **Commit:** `feat(ui): links and blockquotes in the markdown renderer`
 
-## 10. Ready tab and issue detail pane
+## 10. Ready tab and issue detail pane — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from "the key handling lives in model.go" — item 7 put it in internal/ui/keys.go (handleKey, openTab), so the sidebar's cursor keys and openTab's detail reload landed there; openTab now returns a tea.Cmd and clears the panes on a tab switch.
+NOTES (2026-10-16): re-derived from "internal/cli/show.go — issueFromFile reads the file": show reads through parseNodeFile/readNodeFile (update.go); the UI reads with nodestore.IssueReader(cfg).Read and takes Title/Status/Priority/Labels/Deps from the parsed file and ParentID from the index entry, as issueFromFile does.
+NOTES (2026-10-16): listCursor.key ported with capcom's move keys (up/k, down/j) and only the listSwallowed/listUnclaimed verdicts: Enter and Esc stay the model's layout keys (narrow detail open/back, item 7), so apogee's listCloses/listAccepts and ctrl+p/ctrl+n are not ported. wheel is ported per the plan but has no caller until item 19; clampInt is added here (item 8 left it out of the markdown package).
+NOTES (2026-10-16): the sidebar list stops at its ends (listStopsAtEnds) and scrolls to keep the selection on screen (readyTab.top); the selected row is marked with reverse video.
+NOTES (2026-10-16): unspecified edge filled: `capcom ui ready <id>` naming an id that resolves to no issue, or to one the queue does not hold, keeps the first row selected and shows `select <id>: <error>` or `<id> is not in the Ready queue` in the status bar (new model.notice, rendered by statusbar.go).
+NOTES (2026-10-16): the header is rendered through markdown.Render with the body (`# <title>`, `status: <s> · P<n>`, `labels:`, `parent:`, `deps:`), parent and deps as code spans so existing ids become links; a parse failure shows the diagnose finding (`<path>:<line>: <message>`) under a header from the index entry. A tea.ModeReportMsg drops the cached rendering, since a new width measure can wrap differently.
+NOTES (2026-10-16): harness_test.go: startModel now drives every command Init returns (tea.Batch included) and the messages they return, with new press/drive helpers, made necessary by Init batching the lock read with the Ready load.
+NOTES (2026-10-16): consequential edit — internal/ui/layout_test.go: made necessary by the Ready tab now filling the detail pane (comment on the scroll test's 100 synthetic rows).
+NOTES (2026-10-16): layout-120x30 / layout-80x24 goldens regenerated: their one-issue store now shows that issue in the Ready sidebar and detail pane.
+NOTES (2026-10-16): internal/ui now has 10 non-test files with its package map still in ui.go's package doc only; a doc.go file map with a structural test may be due (coding-standards), not added here.
 
 **What:**
 **Goal:** the Ready tab lists the queue `capcom ready` prints with no flags, in its order, each row

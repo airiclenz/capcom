@@ -157,7 +157,7 @@ func TestModel_ScrollKeys_MoveTheDetailPaneWithinItsLines(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			m := newTestModel(t, ts, testCase.width, 30)
-			// No tab fills the detail pane yet, so the test gives it 100 rows of its own.
+			// The empty store leaves the Ready detail pane without rows, so the test gives it 100 of its own.
 			m.detail = make([]string, 100)
 
 			for _, key := range testCase.keys {

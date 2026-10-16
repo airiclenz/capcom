@@ -1,0 +1,193 @@
+package ui
+
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/ui/markdown"
+)
+
+// The pieces of an issue's detail header.
+const (
+	headerSeparator = " · "
+	listSeparator   = ", "
+	codeMark        = "`"
+)
+
+// detailMsg carries one read of an issue for the detail pane: its id, the markdown source the
+// pane renders (the frontmatter header, then the body or why the file could not be read), the
+// file's ETag ("" when it did not parse) and the snapshot of every issue and Note id in the index
+// that the read took.
+type detailMsg struct {
+	id     string
+	source string
+	etag   string
+	ids    map[string]bool
+}
+
+// issueDetail is the issue the detail pane shows: what its read carried, and its source rendered
+// at renderedWidth. The rendering is cached per (source, width): it is redone only when either
+// changes, and IsID reads the ids snapshot, never the index.
+type issueDetail struct {
+	id     string
+	source string
+	// etag is the ETag of the file as read, which a write checks it against; "" when the file did
+	// not parse.
+	etag string
+	ids  map[string]bool
+
+	rendered       markdown.Rendered
+	renderedSource string
+	renderedWidth  int
+}
+
+// isID reports whether text is the id of an issue or Note in the snapshot the read took.
+func (d issueDetail) isID(text string) bool {
+	return d.ids[text]
+}
+
+// loadDetail returns a command that reads the issue at entry's path for the detail pane, through
+// the session: the file with nodestore.IssueReader and the ids the index holds. A file that does
+// not parse shows `<path>: <error>` in place of its body, under a header from the index entry,
+// and keeps no ETag.
+func loadDetail(s *session, entry index.Entry) tea.Cmd {
+	return func() tea.Msg {
+		msg := detailMsg{id: entry.ID}
+		err := s.do(func(opened *store.Store, issueIndex *index.Index) error {
+			ids, err := indexIDs(issueIndex)
+			if err != nil {
+				return err
+			}
+			msg.ids = ids
+			absolute := filepath.Join(opened.WorktreeRoot, filepath.FromSlash(entry.Path))
+			reading, readErr := nodestore.IssueReader(opened.Config).Read(absolute, entry.Path)
+			msg.source, msg.etag = issueSource(entry, reading, readErr)
+			return nil
+		})
+		if err != nil {
+			msg.source = issueHeader(entry) + fmt.Sprintf("%s: %v", entry.Path, err)
+		}
+		return msg
+	}
+}
+
+// indexIDs returns the set of every issue id, Closed ones included, and every Note id, retired
+// ones included, that the index holds.
+func indexIDs(issueIndex *index.Index) (map[string]bool, error) {
+	issueIDs, err := issueIndex.ListIDs(index.Filter{IsClosedIncluded: true})
+	if err != nil {
+		return nil, err
+	}
+	notes, err := issueIndex.Notes(true)
+	if err != nil {
+		return nil, err
+	}
+	ids := make(map[string]bool, len(issueIDs)+len(notes))
+	for _, id := range issueIDs {
+		ids[id] = true
+	}
+	for _, note := range notes {
+		ids[note.ID] = true
+	}
+	return ids, nil
+}
+
+// issueSource returns the markdown the detail pane renders for the issue file entry names, and
+// the ETag to keep: the header and body from the file when it parses, or the header from entry
+// and the read's failure, `<path>: <error>`, with no ETag when it does not.
+func issueSource(entry index.Entry, reading nodestore.Reading[issue.Issue], err error) (string, string) {
+	switch {
+	case err != nil:
+		return issueHeader(entry) + fmt.Sprintf("%s: %v", entry.Path, err), ""
+	case !reading.IsRead():
+		return issueHeader(entry) + reading.Refusal[0].String(), ""
+	case !reading.IsParsed():
+		return issueHeader(entry) + reading.Parse[0].String(), ""
+	}
+	parsed := reading.Node
+	entry.Title = parsed.Title
+	entry.Status = parsed.Status
+	entry.Priority = parsed.Priority
+	entry.Labels = parsed.Labels
+	entry.Deps = parsed.Deps
+	return issueHeader(entry) + parsed.Body, reading.ETag
+}
+
+// issueHeader returns the markdown header of an issue's detail: its title as a heading, its
+// status and priority, then its labels, parent and deps, each line left out when empty, and a
+// blank line before the body. The parent and deps are code spans, so the renderer makes the ones
+// naming an id links.
+func issueHeader(entry index.Entry) string {
+	var text strings.Builder
+	fmt.Fprintf(&text, "# %s\n\n", oneLine(entry.Title))
+	fmt.Fprintf(&text, "status: %s%sP%d\n", entry.Status, headerSeparator, entry.Priority)
+	if len(entry.Labels) > 0 {
+		fmt.Fprintf(&text, "labels: %s\n", strings.Join(entry.Labels, listSeparator))
+	}
+	if entry.ParentID != "" {
+		fmt.Fprintf(&text, "parent: %s\n", codeSpan(entry.ParentID))
+	}
+	if len(entry.Deps) > 0 {
+		spans := make([]string, 0, len(entry.Deps))
+		for _, dep := range entry.Deps {
+			spans = append(spans, codeSpan(dep))
+		}
+		fmt.Fprintf(&text, "deps: %s\n", strings.Join(spans, listSeparator))
+	}
+	text.WriteString("\n")
+	return text.String()
+}
+
+// codeSpan wraps an id in a markdown code span.
+func codeSpan(id string) string {
+	return codeMark + id + codeMark
+}
+
+// applyDetail takes in a read of an issue for the detail pane, unless the selection has moved on
+// since it was asked for, and shows it from its top.
+func (m model) applyDetail(msg detailMsg) model {
+	selected, isSelected := m.readySelection()
+	if m.tab != TabReady || !isSelected || selected.ID != msg.id {
+		return m
+	}
+	m.issue = issueDetail{id: msg.id, source: msg.source, etag: msg.etag, ids: msg.ids}
+	m.detailOffset = 0
+	return m.renderDetail()
+}
+
+// renderDetail fills the detail pane with the shown issue rendered at the pane's width, rendering
+// again only when the source or the width changed since the last time.
+func (m model) renderDetail() model {
+	width := m.detailWidth()
+	if m.issue.id == "" || width <= 0 {
+		return m
+	}
+	if m.issue.renderedSource != m.issue.source || m.issue.renderedWidth != width {
+		m.issue.rendered = markdown.Render(
+			m.markdownTheme,
+			m.issue.source,
+			width,
+			markdown.Options{IsID: m.issue.isID},
+		)
+		m.issue.renderedSource = m.issue.source
+		m.issue.renderedWidth = width
+	}
+	m.detail = m.issue.rendered.Lines
+	return m.scrollDetail(0)
+}
+
+// detailWidth returns the detail pane's columns: the whole width on a narrow terminal, what the
+// sidebar and the separator leave on a wide one.
+func (m model) detailWidth() int {
+	if m.isNarrow() {
+		return m.width
+	}
+	return m.width - m.sidebarWidth() - 1
+}

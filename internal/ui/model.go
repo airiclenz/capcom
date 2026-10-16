@@ -30,6 +30,9 @@ type model struct {
 	configNotice string
 	// lockText is the status bar's account of this worktree's Tree lock, from the last read.
 	lockText string
+	// notice is the status bar's report of an id to select that could not be selected; empty when
+	// there is none.
+	notice string
 	// markdownTheme is what issue and Note bodies render with. Its Measure follows the painter:
 	// Update folds every tea.ModeReportMsg into it.
 	markdownTheme markdown.Theme
@@ -47,6 +50,10 @@ type model struct {
 	sidebar      []string
 	detail       []string
 	detailOffset int
+
+	// ready is the Ready tab's queue and selection, and issue the issue the detail pane shows.
+	ready readyTab
+	issue issueDetail
 }
 
 // newModel returns the model of a UI over options' store and index, opening on options.Tab and
@@ -91,23 +98,35 @@ func loadUserConfig(path string) (userconfig.Config, string) {
 	return config, userConfigNoticePrefix + strings.Join(texts, "; ")
 }
 
-// Init reads this worktree's Tree lock for the status bar.
+// Init reads this worktree's Tree lock for the status bar and the Ready queue, which selects the
+// id the UI was opened with when it opened on the Ready tab.
 func (m model) Init() tea.Cmd {
-	return readLock(m.session)
+	wantedID := ""
+	if m.tab == TabReady {
+		wantedID = m.initialID
+	}
+	return tea.Batch(readLock(m.session), loadReady(m.session, wantedID))
 }
 
-// Update records a new terminal size, the Tree lock's state and the painter's width measure, and
-// handles the keys.
+// Update records a new terminal size, the Tree lock's state, the Ready queue, the shown issue and
+// the painter's width measure, and handles the keys.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m = m.scrollDetail(0)
+		m = m.paintReadySidebar().renderDetail().scrollDetail(0)
 	case lockMsg:
 		m.lockText = msg.text
+	case readyMsg:
+		return m.applyReady(msg)
+	case detailMsg:
+		m = m.applyDetail(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
+		// A new measure can wrap the shown issue differently, so its cached rendering goes.
+		m.issue.renderedWidth = 0
+		m = m.renderDetail()
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}

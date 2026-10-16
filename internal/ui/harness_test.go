@@ -113,16 +113,47 @@ func newTestModel(t *testing.T, ts *testStore, width, height int) model {
 	return startModel(t, newTestOptions(t, ts), width, height)
 }
 
-// startModel returns the model of options after its start as a program runs it: Init's command
-// run and its message handed back, then a tea.WindowSizeMsg of width by height as a terminal
+// startModel returns the model of options after its start as a program runs it: Init's commands
+// run and their messages handed back, then a tea.WindowSizeMsg of width by height as a terminal
 // would send it.
 func startModel(t *testing.T, options Options, width, height int) model {
 	t.Helper()
 	m := newModel(options)
-	if cmd := m.Init(); cmd != nil {
-		m = send(t, m, cmd())
+	m = drive(t, m, m.Init())
+	return press(t, m, tea.WindowSizeMsg{Width: width, Height: height})
+}
+
+// press hands msg to the model's Update, then drives the command it returns, and returns the
+// model after all of it.
+func press(t *testing.T, m model, msg tea.Msg) model {
+	t.Helper()
+	updated, cmd := m.Update(msg)
+	next, isModel := updated.(model)
+	if !isModel {
+		t.Fatalf("Update returned %T, want model", updated)
 	}
-	return send(t, m, tea.WindowSizeMsg{Width: width, Height: height})
+	return drive(t, next, cmd)
+}
+
+// drive runs cmd, as a program would, and hands its message back to the model, driving the
+// commands that returns in turn; a tea.Batch's commands run one after another. A nil command, and
+// tea.Quit's message, end the run.
+func drive(t *testing.T, m model, cmd tea.Cmd) model {
+	t.Helper()
+	if cmd == nil {
+		return m
+	}
+	switch msg := cmd().(type) {
+	case tea.BatchMsg:
+		for _, batched := range msg {
+			m = drive(t, m, batched)
+		}
+		return m
+	case tea.QuitMsg:
+		return m
+	default:
+		return press(t, m, msg)
+	}
 }
 
 // statusRow returns the last row of the model's view, its ANSI styling stripped: the status bar.

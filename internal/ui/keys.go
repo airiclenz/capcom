@@ -27,8 +27,8 @@ const (
 // handleKey applies one key press. q and ctrl+c quit from anywhere. While the help screen is open
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
 // the narrow detail view, open the help screen, and scroll the detail pane: the page keys from
-// anywhere, the arrows and j k only where the detail pane fills a narrow screen, the sidebar
-// keeping them everywhere else.
+// anywhere, the arrows and j k only where the detail pane fills a narrow screen. Everywhere else
+// the up and down arrows and j k move the sidebar's selection.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	key := msg.String()
 	if key == keyQuit || key == keyInterrupt {
@@ -41,22 +41,34 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m, nil
 	}
 	if tab, isTabKey := tabForKey(key); isTabKey {
-		return m.openTab(tab), nil
+		return m.openTab(tab)
 	}
 
 	switch key {
 	case keyHelp:
 		m.isHelpOpen = true
 	case keyNextTab:
-		m = m.openTab(nextTab(m.tab))
+		return m.openTab(nextTab(m.tab))
 	case keyOpen:
 		m.isDetailOpen = m.isNarrow()
 	case keyBack:
 		m.isDetailOpen = false
 	default:
-		m = m.scrollForKey(key)
+		return m.sidebarOrScrollKey(msg)
 	}
 	return m, nil
+}
+
+// sidebarOrScrollKey gives a key to the sidebar's selection while the sidebar is on screen, and
+// to scrollForKey when the sidebar does not take it.
+func (m model) sidebarOrScrollKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
+	isSidebarShown := !m.isNarrow() || !m.isDetailOpen
+	if isSidebarShown && m.tab == TabReady {
+		if next, cmd, isTaken := m.readyKey(msg); isTaken {
+			return next, cmd
+		}
+	}
+	return m.scrollForKey(msg.String()), nil
 }
 
 // scrollForKey scrolls the detail pane for a scroll key: a page or half a page for the page keys,
@@ -106,12 +118,16 @@ func halfPage(page int) int {
 	return max(page/2, 1)
 }
 
-// openTab switches to tab, back on its sidebar with the detail pane at its top.
-func (m model) openTab(tab Tab) model {
+// openTab switches to tab, back on its sidebar with the detail pane at its top, and returns the
+// command that loads the tab's selection into the detail pane.
+func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	m.tab = tab
 	m.isDetailOpen = false
 	m.detailOffset = 0
-	return m
+	m.sidebar = nil
+	m.detail = nil
+	m.issue = issueDetail{}
+	return m.showReadySelection()
 }
 
 // scrollNarrowDetail scrolls the detail pane by rows when it fills a narrow screen, and leaves
