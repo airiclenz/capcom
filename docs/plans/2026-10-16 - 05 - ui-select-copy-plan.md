@@ -92,7 +92,10 @@ The symlink row skips on Windows and as root, as `skipSymlinkTest` does.
 - `go vet ./internal/clipboard/` is clean; `GOOS=windows go build ./internal/clipboard/` and `GOOS=darwin go build ./internal/clipboard/` succeed.
 **Commit:** `feat(clipboard): write to the native clipboard and tmux behind a working-tree fence`
 
-## 2. Add the detail selection: its state, painting and text
+## 2. Add the detail selection: its state, painting and text — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): ordered() returns the two ends as (top, bottom contentCell) rather than a reordered detailSel; paint and text share one columns(line, width) helper for c0/c1.
+NOTES (2026-10-16): shade clamps c1 to the line's own width before the c1 <= c0 test, so a span starting past a short line's end returns it unchanged instead of appending an empty styled run.
 
 **What:**
 Recast at the regression check (2026-10-16).

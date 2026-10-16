@@ -32,6 +32,7 @@
 //   - `ready.go` — the Ready tab: loading the queue and painting its rows and columns
 //   - `refresh.go` — live refresh: the poll tick, reloading the tabs and keeping the selection
 //   - `scrollbar.go` — the scrollbar cells beside a pane's rows
+//   - `selection.go` — detailSel: the detail pane's drag selection, its shading and copied text
 //   - `session.go` — session: the one-at-a-time store and index access and config.yaml reloads
 //   - `statusbar.go` — the status bar: the Tree lock, notices and key hints
 //   - `statuspick.go` — statusPicker: the list of statuses s opens over the detail pane
