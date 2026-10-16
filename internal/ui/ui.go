@@ -58,20 +58,24 @@ func ParseTab(name string) (Tab, error) {
 
 // Options configure Run. Store and Index are open and stay owned by the caller, who closes the
 // index once Run returns. ID, when set, names the Issue or Note to select in Tab. In and Out are
-// the terminal the program reads keys from and draws on.
+// the terminal the program reads keys from and draws on. UserConfigPath names the user config
+// file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used.
 type Options struct {
-	Store *store.Store
-	Index *index.Index
-	Tab   Tab
-	ID    string
-	In    io.Reader
-	Out   io.Writer
+	Store          *store.Store
+	Index          *index.Index
+	Tab            Tab
+	ID             string
+	In             io.Reader
+	Out            io.Writer
+	UserConfigPath string
 }
 
-// Run runs the terminal UI until the user quits, with q or ctrl+c.
+// Run runs the terminal UI until the user quits, with q or ctrl+c. It first loads the user config
+// file, creating it when it is missing; a file it cannot use is reported in the status bar and the
+// UI runs on the default config.
 func Run(options Options) error {
 	program := tea.NewProgram(
-		newModel(newSession(options.Store, options.Index), options.Tab, options.ID),
+		newModel(options),
 		tea.WithInput(options.In),
 		tea.WithOutput(options.Out),
 	)

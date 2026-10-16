@@ -43,20 +43,8 @@ func TestModel_Update_OtherKey_DoesNotQuit(t *testing.T) {
 	}
 }
 
-func TestModel_View_BareFrame_MatchesGolden(t *testing.T) {
-	m := newTestModel(t, newTestStore(t, map[string]string{"issues/valid-issue.md": validIssue}), 120, 30)
-
-	view := m.View()
-
-	if !view.AltScreen {
-		t.Errorf("View: AltScreen is off, want the alternate screen")
-	}
-	golden(t, "bare-frame-120x30", view)
-}
-
 func TestModel_View_BeforeWindowSize_IsEmpty(t *testing.T) {
-	ts := newTestStore(t, nil)
-	m := newModel(newSession(ts.store, ts.index), TabReady, "")
+	m := newModel(newTestOptions(t, newTestStore(t, nil)))
 
 	view := m.View()
 

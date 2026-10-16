@@ -271,7 +271,12 @@ exit 2. ui: `q` returns `tea.Quit`; golden of the bare frame at 120x30; concurre
 - `for o in linux darwin windows; do for a in amd64 arm64; do GOOS=$o GOARCH=$a CGO_ENABLED=0 go build -o /dev/null ./cmd/capcom || exit 1; done; done`
 **Commit:** `feat(ui): add the capcom ui command on Bubble Tea v2`
 
-## 7. Layout, keys, help and the lock status bar
+## 7. Layout, keys, help and the lock status bar — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that `ui.Options` lives in a listed file — it is in `internal/ui/ui.go`, which gains `UserConfigPath`; `Run` builds the model with `newModel(options)`, which loads the user config.
+NOTES (2026-10-16): `internal/cli/ui.go` is unchanged: per the item's regression guard the CLI passes no `UserConfigPath` and `internal/ui` resolves `userconfig.Path()` itself.
+NOTES (2026-10-16): the sidebar holds no rows yet, so arrows and `j k h l` move nothing there; up/down/j/k scroll the detail pane in the narrow detail view, and sidebar movement and h/l expand/collapse arrive with the sidebar widgets (items 10–12).
+NOTES (2026-10-16): item 6's bare-frame golden and its test are replaced by the `layout-120x30` and `layout-80x24` goldens; `AgeText` gets its own `internal/lock/age_test.go` (not in Files), following the `{source}_test.go` rule.
 
 **What:**
 **Goal:** the UI draws the tab bar, sidebar, detail pane and status bar at 90 columns and wider;

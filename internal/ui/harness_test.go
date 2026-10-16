@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -93,12 +94,46 @@ func newGitRepo(t *testing.T) string {
 	return root
 }
 
-// newTestModel returns a model over the test store on the Ready tab, sized width by height by a
-// tea.WindowSizeMsg as a terminal would send it.
+// newTestOptions returns the Options capcom ui would pass for the test store, on the Ready tab,
+// with the user config file at a path in a fresh temp dir, not yet created.
+func newTestOptions(t *testing.T, ts *testStore) Options {
+	t.Helper()
+	return Options{
+		Store:          ts.store,
+		Index:          ts.index,
+		Tab:            TabReady,
+		UserConfigPath: filepath.Join(t.TempDir(), "capcom", "config.yaml"),
+	}
+}
+
+// newTestModel returns a started model over the test store on the Ready tab, sized width by
+// height: see startModel.
 func newTestModel(t *testing.T, ts *testStore, width, height int) model {
 	t.Helper()
-	m := newModel(newSession(ts.store, ts.index), TabReady, "")
+	return startModel(t, newTestOptions(t, ts), width, height)
+}
+
+// startModel returns the model of options after its start as a program runs it: Init's command
+// run and its message handed back, then a tea.WindowSizeMsg of width by height as a terminal
+// would send it.
+func startModel(t *testing.T, options Options, width, height int) model {
+	t.Helper()
+	m := newModel(options)
+	if cmd := m.Init(); cmd != nil {
+		m = send(t, m, cmd())
+	}
 	return send(t, m, tea.WindowSizeMsg{Width: width, Height: height})
+}
+
+// statusRow returns the last row of the model's view, its ANSI styling stripped: the status bar.
+func statusRow(m model) string {
+	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+	return rows[len(rows)-1]
+}
+
+// specialKey is the press of a key without text, such as tea.KeyTab or tea.KeyPgDown.
+func specialKey(code rune) tea.KeyPressMsg {
+	return tea.KeyPressMsg{Code: code}
 }
 
 // send hands msg to the model's Update and returns the updated model, discarding the command.

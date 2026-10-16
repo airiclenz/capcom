@@ -1,0 +1,132 @@
+package ui
+
+import (
+	"strconv"
+
+	tea "charm.land/bubbletea/v2"
+)
+
+// The keys the model handles, as tea.KeyPressMsg.String spells them.
+const (
+	keyQuit      = "q"
+	keyInterrupt = "ctrl+c"
+	keyHelp      = "?"
+	keyNextTab   = "tab"
+	keyOpen      = "enter"
+	keyBack      = "esc"
+	keyPageUp    = "pgup"
+	keyPageDown  = "pgdown"
+	keyHalfUp    = "ctrl+u"
+	keyHalfDown  = "ctrl+d"
+	keyUp        = "up"
+	keyDown      = "down"
+	keyUpVim     = "k"
+	keyDownVim   = "j"
+)
+
+// handleKey applies one key press. q and ctrl+c quit from anywhere. While the help screen is open
+// only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
+// the narrow detail view, open the help screen, and scroll the detail pane: the page keys from
+// anywhere, the arrows and j k only where the detail pane fills a narrow screen, the sidebar
+// keeping them everywhere else.
+func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
+	key := msg.String()
+	if key == keyQuit || key == keyInterrupt {
+		return m, tea.Quit
+	}
+	if m.isHelpOpen {
+		if key == keyHelp || key == keyBack {
+			m.isHelpOpen = false
+		}
+		return m, nil
+	}
+	if tab, isTabKey := tabForKey(key); isTabKey {
+		return m.openTab(tab), nil
+	}
+
+	switch key {
+	case keyHelp:
+		m.isHelpOpen = true
+	case keyNextTab:
+		m = m.openTab(nextTab(m.tab))
+	case keyOpen:
+		m.isDetailOpen = m.isNarrow()
+	case keyBack:
+		m.isDetailOpen = false
+	default:
+		m = m.scrollForKey(key)
+	}
+	return m, nil
+}
+
+// scrollForKey scrolls the detail pane for a scroll key: a page or half a page for the page keys,
+// a row for the arrows and j k where the detail pane fills a narrow screen. Any other key leaves
+// the model as it is.
+func (m model) scrollForKey(key string) model {
+	page := m.bodyHeight()
+	switch key {
+	case keyPageUp:
+		return m.scrollDetail(-page)
+	case keyPageDown:
+		return m.scrollDetail(page)
+	case keyHalfUp:
+		return m.scrollDetail(-halfPage(page))
+	case keyHalfDown:
+		return m.scrollDetail(halfPage(page))
+	case keyUp, keyUpVim:
+		return m.scrollNarrowDetail(-1)
+	case keyDown, keyDownVim:
+		return m.scrollNarrowDetail(1)
+	}
+	return m
+}
+
+// tabForKey returns the tab a digit key opens: 1, 2 and 3 name the tabs in tabOrder.
+func tabForKey(key string) (Tab, bool) {
+	for position, tab := range tabOrder {
+		if key == strconv.Itoa(position+1) {
+			return tab, true
+		}
+	}
+	return TabReady, false
+}
+
+// nextTab returns the tab after tab in tabOrder, wrapping from the last to the first.
+func nextTab(tab Tab) Tab {
+	for position, candidate := range tabOrder {
+		if candidate == tab {
+			return tabOrder[(position+1)%len(tabOrder)]
+		}
+	}
+	return tabOrder[0]
+}
+
+// halfPage returns the rows ctrl+u and ctrl+d scroll: half of page, at least one.
+func halfPage(page int) int {
+	return max(page/2, 1)
+}
+
+// openTab switches to tab, back on its sidebar with the detail pane at its top.
+func (m model) openTab(tab Tab) model {
+	m.tab = tab
+	m.isDetailOpen = false
+	m.detailOffset = 0
+	return m
+}
+
+// scrollNarrowDetail scrolls the detail pane by rows when it fills a narrow screen, and leaves
+// the model as it is otherwise.
+func (m model) scrollNarrowDetail(rows int) model {
+	if !m.isNarrow() || !m.isDetailOpen {
+		return m
+	}
+	return m.scrollDetail(rows)
+}
+
+// scrollDetail moves the detail pane by rows, down when positive, keeping its last row no higher
+// than the bottom of the pane and its first row no lower than the top.
+func (m model) scrollDetail(rows int) model {
+	lastOffset := max(len(m.detail)-m.bodyHeight(), 0)
+	m.detailOffset = min(max(m.detailOffset+rows, 0), lastOffset)
+	return m
+}

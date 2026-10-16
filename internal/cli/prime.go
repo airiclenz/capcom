@@ -17,9 +17,6 @@ import (
 
 const kindPrime = "prime"
 
-// minutesPerHour splits a lock age into hours and minutes.
-const minutesPerHour = 60
-
 // The advice the Briefing gives on this worktree's Tree lock, one line per state.
 const (
 	worktreeLockFree = "this worktree: free; before a multi-file change run " +
@@ -175,8 +172,8 @@ func addLocks(text *strings.Builder, overview lock.Overview, now time.Time) []lo
 		fmt.Fprintf(text, "  %s: held by %s for %s, heartbeat %s ago: %s",
 			status.Key,
 			record.Holder,
-			ageText(now.Sub(record.Since)),
-			ageText(now.Sub(record.Heartbeat)),
+			lock.AgeText(now.Sub(record.Since)),
+			lock.AgeText(now.Sub(record.Heartbeat)),
 			flatten(record.Purpose),
 		)
 		if status.IsStale {
@@ -227,13 +224,4 @@ func indentLines(text string) string {
 		return ""
 	}
 	return textIndent + strings.ReplaceAll(strings.TrimSuffix(text, "\n"), "\n", "\n"+textIndent) + "\n"
-}
-
-// ageText renders a lock age in whole minutes: `1h05m`, `12m`.
-func ageText(age time.Duration) string {
-	minutes := int(max(age, 0) / time.Minute)
-	if minutes < minutesPerHour {
-		return fmt.Sprintf("%dm", minutes)
-	}
-	return fmt.Sprintf("%dh%02dm", minutes/minutesPerHour, minutes%minutesPerHour)
 }

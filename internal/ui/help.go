@@ -1,0 +1,24 @@
+package ui
+
+// helpLines are the help screen ? opens over the panes: the full key map.
+var helpLines = []string{
+	"",
+	"  Keys",
+	"",
+	"  move     ↑↓←→  j k h l",
+	"  expand   → / l    collapse ← / h",
+	"  tabs     Tab  1 2 3",
+	"  open     Enter    back     Esc",
+	"  scroll   PgUp PgDn  ctrl+u ctrl+d",
+	"  filter   /",
+	"  status   s        claim    a",
+	"  close    c        reopen   R",
+	"  log      L        editor   e",
+	"  deps     d",
+	"  help     ?        quit     q",
+	"",
+	"  The scroll keys move the detail pane from anywhere; in the narrow",
+	"  detail view the arrows and j k scroll it too.",
+	"  Prompts take Enter to submit and Esc to cancel.",
+	"  ? or Esc closes this help.",
+}
