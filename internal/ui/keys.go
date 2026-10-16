@@ -28,7 +28,8 @@ const (
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
 // the narrow detail view, open the filter line, open the help screen, and scroll the detail pane:
 // the page keys from anywhere, the arrows and j k only where the detail pane fills a narrow
-// screen. Esc from the sidebar clears the open tab's filter. Everywhere else
+// screen. Esc from the sidebar clears the open tab's filter. On the Ready and Issues tabs a claims
+// the shown issue and s opens the status picker over it. Everywhere else
 // the up and down arrows and j k move the sidebar's selection, and on a tree the left and right
 // arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
@@ -61,6 +62,10 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		}
 	case keyFilter:
 		return m.openFilter(), nil
+	case keyClaim:
+		return m.startWrite(claimAction())
+	case keyStatus:
+		return m.openStatusPicker()
 	default:
 		return m.sidebarOrScrollKey(msg)
 	}

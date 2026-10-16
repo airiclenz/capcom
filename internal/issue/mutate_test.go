@@ -378,3 +378,46 @@ func TestReopen_AuthorFails_ReturnsItsErrorUnwrapped(t *testing.T) {
 		t.Errorf("Reopen error = %v, want the author's error %v", err, failure)
 	}
 }
+
+func TestIssue_SplitLog_CutsTheLogSectionOut(t *testing.T) {
+	cases := []struct {
+		name     string
+		body     string
+		wantRest string
+		wantLog  string
+	}{
+		{
+			name:     "no log",
+			body:     "Body.\n",
+			wantRest: "Body.\n",
+			wantLog:  "",
+		},
+		{
+			name:     "log at the end",
+			body:     "Body.\n\n## Log\n\n- 2026-10-11 bob: one\n",
+			wantRest: "Body.\n\n",
+			wantLog:  "## Log\n\n- 2026-10-11 bob: one\n",
+		},
+		{
+			name:     "section after the log",
+			body:     "Body.\n## Log\n- 2026-10-11 bob: one\n## Notes\nLater.\n",
+			wantRest: "Body.\n## Notes\nLater.\n",
+			wantLog:  "## Log\n- 2026-10-11 bob: one\n",
+		},
+		{
+			name:     "log heading inside a fence",
+			body:     "```\n## Log\n```\n",
+			wantRest: "```\n## Log\n```\n",
+			wantLog:  "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rest, log := issue.Issue{Body: tc.body}.SplitLog()
+
+			if rest != tc.wantRest || log != tc.wantLog {
+				t.Errorf("SplitLog() = %q, %q, want %q, %q", rest, log, tc.wantRest, tc.wantLog)
+			}
+		})
+	}
+}

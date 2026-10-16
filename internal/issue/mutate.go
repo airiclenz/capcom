@@ -62,6 +62,24 @@ func appendLogEntry(body string, entry string) string {
 	return before + entry + strings.Join(lines[last+1:], "")
 }
 
+// SplitLog cuts the issue's body in two: everything outside its Log section, and the section
+// itself, from its LogHeading line up to the next level-one or level-two heading, as AppendLog
+// finds it. log is "" when the body has no Log section; rest and log together hold every byte of
+// the body.
+func (i Issue) SplitLog() (rest string, log string) {
+	lines := strings.SplitAfter(i.Body, "\n")
+	texts := make([]string, 0, len(lines))
+	for _, line := range lines {
+		texts = append(texts, strings.TrimSuffix(line, "\n"))
+	}
+	start, end := logBounds(texts, 0)
+	if start < 0 {
+		return i.Body, ""
+	}
+	return strings.Join(lines[:start], "") + strings.Join(lines[end:], ""),
+		strings.Join(lines[start:end], "")
+}
+
 // isSectionBoundary reports whether line is a level-one or level-two heading, which ends the Log
 // section; deeper headings belong to it.
 func isSectionBoundary(line string) bool {

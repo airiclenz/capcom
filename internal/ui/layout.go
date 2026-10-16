@@ -67,26 +67,37 @@ func (m model) sidebarWidth() int {
 
 // body draws the bodyHeight rows under the tab bar: the help screen when it is open, the two
 // panes side by side on a wide terminal, and on a narrow one the sidebar or, once Enter opened
-// it, the detail pane.
+// it or while the status picker is open, the detail pane.
 func (m model) body() []string {
 	height := m.bodyHeight()
 	switch {
 	case m.isHelpOpen:
 		return paneRows(helpLines, 0, height, m.width)
-	case m.isNarrow() && m.isDetailOpen:
-		return paneRows(m.detail, m.detailOffset, height, m.width)
+	case m.isNarrow() && (m.isDetailOpen || m.picker.isOpen):
+		lines, offset := m.detailRows()
+		return paneRows(lines, offset, height, m.width)
 	case m.isNarrow():
 		return paneRows(m.sidebarLines(), 0, height, m.width)
 	}
 
 	sidebarWidth := m.sidebarWidth()
 	sidebar := paneRows(m.sidebarLines(), 0, height, sidebarWidth)
-	detail := paneRows(m.detail, m.detailOffset, height, m.width-sidebarWidth-1)
+	lines, offset := m.detailRows()
+	detail := paneRows(lines, offset, height, m.width-sidebarWidth-1)
 	rows := make([]string, 0, height)
 	for row := range height {
 		rows = append(rows, pad(sidebar[row], sidebarWidth)+paneSeparator+detail[row])
 	}
 	return rows
+}
+
+// detailRows returns the rows the detail pane draws and the first of them on screen: the status
+// picker's while it is open, the shown issue's, Note's or dependency view's otherwise.
+func (m model) detailRows() ([]string, int) {
+	if m.picker.isOpen {
+		return m.picker.lines(), 0
+	}
+	return m.detail, m.detailOffset
 }
 
 // paneRows returns height rows of lines from offset on, each cut to width columns, blank rows

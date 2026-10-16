@@ -25,13 +25,16 @@ const (
 // detailMsg carries one read of an issue or a Note for the detail pane: whether it is a Note,
 // its id, the markdown source the pane renders (the frontmatter header, then the body or why
 // the file could not be read), the file's ETag ("" when it did not parse) and the snapshot of
-// every issue and Note id in the index that the read took.
+// every issue and Note id in the index that the read took. An issue's read also carries the
+// parsed issue and its parent's id, which a write's conflict prompt compares against.
 type detailMsg struct {
-	isNote bool
-	id     string
-	source string
-	etag   string
-	ids    map[string]bool
+	isNote   bool
+	id       string
+	source   string
+	etag     string
+	ids      map[string]bool
+	node     issue.Issue
+	parentID string
 }
 
 // issueDetail is the issue or Note the detail pane shows: what its read carried, and its source rendered
@@ -44,6 +47,10 @@ type issueDetail struct {
 	// not parse.
 	etag string
 	ids  map[string]bool
+	// node is the issue as read and parentID its parent's id, the version on screen a write's
+	// conflict prompt compares the file on disk with; both are zero for a Note.
+	node     issue.Issue
+	parentID string
 
 	rendered       markdown.Rendered
 	renderedSource string
@@ -56,28 +63,41 @@ func (d issueDetail) isID(text string) bool {
 }
 
 // loadDetail returns a command that reads the issue at entry's path for the detail pane, through
-// the session: the file with nodestore.IssueReader and the ids the index holds. A file that does
-// not parse shows `<path>: <error>` in place of its body, under a header from the index entry,
-// and keeps no ETag.
+// the session, as readIssueDetail does. Ids that cannot be read show `<path>: <error>` in place of
+// the body, under a header from the index entry, and keep no ETag.
 func loadDetail(s *session, entry index.Entry) tea.Cmd {
 	return func() tea.Msg {
 		msg := detailMsg{id: entry.ID}
 		err := s.do(func(opened *store.Store, issueIndex *index.Index) error {
-			ids, err := indexIDs(issueIndex)
-			if err != nil {
-				return err
-			}
-			msg.ids = ids
-			absolute := filepath.Join(opened.WorktreeRoot, filepath.FromSlash(entry.Path))
-			reading, readErr := nodestore.IssueReader(opened.Config).Read(absolute, entry.Path)
-			msg.source, msg.etag = issueSource(entry, reading, readErr)
-			return nil
+			var readErr error
+			msg, readErr = readIssueDetail(opened, issueIndex, entry)
+			return readErr
 		})
 		if err != nil {
 			msg.source = issueHeader(entry) + fmt.Sprintf("%s: %v", entry.Path, err)
 		}
 		return msg
 	}
+}
+
+// readIssueDetail reads the issue at entry's path for the detail pane: the file with
+// nodestore.IssueReader and the ids issueIndex holds. A file that does not parse shows `<path>:
+// <error>` in place of its body, under a header from the index entry, and keeps no ETag. It fails
+// only when the ids cannot be read. The caller holds the session's mutex.
+func readIssueDetail(opened *store.Store, issueIndex *index.Index, entry index.Entry) (detailMsg, error) {
+	msg := detailMsg{id: entry.ID, parentID: entry.ParentID}
+	ids, err := indexIDs(issueIndex)
+	if err != nil {
+		return msg, err
+	}
+	msg.ids = ids
+	absolute := filepath.Join(opened.WorktreeRoot, filepath.FromSlash(entry.Path))
+	reading, readErr := nodestore.IssueReader(opened.Config).Read(absolute, entry.Path)
+	msg.source, msg.etag = issueSource(entry, reading, readErr)
+	if msg.etag != "" {
+		msg.node = reading.Node
+	}
+	return msg, nil
 }
 
 // indexIDs returns the set of every issue id, Closed ones included, and every Note id, retired
@@ -228,7 +248,14 @@ func (m model) applyDetail(msg detailMsg) model {
 		return m
 	}
 	isShown := m.issue.id == msg.id
-	m.issue = issueDetail{id: msg.id, source: msg.source, etag: msg.etag, ids: msg.ids}
+	m.issue = issueDetail{
+		id:       msg.id,
+		source:   msg.source,
+		etag:     msg.etag,
+		ids:      msg.ids,
+		node:     msg.node,
+		parentID: msg.parentID,
+	}
 	if !isShown {
 		m.detailOffset = 0
 	}

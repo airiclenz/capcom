@@ -68,17 +68,21 @@ func oneLine(text string) string {
 	return strings.Join(strings.Fields(text), " ")
 }
 
-// statusBar draws the bottom row: the Tree lock, the open tab's filter, the user config notice,
-// the notices of a config.yaml that could not be reloaded and of a poll that failed or stopped,
-// and the notice of an id that could not be selected when there are any, and the key hints. A row
-// too long for the terminal is cut before the hints, so they stay visible while there is room for
-// them.
+// statusBar draws the bottom row: an open confirmation prompt's question in place of everything
+// else, or the Tree lock, the open tab's filter, the user config notice, the notices of a
+// config.yaml that could not be reloaded and of a poll that failed or stopped, the notice of an id
+// that could not be selected and the report of the last write when there are any, and the key
+// hints. A row too long for the terminal is cut before the hints, so they stay visible while there
+// is room for them.
 func (m model) statusBar() string {
+	if m.prompt.isOpen {
+		return fit(m.prompt.text, m.width)
+	}
 	text := m.lockText
 	if filter := m.filterStatus(); filter != "" {
 		text += statusSeparator + filter
 	}
-	for _, notice := range []string{m.configNotice, m.storeNotice, m.refreshNotice, m.notice} {
+	for _, notice := range []string{m.configNotice, m.storeNotice, m.refreshNotice, m.notice, m.writeNotice} {
 		if notice != "" {
 			text += statusSeparator + notice
 		}
@@ -96,6 +100,8 @@ func (m model) keyHints() string {
 	switch {
 	case m.isHelpOpen:
 		return hintsHelp
+	case m.picker.isOpen:
+		return hintsPicker
 	case m.isFilterOpen:
 		return hintsFilter
 	case m.isNarrow() && m.isDetailOpen:

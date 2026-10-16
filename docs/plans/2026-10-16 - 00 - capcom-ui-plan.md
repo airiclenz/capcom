@@ -549,7 +549,10 @@ tick re-opens. Files are backdated by the harness before the index opens.
 - `GOMEMLIMIT=2GiB go test ./internal/ui/` and `GOMEMLIMIT=2GiB go test ./internal/index/`
 **Commit:** `feat(ui): live refresh by polling the index`
 
-## 16. Writes: lock prompt, conflicts, claim and status
+## 16. Writes: lock prompt, conflicts, claim and status — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that the work stays in the named files: the keys a and s route through keys.go's handleKey; the prompt's question replaces the status bar, the picker's hints and the write notice (new model.writeNotice) are in statusbar.go; the picker covers the detail pane through layout.go's body (new detailRows); the on-screen parsed issue and parent id the conflict diff needs are kept by detail.go (detailMsg/issueDetail gain node and parentID; loadDetail's read extracted as readIssueDetail so the conflict reload reads the issue the same way); the body/log split is the new exported issue.Issue.SplitLog in internal/issue/mutate.go (over the unexported logBounds that owns the Log section's bounds), tested in mutate_test.go.
+NOTES (2026-10-16): unspecified edges filled: the conflict prompt also takes Enter as yes and Esc as no, like the lock prompt (tui.md: prompts take Enter and Esc); a conflict whose re-read file no longer parses shows it and reports the conflict in the status bar without a prompt; a write on an issue whose file does not parse is refused with `write: <id> does not parse; fix its file first`; a write that lands reports `claimed <id>` or `<id>: status <s>`; a lock prompt answered y skips the lock read on a conflict retry, while a write that found the lock free reads it again on retry; the no-lock-call grep is also enforced by TestUIPackage_NeverTakesTheTreeLock.
 
 **What:**
 **Goal:** on the Issues and Ready tabs `a` claims the selected issue and `s` opens a picker of the

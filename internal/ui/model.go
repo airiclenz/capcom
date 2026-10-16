@@ -81,6 +81,13 @@ type model struct {
 	// filterLine is that line.
 	isFilterOpen bool
 	filterLine   lineInput
+
+	// prompt is the confirmation a write asks in the status bar, taking every key while it is
+	// open; picker is the status picker s opens over the detail pane, taking every key while it is
+	// open; writeNotice is the status bar's report of the last write, empty when there is none.
+	prompt      confirmPrompt
+	picker      statusPicker
+	writeNotice string
 }
 
 // newModel returns the model of a UI over options' store and index, opening on options.Tab and
@@ -149,8 +156,10 @@ func (m model) initialIDFor(tab Tab) string {
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
-// index and the painter's width measure, polls the index on a tick, and handles the keys: the open filter line takes every key, ahead of the
-// dependency view's, then the model's own. While the dependency view is open it keeps the detail
+// index, a write's run, the status picker's statuses and the painter's width measure, polls the
+// index on a tick, and handles the keys: an open confirmation prompt takes every key, then an
+// open status picker, then the open filter line, ahead of the dependency view's, then the model's
+// own. While the dependency view is open it keeps the detail
 // pane over whatever else repaints it. Any other message reaches the open filter line, such as a
 // paste.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -178,12 +187,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.tickUpdate()
 	case refreshedMsg:
 		return m.applyRefreshed(msg)
+	case writtenMsg:
+		return m.applyWritten(msg)
+	case statusesMsg:
+		m = m.applyStatuses(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.
 		m.issue.renderedWidth = 0
 		m = m.renderDetail().paintDeps()
 	case tea.KeyPressMsg:
+		if m.prompt.isOpen {
+			return m.promptKey(msg)
+		}
+		if m.picker.isOpen {
+			return m.pickerKey(msg)
+		}
 		if m.isFilterOpen {
 			return m.filterLineKey(msg)
 		}
