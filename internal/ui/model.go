@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/airiclenz/capcom/internal/ui/markdown"
 	"github.com/airiclenz/capcom/internal/userconfig"
 )
 
@@ -29,6 +30,9 @@ type model struct {
 	configNotice string
 	// lockText is the status bar's account of this worktree's Tree lock, from the last read.
 	lockText string
+	// markdownTheme is what issue and Note bodies render with. Its Measure follows the painter:
+	// Update folds every tea.ModeReportMsg into it.
+	markdownTheme markdown.Theme
 
 	width  int
 	height int
@@ -92,7 +96,8 @@ func (m model) Init() tea.Cmd {
 	return readLock(m.session)
 }
 
-// Update records a new terminal size and the Tree lock's state, and handles the keys.
+// Update records a new terminal size, the Tree lock's state and the painter's width measure, and
+// handles the keys.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -101,6 +106,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.scrollDetail(0)
 	case lockMsg:
 		m.lockText = msg.text
+	case tea.ModeReportMsg:
+		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}

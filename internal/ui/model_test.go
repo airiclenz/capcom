@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const validIssue = "---\ntitle: Valid\nstatus: open\ntype: task\npriority: 2\ncreated: 2026-10-11T09:00:00Z\n---\n"
@@ -40,6 +41,19 @@ func TestModel_Update_OtherKey_DoesNotQuit(t *testing.T) {
 
 	if cmd != nil {
 		t.Errorf("x: Update returned a command, want none")
+	}
+}
+
+func TestModel_Update_UnicodeCoreModeReport_SwitchesMarkdownMeasureToGraphemeWidth(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, nil), 120, 30)
+	if got := m.markdownTheme.Measure.Method(); got != ansi.WcWidth {
+		t.Fatalf("markdown measure before the report = %v, want the painter's starting ansi.WcWidth", got)
+	}
+
+	m = send(t, m, tea.ModeReportMsg{Mode: ansi.ModeUnicodeCore, Value: ansi.ModeSet})
+
+	if got := m.markdownTheme.Measure.Method(); got != ansi.GraphemeWidth {
+		t.Errorf("markdown measure after a mode-2027 report = %v, want ansi.GraphemeWidth", got)
 	}
 }
 

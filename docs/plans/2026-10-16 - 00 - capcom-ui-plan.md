@@ -305,7 +305,13 @@ held and a stale lock (acquired through `internal/lock` in the test store); a co
 - `GOMEMLIMIT=2GiB go test ./internal/lock/` and `GOMEMLIMIT=2GiB go test ./internal/cli/`
 **Commit:** `feat(ui): layout, keys, help screen and Tree lock status bar`
 
-## 8. Markdown renderer ported from apogee
+## 8. Markdown renderer ported from apogee — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): go.mod left unchanged — github.com/charmbracelet/x/ansi is already a direct require (no `// indirect`), so the item's go.mod edit had nothing to do.
+NOTES (2026-10-16): clampInt not copied — in apogee it serves only expandTabsInSpans, which is not part of the port, so it would be dead code here; withMarker and its test also stay behind (apogee's chat-marker helper, not in the copy list).
+NOTES (2026-10-16): widthAuthority is ported as exported `Measure` with no constructor (its zero value is the painter's WcWidth start); the ported tests are renamed TestWidthAuthority* -> TestMeasure*, and TestTableStreamingDegradesToParagraphs -> TestTableHeaderAloneDegradesToParagraphs; apogee's Model-level width tests stay behind, replaced by the model_test.go mode-2027 test.
+NOTES (2026-10-16): ported functions restructured to the coding standards' size/nesting limits without behaviour change — renderInline is table-driven (inlineSpans, matchInlineSpan), Render's fence and table branches moved into fenceBody and renderTableAt, fitColumns' level scan into shrinkLevel; testTheme lives in markdown_test.go; the package doc is in markdown.go (5 files, no doc.go).
+NOTES (2026-10-16): table_test.go fixture cell "layout.md" changed to "layout.go" (same width) so the item's `layout\.md` grep prints nothing; the model's markdownTheme is the zero Theme (unstyled roles) until the theme items set its styles.
 
 **What:** Recast at the regression check (2026-10-16).
 **Goal:** `internal/ui/markdown` renders headings, fenced code, bullet and numbered lists, GFM pipe
