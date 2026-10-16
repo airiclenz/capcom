@@ -69,7 +69,7 @@ func (m model) sidebarWidth() int {
 
 // body draws the bodyHeight rows under the tab bar's rule: the help screen when it is open, the two
 // panes side by side on a wide terminal, and on a narrow one the sidebar or, once Enter opened
-// it or while the status picker is open, the detail pane.
+// it or while the status picker is open, the detail pane. The detail pane ends in its scrollbar.
 func (m model) body() []string {
 	height := m.bodyHeight()
 	switch {
@@ -77,7 +77,7 @@ func (m model) body() []string {
 		return paneRows(helpLines, 0, height, m.width)
 	case m.isNarrow() && (m.isDetailOpen || m.picker.isOpen):
 		lines, offset := m.detailRows()
-		return paneRows(lines, offset, height, m.width)
+		return m.scrolledPaneRows(lines, offset, height, m.detailWidth())
 	case m.isNarrow():
 		return paneRows(m.sidebarLines(), 0, height, m.width)
 	}
@@ -85,7 +85,7 @@ func (m model) body() []string {
 	sidebarWidth := m.sidebarWidth()
 	sidebar := paneRows(m.sidebarLines(), 0, height, sidebarWidth)
 	lines, offset := m.detailRows()
-	detail := paneRows(lines, offset, height, m.detailWidth())
+	detail := m.scrolledPaneRows(lines, offset, height, m.detailWidth())
 	margin := strings.Repeat(" ", dividerMargin)
 	divider := margin + m.theme.border.Render(paneSeparator) + margin
 	rows := make([]string, 0, height)

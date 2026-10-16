@@ -372,3 +372,36 @@ func TestMouse_ClickDuringReasonPrompt_EnterClosesOnlyThePromptedIssue(t *testin
 		t.Errorf("beta changed:\n%s", got)
 	}
 }
+
+func TestMouse_WheelOverTheScrollbar_ScrollsTheDetail(t *testing.T) {
+	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			m := openDetail(t, newTestModel(t, newTestStore(t, linkFiles), size[0], size[1]))
+
+			m = press(t, m, wheel(tea.MouseWheelDown, m.width-1, 6))
+
+			if m.detailOffset != detailWheelRows {
+				t.Errorf("detail offset %d after a wheel notch on the bar, want %d", m.detailOffset, detailWheelRows)
+			}
+		})
+	}
+}
+
+func TestMouse_ClickOnTheScrollbarOrItsGutter_SelectsNothing(t *testing.T) {
+	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			m := newIssuesModel(t, newTestStore(t, depFiles), "alpha", size[0], size[1])
+			m = press(t, m, runeKey('d'))
+
+			for x := m.width - scrollbarColumns; x < m.width; x++ {
+				// Row 7 of the screen is line 5 of the view: user, under the blocks heading.
+				clicked := press(t, m, click(x, 7))
+
+				if clicked.deps.cursor.selected != m.deps.cursor.selected {
+					t.Errorf("a click on column %d moved the dep view's cursor to row %d, want it left on %d",
+						x, clicked.deps.cursor.selected, m.deps.cursor.selected)
+				}
+			}
+		})
+	}
+}

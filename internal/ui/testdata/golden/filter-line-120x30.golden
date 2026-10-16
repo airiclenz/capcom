@@ -1,30 +1,30 @@
  Issues  │  Ready  │  Knowledge 
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-/parser                                  │ Epic
-▸ epic  open  P1  Epic  (1/2 closed)     │ 
-  solo  open  P2  Solo                   │ status: open · P1
-  user  open  P2  User                   │ labels: ui
-  wrapped  open  P2  Wrapped  (1/1 clos… │ 
-                                         │ The epic plans the rollout.
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
-                                         │ 
+/parser                                  │ Epic                                                                         
+▸ epic  open  P1  Epic  (1/2 closed)     │                                                                              
+  solo  open  P2  Solo                   │ status: open · P1                                                            
+  user  open  P2  User                   │ labels: ui                                                                   
+  wrapped  open  P2  Wrapped  (1/1 clos… │                                                                              
+                                         │ The epic plans the rollout.                                                  
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
 ─────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────
 lock: free · enter keep · esc clear

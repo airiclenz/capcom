@@ -152,8 +152,8 @@ func TestModel_SplitLayout_PadsTheDividerWithAMarginEachSide(t *testing.T) {
 	if got := ansi.Cut(rule, sidebarWidth+1, sidebarWidth+2); got != ruleJoint {
 		t.Errorf("the rule holds %q at column %d, want %q under the separator", got, sidebarWidth+1, ruleJoint)
 	}
-	if got, want := m.detailWidth(), 120-sidebarWidth-3; got != want {
-		t.Errorf("detailWidth() = %d, want %d: the width right of the divider", got, want)
+	if got, want := m.detailWidth(), 120-sidebarWidth-3-scrollbarColumns; got != want {
+		t.Errorf("detailWidth() = %d, want %d: the width right of the divider, less the scrollbar", got, want)
 	}
 }
 

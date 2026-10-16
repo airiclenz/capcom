@@ -121,6 +121,10 @@ type theme struct {
 	selectedRow      lipgloss.Style
 	mutedRow         lipgloss.Style
 	mutedSelectedRow lipgloss.Style
+	// scrollThumb paints a scrollbar's thumb, muted, and scrollTrack its track in the border
+	// colour.
+	scrollThumb lipgloss.Style
+	scrollTrack lipgloss.Style
 	// markdown is what issue and Note bodies render with, its Measure left at the zero value: the
 	// model keeps the painter's.
 	markdown markdown.Theme
@@ -140,6 +144,8 @@ func newTheme(settings userconfig.UI, isLightBackground, isNoColor bool) theme {
 		selectedRow:      colors.foreground(roleSelection).Reverse(true),
 		mutedRow:         colors.foreground(roleMuted).Faint(true),
 		mutedSelectedRow: colors.foreground(roleSelection).Faint(true).Reverse(true),
+		scrollThumb:      colors.foreground(roleMuted),
+		scrollTrack:      colors.foreground(roleBorder),
 		markdown:         markdownTheme(colors),
 		input:            inputStyles(colors),
 	}

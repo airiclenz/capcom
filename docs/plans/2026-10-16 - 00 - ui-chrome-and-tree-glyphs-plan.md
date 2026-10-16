@@ -106,7 +106,12 @@ as "Row 6") moves down by one; regenerate goldens.
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): set the tabs off with a rule`
 
-## 3. Scrollbar on the detail pane
+## 3. Scrollbar on the detail pane — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the scrollbar glyphs are named `scrollThumbGlyph`/`scrollTrackGlyph` (beside layout.go's frame glyph names) rather than apogee's `glyphScrollThumb`/`glyphScrollTrack`; the row painter is `model.scrolledPaneRows` with `squareRow` cutting and padding in `m.markdownTheme.Measure`, and `scrollbarCells` paints the bar, all in scrollbar.go, so item 4 can reuse them for the sidebar.
+NOTES (2026-10-16): internal/ui/layout_test.go (not in Files) — `TestModel_SplitLayout_PadsTheDividerWithAMarginEachSide` asserted `detailWidth() == 120-sidebarWidth-3`; the item's own `detailWidth()` shrink by 2 changes that value, so the assertion now subtracts `scrollbarColumns`.
+NOTES (2026-10-16): the regenerated goldens differ only in trailing blanks (`git diff --ignore-space-at-eol` over them is empty): every golden's detail body fits, so the bar column is reserved and blank; the visible thumb and track are asserted by scrollbar_test instead. layout-80x24 and help-120x30 are unchanged (no detail pane on screen).
+NOTES (2026-10-16): docs/design/tui.md and the manual's screen samples are left to item 6, which owns them.
 
 Depends on item 2.
 

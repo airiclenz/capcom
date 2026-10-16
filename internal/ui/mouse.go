@@ -69,8 +69,12 @@ func (m model) clickSidebar(point panePoint) (model, tea.Cmd) {
 }
 
 // clickDetail selects the dependency view's row under point while the view is open, and follows
-// the link under point while the detail pane shows an issue or a Note.
+// the link under point while the detail pane shows an issue or a Note. A click on the scrollbar's
+// gutter or bar does nothing.
 func (m model) clickDetail(point panePoint) (model, tea.Cmd) {
+	if point.col >= m.detailWidth() {
+		return m, nil
+	}
 	line := m.detailOffset + point.row
 	if m.deps.isOpen {
 		if !m.deps.isLoaded {
