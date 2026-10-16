@@ -1,6 +1,6 @@
 ---
 title: "capcom ui: a terminal UI for issues and Knowledge"
-status: open
+status: active
 type: feature
 priority: 2
 created: 2026-10-15T20:03:23Z
