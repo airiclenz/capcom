@@ -249,7 +249,11 @@ with its status row, so re-record any item-3 golden captured after a selection r
 - `go vet ./internal/ui/` is clean.
 **Commit:** `feat(ui): copy the detail selection on release`
 
-## 5. Document selecting and copying
+## 5. Document selecting and copying — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): helpLines kept at 20 rows: the copy row goes after resize and `deps d` merges onto the `filter /` row (`filter   /        deps     d`); the key blocks in docs/design/tui.md and docs/site/getting-started/terminal-ui.md mirror the same merge.
+NOTES (2026-10-16): internal/ui/doc.go unchanged: its `mouse.go` entry already names selection drags, and items 2 and 4 already mapped `selection.go` and `clipboard.go`.
+NOTES (2026-10-16): docs/design/tui.md gains a **Selecting and copying** paragraph after **Mouse**; the user guide gains a `### Copying text` subsection under `## Mouse` plus a Mouse bullet linking to it.
 
 Depends on item 4.
 

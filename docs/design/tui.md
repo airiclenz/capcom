@@ -162,11 +162,11 @@ tabs     Tab  1 2 3
 open     Enter    back Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
 resize   < >      drag the divider, double-click resets
-filter   /
+copy     drag over the detail text
+filter   /        deps    d
 status   s        claim   a
 close    c        reopen  R
 log      L        editor  e
-deps     d
 help     ?        quit    q
 ```
 
@@ -180,8 +180,24 @@ anywhere; the sidebar keeps focus. In the narrow detail view j/k and the arrows 
 clicking a tree arrow expands or collapses. A drag on the divider resizes the sidebar and a
 double-click on it resets the width (see Layout). The wheel over the sidebar moves the selection a
 row, over the detail pane it scrolls three rows (or moves the dependency view's cursor). The mouse
-does nothing while the help screen, the filter line, the status picker or a prompt is open. With
-mouse reporting on, terminal text selection needs shift-drag (or the terminal's own modifier).
+does nothing while the help screen, the filter line, the status picker or a prompt is open.
+
+**Selecting and copying**: on the Ready, Issues and Knowledge tabs a left press in the detail pane
+anchors a selection and a drag extends it, across lines; the selected cells are painted in the
+`selection` role over the rendered markdown. The selection is held in content coordinates
+(rendered line, column), so a wheel scroll keeps it; motion outside the detail pane does not
+extend it. Release copies the selected text right away, with no copy key: what is shown, each
+line cut by display cell through `markdown.Measure`, ANSI codes stripped, trailing spaces
+trimmed, lines joined with `\n`. The copy goes out through OSC 52 (`tea.SetClipboard`), the native
+clipboard (best effort: `pbcopy`, `wl-copy`, `xclip`, `xsel`, `termux-clipboard-set` or
+`clip.exe`, the Win32 API on Windows) and, when `TMUX` is set, `tmux load-buffer -w -`; a
+clipboard or tmux program that `PATH` resolves inside the working tree is refused and never runs.
+The status bar shows `copied N chars` for about two seconds, even when a native or tmux write
+fails. A bare click (press and release on one cell) selects nothing and copies nothing: it
+follows a link as before, and a drag over blank cells only copies nothing. A keypress, a press
+elsewhere, loading another Issue or Note, or a re-render that changes a line the selection spans
+clears it. Elsewhere on the screen (the sidebar, the dependency view, the help screen), terminal
+text selection still needs shift-drag (or the terminal's own modifier), as mouse reporting is on.
 
 ## Live refresh
 
@@ -263,8 +279,16 @@ ui:
 - **Ported**: the scrollbar, from `Model.renderScrollbar` in `internal/tui/model.go` and
   `scrollbarThumb` in `internal/tui/boxdraw.go`, as `internal/ui/scrollbar.go`, with its `┃`
   thumb and `│` track glyphs and the blank gutter before the bar.
+- **Ported**: the detail pane's drag selection, from `transcriptSel`, `spanUnchanged`,
+  `shadeCells` and `transcriptSelectionText` in `internal/tui/mouse.go`, as
+  `internal/ui/selection.go`, measuring through `markdown.Measure` (ADR 0030's one width
+  authority).
+- **Ported**: the clipboard routes, from `internal/tui/clipboard.go`,
+  `internal/present/clipboard.go` and the working-tree fence in `internal/security/execsafety.go`:
+  OSC 52, the native clipboard and tmux, as `internal/clipboard` and `internal/ui/clipboard.go`.
 - **Written new**: the tree sidebar, the tab bar, mouse hit-testing, the layout. apogee's
-  `mouse.go` and `panes.go` serve its own model; capcom borrows their patterns, not their code.
+  `panes.go` serves its own model, and capcom borrows its patterns, not its code; from apogee's
+  `mouse.go` only the selection is ported, the rest of capcom's mouse handling is its own.
 - A shared module comes later, if ever: only once both UIs exist and show what they share.
 
 ## Testing

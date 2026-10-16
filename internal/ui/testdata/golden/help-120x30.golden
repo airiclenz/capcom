@@ -9,11 +9,11 @@
   open     Enter    back     Esc
   scroll   PgUp PgDn  ctrl+u ctrl+d
   resize   < >      drag the divider, double-click resets
-  filter   /
+  copy     drag over the detail text
+  filter   /        deps     d
   status   s        claim    a
   close    c        reopen   R
   log      L        editor   e
-  deps     d
   help     ?        quit     q
 
   The scroll keys move the detail pane from anywhere; in the narrow

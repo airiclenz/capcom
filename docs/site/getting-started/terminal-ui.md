@@ -110,11 +110,11 @@ tabs     Tab  1 2 3
 open     Enter    back     Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
 resize   < >      drag the divider, double-click resets
-filter   /
+copy     drag over the detail text
+filter   /        deps     d
 status   s        claim    a
 close    c        reopen   R
 log      L        editor   e
-deps     d
 help     ?        quit     q
 ```
 
@@ -229,12 +229,31 @@ version: restart capcom ui`.
   or moves the dependency view's cursor.
 - A drag on the divider between the panes resizes the sidebar, and a double-click on it resets
   the width; see [Resizing the sidebar](#resizing-the-sidebar).
+- A drag in the detail pane selects its text, on the Ready, Issues and Knowledge tabs, and
+  releasing the button copies it; there is no copy key. See [Copying text](#copying-text).
 - While the help screen, the filter line, the status picker or a prompt is open, the mouse does
   nothing.
 
-The UI turns on the terminal's mouse reporting, so a plain drag no longer selects text. To select
-and copy text, hold Shift while you drag, or the modifier your terminal uses to bypass mouse
-reporting (Option in iTerm2).
+### Copying text
+
+Press the left button on the text of an Issue or a Note in the detail pane and drag: the text you
+drag over is highlighted, across lines, and stays selected while you scroll the pane with the
+wheel. When you release the button, the selected text is copied as it is shown, without colours
+and without trailing spaces, and the status bar shows `copied N chars` for about two seconds.
+
+The copy goes to the terminal's clipboard (OSC 52), to your system clipboard when a clipboard
+program is installed (`pbcopy` on macOS; `wl-copy`, `xclip`, `xsel`, `termux-clipboard-set` or
+`clip.exe` elsewhere; Windows needs none), and to tmux's paste buffer when you run inside tmux. A
+clipboard program found inside the repository's working tree is never run.
+
+A click without a drag copies nothing: on a link it follows the link, as before. A key press, a
+click elsewhere, opening another Issue or Note, or a resize that rewraps the selected lines clears
+the selection.
+
+The UI turns on the terminal's mouse reporting, so a plain drag elsewhere on the screen (the
+sidebar, the tab bar, the status bar) no longer selects text; only the detail pane selects on its
+own. To select text anywhere else, hold Shift while you drag, or the modifier your terminal uses
+to bypass mouse reporting (Option in iTerm2).
 
 ## Theme
 
