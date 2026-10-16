@@ -2,11 +2,14 @@ package markdown
 
 import (
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -409,5 +412,120 @@ func TestMeasureSurvivesAValueCopy(t *testing.T) {
 	}
 	if got, want := adopted.Width(vs16Warning), 2; got != want {
 		t.Errorf("the adopted copy measures %q as %d, want %d", vs16Warning, got, want)
+	}
+}
+
+// sgrPattern matches one SGR sequence and captures its parameters.
+var sgrPattern = regexp.MustCompile("\x1b\\[([0-9;:]*)m")
+
+// isResetParameters reports whether SGR parameters turn every attribute off: none, or zeros only.
+func isResetParameters(parameters string) bool {
+	return strings.Trim(parameters, "0;") == ""
+}
+
+// styledVisibleRunes returns, for every visible non-space rune of s read on its own from a
+// terminal with no style in effect, whether an SGR style is in effect where it paints. Spaces are
+// left out: a break may swallow the space it falls at.
+func styledVisibleRunes(s string) []bool {
+	var styled []bool
+	isOpen := false
+	for len(s) > 0 {
+		if match := sgrPattern.FindStringSubmatchIndex(s); match != nil && match[0] == 0 {
+			isOpen = !isResetParameters(s[match[2]:match[3]])
+			s = s[match[1]:]
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(s)
+		if r != ' ' {
+			styled = append(styled, isOpen)
+		}
+		s = s[size:]
+	}
+	return styled
+}
+
+// isStyleOpenAtEnd reports whether s, read from a terminal with no style in effect, leaves an SGR
+// style in effect after its last byte.
+func isStyleOpenAtEnd(s string) bool {
+	matches := sgrPattern.FindAllStringSubmatch(s, -1)
+	return len(matches) > 0 && !isResetParameters(matches[len(matches)-1][1])
+}
+
+// The upstream wrap passes SGR escapes through as word bytes and never closes them at a break, so
+// a styled span wrapped at a space left its line with the style open and its continuation
+// unstyled, and one wrapped at a hyphen left the line open with its reset carried onto the next
+// line: an underline painted past the span's visible text. Every line wrapText returns must end
+// with no style in effect, and each line read on its own must paint every character with the style
+// it had before the wrap.
+func TestWrapTextClosesAStyleAtEachBreakAndReopensIt(t *testing.T) {
+	t.Parallel()
+
+	th := testTheme()
+	if !colorActive(th) {
+		t.Skip("no-colour profile: there is no style to balance")
+	}
+	styles := []struct {
+		name  string
+		style lipgloss.Style
+	}{
+		{"link", th.Link},
+		{"underline", th.Underline},
+		{"bold", th.Bold},
+	}
+	spans := []struct{ name, text string }{
+		{"at a hyphen", "agents-md-no-block"},
+		{"at a space", "alpha beta gamma"},
+	}
+	const limit = 10
+
+	for _, pm := range paintMethods {
+		for _, style := range styles {
+			for _, span := range spans {
+				t.Run(pm.name+"/"+style.name+"/"+span.name, func(t *testing.T) {
+					t.Parallel()
+					th := testTheme()
+					th.Measure = Measure{method: pm.method}
+					in := "see " + style.style.Render(span.text) + " now"
+
+					lines := wrapText(th, in, limit)
+
+					if len(lines) < 3 {
+						t.Fatalf("wrapText(%q, %d) = %q; want the span broken over lines", in, limit, lines)
+					}
+					var painted []bool
+					for i, line := range lines {
+						if isStyleOpenAtEnd(line) {
+							t.Errorf("line %d %q ends with a style in effect: %q", i, line, lines)
+						}
+						painted = append(painted, styledVisibleRunes(line)...)
+					}
+					if want := styledVisibleRunes(in); !reflect.DeepEqual(painted, want) {
+						t.Errorf("lines %q paint styled %v, want %v as in %q", lines, painted, want, in)
+					}
+				})
+			}
+		}
+	}
+}
+
+// Text with no style in it wraps exactly as the upstream wrap breaks it: balancing styles adds
+// nothing to a line that has none.
+func TestWrapTextLeavesUnstyledTextAsWrapped(t *testing.T) {
+	t.Parallel()
+
+	for _, pm := range paintMethods {
+		for _, in := range []string{"see agents-md-no-block now", "see alpha beta gamma now"} {
+			t.Run(pm.name+"/"+in, func(t *testing.T) {
+				t.Parallel()
+				th := testTheme()
+				th.Measure = Measure{method: pm.method}
+
+				got := wrapText(th, in, 10)
+
+				if want := strings.Split(th.Measure.Wrap(in, 10, ""), "\n"); !reflect.DeepEqual(got, want) {
+					t.Errorf("wrapText(%q, 10) = %q, want %q", in, got, want)
+				}
+			})
+		}
 	}
 }

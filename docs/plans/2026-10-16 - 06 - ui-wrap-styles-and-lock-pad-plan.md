@@ -33,7 +33,7 @@ follows the word.
 - `capcom lock` CLI output (`lock: free` in its results).
 - Changing x/ansi or lipgloss; the fix lives in this repo's wrap.
 
-## 1. Close a style at each wrap break and reopen it on the next line
+## 1. Close a style at each wrap break and reopen it on the next line — ✅ DONE (2026-10-16)
 
 **Closes:** ui-link-underline-bleed
 

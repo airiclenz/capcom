@@ -21,8 +21,10 @@ const tabCells = 4
 // hard-broken down to it. The one thing no break can divide is a single grapheme wider than the
 // limit, a CJK glyph at limit 1, and that keeps a line to itself.
 //
-// A followable link the wrap splits over lines is closed and reopened at each break
-// (balanceLinkMarkers), so every line it returns holds whole link-marker pairs.
+// A style in effect at a break is closed at the end of the line and reopened at the start of the
+// next (balanceStyles), so no line it returns ends with an SGR style open. A followable link the
+// wrap splits over lines is closed and reopened at each break the same way (balanceLinkMarkers),
+// so every line it returns holds whole link-marker pairs.
 func wrapText(th Theme, text string, limit int) []string {
 	if limit < 1 {
 		limit = 1
@@ -46,7 +48,84 @@ func wrapText(th Theme, text string, limit int) []string {
 		}
 		out = append(out, segments...)
 	}
-	return balanceLinkMarkers(out)
+	return balanceLinkMarkers(balanceStyles(out))
+}
+
+// sgrReset is the SGR sequence balanceStyles closes a line's open style with.
+const sgrReset = "\x1b[m"
+
+// balanceStyles makes every line end with no SGR style in effect: the SGR sequences still in
+// effect at the end of a line are followed there by a reset and repeated at the start of the next
+// line, so a styled span the wrap splits over lines paints on each of its lines and on nothing
+// after them. lines is rewritten in place and returned; a line with no SGR sequence in effect at
+// either end comes back byte for byte.
+//
+// The upstream wrap passes SGR sequences through as word bytes and never closes one at a break
+// (x/ansi v0.11.7): a span broken at a space ends its line open, and one broken at a hyphen ends
+// it open too, its reset carried onto the next line ahead of the next character's sequence. An
+// open style runs past the line's visible text into whatever the frame paints after it.
+func balanceStyles(lines []string) []string {
+	carried := ""
+	for i, line := range lines {
+		line = carried + line
+		carried = sgrInEffectAtEnd(line)
+		if carried != "" {
+			line += sgrReset
+		}
+		lines[i] = line
+	}
+	return lines
+}
+
+// sgrInEffectAtEnd returns the SGR sequences of line still in effect at its end, concatenated in
+// order: every SGR sequence after the last reset (a sequence with no parameter or only zeros),
+// and the empty string when the line ends with no style in effect. Escapes other than a CSI
+// sequence, a link marker among them, are not SGR and are passed over.
+func sgrInEffectAtEnd(line string) string {
+	var effect strings.Builder
+	for from := 0; ; {
+		at := strings.Index(line[from:], sgrIntro)
+		if at < 0 {
+			return effect.String()
+		}
+		start := from + at
+		end, final := csiEnd(line, start+len(sgrIntro))
+		from = end
+		if final != sgrFinal {
+			continue
+		}
+		sequence := line[start:end]
+		if isSGRReset(sequence) {
+			effect.Reset()
+			continue
+		}
+		effect.WriteString(sequence)
+	}
+}
+
+// sgrIntro opens every CSI sequence, and sgrFinal is the final byte that makes one an SGR.
+const (
+	sgrIntro = "\x1b["
+	sgrFinal = 'm'
+)
+
+// csiEnd returns the byte just past the CSI sequence whose parameters start at from, and its final
+// byte; a sequence cut off by the end of s ends there with final 0.
+func csiEnd(s string, from int) (int, byte) {
+	for i := from; i < len(s); i++ {
+		// Parameter (0x30-0x3F) and intermediate (0x20-0x2F) bytes run until the final byte.
+		if c := s[i]; c >= 0x40 && c <= 0x7e {
+			return i + 1, c
+		}
+	}
+	return len(s), 0
+}
+
+// isSGRReset reports whether the SGR sequence turns every attribute off: it carries no parameter,
+// or zeros only.
+func isSGRReset(sequence string) bool {
+	parameters := sequence[len(sgrIntro) : len(sequence)-1]
+	return strings.Trim(parameters, "0;") == ""
 }
 
 // hangCollapses reports whether a block width columns wide is too narrow to hold an mw-column

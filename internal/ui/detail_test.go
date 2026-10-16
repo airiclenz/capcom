@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/airiclenz/capcom/internal/index"
 )
 
@@ -77,6 +79,39 @@ func TestDetailPane_IssueWithPlanAndRelated_ShowsBothLines(t *testing.T) {
 			t.Errorf("detail pane = %q, want a line %q", text, want)
 		}
 	}
+}
+
+// A link the detail pane wraps at a hyphen ends each of its rows with its underline closed: the
+// upstream wrap carried the reset after the hyphen onto the next row, so the row ended with the
+// underline open and it ran on past the link into whatever the screen painted after it.
+func TestDetailPane_LinkWrappedAtAHyphen_EndsEveryRowWithNoStyleOpen(t *testing.T) {
+	files := map[string]string{
+		"issues/alpha.md": issueFile(
+			"title: Alpha task\nstatus: open\npriority: 1\n",
+			"Every issue the tracker files is named by a short id, as in [agents-md-no-block](beta).\n",
+		),
+		"issues/beta.md": issueFile("title: Beta task\nstatus: open\npriority: 2\n", ""),
+	}
+
+	m := newIssuesModel(t, newTestStore(t, files), "alpha", 120, 30)
+
+	if !slices.ContainsFunc(m.detail, func(line string) bool {
+		return strings.HasSuffix(strings.TrimSpace(ansi.Strip(line)), "agents-md-no-")
+	}) {
+		t.Fatalf("detail pane = %q; want the link broken at a hyphen", detailText(m))
+	}
+	for i, line := range m.detail {
+		if isStyleOpenAtEnd(line) {
+			t.Errorf("detail row %d %q ends with a style in effect", i, line)
+		}
+	}
+}
+
+// isStyleOpenAtEnd reports whether line, read from a terminal with no style in effect, leaves an
+// SGR style in effect after its last byte: its last SGR sequence carries a parameter other than 0.
+func isStyleOpenAtEnd(line string) bool {
+	matches := sgrSequence.FindAllStringSubmatch(line, -1)
+	return len(matches) > 0 && strings.Trim(matches[len(matches)-1][1], "0;") != ""
 }
 
 func TestNoteHeader_RendersEachSetKeyInOrder(t *testing.T) {
