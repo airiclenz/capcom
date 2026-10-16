@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `capcom ui`: a double-click on the divider between the sidebar and the detail pane (two presses within 500 ms) returns the sidebar to its default width, a third of the terminal within 28 to 48 columns, and clears the width stored in `state.yaml`.
 - The help screen of `capcom ui` and its guide name the `<` and `>` keys, the divider drag and the double-click reset; the file-format reference describes `state.yaml`, where `capcom ui` remembers the sidebar width.
 - `capcom ui` keeps the sidebar width you set as a share of the terminal's width, so the split holds when you resize the terminal or start `capcom ui` in a terminal of another width; the sidebar still keeps at least 20 columns and the detail pane 40. `state.yaml` stores it as `ui.sidebar_ratio`, a decimal more than 0 and less than 1, in place of `ui.sidebar_width`, which is ignored.
+- `capcom ui`: the dark and light presets now draw in apogee's colours, taken from apogee's scheme of the same name, so the two tools look like one family; `ui.theme` and the `ui.colors` overrides work as before.
+- `capcom ui`: the selected row is drawn as a fill in the `selection` colour with its text in its usual colours, the status keeping its category's colour; under `NO_COLOR` the selected row is still drawn in reverse.
+- `capcom ui`: on the Ready and Issues tabs every row's status starts at one column and every `P<n>` at another, at any depth of the Issues tree; the columns are measured over the whole list, so they do not shift while scrolling. The Knowledge tab, the dependency view and the CLI's `capcom ready` and `capcom list --tree` output stay as they were.
+- `capcom ui`: the tab bar's right end shows `v<version> · capcom` in the muted hints colour, its last character in the frame's last column; it is left out when the terminal is too narrow to keep two blank columns after the last tab, and a click on it opens no tab.
 
 ## [0.7.0] - 2026-10-15
 
