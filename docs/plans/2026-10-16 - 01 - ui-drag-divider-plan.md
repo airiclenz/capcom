@@ -18,6 +18,7 @@ the width persists across runs in a machine-written state file beside the user c
 - **Limits:** sidebar ≥ 20 columns; detail pane (from `detailLeft` to the right edge, scrollbar included) ≥ 40 columns.
 - **Persistence:** across restarts, in a separate machine-written `<os.UserConfigDir>/capcom/state.yaml`; `config.yaml` stays hand-owned and is never written.
 - **Unit:** columns; clamped to the limits at every terminal size, the stored value never rewritten by a clamp.
+- **Ratio (item 8, user, 2026-10-16):** the set width is kept and stored as a ratio of the terminal's width, superseding **Unit** for the stored value; keys and drag still move in columns.
 - **Hit area:** the `│` column and the margin column either side, on every body row.
 - **Feedback:** panes reflow on every motion; the divider and its `┬`/`┴` joints draw in an accent, bold style while the button is held.
 - **Keys:** `<` shrinks, `>` grows the sidebar by 4 columns; persisted like a drag.
@@ -33,7 +34,7 @@ the width persists across runs in a machine-written state file beside the user c
 
 **Out of scope:**
 - Resizing in the narrow layout (below `narrowWidth`), or of anything but the sidebar/detail split.
-- A `ui.sidebar_width` key in `config.yaml`; a share-of-width unit.
+- A `ui.sidebar_width` key in `config.yaml`.
 - Keeping unknown keys of `state.yaml` across a save.
 
 **Regression check (2026-10-16, f13aeee):**
@@ -42,6 +43,7 @@ the width persists across runs in a machine-written state file beside the user c
 - 5: guard folded (fake clock for item 4's chained drags; a finished drag clears `lastDividerPress`)
 - 6: recast (one help row, help-fits-80x24 test, widened docs prose rules)
 - 6 (second round): guard folded into the Approach (one key row with no note line, fit test, widened docs/site finder, tui.md Keys block and Mouse paragraph); guard trimmed to the one-row bound
+- 8: added after the run (2026-10-16); its guard written by the author, no reviewer pass yet
 
 ## 1. State file for capcom ui in userconfig — ✅ DONE (2026-10-16)
 
@@ -232,3 +234,35 @@ Depends on item 1.
 - `capcom know show adr-0014 && capcom know tree adr-0014`
 
 **Commit:** `docs(decisions): record the capcom ui state file as ADR 0014`
+
+## 8. Keep the divider's ratio when the terminal width changes
+
+NOTES (2026-10-16): the user asked for the split to hold when the terminal's "vertical size" changes; the divider's position depends only on the terminal's width, so this item covers width changes, and a height change leaves the divider where it is.
+
+Depends on items 3, 4 and 5.
+
+**What:**
+**Goal:** A sidebar width the user set is held as `sidebarRatio` (its columns over the terminal's): at every width the sidebar is `round(ratio × width)` clamped to [20, width − 43], with the ratio unchanged by a resize or a clamp; `state.yaml` stores it as `ui.sidebar_ratio`; with no ratio the default (a third, 28–48) applies as before. Supersedes the header's **Unit** call and ADR 0014's rejection of a share of the width (user, 2026-10-16).
+
+**Approach (assumed at the header base):**
+- `userconfig/state.go`: `UIState.SidebarWidth int` becomes `SidebarRatio float64` (0 = none stored), key `sidebar_ratio`, written with `strconv.FormatFloat(r, 'f', -1, 64)` (shortest exact round trip). `LoadState` accepts a `!!float` with 0 < r < 1, anything else (`0`, `1`, NaN, ±Inf, `wide`) is an `*Error` "ui.sidebar_ratio: expected a fraction of the terminal's width, more than 0 and less than 1". A `sidebar_width` key is ignored as an unknown key, never converted (no release wrote it, and the width is unknown at load). `SaveState` rejects a ratio outside [0, 1) or NaN and leaves the file.
+- `internal/ui`, extending `layout.go`; no new module. Model field `sidebarColumns` becomes `sidebarRatio float64`. Producers: `resizeSidebar` and `mouseMotion` still compute the new width in columns through `clampSidebarWidth`, then store `float64(columns) / float64(m.width)` (both run only in the split layout, so the width is never 0); `pressDivider`'s reset stores 0; `loadUserState` returns the loaded ratio. Consumers: `sidebarWidth()` (`int(math.Round(ratio × width))` when ratio > 0, then `clampSidebarWidth`); `saveState` and `stateSaver` (`width` → `ratio`); `resizeSidebarKey`'s unchanged check and `mouseRelease` (`dividerDrag.startColumns` → `startRatio`) compare ratios. The `tea.WindowSizeMsg` case keeps calling `relayout()` and neither writes the ratio nor saves. Write times and the notice texts (`ui state: `, `cannot save the sidebar width: `) are unchanged.
+- Prose rule: every comment and doc sentence saying the stored or remembered width is in columns, that it stays fixed on a resize, or that a share of the width was rejected now states the ratio — `grep -rnE "sidebar_width|SidebarWidth|sidebarColumns|startColumns|in columns|remembered width|share of the width|share-of-width" internal/ui internal/userconfig docs/site docs/design .capcom/knowledge/decisions` finds them. ADR 0014 (edit by hand, then `capcom check`): `adr-0014` and `adr-0014-decision` name `ui.sidebar_ratio` and its behaviour under a dated "Amended 2026-10-16" line; `adr-0014-rejected` drops "Store a share of the width" and records "Store columns" (the split is lost on every resize and on a restart in a terminal of another width), its title retitled to match.
+
+**Files:** internal/userconfig/state.go, internal/userconfig/state_test.go, internal/ui/layout.go, internal/ui/model.go, internal/ui/keys.go, internal/ui/mouse.go, internal/ui/layout_test.go, internal/ui/mouse_test.go, docs/site/reference/file-format.md, docs/site/getting-started/terminal-ui.md, docs/design/tui.md, .capcom/knowledge/decisions/adr-0014.md, .capcom/knowledge/decisions/adr-0014/adr-0014-decision.md, .capcom/knowledge/decisions/adr-0014/adr-0014-rejected.md
+**Read first:** internal/userconfig/state.go — UIState, encodeState, SaveState, parser.sidebarWidth; internal/ui/layout.go — sidebarWidth, clampSidebarWidth, resizeSidebar; internal/ui/model.go — model.sidebarColumns, loadUserState, stateSaver, saveState, Update (tea.WindowSizeMsg case), relayout; internal/ui/keys.go — resizeSidebarKey; internal/ui/mouse.go — dividerDrag, pressDivider, startDrag, mouseMotion, mouseRelease; internal/ui/harness_test.go — newTestOptions, drive; internal/ui/layout_test.go — writeTestFile
+
+**Regression guard.** The goldens pin the default width at 90, 120 and 200 columns; with no ratio stored `sidebarWidth()` must keep today's formula, so no golden is regenerated. Every test that writes or reads `sidebar_width: <n>` in a state file (`layout_test.go`, `mouse_test.go`) moves to the ratio giving the same columns at its width, or the test stops proving its point. Tests set both user-file paths to a temp dir via `newTestOptions`; none writes under the real `os.UserConfigDir`.
+
+**Tests:** userconfig: round trip of 0 and 0.36666666666666664 (44/120); `sidebar_ratio: 0`, `1`, `1.5`, `-0.2`, `wide`, `.nan` → `*Error` with the path and line; a file holding only `sidebar_width: 36` loads the zero State; `SaveState` with 1 or NaN errors and leaves the file. ui: at 120 columns `>` (44), then size messages to 240, 90 and 120 → `sidebarWidth()` 88, 33, 44, `sidebarRatio` unchanged and no save command built; a height-only size message leaves `dividerColumn()`; a state file holding 0.25 starts on 30 at 120 and 50 at 200; 0.8 → 57 at 100 and 240 at 300; a drag to 60 at 120 then a resize to 240 → 120; a double-click reset then a resize follows the default formula; `>` then a drive leaves `sidebar_ratio: ` in the file.
+
+**Acceptance:**
+- `GOMEMLIMIT=2GiB go test ./internal/userconfig/`
+- `GOMEMLIMIT=2GiB go test ./internal/ui/`
+- `go vet ./internal/userconfig/ ./internal/ui/`
+- `capcom check && capcom know show adr-0014-decision | grep -n sidebar_ratio`
+- `grep -n "sidebar_ratio" docs/site/reference/file-format.md && grep -n "ratio" docs/site/getting-started/terminal-ui.md && grep -n "ratio" docs/design/tui.md`
+
+**Closes:** ui-divider-keep-ratio
+
+**Commit:** `feat(ui): keep the sidebar's share of the width when the terminal resizes`
