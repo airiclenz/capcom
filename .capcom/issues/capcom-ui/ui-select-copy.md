@@ -3,6 +3,7 @@ title: Select text in the detail pane with the mouse and copy it
 status: open
 type: task
 priority: 2
+plan: 2026-10-16 - 05 - ui-select-copy-plan
 created: 2026-10-16T19:25:30Z
 ---
 
