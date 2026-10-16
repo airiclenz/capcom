@@ -111,8 +111,8 @@ type theme struct {
 	colors palette
 	// activeTab marks the open tab on the tab bar, in the accent colour.
 	activeTab lipgloss.Style
-	// border paints the frame: the tab bar's separators, the separator between the panes and the
-	// rules above and under them.
+	// border paints the frame: the tab bar's separators, the separator between the panes, the
+	// rules above and under them, and the connectors of the sidebar trees.
 	border lipgloss.Style
 	// hints paints the status bar's key hints, muted.
 	hints lipgloss.Style

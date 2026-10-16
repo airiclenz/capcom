@@ -185,7 +185,11 @@ nothing and a wheel there still moves the selection; regenerate goldens.
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): paint a scrollbar beside the sidebar`
 
-## 5. Tree glyphs and connectors
+## 5. Tree glyphs and connectors — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): internal/ui/mouse_test.go (in Files) is unchanged: the arrow and text click tests click depth-0 rows, whose columns the change keeps, and pass as they are.
+NOTES (2026-10-16): `addRows` gains an `ancestors` parameter and filters the visible children first through a new `visibleChildren`, so "last visible child" accounts for hidden and revealed siblings; `rowConnector` and `childAncestors` build the cells, and `connectorWidth` (2) replaces `treeIndent` as the arrow's column step in `click`.
+NOTES (2026-10-16): the regenerated goldens differ only in the tree rows' glyphs and connectors (every row stays 120/150 columns, the divider column unchanged); the theme ANSI goldens are unchanged. docs/design/tui.md and docs/site/getting-started/terminal-ui.md still show ▾ ▸ and are left to item 6.
 
 **What:**
 **Goal:** Issues and Knowledge trees draw an expanded node as `▼ `, a collapsed node with children

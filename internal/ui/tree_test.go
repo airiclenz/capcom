@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/outline"
@@ -95,17 +97,94 @@ func TestTreeWidget_Expand_LeavesAnOlderCopyAsItWas(t *testing.T) {
 	}
 }
 
-func TestTreeWidget_Paint_IndentsAndMarksTheArrows(t *testing.T) {
-	w := newEntryTree(treeEntries)
-	w.expand()
+// glyphEntries is an outline of main, holding first, which holds only, then last, which holds
+// one, two and the closed gone.
+var glyphEntries = []index.Entry{
+	{ID: "main", Category: config.CategoryTodo},
+	{ID: "first", ParentID: "main", Category: config.CategoryTodo},
+	{ID: "only", ParentID: "first", Category: config.CategoryTodo},
+	{ID: "last", ParentID: "main", Category: config.CategoryTodo},
+	{ID: "one", ParentID: "last", Category: config.CategoryTodo},
+	{ID: "two", ParentID: "last", Category: config.CategoryTodo},
+	{ID: "gone", ParentID: "last", Category: config.CategoryDone},
+}
+
+// paintIDs returns the rows w paints with each row's id as its text, stripped of styling.
+func paintIDs(t *testing.T, w treeWidget[index.Entry]) []string {
+	t.Helper()
+	th := newTheme(userconfig.Default().UI, false, false)
+	painted := w.paint(len(w.rows), th, func(row outline.Row[index.Entry], _ bool) string { return row.ID })
+	stripped := make([]string, 0, len(painted))
+	for _, row := range painted {
+		stripped = append(stripped, ansi.Strip(row))
+	}
+	return stripped
+}
+
+func TestTreeWidget_Paint_DrawsGlyphsAndConnectors(t *testing.T) {
+	tests := []struct {
+		name     string
+		expanded []string
+		reveal   string
+		want     []string
+	}{
+		{
+			name:     "a collapsed child, then an expanded last child",
+			expanded: []string{"main", "last"},
+			want:     []string{"▼ main", "┝ ▶ first", "┕ ▼ last", "  ┝ · one", "  ┕ · two"},
+		},
+		{
+			name:     "an expanded child a sibling follows continues as a line",
+			expanded: []string{"main", "first", "last"},
+			want:     []string{"▼ main", "┝ ▼ first", "│ ┕ · only", "┕ ▼ last", "  ┝ · one", "  ┕ · two"},
+		},
+		{
+			name:     "a revealed last child takes the elbow",
+			expanded: []string{"main", "last"},
+			reveal:   "gone",
+			want:     []string{"▼ main", "┝ ▶ first", "┕ ▼ last", "  ┝ · one", "  ┝ · two", "  ┕ · gone"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expanded := map[string]bool{}
+			for _, id := range tt.expanded {
+				expanded[id] = true
+			}
+			w := newTreeWidget(
+				outline.Issues(glyphEntries, false),
+				func(entry index.Entry) string { return entry.ID },
+				expanded,
+			)
+			if tt.reveal != "" {
+				w.selectID(tt.reveal)
+			}
+
+			got := paintIDs(t, w)
+
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("rows =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}
+
+func TestTreeWidget_Paint_MarksTheSelectionAfterTheConnector(t *testing.T) {
+	w := newTreeWidget(
+		outline.Issues(glyphEntries, false),
+		func(entry index.Entry) string { return entry.ID },
+		map[string]bool{"main": true, "last": true},
+	)
+	w.selectID("two")
 	th := newTheme(userconfig.Default().UI, false, false)
 
-	painted := w.paint(10, th, func(row outline.Row[index.Entry], _ bool) string { return row.ID })
+	painted := w.paint(len(w.rows), th, func(row outline.Row[index.Entry], _ bool) string { return row.ID })
 
-	want := []string{"▾ root", "    kid", "  other"}
-	for position, text := range want {
-		if !strings.Contains(painted[position], text) {
-			t.Errorf("row %d = %q, want %q", position, painted[position], text)
-		}
+	want := th.border.Render("  ┕ ") + th.selectedRow.Render("· two")
+	if got := painted[len(painted)-1]; got != want {
+		t.Errorf("selected row = %q, want %q", got, want)
+	}
+	if got := painted[0]; got != "▼ main" {
+		t.Errorf("top-level row = %q, want %q with no connector styling", got, "▼ main")
 	}
 }

@@ -3,7 +3,6 @@ package ui
 import (
 	"maps"
 	"slices"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -13,12 +12,24 @@ import (
 )
 
 // The glyphs of a tree row: the arrow of a node whose children are shown, of one whose children
-// are hidden, the blank of a leaf, and the indent of one level.
+// are hidden, and the dot of a leaf.
 const (
-	arrowExpanded  = "▾ "
-	arrowCollapsed = "▸ "
-	arrowLeaf      = "  "
-	treeIndent     = "  "
+	arrowExpanded  = "▼ "
+	arrowCollapsed = "▶ "
+	arrowLeaf      = "· "
+)
+
+// The connector cells that lead a row below the top level, one per level: the tee of a row a
+// later visible sibling follows, the elbow of a parent's last visible child, and the cells of an
+// ancestor beneath it that continue as a line when a later visible sibling follows that ancestor,
+// and are blank when it was the last. Every cell is connectorWidth columns wide, so a row's arrow
+// starts at column connectorWidth*depth.
+const (
+	connectorTee   = "┝ "
+	connectorElbow = "┕ "
+	connectorLine  = "│ "
+	connectorBlank = "  "
+	connectorWidth = 2
 )
 
 // The keys a tree takes beyond the up and down of its listCursor.
@@ -30,12 +41,13 @@ const (
 )
 
 // treeRow is one visible row of a treeWidget: its outline row, whether its children are shown
-// beneath it, and whether it is a node the outline hides, revealed only because it or a node
-// below it is selected.
+// beneath it, whether it is a node the outline hides, revealed only because it or a node below
+// it is selected, and the unstyled connector cells that lead it, "" at the top level.
 type treeRow[E any] struct {
 	outline.Row[E]
 	isExpanded bool
 	isMuted    bool
+	connector  string
 }
 
 // treeWidget is a collapsible sidebar tree over an outline: the rows of the outline that the
@@ -197,7 +209,7 @@ func (w *treeWidget[E]) click(row, col int) bool {
 		return false
 	}
 	clicked := w.rows[position]
-	arrowStart := clicked.Depth * ansi.StringWidth(treeIndent)
+	arrowStart := clicked.Depth * connectorWidth
 	isOnArrow := clicked.HasChildren && col >= arrowStart && col < arrowStart+ansi.StringWidth(treeArrow(clicked))
 
 	w.cursor.seat(position, len(w.rows))
@@ -244,7 +256,7 @@ func (w *treeWidget[E]) rebuild(selectedID string) {
 		revealPath[id] = true
 	}
 	var rows []treeRow[E]
-	w.addRows(&rows, revealPath, "", 0)
+	w.addRows(&rows, revealPath, "", 0, "")
 	w.rows = rows
 	w.cursor.clampSelection(len(rows))
 	if row := slices.IndexFunc(rows, func(row treeRow[E]) bool { return row.ID == selectedID }); row >= 0 {
@@ -254,33 +266,79 @@ func (w *treeWidget[E]) rebuild(selectedID string) {
 
 // addRows appends the visible rows below parentID at depth: each child the outline shows or the
 // reveal path holds, in outline order, followed by its own visible rows when it is expanded or
-// an ancestor of the revealed node.
-func (w *treeWidget[E]) addRows(rows *[]treeRow[E], revealPath map[string]bool, parentID string, depth int) {
-	for _, child := range w.children(parentID) {
+// an ancestor of the revealed node. ancestors holds the connector cells of the levels between the
+// top level and parentID, which lead every row below depth 0.
+func (w *treeWidget[E]) addRows(
+	rows *[]treeRow[E],
+	revealPath map[string]bool,
+	parentID string,
+	depth int,
+	ancestors string,
+) {
+	visible := w.visibleChildren(parentID, revealPath)
+	for position, child := range visible {
 		id := w.idOf(child)
-		isMuted := !w.isShown[id]
-		if isMuted && !revealPath[id] {
-			continue
-		}
+		isLast := position == len(visible)-1
 		row := treeRow[E]{
-			Row:     outline.Row[E]{Entry: child, ID: id, ParentID: parentID, Depth: depth},
-			isMuted: isMuted,
+			Row:       outline.Row[E]{Entry: child, ID: id, ParentID: parentID, Depth: depth},
+			isMuted:   !w.isShown[id],
+			connector: rowConnector(depth, ancestors, isLast),
 		}
-		row.HasChildren = !isMuted && len(w.outline.Shown(id)) > 0
+		row.HasChildren = !row.isMuted && len(w.outline.Shown(id)) > 0
 		*rows = append(*rows, row)
-		position := len(*rows) - 1
+		rowPosition := len(*rows) - 1
 		isOpen := (row.HasChildren && w.expanded[id]) || (revealPath[id] && id != w.revealed)
 		if !isOpen {
 			continue
 		}
-		w.addRows(rows, revealPath, id, depth+1)
-		(*rows)[position].isExpanded = len(*rows) > position+1
+		w.addRows(rows, revealPath, id, depth+1, childAncestors(depth, ancestors, isLast))
+		(*rows)[rowPosition].isExpanded = len(*rows) > rowPosition+1
 	}
 }
 
+// visibleChildren returns the children of parentID that show as rows: those the outline shows
+// and those the reveal path holds, in outline order.
+func (w *treeWidget[E]) visibleChildren(parentID string, revealPath map[string]bool) []E {
+	var visible []E
+	for _, child := range w.children(parentID) {
+		id := w.idOf(child)
+		if w.isShown[id] || revealPath[id] {
+			visible = append(visible, child)
+		}
+	}
+	return visible
+}
+
+// rowConnector returns the connector cells that lead a row at depth below ancestors: none at the
+// top level, otherwise the ancestors' cells and then an elbow when the row is its parent's last
+// visible child, a tee when a sibling follows.
+func rowConnector(depth int, ancestors string, isLast bool) string {
+	switch {
+	case depth == 0:
+		return ""
+	case isLast:
+		return ancestors + connectorElbow
+	}
+	return ancestors + connectorTee
+}
+
+// childAncestors returns the ancestor cells the children of a row at depth inherit: none below a
+// top-level row, otherwise ancestors and then a line when a sibling follows the row, blanks when
+// it was the last.
+func childAncestors(depth int, ancestors string, isLast bool) string {
+	switch {
+	case depth == 0:
+		return ""
+	case isLast:
+		return ancestors + connectorBlank
+	}
+	return ancestors + connectorLine
+}
+
 // paint returns the rows of the tree that fit in height rows, scrolled so the selection stays on
-// screen: each indented by its depth, with its arrow and the text rowText gives, the selected one
-// and the muted (revealed) ones marked in th's styles. rowText is told when the row is marked: its
+// screen: each led by its connector cells in th's border style, then its arrow and the text
+// rowText gives, the selected one and the muted (revealed) ones marked in th's styles around the
+// arrow and the text only. rowText is told when the row is marked: its
 // text must then carry no styling of its own, since a reset inside it would end the mark early. A
 // height under one paints nothing and leaves the scroll as it is.
 func (w *treeWidget[E]) paint(
@@ -298,16 +356,19 @@ func (w *treeWidget[E]) paint(
 	for position := w.top; position < end; position++ {
 		row := w.rows[position]
 		style, isMarked := rowStyle(th, row.isMuted, position == selected)
-		text := strings.Repeat(treeIndent, row.Depth) + treeArrow(row) + rowText(row.Row, isMarked)
+		text := treeArrow(row) + rowText(row.Row, isMarked)
 		if isMarked {
 			text = style.Render(text)
+		}
+		if row.connector != "" {
+			text = th.border.Render(row.connector) + text
 		}
 		painted = append(painted, text)
 	}
 	return painted
 }
 
-// treeArrow returns the arrow of row: expanded, collapsed over hidden children, or none.
+// treeArrow returns the arrow of row: expanded, collapsed over hidden children, or a leaf's dot.
 func treeArrow[E any](row treeRow[E]) string {
 	switch {
 	case row.isExpanded:

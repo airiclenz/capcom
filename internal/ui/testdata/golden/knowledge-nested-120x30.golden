@@ -1,9 +1,9 @@
  Issues  │  Ready  │  Knowledge 
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-  alpha  Alpha                           │ Setup                                                                        
-▾ guide  Guide                           │                                                                              
-  ▾ setup  Setup                         │ labels: howto, cli                                                           
-      deep  Deep                         │ refs: internal/ui/knowledge.go, solo                                         
+· alpha  Alpha                           │ Setup                                                                        
+▼ guide  Guide                           │                                                                              
+┕ ▼ setup  Setup                         │ labels: howto, cli                                                           
+  ┕ · deep  Deep                         │ refs: internal/ui/knowledge.go, solo                                         
                                          │                                                                              
                                          │ Set it up.                                                                   
                                          │                                                                              
