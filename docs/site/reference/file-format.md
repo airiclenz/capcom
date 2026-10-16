@@ -1,12 +1,14 @@
 ---
 title: "File format"
-description: "The files capcom keeps under .capcom/: issue files, Note files, the tree, config.yaml, the lock record and the Managed block."
+description: "The files capcom keeps under .capcom/: issue files, Note files, the tree, config.yaml, the lock record, the Managed block, and the per-user config of capcom ui, the one file it keeps outside the repository."
 sidebar: { order: 2 }
 ---
 
 Everything capcom keeps for a repository lives in plain files under `.capcom/` at the root of the
 working tree, versioned with the code (ADR 0004). The SQLite index and the lock records live under
-the git directory instead; they are never committed, and deleting them loses nothing.
+the git directory instead; they are never committed, and deleting them loses nothing. One file
+lives outside the repository altogether: the per-user config of `capcom ui`, in your user config
+directory (see The user config).
 
 ```text
 .capcom/
@@ -614,6 +616,64 @@ elsewhere:
   link to `AGENTS.md` or an `@AGENTS.md` import line; `[CLAUDE.md, GEMINI.md]` when the key is
   absent, and `[]` turns the rule off. Each entry is a slash-separated path inside the repository,
   relative to its root, never `AGENTS.md` itself, and no two alike. The key needs store format 4.
+
+## The user config
+
+`capcom ui` reads one file that belongs to no repository: the per-user config,
+`capcom/config.yaml` under the user config directory Go's `os.UserConfigDir` names
+([ADR 0011](../../../.capcom/knowledge/decisions/adr-0011.md)):
+
+| Platform | File |
+|---|---|
+| Linux and other Unix | `$XDG_CONFIG_HOME/capcom/config.yaml`, or `~/.config/capcom/config.yaml` when it is unset |
+| macOS | `~/Library/Application Support/capcom/config.yaml` |
+| Windows | `%AppData%\capcom\config.yaml` |
+
+It is yours, not a repository's: it is never committed, and every repository you open with
+`capcom ui` shares it. Only `capcom ui` reads it; no other command reads or creates it, so normal
+capcom use leaves nothing in your home directory. The first time `capcom ui` starts without the
+file, it creates the directory and writes this template, every key commented out at its default;
+it never rewrites an existing file.
+
+```yaml
+# capcom user config: personal settings for capcom ui (ADR 0011).
+#
+# This file belongs to you, not to any repository: only capcom ui reads it, and every repository
+# you open shares it. Every key below is commented out at its default; remove the leading "# " of
+# a line to set it. An unknown key is ignored with a warning.
+#
+# ui:
+#   # The colour preset: auto picks dark or light from the terminal background.
+#   theme: auto        # auto | dark | light
+#
+#   # Colour overrides by role; none by default, so each role takes the preset's colour. A value
+#   # is a quoted "#rgb" or "#rrggbb" colour (an unquoted # starts a comment) or a number 0-255.
+#   # Roles: accent, border, muted, link, selection, heading, code, and one per status category:
+#   # status-todo, status-doing, status-waiting, status-done, status-dropped.
+#   colors:
+#     accent: "#7aa2f7"
+#     status-doing: 214
+#
+# NO_COLOR in the environment turns colour off, whatever this file says.
+```
+
+- **ui.theme** — `auto`, `dark` or `light`; `auto` when absent. `auto` asks the terminal for its
+  background colour and picks the light or the dark preset, dark until the terminal answers.
+- **ui.colors** — a mapping of colour role to colour, overriding the preset's colour for that
+  role; none when absent. The roles are `accent`, `border`, `muted`, `link`, `selection`,
+  `heading`, `code`, and one per Status category: `status-todo`, `status-doing`,
+  `status-waiting`, `status-done` and `status-dropped`, each covering every Status of its
+  category. A colour is a quoted `"#rgb"` or `"#rrggbb"` (unquoted, `#` starts a YAML comment) or
+  a 256-colour number from 0 to 255.
+
+A non-empty `NO_COLOR` environment variable turns colour off, whatever the file says.
+
+Since every capcom release on the machine reads the same file, it is read leniently, unlike
+`.capcom/config.yaml`: an unknown key or colour role is ignored, with a `path:line:` warning in the
+status bar of `capcom ui`. Malformed YAML, a theme other than the three, a colour of another form,
+or a file that cannot be read is an error shown there the same way, and `capcom ui` runs on the
+defaults; so it does when the file cannot be created. `capcom ui` reads the file once, when it
+starts.
 
 ## The lock record
 

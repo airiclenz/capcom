@@ -1,0 +1,230 @@
+---
+title: "Terminal UI"
+description: "Watch the Issues and Knowledge change while agents work, and claim, set a status, close, reopen or log an Issue from capcom ui."
+sidebar: { order: 4 }
+---
+
+`capcom ui` is a terminal UI for the person working next to the coding agents. It shows the Ready
+queue, the Issue tree and the Knowledge tree, redraws them as the agents change the files, and
+makes the small changes a supervisor makes: claim an Issue, set its Status, close or reopen it,
+add a Log entry. Anything larger opens the file in your editor.
+
+It is a viewer with light writes, not an editor: it never creates, renames, moves or removes an
+Issue or a Note, and it never edits dependencies, labels or titles. Every write it makes is the
+one the matching CLI command makes, through the same code (ADR 0012).
+
+## Start it
+
+```sh
+capcom ui                           # the Ready tab
+capcom ui issues                    # the Issues tab
+capcom ui issues login-timeout-race # the Issues tab with that Issue selected
+capcom ui knowledge store-layout    # the Knowledge tab with that Note selected
+```
+
+The first argument names the tab (`ready`, `issues` or `knowledge`), and an id after it selects
+that Issue or Note there; an Alias resolves as it does for `capcom show`. An id the tab does not
+hold is reported in the status bar. `capcom ui` needs a terminal: when stdin or stdout is not one,
+it fails with exit code 1. `--json` does not apply and is refused. `q` or ctrl+c quits. The flags
+are in the [CLI reference](../reference/cli/capcom_ui.md).
+
+## The screen
+
+```text
+ Issues │ Ready │ Knowledge
+ ▾ capcom-ui      │ Ready queue view
+   ▸ ready-view   │ status: active · P1
+   ▸ issue-detail │ deps: knowledge-view
+ ▸ release-x      │
+                  │ Body markdown...
+──────────────────┴──────────────────────────
+ lock: free · ? help · q quit
+```
+
+- **Tab bar**: Issues, Ready and Knowledge. `Tab` moves to the next one, and `1`, `2` and `3`
+  open Issues, Ready and Knowledge directly. Each tab keeps its own selection, expanded nodes and
+  filter.
+- **Sidebar**: the tab's list or tree. The selected row drives the detail pane.
+- **Detail pane**: the selected Issue or Note. An Issue shows its title, its Status and priority,
+  then its labels, Parent and dependencies; a Note shows its labels and Refs. The body follows,
+  rendered as markdown: headings, lists, code, tables, blockquotes and links.
+- **Status bar**: the Tree lock of this worktree (`lock: free`, `lock: held by <holder>: <purpose>`
+  or `lock: stale: <purpose>`, with the heartbeat's age), the filter in effect, notices and the
+  report of the last write, then the key hints.
+
+Below 90 columns the panes stop sharing the screen: the sidebar fills it, Enter opens the
+selected Issue or Note full width, and Esc goes back to the sidebar.
+
+## The tabs
+
+- **Ready** lists the queue `capcom ready` prints with no flags, most urgent first: each Issue's
+  id, Status, priority and title.
+- **Issues** shows the Tree `capcom list --tree` prints, each row with its Status and priority and,
+  for a Parent, how many of its children are closed. Closed Issues are hidden, as in the CLI; a
+  [filter](#filter) on a closed Status shows them.
+- **Knowledge** shows the Note tree `capcom know tree` prints. Retired and Background Notes are
+  hidden, as in `know tree`. The only write here is `e`, the editor.
+
+Both trees open collapsed to the top level. Selecting an id, from the command line or by following
+a link, expands its ancestors; a hidden one (a Closed Issue, a Retired or Background Note) shows
+muted, with its ancestors, for as long as it stays selected.
+
+## Keys
+
+```text
+move     ↑↓←→  j k h l
+expand   → / l    collapse ← / h
+tabs     Tab  1 2 3
+open     Enter    back     Esc
+scroll   PgUp PgDn  ctrl+u ctrl+d
+filter   /
+status   s        claim    a
+close    c        reopen   R
+log      L        editor   e
+deps     d
+help     ?        quit     q
+```
+
+- The up and down arrows and `j` `k` move the sidebar's selection. On a tree, → and `l` expand the
+  selected node, ← and `h` collapse it or, when it is collapsed, move to its Parent.
+- PgUp and PgDn scroll the detail pane a page, ctrl+u and ctrl+d half a page, wherever the
+  selection is: the sidebar keeps it. Where the detail pane fills a narrow screen, the arrows and
+  `j` `k` scroll it too.
+- `?` shows the full key map; `?` or Esc closes it.
+- Prompts (a reason, a Log entry, a confirmation) take Enter to submit and Esc to cancel; a
+  confirmation also takes `y` and `n`.
+
+### Dependencies
+
+On the Ready and Issues tabs, `d` swaps the detail pane for the selected Issue's dependencies, as
+`capcom dep list` prints them: what it **waits on** and what it **blocks**, each row with its id,
+Status, priority and title. A dependency that names no Issue is marked missing. The arrows and
+`j` `k` move a cursor over the rows, Enter selects that Issue in the Issues tab, and `d` or Esc
+returns to the detail pane. Moving the sidebar's selection closes the view.
+
+### Filter
+
+`/` opens a filter line over the current tab's sidebar. Enter keeps the filter, Esc on the line
+clears it, and Esc from the sidebar clears a kept one. The words of the line all have to match:
+
+- free text matches the title and body, as `capcom search` (or `capcom know search` on the
+  Knowledge tab) finds them;
+- `status:<name>` keeps the Issues in that Status; the Status must be declared in
+  `config.yaml`, and Notes have none;
+- `label:<name>` keeps the Issues or Notes carrying that Label; some Issue or Note must carry it.
+
+In a tree a match keeps its ancestors, all expanded, so the shape stays readable. Text and label
+filters keep the default visibility; a `status:` filter naming a closed Status, such as
+`status:done`, is the way to Closed Issues: the Issues tab then shows the Closed Issues in that
+Status, with their ancestors, ready to read or reopen.
+
+## Writes
+
+The writes act on the Issue the detail pane shows, on the Ready and Issues tabs:
+
+| Key | Action | Same as |
+|---|---|---|
+| `a` | claim: set the first Status of the doing category (`active` in the default config) | `capcom update <id> --status active` |
+| `s` | pick a Status: the configured ones outside the closed categories, the cursor on the current one; Enter sets it, Esc cancels | `capcom update <id> --status <s>` |
+| `c` | close: asks for a reason, then names the Issues the close made Ready | `capcom close <id> --reason <r>` |
+| `R` | reopen a Closed Issue: asks for a reason | `capcom reopen <id> --reason <r>` |
+| `L` | add a Log entry: asks for the line | `capcom log <id> <text>` |
+| `e` | open the Issue or Note file in your editor, on every tab | editing by hand |
+
+A blank reason or Log line is refused, as the CLI refuses one. An Issue whose file does not parse
+takes no write: fix its file first, with `e`. The status bar reports each write that landed, such
+as `closed login-timeout-race; now ready: session-store`.
+
+### The editor
+
+`e` opens the selected file in `$VISUAL`, or in `$EDITOR` when `$VISUAL` is unset; with neither
+set it says so. The UI hands the terminal to the editor and comes back when it exits. It then runs
+the [`capcom check`](../reference/cli/capcom_check.md) checks and reports the first problem in the
+file you edited, else the first problem anywhere, with how many there are, or that check found
+none.
+
+### The Tree lock
+
+The status bar always shows this worktree's [Tree lock](../concepts/tree-locks.md). While another
+session holds it, live or Stale, every write and `e` first asks:
+
+```text
+locked by <purpose>, write anyway? (y/n)
+```
+
+When the lock record cannot be read, the question names the failure instead. `y` goes ahead, `n`
+or Esc cancels. The UI never acquires, touches or releases the lock: its writes are single-file
+edits, not the multi-file changes the lock exists for (ADR 0013).
+
+### Conflicts
+
+Each write is made on the version of the Issue on screen: it carries that version's ETag, as an
+if-match. When an agent changed the file in the meantime, the write is refused and nothing is
+written. The UI reloads the Issue and asks:
+
+```text
+changed on disk: status, log — run close again? (y/n)
+```
+
+The question names the frontmatter fields that changed, then `body` and `log`, or `file` when only
+the formatting did. Read the new version in the detail pane: `y` runs the action again on it, `n`
+cancels.
+
+## Live refresh
+
+The UI polls about once a second: it refreshes the index, the same incremental refresh the CLI
+runs, and redraws when an Issue or a Note changed. Selection, expanded nodes, scroll position and
+the filter survive a refresh; when the selected node is gone, the selection moves to its Parent
+or nearest sibling. The Tree lock in the status bar is read again on every poll.
+
+A change to `config.yaml` re-opens the store on the new config. One the UI cannot use keeps the
+previous config in effect, with the error in the status bar, until the file changes again. When
+another capcom version rebuilt the index, polling stops with `index changed by another capcom
+version: restart capcom ui`.
+
+## Mouse
+
+- A click selects a tab, a sidebar row, a dependency row or a link. A click on a tree row's arrow
+  expands or collapses it.
+- In the detail pane, the links that are followed are the ids of Issues and Notes: a markdown link
+  whose target is an id, a code span that is exactly an existing id, and the Parent, dependencies
+  and Refs naming one. A click selects that Issue in the Issues tab or that Note in the Knowledge
+  tab. URLs and file references are styled but not followed. Body links are mouse-only.
+- The wheel over the sidebar moves the selection a row; over the detail pane it scrolls three rows,
+  or moves the dependency view's cursor.
+- While the help screen, the filter line, the status picker or a prompt is open, the mouse does
+  nothing.
+
+The UI turns on the terminal's mouse reporting, so a plain drag no longer selects text. To select
+and copy text, hold Shift while you drag, or the modifier your terminal uses to bypass mouse
+reporting (Option in iTerm2).
+
+## Theme
+
+The colours come from your own config file, not from the repository's: `capcom/config.yaml` in
+your user config directory (`~/.config` on Linux, `~/Library/Application Support` on macOS,
+`%AppData%` on Windows). `capcom ui` creates it the first time it starts, with every key present
+as a commented default; no other command reads or creates it, and every repository you open shares
+it.
+
+```yaml
+ui:
+  theme: auto        # auto | dark | light
+  colors:            # optional overrides, per role
+    accent: "#7aa2f7"
+    status-doing: 214
+```
+
+- `theme: auto`, the default, asks the terminal for its background colour and picks the dark or
+  light preset; `dark` and `light` pick one outright.
+- `colors` overrides the preset by role: `accent`, `border`, `muted`, `link`, `selection`,
+  `heading`, `code`, and one per Status category, `status-todo`, `status-doing`,
+  `status-waiting`, `status-done` and `status-dropped`, each covering every Status of its
+  category. A value is a quoted `"#rgb"` or `"#rrggbb"` colour or a 256-colour number from 0 to
+  255.
+- `NO_COLOR` in the environment turns colour off, whatever the file says.
+
+The file is read when `capcom ui` starts: restart it after an edit. An unknown key or role is
+ignored with a warning in the status bar, and a file that cannot be used is reported there while
+the UI runs on the defaults. The full format is under
+[The user config](../reference/file-format.md#the-user-config).
