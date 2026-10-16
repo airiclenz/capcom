@@ -1,11 +1,13 @@
 ---
 title: Test the selection fill in the dependency view
-status: open
+status: done
 type: task
 priority: 2
 labels: [ui, test]
 plan: 2026-10-16 - 03 - ui-fill-tests-and-file-map-plan
 created: 2026-10-16T17:22:19Z
+closed: 2026-10-16T19:07:35Z
+reason: closed by plan 2026-10-16 - 03 - ui-fill-tests-and-file-map-plan (bf3fb87), item 1
 ---
 
 Since the selection became a background fill, `TestTheme_SelectedRow_FillsTheBackgroundKeepingItsColours`

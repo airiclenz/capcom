@@ -1,11 +1,13 @@
 ---
 title: Show every frontmatter key in the detail header
-status: open
+status: done
 type: task
 priority: 2
 labels: [ui]
 plan: 2026-10-16 - 03 - ui-fill-tests-and-file-map-plan
 created: 2026-10-16T18:44:01Z
+closed: 2026-10-16T19:07:35Z
+reason: closed by plan 2026-10-16 - 03 - ui-fill-tests-and-file-map-plan (bf3fb87), items 4-5
 ---
 
 The detail pane's header shows only part of the frontmatter: an Issue's title, status, priority,

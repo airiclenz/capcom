@@ -1,11 +1,13 @@
 ---
 title: File map in internal/ui/doc.go with a structural test
-status: open
+status: done
 type: task
 priority: 2
 labels: [ui]
 plan: 2026-10-16 - 03 - ui-fill-tests-and-file-map-plan
 created: 2026-10-16T10:26:47Z
+closed: 2026-10-16T19:07:35Z
+reason: closed by plan 2026-10-16 - 03 - ui-fill-tests-and-file-map-plan (bf3fb87), item 3
 ---
 
 `internal/ui` has no `doc.go` file map and no structural test that checks it. The package's
