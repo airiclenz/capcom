@@ -29,12 +29,6 @@ const (
 	keyRightVim = "l"
 )
 
-// mutedRowStyle marks a revealed row, and mutedSelectedRowStyle one that is also selected.
-var (
-	mutedRowStyle         = lipgloss.NewStyle().Faint(true)
-	mutedSelectedRowStyle = lipgloss.NewStyle().Faint(true).Reverse(true)
-)
-
 // treeRow is one visible row of a treeWidget: its outline row, whether its children are shown
 // beneath it, and whether it is a node the outline hides, revealed only because it or a node
 // below it is selected.
@@ -286,8 +280,14 @@ func (w *treeWidget[E]) addRows(rows *[]treeRow[E], revealPath map[string]bool, 
 
 // paint returns the rows of the tree that fit in height rows, scrolled so the selection stays on
 // screen: each indented by its depth, with its arrow and the text rowText gives, the selected one
-// and the muted ones marked. A height under one paints nothing and leaves the scroll as it is.
-func (w *treeWidget[E]) paint(height int, rowText func(outline.Row[E]) string) []string {
+// and the muted (revealed) ones marked in th's styles. rowText is told when the row is marked: its
+// text must then carry no styling of its own, since a reset inside it would end the mark early. A
+// height under one paints nothing and leaves the scroll as it is.
+func (w *treeWidget[E]) paint(
+	height int,
+	th theme,
+	rowText func(row outline.Row[E], isMarked bool) string,
+) []string {
 	if height < 1 || len(w.rows) == 0 {
 		return nil
 	}
@@ -297,8 +297,12 @@ func (w *treeWidget[E]) paint(height int, rowText func(outline.Row[E]) string) [
 	painted := make([]string, 0, end-w.top)
 	for position := w.top; position < end; position++ {
 		row := w.rows[position]
-		text := strings.Repeat(treeIndent, row.Depth) + treeArrow(row) + rowText(row.Row)
-		painted = append(painted, rowStyle(row.isMuted, position == selected).Render(text))
+		style, isMarked := rowStyle(th, row.isMuted, position == selected)
+		text := strings.Repeat(treeIndent, row.Depth) + treeArrow(row) + rowText(row.Row, isMarked)
+		if isMarked {
+			text = style.Render(text)
+		}
+		painted = append(painted, text)
 	}
 	return painted
 }
@@ -314,15 +318,16 @@ func treeArrow[E any](row treeRow[E]) string {
 	return arrowLeaf
 }
 
-// rowStyle returns the style of a tree row that is muted or selected, or both.
-func rowStyle(isMuted, isSelected bool) lipgloss.Style {
+// rowStyle returns th's style of a tree row that is muted or selected, or both, and false for a
+// row that is neither, which has no style.
+func rowStyle(th theme, isMuted, isSelected bool) (lipgloss.Style, bool) {
 	switch {
 	case isMuted && isSelected:
-		return mutedSelectedRowStyle
+		return th.mutedSelectedRow, true
 	case isMuted:
-		return mutedRowStyle
+		return th.mutedRow, true
 	case isSelected:
-		return selectedRowStyle
+		return th.selectedRow, true
 	}
-	return lipgloss.NewStyle()
+	return lipgloss.NewStyle(), false
 }

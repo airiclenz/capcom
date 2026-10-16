@@ -293,7 +293,7 @@ func (m model) openFilter() model {
 		return m
 	}
 	m.isFilterOpen = true
-	m.filterLine = newLineInput(filterPrompt, m.filters[m.tab].text, m.sidebarPaneWidth())
+	m.filterLine = newLineInput(filterPrompt, m.filters[m.tab].text, m.sidebarPaneWidth(), m.theme.input)
 	return m.paintSidebar()
 }
 

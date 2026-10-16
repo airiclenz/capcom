@@ -28,20 +28,24 @@ type lineInput struct {
 }
 
 // newLineInput returns a focused line that shows prompt before value, with the cursor after
-// value, fitting width columns.
-func newLineInput(prompt, value string, width int) lineInput {
+// value, fitting width columns, painted in styles.
+func newLineInput(prompt, value string, width int, styles textinput.Styles) lineInput {
 	input := textinput.New()
 	input.Prompt = prompt
-	styles := input.Styles()
-	styles.Cursor.Blink = false
-	input.SetStyles(styles)
 	line := lineInput{input: input}
+	line.setStyles(styles)
 	line.setWidth(width)
 	line.input.SetValue(value)
 	line.input.CursorEnd()
 	// A cursor that does not blink has no command to start.
 	line.input.Focus()
 	return line
+}
+
+// setStyles paints the line in styles, its cursor kept from blinking whatever they say.
+func (l *lineInput) setStyles(styles textinput.Styles) {
+	styles.Cursor.Blink = false
+	l.input.SetStyles(styles)
 }
 
 // setWidth fits the line, its prompt and cursor included, in width columns: a longer value

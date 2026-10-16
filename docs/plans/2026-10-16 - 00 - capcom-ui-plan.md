@@ -663,7 +663,12 @@ issue; a link to a closed issue reveals and selects it; a wheel notch over the s
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): mouse clicks, wheel and links`
 
-## 20. Theme presets and colour overrides
+## 20. Theme presets and colour overrides — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): consequential edit — internal/ui/tree_test.go: made necessary by treeWidget.paint taking the theme and telling rowText whether the row is marked (the test's call site only; no assertion changed)
+NOTES (2026-10-16): re-derived from the Files list naming only statusbar.go/filter.go/prompt.go/statuspick.go among the style sites: the row styles (selectedRowStyle, mutedRowStyle, activeTabStyle) were package vars in ready.go, tree.go and layout.go, used also by depview.go, issues.go and knowledge.go, so those files now take their styles from model.theme
+NOTES (2026-10-16): a marked row (selected or revealed) draws its status uncoloured inside the mark, since an embedded SGR reset would end the reverse/faint mark early; the status picker's rows and the detail header's `status:` line stay uncoloured (the picker holds status names only, the header is markdown)
+NOTES (2026-10-16): Init asks the terminal for its background only under theme auto with colours on; links are underlined, inert links only muted (lipgloss paints an underlined span rune by rune)
 
 **What:**
 **Goal:** the UI's colours come from `dark` and `light` presets over the roles in `userconfig.Roles`;

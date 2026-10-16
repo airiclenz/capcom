@@ -3,7 +3,6 @@ package ui
 import (
 	"strings"
 
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -27,9 +26,6 @@ const (
 	ruleJoint     = "┴"
 	truncateTail  = "…"
 )
-
-// activeTabStyle marks the open tab on the tab bar.
-var activeTabStyle = lipgloss.NewStyle().Bold(true).Reverse(true)
 
 // frame lays out the tab bar, the panes or the help screen, the rule and the status bar over the
 // terminal's full size. A terminal shorter than the frame shows its top rows.
@@ -84,9 +80,10 @@ func (m model) body() []string {
 	sidebar := paneRows(m.sidebarLines(), 0, height, sidebarWidth)
 	lines, offset := m.detailRows()
 	detail := paneRows(lines, offset, height, m.width-sidebarWidth-1)
+	separator := m.theme.border.Render(paneSeparator)
 	rows := make([]string, 0, height)
 	for row := range height {
-		rows = append(rows, pad(sidebar[row], sidebarWidth)+paneSeparator+detail[row])
+		rows = append(rows, pad(sidebar[row], sidebarWidth)+separator+detail[row])
 	}
 	return rows
 }
@@ -95,7 +92,7 @@ func (m model) body() []string {
 // picker's while it is open, the shown issue's, Note's or dependency view's otherwise.
 func (m model) detailRows() ([]string, int) {
 	if m.picker.isOpen {
-		return m.picker.lines(), 0
+		return m.picker.lines(m.theme.selectedRow), 0
 	}
 	return m.detail, m.detailOffset
 }
@@ -115,27 +112,28 @@ func paneRows(lines []string, offset, height, width int) []string {
 }
 
 // rule draws the line under the panes, joined to the separator between them in the split
-// layout.
+// layout, in the border style.
 func (m model) rule() string {
 	if !m.isSplit() {
-		return strings.Repeat(ruleGlyph, m.width)
+		return m.theme.border.Render(strings.Repeat(ruleGlyph, m.width))
 	}
 	sidebarWidth := m.sidebarWidth()
-	return strings.Repeat(ruleGlyph, sidebarWidth) + ruleJoint +
-		strings.Repeat(ruleGlyph, max(m.width-sidebarWidth-1, 0))
+	return m.theme.border.Render(strings.Repeat(ruleGlyph, sidebarWidth) + ruleJoint +
+		strings.Repeat(ruleGlyph, max(m.width-sidebarWidth-1, 0)))
 }
 
-// tabBar lists the tabs in tabOrder, the open one marked by activeTabStyle.
+// tabBar lists the tabs in tabOrder, the open one marked by the theme's active tab style, the
+// separators in its border style.
 func (m model) tabBar() string {
 	labels := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {
 		label := tabBarLabel(tab)
 		if tab == m.tab {
-			label = activeTabStyle.Render(label)
+			label = m.theme.activeTab.Render(label)
 		}
 		labels = append(labels, label)
 	}
-	return strings.Join(labels, tabSeparator)
+	return strings.Join(labels, m.theme.border.Render(tabSeparator))
 }
 
 // tabBarLabel returns tab's label as the tab bar draws it, unstyled: its name padded by a space

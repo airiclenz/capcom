@@ -62,7 +62,9 @@ func ParseTab(name string) (Tab, error) {
 // Options configure Run. Store and Index are open and stay owned by the caller, who closes the
 // index once Run returns; an index Run re-opens on a changed config.yaml it closes itself. ID, when set, names the Issue or Note to select in Tab. In and Out are
 // the terminal the program reads keys from and draws on. UserConfigPath names the user config
-// file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used.
+// file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used. NoColor, set when the
+// NO_COLOR environment variable is non-empty, draws without any colour, whatever the user config
+// file says.
 type Options struct {
 	Store          *store.Store
 	Index          *index.Index
@@ -71,6 +73,7 @@ type Options struct {
 	In             io.Reader
 	Out            io.Writer
 	UserConfigPath string
+	NoColor        bool
 }
 
 // Run runs the terminal UI until the user quits, with q or ctrl+c. It first loads the user config

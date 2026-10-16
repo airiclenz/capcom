@@ -29,9 +29,6 @@ const (
 // not, hidden ones left out, no limit.
 var readyOptions = briefing.ReadyOptions{Plan: index.PlanAny}
 
-// selectedRowStyle marks the selected sidebar row.
-var selectedRowStyle = lipgloss.NewStyle().Reverse(true)
-
 // readyMsg carries one read of the Ready queue: its issues, most urgent first, or the error that
 // kept it from being read. selectID is the issue the read was asked to select, resolved to its id,
 // and notice reports an id that resolved to no issue; both are empty when no id was asked for.
@@ -165,7 +162,8 @@ func (m model) readySelection() (index.Entry, bool) {
 }
 
 // paintReadySidebar fills the sidebar with the Ready queue the Ready filter keeps, one `id  status
-// P<n>  title` row per issue, the selected one marked, scrolled so the selection stays on screen.
+// P<n>  title` row per issue, its status in its category's colour and the selected one marked,
+// scrolled so the selection stays on screen.
 // An empty queue, one that could not be read and a filter that keeps nothing each take a single
 // row saying so. It does nothing on another tab.
 func (m model) paintReadySidebar() model {
@@ -186,17 +184,26 @@ func (m model) paintReadySidebar() model {
 	end := min(m.ready.top+height, len(m.ready.entries))
 	rows := make([]string, 0, end-m.ready.top)
 	for row := m.ready.top; row < end; row++ {
-		text := readyRow(m.ready.entries[row])
+		entry := m.ready.entries[row]
 		if row == selected {
-			text = selectedRowStyle.Render(text)
+			rows = append(rows, m.theme.selectedRow.Render(readyRow(entry, lipgloss.NewStyle())))
+			continue
 		}
-		rows = append(rows, text)
+		rows = append(rows, readyRow(entry, m.theme.status(entry.Category)))
 	}
 	m.sidebar = rows
 	return m
 }
 
-// readyRow is the sidebar row of one queued issue, as capcom ready prints it.
-func readyRow(entry index.Entry) string {
-	return fmt.Sprintf("%s  %s  P%d  %s", entry.ID, entry.Status, entry.Priority, oneLine(entry.Title))
+// readyRow is the sidebar row of one queued issue, as capcom ready prints it, its status painted
+// in status: an empty style for a row a style of its own covers whole, since a reset inside it
+// would end that style early.
+func readyRow(entry index.Entry, status lipgloss.Style) string {
+	return fmt.Sprintf(
+		"%s  %s  P%d  %s",
+		entry.ID,
+		status.Render(entry.Status),
+		entry.Priority,
+		oneLine(entry.Title),
+	)
 }

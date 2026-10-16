@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/outline"
@@ -149,15 +150,19 @@ func (m model) paintIssuesSidebar() model {
 		m.sidebar = []string{m.emptySidebarText(TabIssues, issuesEmptyText)}
 		return m
 	}
-	m.sidebar = m.issues.tree.paint(m.sidebarHeight(), m.issueTreeRow)
+	m.sidebar = m.issues.tree.paint(m.sidebarHeight(), m.theme, m.issueTreeRow)
 	return m
 }
 
 // issueTreeRow is the text of one issue in the tree, as capcom list --tree prints it: `id  status
 // P<n>  title`, then `(<closed>/<total> closed)` over all its children, hidden ones included,
-// when it has any.
-func (m model) issueTreeRow(row outline.Row[index.Entry]) string {
-	text := readyRow(row.Entry)
+// when it has any. Its status is in its category's colour unless the row is marked.
+func (m model) issueTreeRow(row outline.Row[index.Entry], isMarked bool) string {
+	status := m.theme.status(row.Entry.Category)
+	if isMarked {
+		status = lipgloss.NewStyle()
+	}
+	text := readyRow(row.Entry, status)
 	children := m.issues.tree.children(row.ID)
 	if len(children) == 0 {
 		return text

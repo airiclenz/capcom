@@ -48,8 +48,15 @@ type model struct {
 	// notice is the status bar's report of an id to select that could not be selected; empty when
 	// there is none.
 	notice string
-	// markdownTheme is what issue and Note bodies render with. Its Measure follows the painter:
-	// Update folds every tea.ModeReportMsg into it.
+	// theme is every style the UI paints with, from the user config's theme and colours over the
+	// terminal background; isLightBackground reports the terminal answered a light background
+	// (until it answers, the background counts as dark), and isNoColor that NO_COLOR is set, so
+	// the theme has no colours.
+	theme             theme
+	isLightBackground bool
+	isNoColor         bool
+	// markdownTheme is what issue and Note bodies render with: the theme's markdown styles. Its
+	// Measure follows the painter: Update folds every tea.ModeReportMsg into it.
 	markdownTheme markdown.Theme
 
 	width  int
@@ -99,19 +106,24 @@ type model struct {
 // newModel returns the model of a UI over options' store and index, opening on options.Tab and
 // selecting options.ID there when it is set. It loads the user config at options.UserConfigPath,
 // or at userconfig.Path when that is empty, creating the file when it is missing; a config that
-// cannot be used leaves the model on userconfig.Default with a notice in the status bar.
+// cannot be used leaves the model on userconfig.Default with a notice in the status bar. The
+// theme starts on a dark background, and without colours when options.NoColor is set.
 func newModel(options Options) model {
 	config, notice := loadUserConfig(options.UserConfigPath)
-	return model{
+	m := model{
 		session:      newSession(options.Store, options.Index),
 		tab:          options.Tab,
 		initialID:    options.ID,
 		userConfig:   config,
 		configNotice: notice,
+		isNoColor:    options.NoColor,
 		lockText:     lockReadingText,
 		tick:         scheduleTick,
 		execFn:       execEditor,
 	}
+	m.theme = m.themeOf()
+	m.markdownTheme = m.theme.markdown
+	return m
 }
 
 // loadUserConfig loads the user config file at path, resolving the default path when path is
@@ -142,15 +154,20 @@ func loadUserConfig(path string) (userconfig.Config, string) {
 
 // Init reads this worktree's Tree lock for the status bar, the Ready queue, the issues of the
 // Issues tree and the Notes of the Knowledge tree, and schedules the first poll of the index; the
-// tab the UI opened on selects the id it was opened with.
+// tab the UI opened on selects the id it was opened with. Under theme auto, with colours on, it
+// also asks the terminal for its background colour, which picks the preset once it answers.
 func (m model) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		readLock(m.session),
 		loadReady(m.session, tabRead{wantedID: m.initialIDFor(TabReady)}),
 		loadIssues(m.session, tabRead{wantedID: m.initialIDFor(TabIssues)}),
 		loadKnowledge(m.session, tabRead{wantedID: m.initialIDFor(TabKnowledge)}),
 		m.tick(),
-	)
+	}
+	if m.userConfig.UI.Theme == userconfig.ThemeAuto && !m.isNoColor {
+		cmds = append(cmds, tea.RequestBackgroundColor)
+	}
+	return tea.Batch(cmds...)
 }
 
 // initialIDFor returns the id the UI was opened with when it opened on tab, and "" otherwise.
@@ -163,8 +180,9 @@ func (m model) initialIDFor(tab Tab) string {
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
-// index, a write's run, the status picker's statuses, an edit's steps and the painter's width
-// measure, polls the index on a tick, and handles the keys: an open confirmation prompt takes
+// index, a write's run, the status picker's statuses, an edit's steps, the painter's width
+// measure and the terminal's background colour, polls the index on a tick, and handles the keys:
+// an open confirmation prompt takes
 // every key, then an open text prompt, then an open status picker, then the open filter line,
 // ahead of the dependency view's, then the model's own. While the dependency view is open it keeps the detail
 // pane over whatever else repaints it. Clicks and wheel notches go to the mouse handlers, which
@@ -211,6 +229,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.
 		m.issue.renderedWidth = 0
 		m = m.renderDetail().paintDeps()
+	case tea.BackgroundColorMsg:
+		m = m.applyBackground(msg)
 	case tea.MouseClickMsg:
 		return m.mouseClick(msg)
 	case tea.MouseWheelMsg:

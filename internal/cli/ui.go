@@ -13,6 +13,10 @@ import (
 // uiMaxArgs is the most arguments capcom ui takes: a tab, then an id.
 const uiMaxArgs = 2
 
+// noColorVariable names the environment variable that, set to anything non-empty, turns the
+// terminal UI's colours off (https://no-color.org).
+const noColorVariable = "NO_COLOR"
+
 // The help text of capcom ui.
 const (
 	uiLong = "Open the terminal UI over this store: the Ready, Issues and Knowledge tabs. With no " +
@@ -51,7 +55,15 @@ func (a *app) newUICommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return ui.Run(ui.Options{Store: a.store, Index: a.issueIndex, Tab: tab, ID: id, In: in, Out: out})
+			return ui.Run(ui.Options{
+				Store:   a.store,
+				Index:   a.issueIndex,
+				Tab:     tab,
+				ID:      id,
+				In:      in,
+				Out:     out,
+				NoColor: os.Getenv(noColorVariable) != "",
+			})
 		}),
 	}
 }

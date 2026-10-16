@@ -222,7 +222,20 @@ func ctrlKey(r rune) tea.KeyPressMsg {
 // -update it rewrites that file instead.
 func golden(t *testing.T, name string, view tea.View) {
 	t.Helper()
-	got := ansi.Strip(view.Content)
+	compareGolden(t, name, ansi.Strip(view.Content))
+}
+
+// goldenANSI compares view, its ANSI styling kept, with testdata/golden/<name>.golden; with
+// -update it rewrites that file instead.
+func goldenANSI(t *testing.T, name string, view tea.View) {
+	t.Helper()
+	compareGolden(t, name, view.Content)
+}
+
+// compareGolden compares got with testdata/golden/<name>.golden; with -update it rewrites that
+// file instead.
+func compareGolden(t *testing.T, name, got string) {
+	t.Helper()
 	path := filepath.Join(goldenDir, name+".golden")
 	if *isGoldenUpdate {
 		if err := os.MkdirAll(goldenDir, 0o755); err != nil {

@@ -72,8 +72,8 @@ func oneLine(text string) string {
 // line in place of everything else, or the Tree lock, the open tab's filter, the user config notice, the notices of a
 // config.yaml that could not be reloaded and of a poll that failed or stopped, the notice of an id
 // that could not be selected and the report of the last write when there are any, and the key
-// hints. A row too long for the terminal is cut before the hints, so they stay visible while there
-// is room for them.
+// hints, muted. A row too long for the terminal is cut before the hints, so they stay visible while
+// there is room for them.
 func (m model) statusBar() string {
 	if m.prompt.isOpen {
 		return fit(m.prompt.text, m.width)
@@ -92,10 +92,11 @@ func (m model) statusBar() string {
 	}
 	hints := statusSeparator + m.keyHints()
 	room := m.width - ansi.StringWidth(hints)
+	painted := m.theme.hints.Render(hints)
 	if room <= 0 {
-		return fit(text+hints, m.width)
+		return fit(text+painted, m.width)
 	}
-	return fit(text, room) + hints
+	return fit(text, room) + painted
 }
 
 // keyHints returns the hints for the keys that matter in the current view.

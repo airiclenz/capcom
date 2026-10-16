@@ -169,11 +169,12 @@ func (m model) paintKnowledgeSidebar() model {
 		m.sidebar = []string{m.emptySidebarText(TabKnowledge, knowledgeEmptyText)}
 		return m
 	}
-	m.sidebar = m.knowledge.tree.paint(m.sidebarHeight(), noteTreeRow)
+	m.sidebar = m.knowledge.tree.paint(m.sidebarHeight(), m.theme, noteTreeRow)
 	return m
 }
 
-// noteTreeRow is the text of one Note in the tree, as capcom know tree prints it: `id  title`.
-func noteTreeRow(row outline.Row[index.NoteEntry]) string {
+// noteTreeRow is the text of one Note in the tree, as capcom know tree prints it: `id  title`,
+// unstyled whether the row is marked or not.
+func noteTreeRow(row outline.Row[index.NoteEntry], _ bool) string {
 	return row.ID + noteRowSeparator + oneLine(row.Entry.Title)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -45,13 +46,21 @@ type depsMsg struct {
 	err     error
 }
 
-// depRow is one row of the dependency view: the issue it names and its `id  status  P<n>  title`
-// text, or, for a dep that names no issue, that dep as the file writes it in missing and an empty
-// id.
+// depRow is one row of the dependency view: the issue it names, its id and its entry, or, for a
+// dep that names no issue, that dep as the file writes it in missing and an empty id.
 type depRow struct {
 	id      string
 	missing string
-	text    string
+	entry   index.Entry
+}
+
+// text returns the row's text: `id  status  P<n>  title`, its status painted in status, or for a
+// missing dep that dep and depsMissingLabel.
+func (r depRow) text(status lipgloss.Style) string {
+	if r.id == "" {
+		return oneLine(r.missing) + "  " + depsMissingLabel
+	}
+	return readyRow(r.entry, status)
 }
 
 // depView is the dependency view's state: whether it covers the detail pane, the issue it lists,
@@ -105,15 +114,15 @@ func depRows(entries []index.Entry, id string) ([]depRow, []depRow) {
 	for _, dep := range byID[id].Deps {
 		resolved, isFound := graph.Resolve(dep)
 		if !isFound {
-			waitsOn = append(waitsOn, depRow{missing: dep, text: oneLine(dep) + "  " + depsMissingLabel})
+			waitsOn = append(waitsOn, depRow{missing: dep})
 			continue
 		}
-		waitsOn = append(waitsOn, depRow{id: resolved, text: readyRow(byID[resolved])})
+		waitsOn = append(waitsOn, depRow{id: resolved, entry: byID[resolved]})
 	}
 
 	var blocks []depRow
 	for _, step := range graph.Walk(id, issue.WalkDependents, depsDepth) {
-		blocks = append(blocks, depRow{id: step.ID, text: readyRow(byID[step.ID])})
+		blocks = append(blocks, depRow{id: step.ID, entry: byID[step.ID]})
 	}
 	return waitsOn, blocks
 }
@@ -257,7 +266,7 @@ func (m model) paintDeps() model {
 	if !m.deps.isOpen || !m.deps.isLoaded {
 		return m
 	}
-	lines, selectedLine, _ := m.deps.lines()
+	lines, selectedLine, _ := m.deps.lines(m.theme)
 	m.detail = lines
 	if selectedLine >= 0 {
 		height := max(m.bodyHeight(), 1)
@@ -269,8 +278,9 @@ func (m model) paintDeps() model {
 // lines returns the dependency view's rows of text, the position of the selected one, -1 when
 // it has none, and, for each line, the position in rows of the row it draws, -1 for a heading or
 // a none line: the waits-on heading and rows, then the blocks heading and rows, a section with no
-// issue saying none. An issue with neither, and a read that failed, each take one row.
-func (v depView) lines() ([]string, int, []int) {
+// issue saying none, each status in its category's colour of th and the selected row marked in
+// its selection style. An issue with neither, and a read that failed, each take one row.
+func (v depView) lines(th theme) ([]string, int, []int) {
 	switch {
 	case v.err != nil:
 		return []string{depsFailurePrefix + v.err.Error()}, -1, []int{-1}
@@ -293,10 +303,10 @@ func (v depView) lines() ([]string, int, []int) {
 			rowOfLine = append(rowOfLine, -1)
 		}
 		for _, row := range section.rows {
-			text := depsRowIndent + row.text
+			text := depsRowIndent + row.text(th.status(row.entry.Category))
 			if position == selected {
 				selectedLine = len(lines)
-				text = selectedRowStyle.Render(text)
+				text = th.selectedRow.Render(depsRowIndent + row.text(lipgloss.NewStyle()))
 			}
 			lines = append(lines, text)
 			rowOfLine = append(rowOfLine, position)
@@ -309,7 +319,8 @@ func (v depView) lines() ([]string, int, []int) {
 // rowAtLine returns the position in rows of the row the view draws on line, and -1 when line
 // holds a heading, a none line or nothing.
 func (v depView) rowAtLine(line int) int {
-	_, _, rowOfLine := v.lines()
+	// Where a row sits does not depend on its styles, so the zero theme serves.
+	_, _, rowOfLine := v.lines(theme{})
 	if line < 0 || line >= len(rowOfLine) {
 		return -1
 	}

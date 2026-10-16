@@ -114,7 +114,7 @@ func (m model) openTextPrompt(write textWrite) model {
 		isOpen: true,
 		write:  write,
 		id:     shown.id,
-		line:   newLineInput(fmt.Sprintf(write.promptFormat, shown.id), "", m.width),
+		line:   newLineInput(fmt.Sprintf(write.promptFormat, shown.id), "", m.width, m.theme.input),
 	}
 	return m
 }

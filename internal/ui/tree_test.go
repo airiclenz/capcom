@@ -8,6 +8,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/outline"
+	"github.com/airiclenz/capcom/internal/userconfig"
 )
 
 // treeEntries is an outline of root, holding the open kid and the closed gone, which holds the
@@ -97,8 +98,9 @@ func TestTreeWidget_Expand_LeavesAnOlderCopyAsItWas(t *testing.T) {
 func TestTreeWidget_Paint_IndentsAndMarksTheArrows(t *testing.T) {
 	w := newEntryTree(treeEntries)
 	w.expand()
+	th := newTheme(userconfig.Default().UI, false, false)
 
-	painted := w.paint(10, func(row outline.Row[index.Entry]) string { return row.ID })
+	painted := w.paint(10, th, func(row outline.Row[index.Entry], _ bool) string { return row.ID })
 
 	want := []string{"▾ root", "    kid", "  other"}
 	for position, text := range want {

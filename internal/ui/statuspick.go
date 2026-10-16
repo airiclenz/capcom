@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
@@ -122,15 +123,15 @@ func (m model) pickerKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 }
 
 // lines returns the picker's rows: a heading naming the issue, then one row per status, the
-// selected one marked.
-func (p statusPicker) lines() []string {
+// selected one marked in selectedStyle.
+func (p statusPicker) lines(selectedStyle lipgloss.Style) []string {
 	lines := make([]string, 0, len(p.statuses)+1)
 	lines = append(lines, fmt.Sprintf(pickerHeadingFormat, p.id))
 	selected := p.cursor.highlight(len(p.statuses))
 	for row, status := range p.statuses {
 		text := depsRowIndent + status
 		if row == selected {
-			text = selectedRowStyle.Render(text)
+			text = selectedStyle.Render(text)
 		}
 		lines = append(lines, text)
 	}

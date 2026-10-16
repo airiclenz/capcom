@@ -1,0 +1,30 @@
+ Issues  │ [1;7m Ready [m │  Knowledge 
+[7malpha  open  P1  Alpha task[m             │[1mAlpha task[m
+beta  open  P2  Beta task               │
+                                        │status: open · P1
+                                        │
+                                        │[1mPlan[m
+                                        │
+                                        │See [4;4mb[m[4;4me[m[4;4mt[m[4;4ma[m and the docs.
+                                        │
+                                        ││ quoted
+                                        │
+                                        │  code block
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────
+lock: free · ? help · q quit
