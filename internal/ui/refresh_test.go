@@ -134,7 +134,7 @@ func TestRefresh_LockAcquiredOnDisk_ShowsAfterOneTick(t *testing.T) {
 
 	m = tick(t, m)
 
-	want := regexp.MustCompile(`^lock: held by bob: refactor the parser \(heartbeat 0m ago\) · `)
+	want := regexp.MustCompile(`^ lock  held by bob: refactor the parser \(heartbeat 0m ago\) · `)
 	if row := statusRow(m); !want.MatchString(row) {
 		t.Errorf("status bar = %q, want it to match %s", row, want)
 	}

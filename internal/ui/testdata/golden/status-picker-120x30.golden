@@ -27,4 +27,4 @@ delta  open  P2  Delta task              │   active
                                          │                                                                              
                                          │                                                                              
 ─────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────
-lock: free · ↑↓ move · enter set · esc cancel
+ lock  free · ↑↓ move · enter set · esc cancel

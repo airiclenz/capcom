@@ -524,12 +524,12 @@ func TestModel_StatusBar_ShowsTheTreeLock(t *testing.T) {
 		{
 			name:    "free",
 			arrange: func(*testing.T, *testStore) {},
-			want:    regexp.MustCompile(`^lock: free · \? help · q quit$`),
+			want:    regexp.MustCompile(`^ lock  free · \? help · q quit$`),
 		},
 		{
 			name:    "held",
 			arrange: acquireTestLock,
-			want:    regexp.MustCompile(`^lock: held by bob: refactor the parser \(heartbeat 0m ago\) · `),
+			want:    regexp.MustCompile(`^ lock  held by bob: refactor the parser \(heartbeat 0m ago\) · `),
 		},
 		{
 			name: "stale",
@@ -537,14 +537,14 @@ func TestModel_StatusBar_ShowsTheTreeLock(t *testing.T) {
 				acquireTestLock(t, ts)
 				ageTestLock(t, ts, 3*time.Hour)
 			},
-			want: regexp.MustCompile(`^lock: stale: refactor the parser \(heartbeat 3h0[0-9]m ago\) · `),
+			want: regexp.MustCompile(`^ lock  stale: refactor the parser \(heartbeat 3h0[0-9]m ago\) · `),
 		},
 		{
 			name: "invalid",
 			arrange: func(t *testing.T, ts *testStore) {
 				writeTestLockRecord(t, ts, []byte("not json"))
 			},
-			want: regexp.MustCompile(`^lock: invalid · `),
+			want: regexp.MustCompile(`^ lock  invalid · `),
 		},
 		{
 			name: "unreadable",
@@ -553,7 +553,7 @@ func TestModel_StatusBar_ShowsTheTreeLock(t *testing.T) {
 					t.Fatalf("MkdirAll: %v", err)
 				}
 			},
-			want: regexp.MustCompile(`^lock: unreadable · `),
+			want: regexp.MustCompile(`^ lock  unreadable · `),
 		},
 	}
 	for _, testCase := range cases {
@@ -573,8 +573,8 @@ func TestModel_StatusBar_ShowsTheTreeLock(t *testing.T) {
 func TestLockText_OverviewError_IsUnreadable(t *testing.T) {
 	got := lockText(lock.Overview{}, errors.New("cannot list the lock directory"), time.Now())
 
-	if got != "lock: unreadable" {
-		t.Errorf("lockText = %q, want lock: unreadable", got)
+	if got != " lock  unreadable" {
+		t.Errorf("lockText = %q, want \" lock  unreadable\"", got)
 	}
 }
 
@@ -626,7 +626,7 @@ func TestModel_FirstStart_CreatesTheUserConfig(t *testing.T) {
 	if _, err := os.Stat(options.UserConfigPath); err != nil {
 		t.Errorf("user config after the first start: %v, want the file created", err)
 	}
-	if got := statusRow(m); got != "lock: free · ? help · q quit" {
+	if got := statusRow(m); got != " lock  free · ? help · q quit" {
 		t.Errorf("status bar = %q, want no config notice", got)
 	}
 }
@@ -650,7 +650,7 @@ func TestModel_UserConfigProblems_ShowInTheStatusBar(t *testing.T) {
 			m := startModel(t, options, wideStatusWidth(options.UserConfigPath), 30)
 
 			got := statusRow(m)
-			if !strings.HasPrefix(got, "lock: free · user config: "+options.UserConfigPath) || !strings.Contains(got, testCase.want) {
+			if !strings.HasPrefix(got, " lock  free · user config: "+options.UserConfigPath) || !strings.Contains(got, testCase.want) {
 				t.Errorf("status bar = %q, want the config notice %q", got, testCase.want)
 			}
 			if testCase.isDefaults && !strings.Contains(got, defaultsNotice) {
@@ -672,7 +672,7 @@ func TestModel_NoUserConfigDirectory_WarnsAndRunsOnDefaults(t *testing.T) {
 	m := startModel(t, options, wideStatusWidth(""), 30)
 
 	got := statusRow(m)
-	if !strings.HasPrefix(got, "lock: free · user config: locate the user config directory: ") || !strings.Contains(got, defaultsNotice) {
+	if !strings.HasPrefix(got, " lock  free · user config: locate the user config directory: ") || !strings.Contains(got, defaultsNotice) {
 		t.Errorf("status bar = %q, want the user config directory warning", got)
 	}
 	if !reflect.DeepEqual(m.userConfig, userconfig.Default()) {

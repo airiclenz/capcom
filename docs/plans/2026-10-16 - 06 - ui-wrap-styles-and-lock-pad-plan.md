@@ -83,7 +83,10 @@ internal/ui/detail_test.go — TestDetailPane_IssueWithPlanAndRelated_ShowsBothL
 
 **Commit:** `fix(ui): close a style at each wrap break and reopen it on the next line`
 
-## 2. Pad the lock badge and drop the colon after it
+## 2. Pad the lock badge and drop the colon after it — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): golden status-picker-120x30.golden is regenerated through TestWrite_StatusPicker_SetsThePickedStatus -update, since `-run Golden` does not reach it; its diff is the lock row only, like the other 17.
+NOTES (2026-10-16): statusbar_test.go pins the badge on a literal test constant badgeWord (" lock ") rather than lockWord, so a change to the constant cannot silently shrink the fill; bite check (lockWord " lock") failed 4 badge tests and was reverted.
 
 **Closes:** ui-lock-badge-padding
 

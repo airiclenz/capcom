@@ -16,9 +16,10 @@ import (
 // The status bar's texts.
 const (
 	statusSeparator = " · "
-	// lockWord opens the Tree lock's segment and is the only part of it the lock badge paints.
-	lockWord   = "lock"
-	lockPrefix = lockWord + ": "
+	// lockWord opens the Tree lock's segment, padded with a space each side, and is the only part
+	// of it the lock badge paints; one plain space separates it from the lock's state.
+	lockWord   = " lock "
+	lockPrefix = lockWord + " "
 	// lockReadingText stands in for the Tree lock until its first read returns.
 	lockReadingText = lockPrefix + "reading"
 	hintsPanes      = "? help · q quit"
@@ -76,9 +77,9 @@ func lockBadgeOf(overview lock.Overview, err error) lockBadge {
 	}
 }
 
-// lockText renders this worktree's state from a Lock overview read at now: `lock: free`,
-// `lock: held by <holder>: <purpose> (heartbeat <age> ago)`, `lock: stale: <purpose> (heartbeat
-// <age> ago)`, `lock: invalid` or `lock: unreadable`. An overview that could not be read at all
+// lockText renders this worktree's state from a Lock overview read at now: ` lock  free`,
+// ` lock  held by <holder>: <purpose> (heartbeat <age> ago)`, ` lock  stale: <purpose> (heartbeat
+// <age> ago)`, ` lock  invalid` or ` lock  unreadable`. An overview that could not be read at all
 // is unreadable.
 func lockText(overview lock.Overview, err error, now time.Time) string {
 	if err != nil {
@@ -133,8 +134,8 @@ func (m model) statusBar() string {
 	return fit(text, room) + painted
 }
 
-// paintedLock returns the status bar's account of the Tree lock with its leading word painted in
-// the lock badge, the rest of it unstyled; with no badge, or a text not led by the word, it is
+// paintedLock returns the status bar's account of the Tree lock with its leading padded word painted
+// in the lock badge, the rest of it unstyled; with no badge, or a text not led by the word, it is
 // the text alone.
 func (m model) paintedLock() string {
 	rest, isLed := strings.CutPrefix(m.lockText, lockWord)

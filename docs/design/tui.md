@@ -38,7 +38,7 @@ capcom ui [issues|ready|knowledge] [id]
 ▶ release-x        │ │                          │
 · docs-pass        │ │ Body markdown...         │
 ─────────────────────┴───────────────────────────
-lock: free · ? help · q quit
+ lock  free · ? help · q quit
 ```
 
 - **Tab bar**: Issues, Ready, Knowledge, in that order for `1 2 3`. Each tab keeps its own
@@ -77,11 +77,14 @@ lock: free · ? help · q quit
   inline-code spans exactly matching an existing id, and the parent, deps, related, refs and
   superseded-by naming an id. URLs and file refs are styled but inert. Body links are mouse-only.
 - **Status bar**: the Tree lock (free, held by this worktree's other session with its purpose,
-  or stale), the filter in effect, transient messages, and key hints. The word `lock` opening it
-  is a badge: filled with the `lock-held` colour while the lock is held or stale, with `lock-free`
-  while it is free, its text black or white, whichever reads on the fill; invalid, unreadable and
-  the first read's `reading` leave it plain. Under `NO_COLOR` a held or stale badge is drawn in
-  reverse and a free one plain.
+  or stale), the filter in effect, transient messages, and key hints. It opens with ` lock `,
+  the word padded with a space each side, then one plain space and the state (` lock  free`,
+  ` lock  held by <holder>: <purpose> (heartbeat <age> ago)`, ` lock  stale: …`, ` lock  invalid`),
+  no colon after the word. The padded word is a badge: filled with the `lock-held` colour while
+  the lock is held or stale, with `lock-free` while it is free, its text black or white, whichever
+  reads on the fill, and the space and state after it unstyled; invalid, unreadable and the first
+  read's `reading` leave it plain. Under `NO_COLOR` a held or stale badge is drawn in reverse and
+  a free one plain.
 - **Narrow terminals** (below about 90 columns): the layout collapses to drill-down. The sidebar
   fills the screen, Enter opens the detail full width, Esc goes back.
 
