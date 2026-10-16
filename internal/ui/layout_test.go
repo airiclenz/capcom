@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -196,6 +197,164 @@ func TestModel_BodyHeight_LeavesTheFrameRows(t *testing.T) {
 
 	if want := 30 - 4; got != want {
 		t.Errorf("bodyHeight() = %d, want %d: the screen less the tab bar, two rules and the status bar", got, want)
+	}
+}
+
+func TestModel_SidebarWidth_DefaultsToAThirdWithinItsBounds(t *testing.T) {
+	cases := []struct {
+		width int
+		want  int
+	}{
+		{width: 90, want: 30},
+		{width: 120, want: 40},
+		{width: 200, want: sidebarMaxWidth},
+	}
+	ts := newTestStore(t, nil)
+	for _, testCase := range cases {
+		t.Run(fmt.Sprintf("width %d", testCase.width), func(t *testing.T) {
+			m := newTestModel(t, ts, testCase.width, 30)
+
+			if got := m.sidebarWidth(); got != testCase.want {
+				t.Errorf("sidebarWidth() = %d, want %d", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestModel_ResizeKeys_MoveTheDividerByAStep(t *testing.T) {
+	cases := []struct {
+		name  string
+		key   rune
+		delta int
+	}{
+		{name: "grow", key: '>', delta: sidebarStep},
+		{name: "shrink", key: '<', delta: -sidebarStep},
+	}
+	ts := newTestStore(t, readyFiles)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, ts, 120, 30)
+			before := m.dividerColumn()
+
+			m = send(t, m, runeKey(testCase.key))
+
+			if got, want := m.dividerColumn(), before+testCase.delta; got != want {
+				t.Errorf("dividerColumn() = %d, want %d", got, want)
+			}
+			assertDividerAt(t, m)
+		})
+	}
+}
+
+func TestModel_ResizeKeys_StopAtTheLimits(t *testing.T) {
+	const width = 120
+	cases := []struct {
+		name string
+		key  rune
+		want int
+	}{
+		{name: "shrink", key: '<', want: sidebarDragMinWidth},
+		{name: "grow", key: '>', want: width - 2*dividerMargin - 1 - detailMinWidth},
+	}
+	ts := newTestStore(t, readyFiles)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, ts, width, 30)
+
+			for _, key := range repeatKey(runeKey(testCase.key), 20) {
+				m = send(t, m, key)
+			}
+
+			if got := m.sidebarWidth(); got != testCase.want {
+				t.Errorf("sidebarWidth() = %d, want %d", got, testCase.want)
+			}
+			if got := m.detailLeft() + m.detailWidth() + scrollbarColumns; got != width {
+				t.Errorf("the detail pane ends at column %d, want the right edge %d", got, width)
+			}
+			assertDividerAt(t, m)
+		})
+	}
+}
+
+func TestModel_StoredSidebarWidth_ClampsWithoutChangingIt(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, nil), 120, 30)
+	m.sidebarColumns = 80
+
+	m = send(t, m, tea.WindowSizeMsg{Width: 100, Height: 30})
+
+	if got := m.sidebarWidth(); got != 57 {
+		t.Errorf("sidebarWidth() = %d, want 57: a stored 80 clamped at 100 columns", got)
+	}
+	if m.sidebarColumns != 80 {
+		t.Errorf("sidebarColumns = %d, want the stored 80 unchanged by the clamp", m.sidebarColumns)
+	}
+}
+
+func TestModel_ResizeKeys_DoNothingOnANarrowTerminal(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 80, 24)
+	before := m.View().Content
+
+	for _, key := range []rune{'>', '<', '<'} {
+		m = send(t, m, runeKey(key))
+	}
+
+	if m.sidebarColumns != 0 {
+		t.Errorf("sidebarColumns = %d, want 0: no width set on a narrow terminal", m.sidebarColumns)
+	}
+	if got := m.View().Content; got != before {
+		t.Errorf("the screen changed on a narrow terminal:\n%s\nwant\n%s", got, before)
+	}
+}
+
+func TestModel_ResizeKeys_ResizeTheFilterLine(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 120, 30)
+
+	m = send(t, m, runeKey('>'))
+
+	want := m.filterLine
+	want.setWidth(m.sidebarPaneWidth())
+	if got := m.filterLine.input.Width(); got != want.input.Width() {
+		t.Errorf("filter line width = %d, want %d: the grown sidebar's", got, want.input.Width())
+	}
+}
+
+func TestModel_ResizeKeys_MouseFollowsTheNewWidth(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 120, 30)
+	oldDetailLeft := m.detailLeft()
+	m = pressKeys(t, m, runeKey('>'), runeKey('>'))
+
+	if got := m.pointAt(oldDetailLeft, 3).pane; got != paneSidebar {
+		t.Errorf("pointAt(%d, 3) is pane %v, want the grown sidebar", oldDetailLeft, got)
+	}
+	m = press(t, m, click(oldDetailLeft, 3))
+
+	if got, isSelected := m.readySelection(); !isSelected || got.ID != "beta" {
+		t.Errorf("selected %q, want beta under the click", got.ID)
+	}
+	if got := m.pointAt(m.detailLeft(), 3); got.pane != paneDetail || got.col != 0 {
+		t.Errorf("pointAt(detailLeft) = %+v, want the detail pane's first column", got)
+	}
+}
+
+// assertDividerAt checks the split layout's separator " │ " on every body row right of the
+// sidebar's width, and both rules' joints under it.
+func assertDividerAt(t *testing.T, m model) {
+	t.Helper()
+	sidebarWidth := m.sidebarWidth()
+	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+	for row := bodyTop; row < bodyTop+m.bodyHeight(); row++ {
+		if got := ansi.Cut(rows[row], sidebarWidth, sidebarWidth+3); got != " │ " {
+			t.Errorf("row %d holds %q at columns %d..%d, want \" │ \"", row, got, sidebarWidth, sidebarWidth+2)
+		}
+	}
+	column := m.dividerColumn()
+	for _, rule := range []struct {
+		row   int
+		joint string
+	}{{row: 1, joint: topRuleJoint}, {row: len(rows) - 2, joint: ruleJoint}} {
+		if got := ansi.Cut(rows[rule.row], column, column+1); got != rule.joint {
+			t.Errorf("row %d holds %q at column %d, want %q", rule.row, got, column, rule.joint)
+		}
 	}
 }
 

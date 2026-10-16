@@ -61,6 +61,9 @@ type model struct {
 
 	width  int
 	height int
+	// sidebarColumns is the sidebar's width in columns the user set in the split layout, 0 for
+	// the default; sidebarWidth clamps it to the terminal without changing it.
+	sidebarColumns int
 
 	// isHelpOpen reports the help screen covering the panes.
 	isHelpOpen bool
@@ -196,9 +199,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.filterLine.setWidth(m.sidebarPaneWidth())
 		m.textPrompt.line.setWidth(m.width)
-		m = m.paintSidebar().renderDetail().scrollDetail(0).paintDeps()
+		m = m.relayout()
 	case lockMsg:
 		m.lockText = msg.text
 	case readyMsg:
@@ -292,6 +294,13 @@ func (m model) showSelection() (model, tea.Cmd) {
 		return m.showKnowledgeSelection()
 	}
 	return m, nil
+}
+
+// relayout repaints the panes at the layout's widths, after the terminal or the sidebar changed
+// size: the filter line, the sidebar's rows and the detail pane's, kept within its lines.
+func (m model) relayout() model {
+	m.filterLine.setWidth(m.sidebarPaneWidth())
+	return m.paintSidebar().renderDetail().scrollDetail(0).paintDeps()
 }
 
 // paintSidebar fills the sidebar with the open tab's rows.

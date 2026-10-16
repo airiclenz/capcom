@@ -69,7 +69,7 @@ NOTES (2026-10-16): beyond the listed tests, SaveState rejects a negative Sideba
 
 **Commit:** `feat(userconfig): add the capcom ui state file`
 
-## 2. Adjustable sidebar width with the < and > keys
+## 2. Adjustable sidebar width with the < and > keys — ✅ DONE (2026-10-16)
 
 **What:**
 **Goal:** In the split layout the sidebar's width is a stored column count when one is set, the default (a third, 28–48) otherwise, always clamped to [20, width − 3 − 40]; `<` and `>` change it by 4 within those limits and every pane, the rules' joints, the filter line and mouse hit-testing follow the new width.

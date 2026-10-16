@@ -13,6 +13,12 @@ const (
 	sidebarShare    = 3
 	sidebarMinWidth = 28
 	sidebarMaxWidth = 48
+	// sidebarDragMinWidth and detailMinWidth bound a sidebar width the user sets: the sidebar
+	// keeps sidebarDragMinWidth columns and the detail pane, from detailLeft to the right edge,
+	// detailMinWidth. sidebarStep is the columns < and > move the divider by.
+	sidebarDragMinWidth = 20
+	detailMinWidth      = 40
+	sidebarStep         = 4
 	// frameRows are the rows around the panes: the tab bar, the rules above and under the panes
 	// and the status bar.
 	frameRows = 4
@@ -61,10 +67,34 @@ func (m model) bodyHeight() int {
 	return max(m.height-frameRows, 0)
 }
 
-// sidebarWidth returns the sidebar's columns in the split layout: a third of the terminal, within
-// sidebarMinWidth and sidebarMaxWidth.
+// sidebarWidth returns the sidebar's columns in the split layout: the width the user set, or else
+// a third of the terminal within sidebarMinWidth and sidebarMaxWidth, either clamped by
+// clampSidebarWidth to the terminal's width.
 func (m model) sidebarWidth() int {
-	return min(max(m.width/sidebarShare, sidebarMinWidth), sidebarMaxWidth)
+	desired := m.sidebarColumns
+	if desired <= 0 {
+		desired = min(max(m.width/sidebarShare, sidebarMinWidth), sidebarMaxWidth)
+	}
+	return m.clampSidebarWidth(desired)
+}
+
+// clampSidebarWidth returns columns within the sidebar's limits at the terminal's width: at least
+// sidebarDragMinWidth, and at most what leaves detailMinWidth columns right of the divider and its
+// margins. The lower limit wins on a terminal too narrow for both.
+func (m model) clampSidebarWidth(columns int) int {
+	upper := m.width - 2*dividerMargin - ansi.StringWidth(paneSeparator) - detailMinWidth
+	return max(min(columns, upper), sidebarDragMinWidth)
+}
+
+// resizeSidebar moves the divider by delta columns, right when positive, within the sidebar's
+// limits, and repaints the panes at the new width. The width is kept as set by the user. It does
+// nothing outside the split layout.
+func (m model) resizeSidebar(delta int) model {
+	if m.isNarrow() {
+		return m
+	}
+	m.sidebarColumns = m.clampSidebarWidth(m.sidebarWidth() + delta)
+	return m.relayout()
 }
 
 // body draws the bodyHeight rows under the tab bar's rule: the help screen when it is open, the two
