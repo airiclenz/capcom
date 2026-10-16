@@ -13,6 +13,7 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/ops"
 )
 
 // Flags of close and reopen; --status is shared with list and update.
@@ -97,14 +98,10 @@ func (a *app) newCloseCommand() *cobra.Command {
 // --kv record per argument, and the joined failure of the arguments that name no issue. The text
 // ends with a "now ready:" line naming the todo issues the closes made Ready, when there are any.
 func (a *app) closeResult(args []string, status string, reason string) (output.Result, error) {
-	// The index is not refreshed after the writes, so the issues are read once, before them.
-	nodes, err := a.issueNodes()
+	closer, err := a.ops().NewCloser()
 	if err != nil {
 		return output.Result{}, err
 	}
-	closedCategory, _ := a.store.Config.CategoryOf(status)
-	closing := map[string]config.Category{}
-	isReported := map[string]bool{}
 	var nowReady []string
 
 	result := output.Result{Kind: "close", KV: []output.KVRecord{}}
@@ -115,7 +112,7 @@ func (a *app) closeResult(args []string, status string, reason string) (output.R
 	isHandled := map[string]bool{}
 
 	for _, arg := range args {
-		outcome, failure, err := a.closeOne(arg, status, reason, closedAt, isHandled)
+		outcome, failure, err := a.closeOne(closer, arg, status, reason, closedAt, isHandled)
 		if err != nil {
 			return output.Result{}, err
 		}
@@ -128,17 +125,7 @@ func (a *app) closeResult(args []string, status string, reason string) (output.R
 			result.KV = append(result.KV, output.KVRecord{Pairs: []output.KVPair{{Key: "ID", Value: arg}}, Status: string(failure.Code)})
 			continue
 		}
-		outcome.NowReady = []string{}
-		if outcome.Outcome == outcomeClosed {
-			closing[outcome.ID] = closedCategory
-			for _, id := range issue.NewlyReady(nodes, a.store.Config, closing) {
-				if !isReported[id] {
-					isReported[id] = true
-					outcome.NowReady = append(outcome.NowReady, id)
-				}
-			}
-			nowReady = append(nowReady, outcome.NowReady...)
-		}
+		nowReady = append(nowReady, outcome.NowReady...)
 		data = append(data, outcome)
 		fmt.Fprintf(&text, "%s  %s\n", outcome.ID, outcome.Outcome)
 		result.KV = append(result.KV, output.KVRecord{Pairs: []output.KVPair{{Key: "ID", Value: outcome.ID}}, Status: outcome.Outcome})
@@ -156,11 +143,7 @@ func (a *app) closeResult(args []string, status string, reason string) (output.R
 
 // issueNodes returns the Node of every usable issue in the index, Closed ones included.
 func (a *app) issueNodes() ([]issue.Node, error) {
-	entries, err := a.issueIndex.List(index.Filter{IsClosedIncluded: true})
-	if err != nil {
-		return nil, err
-	}
-	return index.Nodes(entries), nil
+	return a.ops().IssueNodes()
 }
 
 // beforeCloseEdit runs in closeOne between the resolve of an argument to an issue that is not
@@ -168,11 +151,13 @@ func (a *app) issueNodes() ([]issue.Node, error) {
 // that moment.
 var beforeCloseEdit func(entry index.Entry)
 
-// closeOne closes the issue arg names. An issue already Closed, by its index entry or, re-checked on
-// the file read inside the edit, by another session since the index was read, is reported
-// already_closed and left as it is. failure is set when arg names no usable issue or its file
-// cannot be written; err is set only when the index fails, which stops the command.
+// closeOne closes the issue arg names through closer, which sets the outcome's NowReady. An issue
+// already Closed, by its index entry or, re-checked on the file read inside the edit, by another
+// session since the index was read, is reported already_closed and left as it is. failure is set
+// when arg names no usable issue or its file cannot be written; err is set only when the index
+// fails, which stops the command.
 func (a *app) closeOne(
+	closer *ops.Closer,
 	arg string,
 	status string,
 	reason string,
@@ -188,33 +173,27 @@ func (a *app) closeOne(
 		return closeData{}, resolveErr, nil
 	}
 
-	outcome = closeData{ID: entry.ID, Path: entry.Path}
+	outcome = closeData{ID: entry.ID, Path: entry.Path, NowReady: []string{}}
 	if isHandled[entry.ID] || entry.Category.IsClosed() {
 		return a.alreadyClosed(outcome)
 	}
 	if beforeCloseEdit != nil {
 		beforeCloseEdit(entry)
 	}
-	// The index entry may be older than the file: the change re-checks the Issue as read now, and
-	// one another session closed since is reported, not closed again. editNode types the failure,
-	// so the flag, not the error, tells that refusal apart.
-	isClosedMeanwhile := false
-	written, err := a.editIssue(entry.ID, "", func(target issue.Issue) (issue.Issue, error) {
-		closed, err := issue.Close(target, a.store.Config, status, reason, closedAt)
-		if errors.Is(err, issue.ErrAlreadyClosed) {
-			isClosedMeanwhile = true
-		}
-		return closed, err
-	})
-	if isClosedMeanwhile {
+	// The index entry may be older than the file: the close re-checks the Issue as read now, and
+	// one another session closed since is reported, not closed again.
+	closed, err := closer.Close(entry.ID, "", status, reason, closedAt)
+	if errors.Is(err, issue.ErrAlreadyClosed) {
 		return a.alreadyClosed(outcome)
 	}
+	written, err := a.written(closed.Written, err)
 	if err != nil {
 		return closeData{}, output.AsError(err), nil
 	}
 	isHandled[entry.ID] = true
 	outcome.Outcome = outcomeClosed
 	outcome.ETag = written.ETag
+	outcome.NowReady = closed.NewlyReady
 	return outcome, nil, nil
 }
 

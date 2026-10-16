@@ -7,8 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/gitx"
-	"github.com/airiclenz/capcom/internal/issue"
 )
 
 // The help text of capcom log.
@@ -36,23 +34,11 @@ func (a *app) newLogCommand() *cobra.Command {
 			if strings.TrimSpace(text) == "" {
 				return output.Errorf(output.CodeInvalid, "the log text is empty")
 			}
-			written, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
-				return a.appendLog(target, text)
-			})
+			written, err := a.written(a.ops().AppendLog(args[0], "", text, time.Now()))
 			if err != nil {
 				return err
 			}
 			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
 		}),
 	})
-}
-
-// appendLog adds a Log entry dated today and attributed to the author git would record (see
-// gitx.AuthorName). Every command that writes a Log entry goes through it.
-func (a *app) appendLog(target issue.Issue, text string) (issue.Issue, error) {
-	author, err := gitx.AuthorName(a.store.WorktreeRoot)
-	if err != nil {
-		return issue.Issue{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
-	}
-	return target.AppendLog(time.Now(), author, text), nil
 }

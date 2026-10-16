@@ -64,7 +64,15 @@ ops package guarded by ETag and the Tree lock, mouse, theme from a per-user conf
 - 20: guard folded (textinput styles themed, heading role test, NoColor option, goldenANSI)
 - 21: guard folded (shift-drag and closed route documented, every tui.md claim checked, file-format and docs-layout intro)
 
-## 1. ops package: status, claim, close, reopen, log
+## 1. ops package: status, claim, close, reopen, log — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): internal/cli/update.go is listed in Files but needed no edit: `capcom update` already writes through a.editIssue, which now wraps ops.EditIssue with applyUpdate as its change (one write, one if-match).
+NOTES (2026-10-16): the batch closer is `ops.Closer` (`Ops.NewCloser`, `Closer.Close`); `Ops.Close` is a one-issue Closer. Closer.Close's NewlyReady leaves out ids an earlier close of the batch already named, so the CLI loop no longer dedupes.
+NOTES (2026-10-16): the CLI types a `*ops.ChangeError` by statusChangeFailure when it wraps an `*issue.StatusError`, else by kindFailure, then fills the path; for close this rewords a non-ErrAlreadyClosed StatusError, which is unreachable since targetStatus only passes closed-category statuses.
+NOTES (2026-10-16): `a.appendLog` in log.go deleted as dead code; its author-plus-AppendLog logic now lives in ops.AppendLog.
+NOTES (2026-10-16): consequential edit — internal/cli/root.go: made necessary by the format-raise warning moving from editNode to app.written
+NOTES (2026-10-16): consequential edit — internal/cli/related.go: made necessary by the format-raise warning moving from editNode to app.written
+NOTES (2026-10-16): consequential edit — internal/cli/doc.go: made necessary by node_edit.go now holding written, the CLI side of the ops writes
 
 **What:**
 **Goal:** `internal/ops` offers SetStatus, Claim, Close, Reopen and AppendLog on one issue, each

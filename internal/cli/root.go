@@ -69,7 +69,7 @@ type app struct {
 	indexReport   index.Report
 	indexWarnings []diagnose.Finding
 	// writeWarnings are the warnings of the writes the command made, such as the store format an
-	// edit raised (editNode); emit renders them after the index warnings and before the result's.
+	// edit raised (app.written); emit renders them after the index warnings and before the result's.
 	writeWarnings []string
 }
 

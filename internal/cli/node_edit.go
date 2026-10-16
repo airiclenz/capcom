@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/ops"
 )
 
 const (
@@ -21,23 +21,25 @@ const (
 	kindIssueWrite = "issue-write"
 )
 
-// editIssue changes the issue arg names through the node store of the issue tree, which resolves
-// arg through the index, refuses with conflict when ifMatch is set and is not the file's etag,
-// applies change to the parsed issue, then validates and writes the result atomically (Kind.Edit).
-// It returns the issue written: its id, path and new etag.
+// ops returns the shared writes (internal/ops) on the issues of the store, resolving references
+// through the issue index.
+func (a *app) ops() *ops.Ops {
+	return ops.New(a.store, a.issueIndex)
+}
+
+// editIssue changes the issue arg names through ops.EditIssue, which resolves arg through the
+// index, refuses with conflict when ifMatch is set and is not the file's etag, applies change to the
+// parsed issue, then validates and writes the result atomically (Kind.Edit). It returns the issue
+// written: its id, path and new etag; a failure is typed as written types it.
 func (a *app) editIssue(
 	arg string,
 	ifMatch string,
 	change func(issue.Issue) (issue.Issue, error),
 ) (nodestore.Written, error) {
-	return editNode(a, nodestore.Issues(a.store, issueResolver{index: a.issueIndex}), arg, ifMatch, change)
+	return a.written(a.ops().EditIssue(arg, ifMatch, change))
 }
 
-// editNode runs kind.Edit and types its failure through kindFailure. A failure of change that names
-// no file is placed at the node's file, so a refusal of the change itself still names the file. An
-// edit that raised the store format, because the file it wrote carries a key line config.yaml's
-// format lacks, adds formatRaisedWarning to the warnings the command's result renders, so every
-// edit verb warns of the raise once.
+// editNode runs kind.Edit through ops.Edit and types its outcome as written does.
 func editNode[T any](
 	a *app,
 	kind *nodestore.Kind[T],
@@ -45,36 +47,39 @@ func editNode[T any](
 	ifMatch string,
 	change func(T) (T, error),
 ) (nodestore.Written, error) {
-	var changeErr error
-	written, err := kind.Edit(arg, ifMatch, func(node T) (T, error) {
-		edited, err := change(node)
-		changeErr = err
-		return edited, err
-	})
-	if err == nil {
-		a.warnRaisedFormat(written.Effects)
-		return written, nil
-	}
-	failure := kindFailure(err)
-	if err == changeErr && failure.Path == "" {
-		failure.Path = written.Path
-	}
-	return nodestore.Written{}, failure
+	return a.written(ops.Edit(kind, arg, ifMatch, change))
 }
 
-// issueResolver resolves an issue argument through the index: the Resolver of the issue tree's
-// node store.
-type issueResolver struct {
-	index *index.Index
-}
-
-// Resolve resolves arg to the issue it names, failing as index.Index.Resolve does.
-func (r issueResolver) Resolve(arg string) (nodestore.Target, error) {
-	entry, err := r.index.Resolve(arg)
+// written types the outcome of an ops write for the command. An edit that raised the store
+// format, because the file it wrote carries a key line config.yaml's format lacks, adds
+// formatRaisedWarning to the warnings the command's result renders, so every edit verb warns of
+// the raise once. A failure is typed by writeFailure.
+func (a *app) written(written nodestore.Written, err error) (nodestore.Written, error) {
 	if err != nil {
-		return nodestore.Target{}, err
+		return nodestore.Written{}, writeFailure(err)
 	}
-	return nodestore.Target{ID: entry.ID, Path: entry.Path}, nil
+	a.warnRaisedFormat(written.Effects)
+	return written, nil
+}
+
+// writeFailure types the failure of an ops write. A refusal of the change itself (*ops.ChangeError)
+// is worded by statusChangeFailure when it is a status rule's refusal, and by kindFailure
+// otherwise, and placed at the node's file when it names no file, so a refusal of the change still
+// names the file. Any other failure is typed by kindFailure.
+func writeFailure(err error) *output.Error {
+	var refusal *ops.ChangeError
+	if !errors.As(err, &refusal) {
+		return kindFailure(err)
+	}
+	var statusRefusal *issue.StatusError
+	failure := kindFailure(refusal.Err)
+	if errors.As(refusal.Err, &statusRefusal) {
+		failure = output.AsError(statusChangeFailure(refusal.Err))
+	}
+	if failure.Path == "" {
+		failure.Path = refusal.Path
+	}
+	return failure
 }
 
 // readTextInput reads the file at path, or stdin when path is "-". Errors name the file.

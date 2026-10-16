@@ -15,8 +15,8 @@ import (
 // relatedSelfFormat refuses linking an issue, the format's one argument, to itself.
 const relatedSelfFormat = "%s cannot be related to itself"
 
-// formatRaisedWarning is the warning of the edit that raises the store format (editNode): the config
-// file, the new format, and the format older releases read.
+// formatRaisedWarning is the warning of the edit that raises the store format (app.written): the
+// config file, the new format, and the format older releases read.
 const formatRaisedWarning = "%s: store format raised to %d; capcom releases that read only format %d can no longer read this store"
 
 // The help text of capcom related, related add and related rm.

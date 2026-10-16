@@ -8,8 +8,6 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
-	"github.com/airiclenz/capcom/internal/gitx"
-	"github.com/airiclenz/capcom/internal/issue"
 )
 
 // The help text of capcom reopen.
@@ -47,21 +45,7 @@ func (a *app) newReopenCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			author := func() (string, error) { return gitx.AuthorName(a.store.WorktreeRoot) }
-			written, err := a.editIssue(args[0], "", func(target issue.Issue) (issue.Issue, error) {
-				reopened, err := issue.Reopen(
-					target,
-					a.store.Config,
-					status,
-					options.reason,
-					author,
-					time.Now(),
-				)
-				if err != nil {
-					return issue.Issue{}, statusChangeFailure(err)
-				}
-				return reopened, nil
-			})
+			written, err := a.written(a.ops().Reopen(args[0], "", status, options.reason, time.Now()))
 			if err != nil {
 				return err
 			}
