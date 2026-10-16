@@ -192,6 +192,132 @@ func TestRefresh_SameSizeEditInOneMtimeTick_IsSeen(t *testing.T) {
 	}
 }
 
+// exportedRefresh runs the exported Refresh on x, failing the test on an error.
+func exportedRefresh(t *testing.T, x *Index) bool {
+	t.Helper()
+	isChanged, err := x.Refresh()
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	return isChanged
+}
+
+// changeFixture is a store holding two issues and a Note, opened with laterClock so every file
+// reads as clean.
+func changeFixture(t *testing.T) (*store.Store, *Index) {
+	t.Helper()
+	s := newStore(t)
+	writeIssue(t, s, "first-issue.md", issueText("First", "open", ""))
+	writeIssue(t, s, "second-issue.md", issueText("Second", "open", ""))
+	writeNote(t, s, "some-note.md", "---\ntitle: Some note\n---\nNote body.\n")
+	return s, openIndex(t, s, laterClock())
+}
+
+func TestRefreshExported_TreeChanged_ReportsChanged(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(t *testing.T, s *store.Store)
+	}{
+		{
+			name: "issue added",
+			change: func(t *testing.T, s *store.Store) {
+				writeIssue(t, s, "third-issue.md", issueText("Third", "open", ""))
+			},
+		},
+		{
+			name: "issue changed",
+			change: func(t *testing.T, s *store.Store) {
+				writeIssue(t, s, "second-issue.md", issueText("Second, edited", "open", ""))
+			},
+		},
+		{
+			name: "issue removed",
+			change: func(t *testing.T, s *store.Store) {
+				if err := os.Remove(filepath.Join(s.IssuesDir(), "second-issue.md")); err != nil {
+					t.Fatalf("Remove: %v", err)
+				}
+			},
+		},
+		{
+			name: "note changed",
+			change: func(t *testing.T, s *store.Store) {
+				writeNote(t, s, "some-note.md", "---\ntitle: Some note, edited\n---\nNote body.\n")
+			},
+		},
+		{
+			name: "oversize issue added",
+			change: func(t *testing.T, s *store.Store) {
+				writeIssue(t, s, "huge-issue.md", oversizeIssueText("Huge"))
+			},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s, x := changeFixture(t)
+			testCase.change(t, s)
+
+			isChanged := exportedRefresh(t, x)
+
+			if !isChanged {
+				t.Errorf("Refresh = false, want true; report %+v", x.Report())
+			}
+		})
+	}
+}
+
+func TestRefreshExported_NothingChanged_ReportsUnchangedAndParsesNothing(t *testing.T) {
+	t.Parallel()
+	s, x := changeFixture(t)
+	writeIssue(t, s, "huge-issue.md", oversizeIssueText("Huge"))
+	exportedRefresh(t, x)
+
+	isChanged := exportedRefresh(t, x)
+
+	if report := x.Report(); isChanged || len(report.parsed) != 0 {
+		t.Errorf("Refresh = %v, parsed %v; want false and nothing parsed", isChanged, report.parsed)
+	}
+}
+
+func TestRefreshExported_NothingChanged_KeepsMembershipWarnings(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "top-issue.md", issueText("Top", "open", ""))
+	writeIssue(t, s, "top-issue/dup-issue.md", issueText("Nested dup", "open", ""))
+	writeIssue(t, s, "dup-issue.md", issueText("Top dup", "open", ""))
+	x := openIndex(t, s, laterClock())
+
+	isChanged := exportedRefresh(t, x)
+
+	if got := warningStrings(x.Report()); isChanged || !slices.Equal(got, repeatedIDWarnings) {
+		t.Errorf("Refresh = %v, warnings %q; want false and %q", isChanged, got, repeatedIDWarnings)
+	}
+	if isIndexed(t, x, "dup-issue") {
+		t.Errorf("dup-issue indexed after a no-change Refresh, want it still excluded")
+	}
+}
+
+func TestRefreshExported_SameSizeEditInOneMtimeTick_ReparsesIt(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	tick := time.Date(2026, 10, 11, 12, 0, 0, 500_000_000, time.UTC)
+	path := writeIssue(t, s, "racy-issue.md", issueText("Title A", "open", ""))
+	if err := os.Chtimes(path, tick, tick); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+	x := openIndex(t, s, withClock(func() time.Time { return tick.Add(200 * time.Millisecond) }))
+	writeIssue(t, s, "racy-issue.md", issueText("Title B", "open", ""))
+	if err := os.Chtimes(path, tick, tick); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	isChanged := exportedRefresh(t, x)
+
+	if title := mustIssue(t, x, "racy-issue").Title; !isChanged || title != "Title B" {
+		t.Errorf("Refresh = %v, title %q; want true and the same-size edit seen", isChanged, title)
+	}
+}
+
 func TestRefresh_FileDeleted_DropsItsRows(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

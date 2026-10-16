@@ -40,7 +40,8 @@ const driverName = "sqlite"
 // upgrading a read lock.
 const dsnOptions = "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate"
 
-// Index is an open index of one store. It is not safe for concurrent use; open one per command.
+// Index is an open index of one store. It is not safe for concurrent use: open one per command,
+// or serialise every call, Refresh included, on the one Index a long-lived caller keeps.
 type Index struct {
 	db     *sql.DB
 	store  *store.Store
@@ -80,6 +81,9 @@ type Report struct {
 	parsed []string
 	// removed lists the files whose rows were dropped because the file is gone, in path order.
 	removed []string
+	// walkClaimsChanged is true when the names the files the walk leaves out claim differ from
+	// the ones the previous refresh stored.
+	walkClaimsChanged bool
 	// Indexed is the number of issues every query sees once the refresh is done.
 	Indexed int
 	// Warnings are every file left out and every problem found, in path then line order. A
@@ -106,6 +110,12 @@ type Entry struct {
 	Deps     []string
 	Related  []string
 	Aliases  []string
+}
+
+// isChanged reports whether the refresh behind the report saw any issue or Note added, changed
+// or removed: it rebuilt every table, parsed or dropped a file, or stored other walk claims.
+func (report Report) isChanged() bool {
+	return report.rebuilt || len(report.parsed) > 0 || len(report.removed) > 0 || report.walkClaimsChanged
 }
 
 // Path returns where the index of s lives: `<git-dir>/capcom/index.db`.

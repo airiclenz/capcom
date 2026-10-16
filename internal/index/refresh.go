@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -32,6 +33,22 @@ var commitTx = (*sql.Tx).Commit
 // readNodeFile reads a node file the walk found. It is a variable so a test can change the file
 // between the walk and its read.
 var readNodeFile = nodefile.ReadRegularFile
+
+// Refresh brings the open index up to date with the issue tree and the Knowledge tree on disk,
+// the same incremental refresh Open runs, and records its report as the one Report returns. It
+// reports true when any issue or Note was added, changed or removed since the previous refresh or
+// rebuild: a file was parsed again or its rows dropped, every table was rebuilt, or the files the
+// walk leaves out (oversize, not regular, below an orphan directory) claim other names than
+// before. With no file changed since a refresh that recorded it clean, it re-parses nothing and
+// reports false; a racily clean file is read once more and counts as changed. On failure it
+// returns false with the error, and Report keeps the previous refresh's report.
+func (x *Index) Refresh() (bool, error) {
+	report, err := x.refresh(false)
+	if err != nil {
+		return false, err
+	}
+	return report.isChanged(), nil
+}
 
 // refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
 // IMMEDIATE transaction, and records its report as the one Report returns. It re-parses only the
@@ -79,7 +96,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	if err := r.sync(found, &report); err != nil {
 		return Report{}, x.databaseError(err)
 	}
-	if err := r.replaceWalkClaims(); err != nil {
+	if report.walkClaimsChanged, err = r.replaceWalkClaims(); err != nil {
 		return Report{}, x.databaseError(err)
 	}
 	if err := r.persistMembership(); err != nil {
@@ -364,21 +381,60 @@ func (r *refresher) insertClaims(file foundFile, names []string, parse tree.Pars
 // replaceWalkClaims drops every claims row whose path has no files row, the claims an earlier
 // walk recorded for the files it left out, and stores this walk's instead, so such a claim holds
 // exactly as long as the walk keeps leaving its file out. It runs after sync, once the files rows
-// are current.
-func (r *refresher) replaceWalkClaims() error {
-	_, err := r.tx.ExecContext(r.ctx, `DELETE FROM claims WHERE path NOT IN (SELECT path FROM files)`)
+// are current. isChanged reports whether this walk's claims differ from the ones it replaced.
+func (r *refresher) replaceWalkClaims() (isChanged bool, err error) {
+	stored, err := r.storedWalkClaims()
 	if err != nil {
-		return fmt.Errorf("drop the claims of left-out files from index: %w", err)
+		return false, err
 	}
-	for _, current := range r.walkClaims {
+	_, err = r.tx.ExecContext(r.ctx, `DELETE FROM claims WHERE path NOT IN (SELECT path FROM files)`)
+	if err != nil {
+		return false, fmt.Errorf("drop the claims of left-out files from index: %w", err)
+	}
+	current := make([]string, 0, len(r.walkClaims))
+	for _, walkClaim := range r.walkClaims {
+		parse := parseStateNames[walkClaim.parse]
 		_, err := r.tx.ExecContext(
-			r.ctx, insertClaimQuery, current.path, current.kind, current.name, parseStateNames[current.parse],
+			r.ctx, insertClaimQuery, walkClaim.path, walkClaim.kind, walkClaim.name, parse,
 		)
 		if err != nil {
-			return fmt.Errorf("index %s: %w", current.path, err)
+			return false, fmt.Errorf("index %s: %w", walkClaim.path, err)
 		}
+		current = append(current, claimKey(walkClaim.path, walkClaim.kind, walkClaim.name, parse))
 	}
-	return nil
+	slices.Sort(current)
+	return !slices.Equal(stored, current), nil
+}
+
+// storedWalkClaims reads the claims an earlier walk recorded for the files it left out, the
+// claims rows whose path has no files row, each as claimKey spells it, sorted.
+func (r *refresher) storedWalkClaims() ([]string, error) {
+	rows, err := r.tx.QueryContext(
+		r.ctx, `SELECT path, kind, name, parse FROM claims WHERE path NOT IN (SELECT path FROM files)`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("read the claims of left-out files: %w", err)
+	}
+	defer rows.Close()
+	var stored []string
+	for rows.Next() {
+		var path, kind, name, parse string
+		if err := rows.Scan(&path, &kind, &name, &parse); err != nil {
+			return nil, fmt.Errorf("read the claims of left-out files: %w", err)
+		}
+		stored = append(stored, claimKey(path, kind, name, parse))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read the claims of left-out files: %w", err)
+	}
+	slices.Sort(stored)
+	return stored, nil
+}
+
+// claimKey spells one claims row as a single comparable string. Its fields are joined by a NUL,
+// which no path, kind, name or parse state name holds.
+func claimKey(path, kind, name, parse string) string {
+	return strings.Join([]string{path, kind, name, parse}, "\x00")
 }
 
 // statement is one SQL statement with its arguments.

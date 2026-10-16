@@ -142,8 +142,10 @@ returns `*nodestore.ConflictError`; a RemoveDep refusal carries the dependent's 
 - `grep -n '\.Edit(' internal/cli/*.go | grep -v _test.go` prints nothing
 **Commit:** `refactor(ops): move dependency and node edits into internal/ops`
 
-## 3. Export an incremental index refresh
+## 3. Export an incremental index refresh — ✅ DONE (2026-10-16)
 
+NOTES (2026-10-16): the walk-claims comparison lives in replaceWalkClaims (now returning isChanged) via a new storedWalkClaims read before the delete; Report gains an unexported walkClaimsChanged field and an isChanged method that Refresh returns.
+NOTES (2026-10-16): no CHANGELOG entry: Refresh is an internal API with no user-facing change until capcom ui ships.
 **What:** Recast at the regression check (2026-10-16).
 **Goal:** `(*index.Index).Refresh() (bool, error)` re-syncs an open index incrementally and reports
 true when any issue or Note was added, changed or removed; with no file changed it reports false
