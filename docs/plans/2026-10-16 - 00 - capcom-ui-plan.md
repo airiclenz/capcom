@@ -635,7 +635,11 @@ the edited file's problem shows first, with the count; the space split unit test
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): open the selected file in $EDITOR`
 
-## 19. Mouse
+## 19. Mouse — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that `View` records the regions in a geometry value the mouse handler reads: `View` has a value receiver and cannot hand state to `Update`, so the handler derives every region from the same model state the frame draws from (`model.pointAt` and `tabAt` in layout.go beside `body` and `tabBar`, the trees' and Ready list's `top`, `depView.lines`' line-to-row map, and `Rendered.Links` offset by the detail pane's origin and `detailOffset`).
+NOTES (2026-10-16): the filter line is treated like the prompts, status picker and help screen named in the regression guard: clicks and the wheel are ignored while it is open, since it takes every key and the sidebar it covers has shifted a row.
+NOTES (2026-10-16): followDep's select-in-Issues steps moved into a shared `revealIssue` (depview.go) that the link click also uses, with a `revealNote` counterpart in mouse.go; an id naming both an issue and a Note follows the Note on the Knowledge tab and the issue elsewhere. A dep-view row click selects the row (Enter follows it), and a wheel notch over the open dependency view moves its cursor rather than scrolling it, so the selection stays on screen. The detail pane scrolls 3 rows per wheel notch (`detailWheelRows`). The help screen's key map and the docs are left to item 21.
 
 **What:**
 **Goal:** with mouse reporting on, a click selects a tab, a sidebar row, a dep-view row or a detail

@@ -233,12 +233,20 @@ func (m model) followDep() (model, tea.Cmd) {
 		m.notice = fmt.Sprintf(depsMissingFormat, row.missing)
 		return m, nil
 	}
+	return m.revealIssue(row.id)
+}
+
+// revealIssue closes the dependency view and switches to the Issues tab with the issue id names
+// selected, its ancestors expanded and, when the tree hides it, revealed; an issue the Issues
+// filter hides clears that filter first. An issue the tree does not hold is reported in the status
+// bar as capcom ui issues reports one.
+func (m model) revealIssue(id string) (model, tea.Cmd) {
 	m.deps = depView{}
-	if m.filters[TabIssues].isActive() && !m.issues.tree.isShown[row.id] {
+	if m.filters[TabIssues].isActive() && !m.issues.tree.isShown[id] {
 		m = m.clearFilter(TabIssues)
 	}
-	if !m.issues.tree.selectID(row.id) {
-		m.notice = fmt.Sprintf(notInTreeFormat, row.id)
+	if !m.issues.tree.selectID(id) {
+		m.notice = fmt.Sprintf(notInTreeFormat, id)
 	}
 	return m.openTab(TabIssues)
 }
@@ -249,7 +257,7 @@ func (m model) paintDeps() model {
 	if !m.deps.isOpen || !m.deps.isLoaded {
 		return m
 	}
-	lines, selectedLine := m.deps.lines()
+	lines, selectedLine, _ := m.deps.lines()
 	m.detail = lines
 	if selectedLine >= 0 {
 		height := max(m.bodyHeight(), 1)
@@ -258,18 +266,20 @@ func (m model) paintDeps() model {
 	return m.scrollDetail(0)
 }
 
-// lines returns the dependency view's rows of text and the position of the selected one, -1
-// when it has none: the waits-on heading and rows, then the blocks heading and rows, a section
-// with no issue saying none. An issue with neither, and a read that failed, each take one row.
-func (v depView) lines() ([]string, int) {
+// lines returns the dependency view's rows of text, the position of the selected one, -1 when
+// it has none, and, for each line, the position in rows of the row it draws, -1 for a heading or
+// a none line: the waits-on heading and rows, then the blocks heading and rows, a section with no
+// issue saying none. An issue with neither, and a read that failed, each take one row.
+func (v depView) lines() ([]string, int, []int) {
 	switch {
 	case v.err != nil:
-		return []string{depsFailurePrefix + v.err.Error()}, -1
+		return []string{depsFailurePrefix + v.err.Error()}, -1, []int{-1}
 	case len(v.waitsOn) == 0 && len(v.blocks) == 0:
-		return []string{fmt.Sprintf(depsNeitherFormat, v.id)}, -1
+		return []string{fmt.Sprintf(depsNeitherFormat, v.id)}, -1, []int{-1}
 	}
 	selected := v.cursor.highlight(len(v.waitsOn) + len(v.blocks))
 	lines := make([]string, 0, len(v.waitsOn)+len(v.blocks)+4)
+	rowOfLine := make([]int, 0, cap(lines))
 	selectedLine := -1
 	position := 0
 	for _, section := range []struct {
@@ -277,8 +287,10 @@ func (v depView) lines() ([]string, int) {
 		rows    []depRow
 	}{{depsWaitsOnHeading, v.waitsOn}, {depsBlocksHeading, v.blocks}} {
 		lines = append(lines, section.heading)
+		rowOfLine = append(rowOfLine, -1)
 		if len(section.rows) == 0 {
 			lines = append(lines, depsNoneText)
+			rowOfLine = append(rowOfLine, -1)
 		}
 		for _, row := range section.rows {
 			text := depsRowIndent + row.text
@@ -287,8 +299,19 @@ func (v depView) lines() ([]string, int) {
 				text = selectedRowStyle.Render(text)
 			}
 			lines = append(lines, text)
+			rowOfLine = append(rowOfLine, position)
 			position++
 		}
 	}
-	return lines, selectedLine
+	return lines, selectedLine, rowOfLine
+}
+
+// rowAtLine returns the position in rows of the row the view draws on line, and -1 when line
+// holds a heading, a none line or nothing.
+func (v depView) rowAtLine(line int) int {
+	_, _, rowOfLine := v.lines()
+	if line < 0 || line >= len(rowOfLine) {
+		return -1
+	}
+	return rowOfLine[line]
 }

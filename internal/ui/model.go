@@ -167,8 +167,9 @@ func (m model) initialIDFor(tab Tab) string {
 // measure, polls the index on a tick, and handles the keys: an open confirmation prompt takes
 // every key, then an open text prompt, then an open status picker, then the open filter line,
 // ahead of the dependency view's, then the model's own. While the dependency view is open it keeps the detail
-// pane over whatever else repaints it. Any other message, such as a paste, reaches the open text
-// prompt or the open filter line.
+// pane over whatever else repaints it. Clicks and wheel notches go to the mouse handlers, which
+// ignore them while a prompt, the status picker, the filter line or the help screen is open. Any
+// other message, such as a paste, reaches the open text prompt or the open filter line.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -210,6 +211,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.
 		m.issue.renderedWidth = 0
 		m = m.renderDetail().paintDeps()
+	case tea.MouseClickMsg:
+		return m.mouseClick(msg)
+	case tea.MouseWheelMsg:
+		return m.mouseWheel(msg)
 	case tea.KeyPressMsg:
 		if m.prompt.isOpen {
 			return m.promptKey(msg)
@@ -243,11 +248,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// View draws the frame on the alternate screen. Until the first tea.WindowSizeMsg the size is
-// unknown and the frame is empty.
+// View draws the frame on the alternate screen, with the terminal reporting clicks and the wheel.
+// Until the first tea.WindowSizeMsg the size is unknown and the frame is empty.
 func (m model) View() tea.View {
 	view := tea.NewView(m.frame())
 	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
 	return view
 }
 

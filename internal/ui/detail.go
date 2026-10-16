@@ -62,6 +62,17 @@ func (d issueDetail) isID(text string) bool {
 	return d.ids[text]
 }
 
+// linkAt returns the target of the followable link drawn at column col of line line of the
+// rendering, and false when no link covers that cell.
+func (d issueDetail) linkAt(line, col int) (string, bool) {
+	for _, link := range d.rendered.Links {
+		if link.Line == line && col >= link.Col && col < link.Col+link.Width {
+			return link.Target, true
+		}
+	}
+	return "", false
+}
+
 // loadDetail returns a command that reads the issue at entry's path for the detail pane, through
 // the session, as readIssueDetail does. Ids that cannot be read show `<path>: <error>` in place of
 // the body, under a header from the index entry, and keep no ETag.

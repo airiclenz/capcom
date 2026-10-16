@@ -129,13 +129,78 @@ func (m model) rule() string {
 func (m model) tabBar() string {
 	labels := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {
-		label := " " + tabLabels[tab] + " "
+		label := tabBarLabel(tab)
 		if tab == m.tab {
 			label = activeTabStyle.Render(label)
 		}
 		labels = append(labels, label)
 	}
 	return strings.Join(labels, tabSeparator)
+}
+
+// tabBarLabel returns tab's label as the tab bar draws it, unstyled: its name padded by a space
+// on either side.
+func tabBarLabel(tab Tab) string {
+	return " " + tabLabels[tab] + " "
+}
+
+// tabAt returns the tab whose label covers column col of the tab bar, and false for a column on a
+// separator or past the last label.
+func tabAt(col int) (Tab, bool) {
+	start := 0
+	for _, tab := range tabOrder {
+		end := start + ansi.StringWidth(tabBarLabel(tab))
+		if col >= start && col < end {
+			return tab, true
+		}
+		start = end + ansi.StringWidth(tabSeparator)
+	}
+	return TabReady, false
+}
+
+// screenPane names the part of the screen a mouse event lands on.
+type screenPane int
+
+// The parts of the screen the mouse acts on; every other cell, such as the separator between the
+// panes, the rule and the status bar, is paneNone.
+const (
+	paneNone screenPane = iota
+	paneTabBar
+	paneSidebar
+	paneDetail
+)
+
+// panePoint is a screen cell located in the pane that draws it: the pane, and the cell's column
+// and row counted from that pane's top-left corner.
+type panePoint struct {
+	pane screenPane
+	col  int
+	row  int
+}
+
+// pointAt locates the screen cell at column x and row y in the layout body draws: the tab bar on
+// the top row, then on a wide terminal the sidebar left of the separator and the detail pane
+// right of it, and on a narrow one whichever of the two fills the screen. With the help screen
+// open no pane is on screen.
+func (m model) pointAt(x, y int) panePoint {
+	if x < 0 || y < 0 || x >= m.width {
+		return panePoint{}
+	}
+	if y == 0 {
+		return panePoint{pane: paneTabBar, col: x}
+	}
+	row := y - 1
+	switch {
+	case row >= m.bodyHeight() || m.isHelpOpen:
+		return panePoint{}
+	case m.isNarrow() && (m.isDetailOpen || m.picker.isOpen):
+		return panePoint{pane: paneDetail, col: x, row: row}
+	case m.isNarrow() || x < m.sidebarWidth():
+		return panePoint{pane: paneSidebar, col: x, row: row}
+	case x == m.sidebarWidth():
+		return panePoint{}
+	}
+	return panePoint{pane: paneDetail, col: x - m.sidebarWidth() - 1, row: row}
 }
 
 // fit cuts text to width columns, ending a cut line with an ellipsis.

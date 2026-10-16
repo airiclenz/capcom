@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/outline"
 )
@@ -174,9 +175,7 @@ func (w *treeWidget[E]) collapseOrLeave() {
 		return
 	}
 	if w.expanded[selected.ID] && selected.isExpanded {
-		w.expanded = maps.Clone(w.expanded)
-		delete(w.expanded, selected.ID)
-		w.rebuild(selected.ID)
+		w.collapse(selected.ID)
 		return
 	}
 	parentRow := slices.IndexFunc(w.rows, func(row treeRow[E]) bool { return row.ID == selected.ParentID })
@@ -184,6 +183,47 @@ func (w *treeWidget[E]) collapseOrLeave() {
 		return
 	}
 	w.cursor.seat(parentRow, len(w.rows))
+	w.settleSelection()
+}
+
+// collapse hides the children of the node id names, keeping the selection on it.
+func (w *treeWidget[E]) collapse(id string) {
+	w.expanded = maps.Clone(w.expanded)
+	delete(w.expanded, id)
+	w.rebuild(id)
+}
+
+// click selects the row painted at screen row row of the tree, counted from the top of what
+// paint last drew, and reports false, changing nothing, when no row is drawn there. A click at
+// column col on the arrow of a node with children also expands it, or collapses it when its
+// children show.
+func (w *treeWidget[E]) click(row, col int) bool {
+	position := w.top + row
+	if row < 0 || position >= len(w.rows) {
+		return false
+	}
+	clicked := w.rows[position]
+	arrowStart := clicked.Depth * ansi.StringWidth(treeIndent)
+	isOnArrow := clicked.HasChildren && col >= arrowStart && col < arrowStart+ansi.StringWidth(treeArrow(clicked))
+
+	w.cursor.seat(position, len(w.rows))
+	w.settleSelection()
+	if !isOnArrow {
+		return true
+	}
+	selected, _ := w.selection()
+	if w.expanded[selected.ID] && selected.isExpanded {
+		w.collapse(selected.ID)
+		return true
+	}
+	w.expand()
+	return true
+}
+
+// wheel moves the selection one row per wheel notch, stopping at the ends, and applies the
+// reveal rule where it lands.
+func (w *treeWidget[E]) wheel(msg tea.MouseWheelMsg) {
+	w.cursor.wheel(msg, len(w.rows))
 	w.settleSelection()
 }
 
