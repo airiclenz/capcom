@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/ui/markdown"
 	"github.com/airiclenz/capcom/internal/userconfig"
 )
@@ -52,11 +51,12 @@ type model struct {
 	detail       []string
 	detailOffset int
 
-	// ready is the Ready tab's queue and selection, issues the Issues tab's tree, and issue the
-	// issue the detail pane shows.
-	ready  readyTab
-	issues issuesTab
-	issue  issueDetail
+	// ready is the Ready tab's queue and selection, issues the Issues tab's tree, knowledge the
+	// Knowledge tab's tree, and issue the issue or Note the detail pane shows.
+	ready     readyTab
+	issues    issuesTab
+	knowledge knowledgeTab
+	issue     issueDetail
 }
 
 // newModel returns the model of a UI over options' store and index, opening on options.Tab and
@@ -101,13 +101,15 @@ func loadUserConfig(path string) (userconfig.Config, string) {
 	return config, userConfigNoticePrefix + strings.Join(texts, "; ")
 }
 
-// Init reads this worktree's Tree lock for the status bar, the Ready queue and the issues of the
-// Issues tree; the tab the UI opened on selects the id it was opened with.
+// Init reads this worktree's Tree lock for the status bar, the Ready queue, the issues of the
+// Issues tree and the Notes of the Knowledge tree; the tab the UI opened on selects the id it was
+// opened with.
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		readLock(m.session),
 		loadReady(m.session, m.initialIDFor(TabReady)),
 		loadIssues(m.session, m.initialIDFor(TabIssues)),
+		loadKnowledge(m.session, m.initialIDFor(TabKnowledge)),
 	)
 }
 
@@ -120,7 +122,7 @@ func (m model) initialIDFor(tab Tab) string {
 }
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
-// shown issue and the painter's width measure, and handles the keys.
+// Notes, the shown issue or Note and the painter's width measure, and handles the keys.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -133,6 +135,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyReady(msg)
 	case issuesMsg:
 		return m.applyIssues(msg)
+	case knowledgeMsg:
+		return m.applyKnowledge(msg)
 	case detailMsg:
 		m = m.applyDetail(msg)
 	case tea.ModeReportMsg:
@@ -155,30 +159,37 @@ func (m model) View() tea.View {
 }
 
 // showSelection paints the open tab's sidebar and returns the command that loads its selection
-// into the detail pane, when it is not the issue shown already.
+// into the detail pane, when it is not the issue or Note shown already.
 func (m model) showSelection() (model, tea.Cmd) {
 	switch m.tab {
 	case TabReady:
 		return m.showReadySelection()
 	case TabIssues:
 		return m.showIssuesSelection()
+	case TabKnowledge:
+		return m.showKnowledgeSelection()
 	}
 	return m, nil
 }
 
 // paintSidebar fills the sidebar with the open tab's rows.
 func (m model) paintSidebar() model {
-	return m.paintReadySidebar().paintIssuesSidebar()
+	return m.paintReadySidebar().paintIssuesSidebar().paintKnowledgeSidebar()
 }
 
-// sidebarSelection returns the issue the open tab's sidebar selects, and false when it selects
-// none.
-func (m model) sidebarSelection() (index.Entry, bool) {
+// sidebarSelection returns the id of the issue or Note the open tab's sidebar selects, and false
+// when it selects none.
+func (m model) sidebarSelection() (string, bool) {
 	switch m.tab {
 	case TabReady:
-		return m.readySelection()
+		entry, isSelected := m.readySelection()
+		return entry.ID, isSelected
 	case TabIssues:
-		return m.issuesSelection()
+		entry, isSelected := m.issuesSelection()
+		return entry.ID, isSelected
+	case TabKnowledge:
+		note, isSelected := m.knowledgeSelection()
+		return note.ID, isSelected
 	}
-	return index.Entry{}, false
+	return "", false
 }

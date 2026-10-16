@@ -79,6 +79,8 @@ func (m model) sidebarKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 		return m.readyKey(msg)
 	case TabIssues:
 		return m.issuesKey(msg)
+	case TabKnowledge:
+		return m.knowledgeKey(msg)
 	}
 	return m, nil, false
 }
@@ -132,7 +134,7 @@ func halfPage(page int) int {
 
 // openTab switches to tab, back on its sidebar with the detail pane at its top, and returns the
 // command that loads the tab's selection into the detail pane. Each tab keeps its own selection,
-// and the Issues tree its expanded nodes, across the switch.
+// and the Issues and Knowledge trees their expanded nodes, across the switch.
 func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	m.tab = tab
 	m.isDetailOpen = false

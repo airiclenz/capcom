@@ -9,6 +9,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/ui/markdown"
@@ -21,18 +22,19 @@ const (
 	codeMark        = "`"
 )
 
-// detailMsg carries one read of an issue for the detail pane: its id, the markdown source the
-// pane renders (the frontmatter header, then the body or why the file could not be read), the
-// file's ETag ("" when it did not parse) and the snapshot of every issue and Note id in the index
-// that the read took.
+// detailMsg carries one read of an issue or a Note for the detail pane: whether it is a Note,
+// its id, the markdown source the pane renders (the frontmatter header, then the body or why
+// the file could not be read), the file's ETag ("" when it did not parse) and the snapshot of
+// every issue and Note id in the index that the read took.
 type detailMsg struct {
+	isNote bool
 	id     string
 	source string
 	etag   string
 	ids    map[string]bool
 }
 
-// issueDetail is the issue the detail pane shows: what its read carried, and its source rendered
+// issueDetail is the issue or Note the detail pane shows: what its read carried, and its source rendered
 // at renderedWidth. The rendering is cached per (source, width): it is redone only when either
 // changes, and IsID reads the ids snapshot, never the index.
 type issueDetail struct {
@@ -145,16 +147,83 @@ func issueHeader(entry index.Entry) string {
 	return text.String()
 }
 
-// codeSpan wraps an id in a markdown code span.
+// codeSpan wraps an id or a ref in a markdown code span.
 func codeSpan(id string) string {
 	return codeMark + id + codeMark
 }
 
-// applyDetail takes in a read of an issue for the detail pane, unless the selection has moved on
-// since it was asked for, and shows it from its top.
+// loadNoteDetail returns a command that reads the Note at entry's path for the detail pane,
+// through the session: the file with nodestore.NoteReader and the ids the index holds. A file
+// that does not parse shows `<path>: <error>` in place of its body, under a header from the index
+// entry, and keeps no ETag.
+func loadNoteDetail(s *session, entry index.NoteEntry) tea.Cmd {
+	return func() tea.Msg {
+		msg := detailMsg{isNote: true, id: entry.ID}
+		err := s.do(func(opened *store.Store, issueIndex *index.Index) error {
+			ids, err := indexIDs(issueIndex)
+			if err != nil {
+				return err
+			}
+			msg.ids = ids
+			absolute := filepath.Join(opened.WorktreeRoot, filepath.FromSlash(entry.Path))
+			reading, readErr := nodestore.NoteReader().Read(absolute, entry.Path)
+			msg.source, msg.etag = noteSource(entry, reading, readErr)
+			return nil
+		})
+		if err != nil {
+			msg.source = noteHeader(entry) + fmt.Sprintf("%s: %v", entry.Path, err)
+		}
+		return msg
+	}
+}
+
+// noteSource returns the markdown the detail pane renders for the Note file entry names, and the
+// ETag to keep: the header and body from the file when it parses, or the header from entry and
+// the read's failure, `<path>: <error>`, with no ETag when it does not.
+func noteSource(entry index.NoteEntry, reading nodestore.Reading[knowledge.Note], err error) (string, string) {
+	switch {
+	case err != nil:
+		return noteHeader(entry) + fmt.Sprintf("%s: %v", entry.Path, err), ""
+	case !reading.IsRead():
+		return noteHeader(entry) + reading.Refusal[0].String(), ""
+	case !reading.IsParsed():
+		return noteHeader(entry) + reading.Parse[0].String(), ""
+	}
+	parsed := reading.Node
+	entry.Title = parsed.Title
+	entry.Labels = parsed.Labels
+	entry.Refs = parsed.Refs
+	return noteHeader(entry) + parsed.Body, reading.ETag
+}
+
+// noteHeader returns the markdown header of a Note's detail: its title as a heading, then its
+// labels and refs, each line left out when empty, and a blank line before the body. The refs are
+// code spans, so the renderer makes the ones naming an issue or Note id links and leaves file
+// refs inert.
+func noteHeader(entry index.NoteEntry) string {
+	var text strings.Builder
+	fmt.Fprintf(&text, "# %s\n\n", oneLine(entry.Title))
+	if len(entry.Labels) > 0 {
+		fmt.Fprintf(&text, "labels: %s\n", strings.Join(entry.Labels, listSeparator))
+	}
+	if len(entry.Refs) > 0 {
+		spans := make([]string, 0, len(entry.Refs))
+		for _, ref := range entry.Refs {
+			spans = append(spans, codeSpan(ref))
+		}
+		fmt.Fprintf(&text, "refs: %s\n", strings.Join(spans, listSeparator))
+	}
+	text.WriteString("\n")
+	return text.String()
+}
+
+// applyDetail takes in a read of an issue or a Note for the detail pane, unless the selection
+// has moved on since it was asked for, and shows it from its top. A Note's read applies only on
+// the Knowledge tab and an issue's only on the others, so an issue and a Note sharing an id never
+// take each other's place.
 func (m model) applyDetail(msg detailMsg) model {
-	selected, isSelected := m.sidebarSelection()
-	if !isSelected || selected.ID != msg.id {
+	selectedID, isSelected := m.sidebarSelection()
+	if !isSelected || selectedID != msg.id || msg.isNote != (m.tab == TabKnowledge) {
 		return m
 	}
 	m.issue = issueDetail{id: msg.id, source: msg.source, etag: msg.etag, ids: msg.ids}
@@ -162,7 +231,7 @@ func (m model) applyDetail(msg detailMsg) model {
 	return m.renderDetail()
 }
 
-// renderDetail fills the detail pane with the shown issue rendered at the pane's width, rendering
+// renderDetail fills the detail pane with the shown issue or Note rendered at the pane's width, rendering
 // again only when the source or the width changed since the last time.
 func (m model) renderDetail() model {
 	width := m.detailWidth()

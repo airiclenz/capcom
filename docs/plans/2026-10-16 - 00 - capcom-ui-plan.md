@@ -434,7 +434,13 @@ ancestors (muted) and they hide again once the selection moves away; a golden of
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): Issues tab with a collapsible tree`
 
-## 12. Knowledge tab
+## 12. Knowledge tab — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from "rows from outline.Notes over Index.Notes(false)": a retired Note named by `capcom ui knowledge <id>` must be in the tree to be revealed (item 11's rule), so the tab reads Index.Notes(true) and builds the outline with outline.NewTree using outline.Notes' grouping and id order and a shown rule that hides retired as well as background subtrees; a test asserts the fully expanded rows equal outline.Notes over Index.Notes(false).
+NOTES (2026-10-16): re-derived from "key routing lives in model.go": the tab's sidebar key routing (sidebarKey) lives in internal/ui/keys.go, so the TabKnowledge case is added there.
+NOTES (2026-10-16): consequential edit — internal/ui/keys.go: made necessary by the Knowledge tree keeping its expanded nodes across a tab switch (openTab doc comment).
+NOTES (2026-10-16): consequential edit — internal/ui/ready.go: made necessary by capcom ui knowledge reusing selectFailureFormat (its doc comment named only ready and issues).
+NOTES (2026-10-16): detailMsg gained isNote and sidebarSelection now returns the selected id, so a Note read applies only on the Knowledge tab and an issue read only on the others (an issue and a Note may share an id).
 
 **What:**
 **Goal:** the Knowledge tab shows the `capcom know tree` outline (retired and background Notes hidden
