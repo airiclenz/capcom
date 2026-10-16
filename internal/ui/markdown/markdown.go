@@ -1,7 +1,12 @@
 // Package markdown renders the markdown subset capcom's issue and Note bodies use into styled
 // terminal lines: # headings, ``` fenced code blocks ```, bullet and numbered lists, GFM pipe
-// tables, `inline code`, **bold** and <u>underline</u>. It is a spare, lipgloss-only renderer with
-// no syntax highlighting, ported from apogee's TUI.
+// tables, > blockquotes, `inline code`, **bold**, <u>underline</u>, [links](target) and
+// <scheme://autolinks>. It is a spare, lipgloss-only renderer with no syntax highlighting, ported
+// from apogee's TUI, which had neither links nor blockquotes.
+//
+// A link whose target is an issue or Note id, and an inline-code span whose text is one, is
+// followable: Render reports its screen region so a click can follow it (see links.go). Every
+// other link is styled but inert.
 //
 // Every width is a display width in terminal cells, taken in the Theme's Measure: ANSI escapes
 // count for nothing, wide glyphs count for two, and the measure follows the painter (see
@@ -9,33 +14,44 @@
 // so it re-emits a style across a soft-wrap boundary. Unterminated markup (a ` or ** or <u> with
 // no closing partner, a fence with no closing fence) degrades to literal text.
 //
-// Files: markdown.go (Render and the block walk), table.go (pipe tables), wrap.go (wrapping
-// primitives), width.go (Measure), theme.go (Theme and glyphs).
+// Files: markdown.go (Render and the block walk), links.go (links and their screen regions),
+// table.go (pipe tables), wrap.go (wrapping primitives), width.go (Measure), theme.go (Theme and
+// glyphs).
 package markdown
 
 import (
 	"strings"
-
-	"charm.land/lipgloss/v2"
 )
 
 // codeBlockIndent leads every line of a fenced code block.
 const codeBlockIndent = "  "
 
+// quoteBarGap follows each quote bar, between it and the next bar or the quoted text;
+// quoteLevelWidth is the cells one nesting level of a blockquote takes, its bar and the gap.
+const (
+	quoteBarGap     = " "
+	quoteLevelWidth = 2
+)
+
+// maxBlockIndent is the most leading spaces a > blockquote marker may carry, as in CommonMark.
+const maxBlockIndent = 3
+
 // Render renders markdown text into styled physical lines, none wider than width cells in
-// th.Measure (a width below 1 is taken as 1). The one line that may exceed it is a single
-// grapheme wider than the whole width, which no break can divide.
+// th.Measure (a width below 1 is taken as 1), and reports the screen region of every followable
+// link on them (see Options and Link). The one line that may exceed the width is a single grapheme
+// wider than the whole width, which no break can divide.
 //
-// It walks the text block by block: fenced code blocks, ATX headings, pipe tables, bullet and
-// numbered list items, then plain paragraphs. The table matcher is offered a line before the list
-// matcher, which would otherwise read a delimiter row written without outer pipes ("- | -") as a
-// bullet; a block that is no table, or one the width cannot fit, falls through to the paragraph
-// path. Runs of two or more blank lines outside code blocks are collapsed to one first. Empty text
-// yields one empty line.
-func Render(th Theme, text string, width int) []string {
+// It walks the text block by block: fenced code blocks, blockquote lines, ATX headings, pipe
+// tables, bullet and numbered list items, then plain paragraphs. The table matcher is offered a
+// line before the list matcher, which would otherwise read a delimiter row written without outer
+// pipes ("- | -") as a bullet; a block that is no table, or one the width cannot fit, falls
+// through to the paragraph path. Runs of two or more blank lines outside code blocks are collapsed
+// to one first. Empty text yields one empty line and no links.
+func Render(th Theme, text string, width int, opts Options) Rendered {
 	if width < 1 {
 		width = 1
 	}
+	links := &linkSet{isID: opts.IsID}
 	lines := collapseBlankRuns(strings.Split(text, "\n"))
 	var out []string
 	for i := 0; i < len(lines); i++ {
@@ -45,25 +61,33 @@ func Render(th Theme, text string, width int) []string {
 			body, end := fenceBody(lines, i)
 			out = append(out, renderCodeBlock(th, body, width)...)
 			i = end
-		case isHeading(line):
-			out = append(out, renderHeadingLine(th, headingText(line), width)...)
+		case isQuote(line):
+			out = append(out, renderQuote(th, links, line, width)...)
 		default:
-			if rendered, span, ok := renderTableAt(th, lines, i, width); ok {
+			if rendered, span, ok := renderTableAt(th, links, lines, i, width); ok {
 				out = append(out, rendered...)
 				i += span - 1 // the loop's own i++ steps past the block's last line
 				continue
 			}
-			if item, ok := matchListItem(line); ok {
-				out = append(out, renderListItem(th, item, width)...)
-				continue
-			}
-			out = append(out, renderParagraphLine(th, line, width)...)
+			out = append(out, renderTextLine(th, links, line, width)...)
 		}
 	}
 	if len(out) == 0 {
-		return []string{""}
+		out = []string{""}
 	}
-	return out
+	return collectLinks(th, out, links.targets)
+}
+
+// renderTextLine renders one line that is no code block, quote or table: an ATX heading, a list
+// item or a paragraph line.
+func renderTextLine(th Theme, links *linkSet, line string, width int) []string {
+	if isHeading(line) {
+		return renderHeadingLine(th, headingText(line), width)
+	}
+	if item, ok := matchListItem(line); ok {
+		return renderListItem(th, links, item, width)
+	}
+	return renderParagraphLine(th, links, line, width)
 }
 
 // fenceBody returns the body of the fenced code block opening at lines[start], and the index of
@@ -82,13 +106,22 @@ func fenceBody(lines []string, start int) ([]string, int) {
 }
 
 // renderTableAt renders the pipe table opening at lines[start], reporting how many source lines
-// it spans; ok is false when no table opens there or the width cannot fit it.
-func renderTableAt(th Theme, lines []string, start, width int) (rendered []string, span int, ok bool) {
+// it spans; ok is false when no table opens there or the width cannot fit it. A heading line never
+// opens a table: the heading reading wins.
+func renderTableAt(
+	th Theme,
+	links *linkSet,
+	lines []string,
+	start, width int,
+) (rendered []string, span int, ok bool) {
+	if isHeading(lines[start]) {
+		return nil, 0, false
+	}
 	table, span, ok := matchTableBlock(lines, start)
 	if !ok {
 		return nil, 0, false
 	}
-	rendered, fits := renderTable(th, table, width)
+	rendered, fits := renderTable(th, links, table, width)
 	if !fits {
 		return nil, 0, false
 	}
@@ -123,8 +156,8 @@ func collapseBlankRuns(lines []string) []string {
 
 // renderParagraphLine styles one ordinary line's inline spans and word-wraps it to width,
 // keeping the line's own break. A blank line stays one blank line.
-func renderParagraphLine(th Theme, line string, width int) []string {
-	return wrapText(th, renderInline(th, line), width)
+func renderParagraphLine(th Theme, links *linkSet, line string, width int) []string {
+	return wrapText(th, renderInline(th, links, line), width)
 }
 
 // renderHeadingLine renders a heading's text in the Heading style, word-wrapped to width. Inline
@@ -142,8 +175,26 @@ func renderHeadingLine(th Theme, text string, width int) []string {
 // renderListItem renders a list item: its marker (the bullet glyph or the source number) and its
 // inline-styled text, word-wrapped with a hanging indent so continuation lines align under the
 // text.
-func renderListItem(th Theme, item listItem, width int) []string {
-	return hangingPrefixes(th, item.indent+item.marker, renderInline(th, item.text), width)
+func renderListItem(th Theme, links *linkSet, item listItem, width int) []string {
+	return hangingPrefixes(th, item.indent+item.marker, renderInline(th, links, item.text), width)
+}
+
+// renderQuote renders one blockquote line: its text rendered as a heading, list item or paragraph
+// line at the width left inside its bars, then one Quote-styled bar per nesting level ("> > ")
+// prefixed to every line it wraps to. A width too narrow to hold the bars and one column of text
+// drops the bars and renders the text flat at the full width (hangCollapses).
+func renderQuote(th Theme, links *linkSet, line string, width int) []string {
+	depth, text := splitQuote(line)
+	barsWidth := depth * quoteLevelWidth
+	if hangCollapses(width, barsWidth) {
+		return renderTextLine(th, links, text, width)
+	}
+	bars := strings.Repeat(th.Quote.Render(glyphQuoteBar)+quoteBarGap, depth)
+	out := renderTextLine(th, links, text, width-barsWidth)
+	for i, segment := range out {
+		out[i] = bars + segment
+	}
+	return out
 }
 
 // renderCodeBlock renders a fenced code block's body: each source line indented two columns,
@@ -165,16 +216,18 @@ func renderCodeBlock(th Theme, code []string, width int) []string {
 	return out
 }
 
-// renderInline styles the inline spans in one logical line: `code`, **bold** and
-// <u>underline</u>. Code spans win over both, so no bold and no <u> is parsed inside one, as in
-// CommonMark. An unterminated ` or ** or <u> is emitted literally.
+// renderInline styles the inline spans in one logical line: `code`, **bold**, <u>underline</u>,
+// [links](target) and <scheme://autolinks>. Code spans win over the rest, so nothing is parsed
+// inside one, as in CommonMark; the text of a bold, underline or link span is not parsed either.
+// An unterminated ` or ** or <u>, and a [ or < that opens no link, is emitted literally. Followable
+// links are marked in links (see links.go).
 //
 // <u> is the one HTML tag the renderer knows, since markdown has no underline of its own, and it
 // is matched as exact lowercase bytes: <U>, <u > and every other tag stay literal.
-func renderInline(th Theme, s string) string {
+func renderInline(th Theme, links *linkSet, s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); {
-		if styled, next, ok := matchInlineSpan(th, s, i); ok {
+		if styled, next, ok := matchInlineSpan(th, links, s, i); ok {
 			b.WriteString(styled)
 			i = next
 			continue
@@ -185,25 +238,30 @@ func renderInline(th Theme, s string) string {
 	return b.String()
 }
 
-// inlineSpan is one kind of inline markup: its opening and closing delimiters and its style.
+// inlineSpan is one kind of delimited inline markup: its opening and closing delimiters and how
+// its text is rendered.
 type inlineSpan struct {
-	open  string
-	close string
-	style func(Theme) lipgloss.Style
+	open   string
+	close  string
+	render func(th Theme, links *linkSet, text string) string
 }
 
-// inlineSpans are the inline markups renderInline knows, in precedence order: a code span is
-// tried first, so its content is never parsed for the others.
+// inlineSpans are the delimited inline markups renderInline knows, in precedence order: a code
+// span is tried first, so its content is never parsed for the others.
 var inlineSpans = []inlineSpan{
-	{open: "`", close: "`", style: func(th Theme) lipgloss.Style { return th.Code }},
-	{open: "**", close: "**", style: func(th Theme) lipgloss.Style { return th.Bold }},
-	{open: "<u>", close: "</u>", style: func(th Theme) lipgloss.Style { return th.Underline }},
+	{open: "`", close: "`", render: renderCodeSpan},
+	{open: "**", close: "**", render: func(th Theme, _ *linkSet, text string) string {
+		return th.Bold.Render(text)
+	}},
+	{open: "<u>", close: "</u>", render: func(th Theme, _ *linkSet, text string) string {
+		return th.Underline.Render(text)
+	}},
 }
 
-// matchInlineSpan reports whether a terminated inline span opens at s[i], returning its styled
-// text and the index just past its closing delimiter. An opening delimiter with no closing one is
-// not a span: the caller then copies it literally, one byte at a time.
-func matchInlineSpan(th Theme, s string, i int) (styled string, next int, ok bool) {
+// matchInlineSpan reports whether a terminated inline span or a link opens at s[i], returning its
+// styled text and the index just past its end. An opening delimiter with no closing one is not a
+// span: the caller then copies it literally, one byte at a time.
+func matchInlineSpan(th Theme, links *linkSet, s string, i int) (styled string, next int, ok bool) {
 	for _, span := range inlineSpans {
 		if !strings.HasPrefix(s[i:], span.open) {
 			continue
@@ -213,7 +271,13 @@ func matchInlineSpan(th Theme, s string, i int) (styled string, next int, ok boo
 		if end < 0 {
 			return "", 0, false
 		}
-		return span.style(th).Render(s[start : start+end]), start + end + len(span.close), true
+		return span.render(th, links, s[start:start+end]), start + end + len(span.close), true
+	}
+	switch s[i] {
+	case '[':
+		return matchLink(th, links, s, i)
+	case '<':
+		return matchAutolink(th, s, i)
 	}
 	return "", 0, false
 }
@@ -232,6 +296,30 @@ func isHeading(line string) bool {
 		n++
 	}
 	return n >= 1 && n <= 6 && n < len(trimmed) && trimmed[n] == ' '
+}
+
+// isQuote reports whether line is a blockquote line: a > after at most three leading spaces.
+func isQuote(line string) bool {
+	depth, _ := splitQuote(line)
+	return depth > 0
+}
+
+// splitQuote returns a blockquote line's nesting depth, one per > marker ("> > x" is two), and
+// the text after its markers, each marker's one following space dropped. A line that is no
+// blockquote has depth 0 and is returned whole.
+func splitQuote(line string) (depth int, text string) {
+	rest := strings.TrimLeft(line, " ")
+	if len(line)-len(rest) > maxBlockIndent || !strings.HasPrefix(rest, ">") {
+		return 0, line
+	}
+	for strings.HasPrefix(rest, ">") {
+		depth++
+		rest = strings.TrimPrefix(rest[1:], " ")
+		if nested := strings.TrimLeft(rest, " "); strings.HasPrefix(nested, ">") {
+			rest = nested
+		}
+	}
+	return depth, rest
 }
 
 // headingText returns a heading line's text with the # markers and surrounding space stripped.

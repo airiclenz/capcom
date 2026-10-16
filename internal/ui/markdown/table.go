@@ -194,7 +194,7 @@ const minTableColumnWidth = 4
 // and padded on the side its alignment names. It reports false when the width cannot give every
 // column minTableColumnWidth cells once the dividers are paid for; the caller then renders the
 // block as paragraphs.
-func renderTable(th Theme, table mdTable, width int) ([]string, bool) {
+func renderTable(th Theme, links *linkSet, table mdTable, width int) ([]string, bool) {
 	if len(table.header) == 0 {
 		return nil, false
 	}
@@ -203,13 +203,13 @@ func renderTable(th Theme, table mdTable, width int) ([]string, bool) {
 	// otherwise keep its tab through the column measure and paint four cells wider than counted.
 	header := make([]string, len(table.header))
 	for i, cell := range table.header {
-		header[i] = th.Bold.Render(renderInline(th, expandTabs(cell)))
+		header[i] = th.Bold.Render(renderInline(th, links, expandTabs(cell)))
 	}
 	rows := make([][]string, len(table.rows))
 	for i, row := range table.rows {
 		cells := make([]string, len(row))
 		for j, cell := range row {
-			cells[j] = renderInline(th, expandTabs(cell))
+			cells[j] = renderInline(th, links, expandTabs(cell))
 		}
 		rows[i] = cells
 	}

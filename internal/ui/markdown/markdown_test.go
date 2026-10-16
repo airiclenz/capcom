@@ -40,7 +40,7 @@ func TestRenderInlineBold(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	got := renderInline(th, "a **bold** b")
+	got := renderInline(th, nil, "a **bold** b")
 	if v := strip(got); v != "a bold b" {
 		t.Errorf("visible = %q; want %q (the ** markers consumed)", v, "a bold b")
 	}
@@ -58,7 +58,7 @@ func TestRenderInlineUnderline(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	got := renderInline(th, "press <u>Enter</u> now")
+	got := renderInline(th, nil, "press <u>Enter</u> now")
 	if v := strip(got); v != "press Enter now" {
 		t.Errorf("visible = %q; want %q (the <u> tags consumed)", v, "press Enter now")
 	}
@@ -77,7 +77,7 @@ func TestRenderInlineUnderlineLiteralPassthrough(t *testing.T) {
 
 	th := testTheme()
 	for _, in := range []string{"__text__", "<U>x</U>", "<u >x</u>"} {
-		got := renderInline(th, in)
+		got := renderInline(th, nil, in)
 		if got != in {
 			t.Errorf("renderInline(%q) = %q; want it byte-for-byte literal", in, got)
 		}
@@ -88,7 +88,7 @@ func TestRenderInlineCode(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	got := renderInline(th, "run `go test` now")
+	got := renderInline(th, nil, "run `go test` now")
 	if v := strip(got); v != "run go test now" {
 		t.Errorf("visible = %q; want %q (the backticks consumed)", v, "run go test now")
 	}
@@ -102,7 +102,7 @@ func TestRenderInlineCodeBeatsBold(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	got := renderInline(th, "`**x**`")
+	got := renderInline(th, nil, "`**x**`")
 	if v := strip(got); v != "**x**" {
 		t.Errorf("visible = %q; want %q (bold not parsed inside a code span)", v, "**x**")
 	}
@@ -113,7 +113,7 @@ func TestRenderInlineCodeBeatsUnderline(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	got := renderInline(th, "`<u>x</u>`")
+	got := renderInline(th, nil, "`<u>x</u>`")
 	if v := strip(got); v != "<u>x</u>" {
 		t.Errorf("visible = %q; want %q (<u> not parsed inside a code span)", v, "<u>x</u>")
 	}
@@ -128,7 +128,7 @@ func TestRenderInlineUnterminated(t *testing.T) {
 
 	th := testTheme()
 	for _, in := range []string{"a **bold start", "a `code start", "trailing *", "a <u>open"} {
-		got := renderInline(th, in)
+		got := renderInline(th, nil, in)
 		if v := strip(got); v != in {
 			t.Errorf("renderInline(%q) visible = %q; want it left literal", in, v)
 		}
@@ -143,7 +143,7 @@ func TestHeadingStripsMarkers(t *testing.T) {
 
 	th := testTheme()
 	for _, lvl := range []string{"#", "##", "###", "####", "#####", "######"} {
-		out := Render(th, lvl+" Title", 40)
+		out := Render(th, lvl+" Title", 40, Options{}).Lines
 		if len(out) != 1 {
 			t.Fatalf("%q heading: got %d lines, want 1", lvl, len(out))
 		}
@@ -165,7 +165,7 @@ func TestNotAHeading(t *testing.T) {
 
 	th := testTheme()
 	for _, in := range []string{"####### TooDeep", "#NoSpace"} {
-		out := Render(th, in, 40)
+		out := Render(th, in, 40, Options{}).Lines
 		if v := strip(out[0]); v != in {
 			t.Errorf("Render(%q) visible = %q; want it unchanged (not a heading)", in, v)
 		}
@@ -177,7 +177,7 @@ func TestBulletList(t *testing.T) {
 
 	th := testTheme()
 	for _, b := range []string{"-", "*", "+"} {
-		out := Render(th, b+" one\n"+b+" two", 40)
+		out := Render(th, b+" one\n"+b+" two", 40, Options{}).Lines
 		if len(out) != 2 {
 			t.Fatalf("bullet %q: got %d lines, want 2", b, len(out))
 		}
@@ -194,7 +194,7 @@ func TestNumberedList(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	out := Render(th, "1. first\n2) second", 40)
+	out := Render(th, "1. first\n2) second", 40, Options{}).Lines
 	if v := strip(out[0]); v != "1. first" {
 		t.Errorf("numbered line 0 visible = %q; want %q", v, "1. first")
 	}
@@ -208,7 +208,7 @@ func TestListHangingIndent(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	out := Render(th, "- "+strings.Repeat("word ", 8), 20)
+	out := Render(th, "- "+strings.Repeat("word ", 8), 20, Options{}).Lines
 	if len(out) < 2 {
 		t.Fatalf("expected the long item to wrap, got %d line(s)", len(out))
 	}
@@ -224,7 +224,7 @@ func TestFencedCodeBlock(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	out := Render(th, "```go\nfmt.Println()\n```", 40)
+	out := Render(th, "```go\nfmt.Println()\n```", 40, Options{}).Lines
 	if len(out) != 1 {
 		t.Fatalf("got %d lines, want 1 (fence lines dropped)", len(out))
 	}
@@ -246,7 +246,7 @@ func TestFencedCodeBlockUnterminated(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	out := Render(th, "```\ncode line", 40)
+	out := Render(th, "```\ncode line", 40, Options{}).Lines
 	if v := strip(out[0]); v != "  code line" {
 		t.Errorf("visible = %q; want %q", v, "  code line")
 	}
@@ -278,7 +278,7 @@ func TestCollapsesBlankRuns(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			out := Render(th, tc.in, 40)
+			out := Render(th, tc.in, 40, Options{}).Lines
 			if len(out) != len(tc.want) {
 				t.Fatalf("Render(%q) = %#v; want %#v", tc.in, visible(out), tc.want)
 			}
@@ -297,7 +297,7 @@ func TestFencedCodeBlockKeepsBlankLines(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	out := Render(th, "```go\na()\n\n\nb()\n```\n\ntail", 40)
+	out := Render(th, "```go\na()\n\n\nb()\n```\n\ntail", 40, Options{}).Lines
 	want := []string{"  a()", "  ", "  ", "  b()", "", "tail"}
 	if len(out) != len(want) {
 		t.Fatalf("got %#v; want %#v (fence interior verbatim)", visible(out), want)
@@ -343,7 +343,7 @@ func TestPlainTextUnchanged(t *testing.T) {
 		"--- | ---",
 		"the range is 1 -- 3",
 	} {
-		out := Render(th, in, 80)
+		out := Render(th, in, 80, Options{}).Lines
 		if len(out) != 1 || out[0] != in {
 			t.Errorf("Render(%q) = %#v; want a single unchanged line", in, out)
 		}
@@ -364,7 +364,7 @@ func TestWidthNeverExceeds(t *testing.T) {
 		"| a | b | c |\n| --- | :-: | ---: |\n| **bold cell** | `code cell` | x |",
 	}
 	for _, body := range bodies {
-		for _, ln := range Render(th, body, width) {
+		for _, ln := range Render(th, body, width, Options{}).Lines {
 			if w := lipgloss.Width(ln); w > width {
 				t.Errorf("line %q has visible width %d > %d", strip(ln), w, width)
 			}
@@ -396,7 +396,7 @@ func TestTableWidthNeverExceedsAcrossWidths(t *testing.T) {
 			th.Measure = Measure{method: pm.method}
 
 			for width := 1; width <= 120; width++ {
-				for i, ln := range Render(th, source, width) {
+				for i, ln := range Render(th, source, width, Options{}).Lines {
 					v := strip(ln)
 					w := th.Measure.Width(ln)
 					if w <= width {
@@ -416,7 +416,7 @@ func TestEmptyMessageRendersOneLine(t *testing.T) {
 	t.Parallel()
 
 	th := testTheme()
-	if out := Render(th, "", 40); len(out) != 1 || strip(out[0]) != "" {
+	if out := Render(th, "", 40, Options{}).Lines; len(out) != 1 || strip(out[0]) != "" {
 		t.Errorf("empty text = %#v; want a single empty line", out)
 	}
 }
@@ -431,5 +431,8 @@ func testTheme() Theme {
 		Code:      lipgloss.NewStyle().Foreground(lipgloss.Color("6")),
 		CodeBlock: lipgloss.NewStyle().Foreground(lipgloss.Color("6")),
 		Rule:      lipgloss.NewStyle().Faint(true),
+		Link:      lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Color("4")),
+		Inert:     lipgloss.NewStyle().Foreground(lipgloss.Color("8")),
+		Quote:     lipgloss.NewStyle().Faint(true),
 	}
 }

@@ -17,6 +17,8 @@ const (
 	// glyphTableCross is U+253C LIGHT VERTICAL AND HORIZONTAL, where a horizontal rule crosses a
 	// column divider.
 	glyphTableCross = "┼"
+	// glyphQuoteBar is U+2502 LIGHT VERTICAL, the bar a blockquote shows per nesting level.
+	glyphQuoteBar = "│"
 )
 
 // Theme is what Render paints with: the width measure every line is wrapped and padded in, and
@@ -39,4 +41,11 @@ type Theme struct {
 	// Rule paints a table's dividers and horizontal rules: the frame, which must not read as
 	// loudly as the cells it separates.
 	Rule lipgloss.Style
+	// Link paints a followable link: a markdown link or inline-code span naming an issue or Note
+	// id.
+	Link lipgloss.Style
+	// Inert paints a link that cannot be followed: a URL, a file path or any other non-id target.
+	Inert lipgloss.Style
+	// Quote paints a blockquote's bars; the quoted text keeps its own styles.
+	Quote lipgloss.Style
 }

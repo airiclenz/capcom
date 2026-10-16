@@ -267,7 +267,7 @@ func TestTableRendersLayoutExample(t *testing.T) {
 		"Run       │     3 │ go test ./...",
 	}
 
-	got := visibleTrimmed(Render(th, source, 34))
+	got := visibleTrimmed(Render(th, source, 34, Options{}).Lines)
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("table render mismatch:\n--- got ---\n%s\n--- want ---\n%s",
@@ -294,7 +294,7 @@ func TestTableRowsShareOneWidth(t *testing.T) {
 	}, "\n")
 	const width = 76 // narrower than the table's natural width, so it is fitted to exactly this
 
-	got := Render(th, source, width)
+	got := Render(th, source, width, Options{}).Lines
 
 	if len(got) != 8 {
 		t.Fatalf("got %d lines, want 8 (header, rule, three rows — one wrapped to two — and a rule between each pair): %#v",
@@ -315,7 +315,7 @@ func TestTableConsumesItsSyntax(t *testing.T) {
 	th := testTheme()
 	source := "| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |"
 
-	got := Render(th, source, 40)
+	got := Render(th, source, 40, Options{}).Lines
 
 	if len(got) != 3 {
 		t.Fatalf("got %d lines, want 3 (header, rule, one row): %#v", len(got), visible(got))
@@ -347,7 +347,7 @@ func TestTableCellUnderline(t *testing.T) {
 	th := testTheme()
 	source := "| a | b |\n| --- | --- |\n| <u>x</u> | y |"
 
-	got := Render(th, source, 40)
+	got := Render(th, source, 40, Options{}).Lines
 
 	if len(got) != 3 {
 		t.Fatalf("got %d lines, want 3 (header, rule, one row): %#v", len(got), visible(got))
@@ -378,7 +378,7 @@ func TestTableRuleIsContinuous(t *testing.T) {
 		"| Run | 3 | `go test ./...` |",
 	}, "\n")
 
-	got := Render(th, source, 40) // wider than the table, so no column is shrunk
+	got := Render(th, source, 40, Options{}).Lines // wider than the table, so no column is shrunk
 
 	if len(got) != 5 {
 		t.Fatalf("got %d lines, want 5 (header, rule, row, rule, row): %#v", len(got), visible(got))
@@ -459,7 +459,7 @@ func TestTableRulesBetweenBodyRows(t *testing.T) {
 		"| 3 | three |",
 	}, "\n")
 
-	got := visible(Render(th, source, 40))
+	got := visible(Render(th, source, 40, Options{}).Lines)
 	want := []string{
 		"a │ b    ",
 		"──┼──────",
@@ -486,7 +486,7 @@ func TestTableLastRowHasNoRuleUnderIt(t *testing.T) {
 	th := testTheme()
 	source := "| a | b |\n| --- | --- |\n| 1 | one |"
 
-	got := visible(Render(th, source, 40))
+	got := visible(Render(th, source, 40, Options{}).Lines)
 
 	if rules := tableRuleLines(got); !reflect.DeepEqual(rules, []int{1}) {
 		t.Errorf("rules on lines %v of %#v; want only the header's", rules, got)
@@ -507,7 +507,7 @@ func TestTableWrappedRowIsNotRuledInside(t *testing.T) {
 		"| cd | five six seven eight |",
 	}, "\n")
 
-	got := visible(Render(th, source, 20))
+	got := visible(Render(th, source, 20, Options{}).Lines)
 	want := []string{
 		"short │ long        ",
 		"──────┼─────────────",
@@ -554,7 +554,7 @@ func TestTableAlignsColumns(t *testing.T) {
 		"| x | y | z |",
 	}, "\n")
 
-	got := visible(Render(th, source, 40))
+	got := visible(Render(th, source, 40, Options{}).Lines)
 
 	if len(got) != 3 {
 		t.Fatalf("got %#v; want three lines", got)
@@ -575,7 +575,7 @@ func TestTableCentreOddRemainder(t *testing.T) {
 	th := testTheme()
 	source := "| head |\n| :-: |\n| ab |"
 
-	got := visible(Render(th, source, 20))
+	got := visible(Render(th, source, 20, Options{}).Lines)
 
 	if want := " ab "; got[2] != want {
 		t.Errorf("centred row = %q; want %q (one space left, the odd one right)", got[2], want)
@@ -594,7 +594,7 @@ func TestTableInlineMarkupInCells(t *testing.T) {
 		"| `code` | x |",
 	}, "\n")
 
-	got := Render(th, source, 40)
+	got := Render(th, source, 40, Options{}).Lines
 	text := visible(got)
 
 	for i, v := range text {
@@ -636,7 +636,7 @@ func TestTableWrapsToWidth(t *testing.T) {
 	}, "\n")
 	const width = 24
 
-	got := Render(th, source, width)
+	got := Render(th, source, width, Options{}).Lines
 	text := visible(got)
 
 	for _, ln := range got {
@@ -680,7 +680,7 @@ func TestTableShrinksToTheWidthItIsGiven(t *testing.T) {
 	source := "| alpha | beta | gamma |\n| --- | --- | --- |\n| 1 | 2 | 3 |"
 
 	for _, width := range []int{18, 20, 24} {
-		got := Render(th, source, width)
+		got := Render(th, source, width, Options{}).Lines
 		lines := visible(got)
 		if len(got) < 3 {
 			t.Errorf("width %d: got %d lines, want at least 3: %#v", width, len(got), lines)
@@ -709,7 +709,7 @@ func TestTableWrapsInsteadOfTruncating(t *testing.T) {
 		"| 1 | " + note + " |",
 	}, "\n")
 
-	got := visible(Render(th, source, 30))
+	got := visible(Render(th, source, 30, Options{}).Lines)
 
 	if len(got) < 4 {
 		t.Fatalf("got %d lines, want the over-wide cell wrapped onto further lines: %#v", len(got), got)
@@ -739,7 +739,7 @@ func TestTableRowHeightIsItsTallestCell(t *testing.T) {
 	}, "\n")
 	const width = 20
 
-	got := Render(th, source, width)
+	got := Render(th, source, width, Options{}).Lines
 	want := []string{
 		"short │ long        ",
 		"──────┼─────────────",
@@ -771,7 +771,7 @@ func TestTableWrappedLinesKeepAlignment(t *testing.T) {
 		"| alpha beta gamma | one two three |",
 	}, "\n")
 
-	got := visibleTrimmed(Render(th, source, 23))
+	got := visibleTrimmed(Render(th, source, 23, Options{}).Lines)
 	want := []string{
 		"     right │    mid",
 		"───────────┼───────────",
@@ -799,7 +799,7 @@ func TestTableEveryLineIsTheTableWidth(t *testing.T) {
 	}, "\n")
 	const width = 32
 
-	got := Render(th, source, width)
+	got := Render(th, source, width, Options{}).Lines
 
 	if len(got) <= 5 {
 		t.Fatalf("got %d lines, want a block taller than its four source rows: %#v", len(got), visible(got))
@@ -826,7 +826,7 @@ func TestTableWrapKeepsInlineStyle(t *testing.T) {
 		"| 1 | **bold across the wrap boundary** |",
 	}, "\n")
 
-	got := Render(th, source, 20)
+	got := Render(th, source, 20, Options{}).Lines
 
 	if len(got) < 4 {
 		t.Fatalf("got %d lines, want the bold cell wrapped: %#v", len(got), visible(got))
@@ -858,7 +858,7 @@ func TestTableWrapIsUnbounded(t *testing.T) {
 	}, "\n")
 	const width = 14 // id keeps two cells, the divider three, the text column the other nine
 
-	got := visible(Render(th, source, width))
+	got := visible(Render(th, source, width, Options{}).Lines)
 
 	var rebuilt []string
 	for _, v := range got[2:] {
@@ -893,7 +893,7 @@ func BenchmarkRenderTable(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		if _, fits := renderTable(th, tbl, 60); !fits {
+		if _, fits := renderTable(th, nil, tbl, 60); !fits {
 			b.Fatal("table did not fit at 60 columns")
 		}
 	}
@@ -914,7 +914,7 @@ func TestTableUnfittableFallsBack(t *testing.T) {
 	// minTableColumnWidth cells of content and both dividers between them are paid for, which is
 	// eighteen — and at the narrow end there is not even room for the dividers themselves.
 	for _, width := range []int{1, 3, 6, 8, 12, 17} {
-		lines := visible(Render(th, source, width))
+		lines := visible(Render(th, source, width, Options{}).Lines)
 		got := strings.Join(lines, "\n")
 		if strings.Contains(got, "─") {
 			t.Errorf("width %d: block drew a rule; want the plain-paragraph fallback:\n%s", width, got)
@@ -946,10 +946,10 @@ func TestTableNarrowerThanTheFloorFallsBack(t *testing.T) {
 	const floorWidth = 3*minTableColumnWidth + 2*tableDividerWidth // 18: every column at the floor
 
 	for width := 1; width < floorWidth; width++ {
-		if _, fits := renderTable(th, tbl, width); fits {
+		if _, fits := renderTable(th, nil, tbl, width); fits {
 			t.Errorf("width %d: fitted a table that cannot give every column %d cells", width, minTableColumnWidth)
 		}
-		got := visible(Render(th, source, width))
+		got := visible(Render(th, source, width, Options{}).Lines)
 		block := strings.Join(got, "\n")
 		if strings.Contains(block, glyphTableColumn) || strings.Contains(block, glyphTableRule) {
 			t.Errorf("width %d: the block drew table rules; want the plain-paragraph fallback:\n%s", width, block)
@@ -958,7 +958,7 @@ func TestTableNarrowerThanTheFloorFallsBack(t *testing.T) {
 			t.Errorf("width %d: the delimiter row was consumed; want it left as source text:\n%s", width, block)
 		}
 	}
-	if _, fits := renderTable(th, tbl, floorWidth); !fits {
+	if _, fits := renderTable(th, nil, tbl, floorWidth); !fits {
 		t.Errorf("width %d pays every column its floor exactly; want the table drawn", floorWidth)
 	}
 }
@@ -973,7 +973,7 @@ func TestTableOfNarrowColumnsIsNotRejected(t *testing.T) {
 	source := "| id | ab | xy |\n| --- | --- | --- |\n| 1 | 2 | 3 |"
 	const width = 3*2 + 2*tableDividerWidth // 12: the three natural widths and their dividers
 
-	got := Render(th, source, width)
+	got := Render(th, source, width, Options{}).Lines
 
 	want := []string{"id │ ab │ xy", "───┼────┼───", "1  │ 2  │ 3 "}
 	if !reflect.DeepEqual(visible(got), want) {
@@ -994,7 +994,7 @@ func TestTableHeaderAloneDegradesToParagraphs(t *testing.T) {
 	th := testTheme()
 	const header = "| Tool | Calls |"
 
-	got := Render(th, header, 40)
+	got := Render(th, header, 40, Options{}).Lines
 
 	if len(got) != 1 || got[0] != header {
 		t.Errorf("partial table = %#v; want the source line unchanged", visible(got))
@@ -1018,7 +1018,7 @@ func TestTableFollowedByOtherBlocks(t *testing.T) {
 		"```",
 	}, "\n")
 
-	got := visible(Render(th, source, 40))
+	got := visible(Render(th, source, 40, Options{}).Lines)
 
 	want := []string{"a │ b", "──┼──", "1 │ 2", "", "Title", "• item", "  code()"}
 	if !reflect.DeepEqual(got, want) {
@@ -1033,7 +1033,7 @@ func TestTableInsideProse(t *testing.T) {
 	th := testTheme()
 	source := "Here it is:\n| a | b |\n| - | - |\n| 1 | 2 |\ndone"
 
-	got := visible(Render(th, source, 40))
+	got := visible(Render(th, source, 40, Options{}).Lines)
 
 	want := []string{"Here it is:", "a │ b", "──┼──", "1 │ 2", "done"}
 	if !reflect.DeepEqual(got, want) {

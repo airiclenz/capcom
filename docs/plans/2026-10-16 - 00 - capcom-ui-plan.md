@@ -339,7 +339,12 @@ Re-check (2026-10-16): the measure is exported, `type Measure` with `Observe(tea
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): port apogee's markdown renderer`
 
-## 9. Markdown links and blockquotes
+## 9. Markdown links and blockquotes — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that wrap_test.go calls the renderer — it has no Render call at this tree, so it is untouched; markdown_test.go's 13 and table_test.go's 25 Render calls (and the unexported renderInline/renderTable calls, which now take a nil *linkSet) moved to the new signature instead.
+NOTES (2026-10-16): table.go and wrap.go edited though not in **Files:** — renderTable must pass the link set to renderInline so table cells carry links, and wrapText closes and reopens a link's zero-width APC markers at each break (balanceLinkMarkers) so a wrapped link records one region per line; regions are read off the finished lines and the markers stripped before Render returns.
+NOTES (2026-10-16): link text is shown literally (no inline markup inside it), an inert link shows its text only (the URL is not printed beside it), `<scheme://...>` autolinks render Inert, and bare URLs in prose stay plain text; blockquote lines take heading, list or paragraph text (no fenced code or table inside a quote) and drop their bars when the width cannot hold them plus one column.
+NOTES (2026-10-16): no CHANGELOG entry — the renderer is not wired into the detail pane until item 10. Pre-existing: a Theme whose Bold underlines would make lipgloss style a table header rune by rune, breaking any escape inside it (inline SGR and now link markers alike).
 
 **What:**
 **Goal:** `markdown.Render` returns the lines plus each followable link's target and screen region

@@ -20,6 +20,9 @@ const tabCells = 4
 // limit 3 comes back with a five-cell first line. Every line over the limit is therefore
 // hard-broken down to it. The one thing no break can divide is a single grapheme wider than the
 // limit, a CJK glyph at limit 1, and that keeps a line to itself.
+//
+// A followable link the wrap splits over lines is closed and reopened at each break
+// (balanceLinkMarkers), so every line it returns holds whole link-marker pairs.
 func wrapText(th Theme, text string, limit int) []string {
 	if limit < 1 {
 		limit = 1
@@ -43,7 +46,7 @@ func wrapText(th Theme, text string, limit int) []string {
 		}
 		out = append(out, segments...)
 	}
-	return out
+	return balanceLinkMarkers(out)
 }
 
 // hangCollapses reports whether a block width columns wide is too narrow to hold an mw-column
