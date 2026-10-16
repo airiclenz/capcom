@@ -295,10 +295,7 @@ func (m model) renderDetail() model {
 }
 
 // detailWidth returns the detail pane's columns: the whole width on a narrow terminal, what the
-// sidebar and the separator leave on a wide one.
+// sidebar, the separator and its margins leave on a wide one.
 func (m model) detailWidth() int {
-	if m.isNarrow() {
-		return m.width
-	}
-	return m.width - m.sidebarWidth() - 1
+	return m.width - m.detailLeft()
 }

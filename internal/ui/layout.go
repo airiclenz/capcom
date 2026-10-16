@@ -16,6 +16,8 @@ const (
 	// frameRows are the rows around the panes: the tab bar, the rule under the panes and the
 	// status bar.
 	frameRows = 3
+	// dividerMargin is the blank columns on either side of the separator between the panes.
+	dividerMargin = 1
 )
 
 // The glyphs of the frame.
@@ -79,13 +81,29 @@ func (m model) body() []string {
 	sidebarWidth := m.sidebarWidth()
 	sidebar := paneRows(m.sidebarLines(), 0, height, sidebarWidth)
 	lines, offset := m.detailRows()
-	detail := paneRows(lines, offset, height, m.width-sidebarWidth-1)
-	separator := m.theme.border.Render(paneSeparator)
+	detail := paneRows(lines, offset, height, m.detailWidth())
+	margin := strings.Repeat(" ", dividerMargin)
+	divider := margin + m.theme.border.Render(paneSeparator) + margin
 	rows := make([]string, 0, height)
 	for row := range height {
-		rows = append(rows, pad(sidebar[row], sidebarWidth)+separator+detail[row])
+		rows = append(rows, pad(sidebar[row], sidebarWidth)+divider+detail[row])
 	}
 	return rows
+}
+
+// dividerColumn returns the screen column of the separator between the panes in the split
+// layout: past the sidebar and the margin left of it.
+func (m model) dividerColumn() int {
+	return m.sidebarWidth() + dividerMargin
+}
+
+// detailLeft returns the screen column the detail pane starts at: the first on a narrow terminal,
+// past the sidebar, the separator and the margins either side of it on a wide one.
+func (m model) detailLeft() int {
+	if m.isNarrow() {
+		return 0
+	}
+	return m.dividerColumn() + ansi.StringWidth(paneSeparator) + dividerMargin
 }
 
 // detailRows returns the rows the detail pane draws and the first of them on screen: the status
@@ -117,9 +135,9 @@ func (m model) rule() string {
 	if !m.isSplit() {
 		return m.theme.border.Render(strings.Repeat(ruleGlyph, m.width))
 	}
-	sidebarWidth := m.sidebarWidth()
-	return m.theme.border.Render(strings.Repeat(ruleGlyph, sidebarWidth) + ruleJoint +
-		strings.Repeat(ruleGlyph, max(m.width-sidebarWidth-1, 0)))
+	jointColumn := m.dividerColumn()
+	return m.theme.border.Render(strings.Repeat(ruleGlyph, jointColumn) + ruleJoint +
+		strings.Repeat(ruleGlyph, max(m.width-jointColumn-ansi.StringWidth(ruleJoint), 0)))
 }
 
 // tabBar lists the tabs in tabOrder, the open one marked by the theme's active tab style, the
@@ -160,7 +178,7 @@ func tabAt(col int) (Tab, bool) {
 type screenPane int
 
 // The parts of the screen the mouse acts on; every other cell, such as the separator between the
-// panes, the rule and the status bar, is paneNone.
+// panes and its margins, the rule and the status bar, is paneNone.
 const (
 	paneNone screenPane = iota
 	paneTabBar
@@ -177,8 +195,8 @@ type panePoint struct {
 }
 
 // pointAt locates the screen cell at column x and row y in the layout body draws: the tab bar on
-// the top row, then on a wide terminal the sidebar left of the separator and the detail pane
-// right of it, and on a narrow one whichever of the two fills the screen. With the help screen
+// the top row, then on a wide terminal the sidebar left of the separator's margin and the detail
+// pane right of it, and on a narrow one whichever of the two fills the screen. With the help screen
 // open no pane is on screen.
 func (m model) pointAt(x, y int) panePoint {
 	if x < 0 || y < 0 || x >= m.width {
@@ -195,10 +213,10 @@ func (m model) pointAt(x, y int) panePoint {
 		return panePoint{pane: paneDetail, col: x, row: row}
 	case m.isNarrow() || x < m.sidebarWidth():
 		return panePoint{pane: paneSidebar, col: x, row: row}
-	case x == m.sidebarWidth():
+	case x < m.detailLeft():
 		return panePoint{}
 	}
-	return panePoint{pane: paneDetail, col: x - m.sidebarWidth() - 1, row: row}
+	return panePoint{pane: paneDetail, col: x - m.detailLeft(), row: row}
 }
 
 // fit cuts text to width columns, ending a cut line with an ellipsis.

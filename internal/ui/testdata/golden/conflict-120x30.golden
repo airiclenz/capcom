@@ -1,30 +1,30 @@
  Issues  │  Ready  │  Knowledge 
-alpha  open  P0  Alpha task renamed     │Alpha task renamed
-beta  open  P2  Beta task               │
-delta  open  P2  Delta task             │status: open · P0
-                                        │labels: ui, tui
-                                        │deps: finished
-                                        │
-                                        │Alpha names beta and no-such-id.
-                                        │
-                                        │• first point
-                                        │• second point
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-                                        │
-────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────
+alpha  open  P0  Alpha task renamed      │ Alpha task renamed
+beta  open  P2  Beta task                │ 
+delta  open  P2  Delta task              │ status: open · P0
+                                         │ labels: ui, tui
+                                         │ deps: finished
+                                         │ 
+                                         │ Alpha names beta and no-such-id.
+                                         │ 
+                                         │ • first point
+                                         │ • second point
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+                                         │ 
+─────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────
 changed on disk: title, priority — run claim again? (y/n)

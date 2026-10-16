@@ -55,12 +55,13 @@ func wheel(button tea.MouseButton, x, y int) tea.MouseWheelMsg {
 	return tea.MouseWheelMsg{X: x, Y: y, Button: button}
 }
 
-// detailLeft returns the screen column the detail pane starts at.
+// detailLeft returns the screen column the detail pane starts at: past the sidebar and the
+// divider " │ " in the split layout.
 func detailLeft(m model) int {
 	if m.isNarrow() {
 		return 0
 	}
-	return m.sidebarWidth() + 1
+	return m.sidebarWidth() + 3
 }
 
 // linkCell returns the screen cell of the first cell of the detail pane's link to target as the
@@ -202,6 +203,36 @@ func TestMouse_ClickOnDepViewRow_SelectsItForEnter(t *testing.T) {
 				t.Errorf("selected %q after the click and Enter, want user", got)
 			}
 		})
+	}
+}
+
+func TestMouse_PointAtDetailLeft_IsTheDetailPanesFirstColumn(t *testing.T) {
+	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			m := openDetail(t, newTestModel(t, newTestStore(t, readyFiles), size[0], size[1]))
+
+			got := m.pointAt(detailLeft(m), 1)
+
+			if want := (panePoint{pane: paneDetail, col: 0, row: 0}); got != want {
+				t.Errorf("pointAt(%d, 1) = %+v, want %+v", detailLeft(m), got, want)
+			}
+		})
+	}
+}
+
+func TestMouse_ClickOnTheDividerOrItsMargins_SelectsNothing(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, depFiles), "alpha", wideWidth, wideHeight)
+	m = press(t, m, runeKey('d'))
+	sidebarWidth := m.sidebarWidth()
+
+	for x := sidebarWidth; x <= sidebarWidth+2; x++ {
+		// Row 6 of the screen is line 5 of the view: user, under the blocks heading.
+		clicked := press(t, m, click(x, 6))
+
+		if clicked.deps.cursor.selected != m.deps.cursor.selected {
+			t.Errorf("a click on column %d moved the dep view's cursor to row %d, want it left on %d",
+				x, clicked.deps.cursor.selected, m.deps.cursor.selected)
+		}
 	}
 }
 

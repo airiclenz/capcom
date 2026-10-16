@@ -40,7 +40,9 @@ gray ┝ ┕ │ connectors.
 - The Ready tab's flat list glyphs; the help screen gets no scrollbar.
 - Any version, tag or CHANGELOG heading change.
 
-## 1. Margins around the pane divider
+## 1. Margins around the pane divider — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the divider helpers are `model.dividerColumn()` (the `│` column, also the rule's `┴` column, for item 2's `┬`) and `model.detailLeft()` (0 on a narrow terminal), with a `dividerMargin` constant; `paneSeparator` stays the bare `│`. `detailWidth()` is now `m.width - m.detailLeft()`. The mouse_test `detailLeft(m)` helper keeps an independent `sidebarWidth() + 3` oracle rather than calling the method.
 
 **What:**
 **Goal:** in the split layout every body row reads `<sidebar> │ <detail>` with exactly one blank

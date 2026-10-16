@@ -13,6 +13,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/lock"
 	"github.com/airiclenz/capcom/internal/userconfig"
@@ -133,6 +134,26 @@ func TestModel_WideLayout_EnterKeepsBothPanes(t *testing.T) {
 
 	if m.isDetailOpen {
 		t.Errorf("Enter on a wide terminal opened the narrow detail view")
+	}
+}
+
+func TestModel_SplitLayout_PadsTheDividerWithAMarginEachSide(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 120, 30)
+	sidebarWidth := m.sidebarWidth()
+
+	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+
+	for row := 1; row <= m.bodyHeight(); row++ {
+		if got := ansi.Cut(rows[row], sidebarWidth, sidebarWidth+3); got != " │ " {
+			t.Errorf("row %d holds %q at columns %d..%d, want \" │ \"", row, got, sidebarWidth, sidebarWidth+2)
+		}
+	}
+	rule := rows[len(rows)-2]
+	if got := ansi.Cut(rule, sidebarWidth+1, sidebarWidth+2); got != ruleJoint {
+		t.Errorf("the rule holds %q at column %d, want %q under the separator", got, sidebarWidth+1, ruleJoint)
+	}
+	if got, want := m.detailWidth(), 120-sidebarWidth-3; got != want {
+		t.Errorf("detailWidth() = %d, want %d: the width right of the divider", got, want)
 	}
 }
 
