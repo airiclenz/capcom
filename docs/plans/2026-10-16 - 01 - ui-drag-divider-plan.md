@@ -177,7 +177,10 @@ Depends on item 4.
 
 **Commit:** `feat(ui): reset the sidebar width with a double-click on the divider`
 
-## 6. Help screen and user docs
+## 6. Help screen and user docs — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): docs/design/tui.md also updated beyond the three named spots: the Architecture bullet for internal/userconfig and the Docs section now name the state file
+NOTES (2026-10-16): ADR 0014 is cited as plain text, not linked, in file-format.md and tui.md: item 7 writes the record, so a link would dangle until it lands
 
 Depends on item 5.
 

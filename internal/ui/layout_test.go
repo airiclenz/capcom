@@ -55,6 +55,23 @@ func TestModel_View_HelpScreen_MatchesGolden(t *testing.T) {
 	golden(t, "help-120x30", m.View())
 }
 
+func TestModel_View_HelpScreen_FitsTheSmallTerminal(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, nil), smallWidth, smallHeight)
+
+	m = send(t, m, runeKey('?'))
+
+	if len(helpLines) > m.bodyHeight() {
+		t.Fatalf("helpLines holds %d rows, want at most the %d body rows at %dx%d",
+			len(helpLines), m.bodyHeight(), smallWidth, smallHeight)
+	}
+	view := ansi.Strip(m.View().Content)
+	for _, line := range helpLines {
+		if !strings.Contains(view, line) {
+			t.Errorf("help screen at %dx%d lacks the row %q", smallWidth, smallHeight, line)
+		}
+	}
+}
+
 func TestModel_HelpKeys_ToggleTheHelpScreen(t *testing.T) {
 	cases := []struct {
 		name  string

@@ -49,7 +49,17 @@ lock: free · ? help · q quit
   leaf. Below the top level, gray connectors in the border colour lead it: `┝` for a child a later
   sibling follows, `┕` for the last child, and `│` under a non-last ancestor (blanks under a last
   one). The selection and muted highlights start after the connectors.
-- **Divider**: ` │ `, the pane separator with a blank column either side.
+- **Divider**: ` │ `, the pane separator with a blank column either side. It moves: a drag on
+  the `│` or a margin column, on any body row, or `<`/`>` (4 columns a press) set the sidebar's
+  width in columns, at least 20 for the sidebar and 40 for the detail pane (from `detailLeft` to
+  the right edge, scrollbar included). The panes reflow on every motion, and while the button is
+  held the divider and its `┬`/`┴` joints draw bold in the accent colour. A double-click resets
+  the default, a third of the width within 28-48. The width is clamped to the limits at every
+  terminal size, never rewriting the value set, and persists across runs in
+  `<os.UserConfigDir>/capcom/state.yaml` (ADR 0014), beside the user config, which stays
+  hand-owned: it is written once per finished drag that changed it, per resize key and per reset,
+  which clears it; a failed write is a status-bar notice and the width still applies. The narrow
+  layout has no divider to move.
 - **Scrollbars**: each pane ends in a blank gutter column and a bar, apogee's: a heavy `┃` thumb
   marks the shown rows on a light `│` track, and the bar is blank while the pane's rows fit.
 - **Detail pane**: the selected Issue or Note: its frontmatter as a header (an Issue's title,
@@ -135,6 +145,7 @@ expand   → / l   collapse ← / h
 tabs     Tab  1 2 3
 open     Enter    back Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
+resize   < >      drag the divider, double-click resets
 filter   /
 status   s        claim   a
 close    c        reopen  R
@@ -150,10 +161,11 @@ to cancel; a confirmation also takes y and n.
 anywhere; the sidebar keeps focus. In the narrow detail view j/k and the arrows also scroll.
 
 **Mouse**: a click selects a tab, a sidebar row, a dependency-view row or follows a link;
-clicking a tree arrow expands or collapses. The wheel over the sidebar moves the selection a row,
-over the detail pane it scrolls three rows (or moves the dependency view's cursor). The mouse does
-nothing while the help screen, the filter line, the status picker or a prompt is open. With mouse
-reporting on, terminal text selection needs shift-drag (or the terminal's own modifier).
+clicking a tree arrow expands or collapses. A drag on the divider resizes the sidebar and a
+double-click on it resets the width (see Layout). The wheel over the sidebar moves the selection a
+row, over the detail pane it scrolls three rows (or moves the dependency view's cursor). The mouse
+does nothing while the help screen, the filter line, the status picker or a prompt is open. With
+mouse reporting on, terminal text selection needs shift-drag (or the terminal's own modifier).
 
 ## Live refresh
 
@@ -211,7 +223,8 @@ ui:
 - **`internal/outline`**: the issue and Note outline builders (`outline.Issues`, `outline.Notes`),
   moved out of `internal/cli`, so `list --tree`, `know tree` and the UI's trees build one outline.
 - **`internal/ui/markdown`**: the markdown renderer of the detail pane.
-- **`internal/userconfig`**: loads and creates the user-level config (ADR 0011).
+- **`internal/userconfig`**: loads and creates the user-level config (ADR 0011), and loads and
+  saves the state file `state.yaml` (ADR 0014).
 - **Dependencies**: `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2`.
   They declare go 1.25.0 and need `golang.org/x/sys` v0.46, so `go.mod` declares go 1.25.0 and
   `x/sys` v0.46.0 (up from go 1.24.0 and v0.37). CI and release read `go.mod` and build with
@@ -250,7 +263,8 @@ Per the Note `cli-test-harness` and ADR 0007:
 - The manual page `docs/site/getting-started/terminal-ui.md`: tabs, keys, mouse, writes, the lock
   prompt, conflicts, the theme config.
 - `go run ./cmd/gendocs` for the CLI reference page `docs/site/reference/cli/capcom_ui.md`.
-- The file-format reference's section The user config describes the user-level config.
+- The file-format reference's section The user config describes the user-level config, and its
+  section The state file describes `state.yaml`.
 
 ## Out of scope for v1
 

@@ -61,6 +61,23 @@ lock: free · ? help · q quit
 Below 90 columns the panes stop sharing the screen: the sidebar fills it, Enter opens the
 selected Issue or Note full width, and Esc goes back to the sidebar.
 
+### Resizing the sidebar
+
+While the panes share the screen, the divider between them moves. Drag it with the mouse, on the
+`│` or the blank column either side of it, on any row of the panes; or press `<` to narrow the
+sidebar and `>` to widen it, 4 columns a press. The panes reflow as the divider moves, and while
+the button is held it shows bold in the accent colour. The sidebar keeps at least 20 columns and
+the detail pane, its scrollbar included, at least 40. A double-click on the divider returns it to
+the default width: a third of the terminal, between 28 and 48 columns. Below 90 columns the
+divider does not move.
+
+`capcom ui` remembers the width you set in `capcom/state.yaml`, beside your
+[user config](#theme), and starts on it the next time, in every repository. On a terminal too
+narrow for the remembered width the sidebar takes what fits, and the remembered width stays for a
+wider one; a double-click reset forgets it. A width that cannot be saved is reported in the status
+bar, and the new width still applies. The file is described under
+[The state file](../reference/file-format.md#the-state-file).
+
 ## The tabs
 
 - **Ready** lists the queue `capcom ready` prints with no flags, most urgent first: each Issue's
@@ -83,6 +100,7 @@ expand   → / l    collapse ← / h
 tabs     Tab  1 2 3
 open     Enter    back     Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
+resize   < >      drag the divider, double-click resets
 filter   /
 status   s        claim    a
 close    c        reopen   R
@@ -96,6 +114,7 @@ help     ?        quit     q
 - PgUp and PgDn scroll the detail pane a page, ctrl+u and ctrl+d half a page, wherever the
   selection is: the sidebar keeps it. Where the detail pane fills a narrow screen, the arrows and
   `j` `k` scroll it too.
+- `<` and `>` narrow and widen the sidebar; see [Resizing the sidebar](#resizing-the-sidebar).
 - `?` shows the full key map; `?` or Esc closes it.
 - Prompts (a reason, a Log entry, a confirmation) take Enter to submit and Esc to cancel; a
   confirmation also takes `y` and `n`.
@@ -198,6 +217,8 @@ version: restart capcom ui`.
   tab. URLs and file references are styled but not followed. Body links are mouse-only.
 - The wheel over the sidebar moves the selection a row; over the detail pane it scrolls three rows,
   or moves the dependency view's cursor.
+- A drag on the divider between the panes resizes the sidebar, and a double-click on it resets
+  the width; see [Resizing the sidebar](#resizing-the-sidebar).
 - While the help screen, the filter line, the status picker or a prompt is open, the mouse does
   nothing.
 

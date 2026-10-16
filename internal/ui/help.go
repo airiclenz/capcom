@@ -10,6 +10,7 @@ var helpLines = []string{
 	"  tabs     Tab  1 2 3",
 	"  open     Enter    back     Esc",
 	"  scroll   PgUp PgDn  ctrl+u ctrl+d",
+	"  resize   < >      drag the divider, double-click resets",
 	"  filter   /",
 	"  status   s        claim    a",
 	"  close    c        reopen   R",
