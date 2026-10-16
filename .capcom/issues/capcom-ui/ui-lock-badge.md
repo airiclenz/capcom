@@ -3,6 +3,7 @@ title: Colour the word lock in the status bar by the Tree lock state
 status: open
 type: task
 priority: 2
+plan: 2026-10-16 - 04 - ui-lock-badge-plan
 created: 2026-10-16T18:57:37Z
 ---
 
