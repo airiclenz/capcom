@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `capcom ui`: the selected row is drawn as a fill in the `selection` colour with its text in its usual colours, the status keeping its category's colour; under `NO_COLOR` the selected row is still drawn in reverse.
 - `capcom ui`: on the Ready and Issues tabs every row's status starts at one column and every `P<n>` at another, at any depth of the Issues tree; the columns are measured over the whole list, so they do not shift while scrolling. The Knowledge tab, the dependency view and the CLI's `capcom ready` and `capcom list --tree` output stay as they were.
 - `capcom ui`: the tab bar's right end shows `v<version> · capcom` in the muted hints colour, its last character in the frame's last column; it is left out when the terminal is too narrow to keep two blank columns after the last tab, and a click on it opens no tab.
+- `capcom ui`: the detail pane's header shows every frontmatter key an issue holds: its type on the status line (`status: <status> · P<n> · <type>`), then labels, parent, deps, related issues, plan, aliases, the created and closed times (UTC, to the minute) and the close reason, each line left out when empty. Parent, deps and related issues naming an id are links.
+- `capcom ui`: the detail pane's header of a Note shows every frontmatter key it holds: labels, refs, `retired: true` (only when retired), superseded-by and aliases, each line left out when empty. Refs and superseded-by naming an id are links.
 
 ## [0.7.0] - 2026-10-15
 
