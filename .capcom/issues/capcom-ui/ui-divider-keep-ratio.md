@@ -1,10 +1,12 @@
 ---
 title: Keep the sidebar/content ratio when the terminal is resized
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-16 - 01 - ui-drag-divider-plan
 created: 2026-10-16T15:39:56Z
+closed: 2026-10-16T15:55:41Z
+reason: "Resolved by plan ui-drag-divider-plan item 8 (archived in f7fbff7): the sidebar keeps its ratio of the terminal width on resize; state.yaml stores ui.sidebar_ratio; docs and ADR 0014 amended."
 ---
 
 In the split layout of `capcom ui` the sidebar keeps the column width the user set, by dragging
