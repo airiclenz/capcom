@@ -9,7 +9,6 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/reflist"
 )
 
 // Text of capcom dep graph, a Mermaid flowchart.
@@ -96,7 +95,8 @@ func (a *app) newDepGraphCommand() *cobra.Command {
 }
 
 // loadDepGraph builds the Dependency graph of every usable issue in the index, Closed ones
-// included.
+// included, with each issue's index entry, for the commands that read it; dep add and dep rm
+// decide their edits on the graph of ops.DepGraph instead.
 func (a *app) loadDepGraph() (depGraph, error) {
 	entries, err := a.issueIndex.List(index.Filter{IsClosedIncluded: true})
 	if err != nil {
@@ -107,20 +107,6 @@ func (a *app) loadDepGraph() (depGraph, error) {
 		byID[entry.ID] = entry
 	}
 	return depGraph{graph: issue.NewDepGraph(index.Nodes(entries)), entries: byID, ordered: entries}, nil
-}
-
-// referenceList is the reference list entries of the issue holder, the deps or related it writes,
-// whose edits reflist decides: the index resolves an argument and the graph names an entry by exact
-// id or Alias.
-func (a *app) referenceList(graph depGraph, holder string, entries []string) reflist.List {
-	return reflist.List{Holder: holder, Entries: entries, Resolve: a.resolveIssueID, Names: graph.graph.Resolve}
-}
-
-// resolveIssueID resolves arg to the id of the issue it names, failing as index.Index.Resolve does:
-// the reflist.ResolveFunc of an issue's reference lists.
-func (a *app) resolveIssueID(arg string) (string, error) {
-	entry, err := a.issueIndex.Resolve(arg)
-	return entry.ID, err
 }
 
 // names returns a test of whether a dep, as a file writes it, names the issue with id.

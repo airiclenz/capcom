@@ -108,7 +108,13 @@ earlier closes; a blank reason or log text is refused with the file byte-identic
 - this item's diff touches no `internal/cli/*_test.go`
 **Commit:** `refactor(ops): move the issue write glue out of internal/cli into internal/ops`
 
-## 2. ops package: dependencies and node edits
+## 2. ops package: dependencies and node edits — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that ops' generic edit was still the unexported cli editNode: item 1 had exported it as `ops.Edit`, which the Acceptance grep `\.Edit(` matches at node_edit.go, so it is renamed to the item's named `ops.EditNode` (EditIssue and cli editNode call it); related add/rm and know update already wrote through ops (a.editIssue / editNode) and needed only the helper moves.
+NOTES (2026-10-16): referenceList, resolveIssueID and withoutEntries moved to ops as `Ops.ReferenceList`, `Ops.ResolveIssueID` and `WithoutEntries` (related.go, know_update.go and create.go call them, no copies); loadDepGraph stays in cli for dep list, dep graph and related, while ops builds its own graph via the new `Ops.DepGraph` over `IssueNodes`.
+NOTES (2026-10-16): dep add/rm type ops' outcome through a new cli helper `depWritten`: any `*reflist.Refusal` (argument or edit, the not-a-dep one arriving inside a `*ops.ChangeError`) goes to refusalFailure at the dependent's located path, everything else through app.written.
+NOTES (2026-10-16): internal/cli/root.go and internal/cli/close.go are listed in Files but needed no edit: no comment there names editNode, editIssue or loadDepGraph.
+NOTES (2026-10-16): updateNote's comment now names ops.EditNode and attributes the format-raise warning to app.written (item 1 moved it there from editNode).
 
 **What:**
 **Goal:** `capcom dep add`/`dep rm` run through `ops.AddDep`/`ops.RemoveDep` (if-match taking,

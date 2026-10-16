@@ -1,12 +1,13 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/reflist"
 )
 
 // cycleArrow joins the issues of a refused cycle in dep add.
@@ -71,26 +72,8 @@ func (a *app) newDepAddCommand() *cobra.Command {
 		Args:        cobra.ExactArgs(2),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			dependent, err := a.resolveIssue(args[0])
-			if err != nil {
-				return err
-			}
-			graph, err := a.loadDepGraph()
-			if err != nil {
-				return err
-			}
-			deps := a.referenceList(graph, dependent.ID, dependent.Deps)
-			deps.FindCycle = graph.graph.FindCycle
-			addition, err := deps.Add(args[1])
-			if err != nil {
-				return refusalFailure(err, dependent.Path, refusalWords{self: depSelfFormat, cycle: depCycleFormat})
-			}
-			written, err := a.editIssue(dependent.ID, "", func(target issue.Issue) (issue.Issue, error) {
-				if !addition.IsPresent {
-					target.Deps = append(slices.Clone(target.Deps), addition.ID)
-				}
-				return target, nil
-			})
+			written, err := a.ops().AddDep(args[0], "", args[1])
+			written, err = a.depWritten(written, err, refusalWords{self: depSelfFormat, cycle: depCycleFormat})
 			if err != nil {
 				return err
 			}
@@ -112,27 +95,9 @@ func (a *app) newDepRmCommand() *cobra.Command {
 		Args:        cobra.ExactArgs(2),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			dependent, err := a.resolveIssue(args[0])
-			if err != nil {
-				return err
-			}
-			graph, err := a.loadDepGraph()
-			if err != nil {
-				return err
-			}
-			removal, err := a.referenceList(graph, dependent.ID, dependent.Deps).Remove(args[1])
-			if err != nil {
-				return refusalFailure(err, "", refusalWords{})
-			}
-			notDep := refusalWords{notFound: fmt.Sprintf("%s does not depend on %s", dependent.ID, args[1])}
-			written, err := a.editIssue(dependent.ID, "", func(target issue.Issue) (issue.Issue, error) {
-				dropped, err := removal.Drop(target.Deps)
-				if err != nil {
-					return issue.Issue{}, refusalFailure(err, "", notDep)
-				}
-				target.Deps = withoutEntries(target.Deps, dropped)
-				return target, nil
-			})
+			written, err := a.ops().RemoveDep(args[0], "", args[1])
+			notDep := refusalWords{notFound: fmt.Sprintf("%s does not depend on %s", written.ID, args[1])}
+			written, err = a.depWritten(written, err, notDep)
 			if err != nil {
 				return err
 			}
@@ -141,14 +106,13 @@ func (a *app) newDepRmCommand() *cobra.Command {
 	})
 }
 
-// withoutEntries returns entries without the ones dropped, or nil when none is left, so the file
-// leaves the list's key out.
-func withoutEntries(entries []string, dropped []string) []string {
-	kept := slices.DeleteFunc(slices.Clone(entries), func(entry string) bool {
-		return slices.Contains(dropped, entry)
-	})
-	if len(kept) == 0 {
-		return nil
+// depWritten types the outcome of ops.AddDep or ops.RemoveDep for dep add or dep rm: a refusal of
+// reflist's, whether of the argument or of the edit, is typed by refusalFailure with words at the
+// dependent's file, and every other outcome as written types it.
+func (a *app) depWritten(written nodestore.Written, err error, words refusalWords) (nodestore.Written, error) {
+	var refusal *reflist.Refusal
+	if errors.As(err, &refusal) {
+		return nodestore.Written{}, refusalFailure(err, written.Path, words)
 	}
-	return kept
+	return a.written(written, err)
 }

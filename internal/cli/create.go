@@ -128,7 +128,7 @@ func (a *app) resolveDeps(args []string) ([]string, error) {
 		if arg == "" {
 			continue
 		}
-		addition, err := reflist.List{Entries: deps, Resolve: a.resolveIssueID, Names: namesItself}.Add(arg)
+		addition, err := reflist.List{Entries: deps, Resolve: a.ops().ResolveIssueID, Names: namesItself}.Add(arg)
 		if err != nil {
 			return nil, refusalFailure(err, "", refusalWords{})
 		}

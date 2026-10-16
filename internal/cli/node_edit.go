@@ -39,7 +39,7 @@ func (a *app) editIssue(
 	return a.written(a.ops().EditIssue(arg, ifMatch, change))
 }
 
-// editNode runs kind.Edit through ops.Edit and types its outcome as written does.
+// editNode runs kind.Edit through ops.EditNode and types its outcome as written does.
 func editNode[T any](
 	a *app,
 	kind *nodestore.Kind[T],
@@ -47,7 +47,7 @@ func editNode[T any](
 	ifMatch string,
 	change func(T) (T, error),
 ) (nodestore.Written, error) {
-	return a.written(ops.Edit(kind, arg, ifMatch, change))
+	return a.written(ops.EditNode(kind, arg, ifMatch, change))
 }
 
 // written types the outcome of an ops write for the command. An edit that raised the store

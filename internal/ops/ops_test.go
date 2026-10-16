@@ -14,6 +14,7 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/reflist"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -220,5 +221,100 @@ func TestCloser_SeveralCloses_NewlyReadyCountsTheEarlierCloses(t *testing.T) {
 	}
 	if len(first.NewlyReady) != 0 || !slices.Equal(second.NewlyReady, []string{"ship-it"}) {
 		t.Errorf("NewlyReady = %v then %v, want [] then [ship-it]", first.NewlyReady, second.NewlyReady)
+	}
+}
+
+func TestAddDep_StaleIfMatch_FailsWithAConflictAndLeavesTheFile(t *testing.T) {
+	before := issueText("Ship it", "open")
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": issueText("Design the schema", "open"),
+		"ship-it":   before,
+	})
+
+	_, err := o.AddDep("ship-it", staleETag, "db-schema")
+
+	var conflict *nodestore.ConflictError
+	if !errors.As(err, &conflict) {
+		t.Errorf("err = %v, want a *nodestore.ConflictError", err)
+	}
+	if after := readIssue(t, s, "ship-it"); after != before {
+		t.Errorf("file changed:\n%s", after)
+	}
+}
+
+func TestAddDep_NewDep_WritesItsCanonicalID(t *testing.T) {
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": issueText("Design the schema", "open"),
+		"ship-it":   issueText("Ship it", "open"),
+	})
+
+	written, err := o.AddDep("ship-it", "", "db-sch")
+
+	if err != nil {
+		t.Fatalf("AddDep: %v", err)
+	}
+	after := readIssue(t, s, "ship-it")
+	if !strings.Contains(after, "\ndeps: [db-schema]\n") || written.ID != "ship-it" || written.ETag == "" {
+		t.Errorf("written = %+v, file:\n%s", written, after)
+	}
+}
+
+func TestAddDep_Cycle_IsARefusalBesideTheLocatedDependent(t *testing.T) {
+	before := issueText("Design the schema", "open")
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": before,
+		"ship-it":   issueText("Ship it", "open", "db-schema"),
+	})
+
+	written, err := o.AddDep("db-schema", "", "ship-it")
+
+	var refusal *reflist.Refusal
+	if !errors.As(err, &refusal) || refusal.Reason != reflist.ReasonCycle {
+		t.Errorf("err = %v, want a *reflist.Refusal of reason Cycle", err)
+	}
+	if written.Path != ".capcom/issues/db-schema.md" || written.ETag != "" {
+		t.Errorf("written = %+v, want the located dependent with no etag", written)
+	}
+	if after := readIssue(t, s, "db-schema"); after != before {
+		t.Errorf("file changed:\n%s", after)
+	}
+}
+
+func TestRemoveDep_NotADep_IsAChangeErrorAtTheDependentsFile(t *testing.T) {
+	before := issueText("Ship it", "open")
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": issueText("Design the schema", "open"),
+		"ship-it":   before,
+	})
+
+	written, err := o.RemoveDep("ship-it", "", "db-schema")
+
+	var change *ChangeError
+	var refusal *reflist.Refusal
+	if !errors.As(err, &change) || change.Path != ".capcom/issues/ship-it.md" ||
+		!errors.As(err, &refusal) || refusal.Reason != reflist.ReasonNotFound {
+		t.Errorf("err = %v, want a *ChangeError at the file wrapping a NotFound *reflist.Refusal", err)
+	}
+	if written.Path != ".capcom/issues/ship-it.md" {
+		t.Errorf("written = %+v, want the located dependent", written)
+	}
+	if after := readIssue(t, s, "ship-it"); after != before {
+		t.Errorf("file changed:\n%s", after)
+	}
+}
+
+func TestRemoveDep_LastDep_LeavesTheDepsKeyOut(t *testing.T) {
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": issueText("Design the schema", "open"),
+		"ship-it":   issueText("Ship it", "open", "db-schema"),
+	})
+
+	_, err := o.RemoveDep("ship-it", "", "db-schema")
+
+	if err != nil {
+		t.Fatalf("RemoveDep: %v", err)
+	}
+	if after := readIssue(t, s, "ship-it"); strings.Contains(after, "deps:") {
+		t.Errorf("deps key kept:\n%s", after)
 	}
 }

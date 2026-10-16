@@ -13,8 +13,8 @@
 //   - `check.go` — capcom check: validates every config, issue and Note file of the store
 //   - `close.go` — capcom close: closes issues, recording why
 //   - `create.go` — capcom create: writes a new issue file under the caller's id
-//   - `dep.go` — capcom dep add and rm: adds and removes the dependencies between issues
-//   - `dep_graph.go` — capcom dep graph and the Dependency graph that dep and related load from the index
+//   - `dep.go` — capcom dep add and rm: adds and removes the dependencies between issues through internal/ops
+//   - `dep_graph.go` — capcom dep graph and the Dependency graph that dep list and related load from the index
 //   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — kindFailure, which types a nodestore failure, and the tree-problem warnings
@@ -27,7 +27,7 @@
 //   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word
 //   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
 //   - `know_tree.go` — capcom know tree: the outline of Note ids and titles
-//   - `know_update.go` — capcom know update: changes a Note through the node store
+//   - `know_update.go` — capcom know update: changes a Note through internal/ops and the node store
 //   - `know_verify.go` — capcom know verify: lists the Note refs that no longer resolve
 //   - `list.go` — capcom list: lists issues by filter
 //   - `lock.go` — capcom lock acquire, touch, release, break, check and status: the Tree lock

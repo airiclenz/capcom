@@ -9,6 +9,7 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/ops"
 	"github.com/airiclenz/capcom/internal/reflist"
 )
 
@@ -80,7 +81,7 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			addition, err := a.referenceList(graph, holder.ID, holder.Related).Add(args[1])
+			addition, err := a.ops().ReferenceList(graph.graph, holder.ID, holder.Related).Add(args[1])
 			if err != nil {
 				return refusalFailure(err, holder.Path, refusalWords{self: relatedSelfFormat})
 			}
@@ -136,7 +137,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 				if err != nil {
 					return issue.Issue{}, refusalFailure(err, "", notRelated)
 				}
-				target.Related = withoutEntries(target.Related, dropped)
+				target.Related = ops.WithoutEntries(target.Related, dropped)
 				return target, nil
 			})
 			if err != nil {
@@ -154,7 +155,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 // entries names that issue, else that issue holds it when one of its entries names first; neither
 // is not_found at first's file.
 func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.Entry, reflist.Removal, error) {
-	removal, err := a.referenceList(graph, first.ID, first.Related).Remove(arg)
+	removal, err := a.ops().ReferenceList(graph.graph, first.ID, first.Related).Remove(arg)
 	if err != nil {
 		return index.Entry{}, reflist.Removal{}, refusalFailure(err, "", refusalWords{})
 	}
@@ -162,7 +163,7 @@ func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.E
 		return first, removal, nil
 	}
 	other := graph.entries[removal.ID]
-	reverse, err := a.referenceList(graph, other.ID, other.Related).Remove(first.ID)
+	reverse, err := a.ops().ReferenceList(graph.graph, other.ID, other.Related).Remove(first.ID)
 	if err != nil {
 		return index.Entry{}, reflist.Removal{}, refusalFailure(err, "", refusalWords{})
 	}

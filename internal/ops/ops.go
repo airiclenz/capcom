@@ -63,11 +63,11 @@ func New(s *store.Store, x *index.Index) *Ops {
 	return &Ops{store: s, index: x}
 }
 
-// Edit changes the node ref names through kind (nodestore.Kind.Edit): it checks ifMatch, applies
+// EditNode changes the node ref names through kind (nodestore.Kind.Edit): it checks ifMatch, applies
 // change to the parsed node, validates and writes it atomically. It returns the node written; on a
 // failure after ref resolved, the Written still names the node's id and file. A failure of change
 // is a *ChangeError at that file; every other failure is Kind.Edit's, unwrapped.
-func Edit[T any](
+func EditNode[T any](
 	kind *nodestore.Kind[T],
 	ref string,
 	ifMatch string,
@@ -85,13 +85,13 @@ func Edit[T any](
 	return written, err
 }
 
-// EditIssue changes the issue ref names as Edit does, through the issue tree's node store.
+// EditIssue changes the issue ref names as EditNode does, through the issue tree's node store.
 func (o *Ops) EditIssue(
 	ref string,
 	ifMatch string,
 	change func(issue.Issue) (issue.Issue, error),
 ) (nodestore.Written, error) {
-	return Edit(nodestore.Issues(o.store, issueResolver{index: o.index}), ref, ifMatch, change)
+	return EditNode(nodestore.Issues(o.store, issueResolver{index: o.index}), ref, ifMatch, change)
 }
 
 // SetStatus moves the issue ref names to status, which must not cross into or out of a closed

@@ -10,6 +10,7 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/ops"
 	"github.com/airiclenz/capcom/internal/reflist"
 )
 
@@ -227,19 +228,19 @@ func editSuccessors(
 		}
 		// Drop's only failure is a removal that drops no entry: a silent no-op here.
 		if dropped, err := removal.Drop(entries); err == nil {
-			entries = withoutEntries(entries, dropped)
+			entries = ops.WithoutEntries(entries, dropped)
 		}
 	}
 	return entries, nil
 }
 
-// updateNote changes the Note arg names through the node store of the Knowledge tree, which
-// resolves arg through the index, refuses with conflict when --if-match is set and is not the
-// file's etag, applies the flags to the parsed Note, then validates and writes the result
-// atomically (Kind.Edit), whose sync hook (see notes) then refreshes a stale capcom block of
-// AGENTS.md. Every failure names the Note file, or config.yaml when its raise fails. An edit whose
-// written file carries a retired or superseded-by line raises a store below format 3 to 3 before
-// the write (Kind.Edit), with a warning (editNode).
+// updateNote changes the Note arg names through ops.EditNode (editNode) on the node store of the
+// Knowledge tree, which resolves arg through the index, refuses with conflict when --if-match is
+// set and is not the file's etag, applies the flags to the parsed Note, then validates and writes
+// the result atomically (Kind.Edit), whose sync hook (see notes) then refreshes a stale capcom
+// block of AGENTS.md. Every failure names the Note file, or config.yaml when its raise fails. An
+// edit whose written file carries a retired or superseded-by line raises a store below format 3
+// to 3 before the write (Kind.Edit), with a warning (app.written).
 func (a *app) updateNote(
 	cmd *cobra.Command,
 	arg string,
