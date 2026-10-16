@@ -198,8 +198,12 @@ node hides its subtree, sibling order, `--all` shows closed issues, a hidden sta
 - `GOMEMLIMIT=2GiB go test ./internal/cli/`
 **Commit:** `refactor(outline): move the issue and Note outlines out of internal/cli`
 
-## 5. Per-user config package
+## 5. Per-user config package — ✅ DONE (2026-10-16)
 
+NOTES (2026-10-16): consequential edit — docs/design/tui.md: made necessary by the Roles list (the Theme example named the role `status-active`, which Load now warns on as unknown; it now names `status-doing`)
+NOTES (2026-10-16): Load returns Default() alongside any *Error, so the caller runs on it directly; a null `ui`, `theme` or `colors` value means the default, while a null colour (e.g. an unquoted `#fff`, which YAML reads as a comment) is an error whose message says so
+NOTES (2026-10-16): malformed-YAML errors carry the line yaml.v3 reports, lifted out of its message into `path:line: message`; an unreadable existing file is an *Error (line 0)
+NOTES (2026-10-16): added TestPackage_ImportedOnlyByUI, which walks the module and fails when any package but internal/ui imports internal/userconfig, guarding the item's "no package but internal/ui imports it" clause
 **What:**
 **Goal:** `internal/userconfig` loads `<os.UserConfigDir>/capcom/config.yaml` per ADR 0011: the `ui`
 settings with defaults filled in (theme `auto`, no colour overrides); a missing file is created with

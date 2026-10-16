@@ -137,7 +137,7 @@ ui:
   theme: auto        # auto | dark | light
   colors:            # optional overrides, per role
     accent: "#7aa2f7"
-    status-active: "#9ece6a"
+    status-doing: "#9ece6a"
 ```
 
 - `auto` (the default) detects a light or dark background and picks that preset.
