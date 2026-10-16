@@ -17,6 +17,8 @@ top level and its direct children only.
 - No AI attribution anywhere: no co-author trailers, no "generated with" footers, not in commits,
   pull requests, code or docs.
 - Never tag, bump `VERSION` or edit a CHANGELOG release heading by hand (Note `release-process`).
+- When a plan under `docs/plans/` is saved, link every issue it will close with
+  `capcom update <id> --plan "<plan basename without .md>"`, so `capcom prime` lists it as planned.
 
 ## Tests on the Raspberry Pi 5 host
 

@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 2
 labels: [ui, test]
+plan: 2026-10-16 - 03 - ui-fill-tests-and-file-map-plan
 created: 2026-10-16T17:22:19Z
 ---
 
