@@ -36,7 +36,7 @@ const (
 	// or stale.
 	lockHeldFormat = "locked by %s, write anyway? (y/n)"
 	// lockReadFormat asks before a write when this worktree's lock record could not be read.
-	lockReadFormat = "lock: %s, write anyway? (y/n)"
+	lockReadFormat = "lock unreadable: %s, write anyway? (y/n)"
 	// conflictFormat asks, after a write found its issue changed on disk, whether to run it again
 	// on the version just read.
 	conflictFormat = "changed on disk: %s — run %s again? (y/n)"

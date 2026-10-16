@@ -242,7 +242,7 @@ func TestWrite_InvalidLockRecord_AsksWithTheReadError(t *testing.T) {
 
 	m = press(t, m, runeKey('a'))
 
-	want := "lock: " + oneLine(readErr.Error()) + ", write anyway? (y/n)"
+	want := "lock unreadable: " + oneLine(readErr.Error()) + ", write anyway? (y/n)"
 	if m.prompt.text != want {
 		t.Errorf("prompt = %q, want %q", m.prompt.text, want)
 	}
