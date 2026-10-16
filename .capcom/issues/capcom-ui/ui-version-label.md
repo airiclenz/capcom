@@ -1,11 +1,13 @@
 ---
 title: Show the version and app name in the tab bar
-status: open
+status: done
 type: feature
 priority: 2
 labels: [ui]
 plan: 2026-10-16 - 02 - ui-apogee-colors-columns-version-plan
 created: 2026-10-16T16:12:45Z
+closed: 2026-10-16T16:54:45Z
+reason: Delivered by plan 2026-10-16 - 02 - ui-apogee-colors-columns-version-plan (item 5), archived in 8907e8f
 ---
 
 capcom ui does not say which capcom it is. The user wants `v<version> · capcom` in the top-right

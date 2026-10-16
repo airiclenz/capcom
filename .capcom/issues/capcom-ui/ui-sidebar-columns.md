@@ -1,11 +1,13 @@
 ---
 title: Align status and priority in sidebar columns
-status: open
+status: done
 type: feature
 priority: 2
 labels: [ui]
 plan: 2026-10-16 - 02 - ui-apogee-colors-columns-version-plan
 created: 2026-10-16T16:12:45Z
+closed: 2026-10-16T16:54:45Z
+reason: Delivered by plan 2026-10-16 - 02 - ui-apogee-colors-columns-version-plan (item 4), archived in 8907e8f
 ---
 
 In capcom ui's sidebar each row prints `id  status  P<n>  title` with two spaces between fields,

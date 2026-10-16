@@ -1,11 +1,13 @@
 ---
 title: Draw capcom ui in apogee's colours, from editable scheme files
-status: open
+status: done
 type: feature
 priority: 2
 labels: [ui]
 plan: 2026-10-16 - 02 - ui-apogee-colors-columns-version-plan
 created: 2026-10-16T16:12:45Z
+closed: 2026-10-16T16:54:45Z
+reason: Delivered by plan 2026-10-16 - 02 - ui-apogee-colors-columns-version-plan (items 1-3), archived in 8907e8f
 ---
 
 capcom ui's dark and light presets are Go maps inside `internal/ui/theme.go` with their own
