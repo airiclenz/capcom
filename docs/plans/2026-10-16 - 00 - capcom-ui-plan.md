@@ -579,7 +579,11 @@ a type-only change (golden) names `type`; a hand-written invalid lock record ask
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): claim and status writes with lock prompt and conflict retry`
 
-## 17. Writes: close, reopen and log
+## 17. Writes: close, reopen and log — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that the work stays in the named files: the keys c, R and L route through keys.go's handleKey and the reason/log prompt's line replaces the status bar in statusbar.go, where item 16 put the confirmation prompt; the prompt itself (textPrompt, textWrite) is in prompt.go and the three actions in write.go.
+NOTES (2026-10-16): writeAction.run also takes the store's config.Config, so the close and reopen actions read their default status (config.DefaultStatus of config.ClosedCategories()[0] and of config.CategoryTodo, as the CLI's targetStatus does) inside the write; claim and status ignore it.
+NOTES (2026-10-16): unspecified edges filled: the prompts read `close <id>, reason: `, `reopen <id>, reason: ` and `log <id>: `; a landed reopen reports `reopened <id>` and a landed log `<id>: log entry added`; the refusals carry item 16's `write: ` prefix (`write: the reason is empty; say why`, `write: the log text is empty`, `write: <id> is already closed`, `write: <id> is not closed; only a closed issue can be reopened`); a blank line is refused at submit, before the Tree lock is read, with the ops sentinels' text; ctrl+c quits from an open prompt and a paste reaches it; the close stamps its closed time as the CLI does (UTC, to the second).
 
 **What:**
 **Goal:** `c` prompts for a reason and closes the selected issue with the status `capcom close` uses

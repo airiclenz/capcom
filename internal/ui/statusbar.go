@@ -68,8 +68,8 @@ func oneLine(text string) string {
 	return strings.Join(strings.Fields(text), " ")
 }
 
-// statusBar draws the bottom row: an open confirmation prompt's question in place of everything
-// else, or the Tree lock, the open tab's filter, the user config notice, the notices of a
+// statusBar draws the bottom row: an open confirmation prompt's question or an open text prompt's
+// line in place of everything else, or the Tree lock, the open tab's filter, the user config notice, the notices of a
 // config.yaml that could not be reloaded and of a poll that failed or stopped, the notice of an id
 // that could not be selected and the report of the last write when there are any, and the key
 // hints. A row too long for the terminal is cut before the hints, so they stay visible while there
@@ -77,6 +77,9 @@ func oneLine(text string) string {
 func (m model) statusBar() string {
 	if m.prompt.isOpen {
 		return fit(m.prompt.text, m.width)
+	}
+	if m.textPrompt.isOpen {
+		return fit(m.textPrompt.line.view(), m.width)
 	}
 	text := m.lockText
 	if filter := m.filterStatus(); filter != "" {

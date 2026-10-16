@@ -83,9 +83,12 @@ type model struct {
 	filterLine   lineInput
 
 	// prompt is the confirmation a write asks in the status bar, taking every key while it is
-	// open; picker is the status picker s opens over the detail pane, taking every key while it is
-	// open; writeNotice is the status bar's report of the last write, empty when there is none.
+	// open; textPrompt is the reason or Log line c, R and L ask for there, taking every key while
+	// it is open; picker is the status picker s opens over the detail pane, taking every key while
+	// it is open; writeNotice is the status bar's report of the last write, empty when there is
+	// none.
 	prompt      confirmPrompt
+	textPrompt  textPrompt
 	picker      statusPicker
 	writeNotice string
 }
@@ -158,16 +161,17 @@ func (m model) initialIDFor(tab Tab) string {
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
 // index, a write's run, the status picker's statuses and the painter's width measure, polls the
 // index on a tick, and handles the keys: an open confirmation prompt takes every key, then an
-// open status picker, then the open filter line, ahead of the dependency view's, then the model's
-// own. While the dependency view is open it keeps the detail
-// pane over whatever else repaints it. Any other message reaches the open filter line, such as a
-// paste.
+// open text prompt, then an open status picker, then the open filter line, ahead of the dependency
+// view's, then the model's own. While the dependency view is open it keeps the detail
+// pane over whatever else repaints it. Any other message, such as a paste, reaches the open text
+// prompt or the open filter line.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.filterLine.setWidth(m.sidebarPaneWidth())
+		m.textPrompt.line.setWidth(m.width)
 		m = m.paintSidebar().renderDetail().scrollDetail(0).paintDeps()
 	case lockMsg:
 		m.lockText = msg.text
@@ -200,6 +204,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.prompt.isOpen {
 			return m.promptKey(msg)
 		}
+		if m.textPrompt.isOpen {
+			return m.textPromptKey(msg)
+		}
 		if m.picker.isOpen {
 			return m.pickerKey(msg)
 		}
@@ -212,6 +219,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return next.handleKey(msg)
 	default:
+		if m.textPrompt.isOpen {
+			var cmd tea.Cmd
+			m.textPrompt.line, cmd = m.textPrompt.line.update(msg)
+			return m, cmd
+		}
 		if m.isFilterOpen {
 			var cmd tea.Cmd
 			m.filterLine, cmd = m.filterLine.update(msg)

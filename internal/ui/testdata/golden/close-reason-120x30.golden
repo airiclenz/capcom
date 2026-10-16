@@ -1,0 +1,30 @@
+ Issues  │  Ready  │  Knowledge 
+alpha  open  P1  Alpha task             │Alpha task
+beta  open  P2  Beta task               │
+delta  open  P2  Delta task             │status: open · P1
+                                        │labels: ui, tui
+                                        │deps: finished
+                                        │
+                                        │Alpha names beta and no-such-id.
+                                        │
+                                        │• first point
+                                        │• second point
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────
+close alpha, reason: fixed in 3f2a1c9                                                                                   

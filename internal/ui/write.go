@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/lock"
@@ -16,8 +18,17 @@ import (
 	"github.com/airiclenz/capcom/internal/store"
 )
 
-// keyClaim claims the selected issue.
-const keyClaim = "a"
+// The keys of the writes on the selected issue besides the status picker's s.
+const (
+	// keyClaim claims the selected issue.
+	keyClaim = "a"
+	// keyClose asks for a reason and closes the selected issue.
+	keyClose = "c"
+	// keyReopen asks for a reason and reopens the selected issue.
+	keyReopen = "R"
+	// keyLog asks for a line and appends it to the selected issue's Log.
+	keyLog = "L"
+)
 
 // The texts of a write.
 const (
@@ -39,6 +50,21 @@ const (
 	// one that landed.
 	statusNameFormat = "status %s"
 	statusSetFormat  = "%s: status %s"
+	// closeName names a close in the conflict prompt, closedFormat reports one that landed, and
+	// nowReadyFormat adds the issues it made Ready to that report when there are any.
+	closeName      = "close"
+	closedFormat   = "closed %s"
+	nowReadyFormat = "%s; now ready: %s"
+	// alreadyClosedFormat refuses the close of an issue that is already closed.
+	alreadyClosedFormat = "%s is already closed"
+	// reopenName names a reopen in the conflict prompt, and reopenedFormat reports one that landed.
+	reopenName     = "reopen"
+	reopenedFormat = "reopened %s"
+	// notClosedFormat refuses the reopen of an issue that is not closed.
+	notClosedFormat = "%s is not closed; only a closed issue can be reopened"
+	// logName names a Log entry in the conflict prompt, and loggedFormat reports one that landed.
+	logName      = "log"
+	loggedFormat = "%s: log entry added"
 	// writeFailurePrefix opens the notice of a write that failed.
 	writeFailurePrefix = "write: "
 	// unparsedWriteFormat refuses a write on an issue whose file does not parse.
@@ -51,18 +77,18 @@ const (
 )
 
 // writeAction is one write the UI makes on an issue: its name in the conflict prompt, and run,
-// which makes it through writer on the issue id names with etag as if-match and returns the
-// status bar's report of it.
+// which makes it through writer, on the store whose config is cfg, on the issue id names with
+// etag as if-match and returns the status bar's report of it.
 type writeAction struct {
 	name string
-	run  func(writer *ops.Ops, id string, etag string) (string, error)
+	run  func(writer *ops.Ops, cfg config.Config, id string, etag string) (string, error)
 }
 
 // claimAction is the claim a makes: the issue moves to the first status of the doing category.
 func claimAction() writeAction {
 	return writeAction{
 		name: claimName,
-		run: func(writer *ops.Ops, id string, etag string) (string, error) {
+		run: func(writer *ops.Ops, _ config.Config, id string, etag string) (string, error) {
 			written, err := writer.Claim(id, etag)
 			return fmt.Sprintf(claimedFormat, written.ID), err
 		},
@@ -73,9 +99,62 @@ func claimAction() writeAction {
 func statusAction(status string) writeAction {
 	return writeAction{
 		name: fmt.Sprintf(statusNameFormat, status),
-		run: func(writer *ops.Ops, id string, etag string) (string, error) {
+		run: func(writer *ops.Ops, _ config.Config, id string, etag string) (string, error) {
 			written, err := writer.SetStatus(id, etag, status)
 			return fmt.Sprintf(statusSetFormat, written.ID, status), err
+		},
+	}
+}
+
+// closeAction is the close c makes with reason: the issue moves to the status capcom close uses
+// without --status, the first of the first closed category, with now, to the second, as its closed
+// time as the CLI stamps it, and its report names the issues the close made Ready. An issue already closed is
+// refused with alreadyClosedFormat.
+func closeAction(reason string) writeAction {
+	return writeAction{
+		name: closeName,
+		run: func(writer *ops.Ops, cfg config.Config, id string, etag string) (string, error) {
+			// A config always declares a done status, so the first closed category has one.
+			status, _ := cfg.DefaultStatus(config.ClosedCategories()[0])
+			closedAt := time.Now().UTC().Truncate(time.Second)
+			closed, err := writer.Close(id, etag, status, reason, closedAt)
+			if errors.Is(err, issue.ErrAlreadyClosed) {
+				return "", fmt.Errorf(alreadyClosedFormat, id)
+			}
+			notice := fmt.Sprintf(closedFormat, closed.ID)
+			if len(closed.NewlyReady) > 0 {
+				notice = fmt.Sprintf(nowReadyFormat, notice, strings.Join(closed.NewlyReady, listSeparator))
+			}
+			return notice, err
+		},
+	}
+}
+
+// reopenAction is the reopen R makes with reason: the issue moves to the status capcom reopen
+// uses without --status, the first of the todo category, and the reason goes to its Log. An issue
+// that is not closed is refused with notClosedFormat.
+func reopenAction(reason string) writeAction {
+	return writeAction{
+		name: reopenName,
+		run: func(writer *ops.Ops, cfg config.Config, id string, etag string) (string, error) {
+			// A config always declares a todo status.
+			status, _ := cfg.DefaultStatus(config.CategoryTodo)
+			written, err := writer.Reopen(id, etag, status, reason, time.Now())
+			if errors.Is(err, issue.ErrNotClosed) {
+				return "", fmt.Errorf(notClosedFormat, id)
+			}
+			return fmt.Sprintf(reopenedFormat, written.ID), err
+		},
+	}
+}
+
+// logAction is the Log entry L appends with text, dated now as capcom log dates it.
+func logAction(text string) writeAction {
+	return writeAction{
+		name: logName,
+		run: func(writer *ops.Ops, _ config.Config, id string, etag string) (string, error) {
+			written, err := writer.AppendLog(id, etag, text, time.Now())
+			return fmt.Sprintf(loggedFormat, written.ID), err
 		},
 	}
 }
@@ -140,7 +219,7 @@ func (w pendingWrite) land(opened *store.Store, issueIndex *index.Index) written
 			return msg
 		}
 	}
-	notice, err := w.action.run(ops.New(opened, issueIndex), w.id, w.etag)
+	notice, err := w.action.run(ops.New(opened, issueIndex), opened.Config, w.id, w.etag)
 	var conflict *nodestore.ConflictError
 	isConflict := errors.As(err, &conflict)
 	if err != nil && !isConflict {
