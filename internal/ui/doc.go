@@ -13,6 +13,7 @@
 // Every non-test file of the package, with its responsibility. TestDocFileMap_MatchesDirectory
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
+//   - `clipboard.go` — copyText: the copy over OSC 52, the native clipboard and tmux, and its notice
 //   - `depview.go` — the dependency view d opens over the detail pane: its rows, keys and painting
 //   - `detail.go` — the detail pane: reading an issue or Note, its header, rendering and links
 //   - `doc.go` — the package comment and this file map

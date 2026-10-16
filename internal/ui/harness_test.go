@@ -147,17 +147,38 @@ func newTestModel(t *testing.T, ts *testStore, width, height int) model {
 // startModel returns the model of options after its start as a program runs it: Init's commands
 // run and their messages handed back, then a tea.WindowSizeMsg of width by height as a terminal
 // would send it. No real clock runs: the model schedules no tick, and a test polls the index by
-// sending tickMsg itself.
+// sending tickMsg itself. No copy reaches a clipboard: OSC 52, the native clipboard and tmux are
+// writes that do nothing, and the copy notice's clear is never scheduled, so a test sends
+// flashClearMsg itself.
 func startModel(t *testing.T, options Options, width, height int) model {
 	t.Helper()
 	m := newModel(options)
 	m.tick = noTick
+	m.setClipboard = noSetClipboard
+	m.writeNative = noWrite
+	m.writeTmux = noWrite
+	m.flashTick = noFlashTick
 	m = drive(t, m, m.Init())
 	return press(t, m, tea.WindowSizeMsg{Width: width, Height: height})
 }
 
 // noTick stands in for scheduleTick in tests: it schedules nothing.
 func noTick() tea.Cmd {
+	return nil
+}
+
+// noSetClipboard stands in for tea.SetClipboard in tests: it writes no OSC 52 sequence.
+func noSetClipboard(string) tea.Cmd {
+	return nil
+}
+
+// noWrite stands in for the native and tmux clipboard writes in tests: it runs no program.
+func noWrite(string) error {
+	return nil
+}
+
+// noFlashTick stands in for tea.Tick in tests: it schedules nothing.
+func noFlashTick(time.Duration, func(time.Time) tea.Msg) tea.Cmd {
 	return nil
 }
 

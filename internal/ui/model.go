@@ -45,6 +45,15 @@ type model struct {
 	// execFn returns the command that runs the editor command argv and hands its exit to done:
 	// execEditor, which tests replace with a runner of their own.
 	execFn func(argv []string, done tea.ExecCallback) tea.Cmd
+	// setClipboard returns the command that writes text to the terminal's clipboard through OSC 52:
+	// tea.SetClipboard. writeNative and writeTmux write text to the native clipboard and to tmux's
+	// paste buffer: a clipboard.Writer's WriteNative and WriteTmux, fenced to the store's working
+	// tree. flashTick schedules the flash's clear: tea.Tick. Tests replace all four, so no test
+	// touches a real clipboard, runs tmux or runs a real clock.
+	setClipboard func(text string) tea.Cmd
+	writeNative  func(text string) error
+	writeTmux    func(text string) error
+	flashTick    tickFunc
 	// isPollingStopped reports polling ended for good, once another capcom version rebuilt the
 	// index.
 	isPollingStopped bool
@@ -66,6 +75,10 @@ type model struct {
 	// notice is the status bar's report of an id to select that could not be selected; empty when
 	// there is none.
 	notice string
+	// flash is the status bar's first notice for flashDuration, the copy notice, empty when there
+	// is none; flashGen numbers the flash shown last, so only its own flashClearMsg clears it.
+	flash    string
+	flashGen int
 	// theme is every style the UI paints with, from the user config's theme and colours over the
 	// terminal background; isLightBackground reports the terminal answered a light background
 	// (until it answers, the background counts as dark), and isNoColor that NO_COLOR is set, so
@@ -153,10 +166,12 @@ type model struct {
 // starts the sidebar on the width the state file at options.UserStatePath, or at
 // userconfig.StatePath when that is empty, holds; a state file that cannot be used leaves the
 // default width with a notice in the status bar. The theme starts on a dark background, and
-// without colours when options.NoColor is set.
+// without colours when options.NoColor is set. A copy writes through a clipboard.Writer fenced to
+// options.Store's working tree.
 func newModel(options Options) model {
 	config, notice := loadUserConfig(options.UserConfigPath)
 	sidebarRatio, saver, stateNotice := loadUserState(options.UserStatePath)
+	writer := clipboardWriter(options.Store.WorktreeRoot)
 	m := model{
 		session:      newSession(options.Store, options.Index),
 		tab:          options.Tab,
@@ -172,6 +187,10 @@ func newModel(options Options) model {
 		tick:         scheduleTick,
 		now:          time.Now,
 		execFn:       execEditor,
+		setClipboard: tea.SetClipboard,
+		writeNative:  writer.WriteNative,
+		writeTmux:    writer.WriteTmux,
+		flashTick:    tea.Tick,
 	}
 	m.theme = m.themeOf()
 	m.markdownTheme = m.theme.markdown
@@ -325,7 +344,7 @@ func (m model) initialIDFor(tab Tab) string {
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
 // index, a write's run, the status picker's statuses, an edit's steps, a save of the state file,
-// the painter's width measure and the terminal's background colour, polls the index on a tick, and handles the keys:
+// the clear of the copy notice, the painter's width measure and the terminal's background colour, polls the index on a tick, and handles the keys:
 // an open confirmation prompt takes
 // every key, then an open text prompt, then an open status picker, then the open filter line,
 // ahead of the dependency view's, then the model's own; every key first clears the detail
@@ -373,6 +392,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyChecked(msg)
 	case stateSavedMsg:
 		m = m.applyStateSaved(msg)
+	case flashClearMsg:
+		m = m.applyFlashClear(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.

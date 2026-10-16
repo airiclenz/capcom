@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -132,7 +133,7 @@ func (m model) dragDivider(msg tea.MouseMotionMsg) model {
 // mouseRelease ends a drag of the divider and returns the command that saves the width to the
 // state file when the drag changed it; a drag that changed it also forgets its press, so the next
 // press on the divider starts a drag and never completes a double-click. Without a drag it ends
-// the detail selection's drag, as releaseSelection does.
+// the detail selection's drag and copies what it covers, as releaseSelection does.
 func (m model) mouseRelease(msg tea.MouseReleaseMsg) (model, tea.Cmd) {
 	if !m.drag.isActive {
 		return m.releaseSelection(msg.X, msg.Y)
@@ -223,16 +224,17 @@ func (m model) extendSelection(x, y int) model {
 }
 
 // releaseSelection ends the detail selection's drag at the screen cell at column x and row y,
-// extending it there as a motion does. A selection that spans a cell is kept; a bare click, one
-// that spans none, follows the link under it and clears the selection. Without a selection under
-// way it does nothing.
+// extending it there as a motion does. A selection that spans a cell copies the text it covers, as
+// copyText does, and is kept, so its highlight shows what was copied; one whose text is blank
+// copies nothing and is cleared. A bare click, one that spans none, follows the link under it and
+// clears the selection. Without a selection under way it does nothing.
 func (m model) releaseSelection(x, y int) (model, tea.Cmd) {
 	if !m.sel.isActive {
 		return m, nil
 	}
 	m = m.extendSelection(x, y)
 	if !m.sel.isCollapsed() {
-		return m, nil
+		return m.copySelection()
 	}
 	anchor := m.sel.anchor
 	m.sel = detailSel{}
@@ -241,6 +243,17 @@ func (m model) releaseSelection(x, y int) (model, tea.Cmd) {
 		return m, nil
 	}
 	return m.followLink(target)
+}
+
+// copySelection copies the text the detail selection covers, as copyText does, keeping the
+// selection; a selection whose text is blank copies nothing and is cleared.
+func (m model) copySelection() (model, tea.Cmd) {
+	text := m.sel.text(m.markdownTheme.Measure, m.detail, m.detailWidth())
+	if strings.TrimSpace(text) == "" {
+		m.sel = detailSel{}
+		return m, nil
+	}
+	return m.copyText(text)
 }
 
 // followLink selects the issue or Note a detail link names: an issue in the Issues tab, a Note in

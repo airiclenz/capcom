@@ -193,7 +193,11 @@ The `issueDetail{}` resets in `issues.go`, `ready.go` and `knowledge.go` are in 
 - `go vet ./internal/ui/` is clean.
 **Commit:** `feat(ui): select text in the detail pane with press and drag`
 
-## 4. Copy the selection on release and show `copied N chars`
+## 4. Copy the selection on release and show `copied N chars` — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the release's copy goes through a new `copySelection` in mouse.go (text from `sel.text` over `m.detail` at `detailWidth`, blank → clear) and `copyText` in clipboard.go, which also holds `flashClearMsg`, `applyFlashClear`, `flashDuration` and the `tickFunc` type of the `flashTick` seam.
+NOTES (2026-10-16): startModel swaps the four seams for `noSetClipboard`, `noWrite` (native and tmux) and `noFlashTick`; the copy tests swap in a recorder after startModel and send the recorded `flashClearMsg`s themselves.
+NOTES (2026-10-16): select-drag-120x30.golden re-recorded with `-update`; its only diff is the status row gaining ` · copied 29 chars`.
 
 Depends on items 1 and 3.
 
