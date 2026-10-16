@@ -137,6 +137,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(newRmCommand(a, issueVerbs))
 	root.AddCommand(a.newSearchCommand())
 	root.AddCommand(a.newShowCommand())
+	root.AddCommand(a.newUICommand())
 	root.AddCommand(a.newUpdateCommand())
 	root.AddCommand(a.newVersionCommand())
 	return root

@@ -47,5 +47,6 @@
 //   - `root.go` — Run, Command, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word
 //   - `show.go` — capcom show and the resolution of an issue argument to its index entry
+//   - `ui.go` — capcom ui: checks for a terminal and hands the opened store and index to internal/ui
 //   - `update.go` — capcom update: changes an issue's fields or body
 package cli

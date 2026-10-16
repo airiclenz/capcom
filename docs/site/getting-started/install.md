@@ -34,7 +34,7 @@ winget install AiricLenz.Capcom
 
 ## From source with Go
 
-With Go 1.24 or later:
+With Go 1.25 or later:
 
 ```sh
 go install github.com/airiclenz/capcom/cmd/capcom@latest

@@ -231,7 +231,13 @@ warns (skipped on Windows and as root). `internal/cli/userconfig_test.go`: with 
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run UserConfig`
 **Commit:** `feat(userconfig): add the per-user config file for capcom ui`
 
-## 6. capcom ui command, session and test harness
+## 6. capcom ui command, session and test harness — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the concurrent `session.do` tests live in a new `internal/ui/session_test.go` (not in Files), following the `{source}_test.go` rule; `-run Session` selects them.
+NOTES (2026-10-16): `session` holds the store and the index only; the store config travels as `store.Config` on the store, so there is no separate config field behind the mutex.
+NOTES (2026-10-16): the TTY check uses `github.com/charmbracelet/x/term` (in the module graph through bubbletea) and the golden harness `github.com/charmbracelet/x/ansi`; `go mod tidy` made both direct requirements, and bubbletea's graph also raised `golang.org/x/sync` (indirect) to v0.21.0.
+NOTES (2026-10-16): `newTestStore` keys its files by their path relative to `.capcom/` (`issues/a.md`, `knowledge/n.md`) rather than relative to the issues directory, so later tabs can seed Notes too; it returns a `*testStore` (root, store, index) that `newTestModel` takes.
+NOTES (2026-10-16): `Options.ID` is carried into the model but not yet acted on (selection lands with the tab items); `capcom ui` prints no index warnings, since it renders no result through emit.
 
 **What:**
 **Goal:** `capcom ui [issues|ready|knowledge] [id]` exists: a non-TTY stdin or stdout exits 1 with an

@@ -122,7 +122,7 @@ winget (Windows):
 winget install AiricLenz.Capcom
 ```
 
-From source, with Go 1.24 or later:
+From source, with Go 1.25 or later:
 
 ```sh
 go install github.com/airiclenz/capcom/cmd/capcom@latest
