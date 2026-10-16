@@ -30,7 +30,8 @@ const (
 // the page keys from anywhere, the arrows and j k only where the detail pane fills a narrow
 // screen. Esc from the sidebar clears the open tab's filter. On the Ready and Issues tabs a claims
 // the shown issue, s opens the status picker over it, c and R ask for a reason and close or reopen
-// it, and L asks for a line and appends it to its Log. Everywhere else
+// it, and L asks for a line and appends it to its Log. On every tab e opens the selected issue or
+// Note file in the editor. Everywhere else
 // the up and down arrows and j k move the sidebar's selection, and on a tree the left and right
 // arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
@@ -73,6 +74,8 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m.openTextPrompt(reopenWrite()), nil
 	case keyLog:
 		return m.openTextPrompt(logWrite()), nil
+	case keyEdit:
+		return m.startEdit()
 	default:
 		return m.sidebarOrScrollKey(msg)
 	}

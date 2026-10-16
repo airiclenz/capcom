@@ -348,7 +348,7 @@ func (m model) applyWritten(msg writtenMsg) (model, tea.Cmd) {
 	case msg.question != "":
 		write := msg.write
 		write.isLockConfirmed = true
-		m.prompt = newConfirmPrompt(msg.question, write)
+		m.prompt = newConfirmPrompt(msg.question, runWrite(m.session, write))
 		return m, nil
 	case msg.conflict != nil:
 		return m.applyConflict(msg)
@@ -382,7 +382,7 @@ func (m model) applyConflict(msg writtenMsg) (model, tea.Cmd) {
 	write.shown = conflict.detail.node
 	write.shownParentID = conflict.detail.parentID
 	question := fmt.Sprintf(conflictFormat, strings.Join(conflict.fields, listSeparator), write.action.name)
-	m.prompt = newConfirmPrompt(question, write)
+	m.prompt = newConfirmPrompt(question, runWrite(m.session, write))
 	m.writeNotice = withRefreshFailure("", msg.refreshErr)
 	return m, m.reloadTabs()
 }

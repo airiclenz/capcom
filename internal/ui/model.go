@@ -27,6 +27,9 @@ type model struct {
 	// tick returns the command that asks for the next poll of the index: scheduleTick, which
 	// tests replace so no real clock runs.
 	tick func() tea.Cmd
+	// execFn returns the command that runs the editor command argv and hands its exit to done:
+	// execEditor, which tests replace with a runner of their own.
+	execFn func(argv []string, done tea.ExecCallback) tea.Cmd
 	// isPollingStopped reports polling ended for good, once another capcom version rebuilt the
 	// index.
 	isPollingStopped bool
@@ -82,11 +85,11 @@ type model struct {
 	isFilterOpen bool
 	filterLine   lineInput
 
-	// prompt is the confirmation a write asks in the status bar, taking every key while it is
-	// open; textPrompt is the reason or Log line c, R and L ask for there, taking every key while
-	// it is open; picker is the status picker s opens over the detail pane, taking every key while
-	// it is open; writeNotice is the status bar's report of the last write, empty when there is
-	// none.
+	// prompt is the confirmation a write or an edit asks in the status bar, taking every key while
+	// it is open; textPrompt is the reason or Log line c, R and L ask for there, taking every key
+	// while it is open; picker is the status picker s opens over the detail pane, taking every key
+	// while it is open; writeNotice is the status bar's report of the last write or edit, empty
+	// when there is none.
 	prompt      confirmPrompt
 	textPrompt  textPrompt
 	picker      statusPicker
@@ -107,6 +110,7 @@ func newModel(options Options) model {
 		configNotice: notice,
 		lockText:     lockReadingText,
 		tick:         scheduleTick,
+		execFn:       execEditor,
 	}
 }
 
@@ -159,10 +163,10 @@ func (m model) initialIDFor(tab Tab) string {
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
-// index, a write's run, the status picker's statuses and the painter's width measure, polls the
-// index on a tick, and handles the keys: an open confirmation prompt takes every key, then an
-// open text prompt, then an open status picker, then the open filter line, ahead of the dependency
-// view's, then the model's own. While the dependency view is open it keeps the detail
+// index, a write's run, the status picker's statuses, an edit's steps and the painter's width
+// measure, polls the index on a tick, and handles the keys: an open confirmation prompt takes
+// every key, then an open text prompt, then an open status picker, then the open filter line,
+// ahead of the dependency view's, then the model's own. While the dependency view is open it keeps the detail
 // pane over whatever else repaints it. Any other message, such as a paste, reaches the open text
 // prompt or the open filter line.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -195,6 +199,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyWritten(msg)
 	case statusesMsg:
 		m = m.applyStatuses(msg)
+	case editPreparedMsg:
+		return m.applyEditPrepared(msg)
+	case editedMsg:
+		return m.applyEdited(msg)
+	case checkedMsg:
+		return m.applyChecked(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.

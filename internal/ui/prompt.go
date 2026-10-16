@@ -26,31 +26,31 @@ const (
 	keyNo  = "n"
 )
 
-// confirmPrompt is a yes-or-no question the status bar asks before a write goes ahead: whether to
-// write while another session holds the Tree lock, or whether to run a write again after its
-// issue changed on disk. write is the write a yes runs.
+// confirmPrompt is a yes-or-no question the status bar asks before a write or an edit goes ahead:
+// whether to write or edit while another session holds the Tree lock, or whether to run a write
+// again after its issue changed on disk. yes is the command a yes runs: the write, or the editor.
 type confirmPrompt struct {
 	isOpen bool
 	text   string
-	write  pendingWrite
+	yes    tea.Cmd
 }
 
-// newConfirmPrompt returns an open prompt asking text, whose yes runs write.
-func newConfirmPrompt(text string, write pendingWrite) confirmPrompt {
-	return confirmPrompt{isOpen: true, text: text, write: write}
+// newConfirmPrompt returns an open prompt asking text, whose yes runs the command yes.
+func newConfirmPrompt(text string, yes tea.Cmd) confirmPrompt {
+	return confirmPrompt{isOpen: true, text: text, yes: yes}
 }
 
 // promptKey gives one key to the open confirmation prompt, which takes every key: y or Enter
-// closes it and runs its write, n or Esc closes it with nothing written, ctrl+c quits, and every
+// closes it and runs its command, n or Esc closes it with nothing run, ctrl+c quits, and every
 // other key does nothing.
 func (m model) promptKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	switch msg.String() {
 	case keyInterrupt:
 		return m, tea.Quit
 	case keyYes, keyOpen:
-		write := m.prompt.write
+		yes := m.prompt.yes
 		m.prompt = confirmPrompt{}
-		return m, runWrite(m.session, write)
+		return m, yes
 	case keyNo, keyBack:
 		m.prompt = confirmPrompt{}
 	}

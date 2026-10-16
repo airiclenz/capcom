@@ -608,7 +608,11 @@ and a blank log line are refused, the file byte-identical.
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): close, reopen and log writes`
 
-## 18. Open in $EDITOR
+## 18. Open in $EDITOR — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that the work stays in the named files: the `e` key routes through keys.go's handleKey, and the lock prompt is item 16's confirmPrompt (prompt.go), which now carries the command its yes runs (`yes tea.Cmd`) in place of a pendingWrite, so the editor reuses it; write.go's two newConfirmPrompt calls pass `runWrite(m.session, write)`.
+NOTES (2026-10-16): unspecified edges filled: `e` works on all three tabs and needs no parsed file (fixing a broken file is the point); the notices read `editor: set $VISUAL or $EDITOR to edit files`, `check: <path:line: message> (problems: <n>)`, `<path>: check found no problems`, `editor: <error>` for an editor that cannot start or exits non-zero (no check then; the next poll picks up any change), and `check: <error>` when the store cannot be read; the lock question is the writes' own `locked by <purpose>, write anyway? (y/n)`; check.Run runs on the session's store, then the index refreshes and every tab reloads.
+NOTES (2026-10-16): an untracked Makefile at the repo root is not this item's work and was left untouched.
 
 **What:**
 **Goal:** `e` opens the selected Issue or Note file in `$VISUAL`, else `$EDITOR` (split on spaces,
