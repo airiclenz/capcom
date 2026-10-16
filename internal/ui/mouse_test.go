@@ -195,6 +195,32 @@ func TestMouse_ClickOnTreeArrow_ExpandsAndCollapses(t *testing.T) {
 	}
 }
 
+func TestMouse_ClickOnANestedTreeArrow_ExpandsAndCollapsesThatRow(t *testing.T) {
+	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			m := newIssuesModel(t, newTestStore(t, treeFiles), "solo", size[0], size[1])
+			// Row 3 is alpha under the expanded epic: its connector in columns 0 and 1, its arrow
+			// in column 2.
+			m = press(t, m, click(0, 2))
+
+			onConnector := press(t, m, click(0, 3))
+			expanded := press(t, m, click(2, 3))
+			collapsed := press(t, expanded, click(2, 3))
+
+			if got := selectedIssueID(onConnector); got != "alpha" || slices.Contains(visibleIDs(onConnector), "leaf") {
+				t.Errorf("after a click on the connector: selected %q, visible %v; want alpha, still collapsed",
+					got, visibleIDs(onConnector))
+			}
+			if got := selectedIssueID(expanded); got != "alpha" || !slices.Contains(visibleIDs(expanded), "leaf") {
+				t.Errorf("after the first arrow click: selected %q, visible %v; want alpha expanded", got, visibleIDs(expanded))
+			}
+			if slices.Contains(visibleIDs(collapsed), "leaf") || !slices.Contains(visibleIDs(collapsed), "alpha") {
+				t.Errorf("after the second arrow click: visible %v, want alpha collapsed under epic", visibleIDs(collapsed))
+			}
+		})
+	}
+}
+
 func TestMouse_ClickOnTreeRowText_SelectsWithoutExpanding(t *testing.T) {
 	m := newIssuesModel(t, newTestStore(t, treeFiles), "solo", wideWidth, wideHeight)
 

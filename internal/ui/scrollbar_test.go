@@ -99,6 +99,33 @@ func TestDetailPane_LongBody_PaintsAThumbOnATrackInTheLastColumn(t *testing.T) {
 	}
 }
 
+func TestDetailPane_LongBody_PaintsTheThumbMutedAndTheTrackInTheBorderColour(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, linkFiles), wideWidth, wideHeight)
+	thumb := m.theme.colors.foreground(roleMuted).Render(scrollThumbGlyph)
+	track := m.theme.colors.foreground(roleBorder).Render(scrollTrackGlyph)
+	if len(colourSequences(thumb)) == 0 || len(colourSequences(track)) == 0 || thumb == track {
+		t.Fatalf("thumb %q and track %q must each carry their own colour", thumb, track)
+	}
+
+	rows := strings.Split(m.View().Content, "\n")[bodyTop : bodyTop+m.bodyHeight()]
+
+	counts := map[string]int{}
+	for row, line := range rows {
+		switch {
+		case strings.HasSuffix(line, thumb):
+			counts["thumb"]++
+		case strings.HasSuffix(line, track):
+			counts["track"]++
+		default:
+			t.Errorf("row %d ends %q, want the muted thumb %q or the border-coloured track %q",
+				row, line[max(len(line)-40, 0):], thumb, track)
+		}
+	}
+	if counts["thumb"] == 0 || counts["track"] == 0 {
+		t.Errorf("the bar holds %v, want both the thumb and the track", counts)
+	}
+}
+
 func TestDetailPane_ShortBody_LeavesTheScrollbarColumnBlank(t *testing.T) {
 	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
