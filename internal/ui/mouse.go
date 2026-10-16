@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -11,6 +12,10 @@ import (
 
 // detailWheelRows is how many rows one wheel notch scrolls the detail pane.
 const detailWheelRows = 3
+
+// doubleClickWindow is the longest time between two presses on the divider's hit area that makes
+// them a double-click.
+const doubleClickWindow = 500 * time.Millisecond
 
 // isMouseIgnored reports an open help screen, filter line, status picker or prompt: each takes
 // every key while it is open, so a click or a wheel notch cannot move what it acts on.
@@ -28,8 +33,8 @@ type dividerDrag struct {
 	startColumns int
 }
 
-// mouseClick handles a left click: on the divider's hit area it starts a drag of the divider, on a
-// tab's label it opens that tab, on a sidebar row it selects that row, expanding or collapsing a
+// mouseClick handles a left click: on the divider's hit area it starts a drag of the divider, or
+// resets the sidebar's width when the click completes a double-click there, on a tab's label it opens that tab, on a sidebar row it selects that row, expanding or collapsing a
 // tree node when the click lands on its arrow, and in the detail pane it selects a row of the
 // dependency view or follows a link. Every other click, and every click while isMouseIgnored, does
 // nothing.
@@ -38,8 +43,9 @@ func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 		return m, nil
 	}
 	if m.isOnDivider(msg.X, msg.Y) {
-		return m.startDrag(msg.X), nil
+		return m.pressDivider(msg.X)
 	}
+	m.lastDividerPress = time.Time{}
 	point := m.pointAt(msg.X, msg.Y)
 	switch point.pane {
 	case paneTabBar:
@@ -54,6 +60,23 @@ func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 		return m.clickDetail(point)
 	}
 	return m, nil
+}
+
+// pressDivider handles a left press on the divider's hit area at column x. Within
+// doubleClickWindow of the last press there it resets the sidebar to its default width and
+// returns the command that clears the width in the state file, starting no drag; otherwise it
+// records the press and starts a drag.
+func (m model) pressDivider(x int) (model, tea.Cmd) {
+	now := m.now()
+	isDoubleClick := !m.lastDividerPress.IsZero() && now.Sub(m.lastDividerPress) <= doubleClickWindow
+	if !isDoubleClick {
+		m.lastDividerPress = now
+		return m.startDrag(x), nil
+	}
+	m.lastDividerPress = time.Time{}
+	m.drag = dividerDrag{}
+	m.sidebarColumns = 0
+	return m.relayout(), m.saveState()
 }
 
 // startDrag starts a drag of the divider pressed at column x.
@@ -78,7 +101,9 @@ func (m model) mouseMotion(msg tea.MouseMotionMsg) model {
 }
 
 // mouseRelease ends a drag of the divider and returns the command that saves the width to the
-// state file when the drag changed it. Without a drag it does nothing.
+// state file when the drag changed it; a drag that changed it also forgets its press, so the next
+// press on the divider starts a drag and never completes a double-click. Without a drag it does
+// nothing.
 func (m model) mouseRelease() (model, tea.Cmd) {
 	if !m.drag.isActive {
 		return m, nil
@@ -88,6 +113,7 @@ func (m model) mouseRelease() (model, tea.Cmd) {
 	if !isChanged {
 		return m, nil
 	}
+	m.lastDividerPress = time.Time{}
 	return m, m.saveState()
 }
 

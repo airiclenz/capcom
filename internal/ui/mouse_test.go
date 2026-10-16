@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -627,4 +628,144 @@ func TestMouse_MidDrag_MatchesANSIGolden(t *testing.T) {
 	m = press(t, m, motion(from+10, dragRow))
 
 	goldenANSI(t, "drag-divider-120x30", m.View())
+}
+
+// storedWidthAt is the sidebar width the double-click tests store in the state file before the
+// model starts, wide enough that a reset to the default width shows.
+const storedWidthAt = 60
+
+// testClock is a clock a test moves on by hand, which stands in for time.Now in a model.
+type testClock struct {
+	current time.Time
+}
+
+// now returns the clock's time.
+func (c *testClock) now() time.Time {
+	return c.current
+}
+
+// advance moves the clock on by duration.
+func (c *testClock) advance(duration time.Duration) {
+	c.current = c.current.Add(duration)
+}
+
+// startClockModel returns the model of options started at the wide size, on a testClock the test
+// moves on by hand, and that clock.
+func startClockModel(t *testing.T, options Options) (model, *testClock) {
+	t.Helper()
+	m := startModel(t, options, wideWidth, wideHeight)
+	clock := &testClock{current: time.Date(2026, time.October, 16, 12, 0, 0, 0, time.UTC)}
+	m.now = clock.now
+	return m, clock
+}
+
+// pressDividerOnce presses the left button on the divider and lets it go without moving.
+func pressDividerOnce(t *testing.T, m model) model {
+	t.Helper()
+	x := m.dividerColumn()
+	m = press(t, m, click(x, dragRow))
+	return press(t, m, release(x, dragRow))
+}
+
+// assertNoStoredWidth fails the test unless the state file at path holds no sidebar_width key.
+func assertNoStoredWidth(t *testing.T, path string) {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(content), "sidebar_width") {
+		t.Errorf("state file = %q, want no sidebar_width key", content)
+	}
+}
+
+func TestMouse_DoubleClickOnTheDivider_ResetsTheWidthAndClearsTheStoredOne(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	m, clock := startClockModel(t, options)
+	defaultWidth := m.sidebarWidth()
+	from := m.dividerColumn()
+	m = dragDivider(t, m, from, from+storedWidthAt-defaultWidth)
+	if got := readStoredWidth(t, options.UserStatePath); got != storedWidthAt {
+		t.Fatalf("stored sidebar width after the drag = %d, want %d", got, storedWidthAt)
+	}
+	clock.advance(doubleClickWindow + time.Millisecond)
+
+	m = pressDividerOnce(t, m)
+	clock.advance(200 * time.Millisecond)
+	m = pressDividerOnce(t, m)
+
+	if got := m.sidebarWidth(); got != defaultWidth {
+		t.Errorf("sidebarWidth() = %d, want the default %d", got, defaultWidth)
+	}
+	assertNoStoredWidth(t, options.UserStatePath)
+}
+
+func TestMouse_DoubleClickOnTheDivider_StartsNoDrag(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	writeTestFile(t, options.UserStatePath, fmt.Sprintf("ui:\n  sidebar_width: %d\n", storedWidthAt))
+	m, clock := startClockModel(t, options)
+	x := m.dividerColumn()
+	m = pressDividerOnce(t, m)
+	clock.advance(200 * time.Millisecond)
+	m = press(t, m, click(x, dragRow))
+	defaultWidth := m.sidebarWidth()
+
+	m = press(t, m, motion(x+10, dragRow))
+	m = press(t, m, release(x+10, dragRow))
+
+	if got := m.sidebarWidth(); got != defaultWidth {
+		t.Errorf("sidebarWidth() = %d, want it left at the default %d: no drag", got, defaultWidth)
+	}
+	assertNoStoredWidth(t, options.UserStatePath)
+}
+
+func TestMouse_PressRightAfterADragThatMovedTheDivider_StartsADrag(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	m, clock := startClockModel(t, options)
+	before := m.sidebarWidth()
+	from := m.dividerColumn()
+	m = dragDivider(t, m, from, from+10)
+	clock.advance(200 * time.Millisecond)
+
+	m = dragDivider(t, m, from+10, from+15)
+
+	if got := m.sidebarWidth(); got != before+15 {
+		t.Errorf("sidebarWidth() = %d, want %d: a drag, no reset", got, before+15)
+	}
+	if got := readStoredWidth(t, options.UserStatePath); got != before+15 {
+		t.Errorf("stored sidebar width = %d, want %d", got, before+15)
+	}
+}
+
+func TestMouse_TwoPressesOnTheDividerThatAreNoDoubleClick_KeepTheWidth(t *testing.T) {
+	cases := []struct {
+		name             string
+		gap              time.Duration
+		isSidebarPressed bool
+	}{
+		{name: "600 ms apart", gap: 600 * time.Millisecond},
+		{name: "a sidebar row pressed between", gap: 100 * time.Millisecond, isSidebarPressed: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			writeTestFile(t, options.UserStatePath, fmt.Sprintf("ui:\n  sidebar_width: %d\n", storedWidthAt))
+			m, clock := startClockModel(t, options)
+
+			m = pressDividerOnce(t, m)
+			clock.advance(tc.gap)
+			if tc.isSidebarPressed {
+				m = press(t, m, click(2, dragRow))
+				clock.advance(tc.gap)
+			}
+			m = pressDividerOnce(t, m)
+
+			if got := m.sidebarWidth(); got != storedWidthAt {
+				t.Errorf("sidebarWidth() = %d, want it left at %d", got, storedWidthAt)
+			}
+			if got := readStoredWidth(t, options.UserStatePath); got != storedWidthAt {
+				t.Errorf("stored sidebar width = %d, want it left at %d", got, storedWidthAt)
+			}
+		})
+	}
 }

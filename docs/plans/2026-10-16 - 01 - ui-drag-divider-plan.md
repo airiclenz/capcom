@@ -151,7 +151,10 @@ Depends on item 3.
 
 **Commit:** `feat(ui): drag the divider to resize the sidebar`
 
-## 5. Double-click the divider to reset its width
+## 5. Double-click the divider to reset its width — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): a left press anywhere off the divider's hit area also forgets the last divider press, so a press on the divider, one on a sidebar row and one on the divider again within 500 ms is no reset; a reset ends any drag still marked active (a release some terminals never sent) and writes the state file even when no width was stored, so the file then holds no `sidebar_width` key.
+NOTES (2026-10-16): item 4's drag tests were left on the real clock unchanged: each already starts every drag from a fresh model, none chains two divider presses on one model; the new tests run on a hand-moved testClock set as `m.now`.
 
 Depends on item 4.
 

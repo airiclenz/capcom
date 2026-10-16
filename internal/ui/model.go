@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"sync"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -36,6 +37,9 @@ type model struct {
 	// tick returns the command that asks for the next poll of the index: scheduleTick, which
 	// tests replace so no real clock runs.
 	tick func() tea.Cmd
+	// now returns the current time, which tells a double-click on the divider from two presses:
+	// time.Now, which tests replace with a clock of their own.
+	now func() time.Time
 	// execFn returns the command that runs the editor command argv and hands its exit to done:
 	// execEditor, which tests replace with a runner of their own.
 	execFn func(argv []string, done tea.ExecCallback) tea.Cmd
@@ -83,6 +87,9 @@ type model struct {
 	stateSavedRequest int
 	// drag is the drag of the divider under way, its zero value when there is none.
 	drag dividerDrag
+	// lastDividerPress is when the divider's hit area was last pressed, the zero time when the
+	// next press there cannot complete a double-click.
+	lastDividerPress time.Time
 
 	// isHelpOpen reports the help screen covering the panes.
 	isHelpOpen bool
@@ -151,6 +158,7 @@ func newModel(options Options) model {
 		isNoColor:      options.NoColor,
 		lockText:       lockReadingText,
 		tick:           scheduleTick,
+		now:            time.Now,
 		execFn:         execEditor,
 	}
 	m.theme = m.themeOf()
