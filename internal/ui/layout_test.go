@@ -211,6 +211,52 @@ func TestModel_TabRule_JoinsTheDividerOnlyInTheSplitLayout(t *testing.T) {
 	}
 }
 
+func TestModel_TabBar_EndsInTheVersionLabelWhenItFits(t *testing.T) {
+	tabs := strippedTabs()
+	versionLabel := versionLabelPrefix + testVersion + versionLabelSuffix
+	fitWidth := ansi.StringWidth(tabs) + versionLabelMinGap + ansi.StringWidth(versionLabel)
+	cases := []struct {
+		name      string
+		width     int
+		version   string
+		wantLabel bool
+	}{
+		{name: "fits at 120", width: wideWidth, version: testVersion, wantLabel: true},
+		{name: "fits with the least gap", width: fitWidth, version: testVersion, wantLabel: true},
+		{name: "one column short", width: fitWidth - 1, version: testVersion},
+		{name: "no version", width: wideWidth},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			options.Version = testCase.version
+			m := startModel(t, options, testCase.width, wideHeight)
+
+			tabBar := strings.Split(ansi.Strip(m.View().Content), "\n")[0]
+
+			want := tabs
+			if testCase.wantLabel {
+				want = tabs + strings.Repeat(" ", testCase.width-ansi.StringWidth(tabs)-ansi.StringWidth(versionLabel)) + versionLabel
+			}
+			if tabBar != want {
+				t.Errorf("row 0 = %q, want %q", tabBar, want)
+			}
+			if testCase.wantLabel && ansi.StringWidth(tabBar) != testCase.width {
+				t.Errorf("row 0 is %d columns wide, want %d", ansi.StringWidth(tabBar), testCase.width)
+			}
+		})
+	}
+}
+
+// strippedTabs returns the tab bar's tabs as they read without styling, before any version label.
+func strippedTabs() string {
+	labels := make([]string, 0, len(tabOrder))
+	for _, tab := range tabOrder {
+		labels = append(labels, tabBarLabel(tab))
+	}
+	return strings.Join(labels, tabSeparator)
+}
+
 func TestModel_BodyHeight_LeavesTheFrameRows(t *testing.T) {
 	m := newTestModel(t, newTestStore(t, nil), 120, 30)
 

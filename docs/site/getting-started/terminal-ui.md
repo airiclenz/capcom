@@ -31,7 +31,7 @@ are in the [CLI reference](../reference/cli/capcom_ui.md).
 ## The screen
 
 ```text
- Issues  │  Ready  │  Knowledge
+ Issues  │  Ready  │  Knowledge   v0.7.0 · capcom
 ─────────────────────┬───────────────────────────
 ▼ capcom-ui        ┃ │ Ready queue view         ┃
 ┝ ▶ ready-view     ┃ │                          ┃
@@ -45,7 +45,8 @@ lock: free · ? help · q quit
 
 - **Tab bar**: Issues, Ready and Knowledge. `Tab` moves to the next one, and `1`, `2` and `3`
   open Issues, Ready and Knowledge directly. Each tab keeps its own selection, expanded nodes and
-  filter. A rule under it sets it off from the panes.
+  filter. A rule under it sets it off from the panes. Its right end shows capcom's version, as
+  `v0.7.0 · capcom`, when the terminal is wide enough.
 - **Sidebar**: the tab's list or tree. The selected row drives the detail pane. In a tree, `▼`
   marks a node whose children are shown, `▶` one whose children are hidden and `·` a node with no
   children; the gray `┝`, `┕` and `│` connectors before a row show where it sits under its Parent.

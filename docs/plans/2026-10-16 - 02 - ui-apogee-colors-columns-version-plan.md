@@ -187,7 +187,10 @@ row rewritten to `beta   open  P2  Beta task`; the rewritten goldens (`issues-ex
 **Closes:** ui-sidebar-columns
 **Commit:** `feat(ui): align status and priority in sidebar columns`
 
-## 5. Show the version and app name at the tab bar's right end
+## 5. Show the version and app name at the tab bar's right end — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): every golden changed, and only its row 0 (the tab bar, now the frame's full width with the fixture label `v1.2.3 · capcom`), including theme-no-color-120x30 and the knowledge-* goldens, since every screen draws the tab bar.
+NOTES (2026-10-16): the layout diagrams in docs/design/tui.md and docs/site/getting-started/terminal-ui.md also gained the label (`v0.7.0 · capcom`, fitting their 49-column frame with the two-column gap), beside the Tab bar bullets the item names.
 
 **What:**
 **Goal:** the tab bar's row ends in `v<version> · capcom`, its last character in the frame's last

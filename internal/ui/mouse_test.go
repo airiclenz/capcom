@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/ops"
 )
@@ -119,6 +120,25 @@ func TestMouse_ClickOnTabBar_OpensTheTabUnderThePointer(t *testing.T) {
 
 			if m.tab != tc.wantTab {
 				t.Errorf("tab = %v, want %v", m.tab, tc.wantTab)
+			}
+		})
+	}
+}
+
+func TestMouse_ClickOnTheVersionLabel_ChangesNoTab(t *testing.T) {
+	versionLabel := versionLabelPrefix + testVersion + versionLabelSuffix
+	firstColumn := wideWidth - ansi.StringWidth(versionLabel)
+	for _, x := range []int{firstColumn, wideWidth - 1} {
+		t.Run(fmt.Sprintf("column %d", x), func(t *testing.T) {
+			m := newIssuesModel(t, newTestStore(t, treeFiles), "solo", wideWidth, wideHeight)
+			if !strings.HasSuffix(strings.Split(ansi.Strip(m.View().Content), "\n")[0], versionLabel) {
+				t.Fatalf("tab bar lacks the version label %q", versionLabel)
+			}
+
+			m = press(t, m, click(x, 0))
+
+			if m.tab != TabIssues {
+				t.Errorf("tab = %v, want %v", m.tab, TabIssues)
 			}
 		})
 	}

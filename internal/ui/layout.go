@@ -40,6 +40,14 @@ const (
 	truncateTail  = "…"
 )
 
+// The tab bar's version label, `v<version> · capcom`, and the fewest blank columns it keeps
+// between itself and the last tab.
+const (
+	versionLabelPrefix = "v"
+	versionLabelSuffix = " · capcom"
+	versionLabelMinGap = 2
+)
+
 // frame lays out the tab bar, the rule under it, the panes or the help screen, the rule under
 // them and the status bar over the terminal's full size. A terminal shorter than the frame shows
 // its top rows.
@@ -216,7 +224,10 @@ func (m model) dividerStyle() lipgloss.Style {
 }
 
 // tabBar lists the tabs in tabOrder, the open one marked by the theme's active tab style, the
-// separators in its border style.
+// separators in its border style, and ends in the version label in the theme's hints style, its
+// last character in the frame's last column. The label is left out when the model has no version
+// or when it would leave fewer than versionLabelMinGap columns after the last tab, so the tabs
+// are never cut for it.
 func (m model) tabBar() string {
 	labels := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {
@@ -226,7 +237,16 @@ func (m model) tabBar() string {
 		}
 		labels = append(labels, label)
 	}
-	return strings.Join(labels, m.theme.border.Render(tabSeparator))
+	tabs := strings.Join(labels, m.theme.border.Render(tabSeparator))
+	if m.version == "" {
+		return tabs
+	}
+	versionLabel := versionLabelPrefix + m.version + versionLabelSuffix
+	gap := m.width - ansi.StringWidth(tabs) - ansi.StringWidth(versionLabel)
+	if gap < versionLabelMinGap {
+		return tabs
+	}
+	return tabs + strings.Repeat(" ", gap) + m.theme.hints.Render(versionLabel)
 }
 
 // tabBarLabel returns tab's label as the tab bar draws it, unstyled: its name padded by a space

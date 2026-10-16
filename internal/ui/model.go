@@ -33,6 +33,8 @@ type model struct {
 	session   *session
 	tab       Tab
 	initialID string
+	// version is the release version the tab bar's version label names; empty, it draws none.
+	version string
 
 	// tick returns the command that asks for the next poll of the index: scheduleTick, which
 	// tests replace so no real clock runs.
@@ -151,6 +153,7 @@ func newModel(options Options) model {
 		session:      newSession(options.Store, options.Index),
 		tab:          options.Tab,
 		initialID:    options.ID,
+		version:      options.Version,
 		userConfig:   config,
 		configNotice: notice,
 		sidebarRatio: sidebarRatio,

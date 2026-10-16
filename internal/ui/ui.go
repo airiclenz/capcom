@@ -66,7 +66,8 @@ func ParseTab(name string) (Tab, error) {
 // the state file the sidebar's width is kept in; empty, the default
 // `<os.UserConfigDir>/capcom/state.yaml` is used. NoColor, set when the
 // NO_COLOR environment variable is non-empty, draws without any colour, whatever the user config
-// file says.
+// file says. Version is the release version the tab bar's right end names, as `v<Version> ·
+// capcom`; empty, the tab bar draws no version label.
 type Options struct {
 	Store          *store.Store
 	Index          *index.Index
@@ -77,6 +78,7 @@ type Options struct {
 	UserConfigPath string
 	UserStatePath  string
 	NoColor        bool
+	Version        string
 }
 
 // Run runs the terminal UI until the user quits, with q or ctrl+c. It first loads the user config

@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/ui"
 )
@@ -63,6 +64,7 @@ func (a *app) newUICommand() *cobra.Command {
 				In:      in,
 				Out:     out,
 				NoColor: os.Getenv(noColorVariable) != "",
+				Version: capcom.Version(),
 			})
 		}),
 	}

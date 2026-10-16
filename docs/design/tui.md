@@ -29,7 +29,7 @@ capcom ui [issues|ready|knowledge] [id]
 ## Layout
 
 ```
- Issues  │  Ready  │  Knowledge
+ Issues  │  Ready  │  Knowledge   v0.7.0 · capcom
 ─────────────────────┬───────────────────────────
 ▼ capcom-ui        ┃ │ Ready queue view         ┃
 ┝ ▶ ready-view     ┃ │                          ┃
@@ -43,7 +43,11 @@ lock: free · ? help · q quit
 
 - **Tab bar**: Issues, Ready, Knowledge, in that order for `1 2 3`. Each tab keeps its own
   selection, expanded nodes and filter. A `─` rule in the border colour sets it off from the panes,
-  with `┬` above the divider, mirroring the `┴` rule above the status bar.
+  with `┬` above the divider, mirroring the `┴` rule above the status bar. The bar's right end reads
+  `v<version> · capcom` in the muted hints style, its last character in the frame's last column,
+  with the version `capcom ui` was built with; the label is left out when it would leave fewer
+  than two columns after the last tab, so the tabs are never cut for it, and a click on it opens
+  no tab.
 - **Sidebar**: the tab's list or tree; the selected row drives the detail pane. A tree row's arrow
   is `▼` for a node whose children are shown, `▶` for one whose children are hidden and `·` for a
   leaf. Below the top level, gray connectors in the border colour lead it: `┝` for a child a later

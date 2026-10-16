@@ -117,6 +117,10 @@ func newGitRepo(t *testing.T) string {
 	return root
 }
 
+// testVersion is the release version the test options hand the UI: a fixed fixture, never the
+// VERSION file's, so the goldens' tab bar stays the same across releases.
+const testVersion = "1.2.3"
+
 // newTestOptions returns the Options capcom ui would pass for the test store, on the Ready tab,
 // with the user config file and the state file at paths in a fresh temp dir, neither yet
 // created, so no test reads or writes the real user config directory.
@@ -129,6 +133,7 @@ func newTestOptions(t *testing.T, ts *testStore) Options {
 		Tab:            TabReady,
 		UserConfigPath: filepath.Join(directory, "config.yaml"),
 		UserStatePath:  filepath.Join(directory, "state.yaml"),
+		Version:        testVersion,
 	}
 }
 
