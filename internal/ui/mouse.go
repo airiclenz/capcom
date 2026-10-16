@@ -39,10 +39,14 @@ type dividerDrag struct {
 // mouseClick handles a left click: on the divider's hit area it starts a drag of the divider, or
 // resets the sidebar's width when the click completes a double-click there, on a tab's label it opens that tab, on a sidebar row it selects that row, expanding or collapsing a
 // tree node when the click lands on its arrow, and in the detail pane it selects a row of the
-// dependency view or follows a link. Every other click, and every click while isMouseIgnored, does
-// nothing.
+// dependency view or anchors the detail selection. Every press that is not ignored first clears
+// the detail selection. Every other click, and every click while isMouseIgnored, does nothing.
 func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
-	if msg.Button != tea.MouseLeft || m.isMouseIgnored() {
+	if m.isMouseIgnored() {
+		return m, nil
+	}
+	m.sel = detailSel{}
+	if msg.Button != tea.MouseLeft {
 		return m, nil
 	}
 	if m.isOnDivider(msg.X, msg.Y) {
@@ -93,13 +97,25 @@ func (m model) startDrag(x int) model {
 	return m
 }
 
-// mouseMotion moves the divider with the pointer while it is dragged in the split layout, keeping
-// the column it was grabbed by under the pointer within the sidebar's limits, and repaints the
-// panes when the width changed. The width is kept as its ratio of the terminal's width; back on the
-// width it had at the press it takes the ratio it had then, so a drag with no net move changes
-// nothing. Without a drag it does nothing.
+// mouseMotion moves the divider with the pointer while it is dragged, as dragDivider does, and
+// otherwise extends the detail selection to the pointer while the left button drags it.
 func (m model) mouseMotion(msg tea.MouseMotionMsg) model {
-	if !m.drag.isActive || !m.isSplit() {
+	if m.drag.isActive {
+		return m.dragDivider(msg)
+	}
+	if msg.Button != tea.MouseLeft {
+		return m
+	}
+	return m.extendSelection(msg.X, msg.Y)
+}
+
+// dragDivider moves the divider with the pointer in the split layout, keeping the column it was
+// grabbed by under the pointer within the sidebar's limits, and repaints the panes when the width
+// changed. The width is kept as its ratio of the terminal's width; back on the width it had at the
+// press it takes the ratio it had then, so a drag with no net move changes nothing. On a narrow
+// terminal it does nothing.
+func (m model) dragDivider(msg tea.MouseMotionMsg) model {
+	if !m.isSplit() {
 		return m
 	}
 	columns := m.clampSidebarWidth(msg.X - m.drag.grabOffset - dividerMargin)
@@ -115,11 +131,11 @@ func (m model) mouseMotion(msg tea.MouseMotionMsg) model {
 
 // mouseRelease ends a drag of the divider and returns the command that saves the width to the
 // state file when the drag changed it; a drag that changed it also forgets its press, so the next
-// press on the divider starts a drag and never completes a double-click. Without a drag it does
-// nothing.
-func (m model) mouseRelease() (model, tea.Cmd) {
+// press on the divider starts a drag and never completes a double-click. Without a drag it ends
+// the detail selection's drag, as releaseSelection does.
+func (m model) mouseRelease(msg tea.MouseReleaseMsg) (model, tea.Cmd) {
 	if !m.drag.isActive {
-		return m, nil
+		return m.releaseSelection(msg.X, msg.Y)
 	}
 	isChanged := m.sidebarRatio != m.drag.startRatio
 	m.drag = dividerDrag{}
@@ -160,9 +176,10 @@ func (m model) clickSidebar(point panePoint) (model, tea.Cmd) {
 	return m, nil
 }
 
-// clickDetail selects the dependency view's row under point while the view is open, and follows
-// the link under point while the detail pane shows an issue or a Note. A click on the scrollbar's
-// gutter or bar does nothing.
+// clickDetail selects the dependency view's row under point while the view is open, and anchors
+// the detail selection, collapsed, on the cell under point while the detail pane shows an issue or
+// a Note; a link under it is followed at the release, by releaseSelection. A click on the
+// scrollbar's gutter or bar does nothing.
 func (m model) clickDetail(point panePoint) (model, tea.Cmd) {
 	if point.col >= m.detailWidth() {
 		return m, nil
@@ -182,7 +199,44 @@ func (m model) clickDetail(point panePoint) (model, tea.Cmd) {
 	if m.issue.id == "" {
 		return m, nil
 	}
-	target, isOnLink := m.issue.linkAt(line, point.col)
+	cell := contentCell{line: line, col: point.col}
+	m.sel = detailSel{isActive: true, anchor: cell, head: cell}
+	return m, nil
+}
+
+// extendSelection moves the detail selection's head to the screen cell at column x and row y
+// while a selection is under way and the cell is in the detail pane, its column held to the pane's
+// text so the scrollbar never extends it. A cell off the pane leaves the head where it was.
+func (m model) extendSelection(x, y int) model {
+	if !m.sel.isActive {
+		return m
+	}
+	point := m.pointAt(x, y)
+	if point.pane != paneDetail {
+		return m
+	}
+	m.sel.head = contentCell{
+		line: m.detailOffset + point.row,
+		col:  min(max(point.col, 0), m.detailWidth()),
+	}
+	return m
+}
+
+// releaseSelection ends the detail selection's drag at the screen cell at column x and row y,
+// extending it there as a motion does. A selection that spans a cell is kept; a bare click, one
+// that spans none, follows the link under it and clears the selection. Without a selection under
+// way it does nothing.
+func (m model) releaseSelection(x, y int) (model, tea.Cmd) {
+	if !m.sel.isActive {
+		return m, nil
+	}
+	m = m.extendSelection(x, y)
+	if !m.sel.isCollapsed() {
+		return m, nil
+	}
+	anchor := m.sel.anchor
+	m.sel = detailSel{}
+	target, isOnLink := m.issue.linkAt(anchor.line, anchor.col)
 	if !isOnLink {
 		return m, nil
 	}

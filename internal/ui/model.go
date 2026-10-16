@@ -110,6 +110,11 @@ type model struct {
 	sidebarTotal int
 	detail       []string
 	detailOffset int
+	// sel is the drag selection over the shown issue's or Note's rendered lines, its zero value
+	// when there is none: a left press on the detail pane's text anchors it, a drag extends it, and
+	// a key, a press elsewhere, another issue or Note, the dependency view, a tab switch or a
+	// re-render that rewrites a line it spans clears it.
+	sel detailSel
 
 	// ready is the Ready tab's queue and selection, issues the Issues tab's tree, knowledge the
 	// Knowledge tab's tree, issue the issue or Note the detail pane shows, and deps the dependency
@@ -323,11 +328,12 @@ func (m model) initialIDFor(tab Tab) string {
 // the painter's width measure and the terminal's background colour, polls the index on a tick, and handles the keys:
 // an open confirmation prompt takes
 // every key, then an open text prompt, then an open status picker, then the open filter line,
-// ahead of the dependency view's, then the model's own. While the dependency view is open it keeps the detail
+// ahead of the dependency view's, then the model's own; every key first clears the detail
+// selection. While the dependency view is open it keeps the detail
 // pane over whatever else repaints it. Clicks and wheel notches go to the mouse handlers, which
 // ignore them while a prompt, the status picker, the filter line or the help screen is open, and
 // the pointer's motion and the button's release to the divider's drag, which a click on the
-// divider starts. Any
+// divider starts, or to the detail selection, which a click on the detail pane's text starts. Any
 // other message, such as a paste, reaches the open text prompt or the open filter line.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -381,8 +387,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMotionMsg:
 		m = m.mouseMotion(msg)
 	case tea.MouseReleaseMsg:
-		return m.mouseRelease()
+		return m.mouseRelease(msg)
 	case tea.KeyPressMsg:
+		m.sel = detailSel{}
 		if m.prompt.isOpen {
 			return m.promptKey(msg)
 		}

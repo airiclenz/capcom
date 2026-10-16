@@ -293,16 +293,19 @@ func noteHeader(entry index.NoteEntry) string {
 }
 
 // applyDetail takes in a read of an issue or a Note for the detail pane, unless the selection
-// has moved on since it was asked for, and shows it from its top; a read of the issue or Note
-// shown already, as a live refresh takes, keeps the scroll. A Note's read applies only on
-// the Knowledge tab and an issue's only on the others, so an issue and a Note sharing an id never
-// take each other's place.
+// has moved on since it was asked for, and shows it from its top with the detail selection
+// cleared; a read of the issue or Note shown already, as a live refresh takes, keeps the scroll.
+// A Note's read applies only on the Knowledge tab and an issue's only on the others, so an issue
+// and a Note sharing an id never take each other's place.
 func (m model) applyDetail(msg detailMsg) model {
 	selectedID, isSelected := m.sidebarSelection()
 	if !isSelected || selectedID != msg.id || msg.isNote != (m.tab == TabKnowledge) {
 		return m
 	}
 	isShown := m.issue.id == msg.id
+	if !isShown {
+		m.sel = detailSel{}
+	}
 	m.issue = issueDetail{
 		id:       msg.id,
 		source:   msg.source,
@@ -318,7 +321,8 @@ func (m model) applyDetail(msg detailMsg) model {
 }
 
 // renderDetail fills the detail pane with the shown issue or Note rendered at the pane's width, rendering
-// again only when the source or the width changed since the last time.
+// again only when the source or the width changed since the last time. A re-render that rewrites a
+// line the detail selection spans clears the selection.
 func (m model) renderDetail() model {
 	width := m.detailWidth()
 	if m.issue.id == "" || width <= 0 {
@@ -333,6 +337,9 @@ func (m model) renderDetail() model {
 		)
 		m.issue.renderedSource = m.issue.source
 		m.issue.renderedWidth = width
+	}
+	if !m.sel.spanUnchanged(m.detail, m.issue.rendered.Lines) {
+		m.sel = detailSel{}
 	}
 	m.detail = m.issue.rendered.Lines
 	return m.scrollDetail(0)

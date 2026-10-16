@@ -137,6 +137,7 @@ func (m model) showKnowledgeSelection() (model, tea.Cmd) {
 	switch {
 	case !isSelected:
 		m.issue = issueDetail{}
+		m.sel = detailSel{}
 		m.detail = nil
 		m.detailOffset = 0
 		return m, nil

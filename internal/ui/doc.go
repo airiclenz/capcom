@@ -27,7 +27,7 @@
 //   - `listcursor.go` — listCursor: a sidebar list's clamped selection and its key and wheel moves
 //   - `model.go` — model: the Bubble Tea model, its Init, Update and View, and loading the
 //     user config and state file
-//   - `mouse.go` — clicks, divider drags, links followed and wheel scrolling
+//   - `mouse.go` — clicks, divider and selection drags, links followed and wheel scrolling
 //   - `prompt.go` — the status bar's yes-or-no and text prompts before a write or an edit
 //   - `ready.go` — the Ready tab: loading the queue and painting its rows and columns
 //   - `refresh.go` — live refresh: the poll tick, reloading the tabs and keeping the selection

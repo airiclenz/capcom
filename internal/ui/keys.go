@@ -174,9 +174,10 @@ func halfPage(page int) int {
 	return max(page/2, 1)
 }
 
-// openTab switches to tab, back on its sidebar with the detail pane at its top, and returns the
-// command that loads the tab's selection into the detail pane. Each tab keeps its own selection,
-// and the Issues and Knowledge trees their expanded nodes, across the switch.
+// openTab switches to tab, back on its sidebar with the detail pane at its top and no detail
+// selection, and returns the command that loads the tab's selection into the detail pane. Each tab
+// keeps its own selection, and the Issues and Knowledge trees their expanded nodes, across the
+// switch.
 func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	m.tab = tab
 	m.isDetailOpen = false
@@ -184,6 +185,7 @@ func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	m = m.withSidebar(nil, 0, 0)
 	m.detail = nil
 	m.issue = issueDetail{}
+	m.sel = detailSel{}
 	return m.showSelection()
 }
 

@@ -181,8 +181,8 @@ func (m model) sidebarKeyClosingDeps(msg tea.KeyPressMsg) (model, tea.Cmd, bool)
 	return m, nil, false
 }
 
-// openDeps opens the dependency view over the issue the Ready or Issues sidebar selects and
-// returns the command that reads its dependencies. It takes nothing on the Knowledge tab or with
+// openDeps opens the dependency view over the issue the Ready or Issues sidebar selects, clearing
+// the detail selection, and returns the command that reads its dependencies. It takes nothing on the Knowledge tab or with
 // nothing selected.
 func (m model) openDeps() (model, tea.Cmd, bool) {
 	if m.tab == TabKnowledge {
@@ -193,6 +193,7 @@ func (m model) openDeps() (model, tea.Cmd, bool) {
 		return m, nil, false
 	}
 	m.deps = depView{isOpen: true, id: id, bodyOffset: m.detailOffset}
+	m.sel = detailSel{}
 	if m.isNarrow() {
 		m.isDetailOpen = true
 	}

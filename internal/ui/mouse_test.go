@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -77,6 +78,14 @@ func linkCell(t *testing.T, m model, target string) (int, int) {
 	}
 	t.Fatalf("no link to %s in the detail pane: %v", target, m.issue.rendered.Links)
 	return 0, 0
+}
+
+// clickAndRelease presses the left button at column x, row y and lets it go on the same cell: a
+// bare click.
+func clickAndRelease(t *testing.T, m model, x, y int) model {
+	t.Helper()
+	m = press(t, m, click(x, y))
+	return press(t, m, release(x, y))
 }
 
 // openDetail opens the narrow detail view on a narrow screen, and leaves a wide one as it is.
@@ -303,8 +312,9 @@ func TestMouse_ClickOnLink_SelectsTheIssueInTheIssuesTab(t *testing.T) {
 	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			m := openDetail(t, newTestModel(t, newTestStore(t, readyFiles), size[0], size[1]))
+			x, y := linkCell(t, m, "beta")
 
-			m = press(t, m, click(linkCell(t, m, "beta")))
+			m = clickAndRelease(t, m, x, y)
 
 			if m.tab != TabIssues || selectedIssueID(m) != "beta" {
 				t.Errorf("tab %v selecting %q, want the Issues tab selecting beta", m.tab, selectedIssueID(m))
@@ -324,8 +334,9 @@ func TestMouse_ClickOnLinkAfterScrolling_FollowsIt(t *testing.T) {
 			if m.detailOffset == 0 {
 				t.Fatal("the wheel left the detail pane unscrolled")
 			}
+			linkX, linkY := linkCell(t, m, "beta")
 
-			m = press(t, m, click(linkCell(t, m, "beta")))
+			m = clickAndRelease(t, m, linkX, linkY)
 
 			if m.tab != TabIssues || selectedIssueID(m) != "beta" {
 				t.Errorf("tab %v selecting %q, want the Issues tab selecting beta", m.tab, selectedIssueID(m))
@@ -336,8 +347,9 @@ func TestMouse_ClickOnLinkAfterScrolling_FollowsIt(t *testing.T) {
 
 func TestMouse_ClickOnLinkToClosedIssue_RevealsAndSelectsIt(t *testing.T) {
 	m := newTestModel(t, newTestStore(t, readyFiles), wideWidth, wideHeight)
+	x, y := linkCell(t, m, "finished")
 
-	m = press(t, m, click(linkCell(t, m, "finished")))
+	m = clickAndRelease(t, m, x, y)
 
 	if m.tab != TabIssues || selectedIssueID(m) != "finished" {
 		t.Fatalf("tab %v selecting %q, want the Issues tab selecting finished", m.tab, selectedIssueID(m))
@@ -350,8 +362,9 @@ func TestMouse_ClickOnLinkToClosedIssue_RevealsAndSelectsIt(t *testing.T) {
 func TestMouse_ClickOnNoteLink_SelectsTheNoteInTheKnowledgeTab(t *testing.T) {
 	m := newTestModel(t, newTestStore(t, linkFiles), wideWidth, wideHeight)
 	m = press(t, m, click(3, 4))
+	x, y := linkCell(t, m, "setup")
 
-	m = press(t, m, click(linkCell(t, m, "setup")))
+	m = clickAndRelease(t, m, x, y)
 
 	if m.tab != TabKnowledge || selectedNoteID(m) != "setup" {
 		t.Errorf("tab %v selecting %q, want the Knowledge tab selecting setup", m.tab, selectedNoteID(m))
@@ -839,4 +852,271 @@ func TestMouse_DragBackToThePressColumn_RestoresTheRatioAndSavesNothing(t *testi
 	if m.stateSaver.asked != asked {
 		t.Errorf("saves asked = %d, want %d: a drag with no net move saves nothing", m.stateSaver.asked, asked)
 	}
+}
+
+// selectFiles is a store whose Ready queue opens on alpha, a body of a paragraph and two list
+// items, and whose Knowledge tree holds guide, a Note with labels in its header.
+var selectFiles = map[string]string{
+	"issues/alpha.md": issueFile(
+		"title: Alpha task\nstatus: open\npriority: 1\n",
+		"Alpha names `beta`.\n\n- first point\n- second point\n",
+	),
+	"issues/beta.md":     issueFile("title: Beta task\nstatus: open\npriority: 2\n", "Beta's body.\n"),
+	"knowledge/guide.md": noteFile("title: Guide\nlabels: [setup, docs]\n", "The guide.\n"),
+}
+
+// alphaPointsEdited is selectFiles' alpha with its second list item rewritten.
+var alphaPointsEdited = issueFile(
+	"title: Alpha task\nstatus: open\npriority: 1\n",
+	"Alpha names `beta`.\n\n- first point\n- second point, edited\n",
+)
+
+// alphaParagraphEdited is selectFiles' alpha with its paragraph rewritten and its list items as
+// they were.
+var alphaParagraphEdited = issueFile(
+	"title: Alpha task\nstatus: open\npriority: 1\n",
+	"Alpha names `beta` too.\n\n- first point\n- second point\n",
+)
+
+// newSelectModel returns a started wide model over ts with NO_COLOR set, so the detail selection
+// shades in reverse video, selectionTestStyle.
+func newSelectModel(t *testing.T, ts *testStore) model {
+	t.Helper()
+	options := newTestOptions(t, ts)
+	options.NoColor = true
+	return startModel(t, options, wideWidth, wideHeight)
+}
+
+// textCell returns the screen cell delta columns past the first cell of text in the detail pane's
+// rendered lines, as the pane is scrolled now, failing the test when no line holds text.
+func textCell(t *testing.T, m model, text string, delta int) (int, int) {
+	t.Helper()
+	for line, rendered := range m.detail {
+		before, _, isFound := strings.Cut(ansi.Strip(rendered), text)
+		if isFound {
+			return detailLeft(m) + ansi.StringWidth(before) + delta, bodyTop + line - m.detailOffset
+		}
+	}
+	t.Fatalf("no detail line holds %q in %q", text, detailText(m))
+	return 0, 0
+}
+
+// tabColumn returns the first column of the tab bar that tab's label covers.
+func tabColumn(t *testing.T, tab Tab) int {
+	t.Helper()
+	for col := range wideWidth {
+		if covered, isOnTab := tabAt(col); isOnTab && covered == tab {
+			return col
+		}
+	}
+	t.Fatalf("no tab bar column covers tab %v", tab)
+	return 0
+}
+
+// dragSelect presses the left button delta columns into the first cell of from, drags to toDelta
+// columns into the first cell of to and lets the button go there.
+func dragSelect(t *testing.T, m model, from string, delta int, to string, toDelta int) model {
+	t.Helper()
+	m = press(t, m, click(textCell(t, m, from, delta)))
+	m = press(t, m, motion(textCell(t, m, to, toDelta)))
+	return press(t, m, release(textCell(t, m, to, toDelta)))
+}
+
+// shadedLines returns the text the detail selection shades on each detail line on screen, styling
+// stripped and keyed by the line: the rows the pane paints that differ from the rendered lines.
+// It needs a model under NO_COLOR, whose selection shades in selectionTestStyle.
+func shadedLines(t *testing.T, m model) map[int]string {
+	t.Helper()
+	painted, offset := m.detailRows()
+	shaded := map[int]string{}
+	for line := offset; line < min(offset+m.bodyHeight(), len(painted)); line++ {
+		if painted[line] != m.detail[line] {
+			shaded[line] = shadedText(t, painted[line])
+		}
+	}
+	return shaded
+}
+
+func TestMouse_DragOverDetailText_ShadesExactlyTheDraggedCells(t *testing.T) {
+	cases := []struct {
+		name string
+		tab  Tab
+		from string
+		to   string
+		want map[int]string
+	}{
+		{
+			// Lines 7 and 8 are the two list items; the drag runs from "first" to "sec".
+			name: "two body lines",
+			from: "first point",
+			to:   "second point",
+			want: map[int]string{7: "first point", 8: "• sec"},
+		},
+		{
+			// Line 0 is the Note's title and line 2 its labels, a blank line between them.
+			name: "a Note's header lines",
+			tab:  TabKnowledge,
+			from: "Guide",
+			to:   "labels:",
+			want: map[int]string{0: "Guide", 2: "lab"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newSelectModel(t, newTestStore(t, selectFiles))
+			if tc.tab != TabReady {
+				m = press(t, m, click(tabColumn(t, tc.tab), 0))
+			}
+
+			m = dragSelect(t, m, tc.from, 0, tc.to, 3)
+
+			if got := shadedLines(t, m); !maps.Equal(got, tc.want) {
+				t.Errorf("shaded lines = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMouse_WheelMidDrag_KeepsTheAnchorLine(t *testing.T) {
+	m := newSelectModel(t, newTestStore(t, linkFiles))
+	m = press(t, m, click(textCell(t, m, "paragraph 3.", 0)))
+	m = press(t, m, wheel(tea.MouseWheelDown, detailLeft(m)+2, dragRow))
+
+	m = press(t, m, motion(textCell(t, m, "paragraph 5.", 0)))
+
+	// Filler paragraph n is line 5+2n, so the drag runs from line 11 to line 15.
+	want := map[int]string{11: "paragraph 3.", 13: "Filler paragraph 4.", 15: "Filler "}
+	if got := shadedLines(t, m); m.detailOffset != detailWheelRows || !maps.Equal(got, want) {
+		t.Errorf("detail offset %d shading %v, want offset %d shading %v", m.detailOffset, got, detailWheelRows, want)
+	}
+}
+
+func TestMouse_MotionOffTheDetailPane_LeavesTheSelectionAsItWas(t *testing.T) {
+	m := newSelectModel(t, newTestStore(t, selectFiles))
+	m = press(t, m, click(textCell(t, m, "first point", 0)))
+	x, y := textCell(t, m, "second point", 3)
+	m = press(t, m, motion(x, y))
+
+	for _, off := range [][2]int{{3, y}, {x, 0}, {x, 1}} {
+		m = press(t, m, motion(off[0], off[1]))
+	}
+
+	want := map[int]string{7: "first point", 8: "• sec"}
+	if got := shadedLines(t, m); !maps.Equal(got, want) {
+		t.Errorf("shaded lines = %v, want %v", got, want)
+	}
+}
+
+func TestMouse_PressOnTheDetailScrollbar_StartsNoSelection(t *testing.T) {
+	for x := wideWidth - scrollbarColumns; x < wideWidth; x++ {
+		t.Run(fmt.Sprintf("column %d", x), func(t *testing.T) {
+			m := newSelectModel(t, newTestStore(t, linkFiles))
+			_, y := textCell(t, m, "paragraph 0.", 0)
+			m = press(t, m, click(x, y))
+
+			m = press(t, m, motion(textCell(t, m, "paragraph 2.", 0)))
+
+			if got := shadedLines(t, m); len(got) != 0 {
+				t.Errorf("shaded lines = %v, want none", got)
+			}
+		})
+	}
+}
+
+func TestMouse_BareClickOnLink_FollowsItAtTheRelease(t *testing.T) {
+	m := newSelectModel(t, newTestStore(t, selectFiles))
+	x, y := linkCell(t, m, "beta")
+
+	pressed := press(t, m, click(x, y))
+	released := press(t, pressed, release(x, y))
+
+	if pressed.tab != TabReady || selectedIssueID(released) != "beta" || released.tab != TabIssues {
+		t.Errorf("tab %v after the press, tab %v selecting %q after the release; want Ready, then Issues selecting beta",
+			pressed.tab, released.tab, selectedIssueID(released))
+	}
+}
+
+func TestMouse_DragStartedOnALink_FollowsNothing(t *testing.T) {
+	m := newSelectModel(t, newTestStore(t, selectFiles))
+
+	m = dragSelect(t, m, "beta", 0, "beta", 3)
+
+	if got, _ := m.readySelection(); m.tab != TabReady || got.ID != "alpha" {
+		t.Errorf("tab %v selecting %q, want the Ready tab still selecting alpha", m.tab, got.ID)
+	}
+	if got, want := shadedLines(t, m), map[int]string{5: "bet"}; !maps.Equal(got, want) {
+		t.Errorf("shaded lines = %v, want %v", got, want)
+	}
+}
+
+func TestMouse_Selection_IsClearedByEachTrigger(t *testing.T) {
+	cases := []struct {
+		name    string
+		trigger func(t *testing.T, m model, ts *testStore) model
+	}{
+		{name: "a key", trigger: func(t *testing.T, m model, _ *testStore) model {
+			return press(t, m, runeKey('x'))
+		}},
+		{name: "a press on the tab rule", trigger: func(t *testing.T, m model, _ *testStore) model {
+			return press(t, m, click(detailLeft(m)+2, 1))
+		}},
+		{name: "a press on the sidebar", trigger: func(t *testing.T, m model, _ *testStore) model {
+			// Row 2 holds alpha, the selected row.
+			return press(t, m, click(3, 2))
+		}},
+		{name: "another issue by a sidebar wheel notch", trigger: func(t *testing.T, m model, _ *testStore) model {
+			m = press(t, m, wheel(tea.MouseWheelDown, 3, 3))
+			return press(t, m, wheel(tea.MouseWheelUp, 3, 3))
+		}},
+		{name: "the dep view opening", trigger: func(t *testing.T, m model, _ *testStore) model {
+			m = press(t, m, runeKey('d'))
+			return press(t, m, specialKey(tea.KeyEscape))
+		}},
+		{name: "a tab switch", trigger: func(t *testing.T, m model, _ *testStore) model {
+			m = press(t, m, click(tabColumn(t, TabIssues), 0))
+			return press(t, m, click(tabColumn(t, TabReady), 0))
+		}},
+		{name: "a refresh rewriting a spanned line", trigger: func(t *testing.T, m model, ts *testStore) model {
+			writeStoreFile(t, ts, "issues/alpha.md", alphaPointsEdited)
+			return tick(t, m)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTestStore(t, selectFiles)
+			m := newSelectModel(t, ts)
+			m = dragSelect(t, m, "first point", 0, "second point", 3)
+			if len(shadedLines(t, m)) == 0 {
+				t.Fatal("the drag shaded nothing")
+			}
+
+			m = tc.trigger(t, m, ts)
+
+			if got := shadedLines(t, m); len(got) != 0 {
+				t.Errorf("shaded lines = %v, want none", got)
+			}
+		})
+	}
+}
+
+func TestMouse_RefreshLeavingTheSpannedLines_KeepsTheSelection(t *testing.T) {
+	ts := newTestStore(t, selectFiles)
+	m := newSelectModel(t, ts)
+	m = dragSelect(t, m, "first point", 0, "second point", 3)
+	writeStoreFile(t, ts, "issues/alpha.md", alphaParagraphEdited)
+
+	m = tick(t, m)
+
+	want := map[int]string{7: "first point", 8: "• sec"}
+	if got := shadedLines(t, m); !strings.Contains(detailText(m), "too.") || !maps.Equal(got, want) {
+		t.Errorf("detail %q shading %v, want the edited paragraph and shading %v", detailText(m), got, want)
+	}
+}
+
+func TestMouse_DragSelection_MatchesANSIGolden(t *testing.T) {
+	m := newThemeModel(t, themeFiles, "ui:\n  theme: dark\n", false, nil)
+
+	m = dragSelect(t, m, "See", 0, "quoted", 3)
+
+	goldenANSI(t, "select-drag-120x30", m.View())
 }

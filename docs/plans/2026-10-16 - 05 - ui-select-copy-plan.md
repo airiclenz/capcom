@@ -136,7 +136,12 @@ are shaded.
 - `go vet ./internal/ui/` is clean.
 **Commit:** `feat(ui): add the detail selection's state, painting and text`
 
-## 3. Select with press and drag in the detail pane; follow links on a bare click
+## 3. Select with press and drag in the detail pane; follow links on a bare click — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): consequential edit — internal/ui/doc.go: made necessary by mouse.go now handling selection drags (file-map line reads "clicks, divider and selection drags, links followed and wheel scrolling").
+NOTES (2026-10-16): consequential edit — internal/ui/testdata/golden/select-drag-120x30.golden: made necessary by the new ANSI golden test TestMouse_DragSelection_MatchesANSIGolden (post-release state; item 4 re-records it with the copied notice).
+NOTES (2026-10-16): mouseMotion's divider path moved verbatim into dragDivider so motion can branch to extendSelection; mouseRelease extends the head to the release cell before deciding a bare click, so a release without a reported motion still selects.
+NOTES (2026-10-16): motion over the detail scrollbar counts as on the pane (the plan's clamp to detailWidth), so it extends the selection to the line's end; only motion onto another pane or a rule leaves the head.
 
 Depends on item 2.
 

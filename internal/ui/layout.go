@@ -161,12 +161,21 @@ func (m model) detailLeft() int {
 }
 
 // detailRows returns the rows the detail pane draws and the first of them on screen: the status
-// picker's while it is open, the shown issue's, Note's or dependency view's otherwise.
+// picker's while it is open, the shown issue's, Note's or dependency view's otherwise, the detail
+// selection shaded in the selected row's style over the rows on screen.
 func (m model) detailRows() ([]string, int) {
 	if m.picker.isOpen {
 		return m.picker.lines(m.theme.selectedRow), 0
 	}
-	return m.detail, m.detailOffset
+	lines := m.sel.paint(
+		m.markdownTheme.Measure,
+		m.detail,
+		m.detailOffset,
+		m.bodyHeight(),
+		m.detailWidth(),
+		m.theme.selectedRow,
+	)
+	return lines, m.detailOffset
 }
 
 // sidebarRows returns the sidebar pane's height rows, each its text cut and padded to
