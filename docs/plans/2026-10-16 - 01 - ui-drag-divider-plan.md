@@ -43,7 +43,11 @@ the width persists across runs in a machine-written state file beside the user c
 - 6: recast (one help row, help-fits-80x24 test, widened docs prose rules)
 - 6 (second round): guard folded into the Approach (one key row with no note line, fit test, widened docs/site finder, tui.md Keys block and Mouse paragraph); guard trimmed to the one-row bound
 
-## 1. State file for capcom ui in userconfig
+## 1. State file for capcom ui in userconfig — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): internal/userconfig/userconfig.go: Path() now delegates to a new unexported capcomFile(name) helper shared with StatePath() (the plan's "sharing Path()'s directory logic"); the "locate the user config directory: " wording is unchanged.
+NOTES (2026-10-16): consequential edit — internal/userconfig/userconfig.go: made necessary by adding state.go (the package doc now names the state file and that only capcom ui may call LoadState/SaveState).
+NOTES (2026-10-16): beyond the listed tests, SaveState rejects a negative SidebarWidth with an error, a quoted or fractional sidebar_width is an *Error like a non-integer, and tests also cover replacing an existing file (no temp file left behind) and a parent-is-a-file save failure.
 
 **What:**
 **Goal:** `internal/userconfig` exposes `State{UI UIState}`, `UIState{SidebarWidth int}` (0 = none stored), `StatePath()`, `LoadState(path)` and `SaveState(path, State)`; a saved state loads back equal, and `config.yaml`'s API and behaviour are unchanged.

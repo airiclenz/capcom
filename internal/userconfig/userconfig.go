@@ -1,9 +1,11 @@
 // Package userconfig loads the per-user config file of capcom ui (ADR 0011),
 // `<os.UserConfigDir>/capcom/config.yaml`, and creates it with every key as a commented default
-// the first time it is missing.
+// the first time it is missing. It also owns capcom ui's machine-written state file beside it,
+// `state.yaml` (state.go), which LoadState reads and SaveState replaces; config.yaml itself is
+// never written once created.
 //
-// Only capcom ui may call Load: every other command neither reads nor creates the file, so normal
-// capcom use leaves nothing behind in the user's home. The file is read by every capcom binary on
+// Only capcom ui may call Load, LoadState or SaveState: every other command neither reads nor
+// creates these files, so normal capcom use leaves nothing behind in the user's home. The file is read by every capcom binary on
 // the machine, of whatever release, so Load is lenient where the store's config is strict: an
 // unknown key or colour role is a Warning, never an error. Malformed YAML and a value of the wrong
 // type are an *Error naming the file and line.
@@ -133,11 +135,17 @@ func located(path string, line int, message string) string {
 // Path returns `<os.UserConfigDir>/capcom/config.yaml`. It fails when the platform's user config
 // directory is unknown, for example with neither $XDG_CONFIG_HOME nor $HOME set on Linux.
 func Path() (string, error) {
+	return capcomFile(fileName)
+}
+
+// capcomFile returns `<os.UserConfigDir>/capcom/<name>`, failing when the platform's user config
+// directory is unknown.
+func capcomFile(name string) (string, error) {
 	directory, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("locate the user config directory: %w", err)
 	}
-	return filepath.Join(directory, directoryName, fileName), nil
+	return filepath.Join(directory, directoryName, name), nil
 }
 
 // Load reads the user config file at path. A missing file is first created, its directory too,
