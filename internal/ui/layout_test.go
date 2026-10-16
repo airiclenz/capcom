@@ -21,8 +21,11 @@ import (
 	"github.com/airiclenz/capcom/internal/userconfig"
 )
 
-// wideStatusWidth is a terminal wide enough for a status bar naming a temp-dir config path.
-const wideStatusWidth = 240
+// wideStatusWidth returns a terminal width that fits a status bar naming path in full: temp-dir
+// paths run past 150 columns on macOS.
+func wideStatusWidth(path string) int {
+	return 200 + len(path)
+}
 
 func TestModel_View_EmptyLayout_MatchesGolden(t *testing.T) {
 	cases := []struct {
@@ -598,7 +601,7 @@ func TestModel_UserConfigProblems_ShowInTheStatusBar(t *testing.T) {
 			options := newTestOptions(t, ts)
 			writeTestFile(t, options.UserConfigPath, testCase.content)
 
-			m := startModel(t, options, wideStatusWidth, 30)
+			m := startModel(t, options, wideStatusWidth(options.UserConfigPath), 30)
 
 			got := statusRow(m)
 			if !strings.HasPrefix(got, "lock: free · user config: "+options.UserConfigPath) || !strings.Contains(got, testCase.want) {
@@ -620,7 +623,7 @@ func TestModel_NoUserConfigDirectory_WarnsAndRunsOnDefaults(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
 
-	m := startModel(t, options, wideStatusWidth, 30)
+	m := startModel(t, options, wideStatusWidth(""), 30)
 
 	got := statusRow(m)
 	if !strings.HasPrefix(got, "lock: free · user config: locate the user config directory: ") || !strings.Contains(got, defaultsNotice) {
@@ -695,7 +698,7 @@ func TestModel_MalformedStateFile_ShowsItsPathAndRunsOnTheDefaultWidth(t *testin
 	options := newTestOptions(t, newTestStore(t, nil))
 	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: wide\n")
 
-	m := startModel(t, options, wideStatusWidth, 30)
+	m := startModel(t, options, wideStatusWidth(options.UserStatePath), 30)
 
 	if got := statusRow(m); !strings.Contains(got, stateNoticePrefix+options.UserStatePath+":2: ") {
 		t.Errorf("status bar = %q, want the state file notice naming %s", got, options.UserStatePath)
@@ -710,7 +713,7 @@ func TestModel_UnwritableStateFile_ShowsTheSaveNoticeAndStillResizes(t *testing.
 	parent := filepath.Join(t.TempDir(), "not-a-directory")
 	writeTestFile(t, parent, "a regular file\n")
 	options.UserStatePath = filepath.Join(parent, "state.yaml")
-	m := startModel(t, options, wideStatusWidth, 30)
+	m := startModel(t, options, wideStatusWidth(options.UserStatePath), 30)
 	before := m.sidebarWidth()
 
 	m = press(t, m, runeKey('>'))
