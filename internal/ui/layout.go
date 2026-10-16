@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -116,7 +117,7 @@ func (m model) body() []string {
 	lines, offset := m.detailRows()
 	detail := m.scrolledPaneRows(lines, offset, height, m.detailWidth())
 	margin := strings.Repeat(" ", dividerMargin)
-	divider := margin + m.theme.border.Render(paneSeparator) + margin
+	divider := margin + m.dividerStyle().Render(paneSeparator) + margin
 	rows := make([]string, 0, height)
 	for row := range height {
 		rows = append(rows, sidebar[row]+divider+detail[row])
@@ -177,14 +178,29 @@ func paneRows(lines []string, offset, height, width int) []string {
 
 // rule draws a line across the screen in the border style: above the panes with topRuleJoint or
 // under them with ruleJoint as joint, the joint meeting the separator between the panes in the
-// split layout. Outside it the line has no joint.
+// split layout, drawn in the divider's style while it is dragged. Outside it the line has no
+// joint.
 func (m model) rule(joint string) string {
 	if !m.isSplit() {
 		return m.theme.border.Render(strings.Repeat(ruleGlyph, m.width))
 	}
 	jointColumn := m.dividerColumn()
-	return m.theme.border.Render(strings.Repeat(ruleGlyph, jointColumn) + joint +
-		strings.Repeat(ruleGlyph, max(m.width-jointColumn-ansi.StringWidth(joint), 0)))
+	left := strings.Repeat(ruleGlyph, jointColumn)
+	right := strings.Repeat(ruleGlyph, max(m.width-jointColumn-ansi.StringWidth(joint), 0))
+	if !m.drag.isActive {
+		// One styled run, so the frame's bytes stay as they were before dragging existed.
+		return m.theme.border.Render(left + joint + right)
+	}
+	return m.theme.border.Render(left) + m.theme.dividerActive.Render(joint) + m.theme.border.Render(right)
+}
+
+// dividerStyle returns the style of the separator between the panes: the theme's dividerActive
+// while the divider is dragged, its border style otherwise.
+func (m model) dividerStyle() lipgloss.Style {
+	if m.drag.isActive {
+		return m.theme.dividerActive
+	}
+	return m.theme.border
 }
 
 // tabBar lists the tabs in tabOrder, the open one marked by the theme's active tab style, the
@@ -264,6 +280,13 @@ func (m model) pointAt(x, y int) panePoint {
 		return panePoint{}
 	}
 	return panePoint{pane: paneDetail, col: x - m.detailLeft(), row: row}
+}
+
+// isOnDivider reports the screen cell at column x and row y on the divider's hit area in the split
+// layout: the separator between the panes or the margin either side of it, on a row of the panes.
+func (m model) isOnDivider(x, y int) bool {
+	row := y - bodyTop
+	return m.isSplit() && row >= 0 && row < m.bodyHeight() && x >= m.sidebarWidth() && x < m.detailLeft()
 }
 
 // fit cuts text to width columns, ending a cut line with an ellipsis.

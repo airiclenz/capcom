@@ -114,6 +114,9 @@ type theme struct {
 	// border paints the frame: the tab bar's separators, the separator between the panes, the
 	// rules above and under them, and the connectors of the sidebar trees.
 	border lipgloss.Style
+	// dividerActive paints the separator between the panes and its joints in the rules while the
+	// divider is dragged: accent and bold.
+	dividerActive lipgloss.Style
 	// hints paints the status bar's key hints, muted.
 	hints lipgloss.Style
 	// selectedRow marks the selected row of a list in the selection colour, mutedRow a tree row
@@ -140,6 +143,7 @@ func newTheme(settings userconfig.UI, isLightBackground, isNoColor bool) theme {
 		colors:           colors,
 		activeTab:        colors.foreground(roleAccent).Bold(true).Reverse(true),
 		border:           colors.foreground(roleBorder),
+		dividerActive:    colors.foreground(roleAccent).Bold(true),
 		hints:            colors.foreground(roleMuted),
 		selectedRow:      colors.foreground(roleSelection).Reverse(true),
 		mutedRow:         colors.foreground(roleMuted).Faint(true),

@@ -18,13 +18,27 @@ func (m model) isMouseIgnored() bool {
 	return m.isHelpOpen || m.isFilterOpen || m.picker.isOpen || m.prompt.isOpen || m.textPrompt.isOpen
 }
 
-// mouseClick handles a left click: on a tab's label it opens that tab, on a sidebar row it
-// selects that row, expanding or collapsing a tree node when the click lands on its arrow, and in
-// the detail pane it selects a row of the dependency view or follows a link. Every other click,
-// and every click while isMouseIgnored, does nothing.
+// dividerDrag is a drag of the divider between the panes, from a left press on its hit area to the
+// release of the button. grabOffset is the column pressed counted from the separator, so the
+// divider keeps that distance from the pointer and never jumps to it; startColumns is
+// sidebarColumns at the press, which tells the release whether the width changed.
+type dividerDrag struct {
+	isActive     bool
+	grabOffset   int
+	startColumns int
+}
+
+// mouseClick handles a left click: on the divider's hit area it starts a drag of the divider, on a
+// tab's label it opens that tab, on a sidebar row it selects that row, expanding or collapsing a
+// tree node when the click lands on its arrow, and in the detail pane it selects a row of the
+// dependency view or follows a link. Every other click, and every click while isMouseIgnored, does
+// nothing.
 func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	if msg.Button != tea.MouseLeft || m.isMouseIgnored() {
 		return m, nil
+	}
+	if m.isOnDivider(msg.X, msg.Y) {
+		return m.startDrag(msg.X), nil
 	}
 	point := m.pointAt(msg.X, msg.Y)
 	switch point.pane {
@@ -40,6 +54,41 @@ func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 		return m.clickDetail(point)
 	}
 	return m, nil
+}
+
+// startDrag starts a drag of the divider pressed at column x.
+func (m model) startDrag(x int) model {
+	m.drag = dividerDrag{isActive: true, grabOffset: x - m.dividerColumn(), startColumns: m.sidebarColumns}
+	return m
+}
+
+// mouseMotion moves the divider with the pointer while it is dragged in the split layout, keeping
+// the column it was grabbed by under the pointer within the sidebar's limits, and repaints the
+// panes when the width changed. Without a drag it does nothing.
+func (m model) mouseMotion(msg tea.MouseMotionMsg) model {
+	if !m.drag.isActive || !m.isSplit() {
+		return m
+	}
+	columns := m.clampSidebarWidth(msg.X - m.drag.grabOffset - dividerMargin)
+	if columns == m.sidebarWidth() {
+		return m
+	}
+	m.sidebarColumns = columns
+	return m.relayout()
+}
+
+// mouseRelease ends a drag of the divider and returns the command that saves the width to the
+// state file when the drag changed it. Without a drag it does nothing.
+func (m model) mouseRelease() (model, tea.Cmd) {
+	if !m.drag.isActive {
+		return m, nil
+	}
+	isChanged := m.sidebarColumns != m.drag.startColumns
+	m.drag = dividerDrag{}
+	if !isChanged {
+		return m, nil
+	}
+	return m, m.saveState()
 }
 
 // clickSidebar selects the sidebar row under point and shows it, as the up and down keys do,

@@ -81,6 +81,8 @@ type model struct {
 	stateSaver        *stateSaver
 	stateNotice       string
 	stateSavedRequest int
+	// drag is the drag of the divider under way, its zero value when there is none.
+	drag dividerDrag
 
 	// isHelpOpen reports the help screen covering the panes.
 	isHelpOpen bool
@@ -308,7 +310,9 @@ func (m model) initialIDFor(tab Tab) string {
 // every key, then an open text prompt, then an open status picker, then the open filter line,
 // ahead of the dependency view's, then the model's own. While the dependency view is open it keeps the detail
 // pane over whatever else repaints it. Clicks and wheel notches go to the mouse handlers, which
-// ignore them while a prompt, the status picker, the filter line or the help screen is open. Any
+// ignore them while a prompt, the status picker, the filter line or the help screen is open, and
+// the pointer's motion and the button's release to the divider's drag, which a click on the
+// divider starts. Any
 // other message, such as a paste, reaches the open text prompt or the open filter line.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -358,6 +362,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.mouseClick(msg)
 	case tea.MouseWheelMsg:
 		return m.mouseWheel(msg)
+	case tea.MouseMotionMsg:
+		m = m.mouseMotion(msg)
+	case tea.MouseReleaseMsg:
+		return m.mouseRelease()
 	case tea.KeyPressMsg:
 		if m.prompt.isOpen {
 			return m.promptKey(msg)

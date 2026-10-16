@@ -463,3 +463,168 @@ func TestMouse_WheelOnTheSidebarsScrollbar_MovesTheSelection(t *testing.T) {
 		})
 	}
 }
+
+// dragRow is the screen row the drag tests press, move and release on: a row of the panes.
+const dragRow = 5
+
+// motion is the pointer moving to column x, row y with the left button held.
+func motion(x, y int) tea.MouseMotionMsg {
+	return tea.MouseMotionMsg{X: x, Y: y, Button: tea.MouseLeft}
+}
+
+// release is the left button let go at column x, row y.
+func release(x, y int) tea.MouseReleaseMsg {
+	return tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft}
+}
+
+// dragDivider presses the left button at column from, moves the pointer to column to and lets
+// the button go there, all on dragRow.
+func dragDivider(t *testing.T, m model, from, to int) model {
+	t.Helper()
+	m = press(t, m, click(from, dragRow))
+	m = press(t, m, motion(to, dragRow))
+	return press(t, m, release(to, dragRow))
+}
+
+func TestMouse_DragTheDivider_MovesItAndSavesTheWidth(t *testing.T) {
+	for grab := range 3 {
+		t.Run(fmt.Sprintf("column %d of the hit area", grab), func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			m := startModel(t, options, wideWidth, wideHeight)
+			before := m.sidebarWidth()
+			from := before + grab
+
+			m = dragDivider(t, m, from, from+10)
+
+			if got := m.sidebarWidth(); got != before+10 {
+				t.Errorf("sidebarWidth() = %d, want %d", got, before+10)
+			}
+			if got := readStoredWidth(t, options.UserStatePath); got != before+10 {
+				t.Errorf("stored sidebar width = %d, want %d", got, before+10)
+			}
+		})
+	}
+}
+
+func TestMouse_DragTheDividerPastALimit_Clamps(t *testing.T) {
+	cases := []struct {
+		name string
+		to   int
+		want int
+	}{
+		{name: "past the sidebar's limit", to: 0, want: sidebarDragMinWidth},
+		{name: "past the detail pane's limit", to: wideWidth - 1, want: wideWidth - 3 - detailMinWidth},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, readyFiles), wideWidth, wideHeight)
+			from := m.dividerColumn()
+			m = press(t, m, click(from, dragRow))
+
+			m = press(t, m, motion(tc.to, dragRow))
+
+			if got := m.sidebarWidth(); got != tc.want {
+				t.Errorf("sidebarWidth() = %d, want %d", got, tc.want)
+			}
+			assertDividerAt(t, m)
+		})
+	}
+}
+
+func TestMouse_PressAndReleaseOnTheDivider_WritesNothing(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	m := startModel(t, options, wideWidth, wideHeight)
+	before := m.sidebarWidth()
+
+	m = press(t, m, click(m.dividerColumn(), dragRow))
+	m = press(t, m, release(m.dividerColumn(), dragRow))
+
+	if got := m.sidebarWidth(); got != before {
+		t.Errorf("sidebarWidth() = %d, want it left at %d", got, before)
+	}
+	if got := readStoredWidth(t, options.UserStatePath); got != 0 {
+		t.Errorf("stored sidebar width = %d, want none written", got)
+	}
+}
+
+func TestMouse_PressOffThePanesRows_StartsNoDrag(t *testing.T) {
+	cases := []struct {
+		name string
+		y    int
+	}{
+		{name: "tab bar", y: 0},
+		{name: "rule above the panes", y: 1},
+		{name: "rule under the panes", y: wideHeight - 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, readyFiles), wideWidth, wideHeight)
+			before := m.sidebarWidth()
+			x := m.dividerColumn()
+
+			m = press(t, m, click(x, tc.y))
+			m = press(t, m, motion(x+10, tc.y))
+
+			if got := m.sidebarWidth(); got != before {
+				t.Errorf("sidebarWidth() = %d, want it left at %d", got, before)
+			}
+		})
+	}
+}
+
+func TestMouse_MotionAndReleaseWithoutADrag_ChangeNothing(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	m := startModel(t, options, wideWidth, wideHeight)
+	before := m.sidebarWidth()
+
+	m = press(t, m, motion(m.dividerColumn()+10, dragRow))
+	m = press(t, m, release(m.dividerColumn()+10, dragRow))
+
+	if got := m.sidebarWidth(); got != before {
+		t.Errorf("sidebarWidth() = %d, want it left at %d", got, before)
+	}
+	if got := readStoredWidth(t, options.UserStatePath); got != 0 {
+		t.Errorf("stored sidebar width = %d, want none written", got)
+	}
+}
+
+func TestMouse_DragOnANarrowTerminalOrUnderHelp_DoesNothing(t *testing.T) {
+	cases := []struct {
+		name   string
+		width  int
+		height int
+		keys   []tea.KeyPressMsg
+	}{
+		{name: "narrow terminal", width: smallWidth, height: smallHeight},
+		{name: "help open", width: wideWidth, height: wideHeight, keys: []tea.KeyPressMsg{runeKey('?')}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			m := startModel(t, options, tc.width, tc.height)
+			for _, key := range tc.keys {
+				m = press(t, m, key)
+			}
+			from := m.dividerColumn()
+
+			m = dragDivider(t, m, from, from+10)
+
+			if m.sidebarColumns != 0 {
+				t.Errorf("sidebarColumns = %d, want 0: no drag", m.sidebarColumns)
+			}
+			if got := readStoredWidth(t, options.UserStatePath); got != 0 {
+				t.Errorf("stored sidebar width = %d, want none written", got)
+			}
+		})
+	}
+}
+
+func TestMouse_MidDrag_MatchesANSIGolden(t *testing.T) {
+	m := newThemeModel(t, "ui:\n  theme: dark\n", false)
+	from := m.dividerColumn()
+	m = press(t, m, click(from, dragRow))
+
+	m = press(t, m, motion(from+10, dragRow))
+
+	goldenANSI(t, "drag-divider-120x30", m.View())
+}

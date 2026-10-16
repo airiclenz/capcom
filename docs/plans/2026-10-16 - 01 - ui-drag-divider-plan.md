@@ -122,7 +122,11 @@ Depends on items 1 and 2.
 
 **Commit:** `feat(ui): remember the sidebar width across runs`
 
-## 4. Drag the divider with the mouse
+## 4. Drag the divider with the mouse — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the release saves when sidebarColumns differs from its value at the press; a motion sets sidebarColumns only when the clamped width differs from sidebarWidth(), so a press and release without motion, or a motion that does not move the divider, writes nothing and leaves a default width unpinned.
+NOTES (2026-10-16): motion is ignored outside the split layout (help opened or terminal narrowed mid-drag) as well as without a drag; the release ends any drag regardless of the reported button, since some terminal encodings report none on release.
+NOTES (2026-10-16): the mid-drag golden was created with `go test ./internal/ui/ -run 'TestMouse_MidDrag_MatchesANSIGolden$' -update`, so no other golden was rewritten; internal/ui/model.go is now 461 lines, past the ~400 guideline (item 3 already noted a later split of the user-file loading would bring it back under).
 
 Depends on item 3.
 
