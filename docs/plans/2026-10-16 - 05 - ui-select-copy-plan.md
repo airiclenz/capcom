@@ -42,7 +42,11 @@ and tmux, with a `copied N chars` notice. It is built the way apogee builds it.
 - 4 (re-check): guard folded (re-record item 3's post-release goldens)
 - 5 (re-check): guard folded (supersedes `docs/design/tui.md` "borrows their patterns, not their code")
 
-## 1. Add the clipboard package: native and tmux writes behind a working-tree fence
+## 1. Add the clipboard package: native and tmux writes behind a working-tree fence — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): go.sum is unchanged: `go mod tidy` only moved github.com/atotto/clipboard v0.1.4 from the indirect block to the direct requires; its go.sum lines were already present.
+NOTES (2026-10-16): the fence resolves an unresolvable path as apogee's EvalRealPath does (nearest existing ancestor resolved, remainder rejoined, else the cleaned path), so a missing path under macOS's symlinked /var still compares with the resolved Root; the program run is the path the lookup answered, not its symlink target, so multi-call binaries keep their argv[0].
+NOTES (2026-10-16): an empty GOOS means runtime.GOOS and a nil Getenv means os.Getenv, as the production defaults beside the nil-field defaults the item names; WriteTmux wraps ErrNoProgram when tmux is not on PATH.
 
 **What:**
 **Goal:** a new package `internal/clipboard` writes text to the host clipboard and to tmux.
