@@ -98,7 +98,10 @@ Seat the Note through item 1's helper with Tab=TabKnowledge and ID="relic" (nest
 - `go vet ./internal/ui/` is clean.
 **Commit:** `test(ui): cover the selection fill on the Knowledge tab`
 
-## 3. File map in internal/ui/doc.go with a structural test
+## 3. File map in internal/ui/doc.go with a structural test — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the package comment moved from ui.go to doc.go unchanged; the map lists all 25 non-test files, with the model.go role wrapped onto a continuation line (as internal/tree/doc.go does) to stay near 100 columns. doc_test.go is internal/tree/doc_test.go with `package ui`; no ui test changes the working directory.
+NOTES (2026-10-16): bite check run — renaming `help.go` to `helpx.go` in the map made TestDocFileMap_MatchesDirectory report both the missing and the nonexistent file; reverted.
 
 **What:**
 **Goal:** `internal/ui/doc.go` holds the package's only package comment and a `# Files` section

@@ -1,12 +1,3 @@
-// Package ui is capcom's terminal UI, the program behind capcom ui (docs/design/tui.md): a Bubble
-// Tea v2 model over a store and its index that internal/cli has already opened. This package never
-// checks for a terminal and never closes the index it is handed; the caller does both.
-//
-// Every store and index access from a tea.Cmd goes through the session, which runs one access at
-// a time; nothing reaches the index outside it. About once a second the session polls: it
-// refreshes the index and re-reads the Tree lock, and the UI reloads its tabs when anything
-// changed. A changed config.yaml makes the session re-open the store and an index of its own on
-// it, which it closes itself.
 package ui
 
 import (
