@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `capcom ui`: in the split layout, drag the divider between the sidebar and the detail pane with the mouse to set the sidebar's width (the sidebar keeps at least 20 columns and the detail pane 40). The panes reflow as it moves, the divider and its joints draw in the accent colour, bold, while it is held, and the width is saved to `state.yaml` when the drag changed it.
 - `capcom ui`: a double-click on the divider between the sidebar and the detail pane (two presses within 500 ms) returns the sidebar to its default width, a third of the terminal within 28 to 48 columns, and clears the width stored in `state.yaml`.
 - The help screen of `capcom ui` and its guide name the `<` and `>` keys, the divider drag and the double-click reset; the file-format reference describes `state.yaml`, where `capcom ui` remembers the sidebar width.
+- `capcom ui` keeps the sidebar width you set as a share of the terminal's width, so the split holds when you resize the terminal or start `capcom ui` in a terminal of another width; the sidebar still keeps at least 20 columns and the detail pane 40. `state.yaml` stores it as `ui.sidebar_ratio`, a decimal more than 0 and less than 1, in place of `ui.sidebar_width`, which is ignored.
 
 ## [0.7.0] - 2026-10-15
 
