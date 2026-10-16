@@ -181,10 +181,14 @@ func TestTheme_Presets_DrawInApogeesColours(t *testing.T) {
 		{theme: userconfig.ThemeDark, role: roleSelection, want: "#3a5fcd"},
 		{theme: userconfig.ThemeDark, role: "status-doing", want: "#58a6ff"},
 		{theme: userconfig.ThemeDark, role: "status-done", want: "#43d389"},
+		{theme: userconfig.ThemeDark, role: "lock-held", want: "#f0883e"},
+		{theme: userconfig.ThemeDark, role: "lock-free", want: "#43d389"},
 		{theme: userconfig.ThemeLight, role: roleAccent, want: "#8250df"},
 		{theme: userconfig.ThemeLight, role: roleSelection, want: "#b3d1ff"},
 		{theme: userconfig.ThemeLight, role: "status-doing", want: "#0969da"},
 		{theme: userconfig.ThemeLight, role: "status-done", want: "#115e59"},
+		{theme: userconfig.ThemeLight, role: "lock-held", want: "#bc4c00"},
+		{theme: userconfig.ThemeLight, role: "lock-free", want: "#115e59"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.theme+"/"+testCase.role, func(t *testing.T) {

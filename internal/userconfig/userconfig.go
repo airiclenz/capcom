@@ -55,6 +55,8 @@ var Roles = []string{
 	"status-waiting",
 	"status-done",
 	"status-dropped",
+	"lock-held",
+	"lock-free",
 }
 
 // The directory and file names under os.UserConfigDir, and the keys Load knows.

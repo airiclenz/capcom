@@ -25,3 +25,5 @@ status-doing: "#58a6ff"   # apogee mode-allow-edits: every status of the doing c
 status-waiting: "#f0883e" # apogee mode-auto: every status of the waiting category
 status-done: "#43d389"    # apogee success: every status of the done category
 status-dropped: "#4a4a4a" # apogee chrome: every status of the dropped category
+lock-held: "#f0883e"      # apogee mode-auto: the status bar's lock badge while another session holds the Tree lock
+lock-free: "#43d389"      # apogee success: the status bar's lock badge while the Tree lock is free

@@ -31,7 +31,9 @@ while it is free; every other state, and the rest of the segment, stays plain.
 - The lock prompt before writes, `lockText`'s wording, and any other status bar segment.
 - Taking, renewing or freeing the Tree lock from the UI.
 
-## 1. Add the lock-held and lock-free colour roles
+## 1. Add the lock-held and lock-free colour roles — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the role lists in docs/design/tui.md and docs/site/getting-started/terminal-ui.md do not name the new roles yet; both files are in item 2's Files, so left to it.
 
 **What:**
 **Goal:** `lock-held` and `lock-free` are roles of `userconfig.Roles`, named in the user config
