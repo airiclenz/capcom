@@ -1,4 +1,5 @@
  Issues  │ [1;7m Ready [m │  Knowledge 
+─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 [7malpha  open  P1  Alpha task[m              │ [1mAlpha task[m
 beta  open  P2  Beta task                │ 
                                          │ status: open · P1
@@ -10,7 +11,6 @@ beta  open  P2  Beta task                │
                                          │ │ quoted
                                          │ 
                                          │   code block
-                                         │ 
                                          │ 
                                          │ 
                                          │ 

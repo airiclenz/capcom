@@ -1,4 +1,5 @@
  Issues  │  Ready  │  Knowledge 
+─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 alpha  open  P1  Alpha task              │ Alpha task
 beta  open  P2  Beta task                │ 
 delta  open  P2  Delta task              │ status: open · P1
@@ -9,7 +10,6 @@ delta  open  P2  Delta task              │ status: open · P1
                                          │ 
                                          │ • first point
                                          │ • second point
-                                         │ 
                                          │ 
                                          │ 
                                          │ 

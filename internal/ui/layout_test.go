@@ -143,7 +143,7 @@ func TestModel_SplitLayout_PadsTheDividerWithAMarginEachSide(t *testing.T) {
 
 	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
 
-	for row := 1; row <= m.bodyHeight(); row++ {
+	for row := bodyTop; row < bodyTop+m.bodyHeight(); row++ {
 		if got := ansi.Cut(rows[row], sidebarWidth, sidebarWidth+3); got != " │ " {
 			t.Errorf("row %d holds %q at columns %d..%d, want \" │ \"", row, got, sidebarWidth, sidebarWidth+2)
 		}
@@ -157,6 +157,48 @@ func TestModel_SplitLayout_PadsTheDividerWithAMarginEachSide(t *testing.T) {
 	}
 }
 
+func TestModel_TabRule_JoinsTheDividerOnlyInTheSplitLayout(t *testing.T) {
+	cases := []struct {
+		name      string
+		width     int
+		keys      []tea.KeyPressMsg
+		wantJoint bool
+	}{
+		{name: "split", width: 120, wantJoint: true},
+		{name: "narrow", width: 80},
+		{name: "help", width: 120, keys: []tea.KeyPressMsg{runeKey('?')}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, readyFiles), testCase.width, 30)
+			for _, key := range testCase.keys {
+				m = send(t, m, key)
+			}
+
+			rule := strings.Split(ansi.Strip(m.View().Content), "\n")[1]
+
+			want := strings.Repeat(ruleGlyph, testCase.width)
+			if testCase.wantJoint {
+				column := m.dividerColumn()
+				want = strings.Repeat(ruleGlyph, column) + topRuleJoint + strings.Repeat(ruleGlyph, testCase.width-column-1)
+			}
+			if rule != want {
+				t.Errorf("row 1 = %q, want %q", rule, want)
+			}
+		})
+	}
+}
+
+func TestModel_BodyHeight_LeavesTheFrameRows(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, nil), 120, 30)
+
+	got := m.bodyHeight()
+
+	if want := 30 - 4; got != want {
+		t.Errorf("bodyHeight() = %d, want %d: the screen less the tab bar, two rules and the status bar", got, want)
+	}
+}
+
 func TestModel_ScrollKeys_MoveTheDetailPaneWithinItsLines(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -164,11 +206,11 @@ func TestModel_ScrollKeys_MoveTheDetailPaneWithinItsLines(t *testing.T) {
 		keys  []tea.KeyPressMsg
 		want  int
 	}{
-		{name: "pgdown", width: 120, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgDown)}, want: 27},
+		{name: "pgdown", width: 120, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgDown)}, want: 26},
 		{name: "pgup stops at the top", width: 120, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgUp)}, want: 0},
 		{name: "ctrl+d", width: 120, keys: []tea.KeyPressMsg{ctrlKey('d')}, want: 13},
 		{name: "ctrl+u", width: 120, keys: []tea.KeyPressMsg{ctrlKey('d'), ctrlKey('d'), ctrlKey('u')}, want: 13},
-		{name: "pgdown stops at the end", width: 120, keys: repeatKey(specialKey(tea.KeyPgDown), 5), want: 73},
+		{name: "pgdown stops at the end", width: 120, keys: repeatKey(specialKey(tea.KeyPgDown), 5), want: 74},
 		{name: "j in the split layout", width: 120, keys: []tea.KeyPressMsg{runeKey('j')}, want: 0},
 		{name: "j on the narrow sidebar", width: 80, keys: []tea.KeyPressMsg{runeKey('j')}, want: 0},
 		{name: "j in the narrow detail", width: 80, keys: []tea.KeyPressMsg{specialKey(tea.KeyEnter), runeKey('j'), runeKey('j')}, want: 2},

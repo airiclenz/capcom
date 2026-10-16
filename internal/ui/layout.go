@@ -13,11 +13,13 @@ const (
 	sidebarShare    = 3
 	sidebarMinWidth = 28
 	sidebarMaxWidth = 48
-	// frameRows are the rows around the panes: the tab bar, the rule under the panes and the
-	// status bar.
-	frameRows = 3
+	// frameRows are the rows around the panes: the tab bar, the rules above and under the panes
+	// and the status bar.
+	frameRows = 4
 	// dividerMargin is the blank columns on either side of the separator between the panes.
 	dividerMargin = 1
+	// bodyTop is the screen row the panes start on: past the tab bar and the rule under it.
+	bodyTop = 2
 )
 
 // The glyphs of the frame.
@@ -26,19 +28,21 @@ const (
 	paneSeparator = "│"
 	ruleGlyph     = "─"
 	ruleJoint     = "┴"
+	topRuleJoint  = "┬"
 	truncateTail  = "…"
 )
 
-// frame lays out the tab bar, the panes or the help screen, the rule and the status bar over the
-// terminal's full size. A terminal shorter than the frame shows its top rows.
+// frame lays out the tab bar, the rule under it, the panes or the help screen, the rule under
+// them and the status bar over the terminal's full size. A terminal shorter than the frame shows
+// its top rows.
 func (m model) frame() string {
 	if m.width <= 0 || m.height <= 0 {
 		return ""
 	}
 	rows := make([]string, 0, m.bodyHeight()+frameRows)
-	rows = append(rows, fit(m.tabBar(), m.width))
+	rows = append(rows, fit(m.tabBar(), m.width), m.rule(topRuleJoint))
 	rows = append(rows, m.body()...)
-	rows = append(rows, m.rule(), m.statusBar())
+	rows = append(rows, m.rule(ruleJoint), m.statusBar())
 	return strings.Join(rows[:min(len(rows), m.height)], "\n")
 }
 
@@ -52,7 +56,7 @@ func (m model) isSplit() bool {
 	return !m.isNarrow() && !m.isHelpOpen
 }
 
-// bodyHeight returns the rows between the tab bar and the rule.
+// bodyHeight returns the rows between the rule under the tab bar and the rule under the panes.
 func (m model) bodyHeight() int {
 	return max(m.height-frameRows, 0)
 }
@@ -63,7 +67,7 @@ func (m model) sidebarWidth() int {
 	return min(max(m.width/sidebarShare, sidebarMinWidth), sidebarMaxWidth)
 }
 
-// body draws the bodyHeight rows under the tab bar: the help screen when it is open, the two
+// body draws the bodyHeight rows under the tab bar's rule: the help screen when it is open, the two
 // panes side by side on a wide terminal, and on a narrow one the sidebar or, once Enter opened
 // it or while the status picker is open, the detail pane.
 func (m model) body() []string {
@@ -129,15 +133,16 @@ func paneRows(lines []string, offset, height, width int) []string {
 	return rows
 }
 
-// rule draws the line under the panes, joined to the separator between them in the split
-// layout, in the border style.
-func (m model) rule() string {
+// rule draws a line across the screen in the border style: above the panes with topRuleJoint or
+// under them with ruleJoint as joint, the joint meeting the separator between the panes in the
+// split layout. Outside it the line has no joint.
+func (m model) rule(joint string) string {
 	if !m.isSplit() {
 		return m.theme.border.Render(strings.Repeat(ruleGlyph, m.width))
 	}
 	jointColumn := m.dividerColumn()
-	return m.theme.border.Render(strings.Repeat(ruleGlyph, jointColumn) + ruleJoint +
-		strings.Repeat(ruleGlyph, max(m.width-jointColumn-ansi.StringWidth(ruleJoint), 0)))
+	return m.theme.border.Render(strings.Repeat(ruleGlyph, jointColumn) + joint +
+		strings.Repeat(ruleGlyph, max(m.width-jointColumn-ansi.StringWidth(joint), 0)))
 }
 
 // tabBar lists the tabs in tabOrder, the open one marked by the theme's active tab style, the
@@ -178,7 +183,7 @@ func tabAt(col int) (Tab, bool) {
 type screenPane int
 
 // The parts of the screen the mouse acts on; every other cell, such as the separator between the
-// panes and its margins, the rule and the status bar, is paneNone.
+// panes and its margins, the rules and the status bar, is paneNone.
 const (
 	paneNone screenPane = iota
 	paneTabBar
@@ -195,9 +200,9 @@ type panePoint struct {
 }
 
 // pointAt locates the screen cell at column x and row y in the layout body draws: the tab bar on
-// the top row, then on a wide terminal the sidebar left of the separator's margin and the detail
-// pane right of it, and on a narrow one whichever of the two fills the screen. With the help screen
-// open no pane is on screen.
+// the top row, no pane on the rule under it, then on a wide terminal the sidebar left of the
+// separator's margin and the detail pane right of it, and on a narrow one whichever of the two
+// fills the screen. With the help screen open no pane is on screen.
 func (m model) pointAt(x, y int) panePoint {
 	if x < 0 || y < 0 || x >= m.width {
 		return panePoint{}
@@ -205,9 +210,9 @@ func (m model) pointAt(x, y int) panePoint {
 	if y == 0 {
 		return panePoint{pane: paneTabBar, col: x}
 	}
-	row := y - 1
+	row := y - bodyTop
 	switch {
-	case row >= m.bodyHeight() || m.isHelpOpen:
+	case row < 0 || row >= m.bodyHeight() || m.isHelpOpen:
 		return panePoint{}
 	case m.isNarrow() && (m.isDetailOpen || m.picker.isOpen):
 		return panePoint{pane: paneDetail, col: x, row: row}

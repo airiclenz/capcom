@@ -70,7 +70,7 @@ func linkCell(t *testing.T, m model, target string) (int, int) {
 	t.Helper()
 	for _, link := range m.issue.rendered.Links {
 		if link.Target == target {
-			return detailLeft(m) + link.Col, 1 + link.Line - m.detailOffset
+			return detailLeft(m) + link.Col, bodyTop + link.Line - m.detailOffset
 		}
 	}
 	t.Fatalf("no link to %s in the detail pane: %v", target, m.issue.rendered.Links)
@@ -128,7 +128,7 @@ func TestMouse_ClickOnSidebarRow_SelectsAndShowsIt(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			m := newTestModel(t, newTestStore(t, readyFiles), size[0], size[1])
 
-			m = press(t, m, click(3, 2))
+			m = press(t, m, click(3, 3))
 
 			if got, isSelected := m.readySelection(); !isSelected || got.ID != "beta" {
 				t.Fatalf("selected %q, want beta", got.ID)
@@ -143,18 +143,34 @@ func TestMouse_ClickOnSidebarRow_SelectsAndShowsIt(t *testing.T) {
 func TestMouse_ClickBelowTheLastSidebarRow_KeepsTheSelection(t *testing.T) {
 	m := newTestModel(t, newTestStore(t, readyFiles), wideWidth, wideHeight)
 
-	m = press(t, m, click(3, 10))
+	m = press(t, m, click(3, 11))
 
 	if got, _ := m.readySelection(); got.ID != "alpha" {
 		t.Errorf("selected %q, want alpha", got.ID)
 	}
 }
 
+func TestMouse_ClickOrWheelOnTheTabRule_DoesNothing(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, treeFiles), "solo", wideWidth, wideHeight)
+
+	// Row 1 is the rule under the tab bar; row 2 would hold the epic's arrow.
+	clicked := press(t, m, click(0, 1))
+	wheeled := press(t, m, wheel(tea.MouseWheelDown, 3, 1))
+
+	if got := selectedIssueID(clicked); got != selectedIssueID(m) || slices.Contains(visibleIDs(clicked), "alpha") {
+		t.Errorf("a click on the rule selected %q, visible %v; want the selection and the tree as they were",
+			got, visibleIDs(clicked))
+	}
+	if got := selectedIssueID(wheeled); got != selectedIssueID(m) {
+		t.Errorf("a wheel on the rule selected %q, want %q", got, selectedIssueID(m))
+	}
+}
+
 func TestMouse_NarrowDetailView_OnlyTheDetailPaneResponds(t *testing.T) {
 	m := openDetail(t, newTestModel(t, newTestStore(t, readyFiles), smallWidth, smallHeight))
 
-	m = press(t, m, click(3, 2))
-	m = press(t, m, wheel(tea.MouseWheelDown, 3, 2))
+	m = press(t, m, click(3, 3))
+	m = press(t, m, wheel(tea.MouseWheelDown, 3, 3))
 
 	if got, _ := m.readySelection(); got.ID != "alpha" || !m.isDetailOpen {
 		t.Errorf("selected %q with the detail view open %v; want alpha, still open", got.ID, m.isDetailOpen)
@@ -166,8 +182,8 @@ func TestMouse_ClickOnTreeArrow_ExpandsAndCollapses(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			m := newIssuesModel(t, newTestStore(t, treeFiles), "solo", size[0], size[1])
 
-			expanded := press(t, m, click(0, 1))
-			collapsed := press(t, expanded, click(1, 1))
+			expanded := press(t, m, click(0, 2))
+			collapsed := press(t, expanded, click(1, 2))
 
 			if got := selectedIssueID(expanded); got != "epic" || !slices.Contains(visibleIDs(expanded), "alpha") {
 				t.Errorf("after the first click: selected %q, visible %v; want epic expanded", got, visibleIDs(expanded))
@@ -182,7 +198,7 @@ func TestMouse_ClickOnTreeArrow_ExpandsAndCollapses(t *testing.T) {
 func TestMouse_ClickOnTreeRowText_SelectsWithoutExpanding(t *testing.T) {
 	m := newIssuesModel(t, newTestStore(t, treeFiles), "solo", wideWidth, wideHeight)
 
-	m = press(t, m, click(6, 1))
+	m = press(t, m, click(6, 2))
 
 	if got := selectedIssueID(m); got != "epic" || slices.Contains(visibleIDs(m), "alpha") {
 		t.Errorf("selected %q, visible %v; want epic selected and still collapsed", got, visibleIDs(m))
@@ -195,8 +211,8 @@ func TestMouse_ClickOnDepViewRow_SelectsItForEnter(t *testing.T) {
 			m := newIssuesModel(t, newTestStore(t, depFiles), "alpha", size[0], size[1])
 			m = press(t, m, runeKey('d'))
 
-			// Row 6 of the screen is line 5 of the view: user, under the blocks heading.
-			m = press(t, m, click(detailLeft(m)+4, 6))
+			// Row 7 of the screen is line 5 of the view: user, under the blocks heading.
+			m = press(t, m, click(detailLeft(m)+4, 7))
 			m = press(t, m, specialKey(tea.KeyEnter))
 
 			if got := selectedIssueID(m); got != "user" {
@@ -211,10 +227,10 @@ func TestMouse_PointAtDetailLeft_IsTheDetailPanesFirstColumn(t *testing.T) {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			m := openDetail(t, newTestModel(t, newTestStore(t, readyFiles), size[0], size[1]))
 
-			got := m.pointAt(detailLeft(m), 1)
+			got := m.pointAt(detailLeft(m), 2)
 
 			if want := (panePoint{pane: paneDetail, col: 0, row: 0}); got != want {
-				t.Errorf("pointAt(%d, 1) = %+v, want %+v", detailLeft(m), got, want)
+				t.Errorf("pointAt(%d, 2) = %+v, want %+v", detailLeft(m), got, want)
 			}
 		})
 	}
@@ -226,8 +242,8 @@ func TestMouse_ClickOnTheDividerOrItsMargins_SelectsNothing(t *testing.T) {
 	sidebarWidth := m.sidebarWidth()
 
 	for x := sidebarWidth; x <= sidebarWidth+2; x++ {
-		// Row 6 of the screen is line 5 of the view: user, under the blocks heading.
-		clicked := press(t, m, click(x, 6))
+		// Row 7 of the screen is line 5 of the view: user, under the blocks heading.
+		clicked := press(t, m, click(x, 7))
 
 		if clicked.deps.cursor.selected != m.deps.cursor.selected {
 			t.Errorf("a click on column %d moved the dep view's cursor to row %d, want it left on %d",
@@ -256,7 +272,7 @@ func TestMouse_ClickOnLinkAfterScrolling_FollowsIt(t *testing.T) {
 			m := openDetail(t, newTestModel(t, newTestStore(t, linkFiles), size[0], size[1]))
 			x := detailLeft(m) + 2
 			for range fillerLines {
-				m = press(t, m, wheel(tea.MouseWheelDown, x, 2))
+				m = press(t, m, wheel(tea.MouseWheelDown, x, 3))
 			}
 			if m.detailOffset == 0 {
 				t.Fatal("the wheel left the detail pane unscrolled")
@@ -286,7 +302,7 @@ func TestMouse_ClickOnLinkToClosedIssue_RevealsAndSelectsIt(t *testing.T) {
 
 func TestMouse_ClickOnNoteLink_SelectsTheNoteInTheKnowledgeTab(t *testing.T) {
 	m := newTestModel(t, newTestStore(t, linkFiles), wideWidth, wideHeight)
-	m = press(t, m, click(3, 3))
+	m = press(t, m, click(3, 4))
 
 	m = press(t, m, click(linkCell(t, m, "setup")))
 
@@ -308,7 +324,7 @@ func TestMouse_WheelOverSidebar_MovesTheSelectionOneRow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestModel(t, newTestStore(t, readyFiles), wideWidth, wideHeight)
 
-			m = press(t, m, wheel(tc.button, 3, 5))
+			m = press(t, m, wheel(tc.button, 3, 6))
 
 			if got, _ := m.readySelection(); got.ID != tc.want {
 				t.Errorf("selected %q, want %q", got.ID, tc.want)
@@ -320,7 +336,7 @@ func TestMouse_WheelOverSidebar_MovesTheSelectionOneRow(t *testing.T) {
 func TestMouse_WheelOverDetail_ScrollsThePane(t *testing.T) {
 	m := newTestModel(t, newTestStore(t, linkFiles), wideWidth, wideHeight)
 
-	m = press(t, m, wheel(tea.MouseWheelDown, detailLeft(m)+2, 5))
+	m = press(t, m, wheel(tea.MouseWheelDown, detailLeft(m)+2, 6))
 
 	if got, _ := m.readySelection(); m.detailOffset != detailWheelRows || got.ID != "long" {
 		t.Errorf("detail offset %d selecting %q, want %d selecting long", m.detailOffset, got.ID, detailWheelRows)
@@ -345,8 +361,8 @@ func TestMouse_ClickDuringReasonPrompt_EnterClosesOnlyThePromptedIssue(t *testin
 	ts := newTestStore(t, readyFiles)
 	m := typeKeys(t, press(t, newTestModel(t, ts, wideWidth, wideHeight), runeKey('c')), "fixed")
 
-	m = press(t, m, click(3, 2))
-	m = press(t, m, wheel(tea.MouseWheelDown, 3, 2))
+	m = press(t, m, click(3, 3))
+	m = press(t, m, wheel(tea.MouseWheelDown, 3, 3))
 	m = press(t, m, specialKey(tea.KeyEnter))
 
 	if got := readStoreFile(t, ts, alphaPath); !bytes.Equal(withoutClosedTime(got), withoutClosedTime(want)) {

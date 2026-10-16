@@ -1,4 +1,5 @@
  Issues  │  Ready  │  Knowledge 
+─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 alpha  open  P0  Alpha task renamed      │ Alpha task renamed
 beta  open  P2  Beta task                │ 
 delta  open  P2  Delta task              │ status: open · P0
@@ -9,7 +10,6 @@ delta  open  P2  Delta task              │ status: open · P0
                                          │ 
                                          │ • first point
                                          │ • second point
-                                         │ 
                                          │ 
                                          │ 
                                          │ 

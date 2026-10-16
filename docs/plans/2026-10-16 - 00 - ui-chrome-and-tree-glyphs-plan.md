@@ -70,7 +70,11 @@ of an open dep-view row select nothing; regenerate goldens.
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): pad the pane divider with a margin on each side`
 
-## 2. Rule under the tab bar
+## 2. Rule under the tab bar — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): `rule()` now takes its joint glyph (`rule(topRuleJoint)` for `┬` under the tab bar, `rule(ruleJoint)` for `┴` under the panes), its `┬` column coming from item 1's `dividerColumn()`; the existing `ruleJoint` name is kept for the bottom joint rather than renamed. A new `bodyTop = 2` constant names the first body row; `pointAt` returns `paneNone` for `row := y - bodyTop` below 0, and mouse_test's `linkCell` uses it.
+NOTES (2026-10-16): consequential edit — internal/ui/theme.go: made necessary by the new top rule (the `border` field's comment now names the rules above and under the panes).
+NOTES (2026-10-16): docs/design/tui.md and the manual's screen samples are left to item 6, which owns them.
 
 Depends on item 1.
 
