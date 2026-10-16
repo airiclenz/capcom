@@ -76,11 +76,11 @@ func (m model) body() []string {
 	case m.isNarrow() && m.isDetailOpen:
 		return paneRows(m.detail, m.detailOffset, height, m.width)
 	case m.isNarrow():
-		return paneRows(m.sidebar, 0, height, m.width)
+		return paneRows(m.sidebarLines(), 0, height, m.width)
 	}
 
 	sidebarWidth := m.sidebarWidth()
-	sidebar := paneRows(m.sidebar, 0, height, sidebarWidth)
+	sidebar := paneRows(m.sidebarLines(), 0, height, sidebarWidth)
 	detail := paneRows(m.detail, m.detailOffset, height, m.width-sidebarWidth-1)
 	rows := make([]string, 0, height)
 	for row := range height {

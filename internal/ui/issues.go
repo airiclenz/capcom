@@ -33,11 +33,13 @@ type issuesMsg struct {
 	err      error
 }
 
-// issuesTab is the Issues tab's state: the tree of the last read and the error of a read that
-// failed.
+// issuesTab is the Issues tab's state: the issues of the last read, the tree over them, the error
+// of a read that failed, and, while a filter is in effect, the nodes expanded before it.
 type issuesTab struct {
-	tree treeWidget[index.Entry]
-	err  error
+	entries            []index.Entry
+	tree               treeWidget[index.Entry]
+	err                error
+	unfilteredExpanded map[string]bool
 }
 
 // loadIssues returns a command that reads every issue through the session, Closed ones included,
@@ -66,16 +68,13 @@ func loadIssues(s *session, wantedID string) tea.Cmd {
 	}
 }
 
-// applyIssues takes in a read of the issues: it builds the outline capcom list --tree prints,
-// keeping the nodes expanded before it, selects the issue the read resolved, reporting the id in
+// applyIssues takes in a read of the issues: it builds the outline capcom list --tree prints, or
+// what the Issues filter leaves of it, keeping the nodes expanded before it, selects the issue the read resolved, reporting the id in
 // the status bar when the tree does not hold it, and shows the selection.
 func (m model) applyIssues(msg issuesMsg) (model, tea.Cmd) {
 	m.issues.err = msg.err
-	m.issues.tree = newTreeWidget(
-		outline.Issues(msg.entries, false),
-		func(entry index.Entry) string { return entry.ID },
-		m.issues.tree.expanded,
-	)
+	m.issues.entries = msg.entries
+	m.issues.tree = m.issuesTree(m.issues.tree.expanded)
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
@@ -125,8 +124,8 @@ func (m model) issuesSelection() (index.Entry, bool) {
 
 // paintIssuesSidebar fills the sidebar with the Issues tree, one `id  status  P<n>  title` row
 // per visible issue with its children's progress, scrolled so the selection stays on screen. An
-// empty tree and issues that could not be read each take a single row saying so. It does nothing
-// on another tab.
+// empty tree, issues that could not be read and a filter that leaves nothing each take a single
+// row saying so. It does nothing on another tab.
 func (m model) paintIssuesSidebar() model {
 	if m.tab != TabIssues {
 		return m
@@ -136,10 +135,10 @@ func (m model) paintIssuesSidebar() model {
 		m.sidebar = []string{issuesFailurePrefix + m.issues.err.Error()}
 		return m
 	case len(m.issues.tree.rows) == 0:
-		m.sidebar = []string{issuesEmptyText}
+		m.sidebar = []string{m.emptySidebarText(TabIssues, issuesEmptyText)}
 		return m
 	}
-	m.sidebar = m.issues.tree.paint(m.bodyHeight(), m.issueTreeRow)
+	m.sidebar = m.issues.tree.paint(m.sidebarHeight(), m.issueTreeRow)
 	return m
 }
 

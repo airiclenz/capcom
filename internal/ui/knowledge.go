@@ -36,11 +36,13 @@ type knowledgeMsg struct {
 	err      error
 }
 
-// knowledgeTab is the Knowledge tab's state: the tree of the last read and the error of a read
-// that failed.
+// knowledgeTab is the Knowledge tab's state: the Notes of the last read, the tree over them, the
+// error of a read that failed, and, while a filter is in effect, the nodes expanded before it.
 type knowledgeTab struct {
-	tree treeWidget[index.NoteEntry]
-	err  error
+	notes              []index.NoteEntry
+	tree               treeWidget[index.NoteEntry]
+	err                error
+	unfilteredExpanded map[string]bool
 }
 
 // loadKnowledge returns a command that reads every Note through the session, retired ones
@@ -86,16 +88,13 @@ func noteOutline(notes []index.NoteEntry) *outline.Tree[index.NoteEntry] {
 	)
 }
 
-// applyKnowledge takes in a read of the Notes: it builds the outline capcom know tree prints,
-// keeping the nodes expanded before it, selects the Note the read resolved, reporting the id in
+// applyKnowledge takes in a read of the Notes: it builds the outline capcom know tree prints, or
+// what the Knowledge filter leaves of it, keeping the nodes expanded before it, selects the Note the read resolved, reporting the id in
 // the status bar when the tree does not hold it, and shows the selection.
 func (m model) applyKnowledge(msg knowledgeMsg) (model, tea.Cmd) {
 	m.knowledge.err = msg.err
-	m.knowledge.tree = newTreeWidget(
-		noteOutline(msg.notes),
-		func(entry index.NoteEntry) string { return entry.ID },
-		m.knowledge.tree.expanded,
-	)
+	m.knowledge.notes = msg.notes
+	m.knowledge.tree = m.knowledgeTree(m.knowledge.tree.expanded)
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
@@ -145,8 +144,9 @@ func (m model) knowledgeSelection() (index.NoteEntry, bool) {
 }
 
 // paintKnowledgeSidebar fills the sidebar with the Knowledge tree, one `id  title` row per
-// visible Note, scrolled so the selection stays on screen. An empty tree and Notes that could not
-// be read each take a single row saying so. It does nothing on another tab.
+// visible Note, scrolled so the selection stays on screen. An empty tree, Notes that could not be
+// read and a filter that leaves nothing each take a single row saying so. It does nothing on
+// another tab.
 func (m model) paintKnowledgeSidebar() model {
 	if m.tab != TabKnowledge {
 		return m
@@ -156,10 +156,10 @@ func (m model) paintKnowledgeSidebar() model {
 		m.sidebar = []string{knowledgeFailurePrefix + m.knowledge.err.Error()}
 		return m
 	case len(m.knowledge.tree.rows) == 0:
-		m.sidebar = []string{knowledgeEmptyText}
+		m.sidebar = []string{m.emptySidebarText(TabKnowledge, knowledgeEmptyText)}
 		return m
 	}
-	m.sidebar = m.knowledge.tree.paint(m.bodyHeight(), noteTreeRow)
+	m.sidebar = m.knowledge.tree.paint(m.sidebarHeight(), noteTreeRow)
 	return m
 }
 

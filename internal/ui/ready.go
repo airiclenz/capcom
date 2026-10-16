@@ -42,9 +42,10 @@ type readyMsg struct {
 	err      error
 }
 
-// readyTab is the Ready tab's state: the queue from the last read, the cursor over it and the
-// first queue row on screen.
+// readyTab is the Ready tab's state: the queue from the last read, its issues the Ready filter
+// keeps, the cursor over those and the first of them on screen.
 type readyTab struct {
+	all     []index.Entry
 	entries []index.Entry
 	err     error
 	cursor  listCursor
@@ -80,19 +81,20 @@ func loadReady(s *session, wantedID string) tea.Cmd {
 	}
 }
 
-// applyReady takes in a read of the Ready queue: it seats the cursor on the issue the read
-// resolved, when the queue holds it, reports the id in the status bar when it does not, and shows
-// the selection.
+// applyReady takes in a read of the Ready queue: it narrows the queue to the Ready filter, seats
+// the cursor on the issue the read resolved, when the queue holds it, reports the id in the status
+// bar when it does not, and shows the selection.
 func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
-	m.ready.entries = msg.entries
+	m.ready.all = msg.entries
+	m.ready.entries = keepMatched(msg.entries, entryID, m.filters[TabReady])
 	m.ready.err = msg.err
-	count := len(msg.entries)
+	count := len(m.ready.entries)
 	m.ready.cursor.clampSelection(count)
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
 	if msg.selectID != "" {
-		row := slices.IndexFunc(msg.entries, func(entry index.Entry) bool { return entry.ID == msg.selectID })
+		row := slices.IndexFunc(m.ready.entries, func(entry index.Entry) bool { return entry.ID == msg.selectID })
 		if row < 0 {
 			m.notice = fmt.Sprintf(notInReadyFormat, msg.selectID)
 		} else {
@@ -143,9 +145,10 @@ func (m model) readySelection() (index.Entry, bool) {
 	return m.ready.entries[row], true
 }
 
-// paintReadySidebar fills the sidebar with the Ready queue, one `id  status  P<n>  title` row per
-// issue, the selected one marked, scrolled so the selection stays on screen. An empty queue and
-// one that could not be read each take a single row saying so. It does nothing on another tab.
+// paintReadySidebar fills the sidebar with the Ready queue the Ready filter keeps, one `id  status
+// P<n>  title` row per issue, the selected one marked, scrolled so the selection stays on screen.
+// An empty queue, one that could not be read and a filter that keeps nothing each take a single
+// row saying so. It does nothing on another tab.
 func (m model) paintReadySidebar() model {
 	if m.tab != TabReady {
 		return m
@@ -155,10 +158,10 @@ func (m model) paintReadySidebar() model {
 		m.sidebar = []string{readyFailurePrefix + m.ready.err.Error()}
 		return m
 	case len(m.ready.entries) == 0:
-		m.sidebar = []string{readyEmptyText}
+		m.sidebar = []string{m.emptySidebarText(TabReady, readyEmptyText)}
 		return m
 	}
-	height := max(m.bodyHeight(), 1)
+	height := max(m.sidebarHeight(), 1)
 	selected := m.ready.cursor.highlight(len(m.ready.entries))
 	m.ready.top = clampInt(m.ready.top, selected-height+1, selected)
 	end := min(m.ready.top+height, len(m.ready.entries))

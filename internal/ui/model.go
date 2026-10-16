@@ -59,6 +59,16 @@ type model struct {
 	knowledge knowledgeTab
 	issue     issueDetail
 	deps      depView
+
+	// filters are the filters in effect over each tab's sidebar, and filterAsked the filter line
+	// text each tab was last kept with, "" once cleared, both indexed by Tab: a matched filter
+	// applies only while it is still the one asked for.
+	filters     [len(tabNames)]sidebarFilter
+	filterAsked [len(tabNames)]string
+	// isFilterOpen reports the filter line open over the sidebar, taking every key, and
+	// filterLine is that line.
+	isFilterOpen bool
+	filterLine   lineInput
 }
 
 // newModel returns the model of a UI over options' store and index, opening on options.Tab and
@@ -124,14 +134,17 @@ func (m model) initialIDFor(tab Tab) string {
 }
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
-// Notes, the shown issue or Note, the dependency view's read and the painter's width measure, and
-// handles the keys: the dependency view's first, then the model's own. While the dependency view
-// is open it keeps the detail pane over whatever else repaints it.
+// Notes, the shown issue or Note, the dependency view's read, a matched filter and the painter's
+// width measure, and handles the keys: the open filter line takes every key, ahead of the
+// dependency view's, then the model's own. While the dependency view is open it keeps the detail
+// pane over whatever else repaints it. Any other message reaches the open filter line, such as a
+// paste.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.filterLine.setWidth(m.sidebarPaneWidth())
 		m = m.paintSidebar().renderDetail().scrollDetail(0).paintDeps()
 	case lockMsg:
 		m.lockText = msg.text
@@ -145,17 +158,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.applyDetail(msg).paintDeps()
 	case depsMsg:
 		m = m.applyDeps(msg)
+	case filterMsg:
+		return m.applyFilter(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.
 		m.issue.renderedWidth = 0
 		m = m.renderDetail().paintDeps()
 	case tea.KeyPressMsg:
+		if m.isFilterOpen {
+			return m.filterLineKey(msg)
+		}
 		next, cmd, isTaken := m.depViewKey(msg)
 		if isTaken {
 			return next, cmd
 		}
 		return next.handleKey(msg)
+	default:
+		if m.isFilterOpen {
+			var cmd tea.Cmd
+			m.filterLine, cmd = m.filterLine.update(msg)
+			return m, cmd
+		}
 	}
 	return m, nil
 }

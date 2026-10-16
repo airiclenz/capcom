@@ -484,7 +484,13 @@ reveals and selects it; Enter on a `missing` row shows the message, selection un
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): dependency view for the selected issue`
 
-## 14. Sidebar filter
+## 14. Sidebar filter — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that the filter fits in filter.go, lineinput.go and model.go: each tab's read, paint and empty row live in ready.go, issues.go and knowledge.go (they now keep the last read and paint under the filter), Esc and / route through keys.go and depview.go (/ closes an open dep view, dep-view Enter on an issue the Issues filter hides clears it), the `filter: <text>` and line hints are in statusbar.go, and the line's row atop the sidebar is drawn by layout.go's body.
+NOTES (2026-10-16): the filter applies on Enter (one index match per keep), not per keystroke; the open line re-opens holding the kept text; a blank line kept with Enter clears the filter. While the line is open it takes every key, ctrl+c included (Esc then q quits).
+NOTES (2026-10-16): text and label filters keep each tree's default visibility on the Knowledge tab too: a background or retired Note that matches stays hidden (SearchNotes already leaves out retired ones). Field terms of one kind AND as well, so two different status: terms match nothing.
+NOTES (2026-10-16): lineInput turns the textinput cursor's blink off, so no key press schedules a tick (tests drive commands synchronously); item 20 themes its styles.
+NOTES (2026-10-16): internal/ui has passed ten files without a doc.go file map (pre-existing; the coding standard asks for one with a structural test).
 
 **What:** Recast at the regression check (2026-10-16).
 **Goal:** `/` opens a filter line over the current tab's sidebar; Enter keeps it, Esc clears it, and

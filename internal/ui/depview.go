@@ -122,8 +122,8 @@ func depRows(entries []index.Entry, id string) ([]depRow, []depRow) {
 // help screen is open it takes none. With the view closed, d on the Ready or Issues tab opens it
 // over the selected issue, filling a narrow screen. With it open, d and Esc close it, Enter
 // follows the selected row, and the up and down arrows and j k move its cursor; a tab key closes
-// it and goes on to switch the tab, and any other key the sidebar takes closes it before moving
-// the sidebar. It reports false for every key it leaves to the model.
+// it and goes on to switch the tab, / closes it and goes on to open the filter line where the
+// sidebar is on screen, and any other key the sidebar takes closes it before moving the sidebar. It reports false for every key it leaves to the model.
 func (m model) depViewKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 	if m.isHelpOpen {
 		return m, nil, false
@@ -146,6 +146,9 @@ func (m model) depViewKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 		return m.closeDeps(), nil, false
 	}
 	if _, isTabKey := tabForKey(key); isTabKey {
+		return m.closeDeps(), nil, false
+	}
+	if key == keyFilter && (!m.isNarrow() || !m.isDetailOpen) {
 		return m.closeDeps(), nil, false
 	}
 	if m.deps.cursor.key(msg, len(m.deps.rows()), listStopsAtEnds) == listSwallowed {
@@ -211,8 +214,9 @@ func (m model) applyDeps(msg depsMsg) model {
 
 // followDep follows the selected row of the dependency view: it closes the view and switches to
 // the Issues tab with that issue selected, its ancestors expanded and, when the tree hides it,
-// revealed. A dep that names no issue says so in the status bar and changes nothing; an issue the
-// tree does not hold is reported there as capcom ui issues reports one.
+// revealed; an issue the Issues filter hides clears that filter first. A dep that names no issue
+// says so in the status bar and changes nothing; an issue the tree does not hold is reported there
+// as capcom ui issues reports one.
 func (m model) followDep() (model, tea.Cmd) {
 	rows := m.deps.rows()
 	selected := m.deps.cursor.highlight(len(rows))
@@ -225,6 +229,9 @@ func (m model) followDep() (model, tea.Cmd) {
 		return m, nil
 	}
 	m.deps = depView{}
+	if m.filters[TabIssues].isActive() && !m.issues.tree.isShown[row.id] {
+		m = m.clearFilter(TabIssues)
+	}
 	if !m.issues.tree.selectID(row.id) {
 		m.notice = fmt.Sprintf(notInTreeFormat, row.id)
 	}

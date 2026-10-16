@@ -26,8 +26,9 @@ const (
 
 // handleKey applies one key press. q and ctrl+c quit from anywhere. While the help screen is open
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
-// the narrow detail view, open the help screen, and scroll the detail pane: the page keys from
-// anywhere, the arrows and j k only where the detail pane fills a narrow screen. Everywhere else
+// the narrow detail view, open the filter line, open the help screen, and scroll the detail pane:
+// the page keys from anywhere, the arrows and j k only where the detail pane fills a narrow
+// screen. Esc from the sidebar clears the open tab's filter. Everywhere else
 // the up and down arrows and j k move the sidebar's selection, and on a tree the left and right
 // arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
@@ -53,7 +54,13 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	case keyOpen:
 		m.isDetailOpen = m.isNarrow()
 	case keyBack:
+		isNarrowDetail := m.isNarrow() && m.isDetailOpen
 		m.isDetailOpen = false
+		if !isNarrowDetail && m.filters[m.tab].isActive() {
+			return m.clearFilter(m.tab).showSelection()
+		}
+	case keyFilter:
+		return m.openFilter(), nil
 	default:
 		return m.sidebarOrScrollKey(msg)
 	}
