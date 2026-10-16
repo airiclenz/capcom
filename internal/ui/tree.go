@@ -11,11 +11,12 @@ import (
 )
 
 // The glyphs of a tree row: the arrow of a node whose children are shown, of one whose children
-// are hidden, and the dot of a leaf.
+// are hidden, and the dot of a leaf. Each is arrowWidth columns wide.
 const (
 	arrowExpanded  = "▼ "
 	arrowCollapsed = "▶ "
 	arrowLeaf      = "· "
+	arrowWidth     = 2
 )
 
 // The connector cells that lead a row below the top level, one per level: the tee of a row a
@@ -360,6 +361,12 @@ func (w *treeWidget[E]) paint(
 		painted = append(painted, text)
 	}
 	return painted
+}
+
+// leadWidth returns the columns that lead the text of a row at depth: its connector cells, then
+// its arrow.
+func leadWidth(depth int) int {
+	return depth*connectorWidth + arrowWidth
 }
 
 // treeArrow returns the arrow of row: expanded, collapsed over hidden children, or a leaf's dot.

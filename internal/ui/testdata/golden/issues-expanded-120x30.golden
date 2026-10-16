@@ -1,10 +1,10 @@
  Issues  │  Ready  │  Knowledge 
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-▼ epic  open  P1  Epic  (1/2 closed)     │ Alpha                                                                        
-┕ ▼ alpha  active  P2  Alpha  (0/1 cl…   │                                                                              
-  ┕ · leaf  open  P3  Leaf               │ status: active · P2                                                          
-· solo  open  P2  Solo                   │ parent: epic                                                                 
-· wrapped  open  P2  Wrapped  (2/2 cl…   │                                                                              
+▼ epic      open    P1  Epic  (1/2 cl…   │ Alpha                                                                        
+┕ ▼ alpha   active  P2  Alpha  (0/1 c…   │                                                                              
+  ┕ · leaf  open    P3  Leaf             │ status: active · P2                                                          
+· solo      open    P2  Solo             │ parent: epic                                                                 
+· wrapped   open    P2  Wrapped  (2/2…   │                                                                              
                                          │ Alpha's body.                                                                
                                          │                                                                              
                                          │                                                                              

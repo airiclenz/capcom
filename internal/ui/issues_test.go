@@ -26,6 +26,9 @@ var treeFiles = map[string]string{
 	"issues/wrapped/two.md":       closedIssueFile("Two"),
 }
 
+// scrolledTreeHeight is a terminal height whose sidebar shows three rows of the Issues tree.
+const scrolledTreeHeight = 7
+
 // closedIssueFile returns the file of a done issue titled title.
 func closedIssueFile(title string) string {
 	return issueFile(
@@ -91,6 +94,50 @@ func TestIssuesTab_NestedExpanded_MatchesGolden(t *testing.T) {
 	m = pressKeys(t, m, runeKey('l'), runeKey('j'), specialKey(tea.KeyRight))
 
 	golden(t, "issues-expanded-120x30", m.View())
+}
+
+// issueSidebarEntries returns the entries of the Issues tree's rows the sidebar shows, top to
+// bottom.
+func issueSidebarEntries(m model) []index.Entry {
+	shown := m.issues.tree.rows[m.sidebarTop : m.sidebarTop+len(m.sidebar)]
+	entries := make([]index.Entry, 0, len(shown))
+	for _, row := range shown {
+		entries = append(entries, row.Entry)
+	}
+	return entries
+}
+
+func TestIssuesTab_ExpandedThreeLevels_StartEveryStatusAndPriorityAtOneColumn(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, treeFiles), "", 120, 30)
+
+	m = pressKeys(t, m, runeKey('l'), runeKey('j'), specialKey(tea.KeyRight))
+	statusColumns, priorityColumns := sidebarColumns(t, m, issueSidebarEntries(m))
+
+	wantIDs := []string{"epic", "alpha", "leaf", "solo", "wrapped"}
+	if got := visibleIDs(m); !slices.Equal(got, wantIDs) {
+		t.Fatalf("expanded tree = %v, want %v", got, wantIDs)
+	}
+	if len(statusColumns) != 1 || len(priorityColumns) != 1 {
+		t.Errorf("tree rows start their status at columns %v and P<n> at %v, want one each",
+			statusColumns, priorityColumns)
+	}
+}
+
+func TestIssuesTab_ScrolledTree_KeepsTheColumnsOfItsUnscrolledView(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, treeFiles), "", 120, scrolledTreeHeight)
+	m = pressKeys(t, m, runeKey('l'), runeKey('j'), specialKey(tea.KeyRight))
+	wantStatus, wantPriority := sidebarColumns(t, m, issueSidebarEntries(m))
+
+	m = pressKeys(t, m, runeKey('j'), runeKey('j'), runeKey('j'))
+	gotStatus, gotPriority := sidebarColumns(t, m, issueSidebarEntries(m))
+
+	if m.sidebarTop == 0 {
+		t.Fatalf("tree did not scroll: %d rows shown from the top", len(m.sidebar))
+	}
+	if !slices.Equal(gotStatus, wantStatus) || !slices.Equal(gotPriority, wantPriority) {
+		t.Errorf("scrolled tree's status and P<n> columns = %v, %v, want the unscrolled %v, %v",
+			gotStatus, gotPriority, wantStatus, wantPriority)
+	}
 }
 
 func TestIssuesTab_ParentWithEveryChildClosed_MatchesGolden(t *testing.T) {

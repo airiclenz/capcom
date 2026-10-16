@@ -54,13 +54,13 @@ type depRow struct {
 	entry   index.Entry
 }
 
-// text returns the row's spans: `id  status  P<n>  title`, its status painted in status, or for
-// a missing dep that dep and depsMissingLabel.
+// text returns the row's spans: `id  status  P<n>  title`, unaligned, its status painted in
+// status, or for a missing dep that dep and depsMissingLabel.
 func (r depRow) text(status lipgloss.Style) []span {
 	if r.id == "" {
 		return []span{{text: oneLine(r.missing) + "  " + depsMissingLabel}}
 	}
-	return readyRow(r.entry, status)
+	return readyRow(r.entry, status, columnWidths{})
 }
 
 // depView is the dependency view's state: whether it covers the detail pane, the issue it lists,

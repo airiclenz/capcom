@@ -134,7 +134,8 @@ func (m model) issuesSelection() (index.Entry, bool) {
 }
 
 // paintIssuesSidebar fills the sidebar with the Issues tree, one `id  status  P<n>  title` row
-// per visible issue with its children's progress, scrolled so the selection stays on screen. An
+// per visible issue with its children's progress, scrolled so the selection stays on screen. The
+// columns are measured over every visible row, on screen or not, so scrolling never shifts them. An
 // empty tree, issues that could not be read and a filter that leaves nothing each take a single
 // row saying so. It does nothing on another tab.
 func (m model) paintIssuesSidebar() model {
@@ -147,15 +148,23 @@ func (m model) paintIssuesSidebar() model {
 	case len(m.issues.tree.rows) == 0:
 		return m.withSidebar([]string{m.emptySidebarText(TabIssues, issuesEmptyText)}, 0, 1)
 	}
-	rows := m.issues.tree.paint(m.sidebarHeight(), m.theme, m.issueTreeRow)
+	var columns columnWidths
+	for _, row := range m.issues.tree.rows {
+		columns = columns.widen(leadWidth(row.Depth), row.Entry)
+	}
+	rowText := func(row outline.Row[index.Entry]) []span {
+		return m.issueTreeRow(row, columns)
+	}
+	rows := m.issues.tree.paint(m.sidebarHeight(), m.theme, rowText)
 	return m.withSidebar(rows, m.issues.tree.top, len(m.issues.tree.rows))
 }
 
-// issueTreeRow is the spans of one issue in the tree, as capcom list --tree prints it: `id  status
-// P<n>  title`, then `(<closed>/<total> closed)` over all its children, hidden ones included,
-// when it has any. Its status is in its category's colour.
-func (m model) issueTreeRow(row outline.Row[index.Entry]) []span {
-	spans := readyRow(row.Entry, m.theme.status(row.Entry.Category))
+// issueTreeRow is the spans of one issue in the tree: `id  status  P<n>  title`, its id and status
+// padded to columns, which count the row's lead, so every row's status and P<n> start at one
+// column whatever its depth, then `(<closed>/<total> closed)` over all its children, hidden ones
+// included, when it has any. Its status is in its category's colour.
+func (m model) issueTreeRow(row outline.Row[index.Entry], columns columnWidths) []span {
+	spans := readyRow(row.Entry, m.theme.status(row.Entry.Category), columns.after(leadWidth(row.Depth)))
 	children := m.issues.tree.children(row.ID)
 	if len(children) == 0 {
 		return spans

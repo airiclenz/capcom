@@ -3,9 +3,11 @@ package ui
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/index"
@@ -165,7 +167,8 @@ func (m model) readySelection() (index.Entry, bool) {
 
 // paintReadySidebar fills the sidebar with the Ready queue the Ready filter keeps, one `id  status
 // P<n>  title` row per issue, its status in its category's colour and the selected one marked,
-// scrolled so the selection stays on screen.
+// scrolled so the selection stays on screen. The columns are measured over the whole queue, on
+// screen or not, so scrolling never shifts them.
 // An empty queue, one that could not be read and a filter that keeps nothing each take a single
 // row saying so. It does nothing on another tab.
 func (m model) paintReadySidebar() model {
@@ -178,6 +181,10 @@ func (m model) paintReadySidebar() model {
 	case len(m.ready.entries) == 0:
 		return m.withSidebar([]string{m.emptySidebarText(TabReady, readyEmptyText)}, 0, 1)
 	}
+	var columns columnWidths
+	for _, entry := range m.ready.entries {
+		columns = columns.widen(0, entry)
+	}
 	height := max(m.sidebarHeight(), 1)
 	selected := m.ready.cursor.highlight(len(m.ready.entries))
 	m.ready.top = clampInt(m.ready.top, selected-height+1, selected)
@@ -186,17 +193,47 @@ func (m model) paintReadySidebar() model {
 	for row := m.ready.top; row < end; row++ {
 		entry := m.ready.entries[row]
 		mark := m.theme.markOf(false, row == selected)
-		rows = append(rows, mark.render(readyRow(entry, m.theme.status(entry.Category))...))
+		rows = append(rows, mark.render(readyRow(entry, m.theme.status(entry.Category), columns)...))
 	}
 	return m.withSidebar(rows, m.ready.top, len(m.ready.entries))
 }
 
-// readyRow is the spans of the sidebar row of one queued issue, as capcom ready prints it, its
-// status painted in status.
-func readyRow(entry index.Entry, status lipgloss.Style) []span {
+// columnWidths are the widths a sidebar row pads its id and its status to, so the status and the
+// P<n> of every row start at one column; the zero columnWidths pads nothing.
+type columnWidths struct {
+	id     int
+	status int
+}
+
+// widen returns c widened to hold the id and the status of entry, its id led by lead columns.
+func (c columnWidths) widen(lead int, entry index.Entry) columnWidths {
+	return columnWidths{
+		id:     max(c.id, lead+ansi.StringWidth(entry.ID)),
+		status: max(c.status, ansi.StringWidth(entry.Status)),
+	}
+}
+
+// after returns c for a row whose id follows lead columns: its id column narrowed by lead.
+func (c columnWidths) after(lead int) columnWidths {
+	c.id -= lead
+	return c
+}
+
+// padding returns the spaces that fill text out to width columns, none when it is as wide.
+func padding(text string, width int) string {
+	return strings.Repeat(" ", max(width-ansi.StringWidth(text), 0))
+}
+
+// readyRow is the spans of the sidebar row of one issue, `id  status  P<n>  title`, its id and its
+// status padded to columns and its status painted in status. The padding stays outside the status
+// style, so a selected row's fill runs unbroken beneath it.
+func readyRow(entry index.Entry, status lipgloss.Style, columns columnWidths) []span {
 	return []span{
-		{text: entry.ID + readyColumnGap},
+		{text: entry.ID + padding(entry.ID, columns.id) + readyColumnGap},
 		{text: entry.Status, style: status},
-		{text: readyColumnGap + fmt.Sprintf("P%d", entry.Priority) + readyColumnGap + oneLine(entry.Title)},
+		{
+			text: padding(entry.Status, columns.status) + readyColumnGap +
+				fmt.Sprintf("P%d", entry.Priority) + readyColumnGap + oneLine(entry.Title),
+		},
 	}
 }

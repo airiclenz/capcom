@@ -89,6 +89,9 @@ file is described under [The state file](../reference/file-format.md#the-state-f
 - **Knowledge** shows the Note tree `capcom know tree` prints. Retired and Background Notes are
   hidden, as in `know tree`. The only write here is `e`, the editor.
 
+On the Ready and Issues tabs the Statuses line up in one column and the priorities in another, at
+every depth of the Tree, so they stay put as you scroll.
+
 Both trees open collapsed to the top level. Selecting an id, from the command line or by following
 a link, expands its ancestors; a hidden one (a Closed Issue, a Retired or Background Note) shows
 muted, with its ancestors, for as long as it stays selected.

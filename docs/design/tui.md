@@ -79,7 +79,9 @@ lock: free · ? help · q quit
 ### Issues tab
 
 - **Tree**: the outline `capcom list --tree` prints, collapsible, with each row's status and
-  priority and a parent's `(<closed>/<total> closed)` progress. Closed issues follow the CLI's
+  priority and a parent's `(<closed>/<total> closed)` progress. The statuses start at one column
+  and the priorities at another, at every depth, measured over every visible row so scrolling
+  never shifts them; the CLI's output stays unaligned. Closed issues follow the CLI's
   default visibility; a `status:<name>` filter naming a closed-category status shows them (see
   Filter). The tree opens collapsed to the top level; selecting an id expands its ancestors, and
   a selected node the outline hides (a Closed issue) shows muted, with its ancestors, while it
@@ -91,7 +93,8 @@ lock: free · ? help · q quit
 
 ### Ready tab
 
-The queue `capcom ready` prints, most urgent first, through `briefing.ReadyList`.
+The queue `capcom ready` prints, most urgent first, through `briefing.ReadyList`, its statuses
+and priorities aligned in columns as on the Issues tab.
 
 ### Knowledge tab
 

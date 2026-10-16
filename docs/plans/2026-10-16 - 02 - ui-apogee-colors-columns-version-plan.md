@@ -148,7 +148,11 @@ the theme-dark, theme-light and `drag-divider-120x30` goldens rewritten;
 **Closes:** ui-apogee-colors
 **Commit:** `feat(ui): draw the selected row as a background fill that keeps its colours`
 
-## 4. Align status and priority in sidebar columns
+## 4. Align status and priority in sidebar columns — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): deps-both-120x30.golden changed, against the item's "deps-both-120x30 unchanged": its left side is the Issues sidebar, which the Goal aligns; its dependency-view pane rows (depRow.text, zero pad widths) are byte-identical.
+NOTES (2026-10-16): consequential edit — docs/design/tui.md: made necessary by the aligned Issues and Ready rows (design doc describes both tabs' rows).
+NOTES (2026-10-16): consequential edit — docs/site/getting-started/terminal-ui.md: made necessary by the aligned Issues and Ready rows (user guide describes both tabs' rows).
 
 **What:**
 **Goal:** on the Issues tab every tree row's status starts at one column and every `P<n>` at

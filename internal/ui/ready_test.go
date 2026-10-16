@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -52,6 +53,45 @@ func readyIDs(m model) []string {
 	return ids
 }
 
+// priorityPattern matches the P<n> of a sidebar row with the column gaps either side of it.
+var priorityPattern = regexp.MustCompile(`  P\d  `)
+
+// rowColumns returns the columns at which the sidebar row text shows entry's status and its P<n>.
+func rowColumns(t *testing.T, text string, entry index.Entry) (int, int) {
+	t.Helper()
+	text = ansi.Strip(text)
+	idStart := strings.Index(text, entry.ID)
+	if idStart < 0 {
+		t.Fatalf("sidebar row %q does not show the id %q", text, entry.ID)
+	}
+	idEnd := idStart + len(entry.ID)
+	statusStart := strings.Index(text[idEnd:], entry.Status)
+	priority := priorityPattern.FindStringIndex(text)
+	if statusStart < 0 || priority == nil {
+		t.Fatalf("sidebar row %q does not show the status %q and a P<n>", text, entry.Status)
+	}
+	statusColumn := ansi.StringWidth(text[:idEnd+statusStart])
+	priorityColumn := ansi.StringWidth(text[:priority[0]]) + len(readyColumnGap)
+	return statusColumn, priorityColumn
+}
+
+// sidebarColumns returns the distinct columns at which the sidebar's rows, showing entries top to
+// bottom, start their status and their P<n>.
+func sidebarColumns(t *testing.T, m model, entries []index.Entry) ([]int, []int) {
+	t.Helper()
+	var statusColumns, priorityColumns []int
+	for row, text := range m.sidebar {
+		statusColumn, priorityColumn := rowColumns(t, text, entries[row])
+		if !slices.Contains(statusColumns, statusColumn) {
+			statusColumns = append(statusColumns, statusColumn)
+		}
+		if !slices.Contains(priorityColumns, priorityColumn) {
+			priorityColumns = append(priorityColumns, priorityColumn)
+		}
+	}
+	return statusColumns, priorityColumns
+}
+
 func TestReadyTab_Sidebar_ListsTheReadyListInItsOrder(t *testing.T) {
 	ts := newTestStore(t, readyFiles)
 	listed, err := briefing.ReadyList(ts.index, ts.store.Config, briefing.ReadyOptions{Plan: index.PlanAny})
@@ -68,8 +108,21 @@ func TestReadyTab_Sidebar_ListsTheReadyListInItsOrder(t *testing.T) {
 	if got := readyIDs(m); !slices.Equal(got, want) || !slices.Equal(want, []string{"alpha", "beta", "delta"}) {
 		t.Errorf("Ready queue = %v, want ReadyList's %v (alpha, beta, delta)", got, want)
 	}
-	if got := ansi.Strip(m.sidebar[1]); got != "beta  open  P2  Beta task" {
-		t.Errorf("second sidebar row = %q, want %q", got, "beta  open  P2  Beta task")
+	if got := ansi.Strip(m.sidebar[1]); got != "beta   open  P2  Beta task" {
+		t.Errorf("second sidebar row = %q, want %q", got, "beta   open  P2  Beta task")
+	}
+}
+
+func TestReadyTab_IDsOfDifferentLengths_StartEveryStatusAndPriorityAtOneColumn(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 120, 30)
+
+	statusColumns, priorityColumns := sidebarColumns(t, m, m.ready.entries)
+
+	if len(m.sidebar) != 3 || len(statusColumns) != 1 || len(priorityColumns) != 1 {
+		t.Errorf(
+			"%d Ready rows start their status at columns %v and P<n> at %v, want 3 rows at one column each",
+			len(m.sidebar), statusColumns, priorityColumns,
+		)
 	}
 }
 
