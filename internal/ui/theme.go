@@ -44,6 +44,21 @@ const (
 // black and white text contrast with it equally, by the WCAG contrast ratio.
 const lightFillLuminance = 0.179
 
+// The WCAG relative luminance formula: each linear channel's weight in the luminance, and the
+// sRGB transfer function that turns an encoded channel into linear light. An encoded channel up
+// to srgbLinearLimit is linear, divided by srgbLinearSlope; above it, it is offset by
+// srgbGammaOffset, scaled by srgbGammaScale and raised to srgbGamma.
+const (
+	luminanceRedWeight   = 0.2126
+	luminanceGreenWeight = 0.7152
+	luminanceBlueWeight  = 0.0722
+	srgbLinearLimit      = 0.04045
+	srgbLinearSlope      = 12.92
+	srgbGammaOffset      = 0.055
+	srgbGammaScale       = 1.055
+	srgbGamma            = 2.4
+)
+
 // schemeFiles holds the colour schemes, one YAML file per preset under schemes/, named after
 // the theme key that picks it: one quoted "#rrggbb" per role of userconfig.Roles.
 //
@@ -230,16 +245,18 @@ func readableTextOn(fill color.Color) color.Color {
 // relativeLuminance returns the WCAG relative luminance of value, from 0 for black to 1 for white.
 func relativeLuminance(value color.Color) float64 {
 	red, green, blue, _ := value.RGBA()
-	return 0.2126*linearChannel(red) + 0.7152*linearChannel(green) + 0.0722*linearChannel(blue)
+	return luminanceRedWeight*linearChannel(red) +
+		luminanceGreenWeight*linearChannel(green) +
+		luminanceBlueWeight*linearChannel(blue)
 }
 
 // linearChannel returns the linear light of one 16-bit sRGB channel, from 0 to 1.
 func linearChannel(channel uint32) float64 {
-	encoded := float64(channel) / 0xffff
-	if encoded <= 0.04045 {
-		return encoded / 12.92
+	encoded := float64(channel) / math.MaxUint16
+	if encoded <= srgbLinearLimit {
+		return encoded / srgbLinearSlope
 	}
-	return math.Pow((encoded+0.055)/1.055, 2.4)
+	return math.Pow((encoded+srgbGammaOffset)/srgbGammaScale, srgbGamma)
 }
 
 // lockBadge returns the style the status bar paints the word lock in for badge: plain for none.
