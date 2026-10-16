@@ -1,10 +1,12 @@
 ---
 title: "Mouse: click, scroll and links"
-status: open
+status: done
 type: feature
 priority: 2
 deps: [ui-issue-tree, ui-markdown]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:25Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 Mouse support across the UI: a click selects a row, a tab or a link; clicking a tree arrow expands

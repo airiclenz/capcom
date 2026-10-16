@@ -1,10 +1,12 @@
 ---
 title: Knowledge tab
-status: open
+status: done
 type: feature
 priority: 2
 deps: [ui-issue-tree]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:25Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 The Knowledge tab: the Note tree `capcom know tree` prints, using the tree widget from the Issues

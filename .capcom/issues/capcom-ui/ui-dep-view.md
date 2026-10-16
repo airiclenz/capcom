@@ -1,10 +1,12 @@
 ---
 title: Dependency view for the selected issue
-status: open
+status: done
 type: feature
 priority: 2
 deps: [ui-issue-tree]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:25Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 For the selected issue, show what it waits on and what it blocks, both sides as `capcom dep list`

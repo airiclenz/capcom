@@ -1,10 +1,12 @@
 ---
 title: Issues tab with a collapsible tree
-status: open
+status: done
 type: feature
 priority: 2
 deps: [ui-skeleton, ui-markdown]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:25Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 The Issues tab: the outline `capcom list --tree` prints, as a collapsible tree in the sidebar with

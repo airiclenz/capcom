@@ -1,9 +1,11 @@
 ---
 title: capcom ui command, layout, keys and test harness
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:24Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 The base every `capcom ui` view builds on (design `docs/design/tui.md`).

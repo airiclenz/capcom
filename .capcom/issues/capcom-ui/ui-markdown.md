@@ -1,10 +1,12 @@
 ---
 title: Markdown renderer for the UI, ported from apogee, with links
-status: open
+status: done
 type: feature
 priority: 2
 deps: [ui-skeleton]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:24Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 The detail pane renders Issue and Note bodies as markdown. apogee already has a renderer that fits

@@ -1,9 +1,11 @@
 ---
 title: Per-user config file, created only by capcom ui
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-15T20:03:23Z
+closed: 2026-10-16T10:28:24Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 capcom has no per-user config; the UI theme needs one (ADR 0011). Add

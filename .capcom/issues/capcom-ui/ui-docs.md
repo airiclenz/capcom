@@ -1,10 +1,12 @@
 ---
 title: Document capcom ui in the manual and references
-status: open
+status: done
 type: task
 priority: 2
 deps: [ui-ready-tab, ui-issue-tree, ui-knowledge-tab, ui-dep-view, ui-filter, ui-live-refresh, ui-writes, ui-editor, ui-mouse, ui-theme]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:25Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 Users need to find and learn `capcom ui`.

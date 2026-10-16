@@ -1,10 +1,12 @@
 ---
 title: Live refresh by polling the index
-status: open
+status: done
 type: feature
 priority: 2
 deps: [ui-skeleton, ui-index-refresh]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:25Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 `capcom ui` exists to be watched while agents work, so it must update on its own. Poll the index

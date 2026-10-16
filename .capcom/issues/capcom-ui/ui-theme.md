@@ -1,10 +1,12 @@
 ---
 title: Theme presets and colour overrides from the user config
-status: open
+status: done
 type: feature
 priority: 2
 deps: [ui-skeleton, ui-user-config]
 created: 2026-10-15T20:03:24Z
+closed: 2026-10-16T10:28:25Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 Colours for `capcom ui` from the per-user config (ADR 0011):

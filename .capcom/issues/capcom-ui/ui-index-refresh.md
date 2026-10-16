@@ -1,9 +1,11 @@
 ---
 title: Export an incremental refresh on an open index
-status: open
+status: done
 type: task
 priority: 2
 created: 2026-10-15T20:03:23Z
+closed: 2026-10-16T10:28:24Z
+reason: Resolved by the capcom-ui plan (docs/plans/archived/2026-10-16 - 00 - capcom-ui-plan.md, archived in 65127ff)
 ---
 
 `capcom ui` refreshes live by polling (design `docs/design/tui.md`, "Live refresh"), but the
