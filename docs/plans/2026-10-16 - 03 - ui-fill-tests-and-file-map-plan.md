@@ -40,7 +40,10 @@ the detail pane's header shows every frontmatter key of an Issue or Note.
 - File maps for packages other than `internal/ui`; its subpackages `internal/ui/markdown` and `internal/ui/schemes`.
 - `capcom show`'s output and the index schema; the detail header reads only what the index and the file already carry.
 
-## 1. Test the selection fill in the dependency view
+## 1. Test the selection fill in the dependency view — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): newThemeModel now takes (t, files, configText, isNoColor, tweak func(*Options)); every existing caller passes themeFiles and nil. The "issues" subcase of TestTheme_SelectedRow_FillsTheBackgroundKeepingItsColours now presses '1' and asserts m.tab (TabIssues; TabReady for the "ready" subcase) before checking the row.
+NOTES (2026-10-16): bite check run — depview.go's selected row painted with markOf(false, false) made TestDepView_SelectedRow_FillsTheBackgroundKeepingItsColours fail on base, open and Base; reverted (depview.go is unchanged).
 
 **What:** Recast at the regression check (2026-10-16). a test-only item. Add a test that opens the dependency view (as
 `TestDepView_IssueWithBothSides_MatchesGolden` does, over `depFiles` with `alpha` selected and `d`

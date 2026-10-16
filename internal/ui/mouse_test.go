@@ -641,7 +641,7 @@ func TestMouse_DragOnANarrowTerminalOrUnderHelp_DoesNothing(t *testing.T) {
 }
 
 func TestMouse_MidDrag_MatchesANSIGolden(t *testing.T) {
-	m := newThemeModel(t, "ui:\n  theme: dark\n", false)
+	m := newThemeModel(t, themeFiles, "ui:\n  theme: dark\n", false, nil)
 	from := m.dividerColumn()
 	m = press(t, m, click(from, dragRow))
 

@@ -32,6 +32,40 @@ func TestDepView_IssueWithBothSides_MatchesGolden(t *testing.T) {
 	golden(t, "deps-both-120x30", m.View())
 }
 
+func TestDepView_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
+	// dark's selection is #3a5fcd and its status-todo #b2b2b2.
+	const (
+		fill     = "48;2;58;95;205"
+		todoText = "38;2;178;178;178"
+	)
+	m := newThemeModel(t, depFiles, "ui:\n  theme: dark\n", false, func(options *Options) {
+		options.Tab = TabIssues
+		options.ID = "alpha"
+	})
+
+	m = press(t, m, runeKey('d'))
+
+	// base, open (todo), is alpha's first dependency and so the selected row once the view opens.
+	if got := m.deps.cursor.highlight(len(m.deps.rows())); got != 0 {
+		t.Fatalf("selected dependency row = %d, want 0 (base)", got)
+	}
+	index := slices.IndexFunc(m.detail, func(line string) bool { return strings.Contains(line, "Base") })
+	if index < 0 {
+		t.Fatalf("detail pane %q has no row for base", m.detail)
+	}
+	row := m.detail[index]
+	for _, segment := range []struct{ text, want string }{
+		{text: "base", want: fill},
+		{text: "open", want: todoText},
+		{text: "open", want: fill},
+		{text: "Base", want: fill},
+	} {
+		if got := sgrBefore(t, row, segment.text); !strings.Contains(got, segment.want) {
+			t.Errorf("%q in row %q is drawn in %q, want it to carry %s", segment.text, row, got, segment.want)
+		}
+	}
+}
+
 func TestDepView_IssueWithNeitherSide_SaysSo(t *testing.T) {
 	m := newIssuesModel(t, newTestStore(t, depFiles), "lonely", 120, 30)
 

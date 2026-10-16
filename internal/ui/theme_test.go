@@ -33,11 +33,18 @@ var themeFiles = map[string]string{
 // sgrSequence matches one SGR escape sequence, its parameters captured.
 var sgrSequence = regexp.MustCompile("\x1b\\[([0-9;:]*)m")
 
-// newThemeModel returns a started model over themeFiles on the Ready tab at 120 by 30, its user
-// config file holding configText and NO_COLOR set when isNoColor.
-func newThemeModel(t *testing.T, configText string, isNoColor bool) model {
+// newThemeModel returns a started model over a store of files at 120 by 30, its user config file
+// holding configText and NO_COLOR set when isNoColor; it opens on the Ready tab unless tweak, when
+// not nil, changes the options first, as to seat another tab or an id.
+func newThemeModel(
+	t *testing.T,
+	files map[string]string,
+	configText string,
+	isNoColor bool,
+	tweak func(*Options),
+) model {
 	t.Helper()
-	options := newTestOptions(t, newTestStore(t, themeFiles))
+	options := newTestOptions(t, newTestStore(t, files))
 	if err := os.MkdirAll(filepath.Dir(options.UserConfigPath), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -45,6 +52,9 @@ func newThemeModel(t *testing.T, configText string, isNoColor bool) model {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	options.NoColor = isNoColor
+	if tweak != nil {
+		tweak(&options)
+	}
 	return startModel(t, options, 120, 30)
 }
 
@@ -89,7 +99,7 @@ func TestTheme_Presets_MatchANSIGoldens(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			m := newThemeModel(t, testCase.configText, testCase.isNoColor)
+			m := newThemeModel(t, themeFiles, testCase.configText, testCase.isNoColor, nil)
 
 			goldenANSI(t, testCase.name, m.View())
 		})
@@ -214,8 +224,8 @@ func TestTheme_BackgroundColorMsg_PicksThePresetUnderAuto(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			m := newThemeModel(t, testCase.configText, false)
-			want := newThemeModel(t, "ui:\n  theme: "+testCase.wantPreset+"\n", false).View().Content
+			m := newThemeModel(t, themeFiles, testCase.configText, false, nil)
+			want := newThemeModel(t, themeFiles, "ui:\n  theme: "+testCase.wantPreset+"\n", false, nil).View().Content
 
 			got := press(t, m, tea.BackgroundColorMsg{Color: testCase.background}).View().Content
 
@@ -228,9 +238,9 @@ func TestTheme_BackgroundColorMsg_PicksThePresetUnderAuto(t *testing.T) {
 }
 
 func TestTheme_BeforeTheBackgroundAnswers_AutoIsDark(t *testing.T) {
-	want := newThemeModel(t, "ui:\n  theme: dark\n", false).View().Content
+	want := newThemeModel(t, themeFiles, "ui:\n  theme: dark\n", false, nil).View().Content
 
-	got := newThemeModel(t, "ui:\n  theme: auto\n", false).View().Content
+	got := newThemeModel(t, themeFiles, "ui:\n  theme: auto\n", false, nil).View().Content
 
 	if got != want {
 		t.Errorf("auto before the background answers differs from the dark preset\n--- got ---\n%q\n--- want ---\n%q", got, want)
@@ -248,7 +258,7 @@ func TestTheme_AccentOverride_PaintsTheTabBar(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.describe, func(t *testing.T) {
-			m := newThemeModel(t, "ui:\n  colors:\n    accent: "+testCase.value+"\n", false)
+			m := newThemeModel(t, themeFiles, "ui:\n  colors:\n    accent: "+testCase.value+"\n", false, nil)
 
 			tabBar := strings.Split(m.View().Content, "\n")[0]
 
@@ -260,7 +270,7 @@ func TestTheme_AccentOverride_PaintsTheTabBar(t *testing.T) {
 }
 
 func TestTheme_HeadingOverride_PaintsTheMarkdownHeading(t *testing.T) {
-	m := newThemeModel(t, "ui:\n  colors:\n    heading: \"#654321\"\n", false)
+	m := newThemeModel(t, themeFiles, "ui:\n  colors:\n    heading: \"#654321\"\n", false, nil)
 
 	heading := detailLine(t, m, "Plan")
 
@@ -270,7 +280,7 @@ func TestTheme_HeadingOverride_PaintsTheMarkdownHeading(t *testing.T) {
 }
 
 func TestTheme_StatusOverride_PaintsTheStatusByCategory(t *testing.T) {
-	m := newThemeModel(t, "ui:\n  colors:\n    status-todo: \"#010203\"\n", false)
+	m := newThemeModel(t, themeFiles, "ui:\n  colors:\n    status-todo: \"#010203\"\n", false, nil)
 
 	// beta, open (todo), is the unselected second row.
 	row := m.sidebar[1]
@@ -302,15 +312,19 @@ func TestTheme_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
 		todoText = "38;2;178;178;178"
 	)
 	testCases := []struct {
-		name string
-		keys []tea.KeyPressMsg
+		name    string
+		keys    []tea.KeyPressMsg
+		wantTab Tab
 	}{
-		{name: "ready"},
-		{name: "issues", keys: []tea.KeyPressMsg{runeKey('2')}},
+		{name: "ready", wantTab: TabReady},
+		{name: "issues", keys: []tea.KeyPressMsg{runeKey('1')}, wantTab: TabIssues},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			m := pressKeys(t, newThemeModel(t, "ui:\n  theme: dark\n", false), testCase.keys...)
+			m := pressKeys(t, newThemeModel(t, themeFiles, "ui:\n  theme: dark\n", false, nil), testCase.keys...)
+			if m.tab != testCase.wantTab {
+				t.Fatalf("tab = %v, want %v", m.tab, testCase.wantTab)
+			}
 
 			// alpha, open (todo), is the selected first row.
 			row := m.sidebar[0]
@@ -331,10 +345,10 @@ func TestTheme_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
 
 func TestTheme_NoColor_DrawsNoColourSequences(t *testing.T) {
 	configText := "ui:\n  theme: light\n  colors:\n    accent: \"#123456\"\n    status-todo: \"212\"\n"
-	if found := colourSequences(newThemeModel(t, configText, false).View().Content); len(found) == 0 {
+	if found := colourSequences(newThemeModel(t, themeFiles, configText, false, nil).View().Content); len(found) == 0 {
 		t.Fatalf("the coloured view has no colour sequences: the check cannot tell")
 	}
-	m := newThemeModel(t, configText, true)
+	m := newThemeModel(t, themeFiles, configText, true, nil)
 	withPrompt := press(t, m, runeKey('L'))
 	if !withPrompt.textPrompt.isOpen {
 		t.Fatalf("L opened no text prompt: status row %q", statusRow(withPrompt))
