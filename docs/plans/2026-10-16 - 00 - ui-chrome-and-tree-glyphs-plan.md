@@ -224,7 +224,10 @@ selection style; mouse_test: arrow/text click tests still pass at their columns;
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): draw trees with ▼ ▶ · glyphs and gray connectors`
 
-## 6. Docs: layout samples and glyphs
+## 6. Docs: layout samples and glyphs — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the Layout diagram in docs/design/tui.md lost its outer ┌┐└┘ frame, which the UI never drew; both samples now mirror the golden rendering (no leading column, ─┬─ tab rule, ─┴─ status rule, ` │ ` divider, ┃/│ scrollbars on both panes, ▼ ▶ · with ┝ ┕ connectors)
+NOTES (2026-10-16): added Divider and Scrollbars bullets and glyph sentences to both Layout/The screen lists, and a "Ported: the scrollbar" line under tui.md's "Taken from apogee", which item 3's port left out
 
 Depends on items 1–5.
 

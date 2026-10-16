@@ -31,26 +31,32 @@ are in the [CLI reference](../reference/cli/capcom_ui.md).
 ## The screen
 
 ```text
- Issues │ Ready │ Knowledge
- ▾ capcom-ui      │ Ready queue view
-   ▸ ready-view   │ status: active · P1
-   ▸ issue-detail │ deps: knowledge-view
- ▸ release-x      │
-                  │ Body markdown...
-──────────────────┴──────────────────────────
- lock: free · ? help · q quit
+ Issues  │  Ready  │  Knowledge
+─────────────────────┬───────────────────────────
+▼ capcom-ui        ┃ │ Ready queue view         ┃
+┝ ▶ ready-view     ┃ │                          ┃
+┕ ▼ issue-detail   ┃ │ status: active · P1      ┃
+  ┕ · deep-links   ┃ │ deps: knowledge-view     │
+▶ release-x        │ │                          │
+· docs-pass        │ │ Body markdown...         │
+─────────────────────┴───────────────────────────
+lock: free · ? help · q quit
 ```
 
 - **Tab bar**: Issues, Ready and Knowledge. `Tab` moves to the next one, and `1`, `2` and `3`
   open Issues, Ready and Knowledge directly. Each tab keeps its own selection, expanded nodes and
-  filter.
-- **Sidebar**: the tab's list or tree. The selected row drives the detail pane.
+  filter. A rule under it sets it off from the panes.
+- **Sidebar**: the tab's list or tree. The selected row drives the detail pane. In a tree, `▼`
+  marks a node whose children are shown, `▶` one whose children are hidden and `·` a node with no
+  children; the gray `┝`, `┕` and `│` connectors before a row show where it sits under its Parent.
 - **Detail pane**: the selected Issue or Note. An Issue shows its title, its Status and priority,
   then its labels, Parent and dependencies; a Note shows its labels and Refs. The body follows,
   rendered as markdown: headings, lists, code, tables, blockquotes and links.
 - **Status bar**: the Tree lock of this worktree (`lock: free`, `lock: held by <holder>: <purpose>`
   or `lock: stale: <purpose>`, with the heartbeat's age), the filter in effect, notices and the
   report of the last write, then the key hints.
+- **Scrollbars**: each pane has one at its right edge. The heavy `┃` thumb shows where the visible
+  rows sit among all of them; the bar stays blank while everything fits.
 
 Below 90 columns the panes stop sharing the screen: the sidebar fills it, Enter opens the
 selected Issue or Note full width, and Esc goes back to the sidebar.

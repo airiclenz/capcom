@@ -29,20 +29,29 @@ capcom ui [issues|ready|knowledge] [id]
 ## Layout
 
 ```
-┌ Issues │ Ready │ Knowledge ───────────────┐
-│ ▾ capcom-ui      │ # Ready queue view      │
-│   ▸ ready-view   │ status: active · P1     │
-│   ▸ issue-detail │ deps: knowledge-view    │
-│ ▸ release-x      │                         │
-│                  │ Body markdown...        │
-├──────────────────┴─────────────────────────┤
-│ lock: free · ? help · q quit               │
-└────────────────────────────────────────────┘
+ Issues  │  Ready  │  Knowledge
+─────────────────────┬───────────────────────────
+▼ capcom-ui        ┃ │ Ready queue view         ┃
+┝ ▶ ready-view     ┃ │                          ┃
+┕ ▼ issue-detail   ┃ │ status: active · P1      ┃
+  ┕ · deep-links   ┃ │ deps: knowledge-view     │
+▶ release-x        │ │                          │
+· docs-pass        │ │ Body markdown...         │
+─────────────────────┴───────────────────────────
+lock: free · ? help · q quit
 ```
 
 - **Tab bar**: Issues, Ready, Knowledge, in that order for `1 2 3`. Each tab keeps its own
-  selection, expanded nodes and filter.
-- **Sidebar**: the tab's list or tree; the selected row drives the detail pane.
+  selection, expanded nodes and filter. A `─` rule in the border colour sets it off from the panes,
+  with `┬` above the divider, mirroring the `┴` rule above the status bar.
+- **Sidebar**: the tab's list or tree; the selected row drives the detail pane. A tree row's arrow
+  is `▼` for a node whose children are shown, `▶` for one whose children are hidden and `·` for a
+  leaf. Below the top level, gray connectors in the border colour lead it: `┝` for a child a later
+  sibling follows, `┕` for the last child, and `│` under a non-last ancestor (blanks under a last
+  one). The selection and muted highlights start after the connectors.
+- **Divider**: ` │ `, the pane separator with a blank column either side.
+- **Scrollbars**: each pane ends in a blank gutter column and a bar, apogee's: a heavy `┃` thumb
+  marks the shown rows on a light `│` track, and the bar is blank while the pane's rows fit.
 - **Detail pane**: the selected Issue or Note: its frontmatter as a header (an Issue's title,
   status, priority, labels, parent and deps; a Note's title, labels and refs), then the body
   rendered as markdown. Followable links are Issue and Note ids only: markdown links whose target
@@ -217,6 +226,9 @@ ui:
   blockquotes.
 - **Ported as is**: `listCursor` from `internal/tui/listsurface.go` (move, clamp, keys, wheel),
   as `internal/ui/listcursor.go`.
+- **Ported**: the scrollbar, from `Model.renderScrollbar` in `internal/tui/model.go` and
+  `scrollbarThumb` in `internal/tui/boxdraw.go`, as `internal/ui/scrollbar.go`, with its `┃`
+  thumb and `│` track glyphs and the blank gutter before the bar.
 - **Written new**: the tree sidebar, the tab bar, mouse hit-testing, the layout. apogee's
   `mouse.go` and `panes.go` serve its own model; capcom borrows their patterns, not their code.
 - A shared module comes later, if ever: only once both UIs exist and show what they share.
