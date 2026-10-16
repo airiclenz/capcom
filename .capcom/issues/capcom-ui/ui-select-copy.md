@@ -1,10 +1,12 @@
 ---
 title: Select text in the detail pane with the mouse and copy it
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-16 - 05 - ui-select-copy-plan
 created: 2026-10-16T19:25:30Z
+closed: 2026-10-16T20:21:49Z
+reason: Resolved by plan 2026-10-16 - 05 - ui-select-copy-plan (archived in c2525e1)
 ---
 
 `capcom ui` captures the mouse (`view.MouseMode = tea.MouseModeCellMotion` in `View`,
