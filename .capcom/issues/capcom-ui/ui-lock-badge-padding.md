@@ -1,10 +1,12 @@
 ---
 title: Pad the lock badge and drop the colon after it
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-16 - 06 - ui-wrap-styles-and-lock-pad-plan
 created: 2026-10-16T20:07:07Z
+closed: 2026-10-16T20:54:59Z
+reason: Resolved by plan 2026-10-16 - 06 - ui-wrap-styles-and-lock-pad-plan item 2 (archived at bc24c41)
 ---
 
 The status bar's lock badge (`ui-lock-badge`) fills only the four letters of `lock`, and a colon

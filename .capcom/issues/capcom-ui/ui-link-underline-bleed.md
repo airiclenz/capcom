@@ -1,10 +1,12 @@
 ---
 title: A link wrapped at a hyphen bleeds its underline across the screen
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-16 - 06 - ui-wrap-styles-and-lock-pad-plan
 created: 2026-10-16T19:41:57Z
+closed: 2026-10-16T20:54:59Z
+reason: Resolved by plan 2026-10-16 - 06 - ui-wrap-styles-and-lock-pad-plan item 1 (archived at bc24c41)
 ---
 
 When a link in the detail pane's markdown is wrapped over two lines at a hyphen, its underline is
