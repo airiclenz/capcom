@@ -60,6 +60,9 @@ type model struct {
 	configNotice string
 	// lockText is the status bar's account of this worktree's Tree lock, from the last read.
 	lockText string
+	// lockBadge is how the status bar paints the word lock leading lockText; none until the first
+	// read returns.
+	lockBadge lockBadge
 	// notice is the status bar's report of an id to select that could not be selected; empty when
 	// there is none.
 	notice string
@@ -335,6 +338,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.relayout()
 	case lockMsg:
 		m.lockText = msg.text
+		m.lockBadge = msg.badge
 	case readyMsg:
 		return m.applyReady(msg)
 	case issuesMsg:

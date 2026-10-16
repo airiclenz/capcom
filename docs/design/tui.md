@@ -77,7 +77,11 @@ lock: free · ? help · q quit
   inline-code spans exactly matching an existing id, and the parent, deps, related, refs and
   superseded-by naming an id. URLs and file refs are styled but inert. Body links are mouse-only.
 - **Status bar**: the Tree lock (free, held by this worktree's other session with its purpose,
-  or stale), the filter in effect, transient messages, and key hints.
+  or stale), the filter in effect, transient messages, and key hints. The word `lock` opening it
+  is a badge: filled with the `lock-held` colour while the lock is held or stale, with `lock-free`
+  while it is free, its text black or white, whichever reads on the fill; invalid, unreadable and
+  the first read's `reading` leave it plain. Under `NO_COLOR` a held or stale badge is drawn in
+  reverse and a free one plain.
 - **Narrow terminals** (below about 90 columns): the layout collapses to drill-down. The sidebar
   fills the screen, Enter opens the detail full width, Esc goes back.
 
@@ -219,8 +223,9 @@ ui:
 - The presets' colours live in `internal/ui/schemes/dark.yaml` and `light.yaml`, embedded in the
   binary: one quoted `"#rrggbb"` per role.
 - Overrides name roles, not elements: `accent`, `border`, `muted`, `link`, `selection`, `heading`,
-  `code`, and one per status category: `status-todo`, `status-doing`, `status-waiting`,
-  `status-done`, `status-dropped`. A value is a quoted `"#rgb"`/`"#rrggbb"` or a number 0-255.
+  `code`, one per status category: `status-todo`, `status-doing`, `status-waiting`,
+  `status-done`, `status-dropped`, and the status bar's lock badge: `lock-held`, `lock-free`. A
+  value is a quoted `"#rgb"`/`"#rrggbb"` or a number 0-255.
 - The selected row of a list is filled with the `selection` colour, its text in its usual colours
   (a status keeps its category's); under `NO_COLOR` it is drawn in reverse instead.
 - `NO_COLOR` turns colour off, whatever the config says.

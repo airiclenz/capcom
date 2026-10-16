@@ -36,7 +36,8 @@ func scheduleTick() tea.Cmd {
 
 // refreshedMsg carries one poll of the index: what it did about config.yaml and the error of a
 // re-open that failed, whether another capcom version's schema stopped it, whether any issue or
-// Note changed, the error of a refresh that failed, and the status bar's account of the Tree lock.
+// Note changed, the error of a refresh that failed, and the status bar's account of the Tree lock
+// with the badge its leading word wears.
 type refreshedMsg struct {
 	reload    reloadOutcome
 	reloadErr error
@@ -44,6 +45,7 @@ type refreshedMsg struct {
 	isChanged bool
 	err       error
 	lockText  string
+	lockBadge lockBadge
 }
 
 // tabRead is what one read of a tab's sidebar asks for besides its rows: the id to select, and,
@@ -78,6 +80,7 @@ func (s *session) poll() refreshedMsg {
 	}
 	overview, err := lock.ForWorktree(s.store).Overview()
 	msg.lockText = lockText(overview, err, time.Now())
+	msg.lockBadge = lockBadgeOf(overview, err)
 	return msg
 }
 
@@ -95,6 +98,7 @@ func (m model) tickUpdate() (model, tea.Cmd) {
 // next one.
 func (m model) applyRefreshed(msg refreshedMsg) (model, tea.Cmd) {
 	m.lockText = msg.lockText
+	m.lockBadge = msg.lockBadge
 	switch {
 	case msg.reload == reloadFailed:
 		m.storeNotice = fmt.Sprintf(reloadFailureFormat, msg.reloadErr)

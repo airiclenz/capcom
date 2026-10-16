@@ -16,7 +16,9 @@ import (
 // The status bar's texts.
 const (
 	statusSeparator = " · "
-	lockPrefix      = "lock: "
+	// lockWord opens the Tree lock's segment and is the only part of it the lock badge paints.
+	lockWord   = "lock"
+	lockPrefix = lockWord + ": "
 	// lockReadingText stands in for the Tree lock until its first read returns.
 	lockReadingText = lockPrefix + "reading"
 	hintsPanes      = "? help · q quit"
@@ -24,10 +26,24 @@ const (
 	hintsHelp       = "esc close · q quit"
 )
 
-// lockMsg carries the status bar's account of this worktree's Tree lock from a read.
+// lockMsg carries the status bar's account of this worktree's Tree lock from a read, and the
+// badge its leading word wears.
 type lockMsg struct {
-	text string
+	text  string
+	badge lockBadge
 }
+
+// lockBadge is how the status bar paints the word lock: not at all, as held, or as free. The
+// zero value paints nothing.
+type lockBadge int
+
+// The lock badges. lockBadgeHeld covers a lock that is held or stale: either way another session
+// holds it, as the UI holds no token.
+const (
+	lockBadgeNone lockBadge = iota
+	lockBadgeHeld
+	lockBadgeFree
+)
 
 // readLock returns a command that reads this worktree's Lock overview through the session and
 // reports it as a lockMsg. The UI holds no token, so a held lock is always another session's.
@@ -39,7 +55,24 @@ func readLock(s *session) tea.Cmd {
 			overview, readErr = lock.ForWorktree(opened).Overview()
 			return readErr
 		})
-		return lockMsg{text: lockText(overview, err, time.Now())}
+		return lockMsg{text: lockText(overview, err, time.Now()), badge: lockBadgeOf(overview, err)}
+	}
+}
+
+// lockBadgeOf returns the badge of this worktree's state from a Lock overview: held for a lock
+// that is held or stale, free for a free one, and none for an invalid or unreadable one or an
+// overview that could not be read at all.
+func lockBadgeOf(overview lock.Overview, err error) lockBadge {
+	if err != nil {
+		return lockBadgeNone
+	}
+	switch overview.State {
+	case lock.StateHeld, lock.StateStale:
+		return lockBadgeHeld
+	case lock.StateFree:
+		return lockBadgeFree
+	default:
+		return lockBadgeNone
 	}
 }
 
@@ -69,7 +102,8 @@ func oneLine(text string) string {
 }
 
 // statusBar draws the bottom row: an open confirmation prompt's question or an open text prompt's
-// line in place of everything else, or the Tree lock, the open tab's filter, the user config notice, the state file notice, the notices of a
+// line in place of everything else, or the Tree lock, its leading word in its badge, the open
+// tab's filter, the user config notice, the state file notice, the notices of a
 // config.yaml that could not be reloaded and of a poll that failed or stopped, the notice of an id
 // that could not be selected and the report of the last write when there are any, and the key
 // hints, muted. A row too long for the terminal is cut before the hints, so they stay visible while
@@ -81,7 +115,7 @@ func (m model) statusBar() string {
 	if m.textPrompt.isOpen {
 		return fit(m.textPrompt.line.view(), m.width)
 	}
-	text := m.lockText
+	text := m.paintedLock()
 	if filter := m.filterStatus(); filter != "" {
 		text += statusSeparator + filter
 	}
@@ -97,6 +131,17 @@ func (m model) statusBar() string {
 		return fit(text+painted, m.width)
 	}
 	return fit(text, room) + painted
+}
+
+// paintedLock returns the status bar's account of the Tree lock with its leading word painted in
+// the lock badge, the rest of it unstyled; with no badge, or a text not led by the word, it is
+// the text alone.
+func (m model) paintedLock() string {
+	rest, isLed := strings.CutPrefix(m.lockText, lockWord)
+	if m.lockBadge == lockBadgeNone || !isLed {
+		return m.lockText
+	}
+	return m.theme.lockBadge(m.lockBadge).Render(lockWord) + rest
 }
 
 // keyHints returns the hints for the keys that matter in the current view.

@@ -57,7 +57,9 @@ lock: free · ? help · q quit
   headings, lists, code, tables, blockquotes and links.
 - **Status bar**: the Tree lock of this worktree (`lock: free`, `lock: held by <holder>: <purpose>`
   or `lock: stale: <purpose>`, with the heartbeat's age), the filter in effect, notices and the
-  report of the last write, then the key hints.
+  report of the last write, then the key hints. The word `lock` is a badge: filled with the
+  `lock-held` colour while another session holds the lock, live or stale, and with `lock-free`
+  while it is free. Under `NO_COLOR` a held lock's badge is drawn in reverse.
 - **Scrollbars**: each pane has one at its right edge. The heavy `┃` thumb shows where the visible
   rows sit among all of them; the bar stays blank while everything fits.
 
@@ -255,8 +257,8 @@ ui:
 - `colors` overrides the preset by role: `accent`, `border`, `muted`, `link`, `selection`,
   `heading`, `code`, and one per Status category, `status-todo`, `status-doing`,
   `status-waiting`, `status-done` and `status-dropped`, each covering every Status of its
-  category. A value is a quoted `"#rgb"` or `"#rrggbb"` colour or a 256-colour number from 0 to
-  255.
+  category, and `lock-held` and `lock-free`, the status bar's lock badge. A value is a quoted
+  `"#rgb"` or `"#rrggbb"` colour or a 256-colour number from 0 to 255.
 - `NO_COLOR` in the environment turns colour off, whatever the file says.
 
 The file is read when `capcom ui` starts: restart it after an edit. An unknown key or role is

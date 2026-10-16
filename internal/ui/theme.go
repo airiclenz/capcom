@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"io/fs"
+	"math"
 	"path"
 	"strings"
 
@@ -28,8 +29,20 @@ const (
 	roleSelection    = "selection"
 	roleHeading      = "heading"
 	roleCode         = "code"
+	roleLockHeld     = "lock-held"
+	roleLockFree     = "lock-free"
 	statusRolePrefix = "status-"
 )
+
+// The lock badge's text colours: black on a light fill, white on a dark one.
+const (
+	badgeTextOnLight = "#000000"
+	badgeTextOnDark  = "#ffffff"
+)
+
+// lightFillLuminance is the relative luminance from which a fill counts as light: the point where
+// black and white text contrast with it equally, by the WCAG contrast ratio.
+const lightFillLuminance = 0.179
 
 // schemeFiles holds the colour schemes, one YAML file per preset under schemes/, named after
 // the theme key that picks it: one quoted "#rrggbb" per role of userconfig.Roles.
@@ -132,6 +145,12 @@ type theme struct {
 	dividerActive lipgloss.Style
 	// hints paints the status bar's key hints, muted.
 	hints lipgloss.Style
+	// lockHeld paints the status bar's word lock while another session holds the Tree lock, live
+	// or stale: a lock-held fill, or Reverse without one. lockFree paints it while the lock is
+	// free: a lock-free fill, or nothing without one. Each fill's text is black or white, whichever
+	// reads on it.
+	lockHeld lipgloss.Style
+	lockFree lipgloss.Style
 	// selectedRow marks the selected row of a list: a background fill in the selection colour, or
 	// Reverse when the palette has none. mutedRow marks a tree row shown only to place another,
 	// muted and faint, and mutedSelectedRow one that is both: the fill with faint text, or Reverse.
@@ -163,6 +182,8 @@ func newTheme(settings userconfig.UI, isLightBackground, isNoColor bool) theme {
 		border:           colors.foreground(roleBorder),
 		dividerActive:    colors.foreground(roleAccent).Bold(true),
 		hints:            colors.foreground(roleMuted),
+		lockHeld:         badgeStyle(colors, roleLockHeld, lipgloss.NewStyle().Reverse(true)),
+		lockFree:         badgeStyle(colors, roleLockFree, lipgloss.NewStyle()),
 		selectedRow:      selectedRow,
 		mutedRow:         colors.foreground(roleMuted).Faint(true),
 		mutedSelectedRow: mutedSelectedRow,
@@ -185,6 +206,52 @@ func selectionStyles(colors palette) (lipgloss.Style, lipgloss.Style, bool) {
 	}
 	fill := lipgloss.NewStyle().Background(selection)
 	return fill, fill.Faint(true), true
+}
+
+// badgeStyle returns the style of a badge filled in colors' colour for role, its text black or
+// white by the fill's luminance, or fallback when colors has no colour for role.
+func badgeStyle(colors palette, role string, fallback lipgloss.Style) lipgloss.Style {
+	fill, hasFill := colors[role]
+	if !hasFill {
+		return fallback
+	}
+	return lipgloss.NewStyle().Background(fill).Foreground(readableTextOn(fill))
+}
+
+// readableTextOn returns the text colour that reads on fill: black when fill is light, white when
+// it is dark.
+func readableTextOn(fill color.Color) color.Color {
+	if relativeLuminance(fill) >= lightFillLuminance {
+		return lipgloss.Color(badgeTextOnLight)
+	}
+	return lipgloss.Color(badgeTextOnDark)
+}
+
+// relativeLuminance returns the WCAG relative luminance of value, from 0 for black to 1 for white.
+func relativeLuminance(value color.Color) float64 {
+	red, green, blue, _ := value.RGBA()
+	return 0.2126*linearChannel(red) + 0.7152*linearChannel(green) + 0.0722*linearChannel(blue)
+}
+
+// linearChannel returns the linear light of one 16-bit sRGB channel, from 0 to 1.
+func linearChannel(channel uint32) float64 {
+	encoded := float64(channel) / 0xffff
+	if encoded <= 0.04045 {
+		return encoded / 12.92
+	}
+	return math.Pow((encoded+0.055)/1.055, 2.4)
+}
+
+// lockBadge returns the style the status bar paints the word lock in for badge: plain for none.
+func (t theme) lockBadge(badge lockBadge) lipgloss.Style {
+	switch badge {
+	case lockBadgeHeld:
+		return t.lockHeld
+	case lockBadgeFree:
+		return t.lockFree
+	default:
+		return lipgloss.NewStyle()
+	}
 }
 
 // span is one run of a list row's text and the style it is painted in, under the row's mark.

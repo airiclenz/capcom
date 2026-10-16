@@ -1,7 +1,8 @@
 # capcom ui colour scheme — "dark", the preset for a dark terminal background.
 #
 # A colour scheme gives a colour to every role capcom ui paints with; the UI leaves the terminal's
-# background alone everywhere but the selected row, which it fills with selection. This file is
+# background alone everywhere but the selected row, which it fills with selection, and the status
+# bar's lock badge, which it fills with lock-held or lock-free. This file is
 # compiled into the binary and read once, at start: theme dark picks it, and theme auto picks it
 # over a dark background. To change a colour, override its role under ui.colors in the user config
 # file rather than editing this file.

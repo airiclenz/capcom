@@ -58,7 +58,9 @@ internal/ui/theme.go — newPalette, presets; docs/site/reference/file-format.md
 - `go vet ./internal/userconfig/ ./internal/ui/` is clean.
 **Commit:** `feat(ui): add the lock-held and lock-free colour roles`
 
-## 2. Paint the status bar's lock badge
+## 2. Paint the status bar's lock badge — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the badge's black-or-white text switches at relative luminance 0.179 (`lightFillLuminance` in internal/ui/theme.go), the point where both contrast equally by the WCAG ratio; dark's presets get black text, light's white.
 
 Depends on item 1.
 
