@@ -1,10 +1,12 @@
 ---
 title: Colour the word lock in the status bar by the Tree lock state
-status: open
+status: done
 type: task
 priority: 2
 plan: 2026-10-16 - 04 - ui-lock-badge-plan
 created: 2026-10-16T18:57:37Z
+closed: 2026-10-16T19:31:18Z
+reason: Resolved by plan 2026-10-16 - 04 - ui-lock-badge-plan (archived in 1f37763)
 ---
 
 The status bar starts with the Tree lock as plain text (`lockText` in `internal/ui/statusbar.go`):
