@@ -280,6 +280,55 @@ func TestTheme_StatusOverride_PaintsTheStatusByCategory(t *testing.T) {
 	}
 }
 
+// sgrBefore returns the parameters of the last SGR sequence in row before the first text, failing
+// the test when row lacks text.
+func sgrBefore(t *testing.T, row, text string) string {
+	t.Helper()
+	end := strings.Index(row, text)
+	if end < 0 {
+		t.Fatalf("row %q lacks %q", row, text)
+	}
+	matches := sgrSequence.FindAllStringSubmatch(row[:end], -1)
+	if len(matches) == 0 {
+		return ""
+	}
+	return matches[len(matches)-1][1]
+}
+
+func TestTheme_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
+	// dark's selection is #3a5fcd and its status-todo #b2b2b2.
+	const (
+		fill     = "48;2;58;95;205"
+		todoText = "38;2;178;178;178"
+	)
+	testCases := []struct {
+		name string
+		keys []tea.KeyPressMsg
+	}{
+		{name: "ready"},
+		{name: "issues", keys: []tea.KeyPressMsg{runeKey('2')}},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := pressKeys(t, newThemeModel(t, "ui:\n  theme: dark\n", false), testCase.keys...)
+
+			// alpha, open (todo), is the selected first row.
+			row := m.sidebar[0]
+
+			for _, segment := range []struct{ text, want string }{
+				{text: "alpha", want: fill},
+				{text: "open", want: todoText},
+				{text: "open", want: fill},
+				{text: "Alpha task", want: fill},
+			} {
+				if got := sgrBefore(t, row, segment.text); !strings.Contains(got, segment.want) {
+					t.Errorf("%q in row %q is drawn in %q, want it to carry %s", segment.text, row, got, segment.want)
+				}
+			}
+		})
+	}
+}
+
 func TestTheme_NoColor_DrawsNoColourSequences(t *testing.T) {
 	configText := "ui:\n  theme: light\n  colors:\n    accent: \"#123456\"\n    status-todo: \"212\"\n"
 	if found := colourSequences(newThemeModel(t, configText, false).View().Content); len(found) == 0 {

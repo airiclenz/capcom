@@ -211,6 +211,8 @@ ui:
 - Overrides name roles, not elements: `accent`, `border`, `muted`, `link`, `selection`, `heading`,
   `code`, and one per status category: `status-todo`, `status-doing`, `status-waiting`,
   `status-done`, `status-dropped`. A value is a quoted `"#rgb"`/`"#rrggbb"` or a number 0-255.
+- The selected row of a list is filled with the `selection` colour, its text in its usual colours
+  (a status keeps its category's); under `NO_COLOR` it is drawn in reverse instead.
 - `NO_COLOR` turns colour off, whatever the config says.
 - The file is created the first time `capcom ui` starts, with every key present as a commented
   default; no other command reads or creates it. It is read once, at start.

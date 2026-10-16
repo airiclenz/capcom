@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/outline"
@@ -336,15 +335,13 @@ func childAncestors(depth int, ancestors string, isLast bool) string {
 }
 
 // paint returns the rows of the tree that fit in height rows, scrolled so the selection stays on
-// screen: each led by its connector cells in th's border style, then its arrow and the text
-// rowText gives, the selected one and the muted (revealed) ones marked in th's styles around the
-// arrow and the text only. rowText is told when the row is marked: its
-// text must then carry no styling of its own, since a reset inside it would end the mark early. A
-// height under one paints nothing and leaves the scroll as it is.
+// screen: each led by its connector cells in th's border style, then its arrow and the spans
+// rowText gives, the selected one and the muted (revealed) ones marked by th's markOf over the
+// arrow and the spans only. A height under one paints nothing and leaves the scroll as it is.
 func (w *treeWidget[E]) paint(
 	height int,
 	th theme,
-	rowText func(row outline.Row[E], isMarked bool) string,
+	rowText func(row outline.Row[E]) []span,
 ) []string {
 	if height < 1 || len(w.rows) == 0 {
 		return nil
@@ -355,11 +352,8 @@ func (w *treeWidget[E]) paint(
 	painted := make([]string, 0, end-w.top)
 	for position := w.top; position < end; position++ {
 		row := w.rows[position]
-		style, isMarked := rowStyle(th, row.isMuted, position == selected)
-		text := treeArrow(row) + rowText(row.Row, isMarked)
-		if isMarked {
-			text = style.Render(text)
-		}
+		mark := th.markOf(row.isMuted, position == selected)
+		text := mark.render(append([]span{{text: treeArrow(row)}}, rowText(row.Row)...)...)
 		if row.connector != "" {
 			text = th.border.Render(row.connector) + text
 		}
@@ -377,18 +371,4 @@ func treeArrow[E any](row treeRow[E]) string {
 		return arrowCollapsed
 	}
 	return arrowLeaf
-}
-
-// rowStyle returns th's style of a tree row that is muted or selected, or both, and false for a
-// row that is neither, which has no style.
-func rowStyle(th theme, isMuted, isSelected bool) (lipgloss.Style, bool) {
-	switch {
-	case isMuted && isSelected:
-		return th.mutedSelectedRow, true
-	case isMuted:
-		return th.mutedRow, true
-	case isSelected:
-		return th.selectedRow, true
-	}
-	return lipgloss.NewStyle(), false
 }

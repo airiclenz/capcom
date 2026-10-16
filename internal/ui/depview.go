@@ -54,11 +54,11 @@ type depRow struct {
 	entry   index.Entry
 }
 
-// text returns the row's text: `id  status  P<n>  title`, its status painted in status, or for a
-// missing dep that dep and depsMissingLabel.
-func (r depRow) text(status lipgloss.Style) string {
+// text returns the row's spans: `id  status  P<n>  title`, its status painted in status, or for
+// a missing dep that dep and depsMissingLabel.
+func (r depRow) text(status lipgloss.Style) []span {
 	if r.id == "" {
-		return oneLine(r.missing) + "  " + depsMissingLabel
+		return []span{{text: oneLine(r.missing) + "  " + depsMissingLabel}}
 	}
 	return readyRow(r.entry, status)
 }
@@ -278,8 +278,8 @@ func (m model) paintDeps() model {
 // lines returns the dependency view's rows of text, the position of the selected one, -1 when
 // it has none, and, for each line, the position in rows of the row it draws, -1 for a heading or
 // a none line: the waits-on heading and rows, then the blocks heading and rows, a section with no
-// issue saying none, each status in its category's colour of th and the selected row marked in
-// its selection style. An issue with neither, and a read that failed, each take one row.
+// issue saying none, each status in its category's colour of th and the selected row marked by
+// th's markOf. An issue with neither, and a read that failed, each take one row.
 func (v depView) lines(th theme) ([]string, int, []int) {
 	switch {
 	case v.err != nil:
@@ -303,12 +303,12 @@ func (v depView) lines(th theme) ([]string, int, []int) {
 			rowOfLine = append(rowOfLine, -1)
 		}
 		for _, row := range section.rows {
-			text := depsRowIndent + row.text(th.status(row.entry.Category))
 			if position == selected {
 				selectedLine = len(lines)
-				text = th.selectedRow.Render(depsRowIndent + row.text(lipgloss.NewStyle()))
 			}
-			lines = append(lines, text)
+			mark := th.markOf(false, position == selected)
+			spans := append([]span{{text: depsRowIndent}}, row.text(th.status(row.entry.Category))...)
+			lines = append(lines, mark.render(spans...))
 			rowOfLine = append(rowOfLine, position)
 			position++
 		}

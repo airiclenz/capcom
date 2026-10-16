@@ -132,11 +132,15 @@ type theme struct {
 	dividerActive lipgloss.Style
 	// hints paints the status bar's key hints, muted.
 	hints lipgloss.Style
-	// selectedRow marks the selected row of a list in the selection colour, mutedRow a tree row
-	// shown only to place another, and mutedSelectedRow one that is both.
+	// selectedRow marks the selected row of a list: a background fill in the selection colour, or
+	// Reverse when the palette has none. mutedRow marks a tree row shown only to place another,
+	// muted and faint, and mutedSelectedRow one that is both: the fill with faint text, or Reverse.
 	selectedRow      lipgloss.Style
 	mutedRow         lipgloss.Style
 	mutedSelectedRow lipgloss.Style
+	// isSelectionFill is whether selectedRow is the background fill, which each styled span of a
+	// selected row carries beneath its own style, rather than a Reverse covering the row whole.
+	isSelectionFill bool
 	// scrollThumb paints a scrollbar's thumb, muted, and scrollTrack its track in the border
 	// colour.
 	scrollThumb lipgloss.Style
@@ -152,20 +156,79 @@ type theme struct {
 // no colour at all when isNoColor: see newPalette.
 func newTheme(settings userconfig.UI, isLightBackground, isNoColor bool) theme {
 	colors := newPalette(settings, isLightBackground, isNoColor)
+	selectedRow, mutedSelectedRow, isSelectionFill := selectionStyles(colors)
 	return theme{
 		colors:           colors,
 		activeTab:        colors.foreground(roleAccent).Bold(true).Reverse(true),
 		border:           colors.foreground(roleBorder),
 		dividerActive:    colors.foreground(roleAccent).Bold(true),
 		hints:            colors.foreground(roleMuted),
-		selectedRow:      colors.foreground(roleSelection).Reverse(true),
+		selectedRow:      selectedRow,
 		mutedRow:         colors.foreground(roleMuted).Faint(true),
-		mutedSelectedRow: colors.foreground(roleSelection).Faint(true).Reverse(true),
+		mutedSelectedRow: mutedSelectedRow,
+		isSelectionFill:  isSelectionFill,
 		scrollThumb:      colors.foreground(roleMuted),
 		scrollTrack:      colors.foreground(roleBorder),
 		markdown:         markdownTheme(colors),
 		input:            inputStyles(colors),
 	}
+}
+
+// selectionStyles returns the style of a selected row and of a muted selected one, and whether
+// they are a background fill: in colors' selection colour, the muted one faint, when colors has
+// one, and otherwise Reverse, which needs no colour to show.
+func selectionStyles(colors palette) (lipgloss.Style, lipgloss.Style, bool) {
+	selection, hasSelection := colors[roleSelection]
+	if !hasSelection {
+		reverse := lipgloss.NewStyle().Reverse(true)
+		return reverse, reverse.Faint(true), false
+	}
+	fill := lipgloss.NewStyle().Background(selection)
+	return fill, fill.Faint(true), true
+}
+
+// span is one run of a list row's text and the style it is painted in, under the row's mark.
+type span struct {
+	text  string
+	style lipgloss.Style
+}
+
+// rowMark is how a list row is marked, in style; the zero rowMark marks nothing. A whole mark
+// paints the row's text in style alone, its spans' own styles dropped; any other carries style
+// beneath each span's own, since a reset closing one span would end a style laid over the row.
+type rowMark struct {
+	style   lipgloss.Style
+	isWhole bool
+}
+
+// markOf returns the mark of a list row that is muted or selected, or both: a muted one whole in
+// the muted styles, a selected one carrying the selection fill, or whole in Reverse without one.
+func (t theme) markOf(isMuted, isSelected bool) rowMark {
+	switch {
+	case isMuted && isSelected:
+		return rowMark{style: t.mutedSelectedRow, isWhole: true}
+	case isMuted:
+		return rowMark{style: t.mutedRow, isWhole: true}
+	case isSelected:
+		return rowMark{style: t.selectedRow, isWhole: !t.isSelectionFill}
+	}
+	return rowMark{}
+}
+
+// render returns the text of spans joined, painted under the mark.
+func (rm rowMark) render(spans ...span) string {
+	var text strings.Builder
+	for _, run := range spans {
+		if rm.isWhole {
+			text.WriteString(run.text)
+			continue
+		}
+		text.WriteString(run.style.Inherit(rm.style).Render(run.text))
+	}
+	if rm.isWhole {
+		return rm.style.Render(text.String())
+	}
+	return text.String()
 }
 
 // markdownTheme returns the markdown styles of colors, its Measure the zero value.

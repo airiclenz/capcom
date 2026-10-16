@@ -171,8 +171,8 @@ func (m model) paintKnowledgeSidebar() model {
 	return m.withSidebar(rows, m.knowledge.tree.top, len(m.knowledge.tree.rows))
 }
 
-// noteTreeRow is the text of one Note in the tree, as capcom know tree prints it: `id  title`,
-// unstyled whether the row is marked or not.
-func noteTreeRow(row outline.Row[index.NoteEntry], _ bool) string {
-	return row.ID + noteRowSeparator + oneLine(row.Entry.Title)
+// noteTreeRow is the one unstyled span of one Note in the tree, as capcom know tree prints it:
+// `id  title`.
+func noteTreeRow(row outline.Row[index.NoteEntry]) []span {
+	return []span{{text: row.ID + noteRowSeparator + oneLine(row.Entry.Title)}}
 }

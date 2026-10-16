@@ -113,7 +113,7 @@ var glyphEntries = []index.Entry{
 func paintIDs(t *testing.T, w treeWidget[index.Entry]) []string {
 	t.Helper()
 	th := newTheme(userconfig.Default().UI, false, false)
-	painted := w.paint(len(w.rows), th, func(row outline.Row[index.Entry], _ bool) string { return row.ID })
+	painted := w.paint(len(w.rows), th, func(row outline.Row[index.Entry]) []span { return []span{{text: row.ID}} })
 	stripped := make([]string, 0, len(painted))
 	for _, row := range painted {
 		stripped = append(stripped, ansi.Strip(row))
@@ -178,9 +178,9 @@ func TestTreeWidget_Paint_MarksTheSelectionAfterTheConnector(t *testing.T) {
 	w.selectID("two")
 	th := newTheme(userconfig.Default().UI, false, false)
 
-	painted := w.paint(len(w.rows), th, func(row outline.Row[index.Entry], _ bool) string { return row.ID })
+	painted := w.paint(len(w.rows), th, func(row outline.Row[index.Entry]) []span { return []span{{text: row.ID}} })
 
-	want := th.border.Render("  ┕ ") + th.selectedRow.Render("· two")
+	want := th.border.Render("  ┕ ") + th.selectedRow.Render(arrowLeaf) + th.selectedRow.Render("two")
 	if got := painted[len(painted)-1]; got != want {
 		t.Errorf("selected row = %q, want %q", got, want)
 	}

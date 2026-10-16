@@ -23,6 +23,8 @@ const (
 	// selectFailureFormat is the notice for an id capcom ui ready, issues or knowledge names that
 	// resolves to no issue or Note.
 	selectFailureFormat = "select %s: %v"
+	// readyColumnGap separates the columns of an issue's sidebar row: id, status, priority, title.
+	readyColumnGap = "  "
 )
 
 // readyOptions are the options capcom ready builds from no flags: every Ready issue, planned or
@@ -183,24 +185,18 @@ func (m model) paintReadySidebar() model {
 	rows := make([]string, 0, end-m.ready.top)
 	for row := m.ready.top; row < end; row++ {
 		entry := m.ready.entries[row]
-		if row == selected {
-			rows = append(rows, m.theme.selectedRow.Render(readyRow(entry, lipgloss.NewStyle())))
-			continue
-		}
-		rows = append(rows, readyRow(entry, m.theme.status(entry.Category)))
+		mark := m.theme.markOf(false, row == selected)
+		rows = append(rows, mark.render(readyRow(entry, m.theme.status(entry.Category))...))
 	}
 	return m.withSidebar(rows, m.ready.top, len(m.ready.entries))
 }
 
-// readyRow is the sidebar row of one queued issue, as capcom ready prints it, its status painted
-// in status: an empty style for a row a style of its own covers whole, since a reset inside it
-// would end that style early.
-func readyRow(entry index.Entry, status lipgloss.Style) string {
-	return fmt.Sprintf(
-		"%s  %s  P%d  %s",
-		entry.ID,
-		status.Render(entry.Status),
-		entry.Priority,
-		oneLine(entry.Title),
-	)
+// readyRow is the spans of the sidebar row of one queued issue, as capcom ready prints it, its
+// status painted in status.
+func readyRow(entry index.Entry, status lipgloss.Style) []span {
+	return []span{
+		{text: entry.ID + readyColumnGap},
+		{text: entry.Status, style: status},
+		{text: readyColumnGap + fmt.Sprintf("P%d", entry.Priority) + readyColumnGap + oneLine(entry.Title)},
+	}
 }

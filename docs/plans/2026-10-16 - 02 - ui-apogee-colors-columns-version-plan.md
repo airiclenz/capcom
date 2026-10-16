@@ -102,7 +102,11 @@ accent, selection, status-doing and status-done the mapped values above; the two
 - `grep -c '#c396ff' internal/ui/schemes/dark.yaml` prints 1; `grep -c '#8250df' internal/ui/schemes/light.yaml` prints 1.
 **Commit:** `feat(ui): draw capcom ui in apogee's colours`
 
-## 3. Draw the selected row as a background fill
+## 3. Draw the selected row as a background fill — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the row contract became spans: `paint`'s rowText, `issueTreeRow`, `readyRow`, `noteTreeRow` and `depRow.text` return `[]span` (text + style), and `theme.markOf(isMuted, isSelected)` returns a `rowMark` whose `render` either carries the selection fill beneath each span's own style (colour) or wraps the plain text whole (muted rows, and Reverse under NO_COLOR); `rowStyle` was folded into `markOf`.
+NOTES (2026-10-16): a muted selected row under colour is the selection fill with faint text over its plain (uncoloured-status) text, as the muted row draws its text; `layout.go` needed no change, since the status picker's rows are plain text that `selectedRow` (now the fill, or Reverse) wraps whole.
+NOTES (2026-10-16): consequential edit — docs/design/tui.md: made necessary by the selected row's new fill (one Theme bullet naming it and the NO_COLOR reverse).
 
 **What:**
 **Goal:** under a palette with a selection colour, the selected row of every list painted with
