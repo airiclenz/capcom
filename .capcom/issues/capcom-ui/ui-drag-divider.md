@@ -1,9 +1,11 @@
 ---
 title: Resize the sidebar by dragging the divider
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-16T13:54:30Z
+closed: 2026-10-16T14:42:00Z
+reason: "Resolved by plan ui-drag-divider-plan (archived in 7760461): drag, </> keys, double-click reset, state.yaml persistence, docs and ADR 0014."
 ---
 
 In the split layout the sidebar is a fixed third of the terminal (28–48 columns). Long ids and
