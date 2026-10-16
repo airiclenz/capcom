@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -20,6 +21,8 @@ const (
 	headerSeparator = " · "
 	listSeparator   = ", "
 	codeMark        = "`"
+	// headerTimeLayout is how the header shows the created and closed times, in UTC.
+	headerTimeLayout = "2006-01-02 15:04"
 )
 
 // detailMsg carries one read of an issue or a Note for the detail pane: whether it is a Note,
@@ -148,34 +151,73 @@ func issueSource(entry index.Entry, reading nodestore.Reading[issue.Issue], err 
 	entry.Title = parsed.Title
 	entry.Status = parsed.Status
 	entry.Priority = parsed.Priority
+	entry.Type = parsed.Type
 	entry.Labels = parsed.Labels
 	entry.Deps = parsed.Deps
+	entry.Related = parsed.Related
+	entry.Plan = parsed.Plan
+	entry.Aliases = parsed.Aliases
+	entry.Created = parsed.Created
+	entry.Closed = parsed.Closed
+	entry.Reason = parsed.Reason
 	return issueHeader(entry) + parsed.Body, reading.ETag
 }
 
 // issueHeader returns the markdown header of an issue's detail: its title as a heading, its
-// status and priority, then its labels, parent and deps, each line left out when empty, and a
-// blank line before the body. The parent and deps are code spans, so the renderer makes the ones
-// naming an id links.
+// status, priority and type on one line, then its labels, parent, deps, related issues, plan,
+// aliases, created and closed times and close reason, each line left out when empty, and a blank
+// line before the body. The parent, deps and related issues are code spans, so the renderer makes
+// the ones naming an id links; the times read in UTC to the minute.
 func issueHeader(entry index.Entry) string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "# %s\n\n", oneLine(entry.Title))
-	fmt.Fprintf(&text, "status: %s%sP%d\n", entry.Status, headerSeparator, entry.Priority)
-	if len(entry.Labels) > 0 {
-		fmt.Fprintf(&text, "labels: %s\n", strings.Join(entry.Labels, listSeparator))
-	}
-	if entry.ParentID != "" {
-		fmt.Fprintf(&text, "parent: %s\n", codeSpan(entry.ParentID))
-	}
-	if len(entry.Deps) > 0 {
-		spans := make([]string, 0, len(entry.Deps))
-		for _, dep := range entry.Deps {
-			spans = append(spans, codeSpan(dep))
-		}
-		fmt.Fprintf(&text, "deps: %s\n", strings.Join(spans, listSeparator))
+	fmt.Fprintf(&text, "status: %s%sP%d", entry.Status, headerSeparator, entry.Priority)
+	if entry.Type != "" {
+		text.WriteString(headerSeparator + entry.Type)
 	}
 	text.WriteString("\n")
+	var parent []string
+	if entry.ParentID != "" {
+		parent = []string{entry.ParentID}
+	}
+	writeHeaderLine(&text, "labels", strings.Join(entry.Labels, listSeparator))
+	writeHeaderLine(&text, "parent", idSpans(parent))
+	writeHeaderLine(&text, "deps", idSpans(entry.Deps))
+	writeHeaderLine(&text, "related", idSpans(entry.Related))
+	writeHeaderLine(&text, "plan", entry.Plan)
+	writeHeaderLine(&text, "aliases", strings.Join(entry.Aliases, listSeparator))
+	writeHeaderLine(&text, "created", headerTime(entry.Created))
+	writeHeaderLine(&text, "closed", headerTime(entry.Closed))
+	writeHeaderLine(&text, "reason", oneLine(entry.Reason))
+	text.WriteString("\n")
 	return text.String()
+}
+
+// writeHeaderLine writes the header line `<key>: <value>` to text, or nothing when value is
+// empty.
+func writeHeaderLine(text *strings.Builder, key, value string) {
+	if value == "" {
+		return
+	}
+	fmt.Fprintf(text, "%s: %s\n", key, value)
+}
+
+// idSpans returns ids as code spans joined by the list separator, so the renderer makes the ones
+// naming an id links; "" when there are none.
+func idSpans(ids []string) string {
+	spans := make([]string, 0, len(ids))
+	for _, id := range ids {
+		spans = append(spans, codeSpan(id))
+	}
+	return strings.Join(spans, listSeparator)
+}
+
+// headerTime returns moment as a header shows it, in UTC to the minute; "" when it is zero.
+func headerTime(moment time.Time) string {
+	if moment.IsZero() {
+		return ""
+	}
+	return moment.UTC().Format(headerTimeLayout)
 }
 
 // codeSpan wraps an id or a ref in a markdown code span.

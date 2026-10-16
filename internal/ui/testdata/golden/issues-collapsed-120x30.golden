@@ -2,10 +2,10 @@
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 ▶ epic     open  P1  Epic  (1/2 close…   │ Epic                                                                         
 · solo     open  P2  Solo                │                                                                              
-· wrapped  open  P2  Wrapped  (2/2 cl…   │ status: open · P1                                                            
+· wrapped  open  P2  Wrapped  (2/2 cl…   │ status: open · P1 · task                                                     
+                                         │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
                                          │ The epic.                                                                    
-                                         │                                                                              
                                          │                                                                              
                                          │                                                                              
                                          │                                                                              

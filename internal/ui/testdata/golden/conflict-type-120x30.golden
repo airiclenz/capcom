@@ -2,15 +2,15 @@
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 alpha  open  P1  Alpha task              │ Alpha task                                                                   
 beta   open  P2  Beta task               │                                                                              
-delta  open  P2  Delta task              │ status: open · P1                                                            
+delta  open  P2  Delta task              │ status: open · P1 · bug                                                      
                                          │ labels: ui, tui                                                              
                                          │ deps: finished                                                               
+                                         │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
                                          │ Alpha names beta and no-such-id.                                             
                                          │                                                                              
                                          │ • first point                                                                
                                          │ • second point                                                               
-                                         │                                                                              
                                          │                                                                              
                                          │                                                                              
                                          │                                                                              

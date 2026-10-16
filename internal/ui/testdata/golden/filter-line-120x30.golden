@@ -2,11 +2,11 @@
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 /parser                                  │ Epic                                                                         
 ▶ epic     open  P1  Epic  (1/2 close…   │                                                                              
-· solo     open  P2  Solo                │ status: open · P1                                                            
+· solo     open  P2  Solo                │ status: open · P1 · task                                                     
 · user     open  P2  User                │ labels: ui                                                                   
-· wrapped  open  P2  Wrapped  (1/1 cl…   │                                                                              
-                                         │ The epic plans the rollout.                                                  
+· wrapped  open  P2  Wrapped  (1/1 cl…   │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
+                                         │ The epic plans the rollout.                                                  
                                          │                                                                              
                                          │                                                                              
                                          │                                                                              

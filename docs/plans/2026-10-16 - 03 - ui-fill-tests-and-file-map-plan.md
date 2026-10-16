@@ -125,7 +125,10 @@ from the file's own declarations, never guessed. Subdirectories (`markdown`, `sc
 - `grep -c '^// Package ui' internal/ui/*.go | grep -v ':0'` prints only `internal/ui/doc.go:1`.
 **Commit:** `docs(ui): map the package's files in doc.go with a structural test`
 
-## 4. Show every frontmatter key in the Issue detail header
+## 4. Show every frontmatter key in the Issue detail header — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): internal/ui/detail_test.go did not exist; it is created, holding TestIssueHeader_RendersEachSetKeyInOrder (the table test) and TestDetailPane_IssueWithPlanAndRelated_ShowsBothLines (the model test). The helpers are writeHeaderLine (a line left out when its value is empty), idSpans (parent, deps and related) and headerTime (with the headerTimeLayout const). noteHeader's refs loop is left as it is for item 5.
+NOTES (2026-10-16): the 14 rewritten goldens were each read in their stripped diff. Every change is the status line gaining " · task" (" · bug" in conflict-type) and a new `created: 2026-10-11 09:00` line. docs/design/tui.md:72 still names the old subset of fields; item 5 owns that bullet and is not done yet.
 
 **What:**
 **Goal:** the Issue detail header (`issueHeader` in `internal/ui/detail.go`) renders, after the

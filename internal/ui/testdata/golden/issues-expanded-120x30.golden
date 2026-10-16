@@ -2,11 +2,11 @@
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 ▼ epic      open    P1  Epic  (1/2 cl…   │ Alpha                                                                        
 ┕ ▼ alpha   active  P2  Alpha  (0/1 c…   │                                                                              
-  ┕ · leaf  open    P3  Leaf             │ status: active · P2                                                          
+  ┕ · leaf  open    P3  Leaf             │ status: active · P2 · task                                                   
 · solo      open    P2  Solo             │ parent: epic                                                                 
-· wrapped   open    P2  Wrapped  (2/2…   │                                                                              
-                                         │ Alpha's body.                                                                
+· wrapped   open    P2  Wrapped  (2/2…   │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
+                                         │ Alpha's body.                                                                
                                          │                                                                              
                                          │                                                                              
                                          │                                                                              

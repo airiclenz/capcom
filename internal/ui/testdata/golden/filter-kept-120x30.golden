@@ -2,11 +2,11 @@
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 ▼ epic      open    P1  Epic  (1/2 cl…   │ Epic                                                                         
 ┕ ▼ alpha   active  P2  Alpha  (0/1 c…   │                                                                              
-  ┕ · leaf  open    P3  Leaf             │ status: open · P1                                                            
+  ┕ · leaf  open    P3  Leaf             │ status: open · P1 · task                                                     
                                          │ labels: ui                                                                   
+                                         │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
                                          │ The epic plans the rollout.                                                  
-                                         │                                                                              
                                          │                                                                              
                                          │                                                                              
                                          │                                                                              

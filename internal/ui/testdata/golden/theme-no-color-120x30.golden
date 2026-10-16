@@ -2,7 +2,8 @@
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 [7malpha  open  P1  Alpha task[m              │ [1mAlpha task[m                                                                   
 beta   open  P2  Beta task               │                                                                              
-                                         │ status: open · P1                                                            
+                                         │ status: open · P1 · task                                                     
+                                         │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
                                          │ [1mPlan[m                                                                         
                                          │                                                                              
@@ -11,7 +12,6 @@ beta   open  P2  Beta task               │
                                          │ │ quoted                                                                     
                                          │                                                                              
                                          │   code block                                                                 
-                                         │                                                                              
                                          │                                                                              
                                          │                                                                              
                                          │                                                                              
