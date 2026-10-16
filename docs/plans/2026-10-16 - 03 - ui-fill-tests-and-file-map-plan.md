@@ -156,7 +156,11 @@ alone. A model test selects an Issue with `plan:` and `related:` set and finds b
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/ui/` passes; every rewritten golden was read.
 **Commit:** `feat(ui): show every frontmatter key in the issue detail header`
 
-## 5. Show every frontmatter key in the Note detail header, and document the full header
+## 5. Show every frontmatter key in the Note detail header, and document the full header — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): index.NoteEntry already carries IsRetired, SupersededBy and Aliases, so the failure-path header shows every line too; noteHeader now uses item 4's writeHeaderLine and idSpans, replacing its own refs loop. No golden changed: none shows a Note with retired, superseded-by or aliases in its detail (the full ./internal/ui/ run passes unchanged).
+NOTES (2026-10-16): tests added to internal/ui/detail_test.go: TestNoteHeader_RendersEachSetKeyInOrder (table) and TestKnowledgeTab_RetiredNoteDetail_LinksItsSuccessor (model, seats the retired Note through newKnowledgeModel). Bite check (dropping the superseded-by line from noteHeader) failed both; reverted.
+NOTES (2026-10-16): the regression-guard grep still matches tui.md:73/77 and terminal-ui.md:54, each now naming the full set (related and superseded-by included), not a stale subset; two reflowed paragraphs (tui.md Knowledge tab, terminal-ui.md mouse links bullet) rewrap their following lines.
 
 **What:** Depends on item 4.
 **Goal:** the Note detail header (`noteHeader` in `internal/ui/detail.go`) renders, after the

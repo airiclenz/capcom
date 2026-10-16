@@ -266,26 +266,28 @@ func noteSource(entry index.NoteEntry, reading nodestore.Reading[knowledge.Note]
 	entry.Title = parsed.Title
 	entry.Labels = parsed.Labels
 	entry.Refs = parsed.Refs
+	entry.IsRetired = parsed.IsRetired
+	entry.SupersededBy = parsed.SupersededBy
+	entry.Aliases = parsed.Aliases
 	return noteHeader(entry) + parsed.Body, reading.ETag
 }
 
 // noteHeader returns the markdown header of a Note's detail: its title as a heading, then its
-// labels and refs, each line left out when empty, and a blank line before the body. The refs are
-// code spans, so the renderer makes the ones naming an issue or Note id links and leaves file
-// refs inert.
+// labels, refs, retired flag (only when true), superseded-by Notes and aliases, each line left out
+// when empty, and a blank line before the body. The refs and superseded-by Notes are code spans,
+// so the renderer makes the ones naming an issue or Note id links and leaves file refs inert.
 func noteHeader(entry index.NoteEntry) string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "# %s\n\n", oneLine(entry.Title))
-	if len(entry.Labels) > 0 {
-		fmt.Fprintf(&text, "labels: %s\n", strings.Join(entry.Labels, listSeparator))
+	retired := ""
+	if entry.IsRetired {
+		retired = "true"
 	}
-	if len(entry.Refs) > 0 {
-		spans := make([]string, 0, len(entry.Refs))
-		for _, ref := range entry.Refs {
-			spans = append(spans, codeSpan(ref))
-		}
-		fmt.Fprintf(&text, "refs: %s\n", strings.Join(spans, listSeparator))
-	}
+	writeHeaderLine(&text, "labels", strings.Join(entry.Labels, listSeparator))
+	writeHeaderLine(&text, "refs", idSpans(entry.Refs))
+	writeHeaderLine(&text, "retired", retired)
+	writeHeaderLine(&text, "superseded-by", idSpans(entry.SupersededBy))
+	writeHeaderLine(&text, "aliases", strings.Join(entry.Aliases, listSeparator))
 	text.WriteString("\n")
 	return text.String()
 }

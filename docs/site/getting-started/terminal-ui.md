@@ -50,9 +50,11 @@ lock: free · ? help · q quit
 - **Sidebar**: the tab's list or tree. The selected row drives the detail pane. In a tree, `▼`
   marks a node whose children are shown, `▶` one whose children are hidden and `·` a node with no
   children; the gray `┝`, `┕` and `│` connectors before a row show where it sits under its Parent.
-- **Detail pane**: the selected Issue or Note. An Issue shows its title, its Status and priority,
-  then its labels, Parent and dependencies; a Note shows its labels and Refs. The body follows,
-  rendered as markdown: headings, lists, code, tables, blockquotes and links.
+- **Detail pane**: the selected Issue or Note. An Issue shows its title, its Status, priority and
+  type, then its labels, Parent, dependencies, related, plan, aliases, created and closed times and
+  close reason; a Note shows its labels, Refs, retired, superseded-by and aliases. A field that is
+  empty is left out, and `retired` shows only when true. The body follows, rendered as markdown:
+  headings, lists, code, tables, blockquotes and links.
 - **Status bar**: the Tree lock of this worktree (`lock: free`, `lock: held by <holder>: <purpose>`
   or `lock: stale: <purpose>`, with the heartbeat's age), the filter in effect, notices and the
   report of the last write, then the key hints.
@@ -217,9 +219,10 @@ version: restart capcom ui`.
 - A click selects a tab, a sidebar row, a dependency row or a link. A click on a tree row's arrow
   expands or collapses it.
 - In the detail pane, the links that are followed are the ids of Issues and Notes: a markdown link
-  whose target is an id, a code span that is exactly an existing id, and the Parent, dependencies
-  and Refs naming one. A click selects that Issue in the Issues tab or that Note in the Knowledge
-  tab. URLs and file references are styled but not followed. Body links are mouse-only.
+  whose target is an id, a code span that is exactly an existing id, and the Parent,
+  dependencies, related, Refs and superseded-by naming one. A click selects that Issue in the
+  Issues tab or that Note in the Knowledge tab. URLs and file references are styled but not
+  followed. Body links are mouse-only.
 - The wheel over the sidebar moves the selection a row; over the detail pane it scrolls three rows,
   or moves the dependency view's cursor.
 - A drag on the divider between the panes resizes the sidebar, and a double-click on it resets

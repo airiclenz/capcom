@@ -68,11 +68,14 @@ lock: free · ? help · q quit
   layout has no divider to move.
 - **Scrollbars**: each pane ends in a blank gutter column and a bar, apogee's: a heavy `┃` thumb
   marks the shown rows on a light `│` track, and the bar is blank while the pane's rows fit.
-- **Detail pane**: the selected Issue or Note: its frontmatter as a header (an Issue's title,
-  status, priority, labels, parent and deps; a Note's title, labels and refs), then the body
-  rendered as markdown. Followable links are Issue and Note ids only: markdown links whose target
-  is an id, inline-code spans exactly matching an existing id, and the parent, deps and refs
-  naming an id. URLs and file refs are styled but inert. Body links are mouse-only.
+- **Detail pane**: the selected Issue or Note: its frontmatter as a header, then the body rendered
+  as markdown. An Issue's header is its title, then status, priority and type on one line, then
+  labels, parent, deps, related, plan, aliases, created, closed and reason; a Note's is its title,
+  then labels, refs, retired, superseded-by and aliases. Each is a `key: value` line in the
+  file's key order, left out when empty (`retired` only when true); times read in UTC to the
+  minute. Followable links are Issue and Note ids only: markdown links whose target is an id,
+  inline-code spans exactly matching an existing id, and the parent, deps, related, refs and
+  superseded-by naming an id. URLs and file refs are styled but inert. Body links are mouse-only.
 - **Status bar**: the Tree lock (free, held by this worktree's other session with its purpose,
   or stale), the filter in effect, transient messages, and key hints.
 - **Narrow terminals** (below about 90 columns): the layout collapses to drill-down. The sidebar
@@ -102,10 +105,10 @@ and priorities aligned in columns as on the Issues tab.
 
 ### Knowledge tab
 
-The Note tree `capcom know tree` prints, and the selected Note in the detail pane with its labels
-and refs. Retired and Background Notes are hidden, as in `know tree`, and revealed muted while
-selected, as in the Issues tree; the tree opens collapsed to the top level. The only write here is
-`e` (`$EDITOR`).
+The Note tree `capcom know tree` prints, and the selected Note in the detail pane with its labels,
+refs, retired flag, superseded-by and aliases. Retired and Background Notes are hidden, as in
+`know tree`, and revealed muted while selected, as in the Issues tree; the tree opens collapsed to
+the top level. The only write here is `e` (`$EDITOR`).
 
 ### Filter
 

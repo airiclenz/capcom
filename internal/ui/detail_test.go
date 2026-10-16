@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -75,5 +76,78 @@ func TestDetailPane_IssueWithPlanAndRelated_ShowsBothLines(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("detail pane = %q, want a line %q", text, want)
 		}
+	}
+}
+
+func TestNoteHeader_RendersEachSetKeyInOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		entry index.NoteEntry
+		want  string
+	}{
+		{
+			name: "every key set",
+			entry: index.NoteEntry{
+				ID:           "old-guide",
+				Title:        "Old guide",
+				Labels:       []string{"howto", "cli"},
+				Refs:         []string{"internal/ui/detail.go", "guide"},
+				IsRetired:    true,
+				SupersededBy: []string{"guide", "setup"},
+				Aliases:      []string{"handbook"},
+			},
+			want: "# Old guide\n\n" +
+				"labels: howto, cli\n" +
+				"refs: `internal/ui/detail.go`, `guide`\n" +
+				"retired: true\n" +
+				"superseded-by: `guide`, `setup`\n" +
+				"aliases: handbook\n" +
+				"\n",
+		},
+		{
+			name: "not retired, superseded or aliased",
+			entry: index.NoteEntry{
+				ID:     "guide",
+				Title:  "Guide",
+				Labels: []string{"howto"},
+				Refs:   []string{"internal/ui/detail.go"},
+			},
+			want: "# Guide\n\n" +
+				"labels: howto\n" +
+				"refs: `internal/ui/detail.go`\n" +
+				"\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := noteHeader(test.entry); got != test.want {
+				t.Errorf("noteHeader() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestKnowledgeTab_RetiredNoteDetail_LinksItsSuccessor(t *testing.T) {
+	files := map[string]string{
+		"knowledge/guide.md": noteFile("title: Guide\n", "The guide.\n"),
+		"knowledge/old.md": noteFile(
+			"title: Old\nretired: true\nsuperseded-by: [guide]\naliases: [handbook]\n",
+			"Retired.\n",
+		),
+	}
+	m := newKnowledgeModel(t, newTestStore(t, files), "old", 120, 30)
+
+	text := detailText(m)
+	for _, want := range []string{"retired: true", "superseded-by: guide", "aliases: handbook"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("detail pane = %q, want a line %q", text, want)
+		}
+	}
+	targets := make([]string, 0, len(m.issue.rendered.Links))
+	for _, link := range m.issue.rendered.Links {
+		targets = append(targets, link.Target)
+	}
+	if !slices.Contains(targets, "guide") {
+		t.Errorf("detail links = %v, want a link to guide", targets)
 	}
 }
