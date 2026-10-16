@@ -1,0 +1,30 @@
+ Issues  │  Ready  │  Knowledge 
+  base  open  P1  Base                  │waits on:
+▾ epic  open  P1  Epic  (0/1 closed)    │  base  open  P1  Base
+    alpha  active  P2  Alpha            │  shipped  done  P2  Shipped
+  lonely  open  P2  Lonely              │  ghost  missing
+  user  open  P3  User                  │blocks:
+                                        │  user  open  P3  User
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+                                        │
+────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────────────
+lock: free · ? help · q quit

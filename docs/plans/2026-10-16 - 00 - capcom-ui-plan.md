@@ -460,7 +460,10 @@ internal/knowledge/note.go — IsBackground
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): Knowledge tab`
 
-## 13. Dependency view
+## 13. Dependency view — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): the dependency view's keys are intercepted in model.Update ahead of handleKey (keys.go untouched); a tab key closes the view and then switches tabs as before. The waits-on side lists the file's deps verbatim with graph.Resolve (dep list's depth-1 output); the blocks side walks issue.WalkDependents at depth 1. A side with no issue shows "none"; an issue with neither shows "<id> waits on no issue and blocks none."
+NOTES (2026-10-16): retry fix: with the view open, a key the dependency cursor does not take but the sidebar does (h l and the left and right arrows on the Issues tree) closes the view first and then moves the sidebar, so no issue's dependencies stay beside another's selection; covered by TestDepView_SidebarKey_ClosesTheViewBeforeMovingTheSelection.
 
 **What:**
 **Goal:** on the Issues and Ready tabs `d` swaps the detail pane to the selected issue's "waits on"

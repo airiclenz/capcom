@@ -52,11 +52,13 @@ type model struct {
 	detailOffset int
 
 	// ready is the Ready tab's queue and selection, issues the Issues tab's tree, knowledge the
-	// Knowledge tab's tree, and issue the issue or Note the detail pane shows.
+	// Knowledge tab's tree, issue the issue or Note the detail pane shows, and deps the dependency
+	// view that covers it while d has it open.
 	ready     readyTab
 	issues    issuesTab
 	knowledge knowledgeTab
 	issue     issueDetail
+	deps      depView
 }
 
 // newModel returns the model of a UI over options' store and index, opening on options.Tab and
@@ -122,13 +124,15 @@ func (m model) initialIDFor(tab Tab) string {
 }
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
-// Notes, the shown issue or Note and the painter's width measure, and handles the keys.
+// Notes, the shown issue or Note, the dependency view's read and the painter's width measure, and
+// handles the keys: the dependency view's first, then the model's own. While the dependency view
+// is open it keeps the detail pane over whatever else repaints it.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m = m.paintSidebar().renderDetail().scrollDetail(0)
+		m = m.paintSidebar().renderDetail().scrollDetail(0).paintDeps()
 	case lockMsg:
 		m.lockText = msg.text
 	case readyMsg:
@@ -138,14 +142,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case knowledgeMsg:
 		return m.applyKnowledge(msg)
 	case detailMsg:
-		m = m.applyDetail(msg)
+		m = m.applyDetail(msg).paintDeps()
+	case depsMsg:
+		m = m.applyDeps(msg)
 	case tea.ModeReportMsg:
 		m.markdownTheme.Measure = m.markdownTheme.Measure.Observe(msg)
 		// A new measure can wrap the shown issue differently, so its cached rendering goes.
 		m.issue.renderedWidth = 0
-		m = m.renderDetail()
+		m = m.renderDetail().paintDeps()
 	case tea.KeyPressMsg:
-		return m.handleKey(msg)
+		next, cmd, isTaken := m.depViewKey(msg)
+		if isTaken {
+			return next, cmd
+		}
+		return next.handleKey(msg)
 	}
 	return m, nil
 }
