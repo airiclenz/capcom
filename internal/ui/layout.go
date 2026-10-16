@@ -69,7 +69,7 @@ func (m model) sidebarWidth() int {
 
 // body draws the bodyHeight rows under the tab bar's rule: the help screen when it is open, the two
 // panes side by side on a wide terminal, and on a narrow one the sidebar or, once Enter opened
-// it or while the status picker is open, the detail pane. The detail pane ends in its scrollbar.
+// it or while the status picker is open, the detail pane. Each pane ends in its scrollbar.
 func (m model) body() []string {
 	height := m.bodyHeight()
 	switch {
@@ -79,18 +79,17 @@ func (m model) body() []string {
 		lines, offset := m.detailRows()
 		return m.scrolledPaneRows(lines, offset, height, m.detailWidth())
 	case m.isNarrow():
-		return paneRows(m.sidebarLines(), 0, height, m.width)
+		return m.sidebarRows(height)
 	}
 
-	sidebarWidth := m.sidebarWidth()
-	sidebar := paneRows(m.sidebarLines(), 0, height, sidebarWidth)
+	sidebar := m.sidebarRows(height)
 	lines, offset := m.detailRows()
 	detail := m.scrolledPaneRows(lines, offset, height, m.detailWidth())
 	margin := strings.Repeat(" ", dividerMargin)
 	divider := margin + m.theme.border.Render(paneSeparator) + margin
 	rows := make([]string, 0, height)
 	for row := range height {
-		rows = append(rows, pad(sidebar[row], sidebarWidth)+divider+detail[row])
+		rows = append(rows, sidebar[row]+divider+detail[row])
 	}
 	return rows
 }
@@ -117,6 +116,19 @@ func (m model) detailRows() ([]string, int) {
 		return m.picker.lines(m.theme.selectedRow), 0
 	}
 	return m.detail, m.detailOffset
+}
+
+// sidebarRows returns the sidebar pane's height rows, each its text cut and padded to
+// sidebarPaneWidth columns, then the scrollbar: the filter line on top while it is open, a blank
+// cell beside it, then the list, the bar beside it standing for the list's top row among its
+// total rows.
+func (m model) sidebarRows(height int) []string {
+	cells := make([]string, 0, height)
+	if m.isFilterOpen {
+		cells = append(cells, scrollBlankCell)
+	}
+	cells = append(cells, scrollbarCells(m.theme, m.sidebarTop, m.sidebarTotal, m.sidebarHeight())...)
+	return m.barredRows(m.sidebarLines(), cells[:min(len(cells), height)], m.sidebarPaneWidth())
 }
 
 // paneRows returns height rows of lines from offset on, each cut to width columns, blank rows
@@ -227,9 +239,4 @@ func (m model) pointAt(x, y int) panePoint {
 // fit cuts text to width columns, ending a cut line with an ellipsis.
 func fit(text string, width int) string {
 	return ansi.Truncate(text, max(width, 0), truncateTail)
-}
-
-// pad fills text with spaces to width columns; text already that wide is returned as is.
-func pad(text string, width int) string {
-	return text + strings.Repeat(" ", max(width-ansi.StringWidth(text), 0))
 }

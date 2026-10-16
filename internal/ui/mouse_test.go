@@ -405,3 +405,35 @@ func TestMouse_ClickOnTheScrollbarOrItsGutter_SelectsNothing(t *testing.T) {
 		})
 	}
 }
+
+func TestMouse_ClickOnTheSidebarsScrollbar_SelectsNothing(t *testing.T) {
+	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
+		m := newTestModel(t, newTestStore(t, readyFiles), size[0], size[1])
+		barColumn := m.sidebarPaneWidth() + scrollbarColumns - 1
+		for _, x := range []int{barColumn - 1, barColumn} {
+			t.Run(fmt.Sprintf("%dx%d column %d", size[0], size[1], x), func(t *testing.T) {
+				// Row 3 holds beta, the second entry.
+				clicked := press(t, m, click(x, 3))
+
+				if got, _ := clicked.readySelection(); got.ID != "alpha" {
+					t.Errorf("a click on the sidebar's scrollbar selected %q, want alpha as it was", got.ID)
+				}
+			})
+		}
+	}
+}
+
+func TestMouse_WheelOnTheSidebarsScrollbar_MovesTheSelection(t *testing.T) {
+	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
+		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, readyFiles), size[0], size[1])
+			barColumn := m.sidebarPaneWidth() + scrollbarColumns - 1
+
+			m = press(t, m, wheel(tea.MouseWheelDown, barColumn, 3))
+
+			if got, _ := m.readySelection(); got.ID != "beta" {
+				t.Errorf("a wheel on the sidebar's scrollbar selected %q, want beta", got.ID)
+			}
+		})
+	}
+}

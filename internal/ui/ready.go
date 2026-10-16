@@ -172,11 +172,9 @@ func (m model) paintReadySidebar() model {
 	}
 	switch {
 	case m.ready.err != nil:
-		m.sidebar = []string{readyFailurePrefix + m.ready.err.Error()}
-		return m
+		return m.withSidebar([]string{readyFailurePrefix + m.ready.err.Error()}, 0, 1)
 	case len(m.ready.entries) == 0:
-		m.sidebar = []string{m.emptySidebarText(TabReady, readyEmptyText)}
-		return m
+		return m.withSidebar([]string{m.emptySidebarText(TabReady, readyEmptyText)}, 0, 1)
 	}
 	height := max(m.sidebarHeight(), 1)
 	selected := m.ready.cursor.highlight(len(m.ready.entries))
@@ -191,8 +189,7 @@ func (m model) paintReadySidebar() model {
 		}
 		rows = append(rows, readyRow(entry, m.theme.status(entry.Category)))
 	}
-	m.sidebar = rows
-	return m
+	return m.withSidebar(rows, m.ready.top, len(m.ready.entries))
 }
 
 // readyRow is the sidebar row of one queued issue, as capcom ready prints it, its status painted

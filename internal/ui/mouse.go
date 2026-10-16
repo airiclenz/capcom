@@ -43,8 +43,12 @@ func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 }
 
 // clickSidebar selects the sidebar row under point and shows it, as the up and down keys do,
-// closing an open dependency view first. A click below the last row selects nothing.
+// closing an open dependency view first. A click below the last row, or on the scrollbar's gutter
+// or bar, selects nothing.
 func (m model) clickSidebar(point panePoint) (model, tea.Cmd) {
+	if point.col >= m.sidebarPaneWidth() {
+		return m, nil
+	}
 	switch m.tab {
 	case TabReady:
 		position := m.ready.top + point.row

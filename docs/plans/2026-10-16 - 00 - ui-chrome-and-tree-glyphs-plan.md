@@ -145,7 +145,14 @@ row's gutter or bar cell selects nothing; regenerate goldens (theme goldens keep
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): paint a scrollbar beside the detail pane`
 
-## 4. Scrollbar on the sidebar
+## 4. Scrollbar on the sidebar — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from the assumption that item 3's painter could take the sidebar's pre-sliced rows as is: `scrolledPaneRows` slices its lines at the bar's offset, so internal/ui/scrollbar.go splits out `barredRows(lines, cells, width)` (squaring rows in `m.markdownTheme.Measure`, then gutter and cell), which `scrolledPaneRows` and the new `sidebarRows` in layout.go both call; no second copy of the painter.
+NOTES (2026-10-16): top/total live on the model as `sidebarTop`/`sidebarTotal`, set with `sidebar` through one `withSidebar` helper in model.go; `treeWidget.paint` is unchanged (the paint sites read `tree.top` and `len(tree.rows)` after painting), so internal/ui/tree.go is not touched.
+NOTES (2026-10-16): internal/ui/keys.go (not in Files) — `openTab` assigns `m.sidebar = nil`; per the guard that every assignment sets the pair, it now calls `withSidebar(nil, 0, 0)`.
+NOTES (2026-10-16): `pad` in layout.go is deleted: its one caller, the split join, now takes the sidebar rows already squared by `barredRows`.
+NOTES (2026-10-16): the tab-switch test switches with `3` (Ready to an empty Knowledge tab) rather than Tab, since Tab from a long Ready list lands on an equally long Issues tree.
+NOTES (2026-10-16): the regenerated goldens differ only in four sidebar rows cut two columns earlier (`(2/2 clos…` becomes `(2/2 cl…`) and in trailing blanks (layout-80x24's narrow rows are now padded to the bar); theme goldens are unchanged since their lists fit. docs/design/tui.md and the manual's samples are left to item 6.
 
 Depends on item 3.
 

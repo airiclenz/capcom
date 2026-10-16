@@ -68,8 +68,11 @@ type model struct {
 	// the sidebar.
 	isDetailOpen bool
 	// sidebar and detail are the rows of the two panes, top to bottom; detailOffset is the first
-	// detail row on screen.
+	// detail row on screen. sidebar holds only the list's rows on screen: sidebarTop is the first
+	// of them and sidebarTotal all of the list's rows, which the sidebar's scrollbar stands for.
 	sidebar      []string
+	sidebarTop   int
+	sidebarTotal int
 	detail       []string
 	detailOffset int
 
@@ -294,6 +297,15 @@ func (m model) showSelection() (model, tea.Cmd) {
 // paintSidebar fills the sidebar with the open tab's rows.
 func (m model) paintSidebar() model {
 	return m.paintReadySidebar().paintIssuesSidebar().paintKnowledgeSidebar()
+}
+
+// withSidebar fills the sidebar with rows, the list's rows on screen from its row top on among
+// total rows, so the scrollbar never measures a list other than the one shown.
+func (m model) withSidebar(rows []string, top, total int) model {
+	m.sidebar = rows
+	m.sidebarTop = top
+	m.sidebarTotal = total
+	return m
 }
 
 // sidebarSelection returns the id of the issue or Note the open tab's sidebar selects, and false

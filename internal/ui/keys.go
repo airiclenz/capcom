@@ -161,7 +161,7 @@ func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	m.tab = tab
 	m.isDetailOpen = false
 	m.detailOffset = 0
-	m.sidebar = nil
+	m = m.withSidebar(nil, 0, 0)
 	m.detail = nil
 	m.issue = issueDetail{}
 	return m.showSelection()

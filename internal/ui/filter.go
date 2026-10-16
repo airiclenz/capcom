@@ -462,13 +462,13 @@ func (m model) sidebarHeight() int {
 	return m.bodyHeight()
 }
 
-// sidebarPaneWidth returns the columns of the sidebar pane: the whole screen on a narrow
-// terminal, its share of it otherwise.
+// sidebarPaneWidth returns the columns of the sidebar pane's text: the whole screen on a narrow
+// terminal, its share of it otherwise, either less the scrollbar's gutter and bar.
 func (m model) sidebarPaneWidth() int {
 	if m.isNarrow() {
-		return m.width
+		return max(m.width-scrollbarColumns, 0)
 	}
-	return m.sidebarWidth()
+	return max(m.sidebarWidth()-scrollbarColumns, 0)
 }
 
 // sidebarLines returns the rows the sidebar pane draws: its list, under the filter line while it

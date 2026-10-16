@@ -56,20 +56,26 @@ func scrollbarCells(th theme, offset, total, height int) []string {
 }
 
 // scrolledPaneRows returns height rows of lines from offset on, each cut and padded to width
-// columns, then the blank gutter and the row's scrollbar cell. The rows are squared in the
-// painter's measure, not the layout's, so the bar paints as one straight column even on rows
-// holding a grapheme the two measures disagree on; blank rows fill the pane below the last line.
+// columns, then the blank gutter and the row's scrollbar cell over all the lines.
 func (m model) scrolledPaneRows(lines []string, offset, height, width int) []string {
-	measure := m.markdownTheme.Measure
 	cells := scrollbarCells(m.theme, offset, len(lines), height)
+	return m.barredRows(lines[clampInt(offset, 0, len(lines)):], cells, width)
+}
+
+// barredRows returns one row per cell: the line on that row cut and padded to width columns, then
+// the blank gutter and the cell. The rows are squared in the painter's measure, not the layout's,
+// so the bar paints as one straight column even on rows holding a grapheme the two measures
+// disagree on; blank rows fill the pane below the last line.
+func (m model) barredRows(lines, cells []string, width int) []string {
+	measure := m.markdownTheme.Measure
 	gutter := strings.Repeat(" ", scrollbarGutter)
-	rows := make([]string, 0, height)
-	for row := range height {
+	rows := make([]string, 0, len(cells))
+	for row, cell := range cells {
 		line := ""
-		if offset+row < len(lines) {
-			line = lines[offset+row]
+		if row < len(lines) {
+			line = lines[row]
 		}
-		rows = append(rows, squareRow(measure, line, width)+gutter+cells[row])
+		rows = append(rows, squareRow(measure, line, width)+gutter+cell)
 	}
 	return rows
 }

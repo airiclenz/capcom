@@ -144,14 +144,12 @@ func (m model) paintIssuesSidebar() model {
 	}
 	switch {
 	case m.issues.err != nil:
-		m.sidebar = []string{issuesFailurePrefix + m.issues.err.Error()}
-		return m
+		return m.withSidebar([]string{issuesFailurePrefix + m.issues.err.Error()}, 0, 1)
 	case len(m.issues.tree.rows) == 0:
-		m.sidebar = []string{m.emptySidebarText(TabIssues, issuesEmptyText)}
-		return m
+		return m.withSidebar([]string{m.emptySidebarText(TabIssues, issuesEmptyText)}, 0, 1)
 	}
-	m.sidebar = m.issues.tree.paint(m.sidebarHeight(), m.theme, m.issueTreeRow)
-	return m
+	rows := m.issues.tree.paint(m.sidebarHeight(), m.theme, m.issueTreeRow)
+	return m.withSidebar(rows, m.issues.tree.top, len(m.issues.tree.rows))
 }
 
 // issueTreeRow is the text of one issue in the tree, as capcom list --tree prints it: `id  status
