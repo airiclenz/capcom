@@ -17,7 +17,8 @@ and finds no file, it writes one with every key present as a commented default, 
 documents itself without pinning any value. Every other command neither reads nor creates it:
 normal capcom use, by an agent or in CI, leaves nothing behind in the user's home. When the
 directory cannot be created or written, `capcom ui` warns in its status bar and runs on the
-defaults.
+defaults. Once the file exists `capcom ui` never rewrites it: what it remembers between runs, such
+as the sidebar width, goes in a machine-written `state.yaml` beside it (ADR 0014).
 
 **It is lenient where the store is strict.** One user file is read by every capcom binary on the
 machine, of whatever release each repository's agents run, so an unknown key is a warning in the

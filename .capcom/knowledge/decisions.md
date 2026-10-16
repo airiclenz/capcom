@@ -22,3 +22,4 @@ The records:
 - `adr-0011`: A per-user config holds personal settings, created only by capcom ui
 - `adr-0012`: The CLI and the UI share one write path in an ops package
 - `adr-0013`: capcom ui shows the Tree lock and asks before writing while another session holds it
+- `adr-0014`: capcom ui remembers its layout in a machine-written state.yaml beside the hand-owned config.yaml

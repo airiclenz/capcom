@@ -23,7 +23,8 @@ Read the relevant source before changing what it covers:
   `description` and `sidebar: { order: <n> }`, and no body H1. Pages link each other with
   relative `.md` links, use the glossary's terms and never pin a capcom version number.
 - `docs/site/reference/file-format.md`: the full reference for the files under `.capcom/`, and for
-  the per-user config of `capcom ui`, the one file capcom keeps outside the repository.
+  the two files `capcom ui` keeps outside the repository: its per-user config `config.yaml` and
+  its state file `state.yaml`.
 - `docs/site/reference/cli/`: the CLI reference, one page per command, generated from the command
   tree's help text and flags. Never edit it by hand: after changing a command, a flag or its help
   text, run `go run ./cmd/gendocs` and commit the result. `TestReferenceUpToDate` in

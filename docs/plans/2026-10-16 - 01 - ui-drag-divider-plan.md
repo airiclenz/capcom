@@ -208,7 +208,10 @@ docs/site/getting-started/terminal-ui.md — Keys, Mouse, Theme; docs/design/tui
 
 **Commit:** `docs(ui): document resizing the sidebar and the state file`
 
-## 7. Decision record ADR 0014 for the state file
+## 7. Decision record ADR 0014 for the state file — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): adr-0014-rejected carries the `background` label like adr-0013-rejected, so `capcom know tree adr-0014` lists only adr-0014-decision under it (`--background` shows both), matching adr-0013.
+NOTES (2026-10-16): file-format.md and tui.md still cite ADR 0014 as plain text (item 6's choice while the record did not exist); they could now link .capcom/knowledge/decisions/adr-0014.md as file-format.md links ADR 0011 — left unchanged as outside this item's Files.
 
 Depends on item 1.
 
