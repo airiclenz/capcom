@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -9,9 +10,11 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"gopkg.in/yaml.v3"
 
 	"github.com/airiclenz/capcom/internal/userconfig"
 )
@@ -107,6 +110,66 @@ func TestTheme_Presets_ColourEveryRole(t *testing.T) {
 			t.Errorf("preset %s colours %v, want every role of userconfig.Roles %v", name, got, want)
 		}
 	}
+}
+
+// schemeColour matches the one colour form a scheme file writes, "#rrggbb" in either case.
+var schemeColour = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+func TestTheme_SchemeFiles_ColourEveryRoleInHex(t *testing.T) {
+	want := slices.Clone(userconfig.Roles)
+	sort.Strings(want)
+	names, err := fs.Glob(schemeFiles, schemeFilesPattern)
+	if err != nil || len(names) == 0 {
+		t.Fatalf("Glob(%q) = %v, %v; want the embedded scheme files", schemeFilesPattern, names, err)
+	}
+
+	for _, name := range names {
+		content, err := fs.ReadFile(schemeFiles, name)
+		if err != nil {
+			t.Fatalf("ReadFile(%s): %v", name, err)
+		}
+		colors := map[string]string{}
+		if err := yaml.Unmarshal(content, &colors); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		got := make([]string, 0, len(colors))
+		for role, value := range colors {
+			got = append(got, role)
+			if !schemeColour.MatchString(value) {
+				t.Errorf("%s: %s is %q, want a \"#rrggbb\" colour", name, role, value)
+			}
+		}
+		sort.Strings(got)
+
+		if !slices.Equal(got, want) {
+			t.Errorf("%s names roles %v, want exactly userconfig.Roles %v", name, got, want)
+		}
+	}
+}
+
+func TestTheme_Presets_AreTheDarkAndLightSchemes(t *testing.T) {
+	got := make([]string, 0, len(presets))
+	for name := range presets {
+		got = append(got, name)
+	}
+	sort.Strings(got)
+
+	want := []string{userconfig.ThemeDark, userconfig.ThemeLight}
+	if !slices.Equal(got, want) {
+		t.Errorf("presets = %v, want %v", got, want)
+	}
+}
+
+func TestTheme_LoadSchemes_UndecodableFile_PanicsNamingIt(t *testing.T) {
+	files := fstest.MapFS{"schemes/broken.yaml": {Data: []byte("accent: [\n")}}
+	defer func() {
+		recovered := recover()
+		if message, isString := recovered.(string); !isString || !strings.Contains(message, "schemes/broken.yaml") {
+			t.Errorf("loadSchemes panicked with %v, want a message naming schemes/broken.yaml", recovered)
+		}
+	}()
+
+	loadSchemes(files)
 }
 
 func TestTheme_BackgroundColorMsg_PicksThePresetUnderAuto(t *testing.T) {

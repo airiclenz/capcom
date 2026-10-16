@@ -1,11 +1,17 @@
 package ui
 
 import (
+	"embed"
+	"fmt"
 	"image/color"
+	"io/fs"
+	"path"
+	"strings"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/ui/markdown"
@@ -25,37 +31,44 @@ const (
 	statusRolePrefix = "status-"
 )
 
+// schemeFiles holds the colour schemes, one YAML file per preset under schemes/, named after
+// the theme key that picks it: one quoted "#rrggbb" per role of userconfig.Roles.
+//
+//go:embed schemes/*.yaml
+var schemeFiles embed.FS
+
+// The scheme files' glob within schemeFiles and the extension a scheme's name drops.
+const (
+	schemeFilesPattern = "schemes/*.yaml"
+	schemeFileSuffix   = ".yaml"
+)
+
 // presets maps each preset a theme key names, auto aside, to its colour for every role of
 // userconfig.Roles, written as a user config file writes an override.
-var presets = map[string]map[string]string{
-	userconfig.ThemeDark: {
-		roleAccent:    "#bb9af7",
-		roleBorder:    "#565f89",
-		roleMuted:     "#737aa2",
-		roleLink:      "#7dcfff",
-		roleSelection: "#7aa2f7",
-		roleHeading:   "#e0af68",
-		roleCode:      "#9ece6a",
-		statusRolePrefix + string(config.CategoryTodo):    "#a9b1d6",
-		statusRolePrefix + string(config.CategoryDoing):   "#e0af68",
-		statusRolePrefix + string(config.CategoryWaiting): "#ff9e64",
-		statusRolePrefix + string(config.CategoryDone):    "#9ece6a",
-		statusRolePrefix + string(config.CategoryDropped): "#565f89",
-	},
-	userconfig.ThemeLight: {
-		roleAccent:    "#9854f1",
-		roleBorder:    "#a8aecb",
-		roleMuted:     "#6172b0",
-		roleLink:      "#007197",
-		roleSelection: "#2e7de9",
-		roleHeading:   "#8c6c3e",
-		roleCode:      "#587539",
-		statusRolePrefix + string(config.CategoryTodo):    "#3760bf",
-		statusRolePrefix + string(config.CategoryDoing):   "#8c6c3e",
-		statusRolePrefix + string(config.CategoryWaiting): "#b15c00",
-		statusRolePrefix + string(config.CategoryDone):    "#587539",
-		statusRolePrefix + string(config.CategoryDropped): "#a8aecb",
-	},
+var presets = loadSchemes(schemeFiles)
+
+// loadSchemes returns every scheme file of files that schemeFilesPattern matches, keyed by its
+// basename without the suffix. The files are compiled in, so one that cannot be read or decoded
+// is a defect of this program: loadSchemes panics naming it, and the theme tests decode every
+// embedded file so that never happens at start-up.
+func loadSchemes(files fs.FS) map[string]map[string]string {
+	names, err := fs.Glob(files, schemeFilesPattern)
+	if err != nil {
+		panic(fmt.Sprintf("%s: %v", schemeFilesPattern, err))
+	}
+	schemes := make(map[string]map[string]string, len(names))
+	for _, name := range names {
+		content, err := fs.ReadFile(files, name)
+		if err != nil {
+			panic(fmt.Sprintf("%s: %v", name, err))
+		}
+		colors := map[string]string{}
+		if err := yaml.Unmarshal(content, &colors); err != nil {
+			panic(fmt.Sprintf("%s: %v", name, err))
+		}
+		schemes[strings.TrimSuffix(path.Base(name), schemeFileSuffix)] = colors
+	}
+	return schemes
 }
 
 // palette maps a colour role to its colour. A role it lacks has no colour.

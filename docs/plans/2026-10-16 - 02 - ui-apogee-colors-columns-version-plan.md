@@ -42,7 +42,9 @@ reads `v<version> · capcom`.
 - 3 (re-check): guard folded (`drag-divider-120x30` golden; `knowledge.go` and `tree_test.go` in Files; the fill starts after the connector, yields to `docs/design/tui.md:51`; the Issues-row check as its own test; widened comment grep).
 - 4 (re-check): decided: column padding built on item 3's styled-segment row contract.
 
-## 1. Move the presets into embedded scheme files
+## 1. Move the presets into embedded scheme files — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): added TestTheme_LoadSchemes_UndecodableFile_PanicsNamingIt beside the two planned tests (loadSchemes takes an fs.FS so the panic-naming-the-file contract is pinned with an fstest.MapFS).
 
 **What:**
 **Goal:** the dark and light presets are read from `internal/ui/schemes/dark.yaml` and

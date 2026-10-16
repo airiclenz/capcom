@@ -206,6 +206,8 @@ ui:
 
 - `auto` (the default) asks the terminal for its background colour and picks the light or dark
   preset; until the terminal answers the background counts as dark.
+- The presets' colours live in `internal/ui/schemes/dark.yaml` and `light.yaml`, embedded in the
+  binary: one quoted `"#rrggbb"` per role.
 - Overrides name roles, not elements: `accent`, `border`, `muted`, `link`, `selection`, `heading`,
   `code`, and one per status category: `status-todo`, `status-doing`, `status-waiting`,
   `status-done`, `status-dropped`. A value is a quoted `"#rgb"`/`"#rrggbb"` or a number 0-255.
