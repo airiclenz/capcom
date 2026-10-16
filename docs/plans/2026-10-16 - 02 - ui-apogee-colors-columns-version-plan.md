@@ -75,7 +75,7 @@ exactly the dark and light schemes.
 - `go vet ./internal/ui/`
 **Commit:** `refactor(ui): read the colour presets from embedded scheme files`
 
-## 2. Draw the presets in apogee's colours
+## 2. Draw the presets in apogee's colours — ✅ DONE (2026-10-16)
 
 **What:**
 **Goal:** `dark.yaml` and `light.yaml` hold apogee's colours by the header's mapping, so each

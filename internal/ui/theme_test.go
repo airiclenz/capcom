@@ -13,6 +13,7 @@ import (
 	"testing/fstest"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"gopkg.in/yaml.v3"
 
@@ -157,6 +158,34 @@ func TestTheme_Presets_AreTheDarkAndLightSchemes(t *testing.T) {
 	want := []string{userconfig.ThemeDark, userconfig.ThemeLight}
 	if !slices.Equal(got, want) {
 		t.Errorf("presets = %v, want %v", got, want)
+	}
+}
+
+func TestTheme_Presets_DrawInApogeesColours(t *testing.T) {
+	testCases := []struct {
+		theme string
+		role  string
+		want  string
+	}{
+		{theme: userconfig.ThemeDark, role: roleAccent, want: "#c396ff"},
+		{theme: userconfig.ThemeDark, role: roleSelection, want: "#3a5fcd"},
+		{theme: userconfig.ThemeDark, role: "status-doing", want: "#58a6ff"},
+		{theme: userconfig.ThemeDark, role: "status-done", want: "#43d389"},
+		{theme: userconfig.ThemeLight, role: roleAccent, want: "#8250df"},
+		{theme: userconfig.ThemeLight, role: roleSelection, want: "#b3d1ff"},
+		{theme: userconfig.ThemeLight, role: "status-doing", want: "#0969da"},
+		{theme: userconfig.ThemeLight, role: "status-done", want: "#115e59"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.theme+"/"+testCase.role, func(t *testing.T) {
+			colors := newPalette(userconfig.UI{Theme: testCase.theme}, false, false)
+
+			gotR, gotG, gotB, gotA := colors.of(testCase.role).RGBA()
+			wantR, wantG, wantB, wantA := lipgloss.Color(testCase.want).RGBA()
+			if gotR != wantR || gotG != wantG || gotB != wantB || gotA != wantA {
+				t.Errorf("theme %s %s = %v, want %s", testCase.theme, testCase.role, colors.of(testCase.role), testCase.want)
+			}
+		})
 	}
 }
 

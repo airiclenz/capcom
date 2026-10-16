@@ -5,18 +5,22 @@
 # dark picks it, and theme auto picks it over a dark background. To change a colour, override
 # its role under ui.colors in the user config file rather than editing this file.
 #
+# The colours are apogee's, taken from apogee's "dark" scheme file
+# (apogee/internal/scheme/schemes/dark.yaml): each line's comment names the apogee role
+# its colour comes from.
+#
 # Every role has exactly one key here, none missing and none extra. Values are quoted "#rrggbb"
 # hex — the quotes matter, because an unquoted # starts a YAML comment.
 
-accent: "#bb9af7"         # the open tab, the dragged divider, the filter and prompt cursor
-border: "#565f89"         # the frame, the tree connectors, the scrollbar track, rules in bodies
-muted: "#737aa2"          # the key hints, rows shown only to place another, the scrollbar thumb, quotes
-link: "#7dcfff"           # links in issue and Note bodies
-selection: "#7aa2f7"      # the selected row of a list
-heading: "#e0af68"        # headings in issue and Note bodies
-code: "#9ece6a"           # inline code and code blocks
-status-todo: "#a9b1d6"    # every status of the todo category
-status-doing: "#e0af68"   # every status of the doing category
-status-waiting: "#ff9e64" # every status of the waiting category
-status-done: "#9ece6a"    # every status of the done category
-status-dropped: "#565f89" # every status of the dropped category
+accent: "#c396ff"         # apogee gauge: the open tab, the dragged divider, the filter and prompt cursor
+border: "#4a4a4a"         # apogee chrome: the frame, the tree connectors, the scrollbar track, rules in bodies
+muted: "#8a8a8a"          # apogee muted: the key hints, rows shown only to place another, the scrollbar thumb, quotes
+link: "#40b0ff"           # apogee skill: links in issue and Note bodies
+selection: "#3a5fcd"      # apogee selection: the selected row of a list
+heading: "#aea580"        # apogee tool-header: headings in issue and Note bodies
+code: "#70BBFF"           # apogee code: inline code and code blocks
+status-todo: "#b2b2b2"    # apogee muted-bright: every status of the todo category
+status-doing: "#58a6ff"   # apogee mode-allow-edits: every status of the doing category
+status-waiting: "#f0883e" # apogee mode-auto: every status of the waiting category
+status-done: "#43d389"    # apogee success: every status of the done category
+status-dropped: "#4a4a4a" # apogee chrome: every status of the dropped category
