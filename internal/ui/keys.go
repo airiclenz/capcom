@@ -28,7 +28,8 @@ const (
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
 // the narrow detail view, open the help screen, and scroll the detail pane: the page keys from
 // anywhere, the arrows and j k only where the detail pane fills a narrow screen. Everywhere else
-// the up and down arrows and j k move the sidebar's selection.
+// the up and down arrows and j k move the sidebar's selection, and on a tree the left and right
+// arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	key := msg.String()
 	if key == keyQuit || key == keyInterrupt {
@@ -63,12 +64,23 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 // to scrollForKey when the sidebar does not take it.
 func (m model) sidebarOrScrollKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	isSidebarShown := !m.isNarrow() || !m.isDetailOpen
-	if isSidebarShown && m.tab == TabReady {
-		if next, cmd, isTaken := m.readyKey(msg); isTaken {
+	if isSidebarShown {
+		if next, cmd, isTaken := m.sidebarKey(msg); isTaken {
 			return next, cmd
 		}
 	}
 	return m.scrollForKey(msg.String()), nil
+}
+
+// sidebarKey gives a key to the open tab's sidebar, and reports false when it does not take it.
+func (m model) sidebarKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
+	switch m.tab {
+	case TabReady:
+		return m.readyKey(msg)
+	case TabIssues:
+		return m.issuesKey(msg)
+	}
+	return m, nil, false
 }
 
 // scrollForKey scrolls the detail pane for a scroll key: a page or half a page for the page keys,
@@ -119,7 +131,8 @@ func halfPage(page int) int {
 }
 
 // openTab switches to tab, back on its sidebar with the detail pane at its top, and returns the
-// command that loads the tab's selection into the detail pane.
+// command that loads the tab's selection into the detail pane. Each tab keeps its own selection,
+// and the Issues tree its expanded nodes, across the switch.
 func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	m.tab = tab
 	m.isDetailOpen = false
@@ -127,7 +140,7 @@ func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	m.sidebar = nil
 	m.detail = nil
 	m.issue = issueDetail{}
-	return m.showReadySelection()
+	return m.showSelection()
 }
 
 // scrollNarrowDetail scrolls the detail pane by rows when it fills a narrow screen, and leaves

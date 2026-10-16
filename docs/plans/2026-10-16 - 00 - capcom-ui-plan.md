@@ -403,7 +403,15 @@ an unparsable issue file shows its path and error in the detail pane.
 - `GOMEMLIMIT=2GiB go test ./internal/ui/`
 **Commit:** `feat(ui): Ready tab with the issue detail pane`
 
-## 11. Tree widget and Issues tab
+## 11. Tree widget and Issues tab — ✅ DONE (2026-10-16)
+
+NOTES (2026-10-16): re-derived from "model.go holds the key routing and the detail apply" — item 7/10 put them in internal/ui/keys.go (sidebarOrScrollKey, openTab) and internal/ui/detail.go (applyDetail), so the tab dispatch lands there: new model.showSelection / paintSidebar / sidebarSelection (model.go) and sidebarKey (keys.go); applyDetail now checks the open tab's selection instead of the Ready queue's only.
+NOTES (2026-10-16): consequential edit — internal/ui/ready.go: made necessary by capcom ui issues reusing selectFailureFormat (its comment named only capcom ui ready).
+NOTES (2026-10-16): progress is counted in internal/ui/issues.go (closed/total over outline.Tree.Children), since internal/ui cannot import internal/cli's progressOf; the row text reuses readyRow's `id  status  P<n>  title`, the format issueLines prints.
+NOTES (2026-10-16): reveal rule as implemented: a revealed hidden node shows muted with no arrow and no children of its own (l does nothing on it); hidden ancestors on its path show muted, expanded only along the path; moving onto a muted ancestor makes it the revealed node, and moving onto a shown node drops the reveal at once (the rebuild keeps the selection on the same node).
+NOTES (2026-10-16): unspecified edges filled: an empty outline shows "No open issues."; a read failure shows `issues: <error>`; an id that resolves but is not in the tree reports `<id> is not in the issue tree`; Init now loads the Issues tree alongside the Ready queue on every start.
+NOTES (2026-10-16): the parent-whose-children-are-all-closed golden is drawn at 150x30 so its `(2/2 closed)` is not cut by the 40-column sidebar of a 120-column terminal.
+NOTES (2026-10-16): internal/ui now has 17 non-test files with its package map still in ui.go's package doc only; a doc.go file map with a structural test may be due (coding-standards), not added here.
 
 **What:**
 **Goal:** the Issues tab shows the `capcom list --tree` outline (same nodes, same order, closed issues

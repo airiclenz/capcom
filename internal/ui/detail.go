@@ -153,8 +153,8 @@ func codeSpan(id string) string {
 // applyDetail takes in a read of an issue for the detail pane, unless the selection has moved on
 // since it was asked for, and shows it from its top.
 func (m model) applyDetail(msg detailMsg) model {
-	selected, isSelected := m.readySelection()
-	if m.tab != TabReady || !isSelected || selected.ID != msg.id {
+	selected, isSelected := m.sidebarSelection()
+	if !isSelected || selected.ID != msg.id {
 		return m
 	}
 	m.issue = issueDetail{id: msg.id, source: msg.source, etag: msg.etag, ids: msg.ids}

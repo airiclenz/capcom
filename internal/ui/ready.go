@@ -20,7 +20,8 @@ const (
 	readyFailurePrefix = "ready: "
 	// notInReadyFormat is the notice for an id capcom ui ready names that the queue does not hold.
 	notInReadyFormat = "%s is not in the Ready queue"
-	// selectFailureFormat is the notice for an id capcom ui ready names that resolves to no issue.
+	// selectFailureFormat is the notice for an id capcom ui ready or issues names that resolves to
+	// no issue.
 	selectFailureFormat = "select %s: %v"
 )
 
