@@ -1,10 +1,12 @@
 ---
 title: capcom ui reopens on the last tab and selection, per worktree
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-17 - 00 - ui-remember-tab-plan
 created: 2026-10-17T14:20:34Z
+closed: 2026-10-17T15:08:08Z
+reason: Resolved by plan 2026-10-17 - 00 - ui-remember-tab-plan (archived in 700744b)
 ---
 
 `capcom ui` with no argument always opens on the Ready tab with the first row selected, so a
