@@ -208,7 +208,9 @@ Depends on item 1.
 - `GOMEMLIMIT=2GiB go test ./internal/cli/ -run Check`
 **Commit:** `feat(check): report a standing Issue that is closed or doing`
 
-## 10. The managed block tells agents never to claim a standing Issue
+## 10. The managed block tells agents never to claim a standing Issue — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): internal/cli/agents_test.go needed no change: the agents tests pass unchanged, as the item's Tests line expects. The quoted block in docs/site/agents/managed-block.md now lacks the new paragraph; item 11 (not yet done) owns that page and resyncs it.
 
 **What:**
 **Goal:** the managed block capcom writes into agent guides says a standing Issue only groups children and is never claimed or closed; this repo's `AGENTS.md` block matches the template, so `capcom check` is clean.
