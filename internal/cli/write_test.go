@@ -950,6 +950,19 @@ func TestUpdate_StandingThenNoStanding_SetsAndClearsTheMark(t *testing.T) {
 	}
 }
 
+func TestUpdate_NoStandingFalse_LeavesTheMarkAlone(t *testing.T) {
+	root := newStandingStore(t)
+
+	mustRun(t, root, "update", "login-flow", "--no-standing=false")
+	mustRun(t, root, "update", "feature-requests", "--no-standing=false")
+
+	unmarked := readStoreFile(t, root, "login-flow.md")
+	marked := readStoreFile(t, root, "feature-requests.md")
+	if strings.Contains(unmarked, "standing:") || !strings.Contains(marked, standingLine) {
+		t.Errorf("unmarked = %q\nmarked = %q, want both marks unchanged", unmarked, marked)
+	}
+}
+
 func TestUpdate_StandingAndNoStandingTogether_ExitsUsage(t *testing.T) {
 	root := newStandingStore(t)
 	before := readStoreFile(t, root, "feature-requests.md")

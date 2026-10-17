@@ -1,9 +1,11 @@
 ---
 title: update --no-standing=false sets the standing mark
-status: open
+status: done
 type: bug
 priority: 2
 created: 2026-10-17T20:40:56Z
+closed: 2026-10-17T20:54:40Z
+reason: update --no-standing=false now leaves the standing mark alone; covered by TestUpdate_NoStandingFalse_LeavesTheMarkAlone
 ---
 
 `capcom update <id> --no-standing=false` sets the standing mark instead of leaving it alone.

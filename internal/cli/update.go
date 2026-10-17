@@ -169,14 +169,14 @@ func (a *app) applyUpdate(
 }
 
 // standingChange returns the standing mark --standing or --no-standing sets, and whether either
-// was given; the two are mutually exclusive.
+// changes it; the two are mutually exclusive. --no-standing=false changes nothing.
 func standingChange(cmd *cobra.Command, options *updateOptions) (isStanding bool, isChanged bool) {
 	flags := cmd.Flags()
 	switch {
 	case flags.Changed(flagStanding):
 		return options.isStanding, true
-	case flags.Changed(flagNoStanding):
-		return !options.isNotStanding, true
+	case flags.Changed(flagNoStanding) && options.isNotStanding:
+		return false, true
 	}
 	return false, false
 }
