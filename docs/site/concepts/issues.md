@@ -57,6 +57,27 @@ Parent; there is no separate kind of Issue for grouping work, so a large piece o
 an Issue whose children are its steps. A Parent is not Ready while any of its children is open,
 so closing the children is what brings the Parent itself up in `capcom ready`.
 
+### Standing Parent
+
+Some Parents are never the work themselves: a bucket of feature requests, a list of known bugs.
+Mark such an Issue a **Standing Parent** with `capcom create --standing` or
+`capcom update <id> --standing`, which write `standing: true` into its file. A Standing Parent is
+never Ready, even with every child closed, and while it is marked it is never claimed or closed:
+a status in the `doing` category and `capcom close` are refused, naming the way out:
+
+```console
+$ capcom update feature-requests --status active
+capcom: .capcom/issues/feature-requests.md: the issue is standing: it only groups its children and is never claimed or closed; run capcom update feature-requests --no-standing first
+```
+
+`capcom update <id> --no-standing` clears the mark, and is applied before `--status`, so
+`capcom update <id> --no-standing --status active` clears it and claims the Issue in one call. An
+Issue that is Closed or in the `doing` category cannot be marked. `capcom show` prints a
+`standing: true` line for a marked Issue, `capcom ready --all` lists it as held back by
+`standing: holds children`, and `capcom check` reports a Standing Parent whose Status was moved
+into the `doing` category or a closed one by hand. The `standing` key needs store format 5 (see
+[Fields](../reference/file-format.md#fields)).
+
 ## Id
 
 Every Issue has an **Id**: a short, permanent, human-meaningful name that says in a few words what
@@ -130,7 +151,8 @@ An Issue is **Ready** when all of these hold:
 - its Status is in the `todo` category;
 - every Issue it depends on is Closed;
 - none of its children is open;
-- none of its ancestors is in the `waiting` or `dropped` category.
+- none of its ancestors is in the `waiting` or `dropped` category;
+- it is not a [Standing Parent](#standing-parent).
 
 `capcom ready` lists the Ready Issues, most urgent first; `capcom ready --all` adds the `todo`
 Issues that are not Ready, each with what holds it back:

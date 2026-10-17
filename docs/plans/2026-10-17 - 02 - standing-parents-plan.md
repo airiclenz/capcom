@@ -225,7 +225,11 @@ NOTES (2026-10-17): internal/cli/agents_test.go needed no change: the agents tes
 - `go run ./cmd/capcom check`
 **Commit:** `feat(agents): tell agents that standing Issues are never claimed`
 
-## 11. Glossary, Knowledge and manual
+## 11. Glossary, Knowledge and manual — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): glossary-structure.md lists no children, so it needed no entry for the new Standing Parent Note and is not in FILES.
+NOTES (2026-10-17): go run ./cmd/gendocs left docs/site/reference/cli/ unchanged: items 5–7 already regenerated it, and TestReferenceUpToDate passes.
+NOTES (2026-10-17): json-output.md names the Issue-carrying commands as show, list, ready, prime and dep list (search does not use issueData, so it carries no standing member).
 
 Depends on items 5, 6, 7, 9 and 10.
 

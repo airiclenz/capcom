@@ -31,7 +31,9 @@ Section by section:
 - **`ready, planned` and `ready, unplanned`**: the [Ready](../concepts/issues.md#ready) Issues,
   split into those linked to a plan document (their `plan:` field is set) and those without one,
   each in the order `capcom ready` uses and capped at 15. A planned Issue usually has its how and
-  its order written down already, so it is often the better place to start.
+  its order written down already, so it is often the better place to start. A
+  [Standing Parent](../concepts/issues.md#standing-parent) is never listed: it only groups its
+  children, so never claim or close it; its open children are listed when they are Ready.
 - **`doing`**: the Issues in the `doing` Status category: work someone has claimed. Check it before
   starting something new, so as not to pick up an Issue another session is on.
 - **`locks`**: the [Tree locks](../concepts/tree-locks.md) held in every worktree of the clone, with
@@ -56,7 +58,8 @@ Section by section:
   no longer resolve, each as `path:line: ref "<ref>": <why>`. Those Notes are suspect: read them
   with care, and fix them when the work touches them.
 - **`check`**: the number of problems `capcom check` finds. Anything other than `no problems` is
-  worth a `capcom check` before going further.
+  worth a `capcom check` before going further. A Standing Parent whose status was moved into the
+  `doing` category or a closed one by hand is one of them.
 - **`elsewhere`**: [Issue changes on other branches](../concepts/branches-and-merging.md#elsewhere)
   that this one has not merged, here an Issue claimed on `rate-limit-work`.
 

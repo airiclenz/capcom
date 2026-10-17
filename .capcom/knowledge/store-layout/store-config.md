@@ -19,7 +19,8 @@ refs: [docs/site/reference/file-format.md, internal/config/config.go#FormatVersi
   reach its Managed block; `[]` turns the rule off. The key needs format 4.
 - `format`: the store format version, a missing key meaning 1 (ADR 0009). A binary refuses a store
   whose format is newer than it reads (`prime` only warns), and any new key in an issue, a Note or
-  `config.yaml` raises the format by one. The highest format this capcom reads is `FormatVersion`.
+  `config.yaml` raises the format by one; format 5 added the issue key `standing`, so `init` writes
+  `format: 5`. The highest format this capcom reads is `FormatVersion`.
 
 `docs/site/reference/file-format.md` `## Config` is the reference: the file `init` writes, the
 allowed values and the format raises.

@@ -137,6 +137,7 @@ The refresh path and the timeout path both clear the session.
 | `deps`     | A list of the ids of the issues this one depends on.                        | no                          |
 | `related`  | A list of the ids of the issues this one is related to, without depending on them (format 2). | no      |
 | `plan`     | The basename of a Plan document, resolved against the config's `plans` directories. An issue with a plan is Planned. | no |
+| `standing` | `true` or `false`: whether the issue is a Standing Parent that only groups its children (format 5). | no |
 | `aliases`  | A list of the issue's former ids.                                           | no                          |
 | `created`  | When the issue was created: an RFC3339 timestamp.                           | yes                         |
 | `closed`   | When the issue was last closed: an RFC3339 timestamp.                       | when Closed                 |
@@ -145,6 +146,18 @@ The refresh path and the timeout path both clear the session.
 An issue is **Closed** when its status is in the `done` or `dropped` category; a Closed issue
 needs both `closed` and `reason`. Any other key is an error, including `id` (the id is the file
 name) and `updated` (git and the index know when a file changed).
+
+An issue with `standing: true` is a **Standing Parent**
+([Issues](../concepts/issues.md#standing-parent)): it is never Ready, and while it carries the
+mark a close and a move into the `doing` category are refused: `capcom close` and
+`capcom update --status` fail with `the issue is standing: it only groups its children and is
+never claimed or closed; run capcom update <id> --no-standing first`, and `capcom ui` shows the
+same refusal as a notice. `capcom create --standing` and `capcom update --standing` write the key
+and refuse an issue that is Closed or in the `doing` category; `capcom update --no-standing`
+removes it, before any `--status` of the same call. In a store below format 5, a write that leaves
+a `standing` line in the issue file raises `config.yaml` to `format: 5` (see Config). `capcom check` reports a standing issue whose status is in the
+`doing` category or a closed one (`standing`), and a `standing` key in a store declaring a format
+below 5 (`format-too-old`), at the `standing` line, whatever it holds: `standing: false` included.
 
 The body is free markdown. By convention it holds an `## Acceptance` section and a `## Log`
 section, the dated, append-only record of progress and remarks.
@@ -272,7 +285,8 @@ capcom writes every issue file in one canonical form, and reading a canonical fi
 back yields the same bytes, so a write only changes what it means to change:
 
 - the keys in the order of the table above;
-- empty fields left out, except `priority`, which is always written (0 is a value, not a gap);
+- empty fields and a false `standing` left out, except `priority`, which is always written (0 is
+  a value, not a gap);
 - lists in flow style on one line: `labels: [a, b]`;
 - timestamps in RFC3339, UTC, to the second: `2026-10-11T09:30:00Z`;
 - text unquoted wherever YAML reads it back unchanged, and in double quotes otherwise (a value
@@ -545,7 +559,7 @@ which reports it as one `warning: store:` line and exits 0.
 
 ```yaml
 # The store format version. capcom refuses a store whose format is newer than it reads.
-format: 4
+format: 5
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
@@ -586,8 +600,9 @@ elsewhere:
   except `capcom prime`, which reports it as one `warning: store:` line and exits 0. Unknown keys
   stay errors, and any new key in an issue, a Note or this file raises the format. Format 2 adds
   the `related` key to issue files; format 3 adds the Note keys `retired` and `superseded-by`;
-  format 4 adds the `agents.guides` key to `config.yaml`.
-  `capcom init` writes `format: 4` into a store it creates; into an existing store without
+  format 4 adds the `agents.guides` key to `config.yaml`; format 5 adds the `standing` key to
+  issue files.
+  `capcom init` writes `format: 5` into a store it creates; into an existing store without
   `config.yaml` it writes the same file with the `format:` line left as the commented
   `# format: 1`, so the store stays at format 1. A key line needs its format whatever it holds,
   an empty list or `retired: false` included, because a release older than the key rejects the
@@ -596,8 +611,8 @@ elsewhere:
   line raises a store below format 2 to `format: 2`, replacing the `format:` line, or the
   format-1 template's commented `# format: 1` line, keeping every other byte, and creating
   `config.yaml` holding only that line when the store has none; a `retired` or `superseded-by`
-  line raises a store below format 3 to `format: 3` the same way (see Related links and
-  Supersession). Each raise warns that capcom releases reading only the older format can no
+  line raises a store below format 3 to `format: 3` the same way, and a `standing` line a store
+  below format 5 to `format: 5` (see Related links, Fields and Supersession). Each raise warns that capcom releases reading only the older format can no
   longer read the store. `capcom mv`, `rm`, `know mv`, `know rm` and `fmt` never raise it;
   `capcom check` reports the key line instead. Nothing raises it for `config.yaml`'s own keys:
   an `agents` key in a store declaring a format below 4 is an error at its line naming

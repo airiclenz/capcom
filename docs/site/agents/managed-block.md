@@ -8,7 +8,8 @@ sidebar: { order: 3 }
 session starts. capcom owns one marked section of it, the **Managed block**: a pointer to capcom,
 the work loop as commands in the order an agent runs them (find an issue, read it, claim it with
 the repository's doing status, log progress, close it, reopen it), a few more core commands, a
-pointer to each command's `--help`, a map of the store, a recommendation to take the
+pointer to each command's `--help`, a map of the store, a warning never to claim or close a
+[Standing Parent](../concepts/issues.md#standing-parent), a recommendation to take the
 [Tree lock](../concepts/tree-locks.md) before an extensive change, and the top level of the
 [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is your own hand-written
 guide, and capcom never touches it.
@@ -63,6 +64,8 @@ readable on its own; a plan says how and in what order.
 Where things are: an issue is `.capcom/issues/<id>.md`, and its children sit in the directory
 `.capcom/issues/<id>/` beside it; Notes follow the same shape under `.capcom/knowledge/`.
 Prefer capcom commands; after a hand edit run `capcom check`.
+
+A standing issue (`standing: true` in its file) only groups its children: never claim or close it.
 
 Tree lock: before a change that spans several files or commits, it is recommended to claim this
 worktree with `capcom lock acquire --purpose <text>` and keep the token it prints.

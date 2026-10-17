@@ -26,6 +26,10 @@ $ capcom show session-refresh --json
 | `elsewhere` | yes | [Issue changes on other branches](../concepts/branches-and-merging.md#elsewhere), `[]` when there are none or the command does not scan. |
 | `warnings` | yes | Warning messages, `[]` when there are none. |
 
+An Issue in `data` (`show`, `list`, `ready`, `prime`, `dep list`) carries `"standing": true` when
+it is a [Standing Parent](../concepts/issues.md#standing-parent); the member is left out otherwise.
+Such an Issue always has `"ready": false`, and its `standing` member is what holds it back.
+
 `--json` is a global flag, so it may stand before or after the command name.
 
 ### Versioning
@@ -64,6 +68,13 @@ A command that fails on part of its work keeps its own `kind` and sets both `dat
 ```console
 $ capcom close nosuch --reason x --json
 {"schema":1,"kind":"close","data":[{"id":"nosuch","outcome":"not_found","now_ready":[]}],"error":{"code":"not_found","message":"id \"nosuch\" not found"},"elsewhere":[],"warnings":[]}
+```
+
+A refusal of a status rule is `invalid`; closing or claiming a Standing Parent, say:
+
+```console
+$ capcom update feature-requests --status active --json
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"the issue is standing: it only groups its children and is never claimed or closed; run capcom update feature-requests --no-standing first","path":".capcom/issues/feature-requests.md"},"elsewhere":[],"warnings":[]}
 ```
 
 `code` is one of a closed set:
