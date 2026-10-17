@@ -248,3 +248,47 @@ func TestReadyList_Unblocks_MatchNewlyReady(t *testing.T) {
 		}
 	}
 }
+
+func TestReadyList_Standing_NeverReadyNorUnblocked(t *testing.T) {
+	t.Parallel()
+	x, cfg := indexIssueFiles(t, map[string]string{
+		"bare-task.md":            readyIssue("open", 2, "standing: true\n"),
+		"epic-task.md":            readyIssue("open", 2, "standing: true\n"),
+		"epic-task/child-task.md": readyIssue("open", 2, ""),
+	})
+	cases := []struct {
+		name    string
+		options ReadyOptions
+		want    []string
+	}{
+		{name: "default", options: ReadyOptions{}, want: []string{"child-task"}},
+		{
+			name:    "not ready included",
+			options: ReadyOptions{IsNotReadyIncluded: true},
+			want:    []string{"bare-task", "epic-task", "child-task"},
+		},
+		{
+			name:    "not ready and hidden included",
+			options: ReadyOptions{IsNotReadyIncluded: true, IsHiddenIncluded: true},
+			want:    []string{"bare-task", "epic-task", "child-task"},
+		},
+	}
+
+	for _, current := range cases {
+		got, err := ReadyList(x, cfg, current.options)
+
+		if err != nil || !slices.Equal(itemIDs(got), current.want) {
+			t.Errorf("%s: ReadyList = %v, %v; want %v", current.name, itemIDs(got), err, current.want)
+		}
+		for _, item := range got {
+			isStanding := item.Entry.ID != "child-task"
+			if item.Readiness.IsStanding != isStanding || item.Readiness.IsReady == isStanding {
+				t.Errorf("%s: %s readiness = %+v, want standing %v", current.name, item.Entry.ID,
+					item.Readiness, isStanding)
+			}
+			if len(item.Unblocks) != 0 {
+				t.Errorf("%s: %s Unblocks = %v, want none", current.name, item.Entry.ID, item.Unblocks)
+			}
+		}
+	}
+}

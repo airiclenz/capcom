@@ -40,6 +40,9 @@ type Readiness struct {
 	ID string
 	// IsReady is true when nothing below keeps the issue back.
 	IsReady bool
+	// IsStanding is true when the issue carries the standing mark, which keeps it from being
+	// Ready whatever its dependencies and children.
+	IsStanding bool
 	// IsHidden is true when the issue carries a label the config's ready.hide lists; it says
 	// nothing about readiness.
 	IsHidden bool
@@ -55,8 +58,9 @@ type Readiness struct {
 }
 
 // Ready judges every node in the todo category against the ready rules and returns one Readiness
-// per such node, in node order. An issue is Ready when every dependency is done or dropped, no
-// direct child is open (not Closed) and no ancestor is waiting or dropped. A dependency resolves
+// per such node, in node order. An issue is Ready when it is not standing, every dependency is
+// done or dropped, no direct child is open (not Closed) and no ancestor is waiting or dropped; a
+// standing Issue's children are judged by the same rules as any other. A dependency resolves
 // by exact id, then by Alias (ADR 0002), never by prefix; one that resolves to nothing, or to an
 // alias several issues claim, blocks with reason BlockMissing. Only categories are read (ADR 0003).
 func Ready(nodes []Node, cfg config.Config) []Readiness {
@@ -68,12 +72,14 @@ func Ready(nodes []Node, cfg config.Config) []Readiness {
 		}
 		verdict := Readiness{
 			ID:           node.ID,
+			IsStanding:   node.IsStanding,
 			IsHidden:     hasAny(node.Labels, cfg.Ready.Hide),
 			OpenChildren: tree.openChildren[node.ID],
 			HeldBy:       tree.holdingAncestor(node),
 		}
 		verdict.Blocking, verdict.DroppedDeps = tree.judgeDeps(node.Deps)
-		verdict.IsReady = len(verdict.Blocking) == 0 && len(verdict.OpenChildren) == 0 && verdict.HeldBy == ""
+		verdict.IsReady = !verdict.IsStanding && len(verdict.Blocking) == 0 &&
+			len(verdict.OpenChildren) == 0 && verdict.HeldBy == ""
 		verdicts = append(verdicts, verdict)
 	}
 	return verdicts

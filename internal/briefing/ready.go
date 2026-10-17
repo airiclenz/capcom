@@ -92,13 +92,14 @@ func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]Ready
 // unblocksByCloser maps the id of each issue to the ids of the todo issues that become Ready when
 // it alone is closed as done, in the order of verdicts. It re-judges from the verdicts alone: a
 // close as done can only satisfy dependencies on the closed issue and remove it from its parent's
-// open children, never lift a hold, so a todo issue that is not Ready becomes Ready exactly when
-// no ancestor holds it and every dependency that blocks it and every open child is that one
-// issue. A ready.hide label leaves an issue out, as issue.NewlyReady does.
+// open children, never lift a hold or a standing mark, so a todo issue that is not Ready becomes
+// Ready exactly when it is not standing, no ancestor holds it and every dependency that blocks it
+// and every open child is that one issue. A ready.hide label leaves an issue out, as
+// issue.NewlyReady does.
 func unblocksByCloser(verdicts []issue.Readiness, graph issue.DepGraph) map[string][]string {
 	unblocks := map[string][]string{}
 	for _, verdict := range verdicts {
-		if verdict.IsReady || verdict.IsHidden || verdict.HeldBy != "" {
+		if verdict.IsReady || verdict.IsStanding || verdict.IsHidden || verdict.HeldBy != "" {
 			continue
 		}
 		if closer, isSole := soleCloser(verdict, graph); isSole {

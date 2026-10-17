@@ -75,6 +75,16 @@ func TestNewlyReady_Closing_ReturnsTheIssuesItReadies(t *testing.T) {
 			want:   []string{"epic"},
 		},
 		{
+			name: "last open child closed leaves a standing parent out",
+			nodes: []issue.Node{
+				standingNode("epic"),
+				childNode("first", "epic", config.CategoryDone),
+				childNode("second", "epic", config.CategoryDoing),
+			},
+			closed: map[string]config.Category{"second": config.CategoryDone},
+			want:   nil,
+		},
+		{
 			name: "dependency written as an alias",
 			nodes: []issue.Node{
 				{ID: "schema", Category: config.CategoryDoing, Aliases: []string{"bd-a1"}},

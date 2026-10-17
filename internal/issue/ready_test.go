@@ -18,6 +18,11 @@ func childNode(id, parentID string, category config.Category) issue.Node {
 	return issue.Node{ID: id, ParentID: parentID, Category: category}
 }
 
+// standingNode returns a todo node at the top of the tree carrying the standing mark.
+func standingNode(id string) issue.Node {
+	return issue.Node{ID: id, Category: config.CategoryTodo, IsStanding: true}
+}
+
 // withDeps returns node depending on deps.
 func withDeps(node issue.Node, deps ...string) issue.Node {
 	node.Deps = deps
@@ -151,6 +156,30 @@ func TestReady_Rules_JudgeEachTodoIssue(t *testing.T) {
 			name: "done parent does not hold its children",
 			nodes: []issue.Node{
 				readyNode("epic", config.CategoryDone),
+				childNode("task", "epic", config.CategoryTodo),
+			},
+			id:   "task",
+			want: issue.Readiness{ID: "task", IsReady: true},
+		},
+		{
+			name: "standing parent with every child closed is not ready",
+			nodes: []issue.Node{
+				standingNode("epic"),
+				childNode("task", "epic", config.CategoryDone),
+			},
+			id:   "epic",
+			want: issue.Readiness{ID: "epic", IsStanding: true},
+		},
+		{
+			name:  "standing issue without children is not ready",
+			nodes: []issue.Node{standingNode("epic")},
+			id:    "epic",
+			want:  issue.Readiness{ID: "epic", IsStanding: true},
+		},
+		{
+			name: "open child of a standing parent is ready",
+			nodes: []issue.Node{
+				standingNode("epic"),
 				childNode("task", "epic", config.CategoryTodo),
 			},
 			id:   "task",

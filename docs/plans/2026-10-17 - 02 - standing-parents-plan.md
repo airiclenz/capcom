@@ -95,7 +95,10 @@ Depends on item 1.
 - `go vet ./internal/index/ ./internal/issue/`
 **Commit:** `feat(index): store the standing mark`
 
-## 4. A standing Issue is never Ready
+## 4. A standing Issue is never Ready — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): `NewlyReady` gets no separate skip: it names only issues `Ready` judges Ready, and `Ready` never judges a standing Issue Ready, so its doc comment says so instead of a redundant check; the unit test covers the closing-last-child case.
+NOTES (2026-10-17): until item 7 lands, `capcom ready --all` prints a standing Issue with an empty `-- not ready:` reason, since `notReadyReasons` does not yet know the mark.
 
 Depends on item 3.
 
