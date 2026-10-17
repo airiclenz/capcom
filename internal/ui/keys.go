@@ -22,7 +22,8 @@ const (
 	keyDown      = "down"
 	keyUpVim     = "k"
 	keyDownVim   = "j"
-	// keyShrinkSidebar and keyGrowSidebar move the divider between the panes left and right.
+	// keyShrinkSidebar and keyGrowSidebar move the divider between the panes left and right, or up
+	// and down in the stacked layout.
 	keyShrinkSidebar = "<"
 	keyGrowSidebar   = ">"
 )
@@ -35,8 +36,9 @@ const (
 // the split layout. Esc from the sidebar clears the open tab's filter. On the Ready and Issues
 // tabs a claims the shown issue, s opens the status picker over it, c and R ask for a reason and
 // close or reopen it, and L asks for a line and appends it to its Log. On every tab e opens the
-// selected issue or Note file in the editor, and in the split layout < and > narrow and widen the
-// sidebar and save its new width to the state file.
+// selected issue or Note file in the editor, and < and > move the divider on screen: in the split
+// layout they narrow and widen the sidebar, in the stacked layout they shorten and lengthen it,
+// and either saves the new position to the state file.
 // Everywhere else the up and down arrows and j k move the sidebar's selection, and on a tree the
 // left and right arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
@@ -82,9 +84,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	case keyEdit:
 		return m.startEdit()
 	case keyShrinkSidebar:
-		return m.resizeSidebarKey(-sidebarStep)
+		return m.resizeSidebarKey(-1)
 	case keyGrowSidebar:
-		return m.resizeSidebarKey(sidebarStep)
+		return m.resizeSidebarKey(1)
 	default:
 		return m.sidebarOrScrollKey(msg)
 	}
@@ -158,13 +160,19 @@ func nextTab(tab Tab) Tab {
 	return tabOrder[0]
 }
 
-// resizeSidebarKey moves the divider by delta columns, as resizeSidebar does, and returns the
-// command that saves the new width to the state file; a key that leaves the width as it was saves
-// nothing.
-func (m model) resizeSidebarKey(delta int) (model, tea.Cmd) {
-	before := m.sidebarRatio
-	m = m.resizeSidebar(delta)
-	if m.sidebarRatio == before {
+// resizeSidebarKey moves the divider on screen one step in direction, -1 shrinking the sidebar and
+// 1 growing it: sidebarStep columns in the split layout, as resizeSidebar does, or stackedStep
+// rows in the stacked layout, as resizeStacked does. It returns the command that saves both
+// dividers' ratios to the state file; a key that leaves the divider where it was saves nothing.
+func (m model) resizeSidebarKey(direction int) (model, tea.Cmd) {
+	isStacked := m.isStacked()
+	before := m.dividerRatio(isStacked)
+	if isStacked {
+		m = m.resizeStacked(direction * stackedStep)
+	} else {
+		m = m.resizeSidebar(direction * sidebarStep)
+	}
+	if m.dividerRatio(isStacked) == before {
 		return m, nil
 	}
 	return m, m.saveState()

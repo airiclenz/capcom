@@ -25,20 +25,25 @@ func (m model) isMouseIgnored() bool {
 }
 
 // dividerDrag is a drag of the divider between the panes, from a left press on its hit area to the
-// release of the button. grabOffset is the column pressed counted from the separator, so the
+// release of the button. isStacked records the layout pressed: the stacked layout's divider,
+// which moves along the rows, or the split layout's, which moves along the columns. grabOffset is
+// the column pressed counted from the separator, or the row counted from the stacked rule, so the
 // divider keeps that distance from the pointer and never jumps to it. startColumns is the
-// sidebar's width at the press and startRatio is sidebarRatio then: a motion back onto
-// startColumns restores startRatio, and the release compares the ratio with it to tell whether
-// the width changed.
+// sidebar's width at the press, startRows its height in the stacked layout, and startRatio is the
+// pressed divider's ratio then: a motion back onto the start restores startRatio, and the release
+// compares the ratio with it to tell whether the divider moved.
 type dividerDrag struct {
 	isActive     bool
+	isStacked    bool
 	grabOffset   int
 	startColumns int
+	startRows    int
 	startRatio   float64
 }
 
 // mouseClick handles a left click: on the divider's hit area it starts a drag of the divider, or
-// resets the sidebar's width when the click completes a double-click there, on a tab's label it opens that tab, on a sidebar row it selects that row, expanding or collapsing a
+// resets the sidebar's width, or its height in the stacked layout, when the click completes a
+// double-click there, on a tab's label it opens that tab, on a sidebar row it selects that row, expanding or collapsing a
 // tree node when the click lands on its arrow, and in the detail pane it selects a row of the
 // dependency view or anchors the detail selection. Every press that is not ignored first clears
 // the detail selection. Every other click, and every click while isMouseIgnored, does nothing.
@@ -51,7 +56,7 @@ func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 		return m, nil
 	}
 	if m.isOnDivider(msg.X, msg.Y) {
-		return m.pressDivider(msg.X)
+		return m.pressDivider(msg.X, msg.Y)
 	}
 	m.lastDividerPress = time.Time{}
 	point := m.pointAt(msg.X, msg.Y)
@@ -70,32 +75,60 @@ func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	return m, nil
 }
 
-// pressDivider handles a left press on the divider's hit area at column x. Within
-// doubleClickWindow of the last press there it resets the sidebar to its default width and
-// returns the command that clears the width in the state file, starting no drag; otherwise it
-// records the press and starts a drag.
-func (m model) pressDivider(x int) (model, tea.Cmd) {
+// pressDivider handles a left press on the divider's hit area at column x, row y. Within
+// doubleClickWindow of the last press there it resets the sidebar to its default size, its width
+// in the split layout or its height in the stacked one, and returns the command that clears that
+// divider's ratio in the state file, starting no drag; otherwise it records the press and starts
+// a drag.
+func (m model) pressDivider(x, y int) (model, tea.Cmd) {
 	now := m.now()
 	isDoubleClick := !m.lastDividerPress.IsZero() && now.Sub(m.lastDividerPress) <= doubleClickWindow
 	if !isDoubleClick {
 		m.lastDividerPress = now
-		return m.startDrag(x), nil
+		return m.startDrag(x, y), nil
 	}
 	m.lastDividerPress = time.Time{}
 	m.drag = dividerDrag{}
-	m.sidebarRatio = 0
+	m = m.withDividerRatio(m.isStacked(), 0)
 	return m.relayout(), m.saveState()
 }
 
-// startDrag starts a drag of the divider pressed at column x.
-func (m model) startDrag(x int) model {
+// startDrag starts a drag of the divider pressed at column x, row y: the stacked layout's when the
+// panes stack, the split layout's otherwise.
+func (m model) startDrag(x, y int) model {
+	isStacked := m.isStacked()
 	m.drag = dividerDrag{
 		isActive:     true,
+		isStacked:    isStacked,
 		grabOffset:   x - m.dividerColumn(),
 		startColumns: m.sidebarWidth(),
-		startRatio:   m.sidebarRatio,
+		startRows:    m.stackedSidebarRows(),
+		startRatio:   m.dividerRatio(isStacked),
+	}
+	if isStacked {
+		m.drag.grabOffset = y - m.stackedDividerRow()
 	}
 	return m
+}
+
+// abandonDrag ends a drag of the divider without saving it, its divider back on the ratio it had
+// at the press, and forgets the press, so the next one never completes a double-click. A save
+// writes both dividers' ratios, so a change it abandons must not linger to be written by a save on
+// the other divider.
+func (m model) abandonDrag() model {
+	m = m.withDividerRatio(m.drag.isStacked, m.drag.startRatio)
+	m.drag = dividerDrag{}
+	m.lastDividerPress = time.Time{}
+	return m
+}
+
+// abandonDragOffLayout abandons a drag of the divider, as abandonDrag does, once the layout it was
+// pressed in is off screen, as after a terminal resize into another layout.
+func (m model) abandonDragOffLayout() model {
+	if !m.drag.isActive || m.hasDivider(m.drag.isStacked) {
+		return m
+	}
+	return m.abandonDrag()
 }
 
 // mouseMotion moves the divider with the pointer while it is dragged, as dragDivider does, and
@@ -110,15 +143,24 @@ func (m model) mouseMotion(msg tea.MouseMotionMsg) model {
 	return m.extendSelection(msg.X, msg.Y)
 }
 
-// dragDivider moves the divider with the pointer in the split layout, keeping the column it was
-// grabbed by under the pointer within the sidebar's limits, and repaints the panes when the width
-// changed. The width is kept as its ratio of the terminal's width; back on the width it had at the
-// press it takes the ratio it had then, so a drag with no net move changes nothing. On a narrow
-// terminal it does nothing.
+// dragDivider moves the divider with the pointer in the layout it was pressed in, and does nothing
+// once that layout is off screen. It moves the split layout's divider as dragSplitDivider does and
+// the stacked layout's as dragStackedDivider does.
 func (m model) dragDivider(msg tea.MouseMotionMsg) model {
-	if !m.isSplit() {
+	if !m.hasDivider(m.drag.isStacked) {
 		return m
 	}
+	if m.drag.isStacked {
+		return m.dragStackedDivider(msg)
+	}
+	return m.dragSplitDivider(msg)
+}
+
+// dragSplitDivider moves the split layout's divider with the pointer, keeping the column it was
+// grabbed by under the pointer within the sidebar's limits, and repaints the panes when the width
+// changed. The width is kept as its ratio of the terminal's width; back on the width it had at the
+// press it takes the ratio it had then, so a drag with no net move changes nothing.
+func (m model) dragSplitDivider(msg tea.MouseMotionMsg) model {
 	columns := m.clampSidebarWidth(msg.X - m.drag.grabOffset - dividerMargin)
 	if columns == m.sidebarWidth() {
 		return m
@@ -130,15 +172,33 @@ func (m model) dragDivider(msg tea.MouseMotionMsg) model {
 	return m.relayout()
 }
 
-// mouseRelease ends a drag of the divider and returns the command that saves the width to the
-// state file when the drag changed it; a drag that changed it also forgets its press, so the next
-// press on the divider starts a drag and never completes a double-click. Without a drag it ends
-// the detail selection's drag and copies what it covers, as releaseSelection does.
+// dragStackedDivider moves the stacked layout's divider with the pointer, keeping the row it was
+// grabbed by under the pointer within the panes' minimums, and repaints the panes when the
+// sidebar's height changed. The height is kept as its ratio of the body's rows; back on the
+// height it had at the press it takes the ratio it had then, so a drag with no net move changes
+// nothing.
+func (m model) dragStackedDivider(msg tea.MouseMotionMsg) model {
+	rows := m.clampStackedRows(msg.Y - m.drag.grabOffset - bodyTop)
+	if rows == m.stackedSidebarRows() {
+		return m
+	}
+	m.stackedRatio = m.rowRatioOf(rows)
+	if rows == m.drag.startRows {
+		m.stackedRatio = m.drag.startRatio
+	}
+	return m.relayout()
+}
+
+// mouseRelease ends a drag of the divider and returns the command that saves both dividers'
+// ratios to the state file when the drag moved its divider; a drag that moved it also forgets its
+// press, so the next press on the divider starts a drag and never completes a double-click.
+// Without a drag it ends the detail selection's drag and copies what it covers, as
+// releaseSelection does.
 func (m model) mouseRelease(msg tea.MouseReleaseMsg) (model, tea.Cmd) {
 	if !m.drag.isActive {
 		return m.releaseSelection(msg.X, msg.Y)
 	}
-	isChanged := m.sidebarRatio != m.drag.startRatio
+	isChanged := m.dividerRatio(m.drag.isStacked) != m.drag.startRatio
 	m.drag = dividerDrag{}
 	if !isChanged {
 		return m, nil

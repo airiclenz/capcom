@@ -22,10 +22,11 @@ const userConfigNoticePrefix = "user config: "
 const defaultsNotice = " (running on defaults)"
 
 // stateNoticePrefix opens a status-bar notice about a state file that could not be loaded, and
-// stateSaveNoticePrefix one about a sidebar width that could not be saved there.
+// stateSaveNoticePrefix one about a divider position, the split layout's or the stacked
+// layout's, that could not be saved there.
 const (
 	stateNoticePrefix     = "ui state: "
-	stateSaveNoticePrefix = "cannot save the sidebar width: "
+	stateSaveNoticePrefix = "cannot save the divider position: "
 )
 
 // worktreeStateFileName is the worktree state file's name in the index's directory, and
@@ -426,7 +427,8 @@ func (m model) initialRead(tab Tab) tabRead {
 	return tabRead{wantedID: id, isStored: isStored}
 }
 
-// Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
+// Update records a new terminal size, abandoning a drag of the divider whose layout it takes off
+// screen, the Tree lock's state, the Ready queue, the issues, the
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
 // index, a write's run, the status picker's statuses, an edit's steps, a save of the state file or
 // the worktree state file, a selection's debounced save, the clear of the copy notice, the
@@ -455,7 +457,7 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.textPrompt.line.setWidth(m.width)
-		m = m.relayout()
+		m = m.abandonDragOffLayout().relayout()
 	case lockMsg:
 		m.lockText = msg.text
 		m.lockBadge = msg.badge

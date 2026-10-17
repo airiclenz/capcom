@@ -925,3 +925,119 @@ func writeTestFile(t *testing.T, path, content string) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 }
+
+func TestModel_ResizeKeys_MoveTheStackedDividerByAStep(t *testing.T) {
+	cases := []struct {
+		name  string
+		key   rune
+		delta int
+	}{
+		{name: "grow", key: '>', delta: stackedStep},
+		{name: "shrink", key: '<', delta: -stackedStep},
+	}
+	ts := newTestStore(t, readyFiles)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, ts, 80, 40)
+			before := m.stackedSidebarRows()
+
+			m = send(t, m, runeKey(testCase.key))
+
+			if got, want := m.stackedSidebarRows(), before+testCase.delta; got != want {
+				t.Errorf("stackedSidebarRows() = %d, want %d", got, want)
+			}
+			if got := ansi.Strip(strings.Split(m.View().Content, "\n")[m.stackedDividerRow()]); got != strings.Repeat(ruleGlyph, 80) {
+				t.Errorf("row %d = %q, want the stacked divider", m.stackedDividerRow(), got)
+			}
+		})
+	}
+}
+
+func TestModel_ResizeKeys_StopAtTheStackedMinimums(t *testing.T) {
+	cases := []struct {
+		name           string
+		key            rune
+		wantSidebar    int
+		wantDetailRows int
+	}{
+		{name: "shrink", key: '<', wantSidebar: stackSidebarMinRows, wantDetailRows: 36 - 1 - stackSidebarMinRows},
+		{name: "grow", key: '>', wantSidebar: 36 - 1 - stackDetailMinRows, wantDetailRows: stackDetailMinRows},
+	}
+	ts := newTestStore(t, readyFiles)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, ts, 80, 40)
+
+			for _, key := range repeatKey(runeKey(testCase.key), 20) {
+				m = send(t, m, key)
+			}
+
+			if got := m.stackedSidebarRows(); got != testCase.wantSidebar {
+				t.Errorf("stackedSidebarRows() = %d, want %d", got, testCase.wantSidebar)
+			}
+			if got := m.detailPaneRows(); got != testCase.wantDetailRows {
+				t.Errorf("detailPaneRows() = %d, want %d", got, testCase.wantDetailRows)
+			}
+		})
+	}
+}
+
+func TestModel_ResizeKey_InTheStackedLayout_SavesTheStackedRatioThatSurvivesARestart(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: 0.3\n")
+	m := startModel(t, options, 80, 40)
+	want := m.stackedSidebarRows() + stackedStep
+
+	press(t, m, runeKey('>'))
+	restarted := startModel(t, options, 80, 40)
+
+	state, err := userconfig.LoadState(options.UserStatePath)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	wantState := userconfig.UIState{SidebarRatio: 0.3, StackedRatio: float64(want) / 36}
+	if state.UI != wantState {
+		t.Errorf("stored ratios = %+v, want %+v: the new height beside the stored width", state.UI, wantState)
+	}
+	if got := restarted.stackedSidebarRows(); got != want {
+		t.Errorf("stackedSidebarRows() after a restart = %d, want the saved %d", got, want)
+	}
+}
+
+func TestModel_ShrinkKey_InTheSplitLayout_KeepsTheStoredStackedRatio(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	writeTestFile(t, options.UserStatePath, ratioState(36, 120)+"  stacked_ratio: 0.4\n")
+	m := startModel(t, options, 120, 30)
+
+	m = press(t, m, runeKey('<'))
+
+	if got := m.sidebarWidth(); got != 36-sidebarStep {
+		t.Errorf("sidebarWidth() = %d, want %d", got, 36-sidebarStep)
+	}
+	state, err := userconfig.LoadState(options.UserStatePath)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	want := userconfig.UIState{SidebarRatio: widthRatio(36-sidebarStep, 120), StackedRatio: 0.4}
+	if state.UI != want {
+		t.Errorf("stored ratios = %+v, want %+v: the new width beside the stacked ratio", state.UI, want)
+	}
+}
+
+func TestModel_UnwritableStateFile_InTheStackedLayout_ShowsTheDividerSaveNotice(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	parent := filepath.Join(t.TempDir(), "not-a-directory")
+	writeTestFile(t, parent, "a regular file\n")
+	options.UserStatePath = filepath.Join(parent, "state.yaml")
+	m := startModel(t, options, 80, 40)
+	before := m.stackedSidebarRows()
+
+	m = press(t, m, runeKey('>'))
+
+	if got := m.stackedSidebarRows(); got != before+stackedStep {
+		t.Errorf("stackedSidebarRows() = %d, want %d: the height changes though it cannot be saved", got, before+stackedStep)
+	}
+	if !strings.HasPrefix(m.stateNotice, "cannot save the divider position: ") {
+		t.Errorf("state notice = %q, want it to open with %q", m.stateNotice, "cannot save the divider position: ")
+	}
+}

@@ -33,12 +33,14 @@ const (
 	// stackSidebarMinRows and stackDetailMinRows are the fewest rows the stacked layout gives the
 	// sidebar and the detail pane, stackDividerRows the rule between them; stackBodyMinRows, all
 	// three together, is the shortest body that stacks. Unless the user set its height, the
-	// sidebar takes a stackedShare part of the body's rows.
+	// sidebar takes a stackedShare part of the body's rows. stackedStep is the rows < and > move
+	// the stacked layout's divider by.
 	stackSidebarMinRows = 8
 	stackDetailMinRows  = 12
 	stackDividerRows    = 1
 	stackBodyMinRows    = stackSidebarMinRows + stackDividerRows + stackDetailMinRows
 	stackedShare        = 3
+	stackedStep         = 2
 )
 
 // The glyphs of the frame.
@@ -109,16 +111,73 @@ func (m model) bodyHeight() int {
 }
 
 // stackedSidebarRows returns the sidebar's rows in the stacked layout: the ratio the user set
-// times the body's rows, rounded, or else a stackedShare part of them, rounded down, either kept
-// to at least stackSidebarMinRows and to at most what leaves the divider and stackDetailMinRows
-// rows under it.
+// times the body's rows, rounded, or else a stackedShare part of them, rounded down, either
+// clamped by clampStackedRows.
 func (m model) stackedSidebarRows() int {
 	desired := m.bodyHeight() / stackedShare
 	if m.stackedRatio > 0 {
 		desired = int(math.Round(m.stackedRatio * float64(m.bodyHeight())))
 	}
+	return m.clampStackedRows(desired)
+}
+
+// clampStackedRows returns rows within the stacked sidebar's limits at the body's height: at least
+// stackSidebarMinRows, and at most what leaves the divider and stackDetailMinRows rows under it.
+func (m model) clampStackedRows(rows int) int {
 	upper := m.bodyHeight() - stackDividerRows - stackDetailMinRows
-	return max(min(desired, upper), stackSidebarMinRows)
+	return max(min(rows, upper), stackSidebarMinRows)
+}
+
+// resizeStacked moves the stacked layout's divider by delta rows, down when positive, within the
+// sidebar's and the detail pane's minimums, and repaints the panes at the new heights. The height
+// is kept as the user's ratio of the body's rows, so it holds when the terminal resizes. It does
+// nothing outside the stacked layout, and leaves the ratio as it was when the limits keep the
+// height where it is.
+func (m model) resizeStacked(delta int) model {
+	if !m.isStacked() {
+		return m
+	}
+	rows := m.clampStackedRows(m.stackedSidebarRows() + delta)
+	if rows == m.stackedSidebarRows() {
+		return m
+	}
+	m.stackedRatio = m.rowRatioOf(rows)
+	return m.relayout()
+}
+
+// rowRatioOf returns rows as a fraction of the body's rows, the form stackedRatio keeps a height
+// in. Only the stacked layout calls it, so the body is never empty.
+func (m model) rowRatioOf(rows int) float64 {
+	return float64(rows) / float64(m.bodyHeight())
+}
+
+// dividerRatio returns the ratio the divider of one layout keeps: stackedRatio for the stacked
+// layout's when isStacked, sidebarRatio for the split layout's otherwise.
+func (m model) dividerRatio(isStacked bool) float64 {
+	if isStacked {
+		return m.stackedRatio
+	}
+	return m.sidebarRatio
+}
+
+// withDividerRatio returns the model with ratio as the ratio the divider of one layout keeps:
+// stackedRatio when isStacked, sidebarRatio otherwise.
+func (m model) withDividerRatio(isStacked bool, ratio float64) model {
+	if isStacked {
+		m.stackedRatio = ratio
+		return m
+	}
+	m.sidebarRatio = ratio
+	return m
+}
+
+// hasDivider reports the divider of one layout on screen: the stacked layout's when isStacked,
+// the split layout's otherwise.
+func (m model) hasDivider(isStacked bool) bool {
+	if isStacked {
+		return m.isStacked()
+	}
+	return m.isSplit()
 }
 
 // sidebarPaneRows returns the sidebar pane's rows: its share of the body when the panes stack,
@@ -219,6 +278,12 @@ func (m model) stackedBody() []string {
 	rows = append(rows, m.dividerStyle().Render(strings.Repeat(ruleGlyph, m.width)))
 	lines, offset := m.detailRows()
 	return append(rows, m.scrolledPaneRows(lines, offset, m.detailPaneRows(), m.detailWidth())...)
+}
+
+// stackedDividerRow returns the screen row of the stacked layout's divider: under the tab bar's
+// rule and the sidebar.
+func (m model) stackedDividerRow() int {
+	return bodyTop + m.stackedSidebarRows()
 }
 
 // dividerColumn returns the screen column of the separator between the panes in the split
@@ -419,9 +484,14 @@ func (m model) stackedPointAt(x, row int) panePoint {
 	return panePoint{pane: paneDetail, col: x, row: row - sidebarRows - stackDividerRows}
 }
 
-// isOnDivider reports the screen cell at column x and row y on the divider's hit area in the split
-// layout: the separator between the panes or the margin either side of it, on a row of the panes.
+// isOnDivider reports the screen cell at column x and row y on the divider's hit area: in the
+// split layout the separator between the panes or the margin either side of it, on a row of the
+// panes; in the stacked layout the rule between the panes, across the screen.
 func (m model) isOnDivider(x, y int) bool {
+	if m.isStacked() {
+		row := y - m.stackedDividerRow()
+		return x >= 0 && x < m.width && row >= 0 && row < stackDividerRows
+	}
 	row := y - bodyTop
 	return m.isSplit() && row >= 0 && row < m.bodyHeight() && x >= m.sidebarWidth() && x < m.detailLeft()
 }

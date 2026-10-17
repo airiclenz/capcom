@@ -127,7 +127,17 @@ Supersedes the in-code comments stating one pane below 90 columns (layout.go:11-
 
 **Commit:** `feat(ui): stack the panes on a narrow, tall terminal`
 
-## 4. Move the horizontal divider
+## 4. Move the horizontal divider — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): resizeSidebarKey now takes a direction (-1 or 1) instead of a column delta, so one key handler steps sidebarStep columns in the split layout or stackedStep rows in the stacked one; dividerDrag gains isStacked and startRows beside startColumns.
+
+NOTES (2026-10-17): a layout change mid-drag is caught in the tea.WindowSizeMsg case (abandonDragOffLayout): it restores the pressed divider's ratio, ends the drag and forgets the press; opening help mid-drag is not a resize and still saves a move made before it on release, as in the split layout before this item.
+
+NOTES (2026-10-17): the stacked rule row was already drawn in dividerStyle() by item 3; no layout.go drawing change was needed for the active style.
+
+NOTES (2026-10-17): assertNoStoredRatio takes the key to check (sidebar_ratio or stacked_ratio); the two existing callers pass "sidebar_ratio".
+
+NOTES (2026-10-17): TestMouse_ClickOrWheelOnTheStackedDivider_DoesNothing still passes and keeps its name, though a click on the stacked rule now starts a drag; its assertions (selection and detail offset unchanged) still hold.
 
 Depends on item 3.
 

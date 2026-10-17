@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/ops"
+	"github.com/airiclenz/capcom/internal/userconfig"
 )
 
 // The screen sizes the mouse tests run at: wide for the split layout, small for the one-pane one,
@@ -737,15 +738,16 @@ func pressDividerOnce(t *testing.T, m model) model {
 	return press(t, m, release(x, dragRow))
 }
 
-// assertNoStoredRatio fails the test unless the state file at path holds no sidebar_ratio key.
-func assertNoStoredRatio(t *testing.T, path string) {
+// assertNoStoredRatio fails the test unless the state file at path holds no key named key, such
+// as sidebar_ratio or stacked_ratio.
+func assertNoStoredRatio(t *testing.T, path, key string) {
 	t.Helper()
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	if strings.Contains(string(content), "sidebar_ratio") {
-		t.Errorf("state file = %q, want no sidebar_ratio key", content)
+	if strings.Contains(string(content), key) {
+		t.Errorf("state file = %q, want no %s key", content, key)
 	}
 }
 
@@ -767,7 +769,7 @@ func TestMouse_DoubleClickOnTheDivider_ResetsTheWidthAndClearsTheStoredOne(t *te
 	if got := m.sidebarWidth(); got != defaultWidth {
 		t.Errorf("sidebarWidth() = %d, want the default %d", got, defaultWidth)
 	}
-	assertNoStoredRatio(t, options.UserStatePath)
+	assertNoStoredRatio(t, options.UserStatePath, "sidebar_ratio")
 }
 
 func TestMouse_DoubleClickOnTheDivider_StartsNoDrag(t *testing.T) {
@@ -786,7 +788,7 @@ func TestMouse_DoubleClickOnTheDivider_StartsNoDrag(t *testing.T) {
 	if got := m.sidebarWidth(); got != defaultWidth {
 		t.Errorf("sidebarWidth() = %d, want it left at the default %d: no drag", got, defaultWidth)
 	}
-	assertNoStoredRatio(t, options.UserStatePath)
+	assertNoStoredRatio(t, options.UserStatePath, "sidebar_ratio")
 }
 
 func TestMouse_PressRightAfterADragThatMovedTheDivider_StartsADrag(t *testing.T) {
@@ -1156,4 +1158,146 @@ func TestMouse_DragSelection_MatchesANSIGolden(t *testing.T) {
 	m = dragSelect(t, m, "See", 0, "quoted", 3)
 
 	goldenANSI(t, "select-drag-120x30", m.View())
+}
+
+// stackedColumn is the column the stacked divider tests press and drag the divider on.
+const stackedColumn = 5
+
+// dragStackedDivider presses the left button on the stacked layout's divider, moves the pointer
+// rows rows down, up when negative, and lets the button go there, all on stackedColumn.
+func dragStackedDivider(t *testing.T, m model, rows int) model {
+	t.Helper()
+	from := m.stackedDividerRow()
+	m = press(t, m, click(stackedColumn, from))
+	m = press(t, m, motion(stackedColumn, from+rows))
+	return press(t, m, release(stackedColumn, from+rows))
+}
+
+// loadStoredState returns both divider ratios the state file at path holds, each 0 for none.
+func loadStoredState(t *testing.T, path string) userconfig.UIState {
+	t.Helper()
+	state, err := userconfig.LoadState(path)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	return state.UI
+}
+
+// stackedBodyRows is the body's rows at smallWidth by tallHeight, which the stacked ratios count.
+const stackedBodyRows = tallHeight - frameRows
+
+func TestMouse_DragTheStackedDivider_MovesItAndSavesTheStackedRatio(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: 0.3\n")
+	m := startModel(t, options, smallWidth, tallHeight)
+	before := m.stackedSidebarRows()
+
+	m = dragStackedDivider(t, m, 4)
+
+	if got := m.stackedSidebarRows(); got != before+4 {
+		t.Errorf("stackedSidebarRows() = %d, want %d", got, before+4)
+	}
+	want := userconfig.UIState{SidebarRatio: 0.3, StackedRatio: float64(before+4) / stackedBodyRows}
+	if got := loadStoredState(t, options.UserStatePath); got != want {
+		t.Errorf("stored ratios = %+v, want %+v: the new height beside the stored width", got, want)
+	}
+}
+
+func TestMouse_DragTheStackedDividerPastALimit_Clamps(t *testing.T) {
+	cases := []struct {
+		name string
+		to   int
+		want int
+	}{
+		{name: "past the sidebar's minimum", to: 0, want: stackSidebarMinRows},
+		{
+			name: "past the detail pane's minimum",
+			to:   tallHeight - 1,
+			want: stackedBodyRows - stackDividerRows - stackDetailMinRows,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, readyFiles), smallWidth, tallHeight)
+			m = press(t, m, click(stackedColumn, m.stackedDividerRow()))
+
+			m = press(t, m, motion(stackedColumn, tc.to))
+
+			if got := m.stackedSidebarRows(); got != tc.want {
+				t.Errorf("stackedSidebarRows() = %d, want %d", got, tc.want)
+			}
+			if got := m.detailPaneRows(); got < stackDetailMinRows {
+				t.Errorf("detailPaneRows() = %d, want at least %d", got, stackDetailMinRows)
+			}
+		})
+	}
+}
+
+func TestMouse_DragTheStackedDividerBackToThePressRow_SavesNothing(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	m := startModel(t, options, smallWidth, tallHeight)
+	asked := m.stateSaver.asked
+	from := m.stackedDividerRow()
+
+	m = press(t, m, click(stackedColumn, from))
+	m = press(t, m, motion(stackedColumn, from+1))
+	m = press(t, m, motion(stackedColumn, from))
+	m = press(t, m, release(stackedColumn, from))
+
+	if m.stackedRatio != 0 {
+		t.Errorf("stackedRatio = %v, want the default 0 back", m.stackedRatio)
+	}
+	if m.stateSaver.asked != asked {
+		t.Errorf("saves asked = %d, want %d: a drag with no net move saves nothing", m.stateSaver.asked, asked)
+	}
+}
+
+func TestMouse_DoubleClickOnTheStackedDivider_ResetsTheHeightAndClearsTheStoredOne(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: 0.3\n  stacked_ratio: 0.5\n")
+	m := startModel(t, options, smallWidth, tallHeight)
+	clock := &testClock{current: time.Date(2026, time.October, 17, 12, 0, 0, 0, time.UTC)}
+	m.now = clock.now
+
+	m = dragStackedDivider(t, m, 0)
+	clock.advance(200 * time.Millisecond)
+	m = dragStackedDivider(t, m, 0)
+
+	if got, want := m.stackedSidebarRows(), stackedBodyRows/stackedShare; got != want {
+		t.Errorf("stackedSidebarRows() = %d, want the default %d", got, want)
+	}
+	assertNoStoredRatio(t, options.UserStatePath, "stacked_ratio")
+	if got := loadStoredState(t, options.UserStatePath).SidebarRatio; got != 0.3 {
+		t.Errorf("stored sidebar ratio = %v, want the stored 0.3 kept", got)
+	}
+}
+
+func TestMouse_StackedDragAbandonedByAResize_LeavesTheStoredStackedRatio(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	writeTestFile(t, options.UserStatePath, "ui:\n  stacked_ratio: 0.25\n")
+	m := startModel(t, options, smallWidth, tallHeight)
+	from := m.stackedDividerRow()
+	m = press(t, m, click(stackedColumn, from))
+	m = press(t, m, motion(stackedColumn, from+4))
+	m = press(t, m, tea.WindowSizeMsg{Width: wideWidth, Height: wideHeight})
+
+	m = press(t, m, runeKey('>'))
+
+	if m.drag.isActive || m.stackedRatio != 0.25 {
+		t.Errorf("drag active %v, stackedRatio %v, want no drag and the stored 0.25", m.drag.isActive, m.stackedRatio)
+	}
+	if got := loadStoredState(t, options.UserStatePath).StackedRatio; got != 0.25 {
+		t.Errorf("stored stacked ratio = %v, want the stored 0.25 kept", got)
+	}
+}
+
+func TestMouse_MidStackedDrag_MatchesANSIGolden(t *testing.T) {
+	m := newThemeModel(t, themeFiles, "ui:\n  theme: dark\n", false, nil)
+	m = press(t, m, tea.WindowSizeMsg{Width: smallWidth, Height: tallHeight})
+	from := m.stackedDividerRow()
+	m = press(t, m, click(stackedColumn, from))
+
+	m = press(t, m, motion(stackedColumn, from+4))
+
+	goldenANSI(t, "drag-divider-80x40", m.View())
 }
