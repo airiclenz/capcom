@@ -1127,6 +1127,56 @@ func TestRefresh_IndexFromBeforeRelatedLinks_RebuildsWithThem(t *testing.T) {
 	}
 }
 
+func TestRefresh_StandingIssue_ReadsBackTheMark(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "epic.md", relatedIssueText("Epic", "standing: true\n"))
+	writeIssue(t, s, "epic/child-task.md", issueText("Child task", "open", ""))
+	writeIssue(t, s, "lone-task.md", issueText("Lone task", "open", ""))
+	x := openIndex(t, s, laterClock())
+
+	refresh(t, x)
+
+	for id, isStanding := range map[string]bool{"epic": true, "child-task": false, "lone-task": false} {
+		entry := mustIssue(t, x, id)
+		if entry.IsStanding != isStanding {
+			t.Errorf("Issue(%q).IsStanding = %v, want %v", id, entry.IsStanding, isStanding)
+		}
+		if node := entry.Node(); node.IsStanding != isStanding {
+			t.Errorf("Issue(%q).Node().IsStanding = %v, want %v", id, node.IsStanding, isStanding)
+		}
+	}
+}
+
+func TestRefresh_IndexFromBeforeTheStandingMark_RebuildsWithIt(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "epic.md", relatedIssueText("Epic", "standing: true\n"))
+	x := openIndex(t, s, laterClock())
+	refresh(t, x)
+	db, err := sql.Open(driverName, Path(s))
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	// An index of the previous schema version has no standing column.
+	_, err = db.Exec(`ALTER TABLE issues DROP COLUMN standing`)
+	if err == nil {
+		_, err = db.Exec(`UPDATE meta SET value = ? WHERE key = ?`, schemaVersion-1, metaSchemaVersion)
+	}
+	if closeErr := db.Close(); err != nil || closeErr != nil {
+		t.Fatalf("downgrade the index: %v, %v", err, closeErr)
+	}
+
+	report := refresh(t, x)
+
+	if !report.rebuilt {
+		t.Errorf("report = %+v, want a rebuild", report)
+	}
+	if entry := mustIssue(t, x, "epic"); !entry.IsStanding {
+		t.Errorf("Issue(epic).IsStanding = false after the rebuild, want true")
+	}
+}
+
 func TestRefresh_IndexFromBeforeClaims_RebuildsWithThem(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

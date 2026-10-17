@@ -17,7 +17,10 @@ type Node struct {
 	// ParentID is the id of the issue whose directory holds this one; "" at the top of the tree.
 	ParentID string
 	Category config.Category
-	Labels   []string
+	// IsStanding is the issue's own standing mark: a standing Parent that only groups its
+	// children.
+	IsStanding bool
+	Labels     []string
 	// Deps are the dependencies as the file writes them: each an id or an Alias.
 	Deps    []string
 	Aliases []string

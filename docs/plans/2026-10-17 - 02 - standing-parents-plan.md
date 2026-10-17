@@ -80,7 +80,7 @@ Depends on item 1.
 - `go vet ./internal/issue/ ./internal/ops/`
 **Commit:** `feat(issue): refuse closing or claiming a standing Issue`
 
-## 3. The index carries the mark
+## 3. The index carries the mark — ✅ DONE (2026-10-17)
 
 Depends on item 1.
 

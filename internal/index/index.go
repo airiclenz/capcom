@@ -106,10 +106,13 @@ type Entry struct {
 	Closed   time.Time
 	Reason   string
 	Title    string
-	Labels   []string
-	Deps     []string
-	Related  []string
-	Aliases  []string
+	// IsStanding is the issue's own standing mark: a standing Parent that only groups its
+	// children.
+	IsStanding bool
+	Labels     []string
+	Deps       []string
+	Related    []string
+	Aliases    []string
 }
 
 // isChanged reports whether the refresh behind the report saw any issue or Note added, changed
@@ -189,9 +192,10 @@ func (x *Index) readIssue(q querier, id string) (entry Entry, found bool, err er
 	ctx := context.Background()
 	var created, closed string
 	err = q.QueryRowContext(ctx, `SELECT id, path, parent, status, category, type, priority,
-		plan, created, closed, reason, title FROM issues WHERE id = ? AND excluded = 0`, id).Scan(
+		plan, created, closed, reason, title, standing FROM issues WHERE id = ? AND excluded = 0`, id).Scan(
 		&entry.ID, &entry.Path, &entry.ParentID, &entry.Status, &entry.Category, &entry.Type,
 		&entry.Priority, &entry.Plan, &created, &closed, &entry.Reason, &entry.Title,
+		&entry.IsStanding,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Entry{}, false, nil

@@ -229,12 +229,13 @@ func (n snapshotNames) refusal(ctx context.Context, name string) (tree.NameMatch
 // Node returns the issue as the ready rules and the Dependency graph see it.
 func (e Entry) Node() issue.Node {
 	return issue.Node{
-		ID:       e.ID,
-		ParentID: e.ParentID,
-		Category: e.Category,
-		Labels:   e.Labels,
-		Deps:     e.Deps,
-		Aliases:  e.Aliases,
+		ID:         e.ID,
+		ParentID:   e.ParentID,
+		Category:   e.Category,
+		IsStanding: e.IsStanding,
+		Labels:     e.Labels,
+		Deps:       e.Deps,
+		Aliases:    e.Aliases,
 	}
 }
 

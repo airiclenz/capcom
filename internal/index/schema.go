@@ -14,7 +14,7 @@ import (
 
 // schemaVersion identifies the table layout below. Bump it whenever the layout or the meaning of a
 // column changes: an index recorded under another version is dropped and rebuilt.
-const schemaVersion = 10
+const schemaVersion = 11
 
 // Keys of the meta table.
 const (
@@ -44,7 +44,7 @@ var (
 // schemaStatements create the index tables. Every row of rowTables hangs off a node file by path,
 // the worktree-relative path of the file it came from; issues.excluded and notes.excluded mark a
 // parsed node that a repeated id keeps out of every query, as file_verdicts records it;
-// notes.retired is the Note's own
+// issues.standing is the issue's own standing mark; notes.retired is the Note's own
 // retired flag, never its ancestors'. labels, aliases and fts are shared by issues and Notes and
 // carry the kind of the file each row came from; related holds the related links of issues as
 // written, in file order; refs holds the Refs of Notes in file order; supersedes holds the
@@ -79,6 +79,7 @@ var schemaStatements = []string{
 		closed TEXT NOT NULL,
 		reason TEXT NOT NULL,
 		title TEXT NOT NULL,
+		standing INTEGER NOT NULL DEFAULT 0,
 		excluded INTEGER NOT NULL DEFAULT 0
 	)`,
 	`CREATE INDEX issues_by_id ON issues (id)`,

@@ -448,11 +448,11 @@ func (r *refresher) insertIssue(file foundFile, parsed issue.Issue) error {
 	category, _ := r.config.CategoryOf(parsed.Status) // Validate has checked the status is declared
 	statements := []statement{{
 		`INSERT INTO issues (path, id, parent, status, category, type, priority, plan, created,
-			closed, reason, title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			closed, reason, title, standing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		[]any{
 			file.path, file.id, file.parentID, parsed.Status, string(category), parsed.Type,
 			parsed.Priority, parsed.Plan, formatTime(parsed.Created), formatTime(parsed.Closed),
-			parsed.Reason, parsed.Title,
+			parsed.Reason, parsed.Title, parsed.IsStanding,
 		},
 	}, {
 		`INSERT INTO fts (path, kind, title, body) VALUES (?, ?, ?, ?)`,
