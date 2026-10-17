@@ -8,8 +8,10 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// The layout's dimensions. Below narrowWidth columns the panes stop sharing the screen: the
-// sidebar fills it, and Enter swaps in the detail pane.
+// The layout's dimensions. Below narrowWidth columns the panes stop sitting side by side: a body
+// of stackBodyMinRows rows or more stacks them, the sidebar above the detail pane, and a shorter
+// one shows one pane at a time, the sidebar filling the screen until Enter swaps in the detail
+// pane.
 const (
 	narrowWidth     = 90
 	sidebarShare    = 3
@@ -28,6 +30,15 @@ const (
 	dividerMargin = 1
 	// bodyTop is the screen row the panes start on: past the tab bar and the rule under it.
 	bodyTop = 2
+	// stackSidebarMinRows and stackDetailMinRows are the fewest rows the stacked layout gives the
+	// sidebar and the detail pane, stackDividerRows the rule between them; stackBodyMinRows, all
+	// three together, is the shortest body that stacks. Unless the user set its height, the
+	// sidebar takes a stackedShare part of the body's rows.
+	stackSidebarMinRows = 8
+	stackDetailMinRows  = 12
+	stackDividerRows    = 1
+	stackBodyMinRows    = stackSidebarMinRows + stackDividerRows + stackDetailMinRows
+	stackedShare        = 3
 )
 
 // The glyphs of the frame.
@@ -62,19 +73,70 @@ func (m model) frame() string {
 	return strings.Join(rows[:min(len(rows), m.height)], "\n")
 }
 
-// isNarrow reports a terminal too narrow for the sidebar and the detail pane side by side.
-func (m model) isNarrow() bool {
+// hasFullWidthPanes reports panes as wide as the screen: a terminal too narrow for the sidebar and
+// the detail pane side by side, whether it shows one pane at a time or stacks them.
+func (m model) hasFullWidthPanes() bool {
 	return m.width < narrowWidth
+}
+
+// canStack reports a terminal sized for the stacked layout: too narrow for the panes side by side
+// and with a body of stackBodyMinRows rows or more. The help screen covering the panes leaves
+// their sizes as they are, so it does not count here.
+func (m model) canStack() bool {
+	return m.hasFullWidthPanes() && m.bodyHeight() >= stackBodyMinRows
+}
+
+// isSinglePane reports the one-pane layout: a terminal too narrow for the panes side by side and
+// too short to stack them, the sidebar filling the screen until Enter swaps in the detail pane.
+func (m model) isSinglePane() bool {
+	return m.hasFullWidthPanes() && !m.canStack()
+}
+
+// isStacked reports the sidebar above the detail pane: a narrow terminal tall enough to stack
+// them, help closed.
+func (m model) isStacked() bool {
+	return m.canStack() && !m.isHelpOpen
 }
 
 // isSplit reports the sidebar and the detail pane side by side: a wide terminal, help closed.
 func (m model) isSplit() bool {
-	return !m.isNarrow() && !m.isHelpOpen
+	return !m.hasFullWidthPanes() && !m.isHelpOpen
 }
 
 // bodyHeight returns the rows between the rule under the tab bar and the rule under the panes.
 func (m model) bodyHeight() int {
 	return max(m.height-frameRows, 0)
+}
+
+// stackedSidebarRows returns the sidebar's rows in the stacked layout: the ratio the user set
+// times the body's rows, rounded, or else a stackedShare part of them, rounded down, either kept
+// to at least stackSidebarMinRows and to at most what leaves the divider and stackDetailMinRows
+// rows under it.
+func (m model) stackedSidebarRows() int {
+	desired := m.bodyHeight() / stackedShare
+	if m.stackedRatio > 0 {
+		desired = int(math.Round(m.stackedRatio * float64(m.bodyHeight())))
+	}
+	upper := m.bodyHeight() - stackDividerRows - stackDetailMinRows
+	return max(min(desired, upper), stackSidebarMinRows)
+}
+
+// sidebarPaneRows returns the sidebar pane's rows: its share of the body when the panes stack,
+// the whole body otherwise.
+func (m model) sidebarPaneRows() int {
+	if m.canStack() {
+		return m.stackedSidebarRows()
+	}
+	return m.bodyHeight()
+}
+
+// detailPaneRows returns the detail pane's rows: what the sidebar and the divider leave of the
+// body when the panes stack, the whole body otherwise.
+func (m model) detailPaneRows() int {
+	if m.canStack() {
+		return m.bodyHeight() - m.stackedSidebarRows() - stackDividerRows
+	}
+	return m.bodyHeight()
 }
 
 // sidebarWidth returns the sidebar's columns in the split layout: the ratio the user set times the
@@ -99,9 +161,10 @@ func (m model) clampSidebarWidth(columns int) int {
 // resizeSidebar moves the divider by delta columns, right when positive, within the sidebar's
 // limits, and repaints the panes at the new width. The width is kept as the user's ratio of the
 // terminal's width, so it holds when the terminal resizes. It does nothing outside the split
-// layout, and leaves the ratio as it was when the limits keep the width where it is.
+// layout, the one-pane and the stacked ones alike, and leaves the ratio as it was when the limits
+// keep the width where it is.
 func (m model) resizeSidebar(delta int) model {
-	if m.isNarrow() {
+	if !m.isSplit() {
 		return m
 	}
 	columns := m.clampSidebarWidth(m.sidebarWidth() + delta)
@@ -119,18 +182,21 @@ func (m model) ratioOf(columns int) float64 {
 }
 
 // body draws the bodyHeight rows under the tab bar's rule: the help screen when it is open, the two
-// panes side by side on a wide terminal, and on a narrow one the sidebar or, once Enter opened
-// it or while the status picker is open, the detail pane. Each pane ends in its scrollbar.
+// panes side by side on a wide terminal, on a narrow one tall enough the sidebar above the
+// detail pane, and on a narrow, short one the sidebar or, once Enter opened it or while the
+// status picker is open, the detail pane. Each pane ends in its scrollbar.
 func (m model) body() []string {
 	height := m.bodyHeight()
 	switch {
 	case m.isHelpOpen:
 		return paneRows(helpLines, 0, height, m.width)
-	case m.isNarrow() && (m.isDetailOpen || m.picker.isOpen):
+	case m.isSinglePane() && (m.isDetailOpen || m.picker.isOpen):
 		lines, offset := m.detailRows()
 		return m.scrolledPaneRows(lines, offset, height, m.detailWidth())
-	case m.isNarrow():
+	case m.isSinglePane():
 		return m.sidebarRows(height)
+	case m.isStacked():
+		return m.stackedBody()
 	}
 
 	sidebar := m.sidebarRows(height)
@@ -145,6 +211,16 @@ func (m model) body() []string {
 	return rows
 }
 
+// stackedBody returns the stacked layout's body: the sidebar's stackedSidebarRows rows, the
+// divider, a full-width rule in the divider's style, then the detail pane's detailPaneRows rows.
+func (m model) stackedBody() []string {
+	rows := make([]string, 0, m.bodyHeight())
+	rows = append(rows, m.sidebarRows(m.stackedSidebarRows())...)
+	rows = append(rows, m.dividerStyle().Render(strings.Repeat(ruleGlyph, m.width)))
+	lines, offset := m.detailRows()
+	return append(rows, m.scrolledPaneRows(lines, offset, m.detailPaneRows(), m.detailWidth())...)
+}
+
 // dividerColumn returns the screen column of the separator between the panes in the split
 // layout: past the sidebar and the margin left of it.
 func (m model) dividerColumn() int {
@@ -152,9 +228,10 @@ func (m model) dividerColumn() int {
 }
 
 // detailLeft returns the screen column the detail pane starts at: the first on a narrow terminal,
-// past the sidebar, the separator and the margins either side of it on a wide one.
+// one pane or stacked, past the sidebar, the separator and the margins either side of it on a
+// wide one.
 func (m model) detailLeft() int {
-	if m.isNarrow() {
+	if m.hasFullWidthPanes() {
 		return 0
 	}
 	return m.dividerColumn() + ansi.StringWidth(paneSeparator) + dividerMargin
@@ -171,7 +248,7 @@ func (m model) detailRows() ([]string, int) {
 		m.markdownTheme.Measure,
 		m.detail,
 		m.detailOffset,
-		m.bodyHeight(),
+		m.detailPaneRows(),
 		m.detailWidth(),
 		m.theme.selectedRow,
 	)
@@ -300,7 +377,8 @@ type panePoint struct {
 
 // pointAt locates the screen cell at column x and row y in the layout body draws: the tab bar on
 // the top row, no pane on the rule under it, then on a wide terminal the sidebar left of the
-// separator's margin and the detail pane right of it, and on a narrow one whichever of the two
+// separator's margin and the detail pane right of it, on a narrow one tall enough the sidebar
+// above the divider and the detail pane below it, and on a narrow, short one whichever of the two
 // fills the screen. With the help screen open no pane is on screen.
 func (m model) pointAt(x, y int) panePoint {
 	if x < 0 || y < 0 || x >= m.width {
@@ -313,14 +391,32 @@ func (m model) pointAt(x, y int) panePoint {
 	switch {
 	case row < 0 || row >= m.bodyHeight() || m.isHelpOpen:
 		return panePoint{}
-	case m.isNarrow() && (m.isDetailOpen || m.picker.isOpen):
+	case m.isSinglePane() && (m.isDetailOpen || m.picker.isOpen):
 		return panePoint{pane: paneDetail, col: x, row: row}
-	case m.isNarrow() || x < m.sidebarWidth():
+	case m.isSinglePane():
+		return panePoint{pane: paneSidebar, col: x, row: row}
+	case m.isStacked():
+		return m.stackedPointAt(x, row)
+	case x < m.sidebarWidth():
 		return panePoint{pane: paneSidebar, col: x, row: row}
 	case x < m.detailLeft():
 		return panePoint{}
 	}
 	return panePoint{pane: paneDetail, col: x - m.detailLeft(), row: row}
+}
+
+// stackedPointAt locates the cell at column x on row of the stacked layout's body: the sidebar
+// above the divider, no pane on the divider, and the detail pane under it, its row counted from
+// the pane's top.
+func (m model) stackedPointAt(x, row int) panePoint {
+	sidebarRows := m.stackedSidebarRows()
+	switch {
+	case row < sidebarRows:
+		return panePoint{pane: paneSidebar, col: x, row: row}
+	case row < sidebarRows+stackDividerRows:
+		return panePoint{}
+	}
+	return panePoint{pane: paneDetail, col: x, row: row - sidebarRows - stackDividerRows}
 }
 
 // isOnDivider reports the screen cell at column x and row y on the divider's hit area in the split

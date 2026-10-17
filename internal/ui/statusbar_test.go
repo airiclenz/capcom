@@ -191,7 +191,7 @@ func TestStatusBar_LockBadge_NarrowRowCutsBeforeTheHints(t *testing.T) {
 	const width = 50
 	m := newThemeModel(t, nil, darkThemeConfig, false, arrangeHeld(t))
 
-	m = press(t, m, tea.WindowSizeMsg{Width: width, Height: 30})
+	m = press(t, m, tea.WindowSizeMsg{Width: width, Height: 24})
 
 	row := paintedStatusRow(m)
 	plain := ansi.Strip(row)

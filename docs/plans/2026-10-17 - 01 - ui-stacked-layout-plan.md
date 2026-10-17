@@ -90,7 +90,15 @@ Depends on item 1.
 
 **Commit:** `refactor(ui): keep and save both divider ratios together`
 
-## 3. Draw the stacked layout
+## 3. Draw the stacked layout — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): consequential edit — internal/ui/model.go: made necessary by isNarrow → isSinglePane; the isDetailOpen field comment now names the one-pane layout and says the stacked layout ignores it.
+
+NOTES (2026-10-17): renamed the local isNarrowDetail in keys.go handleKey to isOnePaneDetail so `grep -n isNarrow internal/ui/*.go` is empty, as the item's approach requires.
+
+NOTES (2026-10-17): beyond the named isSinglePane/isStacked, layout.go adds canStack (narrow and tall enough, help ignored, so sidebarPaneRows/detailPaneRows and repaints under an open help screen keep the stacked sizes), hasFullWidthPanes (narrow; used by sidebarPaneWidth and detailLeft, per the regression guard), stackedPointAt, stackedBody, and the constants stackDividerRows = 1 and stackBodyMinRows = 21.
+
+NOTES (2026-10-17): the help screen's "in the narrow detail view" line (help.go) is left as it is: the help screen is out of scope and the line stays true of the one-pane layout.
 
 Depends on item 2.
 

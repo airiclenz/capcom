@@ -138,8 +138,8 @@ type model struct {
 
 	// isHelpOpen reports the help screen covering the panes.
 	isHelpOpen bool
-	// isDetailOpen reports, in the narrow layout, the detail pane filling the screen in place of
-	// the sidebar.
+	// isDetailOpen reports, in the one-pane layout of a narrow, short terminal, the detail pane
+	// filling the screen in place of the sidebar. The stacked layout shows both panes and ignores it.
 	isDetailOpen bool
 	// sidebar and detail are the rows of the two panes, top to bottom; detailOffset is the first
 	// detail row on screen. sidebar holds only the list's rows on screen: sidebarTop is the first

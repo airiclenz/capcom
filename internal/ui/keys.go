@@ -29,13 +29,14 @@ const (
 
 // handleKey applies one key press. q and ctrl+c quit from anywhere. While the help screen is open
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
-// the narrow detail view, open the filter line, open the help screen, and scroll the detail pane:
-// the page keys from anywhere, the arrows and j k only where the detail pane fills a narrow
-// screen. Esc from the sidebar clears the open tab's filter. On the Ready and Issues tabs a claims
-// the shown issue, s opens the status picker over it, c and R ask for a reason and close or reopen
-// it, and L asks for a line and appends it to its Log. On every tab e opens the selected issue or
-// Note file in the editor, and in the split layout < and > narrow and widen the sidebar and save
-// its new width to the state file.
+// the one-pane layout's detail view, open the filter line, open the help screen, and scroll the
+// detail pane: the page keys from anywhere, the arrows and j k only where the detail pane fills a
+// narrow, short screen; on a narrow screen tall enough to stack the panes, Enter keeps both, as in
+// the split layout. Esc from the sidebar clears the open tab's filter. On the Ready and Issues
+// tabs a claims the shown issue, s opens the status picker over it, c and R ask for a reason and
+// close or reopen it, and L asks for a line and appends it to its Log. On every tab e opens the
+// selected issue or Note file in the editor, and in the split layout < and > narrow and widen the
+// sidebar and save its new width to the state file.
 // Everywhere else the up and down arrows and j k move the sidebar's selection, and on a tree the
 // left and right arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
@@ -59,11 +60,11 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	case keyNextTab:
 		return m.openTab(nextTab(m.tab))
 	case keyOpen:
-		m.isDetailOpen = m.isNarrow()
+		m.isDetailOpen = m.isSinglePane()
 	case keyBack:
-		isNarrowDetail := m.isNarrow() && m.isDetailOpen
+		isOnePaneDetail := m.isSinglePane() && m.isDetailOpen
 		m.isDetailOpen = false
-		if !isNarrowDetail && m.filters[m.tab].isActive() {
+		if !isOnePaneDetail && m.filters[m.tab].isActive() {
 			return m.clearFilter(m.tab).showSelection()
 		}
 	case keyFilter:
@@ -93,7 +94,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 // sidebarOrScrollKey gives a key to the sidebar's selection while the sidebar is on screen, and
 // to scrollForKey when the sidebar does not take it.
 func (m model) sidebarOrScrollKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
-	isSidebarShown := !m.isNarrow() || !m.isDetailOpen
+	isSidebarShown := !m.isSinglePane() || !m.isDetailOpen
 	if isSidebarShown {
 		if next, cmd, isTaken := m.sidebarKey(msg); isTaken {
 			return next, cmd
@@ -115,11 +116,11 @@ func (m model) sidebarKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// scrollForKey scrolls the detail pane for a scroll key: a page or half a page for the page keys,
-// a row for the arrows and j k where the detail pane fills a narrow screen. Any other key leaves
-// the model as it is.
+// scrollForKey scrolls the detail pane for a scroll key: a page or half a page of the pane's own
+// rows for the page keys, a row for the arrows and j k where the detail pane fills a narrow,
+// short screen. Any other key leaves the model as it is.
 func (m model) scrollForKey(key string) model {
-	page := m.bodyHeight()
+	page := m.detailPaneRows()
 	switch key {
 	case keyPageUp:
 		return m.scrollDetail(-page)
@@ -189,10 +190,10 @@ func (m model) openTab(tab Tab) (model, tea.Cmd) {
 	return m.showSelection()
 }
 
-// scrollNarrowDetail scrolls the detail pane by rows when it fills a narrow screen, and leaves
-// the model as it is otherwise.
+// scrollNarrowDetail scrolls the detail pane by rows when it fills a narrow, short screen in the
+// one-pane layout, and leaves the model as it is otherwise.
 func (m model) scrollNarrowDetail(rows int) model {
-	if !m.isNarrow() || !m.isDetailOpen {
+	if !m.isSinglePane() || !m.isDetailOpen {
 		return m
 	}
 	return m.scrollDetail(rows)
@@ -201,7 +202,7 @@ func (m model) scrollNarrowDetail(rows int) model {
 // scrollDetail moves the detail pane by rows, down when positive, keeping its last row no higher
 // than the bottom of the pane and its first row no lower than the top.
 func (m model) scrollDetail(rows int) model {
-	lastOffset := max(len(m.detail)-m.bodyHeight(), 0)
+	lastOffset := max(len(m.detail)-m.detailPaneRows(), 0)
 	m.detailOffset = min(max(m.detailOffset+rows, 0), lastOffset)
 	return m
 }

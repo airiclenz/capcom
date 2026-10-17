@@ -16,12 +16,14 @@ import (
 	"github.com/airiclenz/capcom/internal/ops"
 )
 
-// The screen sizes the mouse tests run at: wide for the split layout, small for the narrow one.
+// The screen sizes the mouse tests run at: wide for the split layout, small for the one-pane one,
+// and small but tall for the stacked one.
 const (
 	wideWidth   = 120
 	wideHeight  = 30
 	smallWidth  = 80
 	smallHeight = 24
+	tallHeight  = 40
 )
 
 // fillerLines is how many paragraphs open the body of linkFiles' long issue, enough to push its
@@ -59,12 +61,21 @@ func wheel(button tea.MouseButton, x, y int) tea.MouseWheelMsg {
 }
 
 // detailLeft returns the screen column the detail pane starts at: past the sidebar and the
-// divider " │ " in the split layout.
+// divider " │ " in the split layout, the first on a narrow terminal.
 func detailLeft(m model) int {
-	if m.isNarrow() {
+	if m.hasFullWidthPanes() {
 		return 0
 	}
 	return m.sidebarWidth() + 3
+}
+
+// detailTop returns the screen row the detail pane starts at: under the sidebar and the divider
+// in the stacked layout, the panes' first row otherwise.
+func detailTop(m model) int {
+	if m.isStacked() {
+		return bodyTop + m.stackedSidebarRows() + stackDividerRows
+	}
+	return bodyTop
 }
 
 // linkCell returns the screen cell of the first cell of the detail pane's link to target as the
@@ -73,7 +84,7 @@ func linkCell(t *testing.T, m model, target string) (int, int) {
 	t.Helper()
 	for _, link := range m.issue.rendered.Links {
 		if link.Target == target {
-			return detailLeft(m) + link.Col, bodyTop + link.Line - m.detailOffset
+			return detailLeft(m) + link.Col, detailTop(m) + link.Line - m.detailOffset
 		}
 	}
 	t.Fatalf("no link to %s in the detail pane: %v", target, m.issue.rendered.Links)
@@ -88,10 +99,11 @@ func clickAndRelease(t *testing.T, m model, x, y int) model {
 	return press(t, m, release(x, y))
 }
 
-// openDetail opens the narrow detail view on a narrow screen, and leaves a wide one as it is.
+// openDetail opens the one-pane layout's detail view on a narrow, short screen, and leaves any
+// other as it is.
 func openDetail(t *testing.T, m model) model {
 	t.Helper()
-	if !m.isNarrow() {
+	if !m.isSinglePane() {
 		return m
 	}
 	return press(t, m, specialKey(tea.KeyEnter))
@@ -163,7 +175,7 @@ func TestMouse_ClickOnSidebarRow_SelectsAndShowsIt(t *testing.T) {
 			if got, isSelected := m.readySelection(); !isSelected || got.ID != "beta" {
 				t.Fatalf("selected %q, want beta", got.ID)
 			}
-			if !m.isNarrow() && !strings.Contains(detailText(m), "Beta's body.") {
+			if !m.isSinglePane() && !strings.Contains(detailText(m), "Beta's body.") {
 				t.Errorf("detail pane = %q, want beta's body", detailText(m))
 			}
 		})
@@ -309,7 +321,7 @@ func TestMouse_ClickOnTheDividerOrItsMargins_SelectsNothing(t *testing.T) {
 }
 
 func TestMouse_ClickOnLink_SelectsTheIssueInTheIssuesTab(t *testing.T) {
-	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}} {
+	for _, size := range [][2]int{{wideWidth, wideHeight}, {smallWidth, smallHeight}, {smallWidth, tallHeight}} {
 		t.Run(fmt.Sprintf("%dx%d", size[0], size[1]), func(t *testing.T) {
 			m := openDetail(t, newTestModel(t, newTestStore(t, readyFiles), size[0], size[1]))
 			x, y := linkCell(t, m, "beta")
@@ -400,6 +412,31 @@ func TestMouse_WheelOverDetail_ScrollsThePane(t *testing.T) {
 
 	if got, _ := m.readySelection(); m.detailOffset != detailWheelRows || got.ID != "long" {
 		t.Errorf("detail offset %d selecting %q, want %d selecting long", m.detailOffset, got.ID, detailWheelRows)
+	}
+}
+
+func TestMouse_WheelOverTheStackedDetailPane_ScrollsIt(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, linkFiles), smallWidth, tallHeight)
+
+	m = press(t, m, wheel(tea.MouseWheelDown, 2, detailTop(m)+2))
+
+	if got, _ := m.readySelection(); m.detailOffset != detailWheelRows || got.ID != "long" {
+		t.Errorf("detail offset %d selecting %q, want %d selecting long", m.detailOffset, got.ID, detailWheelRows)
+	}
+}
+
+func TestMouse_ClickOrWheelOnTheStackedDivider_DoesNothing(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, linkFiles), smallWidth, tallHeight)
+	dividerRow := detailTop(m) - stackDividerRows
+
+	clicked := press(t, m, click(3, dividerRow))
+	wheeled := press(t, m, wheel(tea.MouseWheelDown, 3, dividerRow))
+
+	for name, got := range map[string]model{"click": clicked, "wheel": wheeled} {
+		if selected, _ := got.readySelection(); selected.ID != "long" || got.detailOffset != 0 {
+			t.Errorf("a %s on the divider row: selecting %q at detail offset %d, want long at 0",
+				name, selected.ID, got.detailOffset)
+		}
 	}
 }
 

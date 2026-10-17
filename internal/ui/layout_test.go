@@ -35,6 +35,7 @@ func TestModel_View_EmptyLayout_MatchesGolden(t *testing.T) {
 	}{
 		{name: "layout-120x30", width: 120, height: 30},
 		{name: "layout-80x24", width: 80, height: 24},
+		{name: "layout-80x40", width: 80, height: 40},
 	}
 	ts := newTestStore(t, map[string]string{"issues/valid-issue.md": validIssue})
 	for _, testCase := range cases {
@@ -179,20 +180,104 @@ func TestModel_SplitLayout_PadsTheDividerWithAMarginEachSide(t *testing.T) {
 	}
 }
 
+func TestModel_TerminalSize_PicksTheLayout(t *testing.T) {
+	cases := []struct {
+		name        string
+		width       int
+		height      int
+		wantStacked bool
+		wantSplit   bool
+	}{
+		{name: "80x24 one pane", width: 80, height: 24},
+		{name: "80x25 stacked", width: 80, height: 25, wantStacked: true},
+		{name: "80x40 stacked", width: 80, height: 40, wantStacked: true},
+		{name: "120x40 split", width: 120, height: 40, wantSplit: true},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, readyFiles), testCase.width, testCase.height)
+
+			rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+
+			stackedRule := rows[bodyTop+m.stackedSidebarRows()]
+			isStackedRule := stackedRule == strings.Repeat(ruleGlyph, testCase.width)
+			if isStackedRule != testCase.wantStacked {
+				t.Errorf("row %d is the stacked divider %v, want %v: %q",
+					bodyTop+m.stackedSidebarRows(), isStackedRule, testCase.wantStacked, stackedRule)
+			}
+			column := m.sidebarWidth()
+			isSplitRow := ansi.Cut(rows[bodyTop], column, column+3) == " │ "
+			if isSplitRow != testCase.wantSplit {
+				t.Errorf("row %d holds the split separator %v, want %v", bodyTop, isSplitRow, testCase.wantSplit)
+			}
+		})
+	}
+}
+
+func TestModel_TerminalResize_SwitchesBetweenOnePaneAndStacked(t *testing.T) {
+	ts := newTestStore(t, readyFiles)
+	m := newTestModel(t, ts, 80, 24)
+	onePane := m.View().Content
+	stacked := newTestModel(t, ts, 80, 40).View().Content
+
+	m = send(t, m, tea.WindowSizeMsg{Width: 80, Height: 40})
+	gotStacked := m.View().Content
+	m = send(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	if gotStacked != stacked {
+		t.Errorf("80x24 resized to 80x40:\n%s\nwant the stacked layout\n%s", gotStacked, stacked)
+	}
+	if got := m.View().Content; got != onePane {
+		t.Errorf("resized back to 80x24:\n%s\nwant the one-pane layout\n%s", got, onePane)
+	}
+}
+
+func TestModel_StackedLayout_EnterKeepsBothPanes(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 80, 40)
+	before := m.View().Content
+
+	m = send(t, m, specialKey(tea.KeyEnter))
+
+	if m.isDetailOpen {
+		t.Errorf("Enter at 80x40 opened the one-pane detail view")
+	}
+	if got := m.View().Content; got != before {
+		t.Errorf("Enter at 80x40 changed the screen:\n%s\nwant\n%s", got, before)
+	}
+}
+
+func TestModel_ResizeKeys_LeaveTheSidebarRatioUnwrittenInTheStackedLayout(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	m := startModel(t, options, 80, 40)
+
+	for _, key := range []rune{'>', '<'} {
+		m = press(t, m, runeKey(key))
+	}
+
+	if m.sidebarRatio != 0 {
+		t.Errorf("sidebarRatio = %v, want 0: no width set in the stacked layout", m.sidebarRatio)
+	}
+	if got := readStoredRatio(t, options.UserStatePath); got != 0 {
+		t.Errorf("stored sidebar ratio = %v, want none written", got)
+	}
+}
+
 func TestModel_TabRule_JoinsTheDividerOnlyInTheSplitLayout(t *testing.T) {
 	cases := []struct {
 		name      string
 		width     int
+		height    int
 		keys      []tea.KeyPressMsg
 		wantJoint bool
 	}{
-		{name: "split", width: 120, wantJoint: true},
-		{name: "narrow", width: 80},
-		{name: "help", width: 120, keys: []tea.KeyPressMsg{runeKey('?')}},
+		{name: "split", width: 120, height: 30, wantJoint: true},
+		{name: "one pane", width: 80, height: 24},
+		{name: "stacked", width: 80, height: 40},
+		{name: "help", width: 120, height: 30, keys: []tea.KeyPressMsg{runeKey('?')}},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			m := newTestModel(t, newTestStore(t, readyFiles), testCase.width, 30)
+			m := newTestModel(t, newTestStore(t, readyFiles), testCase.width, testCase.height)
 			for _, key := range testCase.keys {
 				m = send(t, m, key)
 			}
@@ -473,25 +558,29 @@ func assertDividerAt(t *testing.T, m model) {
 
 func TestModel_ScrollKeys_MoveTheDetailPaneWithinItsLines(t *testing.T) {
 	cases := []struct {
-		name  string
-		width int
-		keys  []tea.KeyPressMsg
-		want  int
+		name   string
+		width  int
+		height int
+		keys   []tea.KeyPressMsg
+		want   int
 	}{
-		{name: "pgdown", width: 120, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgDown)}, want: 26},
-		{name: "pgup stops at the top", width: 120, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgUp)}, want: 0},
-		{name: "ctrl+d", width: 120, keys: []tea.KeyPressMsg{ctrlKey('d')}, want: 13},
-		{name: "ctrl+u", width: 120, keys: []tea.KeyPressMsg{ctrlKey('d'), ctrlKey('d'), ctrlKey('u')}, want: 13},
-		{name: "pgdown stops at the end", width: 120, keys: repeatKey(specialKey(tea.KeyPgDown), 5), want: 74},
-		{name: "j in the split layout", width: 120, keys: []tea.KeyPressMsg{runeKey('j')}, want: 0},
-		{name: "j on the narrow sidebar", width: 80, keys: []tea.KeyPressMsg{runeKey('j')}, want: 0},
-		{name: "j in the narrow detail", width: 80, keys: []tea.KeyPressMsg{specialKey(tea.KeyEnter), runeKey('j'), runeKey('j')}, want: 2},
-		{name: "up in the narrow detail", width: 80, keys: []tea.KeyPressMsg{specialKey(tea.KeyEnter), runeKey('j'), specialKey(tea.KeyUp)}, want: 0},
+		{name: "pgdown", width: 120, height: 30, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgDown)}, want: 26},
+		{name: "pgup stops at the top", width: 120, height: 30, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgUp)}, want: 0},
+		{name: "ctrl+d", width: 120, height: 30, keys: []tea.KeyPressMsg{ctrlKey('d')}, want: 13},
+		{name: "ctrl+u", width: 120, height: 30, keys: []tea.KeyPressMsg{ctrlKey('d'), ctrlKey('d'), ctrlKey('u')}, want: 13},
+		{name: "pgdown stops at the end", width: 120, height: 30, keys: repeatKey(specialKey(tea.KeyPgDown), 5), want: 74},
+		{name: "j in the split layout", width: 120, height: 30, keys: []tea.KeyPressMsg{runeKey('j')}, want: 0},
+		{name: "j on the narrow sidebar", width: 80, height: 24, keys: []tea.KeyPressMsg{runeKey('j')}, want: 0},
+		{name: "j in the narrow detail", width: 80, height: 24, keys: []tea.KeyPressMsg{specialKey(tea.KeyEnter), runeKey('j'), runeKey('j')}, want: 2},
+		{name: "up in the narrow detail", width: 80, height: 24, keys: []tea.KeyPressMsg{specialKey(tea.KeyEnter), runeKey('j'), specialKey(tea.KeyUp)}, want: 0},
+		// At 80x40 the stacked detail pane has 36-12-1 rows: the body's, less the sidebar's third and the divider.
+		{name: "pgdown in the stacked layout", width: 80, height: 40, keys: []tea.KeyPressMsg{specialKey(tea.KeyPgDown)}, want: 23},
+		{name: "j after Enter in the stacked layout", width: 80, height: 40, keys: []tea.KeyPressMsg{specialKey(tea.KeyEnter), runeKey('j')}, want: 0},
 	}
 	ts := newTestStore(t, nil)
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			m := newTestModel(t, ts, testCase.width, 30)
+			m := newTestModel(t, ts, testCase.width, testCase.height)
 			// The empty store leaves the Ready detail pane without rows, so the test gives it 100 of its own.
 			m.detail = make([]string, 100)
 

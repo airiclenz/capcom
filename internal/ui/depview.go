@@ -129,7 +129,7 @@ func depRows(entries []index.Entry, id string) ([]depRow, []depRow) {
 
 // depViewKey handles the keys of the dependency view, ahead of the model's own keys. While the
 // help screen is open it takes none. With the view closed, d on the Ready or Issues tab opens it
-// over the selected issue, filling a narrow screen. With it open, d and Esc close it, Enter
+// over the selected issue, filling a narrow, short screen. With it open, d and Esc close it, Enter
 // follows the selected row, and the up and down arrows and j k move its cursor; a tab key closes
 // it and goes on to switch the tab, / closes it and goes on to open the filter line where the
 // sidebar is on screen, and any other key the sidebar takes closes it before moving the sidebar. It reports false for every key it leaves to the model.
@@ -157,7 +157,7 @@ func (m model) depViewKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 	if _, isTabKey := tabForKey(key); isTabKey {
 		return m.closeDeps(), nil, false
 	}
-	if key == keyFilter && (!m.isNarrow() || !m.isDetailOpen) {
+	if key == keyFilter && (!m.isSinglePane() || !m.isDetailOpen) {
 		return m.closeDeps(), nil, false
 	}
 	if m.deps.cursor.key(msg, len(m.deps.rows()), listStopsAtEnds) == listSwallowed {
@@ -171,7 +171,7 @@ func (m model) depViewKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 // beside another's selection. It reports false, with the view still open, for a key the sidebar
 // does not take or while the sidebar is off screen.
 func (m model) sidebarKeyClosingDeps(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
-	isSidebarShown := !m.isNarrow() || !m.isDetailOpen
+	isSidebarShown := !m.isSinglePane() || !m.isDetailOpen
 	if !isSidebarShown {
 		return m, nil, false
 	}
@@ -194,7 +194,7 @@ func (m model) openDeps() (model, tea.Cmd, bool) {
 	}
 	m.deps = depView{isOpen: true, id: id, bodyOffset: m.detailOffset}
 	m.sel = detailSel{}
-	if m.isNarrow() {
+	if m.isSinglePane() {
 		m.isDetailOpen = true
 	}
 	return m, loadDeps(m.session, id), true
@@ -270,7 +270,7 @@ func (m model) paintDeps() model {
 	lines, selectedLine, _ := m.deps.lines(m.theme)
 	m.detail = lines
 	if selectedLine >= 0 {
-		height := max(m.bodyHeight(), 1)
+		height := max(m.detailPaneRows(), 1)
 		m.detailOffset = clampInt(m.detailOffset, selectedLine-height+1, selectedLine)
 	}
 	return m.scrollDetail(0)

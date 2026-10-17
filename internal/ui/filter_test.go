@@ -304,16 +304,17 @@ func TestFilter_EscFromTheSidebar_ClearsAndRestoresTheTree(t *testing.T) {
 
 func TestFilter_EscWithDepViewOrNarrowDetail_KeepsTheFilter(t *testing.T) {
 	tests := []struct {
-		name  string
-		width int
-		open  tea.KeyPressMsg
+		name   string
+		width  int
+		height int
+		open   tea.KeyPressMsg
 	}{
-		{name: "dep view", width: 120, open: runeKey('d')},
-		{name: "narrow detail", width: 80, open: specialKey(tea.KeyEnter)},
+		{name: "dep view", width: 120, height: 30, open: runeKey('d')},
+		{name: "narrow detail", width: 80, height: 24, open: specialKey(tea.KeyEnter)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newIssuesModel(t, newTestStore(t, filterFiles), "", tt.width, 30)
+			m := newIssuesModel(t, newTestStore(t, filterFiles), "", tt.width, tt.height)
 			m = applyFilterText(t, m, "label:ui")
 
 			m = pressKeys(t, m, tt.open, specialKey(tea.KeyEscape))

@@ -154,7 +154,7 @@ func (m model) keyHints() string {
 		return hintsPicker
 	case m.isFilterOpen:
 		return hintsFilter
-	case m.isNarrow() && m.isDetailOpen:
+	case m.isSinglePane() && m.isDetailOpen:
 		return hintsDetail
 	default:
 		return hintsPanes

@@ -288,7 +288,7 @@ func (w *treeWidget[E]) expandAll() {
 // openFilter opens the filter line over the open tab's sidebar, holding the filter in effect there,
 // when the sidebar is on screen.
 func (m model) openFilter() model {
-	isSidebarShown := !m.isNarrow() || !m.isDetailOpen
+	isSidebarShown := !m.isSinglePane() || !m.isDetailOpen
 	if !isSidebarShown {
 		return m
 	}
@@ -453,19 +453,20 @@ func (m model) emptySidebarText(tab Tab, emptyText string) string {
 	return noMatchTexts[tab]
 }
 
-// sidebarHeight returns the rows the sidebar's list gets: the body's, less the filter line's row
-// while it is open.
+// sidebarHeight returns the rows the sidebar's list gets: the sidebar pane's, less the filter
+// line's row while it is open.
 func (m model) sidebarHeight() int {
 	if m.isFilterOpen {
-		return max(m.bodyHeight()-1, 0)
+		return max(m.sidebarPaneRows()-1, 0)
 	}
-	return m.bodyHeight()
+	return m.sidebarPaneRows()
 }
 
 // sidebarPaneWidth returns the columns of the sidebar pane's text: the whole screen on a narrow
-// terminal, its share of it otherwise, either less the scrollbar's gutter and bar.
+// terminal, one pane or stacked, its share of it otherwise, either less the scrollbar's gutter
+// and bar.
 func (m model) sidebarPaneWidth() int {
-	if m.isNarrow() {
+	if m.hasFullWidthPanes() {
 		return max(m.width-scrollbarColumns, 0)
 	}
 	return max(m.sidebarWidth()-scrollbarColumns, 0)
