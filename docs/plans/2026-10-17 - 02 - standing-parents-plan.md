@@ -174,7 +174,7 @@ internal/clidoc/reference_test.go — TestReferenceUpToDate
 - `go vet ./internal/cli/`
 **Commit:** `feat(ready): list a standing Issue under --all with its reason`
 
-## 8. capcom ui shows the mark and the refusal
+## 8. capcom ui shows the mark and the refusal — ✅ DONE (2026-10-17)
 
 Depends on items 2 and 3.
 

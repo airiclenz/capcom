@@ -49,6 +49,11 @@ func TestIssueHeader_RendersEachSetKeyInOrder(t *testing.T) {
 				"\n",
 		},
 		{
+			name:  "standing mark after the plan",
+			entry: index.Entry{ID: "area", Title: "Area", Status: "open", Priority: 2, Plan: "area-plan", IsStanding: true},
+			want:  "# Area\n\nstatus: open · P2\nplan: area-plan\nstanding: yes\n\n",
+		},
+		{
 			name:  "only title, status and priority",
 			entry: index.Entry{ID: "bare", Title: "Bare task", Status: "open", Priority: 2},
 			want:  "# Bare task\n\nstatus: open · P2\n\n",
@@ -78,6 +83,18 @@ func TestDetailPane_IssueWithPlanAndRelated_ShowsBothLines(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("detail pane = %q, want a line %q", text, want)
 		}
+	}
+}
+
+func TestDetailPane_StandingIssue_ShowsTheMark(t *testing.T) {
+	ts := newTestStore(t, standingFiles)
+
+	text := detailText(newIssuesModel(t, ts, "area", 120, 30))
+	if !strings.Contains(text, "standing: yes") {
+		t.Errorf("detail pane of a standing issue = %q, want a line %q", text, "standing: yes")
+	}
+	if text := detailText(newIssuesModel(t, ts, "child", 120, 30)); strings.Contains(text, "standing:") {
+		t.Errorf("detail pane of an unmarked issue = %q, want no standing line", text)
 	}
 }
 

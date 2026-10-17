@@ -57,6 +57,10 @@ const (
 	nowReadyFormat = "%s; now ready: %s"
 	// alreadyClosedFormat refuses the close of an issue that is already closed.
 	alreadyClosedFormat = "%s is already closed"
+	// standingFormat refuses the claim, the close and a move into the doing category of an issue
+	// that carries the standing mark, naming the command that clears it.
+	standingFormat = "%s is standing: it only groups its children and is never claimed or closed; " +
+		"run capcom update %s --no-standing first"
 	// reopenName names a reopen in the conflict prompt, and reopenedFormat reports one that landed.
 	reopenName     = "reopen"
 	reopenedFormat = "reopened %s"
@@ -85,23 +89,25 @@ type writeAction struct {
 }
 
 // claimAction is the claim a makes: the issue moves to the first status of the doing category.
+// A standing issue is refused with standingFormat.
 func claimAction() writeAction {
 	return writeAction{
 		name: claimName,
 		run: func(writer *ops.Ops, _ config.Config, id string, etag string) (string, error) {
 			written, err := writer.Claim(id, etag)
-			return fmt.Sprintf(claimedFormat, written.ID), err
+			return fmt.Sprintf(claimedFormat, written.ID), standingRefusal(id, err)
 		},
 	}
 }
 
-// statusAction is the status change the status picker makes: the issue moves to status.
+// statusAction is the status change the status picker makes: the issue moves to status. A
+// standing issue moved into the doing category is refused with standingFormat.
 func statusAction(status string) writeAction {
 	return writeAction{
 		name: fmt.Sprintf(statusNameFormat, status),
 		run: func(writer *ops.Ops, _ config.Config, id string, etag string) (string, error) {
 			written, err := writer.SetStatus(id, etag, status)
-			return fmt.Sprintf(statusSetFormat, written.ID, status), err
+			return fmt.Sprintf(statusSetFormat, written.ID, status), standingRefusal(id, err)
 		},
 	}
 }
@@ -109,7 +115,7 @@ func statusAction(status string) writeAction {
 // closeAction is the close c makes with reason: the issue moves to the status capcom close uses
 // without --status, the first of the first closed category, with now, to the second, as its closed
 // time as the CLI stamps it, and its report names the issues the close made Ready. An issue already closed is
-// refused with alreadyClosedFormat.
+// refused with alreadyClosedFormat, and a standing one with standingFormat.
 func closeAction(reason string) writeAction {
 	return writeAction{
 		name: closeName,
@@ -121,6 +127,9 @@ func closeAction(reason string) writeAction {
 			if errors.Is(err, issue.ErrAlreadyClosed) {
 				return "", fmt.Errorf(alreadyClosedFormat, id)
 			}
+			if errors.Is(err, issue.ErrStanding) {
+				return "", standingRefusal(id, err)
+			}
 			notice := fmt.Sprintf(closedFormat, closed.ID)
 			if len(closed.NewlyReady) > 0 {
 				notice = fmt.Sprintf(nowReadyFormat, notice, strings.Join(closed.NewlyReady, listSeparator))
@@ -128,6 +137,15 @@ func closeAction(reason string) writeAction {
 			return notice, err
 		},
 	}
+}
+
+// standingRefusal returns err, a write's failure on the issue id names, as the standingFormat
+// refusal when it is issue.ErrStanding, and unchanged otherwise.
+func standingRefusal(id string, err error) error {
+	if errors.Is(err, issue.ErrStanding) {
+		return fmt.Errorf(standingFormat, id, id)
+	}
+	return err
 }
 
 // reopenAction is the reopen R makes with reason: the issue moves to the status capcom reopen
@@ -285,6 +303,7 @@ func changedFields(shown issue.Issue, shownParentID string, onDisk issue.Issue, 
 		{"deps", !slices.Equal(shown.Deps, onDisk.Deps)},
 		{"related", !slices.Equal(shown.Related, onDisk.Related)},
 		{"plan", shown.Plan != onDisk.Plan},
+		{"standing", shown.IsStanding != onDisk.IsStanding},
 		{"aliases", !slices.Equal(shown.Aliases, onDisk.Aliases)},
 		{"created", !shown.Created.Equal(onDisk.Created)},
 		{"closed", !shown.Closed.Equal(onDisk.Closed)},

@@ -21,6 +21,8 @@ const (
 	headerSeparator = " · "
 	listSeparator   = ", "
 	codeMark        = "`"
+	// standingYes is the standing line's value for an issue that carries the standing mark.
+	standingYes = "yes"
 	// headerTimeLayout is how the header shows the created and closed times, in UTC.
 	headerTimeLayout = "2006-01-02 15:04"
 )
@@ -156,6 +158,7 @@ func issueSource(entry index.Entry, reading nodestore.Reading[issue.Issue], err 
 	entry.Deps = parsed.Deps
 	entry.Related = parsed.Related
 	entry.Plan = parsed.Plan
+	entry.IsStanding = parsed.IsStanding
 	entry.Aliases = parsed.Aliases
 	entry.Created = parsed.Created
 	entry.Closed = parsed.Closed
@@ -165,9 +168,9 @@ func issueSource(entry index.Entry, reading nodestore.Reading[issue.Issue], err 
 
 // issueHeader returns the markdown header of an issue's detail: its title as a heading, its
 // status, priority and type on one line, then its labels, parent, deps, related issues, plan,
-// aliases, created and closed times and close reason, each line left out when empty, and a blank
-// line before the body. The parent, deps and related issues are code spans, so the renderer makes
-// the ones naming an id links; the times read in UTC to the minute.
+// standing mark, aliases, created and closed times and close reason, each line left out when
+// empty, and a blank line before the body. The parent, deps and related issues are code spans, so
+// the renderer makes the ones naming an id links; the times read in UTC to the minute.
 func issueHeader(entry index.Entry) string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "# %s\n\n", oneLine(entry.Title))
@@ -185,6 +188,7 @@ func issueHeader(entry index.Entry) string {
 	writeHeaderLine(&text, "deps", idSpans(entry.Deps))
 	writeHeaderLine(&text, "related", idSpans(entry.Related))
 	writeHeaderLine(&text, "plan", entry.Plan)
+	writeHeaderLine(&text, "standing", standingText(entry.IsStanding))
 	writeHeaderLine(&text, "aliases", strings.Join(entry.Aliases, listSeparator))
 	writeHeaderLine(&text, "created", headerTime(entry.Created))
 	writeHeaderLine(&text, "closed", headerTime(entry.Closed))
@@ -200,6 +204,15 @@ func writeHeaderLine(text *strings.Builder, key, value string) {
 		return
 	}
 	fmt.Fprintf(text, "%s: %s\n", key, value)
+}
+
+// standingText is the standing line's value for an issue's standing mark: standingYes, or "" when
+// it carries none, so the line is left out.
+func standingText(isStanding bool) string {
+	if isStanding {
+		return standingYes
+	}
+	return ""
 }
 
 // idSpans returns ids as code spans joined by the list separator, so the renderer makes the ones

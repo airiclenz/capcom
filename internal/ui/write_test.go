@@ -5,12 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/lock"
 	"github.com/airiclenz/capcom/internal/ops"
 )
@@ -51,6 +53,61 @@ func wantStatusWrite(t *testing.T, status string) []byte {
 		t.Fatalf("SetStatus: %v", err)
 	}
 	return readStoreFile(t, twin, alphaPath)
+}
+
+// standingFiles is a store with area, a standing Parent, and its open child child.
+var standingFiles = map[string]string{
+	"issues/area.md":       issueFile("title: Area\nstatus: open\npriority: 2\nstanding: true\n", "Groups the area's work.\n"),
+	"issues/area/child.md": issueFile("title: Child task\nstatus: open\npriority: 2\n", ""),
+}
+
+// areaPath is the file of standingFiles' standing issue.
+const areaPath = "issues/area.md"
+
+func TestWrite_StandingIssue_RefusesClaimStatusAndCloseAndWritesNothing(t *testing.T) {
+	const wantNotice = "write: area is standing: it only groups its children and is never claimed or closed; " +
+		"run capcom update area --no-standing first"
+	cases := []struct {
+		name string
+		act  func(t *testing.T, m model) model
+	}{
+		{name: "claim", act: func(t *testing.T, m model) model { return press(t, m, runeKey('a')) }},
+		{
+			name: "status active",
+			act: func(t *testing.T, m model) model {
+				m = press(t, m, runeKey('s'))
+				m = press(t, m, runeKey('j'))
+				return press(t, m, specialKey(tea.KeyEnter))
+			},
+		},
+		{name: "close", act: func(t *testing.T, m model) model { return submitPrompt(t, m, 'c', "all done") }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := newTestStore(t, standingFiles)
+			before := readStoreFile(t, ts, areaPath)
+			m := newIssuesModel(t, ts, "area", 120, 30)
+
+			m = tc.act(t, m)
+
+			if m.writeNotice != wantNotice {
+				t.Errorf("notice = %q, want %q", m.writeNotice, wantNotice)
+			}
+			if got := readStoreFile(t, ts, areaPath); !bytes.Equal(got, before) {
+				t.Errorf("%s after the refusal:\n%s\nwant it unchanged", areaPath, got)
+			}
+		})
+	}
+}
+
+func TestChangedFields_StandingMarkChanged_NamesStanding(t *testing.T) {
+	shown := issue.Issue{Title: "Area", Status: "open", IsStanding: true}
+	onDisk := shown
+	onDisk.IsStanding = false
+
+	if got := changedFields(shown, "", onDisk, ""); !slices.Equal(got, []string{"standing"}) {
+		t.Errorf("changedFields() = %q, want [standing]", got)
+	}
 }
 
 func TestWrite_Claim_WritesTheFileAsUpdateDoes(t *testing.T) {
