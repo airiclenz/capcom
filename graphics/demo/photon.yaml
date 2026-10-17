@@ -1,0 +1,36 @@
+# The rig that films capcom ui for the README's hero GIF. `photon setup` builds capcom into the
+# work dir; `reset` stages a small fictional repository before every take; the agent service
+# plays the coding agent that closes an issue while the clip runs.
+#   photon setup  graphics/demo/storyboards/hero.yaml
+#   photon record graphics/demo/storyboards/hero.yaml
+#   photon render graphics/demo/storyboards/hero.yaml
+name: capcom
+
+setup: go build -o "$PHOTON_WORK/capcom" ../../cmd/capcom
+reset: ./reset
+
+launch:
+  # The stage is the repository capcom ui opens.
+  command: cd "$PHOTON_WORK/stage" && exec "$PHOTON_WORK/capcom" ui
+  env:
+    # The user config and state.yaml live in the work dir, never the operator's.
+    HOME: ${PHOTON_WORK}/home
+    XDG_CONFIG_HOME: ${PHOTON_WORK}/config
+  strip: ['CAPCOM_*', 'NO_COLOR', 'GIT_*']
+
+services:
+  agent:
+    command: ./agent
+    ready: {line: '^agent ready$'}
+
+end:
+  keys: [ctrl+c]
+  idle: 500ms
+
+areas:
+  # The tab bar, the top row.
+  tabs:
+    bottom: {match: 'Knowledge'}
+  # The status bar, the bottom row.
+  status:
+    top: {match: 'help', pick: last}

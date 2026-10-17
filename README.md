@@ -5,6 +5,8 @@
 [![Go version](https://img.shields.io/github/go-mod/go-version/airiclenz/capcom)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+![capcom ui: claim an issue, watch an agent close another, browse the Issue tree and the Knowledge](graphics/demo.gif)
+
 **Mission control for your repository and the AI coding agents working in it.**
 
 capcom is a command-line issue tracker, task manager and project knowledge base for AI coding

@@ -1,9 +1,11 @@
 ---
 title: Hero GIF of capcom ui in the README
-status: open
+status: done
 type: task
 priority: 3
 created: 2026-10-17T08:51:03Z
+closed: 2026-10-17T13:21:36Z
+reason: graphics/demo rig filmed with photon; graphics/demo.gif shown under the README badges
 ---
 
 The README describes the terminal UI in words only. A short looping clip of `capcom ui` at the

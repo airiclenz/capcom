@@ -1,0 +1,102 @@
+# The README's hero clip: a person watches the Ready queue, claims a bug, sees an agent's close
+# land live, then looks over the Issue tree and the Knowledge.
+#   photon setup  graphics/demo/storyboards/hero.yaml   # once: build capcom into the work dir
+#   until photon record graphics/demo/storyboards/hero.yaml; do :; done
+#   photon render graphics/demo/storyboards/hero.yaml   # writes graphics/demo.gif
+clip: hero
+ship: ../../demo.gif
+frame: {cols: 120, rows: 20, padding: 16, font_size: 14, line_height: 1.2, scale: 2, width: 960, fps: 20, max_colors: 128}
+expect:
+  - seen: 'v\d+\.\d+\.\d+ · capcom'
+    area: tabs
+beats:
+  - id: 1
+    title: the ready queue
+    why: capcom ui opens on what is ready to work on, most urgent first
+    duration: 2500ms
+    do:
+      - wait: {screen: 'rate-limit +open +P1', timeout: 10s}
+      - pause: {for: 400ms}
+    expect:
+      - seen: 'Rate-limit link creation'
+  - id: 2
+    title: open the bug
+    why: the detail pane shows the issue the selection lands on, rendered
+    duration: 2s
+    do:
+      - key: {name: down}
+      - wait: {screen: 'starts in a goroutine', timeout: 5s}
+      - pause: {for: 600ms}
+    expect:
+      - seen: 'status: open · P1 · bug'
+  - id: 3
+    title: claim it
+    why: a supervisor's write is one key, the same write the CLI makes; the claimed bug leaves the queue
+    duration: 2500ms
+    do:
+      - pause: {for: 300ms}
+      - type: {text: 'a', humanize: false}
+      - wait: {screen: 'claimed flaky-redirect-test', timeout: 5s}
+      - pause: {for: 600ms}
+    zoom:
+      target: {text: 'claimed flaky-redirect-test', area: status}
+      factor: 1.8
+      in: 500ms
+      out: 500ms
+    expect:
+      - seen: 'claimed flaky-redirect-test'
+        area: status
+      - run: 'cd stage && ../capcom show flaky-redirect-test | grep -q "^status: active$"'
+  - id: 4
+    title: an agent closes rate-limit
+    why: the agent's close lands in the files and the queue redraws without being asked
+    duration: 3s
+    hold: 1500ms
+    do:
+      - wait: {screen: 'abuse-reports +open +P2', timeout: 10s}
+      - pause: {for: 1s}
+    zoom:
+      target: {text: 'abuse-reports +open +P2'}
+      factor: 1.6
+      in: 600ms
+      out: 600ms
+    expect:
+      - seen: 'abuse-reports +open +P2'
+      - run: 'cd stage && ../capcom show rate-limit | grep -q "^status: done$"'
+  - id: 5
+    title: the issue tree
+    why: the Issues tab shows the whole Tree with its hierarchy
+    duration: 3s
+    do:
+      - click: {target: {text: 'Issues', area: tabs}}
+      - wait: {screen: 'v1-launch', timeout: 5s}
+      - pause: {for: 400ms}
+      - key: {name: down, repeat: 2}
+      - wait: {screen: 'Ship tern v1\n', timeout: 5s}
+      - pause: {for: 300ms}
+      - key: {name: right}
+      - wait: {screen: 'abuse-reports', timeout: 5s}
+      - pause: {for: 400ms}
+      - key: {name: down, repeat: 3}
+      - wait: {screen: 'go\.example\.com', timeout: 5s}
+      - pause: {for: 600ms}
+    expect:
+      - seen: 'custom-domains +open +P2'
+      - seen: 'Custom short domains'
+  - id: 6
+    title: the knowledge
+    why: the Knowledge tab holds the Notes agents read before they work
+    duration: 3500ms
+    hold: 1s
+    do:
+      - click: {target: {text: 'Knowledge', area: tabs}}
+      - wait: {screen: 'architecture', timeout: 5s}
+      - pause: {for: 400ms}
+      - key: {name: right}
+      - wait: {screen: 'redirect-path', timeout: 5s}
+      - pause: {for: 300ms}
+      - key: {name: down}
+      - wait: {screen: 'one indexed lookup', timeout: 5s}
+      - pause: {for: 1200ms}
+    expect:
+      - seen: 'Redirects skip the admin API'

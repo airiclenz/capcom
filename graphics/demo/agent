@@ -1,0 +1,17 @@
+#!/bin/sh
+# The coding agent working beside the person in the clip. It waits until the person claims
+# flaky-redirect-test in capcom ui, then finishes rate-limit through the CLI, as an agent
+# would: a Log entry, then the close that makes abuse-reports Ready. capcom ui shows both
+# without being told.
+set -eu
+
+capcom="$PHOTON_WORK/capcom"
+cd "$PHOTON_WORK/stage"
+
+echo "agent ready"
+until "$capcom" show flaky-redirect-test | grep -q '^status: active$'; do
+	sleep 0.2
+done
+sleep 1.2
+"$capcom" log rate-limit "429 with Retry-After lands; limits read from tern.yaml"
+"$capcom" close rate-limit --reason "limiter merged, tests green"

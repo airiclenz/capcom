@@ -1,0 +1,150 @@
+#!/bin/sh
+# Restores the stage photon films: a fresh git repository at $PHOTON_WORK/stage holding a small
+# fictional project, tern, a self-hosted link shortener, with a few issues and Notes. Every
+# file is written through the capcom binary that `photon setup` built, so the stage is always
+# in the format that binary writes. The user config pins the dark theme, so the clip never
+# depends on the terminal answering a background colour query.
+set -eu
+
+capcom="$PHOTON_WORK/capcom"
+stage="$PHOTON_WORK/stage"
+
+# The user config directory as Go's os.UserConfigDir finds it under the launch's HOME and
+# XDG_CONFIG_HOME, which photon.yaml points into the work dir.
+case "$(uname -s)" in
+Darwin) userconfig="$PHOTON_WORK/home/Library/Application Support/capcom" ;;
+*) userconfig="$PHOTON_WORK/config/capcom" ;;
+esac
+
+rm -rf "$stage" "$PHOTON_WORK/home" "$PHOTON_WORK/config"
+mkdir -p "$stage" "$userconfig"
+printf 'ui:\n  theme: dark\n' >"$userconfig/config.yaml"
+# A wider sidebar than the default third, so the titles in the lists fit.
+printf 'ui:\n  sidebar_ratio: 0.5\n' >"$userconfig/state.yaml"
+
+cd "$stage"
+git init -q -b main
+git config user.name "Demo"
+git config user.email "demo@example.com"
+"$capcom" init >/dev/null
+
+issue() {
+	"$capcom" create --body-file - "$@" >/dev/null
+}
+
+note() {
+	"$capcom" know add --body-file - "$@" >/dev/null
+}
+
+issue --id v1-launch --title "Ship tern v1" --type feature --priority 1 <<'EOF'
+Everything a team needs to self-host tern in production: auth, limits, metrics and a guide.
+
+## Acceptance
+
+- Every child issue is closed.
+- The self-hosting guide walks a fresh server to a working instance.
+EOF
+
+issue --id api-tokens --parent v1-launch --title "Admin API tokens" \
+	--type feature --priority 1 --status active --label api <<'EOF'
+The admin API takes requests from anyone who can reach it. Workspaces need their own tokens.
+
+## Acceptance
+
+- Every admin route rejects a request without a valid token with `401`.
+- `tern token create` prints a new token once and stores only its hash.
+EOF
+
+issue --id rate-limit --parent v1-launch --title "Rate-limit link creation" \
+	--type feature --priority 1 --label api <<'EOF'
+One script can create millions of links and fill the database. Limit creation per workspace.
+
+## Acceptance
+
+- A workspace over its limit gets `429` with a `Retry-After` header.
+- The limit is set per workspace in `tern.yaml`.
+EOF
+
+issue --id abuse-reports --parent v1-launch --title "Report abusive links" \
+	--priority 2 --dep rate-limit <<'EOF'
+A link that points at malware should be one click away from a report. The report form shares
+the creation limiter, so it waits on `rate-limit`.
+
+## Acceptance
+
+- Every interstitial page carries a **Report** link.
+- A report lands in the workspace's admin queue.
+EOF
+
+issue --id custom-domains --parent v1-launch --title "Custom short domains" \
+	--type feature --priority 2 --dep api-tokens <<'EOF'
+A workspace wants its own domain, `go.example.com`, not the shared one.
+
+## Acceptance
+
+- `tern domain add` verifies a DNS record before the domain goes live.
+- Links resolve on the workspace's domain and nowhere else.
+EOF
+
+issue --id metrics --parent v1-launch --title "Prometheus /metrics" \
+	--priority 2 --label ops <<'EOF'
+Operators run tern behind their own monitoring. Expose redirect counts and latencies.
+
+## Acceptance
+
+- `GET /metrics` serves `tern_redirects_total` and `tern_redirect_seconds`.
+EOF
+
+issue --id flaky-redirect-test --title "TestRedirect is flaky" \
+	--type bug --priority 1 --label ci <<'EOF'
+`TestRedirect` fails on CI about once in fifty runs with a `502` where it expects a `301`.
+
+The test server starts in a goroutine and the first request can land before it listens.
+
+## Acceptance
+
+- `go test -count=500 ./redirect` passes.
+EOF
+
+issue --id self-hosting-guide --title "Self-hosting guide" --type task --priority 3 \
+	--label docs <<'EOF'
+From a fresh server to a working tern: install, `tern.yaml`, TLS and backups.
+EOF
+
+note --id architecture --title "How tern is put together" <<'EOF'
+tern is one Go binary with two listeners: the **redirect path** on `:80` and the **admin API**
+on `:8080`. They share the SQLite store and nothing else.
+EOF
+
+note --id redirect-path --parent architecture \
+	--title "Redirects skip the admin API" <<'EOF'
+A redirect is one indexed lookup and a `301`. It must stay fast under load, so it:
+
+- reads the link from SQLite through a prepared statement;
+- never takes the admin API's locks;
+- logs one line per request, sampled at 1%.
+
+```go
+link, err := store.Lookup(ctx, slug)
+```
+EOF
+
+note --id storage --parent architecture --title "Links live in SQLite" <<'EOF'
+One database file, one table of links per workspace, so a workspace is dropped with one
+statement. Migrations run at start-up and never down.
+EOF
+
+note --id conventions --title "Errors, logging and tests" <<'EOF'
+- Wrap every error with the operation that failed: `fmt.Errorf("create link: %w", err)`.
+- Log with `slog`, never `fmt.Println`.
+- Tests use a real SQLite file in `t.TempDir()`, never a mock.
+EOF
+
+note --id glossary --title "Glossary: link, slug, workspace" <<'EOF'
+- **Link**: a slug and the URL it points at.
+- **Slug**: the short path after the domain, `go.example.com/<slug>`.
+- **Workspace**: one team's links, tokens, limits and domains.
+EOF
+
+git add -A
+git commit -q -m "chore: file the v1 issues and the first Notes"
