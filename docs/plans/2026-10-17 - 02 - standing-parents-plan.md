@@ -190,7 +190,9 @@ Depends on items 2 and 3.
 - `go vet ./internal/ui/`
 **Commit:** `feat(ui): show the standing mark and refuse claiming or closing it`
 
-## 9. `check` reports a standing Issue that is closed or doing
+## 9. `check` reports a standing Issue that is closed or doing — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the rule lives in a new helper `checker.checkStanding`, called from `checkIssue`; `TestCodes_ClosedSet_PinsEveryCodeString` in internal/check/check_test.go also pins `standing`, since it enumerates every check code. The clean test also covers a standing Issue in a waiting status (`parked`), which the rule leaves alone like a todo one. The manual pages describing the new code are item 11's.
 
 Depends on item 1.
 

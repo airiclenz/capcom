@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -317,6 +318,68 @@ func TestRun_RelatedNamingAnAlias_ReportsNothing(t *testing.T) {
 		".capcom/config.yaml":         "format: 2\n",
 		issues + "login-flow.md":      issueFile("related: [apogee-kk0.4]\n"),
 		issues + "session-timeout.md": issueFile("aliases: [apogee-kk0.4]\n"),
+	})
+
+	problems := runCheck(t, root)
+
+	if len(problems) != 0 {
+		t.Fatalf("problems = %v, want none", problems)
+	}
+}
+
+// standingConfig declares the first store format that holds the standing key, so a standing
+// fixture reports no format-too-old problem.
+var standingConfig = "format: " + strconv.Itoa(config.FormatStanding) + "\n"
+
+func TestRun_StandingIssueClosedOrDoing_ReportsStandingAtTheStandingLine(t *testing.T) {
+	cases := []struct {
+		name   string
+		status string
+		extra  string
+		line   int
+	}{
+		{
+			name:   "closed",
+			status: "done",
+			extra:  "closed: 2026-10-12T09:00:00Z\nreason: finished\nstanding: true\n",
+			line:   9,
+		},
+		{name: "doing", status: "active", extra: "labels: [area]\nstanding: true\n", line: 8},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newRepo(t)
+			writeFiles(t, root, map[string]string{
+				".capcom/config.yaml": standingConfig,
+				issues + "login-flow.md": strings.Replace(
+					issueFile(testCase.extra), "status: open", "status: "+testCase.status, 1,
+				),
+			})
+
+			problems := runCheck(t, root)
+
+			got := locations(t, problems)
+			location := issues + "login-flow.md:" + strconv.Itoa(testCase.line) + ":"
+			want := []string{location + string(diagnose.Standing)}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("problems = %v, want %v", problems, want)
+			}
+			quoted := strconv.Quote(testCase.status)
+			if !strings.Contains(problems[0].Message, quoted) {
+				t.Errorf("message = %q, want it to name the status %s", problems[0].Message, quoted)
+			}
+		})
+	}
+}
+
+func TestRun_StandingIssueTodoOrWaiting_ReportsNothing(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml":    standingConfig,
+		issues + "login-flow.md": issueFile("standing: true\n"),
+		issues + "export-csv.md": strings.Replace(
+			issueFile("standing: true\n"), "status: open", "status: parked", 1,
+		),
 	})
 
 	problems := runCheck(t, root)
@@ -970,6 +1033,7 @@ func TestCodes_ClosedSet_PinsEveryCodeString(t *testing.T) {
 		"FormatTooOld":        "format-too-old",
 		"Cycle":               "cycle",
 		"MissingPlan":         "missing-plan",
+		"Standing":            "standing",
 		"BrokenRef":           "broken-ref",
 		"AgentsBlock":         "agents-block",
 		"AgentsGuide":         "agents-guide",

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -94,8 +95,8 @@ func graphNodes(entries []parsedIssue) []issue.Node {
 }
 
 // checkIssue checks one parsed issue: its fields against the config, as its Reading found them, its
-// plan, its deps and its related links, and that each key line of the issue tree's format table,
-// whatever it holds, sits in a store declaring the key's format.
+// plan, its standing mark, its deps and its related links, and that each key line of the issue
+// tree's format table, whatever it holds, sits in a store declaring the key's format.
 func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	path := entry.node.Path
 	for _, finding := range entry.fields {
@@ -108,6 +109,7 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 			c.store.Config.Plans,
 		))
 	}
+	c.checkStanding(entry)
 	for _, dep := range entry.issue.Deps {
 		if _, isFound := graph.Resolve(dep); !isFound {
 			c.add(path, entry.issue.DepsLine(), diagnose.MissingDep, fmt.Sprintf(
@@ -119,6 +121,28 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	c.checkRelated(entry, graph)
 	formats := nodestore.IssueDescriptor(c.store.Config).Formats
 	addKeysFormatTooOld(c, path, entry.issue, formats, c.store.Config.Format)
+}
+
+// checkStanding reports a standing issue whose status is in a closed category or the doing
+// category, at the standing key's line. A status the config does not declare is a Field problem
+// already, so it is left alone here.
+func (c *checker) checkStanding(entry parsedIssue) {
+	if !entry.issue.IsStanding {
+		return
+	}
+	status := entry.issue.Status
+	category, isDeclared := c.store.Config.CategoryOf(status)
+	if !isDeclared || (!category.IsClosed() && category != config.CategoryDoing) {
+		return
+	}
+	c.add(entry.node.Path, entry.issue.StandingLine(), diagnose.Standing, fmt.Sprintf(
+		"standing issue has status %q in the %s category; a standing issue only groups its "+
+			"children and is never claimed or closed: move it out of that category, or run "+
+			"capcom update %s --no-standing",
+		status,
+		category,
+		entry.node.ID,
+	))
 }
 
 // checkRelated checks the related links of one parsed issue: each must resolve to an issue other

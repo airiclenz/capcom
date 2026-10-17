@@ -99,6 +99,7 @@ func TestKind_EachKind_PinsItsString(t *testing.T) {
 		diagnose.FormatTooOld:        "format-too-old",
 		diagnose.Cycle:               "cycle",
 		diagnose.MissingPlan:         "missing-plan",
+		diagnose.Standing:            "standing",
 		diagnose.BrokenRef:           "broken-ref",
 		diagnose.AgentsBlock:         "agents-block",
 		diagnose.AgentsGuide:         "agents-guide",

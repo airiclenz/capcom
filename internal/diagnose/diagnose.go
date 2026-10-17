@@ -52,6 +52,9 @@ const (
 	Cycle Kind = "cycle"
 	// MissingPlan is a plan found in none of the configured plans directories.
 	MissingPlan Kind = "missing-plan"
+	// Standing is a standing issue whose status is in a closed category or the doing category: a
+	// standing Parent only groups its children and is never claimed or closed.
+	Standing Kind = "standing"
 	// BrokenRef is a Note Ref that does not resolve in the working tree.
 	BrokenRef Kind = "broken-ref"
 	// AgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled, or

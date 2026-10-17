@@ -2,12 +2,15 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/config"
 )
 
 func TestCheck_CleanStore_ExitsZeroWithNoOutput(t *testing.T) {
@@ -242,6 +245,23 @@ func TestCheck_RelatedInFormatOneStore_ReportsFormatTooOld(t *testing.T) {
 
 	want := ".capcom/issues/valid-issue.md:6: related needs store format 2, but the store declares format 1: " +
 		"set format: 2 in .capcom/config.yaml, or run a capcom write verb that raises it\n"
+	if exitCode != ExitError || stdout != want || stderr != "" {
+		t.Errorf("check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
+	}
+}
+
+func TestCheck_StandingIssueInDoingStatus_ReportsStandingAndExitsOne(t *testing.T) {
+	standing := strings.Replace(validIssue, "status: open", "status: active", 1)
+	standing = strings.Replace(standing, "priority: 2\n", "priority: 2\nstanding: true\n", 1)
+	root := newIssueStore(t, map[string]string{"area-issue.md": standing})
+	writeStoreConfig(t, root, fmt.Sprintf("format: %d\n", config.FormatStanding))
+
+	stdout, stderr, exitCode := runCLI(t, root, "check")
+
+	want := ".capcom/issues/area-issue.md:6: " +
+		"standing issue has status \"active\" in the doing category; " +
+		"a standing issue only groups its children and is never claimed or closed: " +
+		"move it out of that category, or run capcom update area-issue --no-standing\n"
 	if exitCode != ExitError || stdout != want || stderr != "" {
 		t.Errorf("check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
 	}
