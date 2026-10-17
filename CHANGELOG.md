@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-17
+
 - `capcom ui` remembers, per worktree, the tab it was on and the issue or Note selected on each tab, in `<git-dir>/capcom/ui-state.yaml`, and reopens there; a tab or id given on the command line wins.
 
 ## [0.8.0] - 2026-10-17
