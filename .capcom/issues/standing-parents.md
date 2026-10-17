@@ -3,6 +3,7 @@ title: A standing Parent that only groups children is offered as ready work
 status: open
 type: feature
 priority: 2
+plan: 2026-10-17 - 02 - standing-parents-plan
 created: 2026-10-17T18:55:29Z
 ---
 
