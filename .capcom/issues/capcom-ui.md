@@ -1,9 +1,11 @@
 ---
 title: "capcom ui: a terminal UI for issues and Knowledge"
-status: active
+status: done
 type: feature
 priority: 2
 created: 2026-10-15T20:03:23Z
+closed: 2026-10-17T14:20:34Z
+reason: All 28 children closed; shipped in v0.8.0; CI green on Linux, macOS and Windows; the manual and CLI reference describe capcom ui. Remembering the tab and selection is filed separately as ui-remember-tab.
 ---
 
 A terminal UI, `capcom ui [issues|ready|knowledge] [id]`, for a person working next to coding
