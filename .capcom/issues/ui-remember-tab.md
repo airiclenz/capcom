@@ -3,6 +3,7 @@ title: capcom ui reopens on the last tab and selection, per worktree
 status: open
 type: feature
 priority: 2
+plan: 2026-10-17 - 00 - ui-remember-tab-plan
 created: 2026-10-17T14:20:34Z
 ---
 
