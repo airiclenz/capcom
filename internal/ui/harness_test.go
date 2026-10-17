@@ -122,8 +122,9 @@ func newGitRepo(t *testing.T) string {
 const testVersion = "1.2.3"
 
 // newTestOptions returns the Options capcom ui would pass for the test store, on the Ready tab,
-// with the user config file and the state file at paths in a fresh temp dir, neither yet
-// created, so no test reads or writes the real user config directory.
+// with the user config file, the state file and the worktree state file at paths in a fresh temp
+// dir, none yet created, so no test reads or writes the real user config directory or the test
+// repository's git directory.
 func newTestOptions(t *testing.T, ts *testStore) Options {
 	t.Helper()
 	directory := filepath.Join(t.TempDir(), "capcom")
@@ -133,6 +134,7 @@ func newTestOptions(t *testing.T, ts *testStore) Options {
 		Tab:            TabReady,
 		UserConfigPath: filepath.Join(directory, "config.yaml"),
 		UserStatePath:  filepath.Join(directory, "state.yaml"),
+		UIStatePath:    filepath.Join(directory, "ui-state.yaml"),
 		Version:        testVersion,
 	}
 }

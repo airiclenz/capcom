@@ -25,12 +25,14 @@ const (
 // issuesMsg carries one read of the issues for the Issues tab: every usable issue, Closed ones
 // included, in tree order, or the error that kept them from being read. selectID is the issue
 // the read was asked to select, resolved to its id, and notice reports an id that resolved to no
-// issue; both are empty when no id was asked for. isReload marks a live refresh's read, and
-// filter is the Issues filter it matched again, nil when it matched none.
+// issue; both are empty when no id was asked for. isStored marks a selectID the worktree state
+// file stored, which the tree may not hold without a notice. isReload marks a live refresh's
+// read, and filter is the Issues filter it matched again, nil when it matched none.
 type issuesMsg struct {
 	entries  []index.Entry
 	selectID string
 	notice   string
+	isStored bool
 	err      error
 	isReload bool
 	filter   *sidebarFilter
@@ -47,11 +49,12 @@ type issuesTab struct {
 
 // loadIssues returns a command that reads every issue through the session, Closed ones included,
 // as capcom list --tree does, matches read's filter again when it names one, and resolves read's
-// wanted id, aliases included, when it is not empty.
+// wanted id, aliases included, when it is not empty; a stored id that resolves to nothing is
+// dropped without a notice.
 func loadIssues(s *session, read tabRead) tea.Cmd {
 	wantedID := read.wantedID
 	return func() tea.Msg {
-		msg := issuesMsg{isReload: read.isReload}
+		msg := issuesMsg{isReload: read.isReload, isStored: read.isStored}
 		msg.err = s.do(func(opened *store.Store, issueIndex *index.Index) error {
 			entries, err := issueIndex.List(index.Filter{IsClosedIncluded: true})
 			if err != nil {
@@ -64,7 +67,9 @@ func loadIssues(s *session, read tabRead) tea.Cmd {
 			}
 			entry, err := issueIndex.Resolve(wantedID)
 			if err != nil {
-				msg.notice = fmt.Sprintf(selectFailureFormat, wantedID, err)
+				if !read.isStored {
+					msg.notice = fmt.Sprintf(selectFailureFormat, wantedID, err)
+				}
 				return nil
 			}
 			msg.selectID = entry.ID
@@ -78,8 +83,8 @@ func loadIssues(s *session, read tabRead) tea.Cmd {
 // what the Issues filter leaves of it, the one the read matched again when it did, keeping the
 // nodes expanded before it, the scroll and the selection or, when the read dropped the selected
 // issue, its replacement, selects the issue the read resolved, reporting the id in the status bar
-// when the tree does not hold it, and shows the selection; a reload's read also reads the shown
-// issue again.
+// when the tree does not hold it and the worktree state file did not store it, and shows the
+// selection; a reload's read also reads the shown issue again.
 func (m model) applyIssues(msg issuesMsg) (model, tea.Cmd) {
 	m = m.takeRematched(TabIssues, msg.filter)
 	m.issues.err = msg.err
@@ -88,7 +93,7 @@ func (m model) applyIssues(msg issuesMsg) (model, tea.Cmd) {
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
-	if msg.selectID != "" && !m.issues.tree.selectID(msg.selectID) {
+	if msg.selectID != "" && !m.issues.tree.selectID(msg.selectID) && !msg.isStored {
 		m.notice = fmt.Sprintf(notInTreeFormat, msg.selectID)
 	}
 	next, cmd := m.showIssuesSelection()

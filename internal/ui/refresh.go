@@ -50,8 +50,11 @@ type refreshedMsg struct {
 
 // tabRead is what one read of a tab's sidebar asks for besides its rows: the id to select, and,
 // on a reload, the filter in effect, matched again in the same read so rows and filter agree.
+// isStored marks an id the worktree state file stored, selected quietly: one that resolves to no
+// issue or Note, or that the tab does not hold, leaves the first row selected without a notice.
 type tabRead struct {
 	wantedID   string
+	isStored   bool
 	isReload   bool
 	filterText string
 }

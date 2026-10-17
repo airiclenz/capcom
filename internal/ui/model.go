@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/ui/markdown"
 	"github.com/airiclenz/capcom/internal/userconfig"
 )
@@ -14,8 +17,8 @@ import (
 // userConfigNoticePrefix opens a status-bar notice about the user config file.
 const userConfigNoticePrefix = "user config: "
 
-// defaultsNotice closes a user config or state file notice whose error left the UI on the
-// defaults.
+// defaultsNotice closes a user config, state file or worktree state file notice whose error left
+// the UI on the defaults.
 const defaultsNotice = " (running on defaults)"
 
 // stateNoticePrefix opens a status-bar notice about a state file that could not be loaded, and
@@ -25,14 +28,26 @@ const (
 	stateSaveNoticePrefix = "cannot save the sidebar width: "
 )
 
+// worktreeStateFileName is the worktree state file's name in the index's directory, and
+// worktreeStateNoticePrefix opens a status-bar notice about one that could not be loaded.
+const (
+	worktreeStateFileName     = "ui-state.yaml"
+	worktreeStateNoticePrefix = "ui worktree state: "
+)
+
 // model is the Bubble Tea model of the UI. It holds the session every store and index access goes
-// through, the open tab, the id to select there, the user config it runs on, the terminal size
-// from the last tea.WindowSizeMsg, live refresh's state, and the state of the panes and the
+// through, the open tab, the ids to select at start, the user config it runs on, the terminal
+// size from the last tea.WindowSizeMsg, live refresh's state, and the state of the panes and the
 // status bar.
 type model struct {
-	session   *session
-	tab       Tab
-	initialID string
+	session *session
+	tab     Tab
+	// initialID is the id the command line named to select in initialTab, "" when it named none;
+	// storedIDs are the ids the worktree state file stores to select in each tab, indexed by Tab,
+	// "" for none. Each tab selects its stored id unless the command line named one there.
+	initialID  string
+	initialTab Tab
+	storedIDs  [len(tabNames)]string
 	// version is the release version the tab bar's version label names; empty, it draws none.
 	version string
 
@@ -104,6 +119,9 @@ type model struct {
 	stateSaver        *stateSaver
 	stateNotice       string
 	stateSavedRequest int
+	// worktreeStateNotice reports a worktree state file that could not be loaded, empty when there
+	// is nothing to report.
+	worktreeStateNotice string
 	// drag is the drag of the divider under way, its zero value when there is none.
 	drag dividerDrag
 	// lastDividerPress is when the divider's hit area was last pressed, the zero time when the
@@ -159,8 +177,12 @@ type model struct {
 	writeNotice string
 }
 
-// newModel returns the model of a UI over options' store and index, opening on options.Tab and
-// selecting options.ID there when it is set. It loads the user config at options.UserConfigPath,
+// newModel returns the model of a UI over options' store and index. It loads the worktree state
+// file at options.UIStatePath, or ui-state.yaml in the index's directory when that is empty, and
+// opens on options.Tab when options.IsTabGiven or the file stores no tab, otherwise on the stored
+// tab, Ready when no tab has that name; options.ID is selected in options.Tab when it is set, and
+// each other tab selects the id the file stores for it. A worktree state file that cannot be used
+// leaves no tab and no ids stored, with a notice in the status bar. It loads the user config at options.UserConfigPath,
 // or at userconfig.Path when that is empty, creating the file when it is missing; a config that
 // cannot be used leaves the model on userconfig.Default with a notice in the status bar. It
 // starts the sidebar on the width the state file at options.UserStatePath, or at
@@ -171,26 +193,34 @@ type model struct {
 func newModel(options Options) model {
 	config, notice := loadUserConfig(options.UserConfigPath)
 	sidebarRatio, saver, stateNotice := loadUserState(options.UserStatePath)
+	worktreeState, worktreeStateNotice := loadWorktreeState(options.UIStatePath, options.Store)
 	writer := clipboardWriter(options.Store.WorktreeRoot)
 	m := model{
-		session:      newSession(options.Store, options.Index),
-		tab:          options.Tab,
-		initialID:    options.ID,
-		version:      options.Version,
-		userConfig:   config,
-		configNotice: notice,
-		sidebarRatio: sidebarRatio,
-		stateSaver:   saver,
-		stateNotice:  stateNotice,
-		isNoColor:    options.NoColor,
-		lockText:     lockReadingText,
-		tick:         scheduleTick,
-		now:          time.Now,
-		execFn:       execEditor,
-		setClipboard: tea.SetClipboard,
-		writeNative:  writer.WriteNative,
-		writeTmux:    writer.WriteTmux,
-		flashTick:    tea.Tick,
+		session:    newSession(options.Store, options.Index),
+		tab:        openedTab(options.Tab, options.IsTabGiven, worktreeState.Tab),
+		initialID:  options.ID,
+		initialTab: options.Tab,
+		storedIDs: [len(tabNames)]string{
+			TabReady:     worktreeState.Ready,
+			TabIssues:    worktreeState.Issues,
+			TabKnowledge: worktreeState.Knowledge,
+		},
+		version:             options.Version,
+		userConfig:          config,
+		configNotice:        notice,
+		sidebarRatio:        sidebarRatio,
+		stateSaver:          saver,
+		stateNotice:         stateNotice,
+		worktreeStateNotice: worktreeStateNotice,
+		isNoColor:           options.NoColor,
+		lockText:            lockReadingText,
+		tick:                scheduleTick,
+		now:                 time.Now,
+		execFn:              execEditor,
+		setClipboard:        tea.SetClipboard,
+		writeNative:         writer.WriteNative,
+		writeTmux:           writer.WriteTmux,
+		flashTick:           tea.Tick,
 	}
 	m.theme = m.themeOf()
 	m.markdownTheme = m.theme.markdown
@@ -242,6 +272,34 @@ func loadUserState(path string) (float64, *stateSaver, string) {
 		return 0, saver, stateNoticePrefix + err.Error() + defaultsNotice
 	}
 	return state.UI.SidebarRatio, saver, ""
+}
+
+// loadWorktreeState loads the worktree state file at path, ui-state.yaml in the directory of s's
+// index when path is empty, never creating it. It returns what the file stores and the status-bar
+// notice of an error, "" when there is none; a file that cannot be used stores nothing.
+func loadWorktreeState(path string, s *store.Store) (userconfig.WorktreeState, string) {
+	if path == "" {
+		path = filepath.Join(index.Dir(s), worktreeStateFileName)
+	}
+	state, err := userconfig.LoadWorktreeState(path)
+	if err != nil {
+		return state, worktreeStateNoticePrefix + err.Error() + defaultsNotice
+	}
+	return state, ""
+}
+
+// openedTab returns the tab the UI opens on: given when the command line named it or the worktree
+// state file stores no tab, otherwise the stored tab, Ready when no tab has that name.
+func openedTab(given Tab, isTabGiven bool, stored string) Tab {
+	if isTabGiven || stored == "" {
+		return given
+	}
+	tab, err := ParseTab(stored)
+	if err != nil {
+		// A name an older or newer capcom wrote opens the default tab without a word.
+		return TabReady
+	}
+	return tab
 }
 
 // stateSavedMsg reports a write of the state file: request numbers the save it wrote, and err is
@@ -316,15 +374,15 @@ func (m model) applyStateSaved(msg stateSavedMsg) model {
 }
 
 // Init reads this worktree's Tree lock for the status bar, the Ready queue, the issues of the
-// Issues tree and the Notes of the Knowledge tree, and schedules the first poll of the index; the
-// tab the UI opened on selects the id it was opened with. Under theme auto, with colours on, it
+// Issues tree and the Notes of the Knowledge tree, and schedules the first poll of the index; each
+// tab selects the id initialIDFor returns for it. Under theme auto, with colours on, it
 // also asks the terminal for its background colour, which picks the preset once it answers.
 func (m model) Init() tea.Cmd {
 	cmds := []tea.Cmd{
 		readLock(m.session),
-		loadReady(m.session, tabRead{wantedID: m.initialIDFor(TabReady)}),
-		loadIssues(m.session, tabRead{wantedID: m.initialIDFor(TabIssues)}),
-		loadKnowledge(m.session, tabRead{wantedID: m.initialIDFor(TabKnowledge)}),
+		loadReady(m.session, m.initialRead(TabReady)),
+		loadIssues(m.session, m.initialRead(TabIssues)),
+		loadKnowledge(m.session, m.initialRead(TabKnowledge)),
 		m.tick(),
 	}
 	if m.userConfig.UI.Theme == userconfig.ThemeAuto && !m.isNoColor {
@@ -333,12 +391,21 @@ func (m model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-// initialIDFor returns the id the UI was opened with when it opened on tab, and "" otherwise.
-func (m model) initialIDFor(tab Tab) string {
-	if m.tab != tab {
-		return ""
+// initialIDFor returns the id tab selects at start and whether the worktree state file stored it:
+// the id the command line named when it named one for tab, otherwise the id stored for tab, ""
+// when none is.
+func (m model) initialIDFor(tab Tab) (string, bool) {
+	if m.initialID != "" && tab == m.initialTab {
+		return m.initialID, false
 	}
-	return m.initialID
+	return m.storedIDs[tab], true
+}
+
+// initialRead returns tab's first read: it selects the id initialIDFor returns, quietly when the
+// worktree state file stored it.
+func (m model) initialRead(tab Tab) tabRead {
+	id, isStored := m.initialIDFor(tab)
+	return tabRead{wantedID: id, isStored: isStored}
 }
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the

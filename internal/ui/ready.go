@@ -36,12 +36,14 @@ var readyOptions = briefing.ReadyOptions{Plan: index.PlanAny}
 // readyMsg carries one read of the Ready queue: its issues, most urgent first, or the error that
 // kept it from being read. selectID is the issue the read was asked to select, resolved to its id,
 // and notice reports an id that resolved to no issue; both are empty when no id was asked for.
-// isReload marks a live refresh's read, and filter is the Ready filter it matched again, nil when
-// it matched none.
+// isStored marks a selectID the worktree state file stored, which the queue may drop without a
+// notice. isReload marks a live refresh's read, and filter is the Ready filter it matched again,
+// nil when it matched none.
 type readyMsg struct {
 	entries  []index.Entry
 	selectID string
 	notice   string
+	isStored bool
 	err      error
 	isReload bool
 	filter   *sidebarFilter
@@ -59,11 +61,12 @@ type readyTab struct {
 
 // loadReady returns a command that reads the Ready queue through the session, as capcom ready
 // with no flags lists it, matches read's filter again when it names one, and resolves read's
-// wanted id, aliases included, when it is not empty.
+// wanted id, aliases included, when it is not empty; a stored id that resolves to nothing is
+// dropped without a notice.
 func loadReady(s *session, read tabRead) tea.Cmd {
 	wantedID := read.wantedID
 	return func() tea.Msg {
-		msg := readyMsg{isReload: read.isReload}
+		msg := readyMsg{isReload: read.isReload, isStored: read.isStored}
 		msg.err = s.do(func(opened *store.Store, issueIndex *index.Index) error {
 			listed, err := briefing.ReadyList(issueIndex, opened.Config, readyOptions)
 			if err != nil {
@@ -79,7 +82,9 @@ func loadReady(s *session, read tabRead) tea.Cmd {
 			}
 			entry, err := issueIndex.Resolve(wantedID)
 			if err != nil {
-				msg.notice = fmt.Sprintf(selectFailureFormat, wantedID, err)
+				if !read.isStored {
+					msg.notice = fmt.Sprintf(selectFailureFormat, wantedID, err)
+				}
 				return nil
 			}
 			msg.selectID = entry.ID
@@ -92,8 +97,8 @@ func loadReady(s *session, read tabRead) tea.Cmd {
 // applyReady takes in a read of the Ready queue: it narrows the queue to the Ready filter, the
 // one the read matched again when it did, keeps the cursor on the issue it was on or, when the
 // read dropped that, on its replacement, seats it on the issue the read resolved, when the queue
-// holds it, reports the id in the status bar when it does not, and shows the selection; a
-// reload's read also reads the shown issue again.
+// holds it, reports the id in the status bar when it does not and the worktree state file did not
+// store it, and shows the selection; a reload's read also reads the shown issue again.
 func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
 	previous, wasSelected := m.readySelection()
 	previousIDs := make([]string, 0, len(m.ready.entries))
@@ -114,10 +119,11 @@ func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
 	}
 	if msg.selectID != "" {
 		row := slices.IndexFunc(m.ready.entries, func(entry index.Entry) bool { return entry.ID == msg.selectID })
-		if row < 0 {
-			m.notice = fmt.Sprintf(notInReadyFormat, msg.selectID)
-		} else {
+		switch {
+		case row >= 0:
 			m.ready.cursor.seat(row, count)
+		case !msg.isStored:
+			m.notice = fmt.Sprintf(notInReadyFormat, msg.selectID)
 		}
 	}
 	next, cmd := m.showReadySelection()

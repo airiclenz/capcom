@@ -51,13 +51,15 @@ func ParseTab(name string) (Tab, error) {
 }
 
 // Options configure Run. Store and Index are open and stay owned by the caller, who closes the
-// index once Run returns; an index Run re-opens on a changed config.yaml it closes itself. ID, when set, names the Issue or Note to select in Tab. IsTabGiven is
-// true when the command line named Tab; false, no tab was given and the tab the worktree's state
-// file stores may apply in its place. In and Out are
-// the terminal the program reads keys from and draws on. UserConfigPath names the user config
-// file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used. UserStatePath names
-// the state file the sidebar's width is kept in; empty, the default
-// `<os.UserConfigDir>/capcom/state.yaml` is used. NoColor, set when the
+// index once Run returns; an index Run re-opens on a changed config.yaml it closes itself. ID,
+// when set, names the Issue or Note to select in Tab. IsTabGiven is true when the command line
+// named Tab; false, no tab was given and the tab the worktree state file stores opens in its
+// place, Tab only when it stores none. In and Out are the terminal the program reads keys from
+// and draws on. UserConfigPath names the user config file; empty, the default
+// `<os.UserConfigDir>/capcom/config.yaml` is used. UserStatePath names the state file the
+// sidebar's width is kept in; empty, the default `<os.UserConfigDir>/capcom/state.yaml` is used.
+// UIStatePath names the worktree state file the tab and each tab's selection are kept in; empty,
+// the default `<git-dir>/capcom/ui-state.yaml` beside the index is used. NoColor, set when the
 // NO_COLOR environment variable is non-empty, draws without any colour, whatever the user config
 // file says. Version is the release version the tab bar's right end names, as `v<Version> ·
 // capcom`; empty, the tab bar draws no version label.
@@ -71,6 +73,7 @@ type Options struct {
 	Out            io.Writer
 	UserConfigPath string
 	UserStatePath  string
+	UIStatePath    string
 	NoColor        bool
 	Version        string
 }
@@ -79,7 +82,11 @@ type Options struct {
 // file, creating it when it is missing; a file it cannot use is reported in the status bar and the
 // UI runs on the default config. It then loads the state file, never creating it, and starts the
 // sidebar on the width stored there; every width change a key makes is saved to it. A state file
-// it cannot load or save is reported in the status bar and the UI runs on.
+// it cannot load or save is reported in the status bar and the UI runs on. It also loads the
+// worktree state file, ui-state.yaml, never creating it: with no tab given it opens on the tab
+// stored there, and each tab selects the id stored for it unless the command line named one
+// there. A stored tab or id that no longer applies falls back to Ready or the first row without
+// a word; a worktree state file it cannot load is reported in the status bar and the UI runs on.
 func Run(options Options) error {
 	initial := newModel(options)
 	program := tea.NewProgram(

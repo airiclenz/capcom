@@ -27,7 +27,7 @@
 //   - `lineinput.go` — lineInput: the one-row text entry of the filter line and the prompts
 //   - `listcursor.go` — listCursor: a sidebar list's clamped selection and its key and wheel moves
 //   - `model.go` — model: the Bubble Tea model, its Init, Update and View, and loading the
-//     user config and state file
+//     user config, state file and worktree state file
 //   - `mouse.go` — clicks, divider and selection drags, links followed and wheel scrolling
 //   - `prompt.go` — the status bar's yes-or-no and text prompts before a write or an edit
 //   - `ready.go` — the Ready tab: loading the queue and painting its rows and columns

@@ -118,9 +118,15 @@ func (report Report) isChanged() bool {
 	return report.rebuilt || len(report.parsed) > 0 || len(report.removed) > 0 || report.walkClaimsChanged
 }
 
-// Path returns where the index of s lives: `<git-dir>/capcom/index.db`.
+// Dir returns the directory the index of s lives in, `<git-dir>/capcom`: per worktree and never
+// committed, it also holds capcom ui's worktree state file, ui-state.yaml.
+func Dir(s *store.Store) string {
+	return filepath.Join(s.GitDir, dirName)
+}
+
+// Path returns where the index of s lives: `<git-dir>/capcom/index.db`, in Dir.
 func Path(s *store.Store) string {
-	return filepath.Join(s.GitDir, dirName, fileName)
+	return filepath.Join(Dir(s), fileName)
 }
 
 // Open opens the index of s, creating its directory and database file when missing, and refreshes

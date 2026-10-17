@@ -90,7 +90,12 @@ internal/cli/userconfig_test.go — TestUserConfig_EveryOtherCommand_LeavesUserC
 
 **Commit:** `feat(cli): tell capcom ui whether a tab was given`
 
-## 3. Open on the stored tab and selections
+## 3. Open on the stored tab and selections — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): internal/ui/ready.go, issues.go and knowledge.go edited though **Files:** omits them: readyMsg, issuesMsg, knowledgeMsg, the load commands that emit selectFailureFormat and the apply functions that emit notInReadyFormat, notInTreeFormat and notInKnowledgeFormat live there (as at base ba503ff), so the approach's "flag carried to the loaded message" can only land there; each msg gains isStored, set from tabRead.isStored.
+NOTES (2026-10-17): consequential edit — internal/ui/doc.go: made necessary by model.go now loading the worktree state file (file map line "user config and state file" → "user config, state file and worktree state file").
+NOTES (2026-10-17): the command-line id stays tied to options.Tab (model.initialTab), not to the opened tab, so it can never land on a stored tab; initialIDFor now returns (id, isStored) and a new initialRead builds each tab's first tabRead from it.
+NOTES (2026-10-17): no CHANGELOG entry here: nothing writes ui-state.yaml until item 4, so the user-visible entry belongs with item 4 or 6.
 
 Depends on items 1 and 2.
 

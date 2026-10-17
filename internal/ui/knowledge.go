@@ -28,12 +28,14 @@ const (
 // knowledgeMsg carries one read of the Notes for the Knowledge tab: every usable Note, retired
 // ones included, in tree order, or the error that kept them from being read. selectID is the Note
 // the read was asked to select, resolved to its id, and notice reports an id that resolved to no
-// Note; both are empty when no id was asked for. isReload marks a live refresh's read, and filter
-// is the Knowledge filter it matched again, nil when it matched none.
+// Note; both are empty when no id was asked for. isStored marks a selectID the worktree state file
+// stored, which the tree may not hold without a notice. isReload marks a live refresh's read, and
+// filter is the Knowledge filter it matched again, nil when it matched none.
 type knowledgeMsg struct {
 	notes    []index.NoteEntry
 	selectID string
 	notice   string
+	isStored bool
 	err      error
 	isReload bool
 	filter   *sidebarFilter
@@ -50,11 +52,12 @@ type knowledgeTab struct {
 
 // loadKnowledge returns a command that reads every Note through the session, retired ones
 // included so a selected one can be revealed, matches read's filter again when it names one, and
-// resolves read's wanted id, aliases included, when it is not empty.
+// resolves read's wanted id, aliases included, when it is not empty; a stored id that resolves to
+// nothing is dropped without a notice.
 func loadKnowledge(s *session, read tabRead) tea.Cmd {
 	wantedID := read.wantedID
 	return func() tea.Msg {
-		msg := knowledgeMsg{isReload: read.isReload}
+		msg := knowledgeMsg{isReload: read.isReload, isStored: read.isStored}
 		msg.err = s.do(func(opened *store.Store, issueIndex *index.Index) error {
 			notes, err := issueIndex.Notes(true)
 			if err != nil {
@@ -67,7 +70,9 @@ func loadKnowledge(s *session, read tabRead) tea.Cmd {
 			}
 			entry, err := issueIndex.ResolveNote(wantedID)
 			if err != nil {
-				msg.notice = fmt.Sprintf(selectFailureFormat, wantedID, err)
+				if !read.isStored {
+					msg.notice = fmt.Sprintf(selectFailureFormat, wantedID, err)
+				}
 				return nil
 			}
 			msg.selectID = entry.ID
@@ -97,8 +102,8 @@ func noteOutline(notes []index.NoteEntry) *outline.Tree[index.NoteEntry] {
 // what the Knowledge filter leaves of it, the one the read matched again when it did, keeping the
 // nodes expanded before it, the scroll and the selection or, when the read dropped the selected
 // Note, its replacement, selects the Note the read resolved, reporting the id in the status bar
-// when the tree does not hold it, and shows the selection; a reload's read also reads the shown
-// Note again.
+// when the tree does not hold it and the worktree state file did not store it, and shows the
+// selection; a reload's read also reads the shown Note again.
 func (m model) applyKnowledge(msg knowledgeMsg) (model, tea.Cmd) {
 	m = m.takeRematched(TabKnowledge, msg.filter)
 	m.knowledge.err = msg.err
@@ -107,7 +112,7 @@ func (m model) applyKnowledge(msg knowledgeMsg) (model, tea.Cmd) {
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
-	if msg.selectID != "" && !m.knowledge.tree.selectID(msg.selectID) {
+	if msg.selectID != "" && !m.knowledge.tree.selectID(msg.selectID) && !msg.isStored {
 		m.notice = fmt.Sprintf(notInKnowledgeFormat, msg.selectID)
 	}
 	next, cmd := m.showKnowledgeSelection()
