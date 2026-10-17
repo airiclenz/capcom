@@ -65,7 +65,7 @@ NOTES (2026-10-17): the shared parser is `parser.ratio(node, key, measure, targe
 
 **Commit:** `feat(userconfig): store the stacked divider's position as ui.stacked_ratio`
 
-## 2. The UI keeps both ratios and saves them together
+## 2. The UI keeps both ratios and saves them together — ✅ DONE (2026-10-17)
 
 Depends on item 1.
 

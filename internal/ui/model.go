@@ -114,7 +114,11 @@ type model struct {
 	// without changing it, so the split holds when the terminal resizes. It starts on the ratio
 	// the state file holds.
 	sidebarRatio float64
-	// stateSaver writes sidebarRatio to the state file, shared by every copy of the model.
+	// stackedRatio is the sidebar's height the user set in the stacked layout, as a fraction of
+	// the body's rows, 0 for the default. It starts on the ratio the state file holds.
+	stackedRatio float64
+	// stateSaver writes sidebarRatio and stackedRatio, together, to the state file, shared by
+	// every copy of the model.
 	// stateNotice reports a state file that could not be loaded or saved, empty when there is
 	// nothing to report; stateSavedRequest is the request of the last save it reported on, so an
 	// older save's report never overrides it.
@@ -189,14 +193,14 @@ type model struct {
 // leaves no tab and no ids stored, with a notice in the status bar. It loads the user config at options.UserConfigPath,
 // or at userconfig.Path when that is empty, creating the file when it is missing; a config that
 // cannot be used leaves the model on userconfig.Default with a notice in the status bar. It
-// starts the sidebar on the width the state file at options.UserStatePath, or at
-// userconfig.StatePath when that is empty, holds; a state file that cannot be used leaves the
-// default width with a notice in the status bar. The theme starts on a dark background, and
+// starts both divider ratios, the split layout's and the stacked layout's, on the ones the state
+// file at options.UserStatePath, or at userconfig.StatePath when that is empty, holds; a state
+// file that cannot be used leaves both at their defaults with a notice in the status bar. The theme starts on a dark background, and
 // without colours when options.NoColor is set. A copy writes through a clipboard.Writer fenced to
 // options.Store's working tree.
 func newModel(options Options) model {
 	config, notice := loadUserConfig(options.UserConfigPath)
-	sidebarRatio, saver, stateNotice := loadUserState(options.UserStatePath)
+	userState, saver, stateNotice := loadUserState(options.UserStatePath)
 	worktreeState, worktreeSaver, worktreeStateNotice := loadWorktreeState(options.UIStatePath, options.Store)
 	writer := clipboardWriter(options.Store.WorktreeRoot)
 	m := model{
@@ -212,7 +216,8 @@ func newModel(options Options) model {
 		version:             options.Version,
 		userConfig:          config,
 		configNotice:        notice,
-		sidebarRatio:        sidebarRatio,
+		sidebarRatio:        userState.SidebarRatio,
+		stackedRatio:        userState.StackedRatio,
 		stateSaver:          saver,
 		stateNotice:         stateNotice,
 		worktreeStateNotice: worktreeStateNotice,
@@ -260,24 +265,25 @@ func loadUserConfig(path string) (userconfig.Config, string) {
 }
 
 // loadUserState loads the state file at path, resolving the default path when path is empty. It
-// returns the sidebar ratio stored there, 0 for none, the saver that writes the state file at that
-// path, and the status-bar notice of an error, "" when there is none. A path that cannot be
-// resolved and a file that cannot be used both leave the ratio at 0; the saver of a path that
-// cannot be resolved reports that error on every save and writes nothing.
-func loadUserState(path string) (float64, *stateSaver, string) {
+// returns the layout stored there, both divider ratios, each 0 for none, the saver that writes the
+// state file at that path, and the status-bar notice of an error, "" when there is none. A path
+// that cannot be resolved and a file that cannot be used both leave both ratios at 0; the saver of
+// a path that cannot be resolved reports that error on every save and writes nothing.
+func loadUserState(path string) (userconfig.UIState, *stateSaver, string) {
 	if path == "" {
 		resolved, err := userconfig.StatePath()
 		if err != nil {
-			return 0, &stateSaver{pathErr: err}, stateNoticePrefix + err.Error() + defaultsNotice
+			notice := stateNoticePrefix + err.Error() + defaultsNotice
+			return userconfig.UIState{}, &stateSaver{pathErr: err}, notice
 		}
 		path = resolved
 	}
 	saver := &stateSaver{path: path}
 	state, err := userconfig.LoadState(path)
 	if err != nil {
-		return 0, saver, stateNoticePrefix + err.Error() + defaultsNotice
+		return userconfig.UIState{}, saver, stateNoticePrefix + err.Error() + defaultsNotice
 	}
-	return state.UI.SidebarRatio, saver, ""
+	return state.UI, saver, ""
 }
 
 // loadWorktreeState loads the worktree state file at path, ui-state.yaml in the directory of s's
@@ -319,33 +325,33 @@ type stateSavedMsg struct {
 
 // stateSaver writes the state file. The model holds it by pointer, so every save command built
 // from any copy of the model shares it. Bubble Tea runs each command in its own goroutine, so save
-// commands can run out of order: each writes the latest ratio asked for, under the mutex, and one
-// that finds that ratio written already writes nothing. pathErr, when set, is why no path could
+// commands can run out of order: each writes the latest layout asked for, both divider ratios
+// together, under the mutex, and one that finds that layout written already writes nothing. pathErr, when set, is why no path could
 // be resolved; every save then reports it.
 type stateSaver struct {
 	path    string
 	pathErr error
 
 	mutex sync.Mutex
-	// ratio is the latest sidebar ratio asked for, asked the number of saves asked for so far and
-	// written the number of the last one written.
-	ratio   float64
+	// layout is the latest layout asked for, both divider ratios, asked the number of saves asked
+	// for so far and written the number of the last one written.
+	layout  userconfig.UIState
 	asked   int
 	written int
 }
 
-// save makes ratio the latest sidebar ratio asked for and returns the command that writes it,
-// reported as a stateSavedMsg.
-func (s *stateSaver) save(ratio float64) tea.Cmd {
+// save makes layout, both divider ratios, the latest layout asked for and returns the command that
+// writes it, reported as a stateSavedMsg.
+func (s *stateSaver) save(layout userconfig.UIState) tea.Cmd {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.ratio = ratio
+	s.layout = layout
 	s.asked++
 	return s.write
 }
 
-// write writes the latest ratio asked for, 0 leaving the ratio out, and reports it as a
-// stateSavedMsg numbered by that save. It reports nothing when that save is written already.
+// write writes the latest layout asked for, both its ratios, a 0 ratio left out, and reports it as
+// a stateSavedMsg numbered by that save. It reports nothing when that save is written already.
 func (s *stateSaver) write() tea.Msg {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -355,15 +361,19 @@ func (s *stateSaver) write() tea.Msg {
 	s.written = s.asked
 	err := s.pathErr
 	if err == nil {
-		err = userconfig.SaveState(s.path, userconfig.State{UI: userconfig.UIState{SidebarRatio: s.ratio}})
+		err = userconfig.SaveState(s.path, userconfig.State{UI: s.layout})
 	}
 	return stateSavedMsg{request: s.written, err: err}
 }
 
-// saveState returns the command that writes the sidebar's width as the user set it, as its ratio
-// of the terminal's width, to the state file, reported as a stateSavedMsg.
+// saveState returns the command that writes both divider ratios the model holds, the sidebar's
+// width in the split layout and its height in the stacked layout as the user set them, to the
+// state file, reported as a stateSavedMsg; saving one ratio so never drops the other.
 func (m model) saveState() tea.Cmd {
-	return m.stateSaver.save(m.sidebarRatio)
+	return m.stateSaver.save(userconfig.UIState{
+		SidebarRatio: m.sidebarRatio,
+		StackedRatio: m.stackedRatio,
+	})
 }
 
 // applyStateSaved shows a failed write of the state file in the status bar and clears the state

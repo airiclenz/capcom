@@ -721,6 +721,38 @@ func TestModel_ResizeKey_SavesTheRatioToTheStateFile(t *testing.T) {
 	}
 }
 
+func TestModel_StoredBothRatios_StartsTheModelOnBoth(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	writeTestFile(t, options.UserStatePath, "ui:\n  sidebar_ratio: 0.25\n  stacked_ratio: 0.4\n")
+
+	m := startModel(t, options, 120, 30)
+
+	if m.sidebarRatio != 0.25 || m.stackedRatio != 0.4 {
+		t.Errorf(
+			"sidebarRatio, stackedRatio = %v, %v, want the stored 0.25, 0.4",
+			m.sidebarRatio,
+			m.stackedRatio,
+		)
+	}
+}
+
+func TestModel_ResizeKey_KeepsTheStoredStackedRatio(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, nil))
+	writeTestFile(t, options.UserStatePath, ratioState(36, 120)+"  stacked_ratio: 0.4\n")
+	m := startModel(t, options, 120, 30)
+
+	press(t, m, runeKey('>'))
+
+	state, err := userconfig.LoadState(options.UserStatePath)
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	want := userconfig.UIState{SidebarRatio: widthRatio(40, 120), StackedRatio: 0.4}
+	if state.UI != want {
+		t.Errorf("stored ratios = %+v, want %+v: the new width beside the stacked ratio", state.UI, want)
+	}
+}
+
 func TestModel_SaveCommands_RunInReverseOrder_LeaveTheLaterWidth(t *testing.T) {
 	options := newTestOptions(t, newTestStore(t, nil))
 	m := startModel(t, options, 120, 30)
