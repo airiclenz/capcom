@@ -20,9 +20,14 @@ node, and it never edits dependencies, labels or titles.
 capcom ui [issues|ready|knowledge] [id]
 ```
 
-- No argument opens the Ready tab. A tab name opens that tab; an id after it also selects that
-  Issue or Note there (resolving aliases as `show` does). An id the tab does not hold is a
-  status-bar notice.
+- No argument reopens on the tab and each tab's selection last saved for this worktree in
+  `<git-dir>/capcom/ui-state.yaml` (ADR 0015), and on Ready with no file. A tab name opens that
+  tab; an id after it also selects that Issue or Note there (resolving aliases as `show` does).
+  The arguments win: with a tab name every tab still selects its stored id, except the one an id
+  names. An id the tab does not hold is a status-bar notice; a stored id that is gone or not on its
+  tab, or a stored tab name this binary does not know, falls back to the first row or Ready
+  silently. A stored id the Issues or Knowledge tree still holds, closed or retired among them, is
+  selected and revealed.
 - It needs a terminal: when stdin or stdout is not a TTY it fails with an error and exit code 1.
 - `--json` does not apply and is refused.
 
@@ -42,7 +47,10 @@ capcom ui [issues|ready|knowledge] [id]
 ```
 
 - **Tab bar**: Issues, Ready, Knowledge, in that order for `1 2 3`. Each tab keeps its own
-  selection, expanded nodes and filter. A `─` rule in the border colour sets it off from the panes,
+  selection, expanded nodes and filter. The open tab and each tab's selection persist across runs
+  in `ui-state.yaml`, per worktree (ADR 0015): a tab change saves at once, a selection change one
+  second after the last (`internal/ui/uistate.go` debounces), and quitting flushes a pending save;
+  the first failed load or save of a session is a status-bar notice. A `─` rule in the border colour sets it off from the panes,
   with `┬` above the divider, mirroring the `┴` rule above the status bar. The bar's right end reads
   `v<version> · capcom` in the muted hints style, its last character in the frame's last column,
   with the version `capcom ui` was built with; the label is left out when it would leave fewer
@@ -263,8 +271,9 @@ ui:
 - **`internal/outline`**: the issue and Note outline builders (`outline.Issues`, `outline.Notes`),
   moved out of `internal/cli`, so `list --tree`, `know tree` and the UI's trees build one outline.
 - **`internal/ui/markdown`**: the markdown renderer of the detail pane.
-- **`internal/userconfig`**: loads and creates the user-level config (ADR 0011), and loads and
-  saves the state file `state.yaml` (ADR 0014).
+- **`internal/userconfig`**: loads and creates the user-level config (ADR 0011), loads and
+  saves the state file `state.yaml` (ADR 0014), and loads and saves the per-worktree
+  `ui-state.yaml` (ADR 0015), whose path under the git dir `internal/ui` passes in.
 - **Dependencies**: `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2`.
   They declare go 1.25.0 and need `golang.org/x/sys` v0.46, so `go.mod` declares go 1.25.0 and
   `x/sys` v0.46.0 (up from go 1.24.0 and v0.37). CI and release read `go.mod` and build with
@@ -311,8 +320,9 @@ Per the Note `cli-test-harness` and ADR 0007:
 - The manual page `docs/site/getting-started/terminal-ui.md`: tabs, keys, mouse, writes, the lock
   prompt, conflicts, the theme config.
 - `go run ./cmd/gendocs` for the CLI reference page `docs/site/reference/cli/capcom_ui.md`.
-- The file-format reference's section The user config describes the user-level config, and its
-  section The state file describes `state.yaml`.
+- The file-format reference's section The user config describes the user-level config, its
+  section The state file describes `state.yaml`, and its section The worktree state file describes
+  `ui-state.yaml`.
 
 ## Out of scope for v1
 

@@ -11,7 +11,7 @@ Open the terminal UI
 
 ### Synopsis
 
-Open the terminal UI over this store: the Ready, Issues and Knowledge tabs. With no argument it opens the Ready tab; a tab name opens that tab, and an id after it selects that Issue or Note there. It needs a terminal: when stdin or stdout is not one, it fails. q or ctrl+c quits. --json does not apply and is refused.
+Open the terminal UI over this store: the Ready, Issues and Knowledge tabs. With no argument it reopens on the tab and the selection of each tab it last had in this worktree, kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time. A tab name opens that tab, and an id after it selects that Issue or Note there; the arguments win over what was kept. It needs a terminal: when stdin or stdout is not one, it fails. q or ctrl+c quits. --json does not apply and is refused.
 
 ```
 capcom ui [issues|ready|knowledge] [id] [flags]
@@ -20,7 +20,7 @@ capcom ui [issues|ready|knowledge] [id] [flags]
 ### Examples
 
 ```
-  capcom ui                           # the Ready tab
+  capcom ui                           # the last tab and selection in this worktree
   capcom ui issues                    # the Issues tab
   capcom ui issues login-timeout-race # the Issues tab with that Issue selected
   capcom ui knowledge store-layout    # the Knowledge tab with that Note selected

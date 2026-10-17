@@ -21,10 +21,12 @@ const noColorVariable = "NO_COLOR"
 // The help text of capcom ui.
 const (
 	uiLong = "Open the terminal UI over this store: the Ready, Issues and Knowledge tabs. With no " +
-		"argument it opens the Ready tab; a tab name opens that tab, and an id after it selects that " +
-		"Issue or Note there. It needs a terminal: when stdin or stdout is not one, it fails. q or " +
+		"argument it reopens on the tab and the selection of each tab it last had in this worktree, " +
+		"kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time. A tab name " +
+		"opens that tab, and an id after it selects that Issue or Note there; the arguments win " +
+		"over what was kept. It needs a terminal: when stdin or stdout is not one, it fails. q or " +
 		"ctrl+c quits. --json does not apply and is refused."
-	uiExample = "  capcom ui                           # the Ready tab\n" +
+	uiExample = "  capcom ui                           # the last tab and selection in this worktree\n" +
 		"  capcom ui issues                    # the Issues tab\n" +
 		"  capcom ui issues login-timeout-race # the Issues tab with that Issue selected\n" +
 		"  capcom ui knowledge store-layout    # the Knowledge tab with that Note selected"
@@ -72,7 +74,8 @@ func (a *app) newUICommand() *cobra.Command {
 }
 
 // uiTarget reads the tab and the id to select from capcom ui's arguments, and whether a tab was
-// given: none opens the Ready tab with no tab given, and an id is taken only after a tab name.
+// given: none yields Ready with no tab given, so the tab capcom ui stored for this worktree may
+// apply, and an id is taken only after a tab name.
 // Anything else is a usage error.
 func uiTarget(args []string) (ui.Tab, string, bool, error) {
 	if len(args) > uiMaxArgs {

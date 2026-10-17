@@ -1,15 +1,16 @@
 ---
 title: "File format"
-description: "The files capcom keeps under .capcom/: issue files, Note files, the tree, config.yaml, the lock record, the Managed block, and the two files capcom ui keeps outside the repository: its per-user config.yaml and its state.yaml."
+description: "The files capcom keeps under .capcom/: issue files, Note files, the tree, config.yaml, the lock record, the Managed block, the two files capcom ui keeps outside the repository: its per-user config.yaml and its state.yaml, and its per-worktree ui-state.yaml under the git directory."
 sidebar: { order: 2 }
 ---
 
 Everything capcom keeps for a repository lives in plain files under `.capcom/` at the root of the
 working tree, versioned with the code (ADR 0004). The SQLite index and the lock records live under
-the git directory instead; they are never committed, and deleting them loses nothing. Two files
-live outside the repository altogether, both in your user config directory: the per-user config of
-`capcom ui`, `config.yaml` (see The user config), and its state file, `state.yaml` (see The state
-file).
+the git directory instead; they are never committed, and deleting them loses nothing.
+`ui-state.yaml` lives there too: in it `capcom ui` keeps the tab and the selections of one worktree
+(see The worktree state file), and deleting it only forgets them. Two files live outside the
+repository altogether, both in your user config directory: the per-user config of `capcom ui`,
+`config.yaml` (see The user config), and its state file, `state.yaml` (see The state file).
 
 ```text
 .capcom/
@@ -715,7 +716,49 @@ file through a temp file renamed into place, so a key it does not know is not ke
 an unknown key is ignored silently, so a newer capcom's file loads in an older one. Malformed YAML,
 a ratio that is not a decimal more than 0 and less than 1, or a file that cannot be read is reported in the
 status bar, and `capcom ui` starts on the default width; a failed write is reported there too, and
-the width still applies. Deleting the file is safe: it only forgets the width.
+the width still applies. Deleting the file is safe: it only forgets the width. The tab and the
+selections belong to one worktree and live in the worktree state file instead.
+
+## The worktree state file
+
+`capcom ui` remembers, for each worktree, the tab it was on and the Issue or Note selected on each
+tab, in `<git-dir>/capcom/ui-state.yaml`, beside the index `index.db`
+([ADR 0015](../../../.capcom/knowledge/decisions/adr-0015.md)). It lives under the git directory,
+so it is never committed, and each linked worktree of a clone has its own. Like `state.yaml` it is
+written by `capcom ui`, not by you, and no other command reads or writes it:
+
+```yaml
+# capcom ui worktree state: written by capcom ui, not meant for editing (ADR 0015).
+ui:
+  tab: "issues"
+  selected:
+    ready: "login-timeout-race"
+    issues: "release-x"
+    knowledge: "store-layout"
+```
+
+- **ui.tab** — the open tab: `ready`, `issues` or `knowledge`. A name this capcom does not know
+  opens Ready.
+- **ui.selected** — the id selected on each tab, keyed by the same names. An id that is gone, or
+  not on its tab, selects the first row; one the Issues or Knowledge tree still holds, a closed
+  Issue or a retired Note among them, is selected and revealed.
+
+Every value is double-quoted, so an id such as `2026` or `true` reads back as a string; an empty
+value leaves its key out. With no argument `capcom ui` opens on the stored tab, and on each tab
+selects its stored id. The command line wins: `capcom ui <tab>` opens that tab and still selects
+each tab's stored id, and `capcom ui <tab> <id>` selects that id on that tab. No file, no `tab` key
+or no stored id is the start without it: the tab the command line names, Ready when it names none,
+and the first row; none of these fallbacks is reported.
+
+`capcom ui` reads the file once, when it starts, and does not create it then. A change of tab
+writes it at once; a change of selection writes it one second after the last change, so a run of
+moves writes it once, and quitting writes a change still waiting. Each write creates the directory
+when missing and replaces the whole file through a temp file renamed into place, so a key it does
+not know is not kept; when reading, an unknown key is ignored silently. Malformed YAML, a value
+that is not a string, or a file that cannot be read is reported once in the status bar, and
+`capcom ui` starts as with no file; the first failed write of a session is reported there too, and
+the tab and the selections still apply. Deleting the file is safe: it only forgets the tab and the
+selections.
 
 ## The lock record
 

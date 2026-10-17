@@ -16,17 +16,31 @@ one the matching CLI command makes, through the same code (ADR 0012).
 ## Start it
 
 ```sh
-capcom ui                           # the Ready tab
+capcom ui                           # the last tab and selection in this worktree
 capcom ui issues                    # the Issues tab
 capcom ui issues login-timeout-race # the Issues tab with that Issue selected
 capcom ui knowledge store-layout    # the Knowledge tab with that Note selected
 ```
 
-The first argument names the tab (`ready`, `issues` or `knowledge`), and an id after it selects
-that Issue or Note there; an Alias resolves as it does for `capcom show`. An id the tab does not
-hold is reported in the status bar. `capcom ui` needs a terminal: when stdin or stdout is not one,
-it fails with exit code 1. `--json` does not apply and is refused. `q` or ctrl+c quits. The flags
-are in the [CLI reference](../reference/cli/capcom_ui.md).
+With no argument `capcom ui` reopens where you left it in this worktree: on the tab you were on,
+with the Issue or Note you had selected on each tab selected again, a closed Issue or a retired
+Note revealed in its tree. The first time, it opens on the Ready tab. The first argument names the
+tab (`ready`, `issues` or `knowledge`), and an id after it selects that Issue or Note there; an
+Alias resolves as it does for `capcom show`. The arguments win: a tab name opens that tab, and
+every tab still selects what it last had, except where an id names the selection. An id the tab
+does not hold is reported in the status bar; a remembered one that is gone just selects the first
+row.
+
+The tab and the selections are kept in `ui-state.yaml` under the repository's git directory, beside
+the index, so they are never committed and each worktree of a clone keeps its own. A change of tab
+is saved at once and a change of selection a second after the last one; quitting saves what is
+still waiting. A file that cannot be read is reported in the status bar, and so is the first write
+of a session that fails; `capcom ui` runs on as without the file. The file is described under
+[The worktree state file](../reference/file-format.md#the-worktree-state-file).
+
+`capcom ui` needs a terminal: when stdin or stdout is not one, it fails with exit code 1. `--json`
+does not apply and is refused. `q` or ctrl+c quits. The flags are in the
+[CLI reference](../reference/cli/capcom_ui.md).
 
 ## The screen
 
@@ -79,10 +93,11 @@ divider does not move.
 The width you set is kept as a ratio of the terminal's width, so the split holds when you resize
 the terminal: a sidebar a third of the way across stays a third of the way across. `capcom ui`
 remembers that ratio in `capcom/state.yaml`, beside your [user config](#theme), and starts on it
-the next time, in every repository. Where the ratio would break a limit the sidebar takes what
-fits, and the ratio stays for a terminal where it fits again; a double-click reset forgets it. A
-width that cannot be saved is reported in the status bar, and the new width still applies. The
-file is described under [The state file](../reference/file-format.md#the-state-file).
+the next time, in every repository; the tab and the selections are kept per worktree instead (see
+[Start it](#start-it)). Where the ratio would break a limit the sidebar takes what fits, and the
+ratio stays for a terminal where it fits again; a double-click reset forgets it. A width that
+cannot be saved is reported in the status bar, and the new width still applies. The file is
+described under [The state file](../reference/file-format.md#the-state-file).
 
 ## The tabs
 

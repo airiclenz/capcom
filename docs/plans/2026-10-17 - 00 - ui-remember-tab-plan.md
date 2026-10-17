@@ -188,7 +188,11 @@ docs/adr/README.md — new-record shape (ADR 0010); internal/check/notes.go — 
 
 **Commit:** `docs(decisions): record ADR 0015, the per-worktree capcom ui state`
 
-## 6. User docs, help text and generated reference
+## 6. User docs, help text and generated reference — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the uiTarget Go comment in internal/cli/ui.go ("none opens the Ready tab") also fell under the prose rule's grep and now says no tab given lets the stored tab apply.
+NOTES (2026-10-17): no CHANGELOG entry here: item 4's sidecar already carries the user-visible entry for remembering the tab and selections.
+NOTES (2026-10-17): this item closes ui-remember-tab, whose last Acceptance bullet (file-format, terminal-ui and tui.md describe the file) it completes; no earlier sidecar listed it under CLOSES.
 
 Depends on item 4.
 

@@ -22,9 +22,10 @@ Read the relevant source before changing what it covers:
   ref; GitHub renders the same files. Every page has YAML frontmatter with `title`, a one-sentence
   `description` and `sidebar: { order: <n> }`, and no body H1. Pages link each other with
   relative `.md` links, use the glossary's terms and never pin a capcom version number.
-- `docs/site/reference/file-format.md`: the full reference for the files under `.capcom/`, and for
+- `docs/site/reference/file-format.md`: the full reference for the files under `.capcom/`, for
   the two files `capcom ui` keeps outside the repository: its per-user config `config.yaml` and
-  its state file `state.yaml`.
+  its state file `state.yaml`, and for its per-worktree `ui-state.yaml` under the git directory
+  (ADR 0015).
 - `docs/site/reference/cli/`: the CLI reference, one page per command, generated from the command
   tree's help text and flags. Never edit it by hand: after changing a command, a flag or its help
   text, run `go run ./cmd/gendocs` and commit the result. `TestReferenceUpToDate` in
