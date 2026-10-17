@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `capcom ui`: below 90 columns, a terminal of at least 25 rows now stacks the panes, the sidebar on top (a third of the rows by default), a `─` rule, then the detail pane, instead of showing one pane at a time; Enter keeps both panes there, and PgUp/PgDn page the detail pane by its own rows. A shorter terminal keeps the one-pane layout, and the layout follows every resize.
+- `capcom ui` stacks the panes on a terminal below 90 columns and at least 25 rows tall: the sidebar on top, a rule, and the detail pane below. Drag the rule or press `<` and `>` (2 rows a press) to move it, keeping at least 8 sidebar and 12 detail rows; a double-click resets it to a third of the rows. Its position is remembered as `ui.stacked_ratio` in `state.yaml`, apart from `ui.sidebar_ratio`, and a failed save now reads `cannot save the divider position: `. A shorter narrow terminal keeps the one-pane layout.
+
 ## [0.8.1] - 2026-10-17
 
 - `capcom ui` remembers, per worktree, the tab it was on and the issue or Note selected on each tab, in `<git-dir>/capcom/ui-state.yaml`, and reopens there; a tab or id given on the command line wins.
