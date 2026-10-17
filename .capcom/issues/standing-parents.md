@@ -1,10 +1,12 @@
 ---
 title: A standing Parent that only groups children is offered as ready work
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-17 - 02 - standing-parents-plan
 created: 2026-10-17T18:55:29Z
+closed: 2026-10-17T20:42:21Z
+reason: Resolved by plan 2026-10-17 - 02 - standing-parents-plan (archived in 4b66e57)
 ---
 
 `capcom ready` and `capcom prime` count a Parent whose children are all closed as Ready. That is
@@ -64,3 +66,7 @@ To refine in a plan, not prescribed here:
   and the `--help` text of every changed command describe the mark; the managed block tells
   agents that standing Issues are never claimed.
 - A CHANGELOG line under Unreleased.
+
+## Log
+
+- 2026-10-17 Airic Lenz: Known gap deferred by the run: update --no-standing=false sets the standing mark (standingChange in internal/cli/update.go reads the flag's presence, not its value).
