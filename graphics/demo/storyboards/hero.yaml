@@ -22,7 +22,7 @@ beats:
   - id: 2
     title: open the bug
     why: the detail pane shows the issue the selection lands on, rendered
-    duration: 1800ms
+    duration: 1500ms
     do:
       - key: {name: down}
       - wait: {screen: 'starts in a goroutine', timeout: 5s}
@@ -32,7 +32,7 @@ beats:
   - id: 3
     title: claim it
     why: a supervisor's write is one key, the same write the CLI makes; the claimed bug leaves the queue
-    duration: 3s
+    duration: 3.6s
     do:
       - pause: {for: 360ms}
       - type: {text: 'a', humanize: false}
@@ -41,8 +41,8 @@ beats:
     zoom:
       target: {text: 'claimed flaky-redirect-test', area: status}
       factor: 1.8
-      in: 720ms
-      out: 720ms
+      in: 1550ms
+      out: 1150ms
     expect:
       - seen: 'claimed flaky-redirect-test'
         area: status
@@ -50,7 +50,7 @@ beats:
   - id: 4
     title: an agent closes rate-limit
     why: the agent's close lands in the files and the queue redraws without being asked
-    duration: 5736ms
+    duration: 6300ms
     hold: 1800ms
     do:
       - wait: {screen: 'abuse-reports +open +P2', timeout: 10s}
@@ -58,7 +58,7 @@ beats:
     zoom:
       target: {text: 'abuse-reports +open +P2'}
       factor: 1.6
-      in: 864ms
+      in: 1750ms
       out: 3s
     expect:
       - seen: 'abuse-reports +open +P2'
