@@ -1,10 +1,12 @@
 ---
 title: capcom ui stacks the panes on a narrow, tall terminal
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-17 - 01 - ui-stacked-layout-plan
 created: 2026-10-17T18:20:20Z
+closed: 2026-10-17T19:23:54Z
+reason: Resolved by plan 2026-10-17 - 01 - ui-stacked-layout-plan (archived in 33c335e)
 ---
 
 Below `narrowWidth` (90 columns) `capcom ui` stops showing both panes: the sidebar fills the
