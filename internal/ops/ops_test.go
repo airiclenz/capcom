@@ -202,6 +202,47 @@ func TestSetStatus_ChangeRefused_IsAChangeErrorAtTheFile(t *testing.T) {
 	}
 }
 
+// standingIssueText returns the content of a valid issue file with title and status, as
+// issueText writes it, marked standing.
+func standingIssueText(title string, status string) string {
+	return strings.Replace(issueText(title, status), "\ncreated: ", "\nstanding: true\ncreated: ", 1)
+}
+
+func TestStatusChanges_StandingIssue_AreAChangeErrorAtTheFile(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(o *Ops) (nodestore.Written, error)
+	}{
+		{name: "claim", change: func(o *Ops) (nodestore.Written, error) {
+			return o.Claim("epic", "")
+		}},
+		{name: "set status", change: func(o *Ops) (nodestore.Written, error) {
+			return o.SetStatus("epic", "", "active")
+		}},
+		{name: "close", change: func(o *Ops) (nodestore.Written, error) {
+			closed, err := o.Close("epic", "", "done", "shipped", closedAt)
+			return closed.Written, err
+		}},
+	}
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			before := standingIssueText("Group the auth work", "open")
+			o, s := newOps(t, config.Default(), map[string]string{"epic": before})
+
+			_, err := current.change(o)
+
+			var refusal *ChangeError
+			if !errors.As(err, &refusal) || refusal.Path != ".capcom/issues/epic.md" ||
+				!errors.Is(err, issue.ErrStanding) {
+				t.Errorf("err = %v, want a *ChangeError at the file wrapping ErrStanding", err)
+			}
+			if after := readIssue(t, s, "epic"); after != before {
+				t.Errorf("file changed:\n%s", after)
+			}
+		})
+	}
+}
+
 func TestCloser_SeveralCloses_NewlyReadyCountsTheEarlierCloses(t *testing.T) {
 	o, _ := newOps(t, config.Default(), map[string]string{
 		"db-schema":  issueText("Design the schema", "open"),

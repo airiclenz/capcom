@@ -302,6 +302,151 @@ func TestClose_Refused_ReturnsTheIssueUnchanged(t *testing.T) {
 	}
 }
 
+// standingIssue returns a standing Issue at status, as lifecycleIssue builds it.
+func standingIssue(status string) issue.Issue {
+	subject := lifecycleIssue(status)
+	subject.IsStanding = true
+	return subject
+}
+
+func TestSetStatus_StandingIssue_RefusesOnlyTheDoingCategory(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		from    string
+		to      string
+		want    string
+		wantErr error
+	}{
+		{name: "into doing", from: "open", to: "active", want: "open", wantErr: issue.ErrStanding},
+		{name: "waiting into doing", from: "parked", to: "active", want: "parked", wantErr: issue.ErrStanding},
+		{name: "into waiting", from: "open", to: "parked", want: "parked"},
+		{name: "same status", from: "active", to: "active", want: "active"},
+		{name: "into done", from: "open", to: "done", want: "open", wantErr: issue.ErrEntersClosed},
+		{name: "out of done", from: "done", to: "active", want: "done", wantErr: issue.ErrLeavesClosed},
+	}
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			t.Parallel()
+			subject := standingIssue(current.from)
+
+			got, err := issue.SetStatus(subject, config.Default(), current.to)
+
+			if !errors.Is(err, current.wantErr) {
+				t.Fatalf("SetStatus(%q -> %q) error = %v, want %v", current.from, current.to, err, current.wantErr)
+			}
+			if got.Status != current.want || !got.IsStanding {
+				t.Errorf("SetStatus(%q -> %q) = %q standing %v, want %q standing", current.from, current.to,
+					got.Status, got.IsStanding, current.want)
+			}
+		})
+	}
+}
+
+func TestSetStatus_StandingIntoDoing_NamesTheTargetStatus(t *testing.T) {
+	t.Parallel()
+
+	_, err := issue.SetStatus(standingIssue("open"), config.Default(), "active")
+
+	want := issue.StatusError{Status: "active", Category: config.CategoryDoing, Err: issue.ErrStanding}
+	var refusal *issue.StatusError
+	if !errors.As(err, &refusal) || *refusal != want {
+		t.Errorf("SetStatus error = %#v, want %#v", err, want)
+	}
+}
+
+func TestSetStatus_StandingBetweenTodoStatuses_Moves(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Parse("config.yaml", []byte("statuses:\n  triage: todo\n  open: todo\n  active: doing\n  done: done\n"))
+	if err != nil {
+		t.Fatalf("config.Parse: %v", err)
+	}
+
+	got, err := issue.SetStatus(standingIssue("triage"), cfg, "open")
+
+	if err != nil || got.Status != "open" || !got.IsStanding {
+		t.Errorf("SetStatus(triage -> open) = %q standing %v, %v; want open standing", got.Status, got.IsStanding, err)
+	}
+}
+
+func TestClose_StandingIssue_IsRefusedAfterTheClosedRules(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		from    string
+		status  string
+		wantErr error
+	}{
+		{name: "open", from: "open", status: "done", wantErr: issue.ErrStanding},
+		{name: "already done", from: "done", status: "dropped", wantErr: issue.ErrAlreadyClosed},
+		{name: "open status", from: "open", status: "active", wantErr: issue.ErrNotClosed},
+	}
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			t.Parallel()
+			subject := standingIssue(current.from)
+
+			got, err := issue.Close(subject, config.Default(), current.status, "shipped", closedAt)
+
+			if !errors.Is(err, current.wantErr) {
+				t.Fatalf("Close error = %v, want %v", err, current.wantErr)
+			}
+			if !reflect.DeepEqual(got, subject) {
+				t.Errorf("Close changed the issue: %#v, want %#v", got, subject)
+			}
+		})
+	}
+}
+
+func TestSetStanding_Mark_FollowsTheCategory(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name       string
+		from       string
+		isStanding bool
+		want       bool
+		wantErr    error
+	}{
+		{name: "mark todo", from: "open", isStanding: true, want: true},
+		{name: "mark waiting", from: "parked", isStanding: true, want: true},
+		{name: "mark doing", from: "active", isStanding: true, wantErr: issue.ErrStandingNotOpen},
+		{name: "mark done", from: "done", isStanding: true, wantErr: issue.ErrStandingNotOpen},
+		{name: "mark dropped", from: "dropped", isStanding: true, wantErr: issue.ErrStandingNotOpen},
+		{name: "clear todo", from: "open"},
+		{name: "clear doing", from: "active"},
+		{name: "clear done", from: "done"},
+	}
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			t.Parallel()
+			subject := lifecycleIssue(current.from)
+			subject.IsStanding = !current.isStanding
+
+			got, err := issue.SetStanding(subject, config.Default(), current.isStanding)
+
+			if !errors.Is(err, current.wantErr) {
+				t.Fatalf("SetStanding(%q, %v) error = %v, want %v", current.from, current.isStanding, err, current.wantErr)
+			}
+			if got.IsStanding != current.want || got.Status != current.from {
+				t.Errorf("SetStanding(%q, %v) = %q standing %v, want %q standing %v", current.from, current.isStanding,
+					got.Status, got.IsStanding, current.from, current.want)
+			}
+		})
+	}
+}
+
+func TestSetStanding_Refusal_NamesTheCurrentStatus(t *testing.T) {
+	t.Parallel()
+
+	_, err := issue.SetStanding(lifecycleIssue("done"), config.Default(), true)
+
+	want := issue.StatusError{Status: "done", Category: config.CategoryDone, Err: issue.ErrStandingNotOpen}
+	var refusal *issue.StatusError
+	if !errors.As(err, &refusal) || *refusal != want {
+		t.Errorf("SetStanding error = %#v, want %#v", err, want)
+	}
+}
+
 func TestReopen_ClosedIssue_ClearsClosingFieldsAndLogsTheReason(t *testing.T) {
 	t.Parallel()
 	subject := lifecycleIssue("dropped")

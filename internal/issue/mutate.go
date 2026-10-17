@@ -130,9 +130,14 @@ var (
 	ErrEntersClosed = errors.New("only close moves an issue into a closed category")
 	// ErrLeavesClosed refuses a status change out of a Closed category, which only Reopen makes.
 	ErrLeavesClosed = errors.New("only reopen moves an issue out of a closed category")
+	// ErrStanding refuses Close of a standing issue, and a status change of one into the doing
+	// category: a standing Parent only groups its children and is never worked on itself.
+	ErrStanding = errors.New("a standing issue is never claimed or closed")
+	// ErrStandingNotOpen refuses marking standing an issue that is Closed or in the doing category.
+	ErrStandingNotOpen = errors.New("only an issue outside the doing and closed categories can be marked standing")
 )
 
-// StatusError is a refusal of SetStatus, Close or Reopen: Err is one of the sentinels above, and
+// StatusError is a refusal of SetStatus, SetStanding, Close or Reopen: Err is one of the sentinels above, and
 // Status and Category name the status the rule was judged on and the category config gives it
 // (empty for an undeclared status).
 type StatusError struct {
@@ -154,7 +159,8 @@ func (e *StatusError) Unwrap() error {
 // SetStatus returns a copy of i moved to status to. The same status is a no-op. A move out of a
 // Closed category is ErrLeavesClosed, judged on i's status; a move into one is ErrEntersClosed,
 // judged on to: close and reopen own those moves, with the closed time, reason and Log entry they
-// bring. On a refusal i is returned unchanged.
+// bring. A standing issue moved into the doing category is ErrStanding, judged on to; it may move
+// between the other categories. On a refusal i is returned unchanged.
 func SetStatus(i Issue, cfg config.Config, to string) (Issue, error) {
 	if i.Status == to {
 		return i, nil
@@ -167,13 +173,30 @@ func SetStatus(i Issue, cfg config.Config, to string) (Issue, error) {
 	if target.IsClosed() {
 		return i, &StatusError{Status: to, Category: target, Err: ErrEntersClosed}
 	}
+	if i.IsStanding && target == config.CategoryDoing {
+		return i, &StatusError{Status: to, Category: target, Err: ErrStanding}
+	}
 	i.Status = to
 	return i, nil
 }
 
+// SetStanding returns a copy of i with its standing mark set to isStanding. Marking an issue that
+// is Closed or in the doing category is ErrStandingNotOpen, judged on i's status; clearing the
+// mark is always allowed. On a refusal i is returned unchanged.
+func SetStanding(i Issue, cfg config.Config, isStanding bool) (Issue, error) {
+	if isStanding {
+		current, _ := cfg.CategoryOf(i.Status)
+		if current.IsClosed() || current == config.CategoryDoing {
+			return i, &StatusError{Status: i.Status, Category: current, Err: ErrStandingNotOpen}
+		}
+	}
+	i.IsStanding = isStanding
+	return i, nil
+}
+
 // Close returns a copy of i moved to status, closed at at for reason. An issue already Closed is
-// ErrAlreadyClosed, judged on i's status; a status outside the Closed categories is ErrNotClosed.
-// at is stored as given, so the caller decides its precision and location. On a refusal i is
+// ErrAlreadyClosed, judged on i's status; a status outside the Closed categories is ErrNotClosed;
+// a standing issue is ErrStanding, judged on status, after both. at is stored as given, so the caller decides its precision and location. On a refusal i is
 // returned unchanged.
 func Close(i Issue, cfg config.Config, status string, reason string, at time.Time) (Issue, error) {
 	current, _ := cfg.CategoryOf(i.Status)
@@ -183,6 +206,9 @@ func Close(i Issue, cfg config.Config, status string, reason string, at time.Tim
 	target, _ := cfg.CategoryOf(status)
 	if !target.IsClosed() {
 		return i, &StatusError{Status: status, Category: target, Err: ErrNotClosed}
+	}
+	if i.IsStanding {
+		return i, &StatusError{Status: status, Category: target, Err: ErrStanding}
 	}
 	i.Status = status
 	i.Closed = at

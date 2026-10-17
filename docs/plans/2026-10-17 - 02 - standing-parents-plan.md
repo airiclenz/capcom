@@ -61,7 +61,10 @@ NOTES (2026-10-17): docs/site/reference/file-format.md and docs/site/agents/mana
 - `go vet ./internal/issue/ ./internal/config/ ./internal/nodestore/`
 **Commit:** `feat(issue): add the standing key to the Issue file`
 
-## 2. Status rules refuse a standing Issue
+## 2. Status rules refuse a standing Issue — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): consequential edit — internal/ops/ops.go: made necessary by the new ErrStanding refusal in issue.SetStatus and issue.Close (doc comments of Ops.SetStatus and Closer.Close name it; no logic change)
+NOTES (2026-10-17): SetStanding takes the shape of the file's other setters, SetStanding(i Issue, cfg config.Config, isStanding bool) (Issue, error); in Close the standing check follows both ErrAlreadyClosed and ErrNotClosed
 
 Depends on item 1.
 

@@ -95,7 +95,8 @@ func (o *Ops) EditIssue(
 }
 
 // SetStatus moves the issue ref names to status, which must not cross into or out of a closed
-// category (issue.SetStatus); a refusal is a *ChangeError wrapping the *issue.StatusError.
+// category nor move a standing issue into the doing category (issue.SetStatus); a refusal is a
+// *ChangeError wrapping the *issue.StatusError.
 func (o *Ops) SetStatus(ref string, ifMatch string, status string) (nodestore.Written, error) {
 	return o.EditIssue(ref, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 		return issue.SetStatus(target, o.store.Config, status)
@@ -162,8 +163,9 @@ func (o *Ops) NewCloser() (*Closer, error) {
 // Close moves the issue ref names to status, a status in a closed category, recording at as its
 // closed time and reason as why (issue.Close); at is stored as given. A blank reason fails with
 // ErrBlankReason, writing nothing. An issue already Closed, judged on its file, is a *ChangeError
-// wrapping issue.ErrAlreadyClosed. NewlyReady names the issues this close made Ready given the
-// batch's earlier closes, leaving out any an earlier close of the batch already named.
+// wrapping issue.ErrAlreadyClosed, and a standing one is one wrapping issue.ErrStanding.
+// NewlyReady names the issues this close made Ready given the batch's earlier closes, leaving out
+// any an earlier close of the batch already named.
 func (c *Closer) Close(
 	ref string,
 	ifMatch string,
