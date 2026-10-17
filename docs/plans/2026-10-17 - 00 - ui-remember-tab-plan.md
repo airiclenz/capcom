@@ -41,7 +41,10 @@ each tab, in `<git-dir>/capcom/ui-state.yaml`, and reopens there; command-line a
 - 5: guard folded (Knowledge prose rule with grep, adds `adr-0011-decision`, depends on item 4)
 - 6: guard folded (Acceptance also runs `HelpText`)
 
-## 1. Worktree state file in userconfig
+## 1. Worktree state file in userconfig — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the read-and-parse prelude LoadState had (missing file → zero, unreadable → *Error, parser.document) moved into a shared readDocument helper in state.go that LoadState and LoadWorktreeState both call, instead of being copied; LoadState's behaviour is unchanged and its tests pass.
+NOTES (2026-10-17): LoadWorktreeState accepts only a `!!str` scalar (quoted, or plain text YAML resolves to no other type) and errors with "expected a quoted string"; a null value stores nothing, as in state.yaml.
 
 **What:**
 **Goal:** `internal/userconfig` exposes `WorktreeState{Tab string; Ready, Issues, Knowledge string}`, `LoadWorktreeState(path)` and `SaveWorktreeState(path, WorktreeState)`; a saved state loads back equal, and `state.yaml`'s API, file and behaviour are unchanged.

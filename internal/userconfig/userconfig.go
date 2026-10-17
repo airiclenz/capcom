@@ -1,11 +1,13 @@
 // Package userconfig loads the per-user config file of capcom ui (ADR 0011),
 // `<os.UserConfigDir>/capcom/config.yaml`, and creates it with every key as a commented default
-// the first time it is missing. It also owns capcom ui's machine-written state file beside it,
-// `state.yaml` (state.go), which LoadState reads and SaveState replaces; config.yaml itself is
-// never written once created.
+// the first time it is missing. It also owns capcom ui's machine-written state files: `state.yaml`
+// beside it (state.go), which LoadState reads and SaveState replaces, and the per-worktree
+// `<git-dir>/capcom/ui-state.yaml` (worktree_state.go), which LoadWorktreeState reads and
+// SaveWorktreeState replaces; config.yaml itself is never written once created.
 //
-// Only capcom ui may call Load, LoadState or SaveState: every other command neither reads nor
-// creates these files, so normal capcom use leaves nothing behind in the user's home. The file is read by every capcom binary on
+// Only capcom ui may call Load, LoadState, SaveState, LoadWorktreeState or SaveWorktreeState: every
+// other command neither reads nor creates these files, so normal capcom use leaves nothing behind
+// in the user's home or the git directory. The config file is read by every capcom binary on
 // the machine, of whatever release, so Load is lenient where the store's config is strict: an
 // unknown key or colour role is a Warning, never an error. Malformed YAML and a value of the wrong
 // type are an *Error naming the file and line.

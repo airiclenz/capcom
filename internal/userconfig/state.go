@@ -24,13 +24,15 @@ const (
 	yamlFloatTag = "!!float"
 )
 
-// State is what capcom ui remembers between runs. Unlike Config it is written by capcom ui itself,
-// never by the user.
+// State is what capcom ui remembers between runs for every worktree of the user, in state.yaml;
+// what it remembers per worktree, the tab and its selections, is WorktreeState in the git
+// directory's ui-state.yaml. Unlike Config it is written by capcom ui itself, never by the user.
 type State struct {
 	UI UIState
 }
 
-// UIState is the remembered layout of capcom ui.
+// UIState is the layout capcom ui remembers for every worktree; the tab and selections it
+// remembers per worktree are WorktreeState.
 type UIState struct {
 	// SidebarRatio is the sidebar's width as the user last set it, as a fraction of the terminal's
 	// width, so the split holds at every terminal width; 0 means none is stored and the default
@@ -50,17 +52,8 @@ func StatePath() (string, error) {
 // file that cannot be read are an *Error naming the file and, where known, the line; the State is then the
 // zero State, so the caller can run on the defaults.
 func LoadState(path string) (State, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return State{}, nil
-	}
-	if err != nil {
-		return State{}, &Error{Path: path, Message: fmt.Sprintf("cannot read the file: %v", err)}
-	}
-
-	p := &parser{path: path}
+	p, root, err := readDocument(path)
 	var state State
-	root, err := p.document(data)
 	if err == nil && root != nil {
 		err = p.stateTopLevel(root, &state)
 	}
@@ -81,7 +74,7 @@ func SaveState(path string, state State) error {
 	if err := os.MkdirAll(directory, directoryMode); err != nil {
 		return fmt.Errorf("save the state file: %w", err)
 	}
-	if err := replaceFile(path, encodeState(state)); err != nil {
+	if err := replaceFile(path, encodeState(state), stateTempPattern); err != nil {
 		return fmt.Errorf("save the state file: %w", err)
 	}
 	return nil
@@ -106,10 +99,27 @@ func isStorableRatio(ratio float64) bool {
 	return ratio >= 0 && ratio < 1
 }
 
-// replaceFile writes data to a temp file beside path and renames it over path, removing the temp
-// file when any step fails.
-func replaceFile(path string, data []byte) error {
-	file, err := os.CreateTemp(filepath.Dir(path), stateTempPattern)
+// readDocument reads the machine-written file at path and parses it into its top-level mapping
+// node, attributing problems to path. A missing file, an empty file and an all-comment file are a
+// nil node and no error; a missing file is never created. A file that cannot be read and malformed
+// YAML are an *Error.
+func readDocument(path string) (*parser, *yaml.Node, error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, &Error{Path: path, Message: fmt.Sprintf("cannot read the file: %v", err)}
+	}
+	p := &parser{path: path}
+	root, err := p.document(data)
+	return p, root, err
+}
+
+// replaceFile writes data to a temp file beside path, named after tempPattern (an os.CreateTemp
+// pattern), and renames it over path, removing the temp file when any step fails.
+func replaceFile(path string, data []byte, tempPattern string) error {
+	file, err := os.CreateTemp(filepath.Dir(path), tempPattern)
 	if err != nil {
 		return err
 	}
