@@ -10,7 +10,7 @@
 **Mission control for your repository and the AI coding agents working in it.**
 
 capcom is a command-line issue tracker, task manager and project knowledge base for AI coding
-agents such as Claude Code, OpenAI Codex, Cursor, Gemini CLI, Aider and GitHub Copilot, and for
+agents such as Claude Code, apogee, OpenAI Codex, Cursor, Gemini CLI, Aider and GitHub Copilot, and for
 the people working beside them. Issues and notes are plain markdown files in your git repository.
 No server, no account, no database to sync. One binary for Linux, macOS and Windows, written in
 Go, with a command line for agents and a terminal UI for people.
