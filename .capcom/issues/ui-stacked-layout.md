@@ -3,6 +3,7 @@ title: capcom ui stacks the panes on a narrow, tall terminal
 status: open
 type: feature
 priority: 2
+plan: 2026-10-17 - 01 - ui-stacked-layout-plan
 created: 2026-10-17T18:20:20Z
 ---
 
