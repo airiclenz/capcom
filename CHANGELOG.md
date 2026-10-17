@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-17
+
 - **Added:** `capcom ui [issues|ready|knowledge] [id]` opens a terminal UI on the Ready, Issues or Knowledge tab; `q` or ctrl+c quits. It needs a terminal: when stdin or stdout is not one it fails with exit code 1, and `--json`, an unknown tab or an id without a tab name before it is a usage error (exit 2). Building capcom from source now needs Go 1.25 or later.
 - **Added:** `capcom ui` lays out a tab bar, a sidebar, a detail pane and a status bar, and below 90 columns collapses to a drill-down view (Enter opens the detail, Esc returns). Tab and `1 2 3` switch tabs, PgUp/PgDn and ctrl+u/ctrl+d scroll the detail pane, and `?` shows every key. The status bar shows this worktree's Tree lock: free, held by another session with its purpose and heartbeat age, stale, invalid or unreadable. On first start `capcom ui` creates its per-user config file, `<user config dir>/capcom/config.yaml`; a problem with that file shows in the status bar and the UI runs on the defaults.
 - **Added:** `capcom ui` opens on the Ready tab: the queue `capcom ready` prints, most urgent first, one `id  status  P<n>  title` row per issue (or "No issues are ready."). ↑/↓ and j/k move the selection, and the detail pane shows the selected issue's title, status, priority, labels, parent and deps, then its body as markdown, with issue and Note ids as links. `capcom ui ready <id>` selects that issue (aliases resolved); an id the queue does not hold is reported in the status bar.
