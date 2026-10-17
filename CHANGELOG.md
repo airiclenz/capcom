@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `capcom ui` remembers, per worktree, the tab it was on and the issue or Note selected on each tab, in `<git-dir>/capcom/ui-state.yaml`, and reopens there; a tab or id given on the command line wins.
+
 ## [0.8.0] - 2026-10-17
 
 - **Added:** `capcom ui [issues|ready|knowledge] [id]` opens a terminal UI on the Ready, Issues or Knowledge tab; `q` or ctrl+c quits. It needs a terminal: when stdin or stdout is not one it fails with exit code 1, and `--json`, an unknown tab or an id without a tab name before it is a usage error (exit 2). Building capcom from source now needs Go 1.25 or later.
