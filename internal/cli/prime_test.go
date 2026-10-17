@@ -367,3 +367,18 @@ func TestPrime_WithoutStore_ExitsZeroWithAWarning(t *testing.T) {
 		t.Errorf("prime = %d, stderr %q, stdout %q; want 0 and a store warning", exitCode, stderr, stdout)
 	}
 }
+
+// prime lists neither standing Parent in its Ready lists, only the open child of one.
+func TestPrime_StandingParents_ListOnlyTheOpenChild(t *testing.T) {
+	root := newStandingParentStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+	ready, _, _ := strings.Cut(stdout, "doing: ")
+	want := "ready, planned: 0\n" +
+		"ready, unplanned: 1\n" +
+		"  child-task  open  P2  Child task\n"
+	if exitCode != ExitOK || stderr != "" || ready != want {
+		t.Errorf("prime = %d, stderr %q, stdout:\n%s\nwant the Ready lists:\n%s", exitCode, stderr, stdout, want)
+	}
+}

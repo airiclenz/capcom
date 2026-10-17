@@ -153,7 +153,9 @@ Depends on item 5.
 - `go vet ./internal/cli/`
 **Commit:** `feat(cli): explain why a standing Issue cannot be closed or claimed`
 
-## 7. `ready`, `show` and `prime` output
+## 7. `ready`, `show` and `prime` output — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the shared fixture is `newStandingParentStore` in ready_test.go, since write_test.go already declares a `newStandingStore` (item 6); prime_test.go and read_test.go reuse it.
 
 Depends on items 4 and 5.
 

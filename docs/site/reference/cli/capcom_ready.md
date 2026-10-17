@@ -11,7 +11,7 @@ List the issues ready to work on, most urgent first
 
 ### Synopsis
 
-List the Ready Issues, most urgent first: Issues in the todo category whose dependencies are all closed, with no open children and no waiting or dropped ancestor. Each line gives the id, status, priority and title, and how many Issues closing it would make Ready. --all also lists the todo Issues that are not Ready, with what holds each one back. Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden is given. Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
+List the Ready Issues, most urgent first: Issues in the todo category whose dependencies are all closed, with no open children and no waiting or dropped ancestor. Each line gives the id, status, priority and title, and how many Issues closing it would make Ready. --all also lists the todo Issues that are not Ready, with what holds each one back; a standing Issue, which only groups its children, is never Ready and is held back by "standing: holds children". Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden is given. Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
 
 ```
 capcom ready [flags]

@@ -683,6 +683,18 @@ func TestShow_Text_OpenChildren_WordedAsReadyAll(t *testing.T) {
 	}
 }
 
+func TestShow_Text_StandingParent_ReadyLineGivesTheReason(t *testing.T) {
+	root := newStandingParentStore(t)
+
+	area := mustRun(t, root, "show", "area")
+	epic := mustRun(t, root, "show", "epic")
+
+	if !strings.Contains(area, "\nready: no (standing: holds children)\n") ||
+		!strings.Contains(epic, "\nready: no (standing: holds children; open children: child-task)\n") {
+		t.Errorf("show area = %q\nshow epic = %q", area, epic)
+	}
+}
+
 func TestShow_JSON_CarriesReadyBlockingAndDependents(t *testing.T) {
 	root := newShowDepStore(t)
 

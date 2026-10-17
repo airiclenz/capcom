@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/config"
 )
 
 // readyConfig declares a custom todo status and hides owner-run issues from ready.
@@ -55,6 +57,21 @@ func newReadyStore(t *testing.T) string {
 		"triage-me.md":                              readyIssue("Triage me", "triage", 2, ""),
 		"uses-alias.md": readyIssue("Uses alias", "open", 2,
 			"deps: [apogee-kk0.4]\nplan: 2026-10-11 - 00 - alias-plan\n"),
+	})
+	return root
+}
+
+// newStandingParentStore creates a store, declaring the format that allows the standing key, with two
+// standing Parents: area, whose only child is closed, and epic, whose child child-task is open.
+func newStandingParentStore(t *testing.T) string {
+	t.Helper()
+	root := newIssueStore(t, nil)
+	writeStoreConfig(t, root, fmt.Sprintf("format: %d\n%s", config.FormatStanding, readyConfig))
+	writeIssueFiles(t, root, map[string]string{
+		"area.md":            readyIssue("Area", "open", 1, "standing: true\n"),
+		"area/old-task.md":   readyIssue("Old task", "done", 2, ""),
+		"epic.md":            readyIssue("Epic", "open", 1, "standing: true\n"),
+		"epic/child-task.md": readyIssue("Child task", "open", 2, ""),
 	})
 	return root
 }
@@ -203,4 +220,63 @@ func TestReady_BadFlags_ExitUsage(t *testing.T) {
 			t.Errorf("ready %v exit = %d, want %d", args, exitCode, ExitUsage)
 		}
 	}
+}
+
+func TestReady_StandingParents_OnlyTheOpenChildIsListed(t *testing.T) {
+	root := newStandingParentStore(t)
+
+	envelope := readyEnvelope(t, root)
+
+	if got := readyIDs(t, envelope); !reflect.DeepEqual(got, []string{"child-task"}) {
+		t.Errorf("ready = %v, want [child-task]", got)
+	}
+}
+
+func TestReady_All_Text_StandingReasonComesFirst(t *testing.T) {
+	root := newStandingParentStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "ready", "--all")
+
+	want := "area  open  P1  Area  -- not ready: standing: holds children\n" +
+		"epic  open  P1  Epic  -- not ready: standing: holds children; open children: child-task\n" +
+		"child-task  open  P2  Child task\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+}
+
+// The JSON of ready --all carries the mark as the issue's standing field and adds no reason key.
+func TestReady_All_JSON_StandingParentIsNotReady(t *testing.T) {
+	root := newStandingParentStore(t)
+
+	envelope := readyEnvelope(t, root, "--all")
+
+	byID := map[string]map[string]any{}
+	for _, item := range envelope["data"].([]any) {
+		entry := item.(map[string]any)
+		byID[entry["id"].(string)] = entry
+	}
+	want := map[string]map[string]any{
+		"area":       {"ready": false, "standing": true},
+		"epic":       {"ready": false, "standing": true, "open_children": []any{"child-task"}},
+		"child-task": {"ready": true},
+	}
+	for id, fields := range want {
+		if !reflect.DeepEqual(readyFieldsOf(byID[id]), fields) {
+			t.Errorf("%s = %#v, want ready fields %#v", id, byID[id], fields)
+		}
+	}
+}
+
+// readyFieldsOf returns the keys of a ready --json entry beyond the issue's identity and contents:
+// whether it is Ready, its standing mark and any reason key.
+func readyFieldsOf(entry map[string]any) map[string]any {
+	fields := map[string]any{}
+	for key, value := range entry {
+		switch key {
+		case "ready", "standing", "open_children", "blocking", "held_by", "unblocks", "reason", "reasons":
+			fields[key] = value
+		}
+	}
+	return fields
 }

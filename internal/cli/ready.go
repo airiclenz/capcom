@@ -45,14 +45,19 @@ type readyData struct {
 	HeldBy       string        `json:"held_by,omitempty"`
 }
 
+// standingReason is the not-ready reason of an issue that carries the standing mark.
+const standingReason = "standing: holds children"
+
 // The help text of capcom ready.
 const (
 	readyLong = "List the Ready Issues, most urgent first: Issues in the todo category whose dependencies are " +
 		"all closed, with no open children and no waiting or dropped ancestor. Each line gives the id, " +
 		"status, priority and title, and how many Issues closing it would make Ready. --all also lists " +
-		"the todo Issues that are not Ready, with what holds each one back. Issues carrying a label " +
-		"listed under ready.hide in the config stay out unless --show-hidden is given. Changes to " +
-		"Issues on other branches are reported as Elsewhere unless --no-elsewhere is given."
+		"the todo Issues that are not Ready, with what holds each one back; a standing Issue, which " +
+		"only groups its children, is never Ready and is held back by \"standing: holds children\". " +
+		"Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden " +
+		"is given. Changes to Issues on other branches are reported as Elsewhere unless " +
+		"--no-elsewhere is given."
 	readyExample = "  capcom ready                               # what to work on next\n" +
 		"  capcom ready --limit 1                     # only the most urgent\n" +
 		"  capcom ready --all                         # also the todo issues that are not ready, and why\n" +
@@ -161,9 +166,13 @@ func readyLines(listed []briefing.ReadyItem) string {
 }
 
 // notReadyReasons describes what keeps an issue from being Ready, e.g.
-// `blocked by schema (doing), gone (missing); open children: part; held by epic`.
+// `standing: holds children; blocked by schema (doing), gone (missing); open children: part; held by epic`.
+// The standing mark comes first: it keeps the issue back whatever else changes.
 func notReadyReasons(verdict issue.Readiness) string {
 	var reasons []string
+	if verdict.IsStanding {
+		reasons = append(reasons, standingReason)
+	}
 	if len(verdict.Blocking) > 0 {
 		blockers := make([]string, 0, len(verdict.Blocking))
 		for _, blocker := range verdict.Blocking {
