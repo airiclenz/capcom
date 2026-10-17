@@ -43,12 +43,12 @@ func (a *app) newUICommand() *cobra.Command {
 			if a.isJSON {
 				return output.UsageErrorf("%s does not support --%s", cmd.CommandPath(), flagJSON)
 			}
-			_, _, err := uiTarget(args)
+			_, _, _, err := uiTarget(args)
 			return err
 		},
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			tab, id, err := uiTarget(args)
+			tab, id, isTabGiven, err := uiTarget(args)
 			if err != nil {
 				return err
 			}
@@ -57,37 +57,39 @@ func (a *app) newUICommand() *cobra.Command {
 				return err
 			}
 			return ui.Run(ui.Options{
-				Store:   a.store,
-				Index:   a.issueIndex,
-				Tab:     tab,
-				ID:      id,
-				In:      in,
-				Out:     out,
-				NoColor: os.Getenv(noColorVariable) != "",
-				Version: capcom.Version(),
+				Store:      a.store,
+				Index:      a.issueIndex,
+				Tab:        tab,
+				ID:         id,
+				IsTabGiven: isTabGiven,
+				In:         in,
+				Out:        out,
+				NoColor:    os.Getenv(noColorVariable) != "",
+				Version:    capcom.Version(),
 			})
 		}),
 	}
 }
 
-// uiTarget reads the tab and the id to select from capcom ui's arguments: none opens the Ready
-// tab, and an id is taken only after a tab name. Anything else is a usage error.
-func uiTarget(args []string) (ui.Tab, string, error) {
+// uiTarget reads the tab and the id to select from capcom ui's arguments, and whether a tab was
+// given: none opens the Ready tab with no tab given, and an id is taken only after a tab name.
+// Anything else is a usage error.
+func uiTarget(args []string) (ui.Tab, string, bool, error) {
 	if len(args) > uiMaxArgs {
-		return ui.TabReady, "", output.UsageErrorf("accepts at most %d args (a tab, then an id), received %d", uiMaxArgs, len(args))
+		return ui.TabReady, "", false, output.UsageErrorf("accepts at most %d args (a tab, then an id), received %d", uiMaxArgs, len(args))
 	}
 	if len(args) == 0 {
-		return ui.TabReady, "", nil
+		return ui.TabReady, "", false, nil
 	}
 	tab, err := ui.ParseTab(args[0])
 	if err != nil {
-		return ui.TabReady, "", output.UsageErrorf("%s", err.Error())
+		return ui.TabReady, "", false, output.UsageErrorf("%s", err.Error())
 	}
 	var id string
 	if len(args) == uiMaxArgs {
 		id = args[1]
 	}
-	return tab, id, nil
+	return tab, id, true, nil
 }
 
 // terminal returns the command's stdin and stdout when both are terminals, and otherwise fails

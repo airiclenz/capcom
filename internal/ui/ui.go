@@ -51,7 +51,9 @@ func ParseTab(name string) (Tab, error) {
 }
 
 // Options configure Run. Store and Index are open and stay owned by the caller, who closes the
-// index once Run returns; an index Run re-opens on a changed config.yaml it closes itself. ID, when set, names the Issue or Note to select in Tab. In and Out are
+// index once Run returns; an index Run re-opens on a changed config.yaml it closes itself. ID, when set, names the Issue or Note to select in Tab. IsTabGiven is
+// true when the command line named Tab; false, no tab was given and the tab the worktree's state
+// file stores may apply in its place. In and Out are
 // the terminal the program reads keys from and draws on. UserConfigPath names the user config
 // file; empty, the default `<os.UserConfigDir>/capcom/config.yaml` is used. UserStatePath names
 // the state file the sidebar's width is kept in; empty, the default
@@ -64,6 +66,7 @@ type Options struct {
 	Index          *index.Index
 	Tab            Tab
 	ID             string
+	IsTabGiven     bool
 	In             io.Reader
 	Out            io.Writer
 	UserConfigPath string

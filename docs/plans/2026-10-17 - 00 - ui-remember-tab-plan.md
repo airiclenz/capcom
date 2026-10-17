@@ -69,7 +69,7 @@ internal/userconfig/state_test.go — TestLoadState_InvalidFile_ErrorsWithLineOn
 
 **Commit:** `feat(userconfig): add the per-worktree capcom ui state file`
 
-## 2. Tell an explicit tab from no argument; keep other commands off the file
+## 2. Tell an explicit tab from no argument; keep other commands off the file — ✅ DONE (2026-10-17)
 
 **What:**
 **Goal:** `ui.Options` carries `IsTabGiven`, true exactly when `capcom ui` got a tab argument; no command other than `capcom ui` creates `<git-dir>/capcom/ui-state.yaml`.

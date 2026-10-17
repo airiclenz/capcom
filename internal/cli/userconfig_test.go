@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"errors"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -34,5 +37,9 @@ func TestUserConfig_EveryOtherCommand_LeavesUserConfigDirUntouched(t *testing.T)
 		for _, entry := range entries {
 			t.Errorf("$%s holds %s after the commands, want it empty", name, entry.Name())
 		}
+	}
+	worktreeStatePath := filepath.Join(root, ".git", "capcom", "ui-state.yaml")
+	if _, err := os.Stat(worktreeStatePath); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Stat(%s) = %v after the commands, want it not to exist", worktreeStatePath, err)
 	}
 }
