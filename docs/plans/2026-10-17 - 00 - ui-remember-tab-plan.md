@@ -157,7 +157,9 @@ internal/ui/harness_test.go — startModel, drive, noFlashTick; internal/cli/loc
 
 **Commit:** `feat(ui): remember the tab and selections per worktree`
 
-## 5. ADR 0015 and the store-layout Note
+## 5. ADR 0015 and the store-layout Note — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the guard's grep also finds `.capcom/knowledge/docs-layout.md` ("the two files `capcom ui` keeps outside the repository"); left untouched because item 6 lists that file and owns its prose rule.
 
 Depends on item 4.
 

@@ -1,5 +1,5 @@
 ---
-title: "ADR 0014 decision: <os.UserConfigDir>/capcom/state.yaml holds what capcom ui remembers; only capcom ui writes it, and config.yaml is never rewritten"
+title: "ADR 0014 decision: <os.UserConfigDir>/capcom/state.yaml holds what capcom ui remembers for every worktree (the per-worktree tab and selections are ADR 0015); only capcom ui writes it, and config.yaml is never rewritten"
 ---
 
 The sidebar width is set by dragging the divider or pressing a key, not by typing it into a file,
@@ -11,9 +11,10 @@ the program owns.
 **The file.** `<os.UserConfigDir>/capcom/state.yaml`, in the same directory as `config.yaml`:
 `~/.config/capcom/state.yaml` on Linux (or `$XDG_CONFIG_HOME`),
 `~/Library/Application Support/capcom/state.yaml` on macOS, `%AppData%\capcom\state.yaml` on
-Windows. Like the user config it is never inside a repository and never part of the store. Its
-first line says it is written by capcom ui and names this record; it holds `ui.sidebar_ratio`, the
-sidebar's width as a ratio of the terminal's width.
+Windows. Like the user config it is never inside a repository and never part of the store; what
+capcom ui remembers per worktree, the tab and each tab's selection, lives under the repository's
+git dir in `ui-state.yaml` (ADR 0015). Its first line says it is written by capcom ui and names
+this record; it holds `ui.sidebar_ratio`, the sidebar's width as a ratio of the terminal's width.
 
 **Amended 2026-10-16: the width is a ratio.** `ui.sidebar_ratio` is a decimal more than 0 and less
 than 1, the sidebar's columns over the terminal's when the user set it; the drag and the keys

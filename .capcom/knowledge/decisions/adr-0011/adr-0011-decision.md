@@ -18,7 +18,8 @@ documents itself without pinning any value. Every other command neither reads no
 normal capcom use, by an agent or in CI, leaves nothing behind in the user's home. When the
 directory cannot be created or written, `capcom ui` warns in its status bar and runs on the
 defaults. Once the file exists `capcom ui` never rewrites it: what it remembers between runs, such
-as the sidebar width, goes in a machine-written `state.yaml` beside it (ADR 0014).
+as the sidebar width, goes in a machine-written `state.yaml` beside it (ADR 0014), and the tab and
+each tab's selection, remembered per worktree, in `<git-dir>/capcom/ui-state.yaml` (ADR 0015).
 
 **It is lenient where the store is strict.** One user file is read by every capcom binary on the
 machine, of whatever release each repository's agents run, so an unknown key is a warning in the

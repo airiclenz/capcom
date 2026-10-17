@@ -23,3 +23,4 @@ The records:
 - `adr-0012`: The CLI and the UI share one write path in an ops package
 - `adr-0013`: capcom ui shows the Tree lock and asks before writing while another session holds it
 - `adr-0014`: capcom ui remembers its layout in a machine-written state.yaml beside the hand-owned config.yaml
+- `adr-0015`: capcom ui remembers its tab and selections per worktree in a ui-state.yaml under the git dir
