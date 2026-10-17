@@ -31,6 +31,10 @@ areas:
   # The tab bar, the top row.
   tabs:
     bottom: {match: 'Knowledge'}
+  # The sidebar and the detail pane, between the rules above and below them.
+  panes:
+    top: {match: '^─+┬', offset: 1}
+    bottom: {match: '^─+┴', offset: -1}
   # The status bar, the bottom row.
   status:
     top: {match: 'help', pick: last}
