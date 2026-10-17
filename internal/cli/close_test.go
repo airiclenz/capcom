@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -402,5 +403,36 @@ func TestClose_IssueHoldingRelatedInAFormatOneStore_RaisesTheFormatAndWarnsOnce(
 	}
 	if login := readStoreFile(t, root, "login-flow.md"); !strings.Contains(login, "related: [db-schema]\n") {
 		t.Errorf("login-flow.md = %q; want its related entry kept", login)
+	}
+}
+
+func TestClose_StandingIssue_IsRefusedNamingTheMark(t *testing.T) {
+	root := newStandingStore(t)
+	before := readStoreFile(t, root, "feature-requests.md")
+
+	stdout, stderr, exitCode := runCLI(t, root, "close", "feature-requests", "--reason", "done")
+
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
+	if exitCode != ExitError || stdout != "" || stderr != want ||
+		readStoreFile(t, root, "feature-requests.md") != before {
+		t.Errorf("exit = %d stdout = %q\nstderr = %q\nwant     %q", exitCode, stdout, stderr, want)
+	}
+}
+
+func TestClose_StandingAndPlainIssueTogether_ClosesThePlainOneAndRefusesTheStanding(t *testing.T) {
+	root := newStandingStore(t)
+	before := readStoreFile(t, root, "feature-requests.md")
+
+	stdout, stderr, exitCode := runCLI(t, root, "close", "feature-requests", "login-flow", "--reason", "done")
+
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
+	if exitCode != ExitError || stdout != "login-flow  closed\n" || stderr != want {
+		t.Errorf("exit = %d stdout = %q\nstderr = %q\nwant     %q", exitCode, stdout, stderr, want)
+	}
+	if readStoreFile(t, root, "feature-requests.md") != before {
+		t.Error("the standing feature-requests.md was rewritten")
+	}
+	if login := readStoreFile(t, root, "login-flow.md"); !strings.Contains(login, "status: done\n") {
+		t.Errorf("login-flow.md = %q, want it closed", login)
 	}
 }

@@ -874,6 +874,11 @@ const standingLine = "\nstanding: true\n"
 const standingNotOpenText = "status %q is in the %s category; " +
 	"only an issue that is neither closed nor in the doing category can be marked standing\n"
 
+// standingRefusalText is the refusal of claiming or closing a standing issue, as close and update
+// word it on stderr; its arguments are the issue's id, for its file and for the update to run.
+const standingRefusalText = "capcom: .capcom/issues/%s.md: the issue is standing: it only groups its children " +
+	"and is never claimed or closed; run capcom update %s --no-standing first\n"
+
 // newStandingStore is newWriteStore with feature-requests, an open issue marked standing, and
 // busy-work, an issue in the doing category.
 func newStandingStore(t *testing.T) string {
@@ -998,5 +1003,17 @@ func TestUpdate_NoStandingWithStatusActive_ClaimsTheIssueInOneCall(t *testing.T)
 	content := readStoreFile(t, root, "feature-requests.md")
 	if !strings.Contains(content, "\nstatus: active\n") || strings.Contains(content, "standing:") {
 		t.Errorf("content = %q, want it claimed and unmarked", content)
+	}
+}
+
+func TestUpdate_StatusActiveOnAStandingIssue_IsRefusedNamingTheMark(t *testing.T) {
+	root := newStandingStore(t)
+	before := readStoreFile(t, root, "feature-requests.md")
+
+	_, stderr, exitCode := runCLI(t, root, "update", "feature-requests", "--status", "active")
+
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
+	if exitCode != ExitError || stderr != want || readStoreFile(t, root, "feature-requests.md") != before {
+		t.Errorf("exit = %d\nstderr = %q\nwant     %q", exitCode, stderr, want)
 	}
 }

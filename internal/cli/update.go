@@ -43,9 +43,10 @@ const (
 		"and out of the closed categories. --body-append and --body-append-file (- reads stdin) add to " +
 		"the end of the body, and --body-replace-old with --body-replace-new replaces text that must " +
 		"occur exactly once. --standing marks the Issue a standing Parent that only groups its children: " +
-		"it is never Ready, and it is not claimed or closed while marked. An Issue that is closed or in " +
-		"the doing category cannot be marked. --no-standing clears the mark, and is applied before " +
-		"--status, so one call can clear it and claim the Issue. The first standing Issue in a store " +
+		"it is never Ready, and while it is marked a --status in the doing category is refused, as is " +
+		"close. An Issue that is closed or in the doing category cannot be marked. --no-standing " +
+		"clears the mark, and is applied before --status, so one call can clear it and claim the " +
+		"Issue. The first standing Issue in a store " +
 		"below format 5 raises the store format to 5, with a warning that older capcom releases can no " +
 		"longer read the store. --if-match refuses the write when the file no longer has the etag show " +
 		"printed. It prints the Issue's id, path and new etag."
@@ -115,7 +116,8 @@ func (a *app) newUpdateCommand() *cobra.Command {
 
 // applyUpdate applies the changed flags to target: the standing mark first, so a status change is
 // judged on the issue as marked or unmarked, then the other fields, then labels, then the body
-// replacement, then the append.
+// replacement, then the append. A status rule's refusal is returned as the raw *issue.StatusError,
+// for writeFailure to word with the issue's id.
 func (a *app) applyUpdate(
 	cmd *cobra.Command,
 	options *updateOptions,
@@ -126,14 +128,14 @@ func (a *app) applyUpdate(
 	if isStanding, isChanged := standingChange(cmd, options); isChanged {
 		changed, err := issue.SetStanding(target, a.store.Config, isStanding)
 		if err != nil {
-			return issue.Issue{}, statusChangeFailure(err)
+			return issue.Issue{}, err
 		}
 		target = changed
 	}
 	if flags.Changed(flagStatus) {
 		changed, err := issue.SetStatus(target, a.store.Config, options.status)
 		if err != nil {
-			return issue.Issue{}, statusChangeFailure(err)
+			return issue.Issue{}, err
 		}
 		target = changed
 	}
@@ -179,10 +181,12 @@ func standingChange(cmd *cobra.Command, options *updateOptions) (isStanding bool
 	return false, false
 }
 
-// statusChangeFailure types a refusal from issue.SetStatus, issue.SetStanding or issue.Reopen as
-// invalid, worded for the commands: the wording stays here because it names the update, close and reopen verbs. Any
-// other error, such as a failure to name the Log entry's author, is invalid with its own message.
-func statusChangeFailure(err error) error {
+// statusChangeFailure types a refusal from issue.SetStatus, issue.SetStanding, issue.Close or
+// issue.Reopen as invalid, worded for the commands: the wording stays here because it names the
+// update, close and reopen verbs. id names the issue in the refusal of a standing issue, which says
+// to clear the mark with update first. Any other error, such as a failure to name the Log entry's
+// author, is invalid with its own message.
+func statusChangeFailure(id string, err error) error {
 	var refusal *issue.StatusError
 	if !errors.As(err, &refusal) {
 		return output.Errorf(output.CodeInvalid, "%s", err.Error())
@@ -207,6 +211,14 @@ func statusChangeFailure(err error) error {
 			"status %q is in the %s category, so the issue is not closed; only a closed issue can be reopened",
 			refusal.Status,
 			refusal.Category,
+		)
+	case errors.Is(refusal, issue.ErrStanding):
+		return output.Errorf(
+			output.CodeInvalid,
+			"the issue is standing: it only groups its children and is never claimed or closed; "+
+				"run capcom update %s --%s first",
+			id,
+			flagNoStanding,
 		)
 	case errors.Is(refusal, issue.ErrStandingNotOpen):
 		return output.Errorf(

@@ -179,7 +179,7 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 	if options.isStanding {
 		marked, err := issue.SetStanding(created, cfg, true)
 		if err != nil {
-			return issue.Issue{}, statusChangeFailure(err)
+			return issue.Issue{}, statusChangeFailure(options.id, err)
 		}
 		created = marked
 	}

@@ -134,7 +134,9 @@ Depends on items 2 and 3.
 - `go vet ./internal/cli/`
 **Commit:** `feat(cli): mark an Issue standing with create and update`
 
-## 6. `close` and `update --status` refusal messages
+## 6. `close` and `update --status` refusal messages — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): consequential edit — internal/cli/create.go: made necessary by statusChangeFailure taking the issue id (create passes options.id; its only refusal there, marking a doing issue standing, does not use it)
 
 Depends on item 5.
 
