@@ -10,6 +10,9 @@ import (
 // keyRetired is a Note's retired key, which needs the supersession store format.
 const keyRetired = "retired"
 
+// keyStanding is an issue's standing key, which needs the standing store format.
+const keyStanding = "standing"
+
 // Descriptor is what a Tree kind is, apart from its files on disk: the noun that names one of its
 // nodes in a message, how a parsed node is validated, the fields that reference other nodes and
 // the store format (ADR 0009) each format-gated key needs. It is built without a store, so a
@@ -63,6 +66,7 @@ func IssueDescriptor(cfg config.Config) Descriptor[issue.Issue] {
 		},
 		Formats: []KeyFormat[issue.Issue]{
 			{Key: RefRelated, Format: config.FormatRelated, Line: issue.Issue.RelatedLine},
+			{Key: keyStanding, Format: config.FormatStanding, Line: issue.Issue.StandingLine},
 		},
 		refs: []refField[issue.Issue]{
 			{

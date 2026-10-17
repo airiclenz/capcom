@@ -18,7 +18,7 @@ const testPath = ".capcom/issues/login-timeout-race.md"
 
 // issueKeysHint is the hint an unknown key's message ends with, naming every key an issue knows.
 const issueKeysHint = "; an issue has title, status, type, priority, labels, deps, related, plan, " +
-	"aliases, created, closed and reason"
+	"standing, aliases, created, closed and reason"
 
 func readGolden(t *testing.T, name string) []byte {
 	t.Helper()
@@ -46,6 +46,7 @@ func TestParseSerialize_CanonicalGoldens_AreIdentity(t *testing.T) {
 		"flow-labels.md",
 		"fence-in-code-block.md",
 		"utf8.md",
+		"standing.md",
 	}
 	for _, name := range goldens {
 		t.Run(name, func(t *testing.T) {
@@ -216,6 +217,44 @@ func TestParse_Related_SerializesAfterDeps(t *testing.T) {
 	}
 }
 
+func TestParse_Standing_ReadsTheMarkAndItsLine(t *testing.T) {
+	data := readGolden(t, "standing.md")
+
+	parsed := mustParse(t, data)
+
+	if !parsed.IsStanding || parsed.StandingLine() != 8 {
+		t.Errorf("IsStanding = %v, StandingLine = %d; want true at line 8", parsed.IsStanding, parsed.StandingLine())
+	}
+}
+
+func TestParse_StandingFalseOrEmpty_IsNotStandingAndIsDroppedOnWrite(t *testing.T) {
+	for _, value := range []string{"false", ""} {
+		t.Run("standing: "+value, func(t *testing.T) {
+			data := []byte("---\ntitle: T\nstanding: " + value + "\n---\n")
+
+			parsed := mustParse(t, data)
+			serialized := string(parsed.Serialize())
+
+			if parsed.IsStanding {
+				t.Errorf("IsStanding = true, want false")
+			}
+			if want := "---\ntitle: T\npriority: 2\n---\n"; serialized != want {
+				t.Errorf("Serialize = %q, want %q", serialized, want)
+			}
+		})
+	}
+}
+
+func TestSerialize_Standing_WritesTheMarkAfterPlan(t *testing.T) {
+	built := issue.Issue{Title: "T", Priority: issue.DefaultPriority, Plan: "p", IsStanding: true}
+
+	serialized := string(built.Serialize())
+
+	if want := "---\ntitle: T\npriority: 2\nplan: p\nstanding: true\n---\n"; serialized != want {
+		t.Errorf("Serialize = %q, want %q", serialized, want)
+	}
+}
+
 func TestParse_Failures_CiteFileLine(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -261,6 +300,16 @@ func TestParse_Failures_CiteFileLine(t *testing.T) {
 			name:    "empty related entry",
 			content: "---\nrelated: ['']\n---\n",
 			want:    testPath + ":2: related: every entry must be non-empty text",
+		},
+		{
+			name:    "standing not a boolean",
+			content: "---\ntitle: T\nstanding: maybe\n---\n",
+			want:    testPath + ":3: standing: expected true or false",
+		},
+		{
+			name:    "standing a list",
+			content: "---\nstanding: [true]\n---\n",
+			want:    testPath + ":2: standing: expected true or false",
 		},
 		{
 			name:    "title not text",

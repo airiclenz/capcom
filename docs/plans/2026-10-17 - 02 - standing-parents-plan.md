@@ -42,7 +42,11 @@ reports one that is closed or doing; the docs and the managed block say so.
 - 10: guard folded
 - 11: guard folded
 
-## 1. The `standing` key in the Issue file and the store format
+## 1. The `standing` key in the Issue file and the store format — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the descriptor's format row names the key through a new unexported const `keyStanding` in internal/nodestore/descriptor.go (beside `keyRetired`) instead of the literal "standing" the approach shows, per the no-magic-strings rule.
+NOTES (2026-10-17): DefaultFile keeps a literal (`format: 5`); TestParse_DefaultFile_DeclaresCurrentFormat already pins it to FormatVersion, and a new TestFormatVersion_IsTheNewestNamedFormat pins FormatVersion to FormatStanding.
+NOTES (2026-10-17): docs/site/reference/file-format.md and docs/site/agents/managed-block.md still show `format: 4` and list formats up to 4; left for item 11, whose Files name both.
 
 **What:**
 **Goal:** an Issue file may carry `standing: true`; it parses into `Issue.IsStanding`, round-trips byte for byte, is written only when true, and its presence needs the new store format, which `config.FormatVersion` names.

@@ -425,6 +425,31 @@ func assertExists(path string, holder string, text string) func(t *testing.T, er
 	}
 }
 
+func TestCreate_StandingIssueBelowTheStandingFormat_RaisesTheFormat(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	configPath := writeNodeFile(t, s.Root, "config.yaml", fmt.Sprintf("format: %d\n", config.FormatAgents))
+	node, err := issue.Parse("node.md", []byte(canonicalIssue))
+	if err != nil {
+		t.Fatal(err)
+	}
+	node.Aliases = nil
+	node.IsStanding = true
+
+	written, _, err := Issues(s, nil).Create(newIssueID, "", func() (issue.Issue, error) {
+		return node, nil
+	})
+
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if content := readFile(t, configPath); written.RaisedFormat != config.FormatStanding ||
+		content != fmt.Sprintf("format: %d\n", config.FormatStanding) {
+		t.Errorf("RaisedFormat = %d, config.yaml = %q; want format %d declared",
+			written.RaisedFormat, content, config.FormatStanding)
+	}
+}
+
 func TestCreate_NoteWithSupersededByBelowFormatThree_RaisesTheFormat(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

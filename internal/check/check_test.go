@@ -535,7 +535,8 @@ func TestRun_DroppedDuplicateIDFiles_AliasClashAndParseFailureReported(t *testin
 		repeatedID + `session-timeout.md: duplicate id "session-timeout": also the id of ` + firstTwin +
 			" and 1 more; all are left out",
 		string(diagnose.Frontmatter) + " " + issues + `session-timeout.md:7: unknown key "estimate"; an issue has ` +
-			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
+			"title, status, type, priority, labels, deps, related, plan, standing, aliases, created, closed " +
+			"and reason",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %q\nwant %q", got, want)
@@ -638,7 +639,8 @@ func TestRun_FileProblems_PinCodesAndWording(t *testing.T) {
 		string(diagnose.Duplicate) + " " + issues + `top-issue/dup-issue.md: duplicate id "dup-issue": also the id of ` +
 			issues + "dup-issue.md; both are left out",
 		string(diagnose.Frontmatter) + " " + issues + `unknown-key.md:7: unknown key "estimate"; an issue has ` +
-			"title, status, type, priority, labels, deps, related, plan, aliases, created, closed and reason",
+			"title, status, type, priority, labels, deps, related, plan, standing, aliases, created, closed " +
+			"and reason",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("problems = %q\nwant %q", got, want)

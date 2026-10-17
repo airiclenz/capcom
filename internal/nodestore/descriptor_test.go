@@ -9,13 +9,14 @@ import (
 	"github.com/airiclenz/capcom/internal/knowledge"
 )
 
-// relatedIssue is an issue file whose related key sits on line 6.
+// relatedIssue is an issue file whose related key sits on line 6 and its standing key on line 7.
 const relatedIssue = `---
 title: Fix the parser
 status: open
 type: bug
 priority: 1
 related: [other-issue]
+standing: true
 created: 2026-10-11T09:30:00Z
 ---
 
@@ -80,7 +81,10 @@ func TestDescriptor_PerKind_DescribesNounRefKeysAndFormats(t *testing.T) {
 			noun:       "issue",
 			nounPhrase: "an issue",
 			refKeys:    []string{RefDeps, RefRelated},
-			formats:    []formatRow{{key: "related", format: config.FormatRelated, line: 6}},
+			formats: []formatRow{
+				{key: "related", format: config.FormatRelated, line: 6},
+				{key: "standing", format: config.FormatStanding, line: 7},
+			},
 		})
 	})
 	t.Run("note", func(t *testing.T) {

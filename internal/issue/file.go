@@ -7,6 +7,12 @@ import (
 	"github.com/airiclenz/capcom/internal/frontmatter"
 )
 
+// The two values the standing key accepts; Serialize writes only standingTrue.
+const (
+	standingTrue  = "true"
+	standingFalse = "false"
+)
+
 // issueSchema is the issue field table: every frontmatter key, how Parse reads it into an Issue
 // and how Serialize writes it back, in the order Serialize writes them.
 var issueSchema = frontmatter.NewSchema(
@@ -28,6 +34,18 @@ var issueSchema = frontmatter.NewSchema(
 	frontmatter.List(keyDeps, func(issue *Issue) *[]string { return &issue.Deps }),
 	frontmatter.List(keyRelated, func(issue *Issue) *[]string { return &issue.Related }),
 	frontmatter.Text(keyPlan, func(issue *Issue) *string { return &issue.Plan }),
+	frontmatter.Raw(
+		keyStanding,
+		func(value frontmatter.Field, issue *Issue) (err error) {
+			issue.IsStanding, err = standing(value)
+			return err
+		},
+		func(issue Issue, out *frontmatter.Encoder) {
+			if issue.IsStanding {
+				out.Raw(keyStanding, standingTrue)
+			}
+		},
+	),
 	frontmatter.List(keyAliases, func(issue *Issue) *[]string { return &issue.Aliases }),
 	timeField(keyCreated, func(issue *Issue) *time.Time { return &issue.Created }),
 	timeField(keyClosed, func(issue *Issue) *time.Time { return &issue.Closed }),
@@ -72,10 +90,10 @@ func Parse(path string, data []byte) (Issue, error) {
 }
 
 // Serialize writes the issue in the canonical form: the frontmatter keys in the fixed order title,
-// status, type, priority, labels, deps, related, plan, aliases, created, closed, reason; empty
-// fields left out except priority, which is always written; lists in flow style; timestamps in
-// RFC3339 UTC; text plain where YAML reads it back unchanged and double-quoted otherwise; then the
-// body verbatim.
+// status, type, priority, labels, deps, related, plan, standing, aliases, created, closed, reason;
+// empty fields and a false standing left out, except priority, which is always written; lists in
+// flow style; timestamps in RFC3339 UTC; text plain where YAML reads it back unchanged and
+// double-quoted otherwise; then the body verbatim.
 func (i Issue) Serialize() []byte {
 	return issueSchema.Encode(i, i.Body)
 }
@@ -97,6 +115,18 @@ func priority(value frontmatter.Field) (int, error) {
 		)
 	}
 	return priority, nil
+}
+
+// standing reads the standing key, which takes true or false only; an empty value reads as false.
+func standing(value frontmatter.Field) (bool, error) {
+	text, isScalar := value.Scalar()
+	switch {
+	case isScalar && text == standingTrue:
+		return true, nil
+	case isScalar && (text == standingFalse || text == ""):
+		return false, nil
+	}
+	return false, value.Errorf("%s: expected %s or %s", keyStanding, standingTrue, standingFalse)
 }
 
 // timestamp reads an RFC3339 timestamp as UTC to the second; an empty value reads as the zero time.

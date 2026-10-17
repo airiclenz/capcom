@@ -36,8 +36,9 @@ func ClosedCategories() []Category {
 
 // FormatVersion is the highest store format this capcom reads, and the one `capcom init` writes
 // (ADR 0009). Format 2 adds the related key to issue files; format 3 adds the retired and
-// superseded-by keys to Notes; format 4 adds the agents.guides key to config.yaml.
-const FormatVersion = 4
+// superseded-by keys to Notes; format 4 adds the agents.guides key to config.yaml; format 5 adds
+// the standing key to issue files.
+const FormatVersion = 5
 
 // The store formats that capcom's format rules name (ADR 0009).
 const (
@@ -51,6 +52,8 @@ const (
 	FormatSupersession = 3
 	// FormatAgents is the first store format whose config.yaml may carry the agents key.
 	FormatAgents = 4
+	// FormatStanding is the first store format whose issue files may carry the standing key.
+	FormatStanding = 5
 )
 
 // formatComment is the template's comment line above its format key.
@@ -91,7 +94,7 @@ const maxElsewhereDays = 36500
 
 // DefaultFile is the config.yaml `capcom init` writes into a store it creates. It parses to
 // Default().
-const DefaultFile = templateHead + formatComment + "\nformat: 4\n" + templateBody
+const DefaultFile = templateHead + formatComment + "\nformat: 5\n" + templateBody
 
 // KeylessFile is the config.yaml `capcom init` writes into an existing store that has none: the
 // same file as DefaultFile with the format key left as a comment under its own comment line, so

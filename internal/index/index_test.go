@@ -991,7 +991,7 @@ func TestRefresh_FileProblems_PinKindsAndWording(t *testing.T) {
 			Path: dir + "unknown-key.md",
 			Line: 7,
 			Message: `unknown key "estimate"; an issue has title, status, type, priority, labels, deps, ` +
-				"related, plan, aliases, created, closed and reason",
+				"related, plan, standing, aliases, created, closed and reason",
 		},
 	}
 	if !slices.Equal(report.Warnings, want) {

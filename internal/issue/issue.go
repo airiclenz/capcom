@@ -28,6 +28,7 @@ const (
 	keyDeps     = "deps"
 	keyRelated  = "related"
 	keyPlan     = "plan"
+	keyStanding = "standing"
 	keyAliases  = "aliases"
 	keyCreated  = "created"
 	keyClosed   = "closed"
@@ -52,6 +53,9 @@ type Issue struct {
 	// Plan is the basename of the Plan document, resolved against the configured plan
 	// directories.
 	Plan string
+	// IsStanding marks a standing Parent: an Issue that only groups its children and is never
+	// itself the work. The file carries it as `standing: true`; a false value is left out.
+	IsStanding bool
 	// Aliases are the issue's former ids (ADR 0002).
 	Aliases []string
 	// Created is when the issue was created, in UTC to the second.
@@ -90,6 +94,12 @@ func (i Issue) RelatedLine() int {
 // when the file has none or the Issue was built in memory.
 func (i Issue) PlanLine() int {
 	return i.lines[keyPlan]
+}
+
+// StandingLine returns the 1-based line of the standing key in the file the Issue was parsed
+// from, or 0 when the file has none or the Issue was built in memory.
+func (i Issue) StandingLine() int {
+	return i.lines[keyStanding]
 }
 
 // AliasesLine returns the 1-based line of the aliases key in the file the Issue was parsed from,

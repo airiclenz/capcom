@@ -225,7 +225,7 @@ func TestIssueReader_Decode_SortsItsFindings(t *testing.T) {
 				Path: "alpha.md",
 				Line: 3,
 				Message: "unknown key \"bogus\"; an issue has title, status, type, priority, labels, deps, " +
-					"related, plan, aliases, created, closed and reason",
+					"related, plan, standing, aliases, created, closed and reason",
 			}},
 		},
 		{

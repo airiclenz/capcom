@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
@@ -165,14 +166,21 @@ func TestList_BadFlags_ExitUsage(t *testing.T) {
 	}
 }
 
-// newerFormatMessage is the error every command but prime gives on a store of format 5, whose
-// format key sits on line 2 of the config written by writeNewerFormatConfig.
-const newerFormatMessage = ".capcom/config.yaml:2: store format 5 is newer than this capcom reads (up to 4); upgrade capcom"
+// newerFormat is a store format one past the newest this capcom reads.
+const newerFormat = config.FormatVersion + 1
 
-// writeNewerFormatConfig replaces the store's config.yaml with one declaring format 5.
+// newerFormatMessage is the error every command but prime gives on a store of newerFormat, whose
+// format key sits on line 2 of the config written by writeNewerFormatConfig.
+var newerFormatMessage = fmt.Sprintf(
+	".capcom/config.yaml:2: store format %d is newer than this capcom reads (up to %d); upgrade capcom",
+	newerFormat,
+	config.FormatVersion,
+)
+
+// writeNewerFormatConfig replaces the store's config.yaml with one declaring newerFormat.
 func writeNewerFormatConfig(t *testing.T, root string) {
 	t.Helper()
-	content := "# written by a newer capcom\nformat: 5\n"
+	content := fmt.Sprintf("# written by a newer capcom\nformat: %d\n", newerFormat)
 	if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}

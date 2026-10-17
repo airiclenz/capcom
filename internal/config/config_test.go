@@ -37,6 +37,21 @@ func TestParse_EmptyDocument_ReturnsDefaultAtFormatOne(t *testing.T) {
 	}
 }
 
+func TestFormatVersion_IsTheNewestNamedFormat(t *testing.T) {
+	t.Parallel()
+	named := []int{MissingFormat, FormatRelated, FormatSupersession, FormatAgents, FormatStanding}
+
+	for i := 1; i < len(named); i++ {
+		if named[i] != named[i-1]+1 {
+			t.Errorf("named formats = %v, want each one past the one before", named)
+			break
+		}
+	}
+	if newest := named[len(named)-1]; FormatVersion != newest {
+		t.Errorf("FormatVersion = %d, want the newest named format %d", FormatVersion, newest)
+	}
+}
+
 func TestParse_DefaultFile_DeclaresCurrentFormat(t *testing.T) {
 	t.Parallel()
 
@@ -113,9 +128,9 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 		content  string
 		wantLine int
 	}{
-		{"format alone", "format: 5\n", 1},
-		{"after other keys", "types: [bug]\n\nformat: 5\n", 3},
-		{"unknown key above format", "colour: blue\nformat: 5\n", 2},
+		{"format alone", "format: 6\n", 1},
+		{"after other keys", "types: [bug]\n\nformat: 6\n", 3},
+		{"unknown key above format", "colour: blue\nformat: 6\n", 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -127,7 +142,7 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 			if !errors.As(err, &failure) {
 				t.Fatalf("err = %v, want *config.Error", err)
 			}
-			want := fmt.Sprintf("%s:%d: store format 5 is newer than this capcom reads (up to 4); upgrade capcom",
+			want := fmt.Sprintf("%s:%d: store format 6 is newer than this capcom reads (up to 5); upgrade capcom",
 				testPath, testCase.wantLine)
 			if err.Error() != want {
 				t.Errorf("err = %q, want %q", err.Error(), want)
