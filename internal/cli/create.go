@@ -30,16 +30,17 @@ const emptyBodyWarning = `%s has no body: state what, why and a "## Acceptance" 
 
 // createOptions holds the flags of one capcom create.
 type createOptions struct {
-	id        string
-	title     string
-	parent    string
-	issueType string
-	priority  int
-	labels    []string
-	plan      string
-	status    string
-	bodyFile  string
-	deps      []string
+	id         string
+	title      string
+	parent     string
+	issueType  string
+	priority   int
+	labels     []string
+	plan       string
+	status     string
+	bodyFile   string
+	deps       []string
+	isStanding bool
 }
 
 // The help text of capcom create.
@@ -48,12 +49,16 @@ const (
 		"work. --parent files it below another Issue, and --dep makes it wait for the Issues named; a " +
 		"--dep that names no Issue fails the create before anything is written. The body comes from " +
 		"--body-file (- reads stdin) and states what is wrong or wanted, why, and a \"## Acceptance\" " +
-		"section; an Issue created without a body draws a warning. It prints the new Issue's id, path " +
-		"and etag."
+		"section; an Issue created without a body draws a warning. --standing marks it a standing " +
+		"Parent that only groups its children: it is never Ready, and it is not claimed or closed while " +
+		"marked, so it cannot be created in the doing category. The first standing Issue in a store " +
+		"below format 5 raises the store format to 5, with a warning that older capcom releases can no " +
+		"longer read the store. It prints the new Issue's id, path and etag."
 	createExample = "  capcom create --id login-timeout-race --title \"Session refresh races the login timeout\" --type bug\n" +
 		"  capcom create --id refresh-retry --title \"Retry a failed token refresh\" --dep login-timeout-race   # waits for it\n" +
 		"  capcom create --id login-copy --title \"Reword the login errors\" --parent login-flow --priority 1\n" +
-		"  capcom create --id cache-warmup --title \"Warm the cache on deploy\" --body-file - < body.md   # body from stdin"
+		"  capcom create --id cache-warmup --title \"Warm the cache on deploy\" --body-file - < body.md   # body from stdin\n" +
+		"  capcom create --id feature-requests --title \"Feature requests\" --standing   # only groups its children: never Ready"
 )
 
 // newCreateCommand writes a new issue file. The id is always the caller's choice, never generated.
@@ -85,6 +90,7 @@ func (a *app) newCreateCommand() *cobra.Command {
 	flags.StringVar(&options.status, flagStatus, "", "initial status, not in a closed category (default: the first todo status)")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
 	flags.StringSliceVar(&options.deps, flagDep, nil, "issues the new one depends on; repeat or separate with commas")
+	flags.BoolVar(&options.isStanding, flagStanding, false, "mark the issue standing: it only groups its children")
 	_ = cmd.MarkFlagRequired(flagID)    // fails only for an undefined flag
 	_ = cmd.MarkFlagRequired(flagTitle) // fails only for an undefined flag
 	return a.withKV(cmd)
@@ -145,7 +151,8 @@ func namesItself(entry string) (string, bool) {
 	return entry, true
 }
 
-// newIssue builds the issue the flags describe, created now, depending on deps.
+// newIssue builds the issue the flags describe, created now, depending on deps. With --standing it
+// is marked standing once its status is chosen, so a status in the doing category is refused.
 func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string) (issue.Issue, error) {
 	cfg := a.store.Config
 	status := options.status
@@ -168,6 +175,13 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 		Plan:     options.plan,
 		Deps:     deps,
 		Created:  time.Now().UTC().Truncate(time.Second),
+	}
+	if options.isStanding {
+		marked, err := issue.SetStanding(created, cfg, true)
+		if err != nil {
+			return issue.Issue{}, statusChangeFailure(err)
+		}
+		created = marked
 	}
 	if options.bodyFile == "" {
 		return created, nil

@@ -15,6 +15,9 @@ import (
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
+// flagNoStanding clears the standing mark of the issue capcom update changes.
+const flagNoStanding = "no-standing"
+
 // updateOptions holds the flags of one capcom update.
 type updateOptions struct {
 	title          string
@@ -29,6 +32,8 @@ type updateOptions struct {
 	replaceOld     string
 	replaceNew     string
 	ifMatch        string
+	isStanding     bool
+	isNotStanding  bool
 }
 
 // The help text of capcom update.
@@ -37,12 +42,19 @@ const (
 		"is required. --status moves it between statuses that are not closed: close and reopen cross into " +
 		"and out of the closed categories. --body-append and --body-append-file (- reads stdin) add to " +
 		"the end of the body, and --body-replace-old with --body-replace-new replaces text that must " +
-		"occur exactly once. --if-match refuses the write when the file no longer has the etag show " +
+		"occur exactly once. --standing marks the Issue a standing Parent that only groups its children: " +
+		"it is never Ready, and it is not claimed or closed while marked. An Issue that is closed or in " +
+		"the doing category cannot be marked. --no-standing clears the mark, and is applied before " +
+		"--status, so one call can clear it and claim the Issue. The first standing Issue in a store " +
+		"below format 5 raises the store format to 5, with a warning that older capcom releases can no " +
+		"longer read the store. --if-match refuses the write when the file no longer has the etag show " +
 		"printed. It prints the Issue's id, path and new etag."
 	updateExample = "  capcom update login-timeout-race --priority 1 --add-label owner-run\n" +
 		"  capcom update login-timeout-race --status active   # claim it: a status in the doing category\n" +
 		"  capcom update login-timeout-race --body-append \"Seen on Safari only.\"\n" +
-		"  capcom update login-timeout-race --body-replace-old \"Safari only\" --body-replace-new \"Safari and Firefox\""
+		"  capcom update login-timeout-race --body-replace-old \"Safari only\" --body-replace-new \"Safari and Firefox\"\n" +
+		"  capcom update feature-requests --standing   # only groups its children: never Ready\n" +
+		"  capcom update feature-requests --no-standing --status active   # clear the mark and claim it"
 )
 
 // newUpdateCommand changes the fields and body of one issue. Only the flags given change
@@ -59,7 +71,8 @@ func (a *app) newUpdateCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if !hasAnyFlag(cmd, flagTitle, flagStatus, flagType, flagPriority, flagPlan, flagAddLabel,
-				flagRemoveLabel, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld) {
+				flagRemoveLabel, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld, flagStanding,
+				flagNoStanding) {
 				return output.UsageErrorf("update needs at least one flag that changes the issue")
 			}
 			appendFile := ""
@@ -92,12 +105,16 @@ func (a *app) newUpdateCommand() *cobra.Command {
 	flags.StringVar(&options.replaceOld, flagBodyReplaceOld, "", "body text to replace; must occur exactly once")
 	flags.StringVar(&options.replaceNew, flagBodyReplaceNew, "", "text that replaces --body-replace-old")
 	flags.StringVar(&options.ifMatch, flagIfMatch, "", "only write when the file's etag is this one (see show)")
+	flags.BoolVar(&options.isStanding, flagStanding, false, "mark the issue standing: it only groups its children")
+	flags.BoolVar(&options.isNotStanding, flagNoStanding, false, "clear the issue's standing mark")
 	cmd.MarkFlagsMutuallyExclusive(flagBodyAppend, flagBodyAppendFile)
+	cmd.MarkFlagsMutuallyExclusive(flagStanding, flagNoStanding)
 	cmd.MarkFlagsRequiredTogether(flagBodyReplaceOld, flagBodyReplaceNew)
 	return a.withKV(cmd)
 }
 
-// applyUpdate applies the changed flags to target: fields first, then labels, then the body
+// applyUpdate applies the changed flags to target: the standing mark first, so a status change is
+// judged on the issue as marked or unmarked, then the other fields, then labels, then the body
 // replacement, then the append.
 func (a *app) applyUpdate(
 	cmd *cobra.Command,
@@ -106,6 +123,13 @@ func (a *app) applyUpdate(
 	target issue.Issue,
 ) (issue.Issue, error) {
 	flags := cmd.Flags()
+	if isStanding, isChanged := standingChange(cmd, options); isChanged {
+		changed, err := issue.SetStanding(target, a.store.Config, isStanding)
+		if err != nil {
+			return issue.Issue{}, statusChangeFailure(err)
+		}
+		target = changed
+	}
 	if flags.Changed(flagStatus) {
 		changed, err := issue.SetStatus(target, a.store.Config, options.status)
 		if err != nil {
@@ -142,8 +166,21 @@ func (a *app) applyUpdate(
 	return target, nil
 }
 
-// statusChangeFailure types a refusal from issue.SetStatus or issue.Reopen as invalid, worded for
-// the commands: the wording stays here because it names the update, close and reopen verbs. Any
+// standingChange returns the standing mark --standing or --no-standing sets, and whether either
+// was given; the two are mutually exclusive.
+func standingChange(cmd *cobra.Command, options *updateOptions) (isStanding bool, isChanged bool) {
+	flags := cmd.Flags()
+	switch {
+	case flags.Changed(flagStanding):
+		return options.isStanding, true
+	case flags.Changed(flagNoStanding):
+		return !options.isNotStanding, true
+	}
+	return false, false
+}
+
+// statusChangeFailure types a refusal from issue.SetStatus, issue.SetStanding or issue.Reopen as
+// invalid, worded for the commands: the wording stays here because it names the update, close and reopen verbs. Any
 // other error, such as a failure to name the Log entry's author, is invalid with its own message.
 func statusChangeFailure(err error) error {
 	var refusal *issue.StatusError
@@ -168,6 +205,13 @@ func statusChangeFailure(err error) error {
 		return output.Errorf(
 			output.CodeInvalid,
 			"status %q is in the %s category, so the issue is not closed; only a closed issue can be reopened",
+			refusal.Status,
+			refusal.Category,
+		)
+	case errors.Is(refusal, issue.ErrStandingNotOpen):
+		return output.Errorf(
+			output.CodeInvalid,
+			"status %q is in the %s category; only an issue that is neither closed nor in the doing category can be marked standing",
 			refusal.Status,
 			refusal.Category,
 		)

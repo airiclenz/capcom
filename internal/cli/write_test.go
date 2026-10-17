@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -862,5 +863,140 @@ func TestCreate_ParentOnlyAnUnusableFileClaims_IsRefusedNamingIt(t *testing.T) {
 				t.Error("new-child.md was written")
 			}
 		})
+	}
+}
+
+// standingLine is the frontmatter line of an issue marked standing.
+const standingLine = "\nstanding: true\n"
+
+// standingNotOpenText is the refusal of marking standing an issue whose status, the format's
+// argument, is closed or in the doing category, as update and create word it.
+const standingNotOpenText = "status %q is in the %s category; " +
+	"only an issue that is neither closed nor in the doing category can be marked standing\n"
+
+// newStandingStore is newWriteStore with feature-requests, an open issue marked standing, and
+// busy-work, an issue in the doing category.
+func newStandingStore(t *testing.T) string {
+	t.Helper()
+	root := newWriteStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"feature-requests.md": readIssue("Feature requests", "open", "standing: true\n", ""),
+		"busy-work.md":        readIssue("Busy work", "active", "", ""),
+	})
+	return root
+}
+
+// shownStanding runs show --json on id and returns its standing value, nil when left out.
+func shownStanding(t *testing.T, root string, id string) any {
+	t.Helper()
+	shown := decodeEnvelope(t, mustRun(t, root, "show", "--json", id))["data"].([]any)[0].(map[string]any)
+	return shown["standing"]
+}
+
+func TestCreate_Standing_WritesTheMarkThatShowJSONCarries(t *testing.T) {
+	root := newWriteStore(t)
+
+	mustRun(t, root, "create", "--id", "feature-requests", "--title", "Feature requests", "--standing")
+
+	content := readStoreFile(t, root, "feature-requests.md")
+	if !strings.Contains(content, "priority: 2"+standingLine+"created: ") {
+		t.Errorf("content = %q, want the standing line after priority", content)
+	}
+	if standing := shownStanding(t, root, "feature-requests"); standing != true {
+		t.Errorf("show --json standing = %v, want true", standing)
+	}
+}
+
+func TestCreate_StandingInTheDoingCategory_IsRefusedAndWritesNothing(t *testing.T) {
+	root := newWriteStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "feature-requests", "--title", "Feature requests",
+		"--standing", "--status", "active")
+
+	want := "capcom: " + fmt.Sprintf(standingNotOpenText, "active", "doing")
+	_, statErr := os.Stat(filepath.Join(root, ".capcom", "issues", "feature-requests.md"))
+	if exitCode != ExitError || stderr != want || !os.IsNotExist(statErr) {
+		t.Errorf("exit = %d stat = %v\nstderr = %q\nwant     %q", exitCode, statErr, stderr, want)
+	}
+}
+
+func TestCreate_StandingBelowTheStandingFormat_RaisesTheFormatWithAWarning(t *testing.T) {
+	root := newWriteStore(t)
+	writeStoreConfig(t, root, "format: 4\n")
+
+	stdout := mustRun(t, root, "create", "--id", "feature-requests", "--title", "Feature requests", "--standing")
+
+	want := "warning: " + fmt.Sprintf(formatRaisedWarning, ".capcom/config.yaml", 5, 4) + "\n"
+	if config := readStoreConfig(t, root); config != "format: 5\n" || strings.Count(stdout, want) != 1 {
+		t.Errorf("config.yaml = %q\nstdout = %q\nwant the warning %q once", config, stdout, want)
+	}
+}
+
+func TestUpdate_StandingThenNoStanding_SetsAndClearsTheMark(t *testing.T) {
+	root := newWriteStore(t)
+
+	mustRun(t, root, "update", "login-flow", "--standing")
+	marked := readStoreFile(t, root, "login-flow.md")
+	mustRun(t, root, "update", "login-flow", "--no-standing")
+	cleared := readStoreFile(t, root, "login-flow.md")
+
+	if !strings.Contains(marked, standingLine) || strings.Contains(cleared, "standing:") {
+		t.Errorf("marked = %q\ncleared = %q", marked, cleared)
+	}
+}
+
+func TestUpdate_StandingAndNoStandingTogether_ExitsUsage(t *testing.T) {
+	root := newStandingStore(t)
+	before := readStoreFile(t, root, "feature-requests.md")
+
+	_, stderr, exitCode := runCLI(t, root, "update", "feature-requests", "--standing", "--no-standing")
+
+	if exitCode != ExitUsage || !strings.Contains(stderr, "no-standing") ||
+		readStoreFile(t, root, "feature-requests.md") != before {
+		t.Errorf("exit = %d stderr = %q, want a usage failure that writes nothing", exitCode, stderr)
+	}
+}
+
+func TestUpdate_StandingOnAClosedOrDoingIssue_IsRefused(t *testing.T) {
+	root := newStandingStore(t)
+	cases := map[string]struct {
+		id       string
+		status   string
+		category string
+	}{
+		"closed": {id: "shipped-fix", status: "done", category: "done"},
+		"doing":  {id: "busy-work", status: "active", category: "doing"},
+	}
+	for name, tc := range cases {
+		before := readStoreFile(t, root, tc.id+".md")
+
+		_, stderr, exitCode := runCLI(t, root, "update", tc.id, "--standing")
+
+		want := "capcom: .capcom/issues/" + tc.id + ".md: " + fmt.Sprintf(standingNotOpenText, tc.status, tc.category)
+		if exitCode != ExitError || stderr != want || readStoreFile(t, root, tc.id+".md") != before {
+			t.Errorf("%s: exit = %d\nstderr = %q\nwant     %q", name, exitCode, stderr, want)
+		}
+	}
+}
+
+func TestUpdate_StandingWithADoingStatus_IsRefused(t *testing.T) {
+	root := newWriteStore(t)
+	before := readStoreFile(t, root, "login-flow.md")
+
+	_, _, exitCode := runCLI(t, root, "update", "login-flow", "--standing", "--status", "active")
+
+	if after := readStoreFile(t, root, "login-flow.md"); exitCode != ExitError || after != before {
+		t.Errorf("exit = %d content = %q, want a refusal that writes nothing", exitCode, after)
+	}
+}
+
+func TestUpdate_NoStandingWithStatusActive_ClaimsTheIssueInOneCall(t *testing.T) {
+	root := newStandingStore(t)
+
+	mustRun(t, root, "update", "feature-requests", "--no-standing", "--status", "active")
+
+	content := readStoreFile(t, root, "feature-requests.md")
+	if !strings.Contains(content, "\nstatus: active\n") || strings.Contains(content, "standing:") {
+		t.Errorf("content = %q, want it claimed and unmarked", content)
 	}
 }

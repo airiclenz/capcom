@@ -448,6 +448,44 @@ func TestShow_Text_PrintsFrontmatterThenBodyVerbatim(t *testing.T) {
 	}
 }
 
+func TestShow_StandingIssue_PrintsStandingAfterPlanInText(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"feature-requests.md": readIssue("Feature requests", "open", "plan: intake\nstanding: true\n", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "feature-requests")
+
+	want := "\nplan: intake\nstanding: true\ncreated: 2026-10-11T09:00:00Z\n"
+	if exitCode != ExitOK || stderr != "" || !strings.HasSuffix(stdout, want) {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant the suffix %q", exitCode, stderr, stdout, want)
+	}
+}
+
+func TestShowAndList_JSON_CarryStandingOnlyWhenMarked(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"feature-requests.md": readIssue("Feature requests", "open", "standing: true\n", ""),
+		"login-flow.md":       readIssue("Login flow", "open", "", ""),
+	})
+	standingOf := func(data []any) map[string]any {
+		values := map[string]any{}
+		for _, item := range data {
+			issue := item.(map[string]any)
+			values[issue["id"].(string)] = issue["standing"]
+		}
+		return values
+	}
+
+	shown := standingOf(decodeEnvelope(t, mustRun(t, root, "show", "--json", "feature-requests"))["data"].([]any))
+	listed := standingOf(decodeEnvelope(t, mustRun(t, root, "list", "--json"))["data"].([]any))
+
+	if shown["feature-requests"] != true || listed["feature-requests"] != true {
+		t.Errorf("standing: show = %v, list = %v, want true", shown, listed)
+	}
+	if value, isPresent := listed["login-flow"]; !isPresent || value != nil {
+		t.Errorf("list login-flow standing = %v (listed %v), want it left out", value, isPresent)
+	}
+}
+
 // rewriteKeepingTimes writes content over the file at path and sets its access and modification
 // times to at, so a size-and-mtime check cannot tell the new content from the old.
 func rewriteKeepingTimes(t *testing.T, path string, content string, at time.Time) {

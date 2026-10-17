@@ -282,7 +282,8 @@ func joinKeys(keys []string) string {
 // kind's node store, which refuses before build runs when id is invalid or already named, see
 // nodestore.Kind.Create. The result names the new node's id, path and etag, with a warning for
 // every tree problem that concerns neither the node's path nor its parent, unless the index
-// refresh already warned about it; verbs.afterWrite then renders the write's Effects.
+// refresh already warned about it, and the warning of a write that raised the store format
+// (app.warnRaisedFormat); verbs.afterWrite then renders the write's Effects.
 func createNode[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -296,6 +297,7 @@ func createNode[T any](
 	}
 	result := verbs.writeResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
+	a.warnRaisedFormat(written.Effects)
 	if verbs.afterWrite != nil {
 		verbs.afterWrite(&result, written.Effects)
 	}

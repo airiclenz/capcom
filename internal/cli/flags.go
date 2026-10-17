@@ -34,6 +34,7 @@ const (
 const (
 	flagID       = "id"
 	flagBodyFile = "body-file"
+	flagStanding = "standing"
 )
 
 // Flags of the know subcommands that other commands share.

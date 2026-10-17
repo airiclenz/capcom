@@ -114,7 +114,10 @@ Depends on item 3.
 - `go vet ./internal/issue/ ./internal/briefing/`
 **Commit:** `feat(ready): never count a standing Issue as Ready`
 
-## 5. `create --standing` and `update --standing` / `--no-standing`
+## 5. `create --standing` and `update --standing` / `--no-standing` — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the format-raise warning is added in `createNode` (internal/cli/node_verbs.go) through `a.warnRaisedFormat(written.Effects)`, the first route the item names, rather than an `issueVerbs.afterWrite` (whose signature takes no app); `know add` never writes a format-gated key, so it is unaffected.
+NOTES (2026-10-17): `create --standing --status <doing>` is refused without a file path, like create's existing closed-status refusal, since no file exists yet; `update --standing --status <doing>` is refused with `ErrStanding`'s plain message until item 6 words it.
 
 Depends on items 2 and 3.
 

@@ -11,7 +11,7 @@ Change an issue's fields or body
 
 ### Synopsis
 
-Change an Issue's fields, labels or body in place; at least one flag that changes the Issue is required. --status moves it between statuses that are not closed: close and reopen cross into and out of the closed categories. --body-append and --body-append-file (- reads stdin) add to the end of the body, and --body-replace-old with --body-replace-new replaces text that must occur exactly once. --if-match refuses the write when the file no longer has the etag show printed. It prints the Issue's id, path and new etag.
+Change an Issue's fields, labels or body in place; at least one flag that changes the Issue is required. --status moves it between statuses that are not closed: close and reopen cross into and out of the closed categories. --body-append and --body-append-file (- reads stdin) add to the end of the body, and --body-replace-old with --body-replace-new replaces text that must occur exactly once. --standing marks the Issue a standing Parent that only groups its children: it is never Ready, and it is not claimed or closed while marked. An Issue that is closed or in the doing category cannot be marked. --no-standing clears the mark, and is applied before --status, so one call can clear it and claim the Issue. The first standing Issue in a store below format 5 raises the store format to 5, with a warning that older capcom releases can no longer read the store. --if-match refuses the write when the file no longer has the etag show printed. It prints the Issue's id, path and new etag.
 
 ```
 capcom update <id|alias|prefix> [flags]
@@ -24,6 +24,8 @@ capcom update <id|alias|prefix> [flags]
   capcom update login-timeout-race --status active   # claim it: a status in the doing category
   capcom update login-timeout-race --body-append "Seen on Safari only."
   capcom update login-timeout-race --body-replace-old "Safari only" --body-replace-new "Safari and Firefox"
+  capcom update feature-requests --standing   # only groups its children: never Ready
+  capcom update feature-requests --no-standing --status active   # clear the mark and claim it
 ```
 
 ### Options
@@ -37,9 +39,11 @@ capcom update <id|alias|prefix> [flags]
   -h, --help                      help for update
       --if-match string           only write when the file's etag is this one (see show)
       --kv                        print KEY=VALUE lines ending in STATUS=
+      --no-standing               clear the issue's standing mark
       --plan string               new plan basename; empty clears it
       --priority int              new priority, 0 (most urgent) to 4
       --remove-label strings      labels to remove
+      --standing                  mark the issue standing: it only groups its children
       --status string             new status, not in a closed category (use close or reopen)
       --title string              new title
       --type string               new type

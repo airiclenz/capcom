@@ -14,45 +14,48 @@ import (
 const textIndent = "  "
 
 // issueData is one issue in the --json data of list, show and search. Lists are always present,
-// empty when the file has none; ETag and Body are set by show only.
+// empty when the file has none; standing is left out when false; ETag and Body are set by show
+// only.
 type issueData struct {
-	ID       string   `json:"id"`
-	Path     string   `json:"path"`
-	Parent   string   `json:"parent,omitempty"`
-	Title    string   `json:"title"`
-	Status   string   `json:"status"`
-	Category string   `json:"category"`
-	Type     string   `json:"type"`
-	Priority int      `json:"priority"`
-	Labels   []string `json:"labels"`
-	Deps     []string `json:"deps"`
-	Plan     string   `json:"plan,omitempty"`
-	Aliases  []string `json:"aliases"`
-	Created  string   `json:"created,omitempty"`
-	Closed   string   `json:"closed,omitempty"`
-	Reason   string   `json:"reason,omitempty"`
-	ETag     string   `json:"etag,omitempty"`
-	Body     *string  `json:"body,omitempty"`
+	ID         string   `json:"id"`
+	Path       string   `json:"path"`
+	Parent     string   `json:"parent,omitempty"`
+	Title      string   `json:"title"`
+	Status     string   `json:"status"`
+	Category   string   `json:"category"`
+	Type       string   `json:"type"`
+	Priority   int      `json:"priority"`
+	Labels     []string `json:"labels"`
+	Deps       []string `json:"deps"`
+	Plan       string   `json:"plan,omitempty"`
+	IsStanding bool     `json:"standing,omitempty"`
+	Aliases    []string `json:"aliases"`
+	Created    string   `json:"created,omitempty"`
+	Closed     string   `json:"closed,omitempty"`
+	Reason     string   `json:"reason,omitempty"`
+	ETag       string   `json:"etag,omitempty"`
+	Body       *string  `json:"body,omitempty"`
 }
 
 // newIssueData converts an indexed issue to its --json form.
 func newIssueData(entry index.Entry) issueData {
 	return issueData{
-		ID:       entry.ID,
-		Path:     entry.Path,
-		Parent:   entry.ParentID,
-		Title:    entry.Title,
-		Status:   entry.Status,
-		Category: string(entry.Category),
-		Type:     entry.Type,
-		Priority: entry.Priority,
-		Labels:   nonNil(entry.Labels),
-		Deps:     nonNil(entry.Deps),
-		Plan:     entry.Plan,
-		Aliases:  nonNil(entry.Aliases),
-		Created:  formatTimestamp(entry.Created),
-		Closed:   formatTimestamp(entry.Closed),
-		Reason:   entry.Reason,
+		ID:         entry.ID,
+		Path:       entry.Path,
+		Parent:     entry.ParentID,
+		Title:      entry.Title,
+		Status:     entry.Status,
+		Category:   string(entry.Category),
+		Type:       entry.Type,
+		Priority:   entry.Priority,
+		Labels:     nonNil(entry.Labels),
+		Deps:       nonNil(entry.Deps),
+		Plan:       entry.Plan,
+		IsStanding: entry.IsStanding,
+		Aliases:    nonNil(entry.Aliases),
+		Created:    formatTimestamp(entry.Created),
+		Closed:     formatTimestamp(entry.Closed),
+		Reason:     entry.Reason,
 	}
 }
 
@@ -175,6 +178,7 @@ func issueText(entry index.Entry, etag string, facts showFacts, body string) str
 		{Key: "children", Value: childrenText(facts.children)},
 		{Key: "related", Value: flowList(facts.related)},
 		{Key: "plan", Value: entry.Plan},
+		{Key: "standing", Value: standingText(entry.IsStanding)},
 		{Key: "aliases", Value: flowList(entry.Aliases)},
 		{Key: "created", Value: formatTimestamp(entry.Created)},
 		{Key: "closed", Value: formatTimestamp(entry.Closed)},
@@ -197,6 +201,15 @@ func issueText(entry index.Entry, etag string, facts showFacts, body string) str
 		text.WriteString("\n")
 	}
 	return text.String()
+}
+
+// standingText is the standing line's value for an issue's standing mark: "true", or "" when
+// false so the line is left out.
+func standingText(isStanding bool) string {
+	if !isStanding {
+		return ""
+	}
+	return "true"
 }
 
 // childrenText is the children line's value for a count: "" without one, `<closed>/<total> closed`
