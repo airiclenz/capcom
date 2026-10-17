@@ -50,7 +50,7 @@ beats:
   - id: 4
     title: an agent closes rate-limit
     why: the agent's close lands in the files and the queue redraws without being asked
-    duration: 3600ms
+    duration: 5736ms
     hold: 1800ms
     do:
       - wait: {screen: 'abuse-reports +open +P2', timeout: 10s}
@@ -59,7 +59,7 @@ beats:
       target: {text: 'abuse-reports +open +P2'}
       factor: 1.6
       in: 864ms
-      out: 864ms
+      out: 3s
     expect:
       - seen: 'abuse-reports +open +P2'
       - run: 'cd stage && ../capcom show rate-limit | grep -q "^status: done$"'
