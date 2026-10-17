@@ -77,26 +77,39 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
 - **Scrollbars**: each pane has one at its right edge. The heavy `┃` thumb shows where the visible
   rows sit among all of them; the bar stays blank while everything fits.
 
-Below 90 columns the panes stop sharing the screen: the sidebar fills it, Enter opens the
-selected Issue or Note full width, and Esc goes back to the sidebar.
+Below 90 columns the panes no longer fit side by side. A terminal at least 25 rows tall stacks them
+instead: the sidebar on top, a `─` rule across the screen, and the detail pane below, each pane full
+width with its own scrollbar. The sidebar takes a third of the rows between the rules under the tab
+bar and above the status bar, and keeps at least 8 of them while the detail pane keeps at least 12.
+Every key and click acts as it does side by side. A shorter terminal shows one pane at a time: the
+sidebar fills the screen, Enter opens the selected Issue or Note full width, and Esc goes back to
+the sidebar. The layout follows the terminal's size as you resize it.
 
 ### Resizing the sidebar
 
-While the panes share the screen, the divider between them moves. Drag it with the mouse, on the
+While the panes sit side by side, the divider between them moves. Drag it with the mouse, on the
 `│` or the blank column either side of it, on any row of the panes; or press `<` to narrow the
 sidebar and `>` to widen it, 4 columns a press. The panes reflow as the divider moves, and while
 the button is held it shows bold in the accent colour. The sidebar keeps at least 20 columns and
 the detail pane, its scrollbar included, at least 40. A double-click on the divider returns it to
-the default width: a third of the terminal, between 28 and 48 columns. Below 90 columns the
-divider does not move.
+the default width: a third of the terminal, between 28 and 48 columns.
+
+In the stacked layout the rule between the panes is the divider, and it moves the same ways: drag
+the rule row, which draws like the side-by-side divider while the button is held, or press `<` to shorten the sidebar (the rule moves up) and `>` to lengthen it, 2
+rows a press. The sidebar keeps at least 8 rows and the detail pane at least 12, and a
+double-click on the rule returns the sidebar to a third of the rows. The one-pane layout has no
+divider to move.
 
 The width you set is kept as a ratio of the terminal's width, so the split holds when you resize
-the terminal: a sidebar a third of the way across stays a third of the way across. `capcom ui`
-remembers that ratio in `capcom/state.yaml`, beside your [user config](#theme), and starts on it
-the next time, in every repository; the tab and the selections are kept per worktree instead (see
+the terminal: a sidebar a third of the way across stays a third of the way across. The stacked
+layout's height is kept apart from it, as a ratio of the rows the panes share, so moving one
+divider never moves the other, and resizing the terminal changes neither. `capcom ui` remembers
+both ratios in `capcom/state.yaml`, beside your [user config](#theme), and starts on them the next
+time, in every repository; the tab and the selections are kept per worktree instead (see
 [Start it](#start-it)). Where the ratio would break a limit the sidebar takes what fits, and the
-ratio stays for a terminal where it fits again; a double-click reset forgets it. A width that
-cannot be saved is reported in the status bar, and the new width still applies. The file is
+ratio stays for a terminal where it fits again; a double-click reset forgets that divider's
+ratio. A position that cannot be saved is reported in the status bar, and the new one still
+applies. The file is
 described under [The state file](../reference/file-format.md#the-state-file).
 
 ## The tabs
@@ -138,7 +151,8 @@ help     ?        quit     q
 - PgUp and PgDn scroll the detail pane a page, ctrl+u and ctrl+d half a page, wherever the
   selection is: the sidebar keeps it. Where the detail pane fills a narrow screen, the arrows and
   `j` `k` scroll it too.
-- `<` and `>` narrow and widen the sidebar; see [Resizing the sidebar](#resizing-the-sidebar).
+- `<` and `>` narrow and widen the sidebar, or shorten and lengthen it in the stacked layout; see
+  [Resizing the sidebar](#resizing-the-sidebar).
 - `?` shows the full key map; `?` or Esc closes it.
 - Prompts (a reason, a Log entry, a confirmation) take Enter to submit and Esc to cancel; a
   confirmation also takes `y` and `n`.
@@ -243,7 +257,8 @@ version: restart capcom ui`.
 - The wheel over the sidebar moves the selection a row; over the detail pane it scrolls three rows,
   or moves the dependency view's cursor.
 - A drag on the divider between the panes resizes the sidebar, and a double-click on it resets
-  the width; see [Resizing the sidebar](#resizing-the-sidebar).
+  it; in the stacked layout the divider is the rule row between the panes. See
+  [Resizing the sidebar](#resizing-the-sidebar).
 - A drag in the detail pane selects its text, on the Ready, Issues and Knowledge tabs, and
   releasing the button copies it; there is no copy key. See [Copying text](#copying-text).
 - While the help screen, the filter line, the status picker or a prompt is open, the mouse does

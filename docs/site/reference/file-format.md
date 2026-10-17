@@ -691,15 +691,18 @@ user config (ADR 0014):
 | macOS | `~/Library/Application Support/capcom/state.yaml` |
 | Windows | `%AppData%\capcom\state.yaml` |
 
-Unlike the user config, it is written by `capcom ui`, not by you: the width lives here so that
-`config.yaml`, once created, is never rewritten. Every repository you open shares it, and no other
-command reads or writes it. It holds the sidebar width you set by dragging the divider or with `<`
-and `>` (see [Resizing the sidebar](../getting-started/terminal-ui.md#resizing-the-sidebar)):
+Unlike the user config, it is written by `capcom ui`, not by you: the divider positions live
+here so that `config.yaml`, once created, is never rewritten. Every repository you open shares
+it, and no other command reads or writes it. It holds the sidebar width you set by dragging the
+divider or with `<` and `>` when the panes sit side by side, and the sidebar height you set the
+same ways when they are stacked on a narrow terminal (see
+[Resizing the sidebar](../getting-started/terminal-ui.md#resizing-the-sidebar)):
 
 ```yaml
 # capcom ui state: written by capcom ui, not meant for editing (ADR 0014).
 ui:
   sidebar_ratio: 0.3
+  stacked_ratio: 0.4
 ```
 
 - **ui.sidebar_ratio** — the sidebar's width as a ratio of the terminal's width, a decimal more
@@ -708,15 +711,24 @@ ui:
   columns, when absent. On every terminal size the sidebar takes the ratio of its width, rounded
   to a column and clamped to the limits, at least 20 columns for the sidebar and 40 for the detail
   pane; neither a resize nor the clamp changes the stored ratio. A `sidebar_width` key is ignored.
+- **ui.stacked_ratio** — the sidebar's height in the stacked layout, below 90 columns, as a ratio of
+  the rows between the rules under the tab bar and above the status bar, a decimal more than 0 and
+  less than 1; the default height, a third of those rows rounded down, when absent. On every
+  terminal size the sidebar takes the ratio of those rows, rounded to a row and clamped to the
+  limits, at least 8 rows for the sidebar and 12 for the detail pane; neither a resize nor the clamp
+  changes the stored ratio. It is kept apart from `sidebar_ratio`, so moving one divider leaves the
+  other's position as stored.
 
 `capcom ui` reads the file once, when it starts, and does not create it then. It writes the file,
-creating its directory when missing, after a drag that changed the width, on each `<` or `>`, and
-on a double-click reset, which leaves only the first comment line. Each write replaces the whole
-file through a temp file renamed into place, so a key it does not know is not kept. When reading,
+creating its directory when missing, after a drag that changed a divider's position, on each `<`
+or `>` that changed it, and on a double-click reset, which drops that divider's key and leaves the
+other as stored; with neither key left, only the first comment line remains. Every write holds
+both ratios `capcom ui` has, whichever divider moved. Each write replaces the whole file through a temp file renamed into place, so a key it does not know is not kept. When reading,
 an unknown key is ignored silently, so a newer capcom's file loads in an older one. Malformed YAML,
 a ratio that is not a decimal more than 0 and less than 1, or a file that cannot be read is reported in the
-status bar, and `capcom ui` starts on the default width; a failed write is reported there too, and
-the width still applies. Deleting the file is safe: it only forgets the width. The tab and the
+status bar, and `capcom ui` starts on the default width and height; a failed write is reported
+there too, and the new position still applies. Deleting the file is safe: it only forgets the
+divider positions. The tab and the
 selections belong to one worktree and live in the worktree state file instead.
 
 ## The worktree state file

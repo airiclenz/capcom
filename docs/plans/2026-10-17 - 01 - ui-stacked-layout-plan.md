@@ -164,7 +164,13 @@ Supersedes the CHANGELOG.md 0.8.0 entry "Below 90 columns the keys do nothing" a
 
 **Commit:** `feat(ui): move the stacked layout's divider by drag and keys`
 
-## 5. Document the stacked layout and `ui.stacked_ratio`
+## 5. Document the stacked layout and `ui.stacked_ratio` — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): terminal-ui.md's "Resizing the sidebar" heading is kept (its anchor is linked from file-format.md and the Keys list); its first paragraph now opens "While the panes sit side by side" and a new paragraph covers the stacked divider.
+
+NOTES (2026-10-17): docs/design/tui.md's Testing bullet now names the stacked golden beside the one-pane one, and its "narrow detail view" scroll line says one-pane; adr-0011-decision.md:21 ("as the sidebar width") is an example, left as it is.
+
+NOTES (2026-10-17): the stacked base is now "the rows between the rules under the tab bar and above the status bar" (bodyHeight = height - frameRows, 4) in terminal-ui.md, file-format.md and adr-0014-decision.md; those paragraphs rewrapped to 100 columns.
 
 Depends on item 4.
 

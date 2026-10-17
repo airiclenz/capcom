@@ -72,8 +72,17 @@ capcom ui [issues|ready|knowledge] [id]
   resize nor the clamp changes the ratio. The ratio persists across runs as `ui.sidebar_ratio` in
   `<os.UserConfigDir>/capcom/state.yaml` (ADR 0014), beside the user config, which stays
   hand-owned: it is written once per finished drag that changed it, per resize key and per reset,
-  which clears it; a failed write is a status-bar notice and the width still applies. The narrow
-  layout has no divider to move.
+  which clears it; a failed write is a status-bar notice (`cannot save the divider position: `) and
+  the width still applies. In the stacked layout (see Narrow terminals) the divider is the full-width
+  `─` rule row between the panes, drawn in the border style and in `dividerActive` while dragged;
+  that row alone is its hit area. A drag on it or `<`/`>` (2 rows a press, `<` up, shrinking the
+  sidebar) set the sidebar's height in rows, at least 8 for the sidebar and 12 for the detail pane,
+  and a double-click resets the default. The height set is kept as `stackedRatio`, the sidebar's
+  rows over the body's, and persists as `ui.stacked_ratio` in the same file, apart from
+  `ui.sidebar_ratio`: every save writes both ratios the model holds, so moving one divider never
+  drops the other, and a divider change that ends unsaved (a release with no net move, a layout
+  change mid-drag) restores the ratio held at the press. The one-pane layout has no divider to
+  move.
 - **Scrollbars**: each pane ends in a blank gutter column and a bar, apogee's: a heavy `┃` thumb
   marks the shown rows on a light `│` track, and the bar is blank while the pane's rows fit.
 - **Detail pane**: the selected Issue or Note: its frontmatter as a header, then the body rendered
@@ -93,8 +102,14 @@ capcom ui [issues|ready|knowledge] [id]
   reads on the fill, and the space and state after it unstyled; invalid, unreadable and the first
   read's `reading` leave it plain. Under `NO_COLOR` a held or stale badge is drawn in reverse and
   a free one plain.
-- **Narrow terminals** (below about 90 columns): the layout collapses to drill-down. The sidebar
-  fills the screen, Enter opens the detail full width, Esc goes back.
+- **Narrow terminals** (below 90 columns): with a body of 21 rows or more (a terminal of 25 or
+  more; the sidebar's 8, the rule's 1 and the detail pane's 12) the panes stack: the sidebar on
+  top, a full-width `─` rule, the detail pane below, each full width with its own scrollbar, and
+  every key and click but the divider's acting as side by side. The sidebar takes `stackedRatio`
+  of the body's rows, rounded, or a third of them rounded down when unset, clamped to the
+  minimums. A shorter body collapses to drill-down: the sidebar fills the screen, Enter opens the
+  detail full width, Esc goes back. The layout is chosen from the terminal's size alone, live on
+  every resize, and a resize changes neither stored ratio.
 
 ## Views
 
@@ -185,11 +200,12 @@ help     ?        quit    q
 to cancel; a confirmation also takes y and n.
 
 **Detail scroll**: PgUp/PgDn scroll the detail pane a page and ctrl+u/ctrl+d half a page, from
-anywhere; the sidebar keeps focus. In the narrow detail view j/k and the arrows also scroll.
+anywhere; the sidebar keeps focus. In the one-pane narrow detail view j/k and the arrows also
+scroll.
 
 **Mouse**: a click selects a tab, a sidebar row, a dependency-view row or follows a link;
 clicking a tree arrow expands or collapses. A drag on the divider resizes the sidebar and a
-double-click on it resets the width (see Layout). The wheel over the sidebar moves the selection a
+double-click on it resets it, the width side by side or the height when stacked (see Layout). The wheel over the sidebar moves the selection a
 row, over the detail pane it scrolls three rows (or moves the dependency view's cursor). The mouse
 does nothing while the help screen, the filter line, the status picker or a prompt is open.
 
@@ -309,8 +325,8 @@ Per the Note `cli-test-harness` and ADR 0007:
 
 - Tests drive the model with key, mouse and window-size messages at a fixed size, against a
   temporary store built the way `runCLI` builds one. No real terminal, never parallel.
-- `View()` is compared with golden files for each tab, the narrow layout, the help screen, prompts
-  and a conflict.
+- `View()` is compared with golden files for each tab, the narrow one-pane and stacked layouts,
+  the help screen, prompts and a conflict.
 - Behaviour tests cover each write, the ETag conflict, the lock confirmation, live refresh keeping
   the selection, and the first-start creation of the user config.
 - The markdown renderer keeps its own table tests from apogee, plus links and blockquotes.
