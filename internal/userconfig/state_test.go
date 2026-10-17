@@ -19,6 +19,9 @@ const stateHeader = "# capcom ui state: written by capcom ui, not meant for edit
 // ratioMessage is the error LoadState reports for a sidebar_ratio it cannot use.
 const ratioMessage = "ui.sidebar_ratio: expected a fraction of the terminal's width, more than 0 and less than 1"
 
+// stackedRatioMessage is the error LoadState reports for a stacked_ratio it cannot use.
+const stackedRatioMessage = "ui.stacked_ratio: expected a fraction of the body's height, more than 0 and less than 1"
+
 // statePath returns a state file path inside a fresh temp dir whose capcom directory does not exist
 // yet.
 func statePath(t *testing.T) string {
@@ -55,16 +58,30 @@ func TestStatePath_UserConfigDir_EndsInCapcomState(t *testing.T) {
 func TestSaveState_LoadState_RoundTrips(t *testing.T) {
 	tests := []struct {
 		name    string
-		ratio   float64
+		ui      userconfig.UIState
 		content string
 	}{
-		{"no ratio stored", 0, stateHeader},
-		{"a stored ratio", 44.0 / 120.0, stateHeader + "ui:\n  sidebar_ratio: 0.36666666666666664\n"},
+		{"no ratio stored", userconfig.UIState{}, stateHeader},
+		{
+			"only a sidebar ratio",
+			userconfig.UIState{SidebarRatio: 44.0 / 120.0},
+			stateHeader + "ui:\n  sidebar_ratio: 0.36666666666666664\n",
+		},
+		{
+			"only a stacked ratio",
+			userconfig.UIState{StackedRatio: 12.0 / 36.0},
+			stateHeader + "ui:\n  stacked_ratio: 0.3333333333333333\n",
+		},
+		{
+			"both ratios",
+			userconfig.UIState{SidebarRatio: 0.3, StackedRatio: 0.45},
+			stateHeader + "ui:\n  sidebar_ratio: 0.3\n  stacked_ratio: 0.45\n",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			path := statePath(t)
-			saved := userconfig.State{UI: userconfig.UIState{SidebarRatio: test.ratio}}
+			saved := userconfig.State{UI: test.ui}
 
 			saveErr := userconfig.SaveState(path, saved)
 			loaded, loadErr := userconfig.LoadState(path)
@@ -135,22 +152,25 @@ func TestSaveState_ParentIsAFile_Errors(t *testing.T) {
 func TestSaveState_RatioOutOfRange_ErrorsAndLeavesTheFile(t *testing.T) {
 	tests := []struct {
 		name  string
-		ratio float64
+		ui    userconfig.UIState
+		field string
 	}{
-		{"one", 1},
-		{"more than one", 1.5},
-		{"negative", -0.2},
-		{"NaN", math.NaN()},
+		{"sidebar ratio one", userconfig.UIState{SidebarRatio: 1}, "sidebar ratio"},
+		{"sidebar ratio more than one", userconfig.UIState{SidebarRatio: 1.5}, "sidebar ratio"},
+		{"sidebar ratio negative", userconfig.UIState{SidebarRatio: -0.2}, "sidebar ratio"},
+		{"sidebar ratio NaN", userconfig.UIState{SidebarRatio: math.NaN()}, "sidebar ratio"},
+		{"stacked ratio one", userconfig.UIState{SidebarRatio: 0.3, StackedRatio: 1}, "stacked ratio"},
+		{"stacked ratio NaN", userconfig.UIState{StackedRatio: math.NaN()}, "stacked ratio"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			const existing = "ui:\n  sidebar_ratio: 0.25\n"
+			const existing = "ui:\n  sidebar_ratio: 0.25\n  stacked_ratio: 0.4\n"
 			path := writeState(t, existing)
 
-			err := userconfig.SaveState(path, userconfig.State{UI: userconfig.UIState{SidebarRatio: test.ratio}})
+			err := userconfig.SaveState(path, userconfig.State{UI: test.ui})
 
-			if err == nil {
-				t.Errorf("SaveState() error = nil, want an error")
+			if err == nil || !strings.Contains(err.Error(), test.field) {
+				t.Errorf("SaveState() error = %v, want an error naming %q", err, test.field)
 			}
 			if got := readFile(t, path); got != existing {
 				t.Errorf("state file = %q, want it left as %q", got, existing)
@@ -174,6 +194,16 @@ func TestLoadState_MissingFile_ZeroAndNothingCreated(t *testing.T) {
 
 func TestLoadState_UnknownKeys_IgnoredAndRatioKept(t *testing.T) {
 	path := writeState(t, "future: 1\nui:\n  sidebar_ratio: 0.3\n  theme: dark\n")
+
+	state, err := userconfig.LoadState(path)
+
+	if want := (userconfig.State{UI: userconfig.UIState{SidebarRatio: 0.3}}); err != nil || state != want {
+		t.Errorf("LoadState() = %#v, %v; want %#v and no error", state, err, want)
+	}
+}
+
+func TestLoadState_OnlyASidebarRatio_LoadsNoStackedRatio(t *testing.T) {
+	path := writeState(t, stateHeader+"ui:\n  sidebar_ratio: 0.3\n")
 
 	state, err := userconfig.LoadState(path)
 
@@ -209,6 +239,11 @@ func TestLoadState_InvalidFile_ErrorsWithLineOnZero(t *testing.T) {
 		{"ratio infinite", "ui:\n  sidebar_ratio: .inf\n", 2, ratioMessage},
 		{"ratio quoted", "ui:\n  sidebar_ratio: \"0.3\"\n", 2, ratioMessage},
 		{"ratio a list", "ui:\n  sidebar_ratio: [0.3]\n", 2, ratioMessage},
+		{"stacked ratio zero", "ui:\n  sidebar_ratio: 0.3\n  stacked_ratio: 0\n", 3, stackedRatioMessage},
+		{"stacked ratio one", "ui:\n  stacked_ratio: 1\n", 2, stackedRatioMessage},
+		{"stacked ratio two", "ui:\n  stacked_ratio: 2\n", 2, stackedRatioMessage},
+		{"stacked ratio NaN", "ui:\n  stacked_ratio: .nan\n", 2, stackedRatioMessage},
+		{"stacked ratio quoted", "ui:\n  stacked_ratio: \"0.3\"\n", 2, stackedRatioMessage},
 		{"ui of the wrong type", "ui: 36\n", 1, "ui: expected a mapping"},
 	}
 	for _, test := range tests {

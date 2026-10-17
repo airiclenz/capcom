@@ -39,7 +39,9 @@ position is remembered as `ui.stacked_ratio` in `state.yaml`, apart from `ui.sid
 - 4: guard folded (writer decision on the save notice and abandoned divider changes; supersedes the CHANGELOG 0.8.0 resize-keys entry and adr-0014-decision.md:29)
 - 5: guard folded
 
-## 1. `ui.stacked_ratio` in the state file
+## 1. `ui.stacked_ratio` in the state file — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the shared parser is `parser.ratio(node, key, measure, target)` (was `sidebarRatio`); its error noun is named `measure` and comes from the constants `sidebarRatioMeasure` ("terminal's width") and `stackedRatioMeasure` ("body's height"); SaveState and encodeState share one `storedRatios` list (sidebar_ratio first) so each names or writes both ratios from one place.
 
 **What:**
 **Goal:** `userconfig.UIState` carries `StackedRatio float64` (the sidebar's rows over the body's, 0 for none); `LoadState` reads `ui.stacked_ratio` and `SaveState` writes it, each beside `ui.sidebar_ratio` and validated as it is; a file without the key loads with `StackedRatio` 0.

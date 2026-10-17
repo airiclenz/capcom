@@ -17,6 +17,7 @@ import (
 const (
 	stateFileName   = "state.yaml"
 	keySidebarRatio = "sidebar_ratio"
+	keyStackedRatio = "stacked_ratio"
 	stateHeader     = "# capcom ui state: written by capcom ui, not meant for editing (ADR 0014).\n"
 	// stateTempPattern names the temp file SaveState writes before renaming it into place.
 	stateTempPattern = ".state-*.yaml.tmp"
@@ -24,20 +25,50 @@ const (
 	yamlFloatTag = "!!float"
 )
 
-// State is what capcom ui remembers between runs for every worktree of the user, in state.yaml;
-// what it remembers per worktree, the tab and its selections, is WorktreeState in the git
-// directory's ui-state.yaml. Unlike Config it is written by capcom ui itself, never by the user.
+// The measures a load error names for each ratio key: the quantity the ratio is a fraction of.
+const (
+	sidebarRatioMeasure = "terminal's width"
+	stackedRatioMeasure = "body's height"
+)
+
+// State is what capcom ui remembers between runs for every worktree of the user, in state.yaml:
+// the divider positions of the side-by-side and the stacked layout. What it remembers per
+// worktree, the tab and its selections, is WorktreeState in the git directory's ui-state.yaml.
+// Unlike Config it is written by capcom ui itself, never by the user.
 type State struct {
 	UI UIState
 }
 
-// UIState is the layout capcom ui remembers for every worktree; the tab and selections it
+// UIState is the layout capcom ui remembers for every worktree, the two divider positions
+// SidebarRatio and StackedRatio, each stored apart from the other; the tab and selections it
 // remembers per worktree are WorktreeState.
 type UIState struct {
 	// SidebarRatio is the sidebar's width as the user last set it, as a fraction of the terminal's
 	// width, so the split holds at every terminal width; 0 means none is stored and the default
 	// applies. It is 0 or more and less than 1.
 	SidebarRatio float64
+	// StackedRatio is the sidebar's height in the stacked layout as the user last set it, as a
+	// fraction of the body's height (the sidebar's rows over the body's), so the divider holds at
+	// every terminal height; 0 means none is stored and the default applies. It is 0 or more and
+	// less than 1.
+	StackedRatio float64
+}
+
+// storedRatio is one of UIState's ratios with the key the state file stores it under and the
+// name SaveState's error gives it.
+type storedRatio struct {
+	key   string
+	name  string
+	value float64
+}
+
+// storedRatios returns settings' ratios in the order the state file writes them, sidebar_ratio
+// first.
+func storedRatios(settings UIState) []storedRatio {
+	return []storedRatio{
+		{key: keySidebarRatio, name: "sidebar ratio", value: settings.SidebarRatio},
+		{key: keyStackedRatio, name: "stacked ratio", value: settings.StackedRatio},
+	}
 }
 
 // StatePath returns `<os.UserConfigDir>/capcom/state.yaml`, beside Path's config file. It fails
@@ -48,9 +79,10 @@ func StatePath() (string, error) {
 
 // LoadState reads the state file at path. A missing file is the zero State and no error, and is
 // never created. Unknown keys are ignored silently, so a newer capcom's state loads in an older
-// one. Malformed YAML, a sidebar_ratio that is not a fraction more than 0 and less than 1, and a
-// file that cannot be read are an *Error naming the file and, where known, the line; the State is then the
-// zero State, so the caller can run on the defaults.
+// one. A file without one of the ratio keys loads that ratio as 0. Malformed YAML, a sidebar_ratio
+// or stacked_ratio that is not a fraction more than 0 and less than 1, and a file that cannot be
+// read are an *Error naming the file and, where known, the line; the State is then the zero
+// State, so the caller can run on the defaults.
 func LoadState(path string) (State, error) {
 	p, root, err := readDocument(path)
 	var state State
@@ -65,10 +97,17 @@ func LoadState(path string) (State, error) {
 
 // SaveState writes state to path, creating its directory when missing. It writes a temp file in
 // the same directory and renames it over path, so a reader never sees a half-written file. A
-// SidebarRatio below 0, of 1 or more, or NaN is an error and leaves the file untouched.
+// SidebarRatio or StackedRatio below 0, of 1 or more, or NaN is an error naming that ratio and
+// leaves the file untouched.
 func SaveState(path string, state State) error {
-	if ratio := state.UI.SidebarRatio; !isStorableRatio(ratio) {
-		return fmt.Errorf("save the state file: sidebar ratio %v is not 0 or more and less than 1", ratio)
+	for _, ratio := range storedRatios(state.UI) {
+		if !isStorableRatio(ratio.value) {
+			return fmt.Errorf(
+				"save the state file: %s %v is not 0 or more and less than 1",
+				ratio.name,
+				ratio.value,
+			)
+		}
 	}
 	directory := filepath.Dir(path)
 	if err := os.MkdirAll(directory, directoryMode); err != nil {
@@ -80,21 +119,28 @@ func SaveState(path string, state State) error {
 	return nil
 }
 
-// encodeState renders state as the content of the state file; a zero field and an empty mapping
-// are left out.
+// encodeState renders state as the content of the state file: ui written once, holding each
+// non-zero ratio, sidebar_ratio first; a zero field and an empty mapping are left out.
 func encodeState(state State) []byte {
+	var ui strings.Builder
+	for _, ratio := range storedRatios(state.UI) {
+		if ratio.value > 0 {
+			// The shortest form that parses back to the same float64, so a save and a load round trip.
+			formatted := strconv.FormatFloat(ratio.value, 'f', -1, 64)
+			fmt.Fprintf(&ui, "  %s: %s\n", ratio.key, formatted)
+		}
+	}
+
 	var content strings.Builder
 	content.WriteString(stateHeader)
-	if ratio := state.UI.SidebarRatio; ratio > 0 {
-		// The shortest form that parses back to the same float64, so a save and a load round trip.
-		formatted := strconv.FormatFloat(ratio, 'f', -1, 64)
-		fmt.Fprintf(&content, "%s:\n  %s: %s\n", keyUI, keySidebarRatio, formatted)
+	if ui.Len() > 0 {
+		fmt.Fprintf(&content, "%s:\n%s", keyUI, ui.String())
 	}
 	return []byte(content.String())
 }
 
-// isStorableRatio reports whether ratio is a SidebarRatio SaveState accepts: 0 for none, or a
-// fraction less than 1. NaN fails every comparison and so is never storable.
+// isStorableRatio reports whether ratio is a SidebarRatio or StackedRatio SaveState accepts: 0
+// for none, or a fraction less than 1. NaN fails every comparison and so is never storable.
 func isStorableRatio(ratio float64) bool {
 	return ratio >= 0 && ratio < 1
 }
@@ -169,16 +215,21 @@ func (p *parser) stateUI(node *yaml.Node, settings *UIState) error {
 		return p.errorAt(node, "%s: expected a mapping of keys", keyUI)
 	}
 	return p.eachKey(node, func(key, value *yaml.Node) error {
-		if key.Value != keySidebarRatio {
-			return nil
+		switch key.Value {
+		case keySidebarRatio:
+			return p.ratio(value, keySidebarRatio, sidebarRatioMeasure, &settings.SidebarRatio)
+		case keyStackedRatio:
+			return p.ratio(value, keyStackedRatio, stackedRatioMeasure, &settings.StackedRatio)
 		}
-		return p.sidebarRatio(value, settings)
+		return nil
 	})
 }
 
-// sidebarRatio applies ui.sidebar_ratio onto settings; a null value stores nothing. Only a
-// decimal more than 0 and less than 1 is accepted: 0 and 1, an integer, NaN and an infinity are not.
-func (p *parser) sidebarRatio(node *yaml.Node, settings *UIState) error {
+// ratio applies the ratio under ui.<key>, ui.sidebar_ratio or ui.stacked_ratio, onto target; a
+// null value stores nothing. Only a decimal more than 0 and less than 1 is accepted: 0 and 1, an
+// integer, NaN and an infinity are not, and the error names the key and measure, the quantity the
+// ratio is a fraction of.
+func (p *parser) ratio(node *yaml.Node, key, measure string, target *float64) error {
 	if isNull(node) {
 		return nil
 	}
@@ -187,11 +238,12 @@ func (p *parser) sidebarRatio(node *yaml.Node, settings *UIState) error {
 		ratio <= 0 || !isStorableRatio(ratio) {
 		return p.errorAt(
 			node,
-			"%s.%s: expected a fraction of the terminal's width, more than 0 and less than 1",
+			"%s.%s: expected a fraction of the %s, more than 0 and less than 1",
 			keyUI,
-			keySidebarRatio,
+			key,
+			measure,
 		)
 	}
-	settings.SidebarRatio = ratio
+	*target = ratio
 	return nil
 }
