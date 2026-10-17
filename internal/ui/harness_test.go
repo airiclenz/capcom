@@ -151,7 +151,8 @@ func newTestModel(t *testing.T, ts *testStore, width, height int) model {
 // would send it. No real clock runs: the model schedules no tick, and a test polls the index by
 // sending tickMsg itself. No copy reaches a clipboard: OSC 52, the native clipboard and tmux are
 // writes that do nothing, and the copy notice's clear is never scheduled, so a test sends
-// flashClearMsg itself.
+// flashClearMsg itself. Nor is a selection's debounced save to the worktree state file: a test
+// that needs it replaces saveTick or sends selectionSaveMsg itself.
 func startModel(t *testing.T, options Options, width, height int) model {
 	t.Helper()
 	m := newModel(options)
@@ -160,6 +161,7 @@ func startModel(t *testing.T, options Options, width, height int) model {
 	m.writeNative = noWrite
 	m.writeTmux = noWrite
 	m.flashTick = noFlashTick
+	m.saveTick = noFlashTick
 	m = drive(t, m, m.Init())
 	return press(t, m, tea.WindowSizeMsg{Width: width, Height: height})
 }

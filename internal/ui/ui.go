@@ -87,6 +87,9 @@ type Options struct {
 // stored there, and each tab selects the id stored for it unless the command line named one
 // there. A stored tab or id that no longer applies falls back to Ready or the first row without
 // a word; a worktree state file it cannot load is reported in the status bar and the UI runs on.
+// A tab change is saved to that file at once and a selection change a second after the last one;
+// quitting writes a change still waiting. The first save that fails this session is reported in
+// the status bar, later ones are not, and the UI runs on.
 func Run(options Options) error {
 	initial := newModel(options)
 	program := tea.NewProgram(
@@ -94,9 +97,14 @@ func Run(options Options) error {
 		tea.WithInput(options.In),
 		tea.WithOutput(options.Out),
 	)
-	_, err := program.Run()
+	final, err := program.Run()
 	if err != nil {
 		err = fmt.Errorf("run the terminal UI: %w", err)
+	}
+	if finalModel, isModel := final.(model); isModel {
+		// The status bar is gone, and a file that only remembers where the UI was must not fail
+		// capcom ui's exit, so a failed last save goes unreported, as later failures do in a session.
+		_ = finalModel.flushWorktreeState()
 	}
 	if closeErr := initial.session.close(); closeErr != nil {
 		err = errors.Join(err, fmt.Errorf("close the re-opened index: %w", closeErr))

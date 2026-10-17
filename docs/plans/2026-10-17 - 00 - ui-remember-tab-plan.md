@@ -125,7 +125,11 @@ internal/ui/statusbar.go — statusBar; internal/ui/harness_test.go — newTestO
 
 **Commit:** `feat(ui): open on the stored tab and selections`
 
-## 4. Save the tab and selections as they change
+## 4. Save the tab and selections as they change — ✅ DONE (2026-10-17)
+
+NOTES (2026-10-17): the tab-change test presses `1`, not `2`: the tab bar orders Issues, Ready, Knowledge, so `1` opens Issues and `2` is Ready, the tab the test starts on.
+NOTES (2026-10-17): Update now wraps an unexported update (returning model) so one hook in uistate.go compares the snapshot before and after every message; a tab counts as read once its first (non-reload) read arrived and a read without error applied, so neither a reload ahead of it nor a failed first read blanks the stored id.
+NOTES (2026-10-17): Run drops the quit flush's error on purpose (commented): the status bar is gone and a failure of this convenience file must not fail capcom ui's exit, consistent with "later failures are silent"; a failed save notice reuses worktreeStateNotice and is not cleared by a later success.
 
 Depends on item 3.
 

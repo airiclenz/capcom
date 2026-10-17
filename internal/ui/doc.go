@@ -40,5 +40,6 @@
 //   - `theme.go` — palette and theme: the colour schemes, the selection marks and every style
 //   - `tree.go` — treeWidget: the expandable sidebar tree, its connectors and painting
 //   - `ui.go` — Tab, Options and Run: the package's entry point
+//   - `uistate.go` — saving the tab and each tab's selection to the worktree state file
 //   - `write.go` — the writes on an issue (claim, status, close, reopen, log) and their conflicts
 package ui

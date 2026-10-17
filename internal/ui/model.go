@@ -63,12 +63,14 @@ type model struct {
 	// setClipboard returns the command that writes text to the terminal's clipboard through OSC 52:
 	// tea.SetClipboard. writeNative and writeTmux write text to the native clipboard and to tmux's
 	// paste buffer: a clipboard.Writer's WriteNative and WriteTmux, fenced to the store's working
-	// tree. flashTick schedules the flash's clear: tea.Tick. Tests replace all four, so no test
-	// touches a real clipboard, runs tmux or runs a real clock.
+	// tree. flashTick schedules the flash's clear and saveTick a selection's debounced save to the
+	// worktree state file: tea.Tick both. Tests replace all five, so no test touches a real
+	// clipboard, runs tmux or runs a real clock.
 	setClipboard func(text string) tea.Cmd
 	writeNative  func(text string) error
 	writeTmux    func(text string) error
 	flashTick    tickFunc
+	saveTick     tickFunc
 	// isPollingStopped reports polling ended for good, once another capcom version rebuilt the
 	// index.
 	isPollingStopped bool
@@ -119,9 +121,11 @@ type model struct {
 	stateSaver        *stateSaver
 	stateNotice       string
 	stateSavedRequest int
-	// worktreeStateNotice reports a worktree state file that could not be loaded, empty when there
-	// is nothing to report.
+	// worktreeStateNotice reports a worktree state file that could not be loaded, or the first
+	// that could not be saved, empty when there is nothing to report. worktree saves the open tab
+	// and each tab's selection to that file as they change.
 	worktreeStateNotice string
+	worktree            worktreeTracking
 	// drag is the drag of the divider under way, its zero value when there is none.
 	drag dividerDrag
 	// lastDividerPress is when the divider's hit area was last pressed, the zero time when the
@@ -193,7 +197,7 @@ type model struct {
 func newModel(options Options) model {
 	config, notice := loadUserConfig(options.UserConfigPath)
 	sidebarRatio, saver, stateNotice := loadUserState(options.UserStatePath)
-	worktreeState, worktreeStateNotice := loadWorktreeState(options.UIStatePath, options.Store)
+	worktreeState, worktreeSaver, worktreeStateNotice := loadWorktreeState(options.UIStatePath, options.Store)
 	writer := clipboardWriter(options.Store.WorktreeRoot)
 	m := model{
 		session:    newSession(options.Store, options.Index),
@@ -212,6 +216,7 @@ func newModel(options Options) model {
 		stateSaver:          saver,
 		stateNotice:         stateNotice,
 		worktreeStateNotice: worktreeStateNotice,
+		worktree:            worktreeTracking{saver: worktreeSaver},
 		isNoColor:           options.NoColor,
 		lockText:            lockReadingText,
 		tick:                scheduleTick,
@@ -221,6 +226,7 @@ func newModel(options Options) model {
 		writeNative:         writer.WriteNative,
 		writeTmux:           writer.WriteTmux,
 		flashTick:           tea.Tick,
+		saveTick:            tea.Tick,
 	}
 	m.theme = m.themeOf()
 	m.markdownTheme = m.theme.markdown
@@ -275,17 +281,19 @@ func loadUserState(path string) (float64, *stateSaver, string) {
 }
 
 // loadWorktreeState loads the worktree state file at path, ui-state.yaml in the directory of s's
-// index when path is empty, never creating it. It returns what the file stores and the status-bar
-// notice of an error, "" when there is none; a file that cannot be used stores nothing.
-func loadWorktreeState(path string, s *store.Store) (userconfig.WorktreeState, string) {
+// index when path is empty, never creating it. It returns what the file stores, the saver that
+// writes the file at that path, and the status-bar notice of an error, "" when there is none; a
+// file that cannot be used stores nothing.
+func loadWorktreeState(path string, s *store.Store) (userconfig.WorktreeState, *worktreeStateSaver, string) {
 	if path == "" {
 		path = filepath.Join(index.Dir(s), worktreeStateFileName)
 	}
+	saver := &worktreeStateSaver{path: path}
 	state, err := userconfig.LoadWorktreeState(path)
 	if err != nil {
-		return state, worktreeStateNoticePrefix + err.Error() + defaultsNotice
+		return state, saver, worktreeStateNoticePrefix + err.Error() + defaultsNotice
 	}
-	return state, ""
+	return state, saver, ""
 }
 
 // openedTab returns the tab the UI opens on: given when the command line named it or the worktree
@@ -410,9 +418,10 @@ func (m model) initialRead(tab Tab) tabRead {
 
 // Update records a new terminal size, the Tree lock's state, the Ready queue, the issues, the
 // Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
-// index, a write's run, the status picker's statuses, an edit's steps, a save of the state file,
-// the clear of the copy notice, the painter's width measure and the terminal's background colour, polls the index on a tick, and handles the keys:
-// an open confirmation prompt takes
+// index, a write's run, the status picker's statuses, an edit's steps, a save of the state file or
+// the worktree state file, a selection's debounced save, the clear of the copy notice, the
+// painter's width measure and the terminal's background colour, polls the index on a tick, and
+// handles the keys: an open confirmation prompt takes
 // every key, then an open text prompt, then an open status picker, then the open filter line,
 // ahead of the dependency view's, then the model's own; every key first clears the detail
 // selection. While the dependency view is open it keeps the detail
@@ -420,8 +429,17 @@ func (m model) initialRead(tab Tab) tabRead {
 // ignore them while a prompt, the status picker, the filter line or the help screen is open, and
 // the pointer's motion and the button's release to the divider's drag, which a click on the
 // divider starts, or to the detail selection, which a click on the detail pane's text starts. Any
-// other message, such as a paste, reaches the open text prompt or the open filter line.
+// other message, such as a paste, reaches the open text prompt or the open filter line. After every
+// message it saves a changed tab to the worktree state file at once and a changed selection a
+// second after the last change.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	before := m.worktreeSnapshot()
+	next, cmd := m.update(msg)
+	return next.trackWorktreeState(msg, before, cmd)
+}
+
+// update is Update before the worktree state file follows the message.
+func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -459,6 +477,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyChecked(msg)
 	case stateSavedMsg:
 		m = m.applyStateSaved(msg)
+	case selectionSaveMsg:
+		return m.applySelectionSave(msg)
+	case worktreeStateSavedMsg:
+		m = m.applyWorktreeStateSaved(msg)
 	case flashClearMsg:
 		m = m.applyFlashClear(msg)
 	case tea.ModeReportMsg:
