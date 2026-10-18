@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-18
+
 - `capcom ui`: below 90 columns, a terminal of at least 25 rows now stacks the panes, the sidebar on top (a third of the rows by default), a `─` rule, then the detail pane, instead of showing one pane at a time; Enter keeps both panes there, and PgUp/PgDn page the detail pane by its own rows. A shorter terminal keeps the one-pane layout, and the layout follows every resize.
 - `capcom ui` stacks the panes on a terminal below 90 columns and at least 25 rows tall: the sidebar on top, a rule, and the detail pane below. Drag the rule or press `<` and `>` (2 rows a press) to move it, keeping at least 8 sidebar and 12 detail rows; a double-click resets it to a third of the rows. Its position is remembered as `ui.stacked_ratio` in `state.yaml`, apart from `ui.sidebar_ratio`, and a failed save now reads `cannot save the divider position: `. A shorter narrow terminal keeps the one-pane layout.
 - An issue file may carry `standing: true`, the mark of a standing Parent that only groups its children; `standing: false` reads as unmarked and is dropped on write. The key needs store format 5: a write that leaves a `standing` line raises `config.yaml` to `format: 5`, which earlier capcom releases cannot read, and `capcom init` now writes `format: 5`.
