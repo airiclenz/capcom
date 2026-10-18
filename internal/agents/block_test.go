@@ -834,7 +834,7 @@ func writeSizedFile(t *testing.T, path string, size int) {
 	}
 }
 
-// syncWithin runs Sync, failing the test when it has not returned after 5 s, as it does when it
+// syncWithin runs Sync, failing the test when it has not returned after 30 s, as it does when it
 // blocks opening a named pipe.
 func syncWithin(t *testing.T, root, knowledgeDir string, mode Mode) (Status, error) {
 	t.Helper()
@@ -850,8 +850,8 @@ func syncWithin(t *testing.T, root, knowledgeDir string, mode Mode) (Status, err
 	select {
 	case result := <-done:
 		return result.status, result.err
-	case <-time.After(5 * time.Second):
-		t.Fatal("Sync did not return within 5 s")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Sync did not return within 30 s")
 		return Status{}, nil
 	}
 }

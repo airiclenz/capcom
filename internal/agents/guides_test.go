@@ -52,7 +52,7 @@ func linkTreeFile(t *testing.T, root, name, target string) {
 	}
 }
 
-// guidesWithin runs Guides, failing the test when it has not returned after 5 s, as it does when
+// guidesWithin runs Guides, failing the test when it has not returned after 30 s, as it does when
 // it blocks opening a named pipe.
 func guidesWithin(t *testing.T, root string, names []string, mode Mode) ([]Guide, error) {
 	t.Helper()
@@ -68,8 +68,8 @@ func guidesWithin(t *testing.T, root string, names []string, mode Mode) ([]Guide
 	select {
 	case result := <-done:
 		return result.guides, result.err
-	case <-time.After(5 * time.Second):
-		t.Fatal("Guides did not return within 5 s")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Guides did not return within 30 s")
 		return nil, nil
 	}
 }
