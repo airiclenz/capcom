@@ -26,7 +26,10 @@ version label.
 - Any other change to the tab bar or status bar.
 - CLI suggestions and `capcom next` (plan `2026-10-19 - 01 - suggest-next-plan`).
 
-## 1. The UI tab bar names the worktree
+## 1. The UI tab bar names the worktree — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): the test seam is `Options.Home` (the home directory the path is shortened by; empty, os.UserHomeDir with symlinks resolved); newTestOptions pins it to the test store's worktree root, so every golden's tab bar reads `~ · v1.2.3 · capcom`.
+NOTES (2026-10-19): TestModel_TabBar_EndsInTheVersionLabelWhenItFits is rewritten as TestModel_TabBar_EndsInTheWidestLabelThatFits (path label, version-only and none, each at its least-gap width and one column short); the terminal-ui.md screen sample is widened by 17 columns so its tab bar carries the full label.
 
 **What:**
 **Goal:** the tab bar ends in `<path> · v<version> · capcom`, where `<path>` is the worktree

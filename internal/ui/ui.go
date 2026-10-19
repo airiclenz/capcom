@@ -61,8 +61,11 @@ func ParseTab(name string) (Tab, error) {
 // UIStatePath names the worktree state file the tab and each tab's selection are kept in; empty,
 // the default `<git-dir>/capcom/ui-state.yaml` beside the index is used. NoColor, set when the
 // NO_COLOR environment variable is non-empty, draws without any colour, whatever the user config
-// file says. Version is the release version the tab bar's right end names, as `v<Version> ·
-// capcom`; empty, the tab bar draws no version label.
+// file says. Version is the release version the tab bar's right end names, as `<path> ·
+// v<Version> · capcom`, where path is Store.WorktreeRoot with Home shown as `~`, or as
+// `v<Version> · capcom` when the terminal is too narrow for the path; empty, the tab bar draws no
+// version label. Home is the home directory the path is shortened by; empty, the user's home
+// directory with symlinks resolved is used, and none when it cannot be found.
 type Options struct {
 	Store          *store.Store
 	Index          *index.Index
@@ -76,6 +79,7 @@ type Options struct {
 	UIStatePath    string
 	NoColor        bool
 	Version        string
+	Home           string
 }
 
 // Run runs the terminal UI until the user quits, with q or ctrl+c. It first loads the user config

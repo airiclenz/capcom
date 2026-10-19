@@ -296,38 +296,69 @@ func TestModel_TabRule_JoinsTheDividerOnlyInTheSplitLayout(t *testing.T) {
 	}
 }
 
-func TestModel_TabBar_EndsInTheVersionLabelWhenItFits(t *testing.T) {
+func TestModel_TabBar_EndsInTheWidestLabelThatFits(t *testing.T) {
 	tabs := strippedTabs()
 	versionLabel := versionLabelPrefix + testVersion + versionLabelSuffix
-	fitWidth := ansi.StringWidth(tabs) + versionLabelMinGap + ansi.StringWidth(versionLabel)
+	pathLabel := homeLabel + pathLabelSeparator + versionLabel
+	pathFitWidth := ansi.StringWidth(tabs) + versionLabelMinGap + ansi.StringWidth(pathLabel)
+	versionFitWidth := ansi.StringWidth(tabs) + versionLabelMinGap + ansi.StringWidth(versionLabel)
 	cases := []struct {
 		name      string
 		width     int
 		version   string
-		wantLabel bool
+		wantLabel string
 	}{
-		{name: "fits at 120", width: wideWidth, version: testVersion, wantLabel: true},
-		{name: "fits with the least gap", width: fitWidth, version: testVersion, wantLabel: true},
-		{name: "one column short", width: fitWidth - 1, version: testVersion},
+		{name: "path label at 120", width: wideWidth, version: testVersion, wantLabel: pathLabel},
+		{name: "path label with the least gap", width: pathFitWidth, version: testVersion, wantLabel: pathLabel},
+		{name: "one column short of the path label", width: pathFitWidth - 1, version: testVersion, wantLabel: versionLabel},
+		{name: "version label with the least gap", width: versionFitWidth, version: testVersion, wantLabel: versionLabel},
+		{name: "one column short of the version label", width: versionFitWidth - 1, version: testVersion},
 		{name: "no version", width: wideWidth},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			options := newTestOptions(t, newTestStore(t, readyFiles))
 			options.Version = testCase.version
+			options.Home = options.Store.WorktreeRoot
 			m := startModel(t, options, testCase.width, wideHeight)
 
 			tabBar := strings.Split(ansi.Strip(m.View().Content), "\n")[0]
 
 			want := tabs
-			if testCase.wantLabel {
-				want = tabs + strings.Repeat(" ", testCase.width-ansi.StringWidth(tabs)-ansi.StringWidth(versionLabel)) + versionLabel
+			if testCase.wantLabel != "" {
+				gap := testCase.width - ansi.StringWidth(tabs) - ansi.StringWidth(testCase.wantLabel)
+				want = tabs + strings.Repeat(" ", gap) + testCase.wantLabel
 			}
 			if tabBar != want {
 				t.Errorf("row 0 = %q, want %q", tabBar, want)
 			}
-			if testCase.wantLabel && ansi.StringWidth(tabBar) != testCase.width {
+			if testCase.wantLabel != "" && ansi.StringWidth(tabBar) != testCase.width {
 				t.Errorf("row 0 is %d columns wide, want %d", ansi.StringWidth(tabBar), testCase.width)
+			}
+		})
+	}
+}
+
+func TestDisplayPath_ShortensOnlyAPathUnderHome(t *testing.T) {
+	home := filepath.FromSlash("/home/user")
+	cases := []struct {
+		name string
+		root string
+		home string
+		want string
+	}{
+		{name: "under home", root: filepath.FromSlash("/home/user/repos/capcom"), home: home, want: filepath.FromSlash("~/repos/capcom")},
+		{name: "equal to home", root: home, home: home, want: homeLabel},
+		{name: "sibling sharing the prefix", root: filepath.FromSlash("/home/userx/capcom"), home: home, want: filepath.FromSlash("/home/userx/capcom")},
+		{name: "outside home", root: filepath.FromSlash("/srv/capcom"), home: home, want: filepath.FromSlash("/srv/capcom")},
+		{name: "empty home", root: filepath.FromSlash("/home/user/capcom"), home: "", want: filepath.FromSlash("/home/user/capcom")},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := displayPath(testCase.root, testCase.home)
+
+			if got != testCase.want {
+				t.Errorf("displayPath(%q, %q) = %q, want %q", testCase.root, testCase.home, got, testCase.want)
 			}
 		})
 	}

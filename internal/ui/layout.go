@@ -2,6 +2,7 @@ package ui
 
 import (
 	"math"
+	"path/filepath"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -53,12 +54,15 @@ const (
 	truncateTail  = "…"
 )
 
-// The tab bar's version label, `v<version> · capcom`, and the fewest blank columns it keeps
-// between itself and the last tab.
+// The tab bar's version label, `v<version> · capcom`, led by the worktree path and
+// pathLabelSeparator when it fits, and the fewest blank columns it keeps between itself and the
+// last tab. homeLabel stands for the home directory in that path.
 const (
 	versionLabelPrefix = "v"
 	versionLabelSuffix = " · capcom"
 	versionLabelMinGap = 2
+	pathLabelSeparator = " · "
+	homeLabel          = "~"
 )
 
 // frame lays out the tab bar, the rule under it, the panes or the help screen, the rule under
@@ -376,9 +380,10 @@ func (m model) dividerStyle() lipgloss.Style {
 
 // tabBar lists the tabs in tabOrder, the open one marked by the theme's active tab style, the
 // separators in its border style, and ends in the version label in the theme's hints style, its
-// last character in the frame's last column. The label is left out when the model has no version
-// or when it would leave fewer than versionLabelMinGap columns after the last tab, so the tabs
-// are never cut for it.
+// last character in the frame's last column: `<path> · v<version> · capcom`, the worktree path as
+// displayPath names it, or `v<version> · capcom` when the path does not fit. The label is left
+// out when the model has no version or when even the shorter one would leave fewer than
+// versionLabelMinGap columns after the last tab, so the tabs are never cut for it.
 func (m model) tabBar() string {
 	labels := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {
@@ -393,11 +398,31 @@ func (m model) tabBar() string {
 		return tabs
 	}
 	versionLabel := versionLabelPrefix + m.version + versionLabelSuffix
-	gap := m.width - ansi.StringWidth(tabs) - ansi.StringWidth(versionLabel)
-	if gap < versionLabelMinGap {
-		return tabs
+	for _, label := range []string{m.worktreePath + pathLabelSeparator + versionLabel, versionLabel} {
+		gap := m.width - ansi.StringWidth(tabs) - ansi.StringWidth(label)
+		if gap >= versionLabelMinGap {
+			return tabs + strings.Repeat(" ", gap) + m.theme.hints.Render(label)
+		}
 	}
-	return tabs + strings.Repeat(" ", gap) + m.theme.hints.Render(versionLabel)
+	return tabs
+}
+
+// displayPath names root as the tab bar shows it: homeLabel when root is home, homeLabel and the
+// rest of root after an OS separator when root lies under home, and root unchanged otherwise.
+// Both are compared component by component, so a sibling such as /home/userx is never under
+// /home/user; an empty home shortens nothing.
+func displayPath(root, home string) string {
+	if home == "" {
+		return root
+	}
+	relative, err := filepath.Rel(home, root)
+	if err != nil || !filepath.IsLocal(relative) {
+		return root
+	}
+	if relative == "." {
+		return homeLabel
+	}
+	return homeLabel + string(filepath.Separator) + relative
 }
 
 // tabBarLabel returns tab's label as the tab bar draws it, unstyled: its name padded by a space

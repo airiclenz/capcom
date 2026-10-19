@@ -124,7 +124,8 @@ const testVersion = "1.2.3"
 // newTestOptions returns the Options capcom ui would pass for the test store, on the Ready tab,
 // with the user config file, the state file and the worktree state file at paths in a fresh temp
 // dir, none yet created, so no test reads or writes the real user config directory or the test
-// repository's git directory.
+// repository's git directory. Home is the test store's worktree root, so the tab bar names the
+// worktree `~` and the goldens never hold the random temp dir or the real home directory.
 func newTestOptions(t *testing.T, ts *testStore) Options {
 	t.Helper()
 	directory := filepath.Join(t.TempDir(), "capcom")
@@ -136,6 +137,7 @@ func newTestOptions(t *testing.T, ts *testStore) Options {
 		UserStatePath:  filepath.Join(directory, "state.yaml"),
 		UIStatePath:    filepath.Join(directory, "ui-state.yaml"),
 		Version:        testVersion,
+		Home:           ts.store.WorktreeRoot,
 	}
 }
 

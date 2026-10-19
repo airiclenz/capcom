@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -50,7 +51,10 @@ type model struct {
 	initialTab Tab
 	storedIDs  [len(tabNames)]string
 	// version is the release version the tab bar's version label names; empty, it draws none.
-	version string
+	// worktreePath is the worktree root as the label names it ahead of the version, the home
+	// directory shown as `~`.
+	version      string
+	worktreePath string
 
 	// tick returns the command that asks for the next poll of the index: scheduleTick, which
 	// tests replace so no real clock runs.
@@ -215,6 +219,7 @@ func newModel(options Options) model {
 			TabKnowledge: worktreeState.Knowledge,
 		},
 		version:             options.Version,
+		worktreePath:        displayPath(options.Store.WorktreeRoot, homeDirectory(options.Home)),
 		userConfig:          config,
 		configNotice:        notice,
 		sidebarRatio:        userState.SidebarRatio,
@@ -237,6 +242,24 @@ func newModel(options Options) model {
 	m.theme = m.themeOf()
 	m.markdownTheme = m.theme.markdown
 	return m
+}
+
+// homeDirectory returns home when it is set, and otherwise the user's home directory with
+// symlinks resolved, so it compares with the store's resolved worktree root; it returns "" when
+// that directory cannot be found or resolved, and the tab bar then shortens no path.
+func homeDirectory(home string) string {
+	if home != "" {
+		return home
+	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	resolved, err := filepath.EvalSymlinks(userHome)
+	if err != nil {
+		return ""
+	}
+	return resolved
 }
 
 // loadUserConfig loads the user config file at path, resolving the default path when path is
