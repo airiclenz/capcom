@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `capcom ui`: the tab bar now names the worktree it shows ahead of the version, as `~/repos/capcom · v<version> · capcom`: the worktree's top directory, with your home directory shown as `~` and any path outside it shown in full. A terminal too narrow for that shows `v<version> · capcom` alone, and a narrower one neither, so the tabs are never cut.
+
 ## [0.9.1] - 2026-10-19
 
 - A flag that holds one value (`--title`, `--status`, `--priority`, `--plan`, `--limit`, `--json`, a bool such as `--standing`, and every other one), given more than once to any capcom command, is now refused as a usage error (exit 2) with `--<name> given <n> times; give it once`, before anything is read or written, instead of the last value silently winning. With `--json` the refusal comes as a JSON error envelope. Flags that collect a list (`--label`, `--add-label`, `--add-ref`, `--dep`, ...) still take every repetition.
