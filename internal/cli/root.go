@@ -3,6 +3,7 @@ package cli
 import (
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -106,15 +107,15 @@ func Command() *cobra.Command {
 // newRootCommand builds the command tree for one invocation.
 func (a *app) newRootCommand() *cobra.Command {
 	root := &cobra.Command{
-		Use:                "capcom",
-		Short:              "A git-native issue tracker and knowledge store for coding agents",
-		Long:               rootLong,
-		Example:            rootExample,
-		SilenceErrors:      true,
-		SilenceUsage:       true,
-		DisableSuggestions: true,
-		PersistentPreRunE:  a.prepare,
+		Use:               "capcom",
+		Short:             "A git-native issue tracker and knowledge store for coding agents",
+		Long:              rootLong,
+		Example:           rootExample,
+		SilenceErrors:     true,
+		SilenceUsage:      true,
+		PersistentPreRunE: a.prepare,
 	}
+	root.SetFlagErrorFunc(unknownCommandOnFlagError)
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
 	root.AddCommand(a.newAgentsCommand())
 	root.AddCommand(a.newCheckCommand())
@@ -141,7 +142,103 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newUpdateCommand())
 	root.AddCommand(a.newVersionCommand())
 	guardSingleValueFlags(root)
-	return root
+	return withSubcommandDispatch(root)
+}
+
+// suggestionDistance is the largest edit distance at which a mistyped name still has the closest
+// valid one suggested.
+const suggestionDistance = 2
+
+// withSubcommandDispatch gives group, a command with subcommands and no body of its own, the body
+// every such group shares and returns it: called alone it prints its help, and a first argument
+// that names none of its subcommands is refused as an unknown command, naming the closest one.
+// Without it cobra prints the help and exits 0 for a mistyped subcommand.
+func withSubcommandDispatch(group *cobra.Command) *cobra.Command {
+	group.Args = cobra.ArbitraryArgs
+	group.RunE = func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		return unknownCommandError(cmd, args[0])
+	}
+	return group
+}
+
+// unknownCommandError is the usage error for word given where a subcommand of group belongs. Its
+// Suggestion is the command path below capcom of the closest subcommand cobra finds within
+// suggestionDistance of word, or that word starts; it is empty when none is that close.
+func unknownCommandError(group *cobra.Command, word string) *output.Error {
+	failure := output.UsageErrorf("unknown command %q for %q", word, group.CommandPath())
+	group.SuggestionsMinimumDistance = suggestionDistance
+	suggestions := group.SuggestionsFor(word)
+	if len(suggestions) == 0 {
+		return failure
+	}
+	path := group.CommandPath() + " " + closestName(word, suggestions)
+	failure.Suggestion = strings.TrimSpace(strings.TrimPrefix(path, group.Root().Name()))
+	return failure
+}
+
+// closestName returns the candidate with the smallest case-insensitive edit distance to word,
+// the earliest one on a tie. cobra returns its suggestions in command order, not by distance, so
+// know tre would otherwise suggest know rm before know tree. candidates must not be empty.
+func closestName(word string, candidates []string) string {
+	closest := candidates[0]
+	closestDistance := editDistance(word, closest)
+	for _, candidate := range candidates[1:] {
+		if distance := editDistance(word, candidate); distance < closestDistance {
+			closest, closestDistance = candidate, distance
+		}
+	}
+	return closest
+}
+
+// editDistance is the Levenshtein distance between left and right, ignoring case.
+func editDistance(left, right string) int {
+	leftRunes := []rune(strings.ToLower(left))
+	rightRunes := []rune(strings.ToLower(right))
+	previousRow := make([]int, len(rightRunes)+1)
+	for column := range previousRow {
+		previousRow[column] = column
+	}
+	for row, leftRune := range leftRunes {
+		currentRow := make([]int, len(rightRunes)+1)
+		currentRow[0] = row + 1
+		for column, rightRune := range rightRunes {
+			substitution := previousRow[column]
+			if leftRune != rightRune {
+				substitution++
+			}
+			currentRow[column+1] = min(substitution, previousRow[column+1]+1, currentRow[column]+1)
+		}
+		previousRow = currentRow
+	}
+	return previousRow[len(rightRunes)]
+}
+
+// unknownCommandOnFlagError is the flag error function of every command. A group parses its flags
+// before its body reads the arguments, so in capcom updat x --status active the unknown --status
+// would hide the mistyped command; when the group's first argument names none of its subcommands,
+// that unknown command is the error. Any other flag error is returned unchanged.
+func unknownCommandOnFlagError(cmd *cobra.Command, err error) error {
+	if !cmd.HasSubCommands() {
+		return err
+	}
+	args := cmd.Flags().Args()
+	if len(args) == 0 || namesSubcommand(cmd, args[0]) {
+		return err
+	}
+	return unknownCommandError(cmd, args[0])
+}
+
+// namesSubcommand reports whether word is the name or an alias of one of group's subcommands.
+func namesSubcommand(group *cobra.Command, word string) bool {
+	for _, subcommand := range group.Commands() {
+		if subcommand.Name() == word || subcommand.HasAlias(word) {
+			return true
+		}
+	}
+	return false
 }
 
 // prepare runs before every command body: it selects the renderer, refuses a single-value flag

@@ -52,11 +52,10 @@ func (a *app) newRelatedCommand() *cobra.Command {
 		Short:   "Manage related links between issues",
 		Long:    relatedLong,
 		Example: relatedExample,
-		Args:    cobra.NoArgs,
 	}
 	cmd.AddCommand(a.newRelatedAddCommand())
 	cmd.AddCommand(a.newRelatedRmCommand())
-	return cmd
+	return withSubcommandDispatch(cmd)
 }
 
 // newRelatedAddCommand links one issue to another by writing the other's id into the first's

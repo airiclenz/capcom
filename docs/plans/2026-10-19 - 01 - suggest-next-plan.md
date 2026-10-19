@@ -35,7 +35,11 @@ prints the top Ready Issue in full.
 - `capcom start` / `finish` and the Lock token (`start-command`, `lock-token-recall`).
 - The worktree path in the UI tab bar (`ui-path-label`, plan `2026-10-19 - 02 - ui-path-label-plan`).
 
-## 1. Suggest the closest command or subcommand
+## 1. Suggest the closest command or subcommand — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): the shared group body is `withSubcommandDispatch` in internal/cli/root.go (also applied to the root); the root flag error func is `unknownCommandOnFlagError`, and the shared distance const is `suggestionDistance` for item 2 to reuse.
+NOTES (2026-10-19): `capcom --kv shwo x` still reports `unknown flag: --kv` (cobra strips `shwo` as the flag's value before the word is seen), as it did before this item; `capcom shwo x --kv` gets the suggestion.
+NOTES (2026-10-19): cobra's SuggestionsFor returns candidates in command order, not by distance (`know tre` got `know rm`), so unknownCommandError picks the closest with an unexported Levenshtein `editDistance` (case-insensitive, earliest on a tie) in internal/cli/root.go; item 2 can reuse it rather than add its own.
 
 **What:**
 **Goal:** `capcom shwo x` and `capcom know shwo x` fail with exit 2, and the message names

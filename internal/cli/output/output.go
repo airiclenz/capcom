@@ -15,14 +15,18 @@ import (
 const SchemaVersion = 1
 
 const (
-	KindError     = "error"
-	kvKeyStatus   = "STATUS"
-	kvKeyWarning  = "WARNING"
-	KVKeyMessage  = "MESSAGE"
-	kvStatusOK    = "ok"
-	textWarnLabel = "warning: "
+	KindError    = "error"
+	kvKeyStatus  = "STATUS"
+	kvKeyWarning = "WARNING"
+	// kvKeySuggestion carries an Error's Suggestion in --kv, just before its STATUS line.
+	kvKeySuggestion = "SUGGESTION"
+	KVKeyMessage    = "MESSAGE"
+	kvStatusOK      = "ok"
+	textWarnLabel   = "warning: "
 	// textElsewhereLabel starts each Elsewhere line in text mode.
 	textElsewhereLabel = "elsewhere: "
+	// textSuggestionFormat ends a text failure line that carries a Suggestion.
+	textSuggestionFormat = "; did you mean %s?"
 )
 
 // Result is what a successful command hands to the output layer. Text is written in text mode
@@ -70,10 +74,11 @@ type Envelope struct {
 
 // ErrorBody is the error member of a failure Envelope.
 type ErrorBody struct {
-	Code    Code   `json:"code"`
-	Message string `json:"message"`
-	Path    string `json:"path,omitempty"`
-	Line    int    `json:"line,omitempty"`
+	Code       Code   `json:"code"`
+	Message    string `json:"message"`
+	Path       string `json:"path,omitempty"`
+	Line       int    `json:"line,omitempty"`
+	Suggestion string `json:"suggestion,omitempty"`
 }
 
 // Renderer writes a command's outcome in one output format.
@@ -130,8 +135,14 @@ func (r textRenderer) Render(result Result) error {
 	return r.RenderError(result.Failure)
 }
 
+// RenderError writes the failure as one capcom: line, ending in "; did you mean <suggestion>?"
+// when the failure carries a Suggestion.
 func (r textRenderer) RenderError(failure *Error) error {
-	_, err := fmt.Fprintf(r.stderr, "capcom: %s\n", sanitizeTerminal(failure.Error()))
+	line := failure.Error()
+	if failure.Suggestion != "" {
+		line += fmt.Sprintf(textSuggestionFormat, failure.Suggestion)
+	}
+	_, err := fmt.Fprintf(r.stderr, "capcom: %s\n", sanitizeTerminal(line))
 	return err
 }
 
@@ -201,10 +212,11 @@ func (r jsonRenderer) RenderError(failure *Error) error {
 // errorBody is the envelope's error member for failure.
 func errorBody(failure *Error) *ErrorBody {
 	return &ErrorBody{
-		Code:    failure.Code,
-		Message: failure.Message,
-		Path:    failure.Path,
-		Line:    failure.Line,
+		Code:       failure.Code,
+		Message:    failure.Message,
+		Path:       failure.Path,
+		Line:       failure.Line,
+		Suggestion: failure.Suggestion,
 	}
 }
 
@@ -249,6 +261,9 @@ func (r kvRenderer) Render(result Result) error {
 func (r kvRenderer) RenderError(failure *Error) error {
 	var out strings.Builder
 	writeKVLine(&out, KVKeyMessage, failure.Error())
+	if failure.Suggestion != "" {
+		writeKVLine(&out, kvKeySuggestion, failure.Suggestion)
+	}
 	writeKVLine(&out, kvKeyStatus, string(failure.Code))
 	_, err := io.WriteString(r.stdout, out.String())
 	return err

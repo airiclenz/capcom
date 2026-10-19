@@ -46,7 +46,6 @@ func (a *app) newKnowCommand() *cobra.Command {
 		Short:   "Read, search, add, update, move, remove and verify Knowledge Notes",
 		Long:    knowLong,
 		Example: knowExample,
-		Args:    cobra.NoArgs,
 	}
 	know.AddCommand(a.newKnowAddCommand())
 	know.AddCommand(newMvCommand(a, noteVerbs))
@@ -56,7 +55,7 @@ func (a *app) newKnowCommand() *cobra.Command {
 	know.AddCommand(a.newKnowTreeCommand())
 	know.AddCommand(a.newKnowUpdateCommand())
 	know.AddCommand(a.newKnowVerifyCommand())
-	return know
+	return withSubcommandDispatch(know)
 }
 
 // resolveNote resolves one argument to its Note, typing the failure as resolveFailure does.

@@ -13,6 +13,10 @@ A git-native issue tracker and knowledge store for coding agents
 
 capcom is a git-native issue tracker and knowledge store for coding agents. Issues and Knowledge Notes are markdown files under .capcom/, versioned with the code; a disposable SQLite index lives under the git directory and is never committed. Every command prints plain text, or with --json a versioned JSON envelope. Run capcom <command> --help for a command's flags and examples.
 
+```
+capcom [flags]
+```
+
 ### Examples
 
 ```

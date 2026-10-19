@@ -13,6 +13,10 @@ Manage dependencies between issues
 
 Manage the Dependencies between Issues. A Dependency is a directed edge: the dependent Issue is not Ready until every Issue it depends on is closed. Each edge is stored in the dependent's file, under the canonical id of the Issue it depends on. dep add and dep rm change an existing Issue's deps, create --dep sets a new Issue's, and dep list and dep graph show them.
 
+```
+capcom dep [flags]
+```
+
 ### Examples
 
 ```

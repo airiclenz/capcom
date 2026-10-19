@@ -77,6 +77,14 @@ $ capcom update feature-requests --status active --json
 {"schema":1,"kind":"error","error":{"code":"invalid","message":"the issue is standing: it only groups its children and is never claimed or closed; run capcom update feature-requests --no-standing first","path":".capcom/issues/feature-requests.md"},"elsewhere":[],"warnings":[]}
 ```
 
+A mistyped command or subcommand also sets `suggestion`, the path below `capcom` of the closest
+valid one; it is left out when none is close:
+
+```console
+$ capcom know shwo x --json
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown command \"shwo\" for \"capcom know\"","suggestion":"know show"},"elsewhere":[],"warnings":[]}
+```
+
 `code` is one of a closed set:
 
 | Code | Meaning | Exit code |
@@ -132,6 +140,16 @@ $ capcom show nosuch --kv
 ID=nosuch
 MESSAGE=id "nosuch" not found
 STATUS=not_found
+```
+
+A failure that carries a `suggestion` in `--json` adds it as a `SUGGESTION=` line just before its
+`STATUS=` line:
+
+```console
+$ capcom shwo nosuch --kv
+MESSAGE=unknown command "shwo" for "capcom"
+SUGGESTION=show
+STATUS=invalid
 ```
 
 Unlike `--json`, `--kv` is offered only by some commands, it goes after the command name, and it

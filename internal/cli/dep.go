@@ -52,13 +52,12 @@ func (a *app) newDepCommand() *cobra.Command {
 		Short:   "Manage dependencies between issues",
 		Long:    depLong,
 		Example: depExample,
-		Args:    cobra.NoArgs,
 	}
 	cmd.AddCommand(a.newDepAddCommand())
 	cmd.AddCommand(a.newDepGraphCommand())
 	cmd.AddCommand(a.newDepListCommand())
 	cmd.AddCommand(a.newDepRmCommand())
-	return cmd
+	return withSubcommandDispatch(cmd)
 }
 
 // newDepAddCommand makes one issue depend on another. A self-dependency and an edge that would

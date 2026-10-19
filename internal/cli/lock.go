@@ -133,7 +133,6 @@ func (a *app) newLockCommand() *cobra.Command {
 		Short:   "Acquire, refresh, release and inspect this worktree's Tree lock",
 		Long:    lockLong,
 		Example: lockExample,
-		Args:    cobra.NoArgs,
 	}
 	lockCommand.AddCommand(a.newLockAcquireCommand())
 	lockCommand.AddCommand(a.newLockBreakCommand())
@@ -141,7 +140,7 @@ func (a *app) newLockCommand() *cobra.Command {
 	lockCommand.AddCommand(a.newLockReleaseCommand())
 	lockCommand.AddCommand(a.newLockStatusCommand())
 	lockCommand.AddCommand(a.newLockTouchCommand())
-	return lockCommand
+	return withSubcommandDispatch(lockCommand)
 }
 
 func (a *app) newLockAcquireCommand() *cobra.Command {

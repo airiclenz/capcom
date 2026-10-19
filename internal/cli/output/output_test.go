@@ -68,6 +68,65 @@ func TestJSONRenderer_RenderError_CarriesLocation(t *testing.T) {
 	}
 }
 
+func TestRenderError_Suggestion_ReportedInEveryFormat(t *testing.T) {
+	failure := &Error{Code: CodeInvalid, Message: `unknown command "shwo" for "capcom know"`, Suggestion: "know show"}
+	cases := []struct {
+		name   string
+		format OutputFormat
+		want   string
+	}{
+		{"text", FormatText, "capcom: unknown command \"shwo\" for \"capcom know\"; did you mean know show?\n"},
+		{"kv", FormatKV, "MESSAGE=unknown command \"shwo\" for \"capcom know\"\nSUGGESTION=know show\nSTATUS=invalid\n"},
+		{"json", FormatJSON, `"suggestion":"know show"`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var written bytes.Buffer
+
+			err := NewRenderer(testCase.format, &written, &written).RenderError(failure)
+
+			if err != nil {
+				t.Fatalf("RenderError: %v", err)
+			}
+			got := written.String()
+			isMatch := got == testCase.want
+			if testCase.format == FormatJSON {
+				isMatch = bytes.Contains(written.Bytes(), []byte(testCase.want))
+			}
+			if !isMatch {
+				t.Errorf("output = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestRenderError_NoSuggestion_OmitsIt(t *testing.T) {
+	failure := &Error{Code: CodeInvalid, Message: "bad"}
+	cases := []struct {
+		name   string
+		format OutputFormat
+		absent string
+	}{
+		{"text", FormatText, "did you mean"},
+		{"kv", FormatKV, "SUGGESTION="},
+		{"json", FormatJSON, `"suggestion"`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var written bytes.Buffer
+
+			err := NewRenderer(testCase.format, &written, &written).RenderError(failure)
+
+			if err != nil {
+				t.Fatalf("RenderError: %v", err)
+			}
+			if bytes.Contains(written.Bytes(), []byte(testCase.absent)) {
+				t.Errorf("output = %q, want no %q", written.String(), testCase.absent)
+			}
+		})
+	}
+}
+
 func TestSanitizeTerminal_EscapesControlsOnly(t *testing.T) {
 	cases := []struct {
 		name  string

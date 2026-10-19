@@ -31,13 +31,16 @@ const (
 )
 
 // Error is a typed command failure. Path and Line, when set, locate the file (and line within it)
-// the failure is about; Line is meaningful only together with Path.
+// the failure is about; Line is meaningful only together with Path. Suggestion, when set, is the
+// closest valid form of what the caller mistyped, such as the command path "know show" below
+// capcom; every format reports it apart from Message.
 type Error struct {
-	Code    Code
-	Message string
-	Path    string
-	Line    int
-	isUsage bool
+	Code       Code
+	Message    string
+	Path       string
+	Line       int
+	Suggestion string
+	isUsage    bool
 	// isRendered marks a failure the output layer already wrote with its partial result; Exit
 	// only maps it to the exit code. Rendered is the one way to set it.
 	isRendered bool
