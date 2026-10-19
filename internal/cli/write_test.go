@@ -346,6 +346,92 @@ func TestUpdate_BodyAppendFile_FromFileAndStdin(t *testing.T) {
 	}
 }
 
+// newBodyEditStore returns a store whose one issue, body-edits, has the body "alpha beta gamma".
+func newBodyEditStore(t *testing.T) string {
+	t.Helper()
+	return newIssueStore(t, map[string]string{
+		"body-edits.md": readIssue("Body edits", "open", "", "\nalpha beta gamma\n"),
+	})
+}
+
+func TestUpdate_RepeatedBodyEdits_ApplyInOrder(t *testing.T) {
+	cases := map[string]struct {
+		args     []string
+		wantBody string
+	}{
+		"two replacement pairs": {
+			args: []string{"--body-replace-old", "alpha", "--body-replace-new", "A",
+				"--body-replace-old", "gamma", "--body-replace-new", "G"},
+			wantBody: "\nA beta G\n",
+		},
+		"a later pair matches text an earlier one inserted": {
+			args: []string{"--body-replace-old", "alpha", "--body-replace-new", "omega",
+				"--body-replace-old", "omega beta", "--body-replace-new", "Z"},
+			wantBody: "\nZ gamma\n",
+		},
+		"two appends": {
+			args:     []string{"--body-append", "one", "--body-append", "two"},
+			wantBody: "\nalpha beta gamma\n\none\n\ntwo\n",
+		},
+		"an append keeps its comma": {
+			args:     []string{"--body-append", "a, b"},
+			wantBody: "\nalpha beta gamma\n\na, b\n",
+		},
+		"replacements before appends": {
+			args: []string{"--body-append", "alpha again", "--body-replace-old", "alpha",
+				"--body-replace-new", "A"},
+			wantBody: "\nA beta gamma\n\nalpha again\n",
+		},
+	}
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := newBodyEditStore(t)
+
+			mustRun(t, root, append([]string{"update", "body-edits"}, testCase.args...)...)
+
+			if content := readStoreFile(t, root, "body-edits.md"); !strings.HasSuffix(content, "---\n"+testCase.wantBody) {
+				t.Errorf("content = %q, want the body %q", content, testCase.wantBody)
+			}
+		})
+	}
+}
+
+func TestUpdate_RepeatedBodyEdits_AreRefusedWhole(t *testing.T) {
+	cases := map[string]struct {
+		args       []string
+		wantExit   int
+		wantStderr string
+	}{
+		"a later pair does not match": {
+			args: []string{"--body-replace-old", "alpha", "--body-replace-new", "A",
+				"--body-replace-old", "delta", "--body-replace-new", "D", "--body-append", "never"},
+			wantExit:   ExitError,
+			wantStderr: `--body-replace-old #2 "delta": `,
+		},
+		"two old texts and one new": {
+			args: []string{"--body-replace-old", "alpha", "--body-replace-old", "gamma",
+				"--body-replace-new", "A"},
+			wantExit:   ExitUsage,
+			wantStderr: "2 --body-replace-old and 1 --body-replace-new given; give them in pairs",
+		},
+	}
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := newBodyEditStore(t)
+			before := readStoreFile(t, root, "body-edits.md")
+
+			_, stderr, exitCode := runCLI(t, root, append([]string{"update", "body-edits"}, testCase.args...)...)
+
+			if exitCode != testCase.wantExit || !strings.Contains(stderr, testCase.wantStderr) {
+				t.Errorf("exit = %d stderr = %q, want %d and %q", exitCode, stderr, testCase.wantExit, testCase.wantStderr)
+			}
+			if after := readStoreFile(t, root, "body-edits.md"); after != before {
+				t.Errorf("file changed:\nbefore = %q\nafter  = %q", before, after)
+			}
+		})
+	}
+}
+
 func TestUpdate_StatusIntoOrOutOfClosed_IsRefused(t *testing.T) {
 	root := newWriteStore(t)
 

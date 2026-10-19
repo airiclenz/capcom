@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/ops"
@@ -81,6 +82,59 @@ func writeFailure(id string, err error) *output.Error {
 		failure.Path = refusal.Path
 	}
 	return failure
+}
+
+// bodyEdits holds the repeatable body edits of one update: the --body-replace-old texts and the
+// --body-replace-new texts that pair with them by position, and the --body-append texts, each in
+// the order given.
+type bodyEdits struct {
+	olds    []string
+	news    []string
+	appends []string
+}
+
+// checkPairs returns a usage error naming both counts when the old and new texts of the
+// replacement pairs differ in number; nil when every old text has its new one.
+func (e bodyEdits) checkPairs() error {
+	if len(e.olds) == len(e.news) {
+		return nil
+	}
+	return output.UsageErrorf(
+		"%d --%s and %d --%s given; give them in pairs",
+		len(e.olds),
+		flagBodyReplaceOld,
+		len(e.news),
+		flagBodyReplaceNew,
+	)
+}
+
+// apply returns body with every replacement pair applied in order, each against the body the
+// pairs before it left, then every append in order. It fails, returning no body, with the usage
+// error of checkPairs when the pairs are uneven, and as invalid naming the pair by its position
+// from 1 and its old text when that text is empty or does not occur exactly once, so a failed
+// edit writes nothing.
+func (e bodyEdits) apply(body string) (string, error) {
+	if err := e.checkPairs(); err != nil {
+		return "", err
+	}
+	for index, old := range e.olds {
+		replaced, err := edit.ReplaceBody(body, old, e.news[index])
+		if err != nil {
+			return "", output.Errorf(
+				output.CodeInvalid,
+				"--%s #%d %q: %s",
+				flagBodyReplaceOld,
+				index+1,
+				old,
+				err.Error(),
+			)
+		}
+		body = replaced
+	}
+	for _, text := range e.appends {
+		body = edit.AppendBody(body, text)
+	}
+	return body, nil
 }
 
 // readTextInput reads the file at path, or stdin when path is "-". Errors name the file.

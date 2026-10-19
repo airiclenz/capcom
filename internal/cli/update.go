@@ -27,10 +27,10 @@ type updateOptions struct {
 	plan           string
 	addLabels      []string
 	removeLabels   []string
-	bodyAppend     string
+	bodyAppend     []string
 	bodyAppendFile string
-	replaceOld     string
-	replaceNew     string
+	replaceOld     []string
+	replaceNew     []string
 	ifMatch        string
 	isStanding     bool
 	isNotStanding  bool
@@ -42,8 +42,10 @@ const (
 		"is required. --status moves it between statuses that are not closed: close and reopen cross into " +
 		"and out of the closed categories. --body-append and --body-append-file (- reads stdin) add to " +
 		"the end of the body, and --body-replace-old with --body-replace-new replaces text that must " +
-		"occur exactly once. --standing marks the Issue a standing Parent that only groups its children: " +
-		"it is never Ready, and while it is marked a --status in the doing category is refused, as is " +
+		"occur exactly once. --body-append and the --body-replace-old/--body-replace-new pair repeat: " +
+		"every pair applies in order, each against the body the pairs before it left, then every " +
+		"append in order, and when one pair fails nothing is written. --standing marks the Issue a " +
+		"standing Parent that only groups its children: it is never Ready, and while it is marked a --status in the doing category is refused, as is " +
 		"close. An Issue that is closed or in the doing category cannot be marked. --no-standing " +
 		"clears the mark, and is applied before --status, so one call can clear it and claim the " +
 		"Issue. The first standing Issue in a store " +
@@ -54,6 +56,7 @@ const (
 		"  capcom update login-timeout-race --status active   # claim it: a status in the doing category\n" +
 		"  capcom update login-timeout-race --body-append \"Seen on Safari only.\"\n" +
 		"  capcom update login-timeout-race --body-replace-old \"Safari only\" --body-replace-new \"Safari and Firefox\"\n" +
+		"  capcom update login-timeout-race --body-replace-old \"P2\" --body-replace-new \"P1\" --body-replace-old \"todo\" --body-replace-new \"done\"   # pairs apply in order\n" +
 		"  capcom update feature-requests --standing   # only groups its children: never Ready\n" +
 		"  capcom update feature-requests --no-standing --status active   # clear the mark and claim it"
 )
@@ -75,6 +78,9 @@ func (a *app) newUpdateCommand() *cobra.Command {
 				flagRemoveLabel, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld, flagStanding,
 				flagNoStanding) {
 				return output.UsageErrorf("update needs at least one flag that changes the issue")
+			}
+			if err := options.bodyEdits().checkPairs(); err != nil {
+				return err
 			}
 			appendFile := ""
 			if cmd.Flags().Changed(flagBodyAppendFile) {
@@ -101,10 +107,13 @@ func (a *app) newUpdateCommand() *cobra.Command {
 	flags.StringVar(&options.plan, flagPlan, "", "new plan basename; empty clears it")
 	flags.StringSliceVar(&options.addLabels, flagAddLabel, nil, "labels to add")
 	flags.StringSliceVar(&options.removeLabels, flagRemoveLabel, nil, "labels to remove")
-	flags.StringVar(&options.bodyAppend, flagBodyAppend, "", "text to append to the body, taken literally")
+	flags.StringArrayVar(&options.bodyAppend, flagBodyAppend, nil,
+		"text to append to the body, taken literally; repeat to append several in order")
 	flags.StringVar(&options.bodyAppendFile, flagBodyAppendFile, "", "file to append to the body; - reads stdin")
-	flags.StringVar(&options.replaceOld, flagBodyReplaceOld, "", "body text to replace; must occur exactly once")
-	flags.StringVar(&options.replaceNew, flagBodyReplaceNew, "", "text that replaces --body-replace-old")
+	flags.StringArrayVar(&options.replaceOld, flagBodyReplaceOld, nil,
+		"body text to replace; must occur exactly once; repeat with --body-replace-new for several pairs")
+	flags.StringArrayVar(&options.replaceNew, flagBodyReplaceNew, nil,
+		"text that replaces the --body-replace-old in the same position")
 	flags.StringVar(&options.ifMatch, flagIfMatch, "", "only write when the file's etag is this one (see show)")
 	flags.BoolVar(&options.isStanding, flagStanding, false, "mark the issue standing: it only groups its children")
 	flags.BoolVar(&options.isNotStanding, flagNoStanding, false, "clear the issue's standing mark")
@@ -116,7 +125,8 @@ func (a *app) newUpdateCommand() *cobra.Command {
 
 // applyUpdate applies the changed flags to target: the standing mark first, so a status change is
 // judged on the issue as marked or unmarked, then the other fields, then labels, then the body
-// replacement, then the append. A status rule's refusal is returned as the raw *issue.StatusError,
+// replacements and appends in the order bodyEdits.apply gives them, then the --body-append-file
+// text. A status rule's refusal is returned as the raw *issue.StatusError,
 // for writeFailure to word with the issue's id.
 func (a *app) applyUpdate(
 	cmd *cobra.Command,
@@ -152,20 +162,21 @@ func (a *app) applyUpdate(
 		target.Plan = options.plan
 	}
 	target.Labels = edit.List(target.Labels, options.addLabels, options.removeLabels)
-	if flags.Changed(flagBodyReplaceOld) {
-		replaced, err := edit.ReplaceBody(target.Body, options.replaceOld, options.replaceNew)
-		if err != nil {
-			return issue.Issue{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
-		}
-		target.Body = replaced
+	body, err := options.bodyEdits().apply(target.Body)
+	if err != nil {
+		return issue.Issue{}, err
 	}
-	if flags.Changed(flagBodyAppend) {
-		target.Body = edit.AppendBody(target.Body, options.bodyAppend)
-	}
+	target.Body = body
 	if flags.Changed(flagBodyAppendFile) {
 		target.Body = edit.AppendBody(target.Body, appendFile)
 	}
 	return target, nil
+}
+
+// bodyEdits returns the --body-replace-old/--body-replace-new pairs and the --body-append texts
+// of the update, in the order given.
+func (o *updateOptions) bodyEdits() bodyEdits {
+	return bodyEdits{olds: o.replaceOld, news: o.replaceNew, appends: o.bodyAppend}
 }
 
 // standingChange returns the standing mark --standing or --no-standing sets, and whether either

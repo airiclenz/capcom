@@ -78,7 +78,9 @@ internal/cli/cli_test.go — decodeEnvelope; internal/clidoc/reference_test.go �
 
 **Commit:** `fix(cli): refuse a single-value flag given more than once`
 
-## 2. Repeated body edits on capcom update
+## 2. Repeated body edits on capcom update — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): a single --body-replace-old that does not match now also fails worded `--body-replace-old #1 "<old>": <the former message>`, since the one bodyEdits.apply path names every pair; the uneven-count usage error reads `<n> --body-replace-old and <m> --body-replace-new given; give them in pairs`; bodyEdits.apply also runs checkPairs itself, so a caller that skips the RunE check gets the usage error rather than an index panic
 
 **What:**
 **Goal:** `capcom update` takes `--body-append` and the `--body-replace-old`/`--body-replace-new`
