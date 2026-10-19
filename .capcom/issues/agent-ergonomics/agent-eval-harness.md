@@ -1,6 +1,6 @@
 ---
 title: No repeatable measure of how well an agent drives capcom
-status: open
+status: active
 type: feature
 priority: 1
 created: 2026-10-19T14:54:44Z

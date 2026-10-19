@@ -3,6 +3,7 @@ title: Mistyped commands and flags get no suggestion
 status: open
 type: feature
 priority: 1
+plan: 2026-10-19 - 01 - suggest-next-plan
 created: 2026-10-19T14:54:45Z
 ---
 
