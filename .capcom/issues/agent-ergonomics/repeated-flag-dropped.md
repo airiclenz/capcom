@@ -1,10 +1,12 @@
 ---
 title: A repeated single-value flag silently keeps only its last value
-status: open
+status: done
 type: bug
 priority: 1
 plan: 2026-10-19 - 00 - repeated-flag-dropped-plan
 created: 2026-10-19T15:08:40Z
+closed: 2026-10-19T15:54:14Z
+reason: Resolved by plan 2026-10-19 - 00 - repeated-flag-dropped-plan (archived in 49e4c1f)
 ---
 
 Giving a single-value flag twice keeps only the last value, drops the others without a word and
