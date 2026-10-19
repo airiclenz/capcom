@@ -18,6 +18,7 @@
 //   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — kindFailure, which types a nodestore failure, and the tree-problem warnings
+//   - `flag_once.go` — refuses a single-value flag given more than once
 //   - `flags.go` — the flag names two or more commands share, and unlimitedDepth
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks

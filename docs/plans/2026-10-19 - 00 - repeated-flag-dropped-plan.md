@@ -35,7 +35,9 @@ be repeated and all apply, in order, all or none.
 - Inline body flags (`inline-body-flags`), flag suggestions (`suggest-commands-flags`).
 - The UI write path (`internal/ops` callers in `internal/ui`).
 
-## 1. Refuse a repeated single-value flag on every command
+## 1. Refuse a repeated single-value flag on every command — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): consequential edit — docs/site/reference/json-output.md: made necessary by the new usage error; the exit-code table's row for 2 now names a single-value flag given more than once
 
 **What:**
 **Goal:** any flag that holds one value (string, int, bool, duration…), given more than once to

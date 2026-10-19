@@ -140,13 +140,17 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newUICommand())
 	root.AddCommand(a.newUpdateCommand())
 	root.AddCommand(a.newVersionCommand())
+	guardSingleValueFlags(root)
 	return root
 }
 
-// prepare runs before every command body: it selects the renderer, then readies the index for a
-// command that asks for it.
+// prepare runs before every command body: it selects the renderer, refuses a single-value flag
+// given more than once, then readies the index for a command that asks for it.
 func (a *app) prepare(cmd *cobra.Command, args []string) error {
 	if err := a.selectRenderer(cmd, args); err != nil {
+		return err
+	}
+	if err := refuseRepeatedFlags(cmd.Flags()); err != nil {
 		return err
 	}
 	return a.prepareIndex(cmd)

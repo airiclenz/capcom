@@ -94,7 +94,7 @@ $ capcom update feature-requests --status active --json
 | --- | --- |
 | 0 | Success. Warnings may still have been reported. |
 | 1 | An error. |
-| 2 | A usage error: an unknown command or flag, or a wrong number of arguments. |
+| 2 | A usage error: an unknown command or flag, a flag that holds one value given more than once, or a wrong number of arguments. |
 | 3 | Not found, or locked. |
 
 `capcom check` and `capcom fmt --check` exit 1 when they find something to report, and
