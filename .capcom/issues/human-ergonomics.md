@@ -3,6 +3,7 @@ title: Make capcom easier for a human reviewing agent work
 status: open
 type: feature
 priority: 2
+standing: true
 created: 2026-10-19T14:54:44Z
 ---
 
@@ -14,6 +15,4 @@ Issues favour review and navigation over editing.
 (`internal/ui/depview.go`) and editing in `$EDITOR` (`internal/ui/editor.go`); those are not
 part of this group.
 
-## Acceptance
-
-- Every child Issue is closed.
+This is a standing Parent: it only groups its children and is never claimed or closed.

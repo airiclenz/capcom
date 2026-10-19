@@ -1,4 +1,4 @@
-format: 3
+format: 5
 # capcom configuration. Every key is optional; a missing key takes the value shown here.
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.

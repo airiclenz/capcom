@@ -3,6 +3,7 @@ title: Make capcom easier for agents, small local models included
 status: open
 type: feature
 priority: 1
+standing: true
 created: 2026-10-19T14:54:44Z
 ---
 
@@ -18,8 +19,7 @@ inside the tool, so the tool's answer is the easy path.
 `agent-eval-harness` measures these failures; its results should decide the order and whether
 the larger items (`mcp-server-design`, `batch-apply`) are worth building.
 
-## Acceptance
+Run the eval harness before and after the child Issues land, and keep the run reports under
+`docs/reviews/`.
 
-- Every child Issue is closed.
-- The eval harness has been run before and after the child Issues landed, and the run reports
-  are kept under `docs/reviews/`.
+This is a standing Parent: it only groups its children and is never claimed or closed.
