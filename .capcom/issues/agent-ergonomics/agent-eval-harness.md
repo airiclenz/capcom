@@ -7,8 +7,11 @@ created: 2026-10-19T14:54:44Z
 ---
 
 There is no way to measure how well an agent drives capcom. Ideas for agent ergonomics are
-guesses until they are measured, and the owner runs a local 27B model on a schedule against
-this repository, so a repeatable measurement is within reach.
+guesses until they are measured. A separate scheduled 27B agent, using capcom 0.9.0 as its
+only memory, gathers field data in its own repository without access to capcom's code (its
+`capcom-eval` experiments, ending in a `capcom-eval-report` Note). This harness is the
+repeatable lab counterpart: the same kinds of task, run on demand against any capcom build.
+Reuse the scenarios from that agent's experiments where they fit, so lab and field numbers compare.
 
 Wanted: a dev tool under `cmd/` (like `cmd/release`, never shipped) or a script under
 `scripts/` that runs a fixed set of capcom tasks against an agent and scores the transcripts.
@@ -31,4 +34,4 @@ Hermetic tests of the harness itself use a fake agent command (see the `cli-test
 - One command runs every task against a given agent command and writes the report.
 - Success is judged from the resulting `.capcom/` files, never from the agent's own claims.
 - The harness's tests pass with a scripted fake agent and no network.
-- A first report for the scheduled local model is committed under `docs/reviews/`.
+- A first report for a local 25-30B model is committed under `docs/reviews/`.

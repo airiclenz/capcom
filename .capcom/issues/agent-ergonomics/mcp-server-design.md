@@ -17,7 +17,8 @@ CLI and UI already share one write path in `internal/ops` (ADR 0012), so a third
 plausible, but it adds a dependency, a surface to keep in step, and a second way to do
 everything.
 
-This Issue is a design decision. It waits for `agent-eval-harness`, whose results should show
+This Issue is a design decision. It waits for `agent-eval-harness`, whose results, together with
+the field agent's `capcom-eval-report` findings, should show
 whether flag and quoting errors are a large enough share of agent failures to justify it.
 
 ## Acceptance
