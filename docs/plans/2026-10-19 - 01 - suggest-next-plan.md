@@ -97,7 +97,12 @@ textRenderer.RenderError, kvRenderer.RenderError; `internal/cli/output/errors.go
 - `go vet ./internal/cli/...`
 **Commit:** `feat(cli): suggest the closest command for an unknown command or subcommand`
 
-## 2. Suggest the closest flag
+## 2. Suggest the closest flag — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): re-derived from the assumption that suggest.go writes its own distance function: item 1 already added `editDistance` and `closestName` in internal/cli/root.go, so suggest.go reuses both (left in root.go, not moved) and holds only the flag pick (`unknownFlagError`, `closestFlagName`, `nearFlagNames`, `isNearName`).
+NOTES (2026-10-19): consequential edit — internal/cli/doc.go: made necessary by the new internal/cli/suggest.go (the file map test requires every file listed).
+NOTES (2026-10-19): consequential edit — docs/site/reference/json-output.md: made necessary by `error.suggestion` now also carrying a flag (the section described commands only).
+NOTES (2026-10-19): Levenshtein counts a transposition as 2, so `--statsu` ties at distance 2 with any 4-letter flag two deletions away (e.g. a `--stat`); the tie goes to name order, as the plan asks. A 1–2 letter mistyped flag is within distance 2 of many short flags, the same looseness cobra's command suggestions have.
 
 Depends on item 1.
 

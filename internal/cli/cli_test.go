@@ -119,6 +119,67 @@ func TestRun_UnknownCommandNothingClose_OmitsSuggestion(t *testing.T) {
 	}
 }
 
+// unknownFlagCases are mistyped flags, each with the suggestion it gets: one of the command's own
+// flags, or one it inherits from capcom.
+var unknownFlagCases = []struct {
+	args           []string
+	wantSuggestion string
+}{
+	{[]string{"update", "x", "--statsu", "active"}, "--status"},
+	{[]string{"ready", "--jsno"}, "--json"},
+}
+
+func TestRun_UnknownFlagInText_SuggestsClosest(t *testing.T) {
+	for _, testCase := range unknownFlagCases {
+		t.Run(strings.Join(testCase.args, " "), func(t *testing.T) {
+			stdout, stderr, exitCode := runCLI(t, "", testCase.args...)
+
+			want := "; did you mean " + testCase.wantSuggestion + "?\n"
+			if exitCode != ExitUsage || stdout != "" || !strings.Contains(stderr, "unknown flag: --") ||
+				!strings.HasSuffix(stderr, want) {
+				t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and an unknown flag line ending %q",
+					exitCode, stdout, stderr, ExitUsage, want)
+			}
+		})
+	}
+}
+
+func TestRun_UnknownFlagWithJSON_SuggestsClosest(t *testing.T) {
+	for _, testCase := range unknownFlagCases {
+		t.Run(strings.Join(testCase.args, " "), func(t *testing.T) {
+			args := append([]string{"--json"}, testCase.args...)
+
+			stdout, _, exitCode := runCLI(t, "", args...)
+
+			errorBody, isObject := decodeEnvelope(t, stdout)["error"].(map[string]any)
+			if exitCode != ExitUsage || !isObject || errorBody["suggestion"] != testCase.wantSuggestion {
+				t.Errorf("exit = %d error = %v, want %d and suggestion %q", exitCode, errorBody, ExitUsage, testCase.wantSuggestion)
+			}
+		})
+	}
+}
+
+func TestRun_UnknownFlagNothingClose_OmitsSuggestion(t *testing.T) {
+	cases := map[string]string{
+		"--zzzzqq": "capcom: unknown flag: --zzzzqq\n",
+		"-z":       "capcom: unknown shorthand flag: 'z' in -z\n",
+	}
+	for flag, wantStderr := range cases {
+		t.Run(flag, func(t *testing.T) {
+			stdout, stderr, exitCode := runCLI(t, "", "ready", flag)
+			jsonOut, _, jsonExitCode := runCLI(t, "", "--json", "ready", flag)
+
+			if exitCode != ExitUsage || stdout != "" || stderr != wantStderr {
+				t.Errorf("exit = %d stdout = %q stderr = %q, want %d and stderr %q", exitCode, stdout, stderr, ExitUsage, wantStderr)
+			}
+			errorBody, isObject := decodeEnvelope(t, jsonOut)["error"].(map[string]any)
+			if _, hasSuggestion := errorBody["suggestion"]; jsonExitCode != ExitUsage || !isObject || hasSuggestion {
+				t.Errorf("exit = %d error = %v, want %d and no suggestion key", jsonExitCode, errorBody, ExitUsage)
+			}
+		})
+	}
+}
+
 func TestRun_GroupWithoutSubcommand_PrintsHelp(t *testing.T) {
 	for _, group := range []string{"know", "dep", "lock", "related"} {
 		t.Run(group, func(t *testing.T) {

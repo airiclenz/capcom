@@ -219,14 +219,15 @@ func editDistance(left, right string) int {
 // unknownCommandOnFlagError is the flag error function of every command. A group parses its flags
 // before its body reads the arguments, so in capcom updat x --status active the unknown --status
 // would hide the mistyped command; when the group's first argument names none of its subcommands,
-// that unknown command is the error. Any other flag error is returned unchanged.
+// that unknown command is the error. Otherwise an unknown long flag names the closest flag of cmd
+// (unknownFlagError), and any other flag error is returned unchanged.
 func unknownCommandOnFlagError(cmd *cobra.Command, err error) error {
 	if !cmd.HasSubCommands() {
-		return err
+		return unknownFlagError(cmd, err)
 	}
 	args := cmd.Flags().Args()
 	if len(args) == 0 || namesSubcommand(cmd, args[0]) {
-		return err
+		return unknownFlagError(cmd, err)
 	}
 	return unknownCommandError(cmd, args[0])
 }

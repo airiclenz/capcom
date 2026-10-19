@@ -85,6 +85,14 @@ $ capcom know shwo x --json
 {"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown command \"shwo\" for \"capcom know\"","suggestion":"know show"},"elsewhere":[],"warnings":[]}
 ```
 
+A mistyped long flag sets it to the closest flag of that command, its own or one it inherits such
+as `--json`; an unknown shorthand such as `-z` gets none:
+
+```console
+$ capcom update x --statsu active --json
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown flag: --statsu","suggestion":"--status"},"elsewhere":[],"warnings":[]}
+```
+
 `code` is one of a closed set:
 
 | Code | Meaning | Exit code |
