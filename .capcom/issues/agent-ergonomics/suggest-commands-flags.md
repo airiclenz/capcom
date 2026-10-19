@@ -1,10 +1,12 @@
 ---
 title: Mistyped commands and flags get no suggestion
-status: open
+status: done
 type: feature
 priority: 1
 plan: 2026-10-19 - 01 - suggest-next-plan
 created: 2026-10-19T14:54:45Z
+closed: 2026-10-19T20:17:53Z
+reason: Resolved by plan 2026-10-19 - 01 - suggest-next-plan (items 1-2), archived in 7c56c52
 ---
 
 A mistyped command or flag fails with no hint: `capcom shwo x` prints

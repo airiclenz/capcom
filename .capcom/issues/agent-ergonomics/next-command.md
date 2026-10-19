@@ -1,10 +1,12 @@
 ---
 title: No single command shows the issue to work on next
-status: open
+status: done
 type: feature
 priority: 1
 plan: 2026-10-19 - 01 - suggest-next-plan
 created: 2026-10-19T14:54:44Z
+closed: 2026-10-19T20:17:53Z
+reason: Resolved by plan 2026-10-19 - 01 - suggest-next-plan (items 3-4), archived in 7c56c52
 ---
 
 An agent starting a session runs `capcom ready`, picks the first line, then runs
