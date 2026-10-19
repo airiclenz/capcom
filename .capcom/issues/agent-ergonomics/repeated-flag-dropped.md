@@ -3,6 +3,7 @@ title: A repeated single-value flag silently keeps only its last value
 status: open
 type: bug
 priority: 1
+plan: 2026-10-19 - 00 - repeated-flag-dropped-plan
 created: 2026-10-19T15:08:40Z
 ---
 
