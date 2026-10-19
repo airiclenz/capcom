@@ -23,3 +23,7 @@ Run the eval harness before and after the child Issues land, and keep the run re
 `docs/reviews/`.
 
 This is a standing Parent: it only groups its children and is never claimed or closed.
+
+## Log
+
+- 2026-10-19 Airic Lenz: Field evaluation handed to a separate scheduled agent (27B, capcom 0.9.0): nine black-box experiments under its capcom-eval Parent, ending in a capcom-eval-report Note. Its findings arrive as capcom-feature-requests Issues; re-rank the children here against them before implementing.
