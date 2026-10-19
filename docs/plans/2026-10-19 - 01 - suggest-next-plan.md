@@ -140,7 +140,11 @@ text and `--json`: `update x --statsu active` → `--status`; `ready --jsno` →
 **Commit:** `feat(cli): suggest the closest flag for an unknown flag`
 **Closes:** suggest-commands-flags
 
-## 3. capcom next prints the top Ready Issue
+## 3. capcom next prints the top Ready Issue — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): show.go's shared tail (showResult, the Elsewhere report of the shown files, emit) is extracted into `emitShown`, which show and next both call, as the plan's approach allows.
+NOTES (2026-10-19): next offers --kv as show does; with nothing Ready it writes no records (`KV: []output.KVRecord{}`) and exits 4. With nothing Ready the Elsewhere report covers the whole issue tree, as ready's does; with an Issue found it covers that Issue's file, as show's does. ready's dropped-dependency warnings are not repeated by next.
+NOTES (2026-10-19): the exit-4 failure is `output.NothingReadyErrorf` (code not_found, unexported `isNothingReady` mark), always returned through `output.Rendered`; the Envelope doc comment (output.go) and Run's doc comment (root.go) now name the null data and exit code 4.
 
 **What:**
 **Goal:** `capcom next` prints, in `capcom show` format, the Issue on the first line of

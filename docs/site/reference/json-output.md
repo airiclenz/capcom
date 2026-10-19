@@ -21,7 +21,7 @@ $ capcom show session-refresh --json
 | --- | --- | --- |
 | `schema` | yes | The envelope's version, currently `1`. |
 | `kind` | yes | What `data` holds: `issue`, `issue-write`, `close`, `ready`, `prime`, `check`, `version`, ..., or `error`. |
-| `data` | no | The command's result. Left out when a command fails before it has one. |
+| `data` | no | The command's result. Left out when a command fails before it has one. `null` when `capcom next` finds nothing Ready (kind `next`, exit code 4). |
 | `error` | no | Present only when the command failed; see Errors below. |
 | `elsewhere` | yes | [Issue changes on other branches](../concepts/branches-and-merging.md#elsewhere), `[]` when there are none or the command does not scan. |
 | `warnings` | yes | Warning messages, `[]` when there are none. |
@@ -112,6 +112,7 @@ $ capcom update x --statsu active --json
 | 1 | An error. |
 | 2 | A usage error: an unknown command or flag, a flag that holds one value given more than once, or a wrong number of arguments. |
 | 3 | Not found, or locked. |
+| 4 | Nothing is Ready: `capcom next` found no Issue to print. Used for nothing else. |
 
 `capcom check` and `capcom fmt --check` exit 1 when they find something to report, and
 `capcom prime` always exits 0.

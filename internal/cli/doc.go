@@ -35,6 +35,7 @@
 //   - `log.go` — capcom log: appends an entry to an issue's Log
 //   - `merge_driver.go` — capcom merge-driver: the git merge driver for issue files, Log by entry
 //   - `mv.go` — the destination, warnings and flags of mv and know mv, which node_verbs.go builds
+//   - `next.go` — capcom next: the Issue on the first line of ready, in full as show prints it
 //   - `node_edit.go` — editIssue, editNode and written, the CLI side of the internal/ops writes every issue and Note edit verb goes through, and their shared helpers
 //   - `node_verbs.go` — nodeVerbs, the descriptor of a Tree kind, the mv and rm commands built from it for both kinds, and the write path of create and know add
 //   - `outline.go` — indented outline rows and their text, with the hint where --depth cut; internal/outline computes the rows

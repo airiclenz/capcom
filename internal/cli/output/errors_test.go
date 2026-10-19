@@ -44,6 +44,7 @@ func TestError_ExitCode_MapsCodes(t *testing.T) {
 		{Errorf(CodeConflict, "x"), ExitError},
 		{Errorf(CodeNotInitialized, "x"), ExitError},
 		{UsageErrorf("x"), ExitUsage},
+		{NothingReadyErrorf("x"), ExitNothingReady},
 	}
 	for _, testCase := range cases {
 		t.Run(string(testCase.failure.Code), func(t *testing.T) {

@@ -43,15 +43,21 @@ func (a *app) newShowCommand() *cobra.Command {
 		Args:        cobra.MinimumNArgs(1),
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			result, shownPaths, err := a.showResult(args)
-			if err != nil {
-				return err
-			}
-			return a.emit(cmd, a.addElsewhere(result, isElsewhereSkipped, shownPaths))
+			return a.emitShown(cmd, args, isElsewhereSkipped)
 		}),
 	}
 	cmd.Flags().BoolVar(&isElsewhereSkipped, flagNoElsewhere, false, "skip the report of changes to these issues on other branches")
 	return a.withKV(cmd)
+}
+
+// emitShown prints the issues args name in full, as show does, with the Elsewhere report of their
+// files unless isElsewhereSkipped. show and next both end here.
+func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bool) error {
+	result, shownPaths, err := a.showResult(args)
+	if err != nil {
+		return err
+	}
+	return a.emit(cmd, a.addElsewhere(result, isElsewhereSkipped, shownPaths))
 }
 
 // showResult looks up every argument and builds the result: the issues found, a --kv record per

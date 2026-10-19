@@ -60,7 +60,8 @@ type KVPair struct {
 	Value string
 }
 
-// Envelope is the --json document every command writes to stdout. Data is set on success and
+// Envelope is the --json document every command writes to stdout. Data is set on success, null
+// when a command found nothing to report (a typed nil, such as next's with no Ready Issue), and
 // Error on failure; Elsewhere and Warnings are always present, empty when there is nothing to
 // report.
 type Envelope struct {

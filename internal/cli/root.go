@@ -76,7 +76,7 @@ type app struct {
 
 // Run executes capcom with args (the program name excluded) against the given streams and
 // returns the process exit code output.Exit decides: 0 ok, 1 error, 2 usage, 3 not_found or
-// locked. Results go to stdout; in text mode a failure goes to stderr, while --json and --kv
+// locked, 4 nothing Ready (capcom next). Results go to stdout; in text mode a failure goes to stderr, while --json and --kv
 // report it on stdout.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	application := &app{stdout: stdout, stderr: stderr}
@@ -130,6 +130,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newLogCommand())
 	root.AddCommand(a.newMergeDriverCommand())
 	root.AddCommand(newMvCommand(a, issueVerbs))
+	root.AddCommand(a.newNextCommand())
 	root.AddCommand(a.newPrimeCommand())
 	root.AddCommand(a.newReadyCommand())
 	root.AddCommand(a.newReindexCommand())

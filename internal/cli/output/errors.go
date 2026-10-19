@@ -28,6 +28,8 @@ const (
 	ExitError    = 1
 	ExitUsage    = 2
 	ExitNotFound = 3
+	// ExitNothingReady is the exit code of capcom next when no Issue is Ready, and of nothing else.
+	ExitNothingReady = 4
 )
 
 // Error is a typed command failure. Path and Line, when set, locate the file (and line within it)
@@ -41,6 +43,9 @@ type Error struct {
 	Line       int
 	Suggestion string
 	isUsage    bool
+	// isNothingReady marks the failure of finding no Ready Issue, which exits with
+	// ExitNothingReady. NothingReadyErrorf is the one way to set it.
+	isNothingReady bool
 	// isRendered marks a failure the output layer already wrote with its partial result; Exit
 	// only maps it to the exit code. Rendered is the one way to set it.
 	isRendered bool
@@ -57,6 +62,12 @@ func UsageErrorf(format string, args ...any) *Error {
 	return &Error{Code: CodeInvalid, Message: fmt.Sprintf(format, args...), isUsage: true}
 }
 
+// NothingReadyErrorf builds a not_found Error for a command that found no Ready Issue to act on;
+// it exits with ExitNothingReady instead of ExitNotFound.
+func NothingReadyErrorf(format string, args ...any) *Error {
+	return &Error{Code: CodeNotFound, Message: fmt.Sprintf(format, args...), isNothingReady: true}
+}
+
 // Error renders the message prefixed by "path:" or "path:line:" when a location is known.
 func (e *Error) Error() string {
 	switch {
@@ -69,11 +80,14 @@ func (e *Error) Error() string {
 	}
 }
 
-// ExitCode maps the error to the process exit code: usage errors 2, not_found and locked 3,
-// everything else 1.
+// ExitCode maps the error to the process exit code: usage errors 2, not_found and locked 3, no
+// Ready Issue (NothingReadyErrorf) 4, everything else 1.
 func (e *Error) ExitCode() int {
 	if e.isUsage {
 		return ExitUsage
+	}
+	if e.isNothingReady {
+		return ExitNothingReady
 	}
 	if e.Code == CodeNotFound || e.Code == CodeLocked {
 		return ExitNotFound

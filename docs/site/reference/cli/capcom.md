@@ -49,6 +49,7 @@ capcom [flags]
 * [capcom log](capcom_log.md)	 - Append an entry to an issue's Log
 * [capcom merge-driver](capcom_merge-driver.md)	 - Merge three versions of an issue file, its Log by entry (a git merge driver)
 * [capcom mv](capcom_mv.md)	 - Rename an issue or move it below another
+* [capcom next](capcom_next.md)	 - Show the top Ready Issue in full
 * [capcom prime](capcom_prime.md)	 - Print the session Briefing: ready work, locks, other branches and store health
 * [capcom ready](capcom_ready.md)	 - List the issues ready to work on, most urgent first
 * [capcom reindex](capcom_reindex.md)	 - Rebuild the index from the issue and Note files
