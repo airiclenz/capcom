@@ -89,6 +89,71 @@ func TestKnowUpdate_BodyEdits_ReplaceThenAppend(t *testing.T) {
 	}
 }
 
+func TestKnowUpdate_RepeatedBodyEdits_ApplyInOrder(t *testing.T) {
+	cases := map[string]struct {
+		args     []string
+		wantBody string
+	}{
+		"two replacement pairs": {
+			args: []string{"--body-replace-old", "Tag", "--body-replace-new", "Sign",
+				"--body-replace-old", "Sign, then", "--body-replace-new", "Sign and"},
+			wantBody: "\nSign and publish.\n",
+		},
+		"two appends": {
+			args:     []string{"--body-append", "Gate first.", "--body-append", "Then smoke-test."},
+			wantBody: "\nTag, then publish.\n\nGate first.\n\nThen smoke-test.\n",
+		},
+	}
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := newKnowStore(t)
+
+			mustRun(t, root, append([]string{"know", "update", "release-flow"}, testCase.args...)...)
+
+			want := "---\ntitle: Release flow\nlabels: [process]\n---\n" + testCase.wantBody
+			if got := readNoteFile(t, root, "release-flow.md"); got != want {
+				t.Errorf("note file = %q; want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestKnowUpdate_RepeatedBodyEdits_AreRefusedWhole(t *testing.T) {
+	cases := map[string]struct {
+		args       []string
+		wantExit   int
+		wantStderr string
+	}{
+		"a later pair does not match": {
+			args: []string{"--body-replace-old", "Tag", "--body-replace-new", "Sign",
+				"--body-replace-old", "absent", "--body-replace-new", "x", "--body-append", "never"},
+			wantExit:   ExitError,
+			wantStderr: `capcom: .capcom/knowledge/release-flow.md: --body-replace-old #2 "absent": `,
+		},
+		"two old texts and one new": {
+			args: []string{"--body-replace-old", "Tag", "--body-replace-old", "publish",
+				"--body-replace-new", "Sign"},
+			wantExit:   ExitUsage,
+			wantStderr: "2 --body-replace-old and 1 --body-replace-new given; give them in pairs",
+		},
+	}
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			root := newKnowStore(t)
+			before := readNoteFile(t, root, "release-flow.md")
+
+			_, stderr, exitCode := runCLI(t, root, append([]string{"know", "update", "release-flow"}, testCase.args...)...)
+
+			if exitCode != testCase.wantExit || !strings.Contains(stderr, testCase.wantStderr) {
+				t.Errorf("exit = %d stderr = %q; want %d and %q", exitCode, stderr, testCase.wantExit, testCase.wantStderr)
+			}
+			if after := readNoteFile(t, root, "release-flow.md"); after != before {
+				t.Errorf("note file changed:\nbefore = %q\nafter  = %q", before, after)
+			}
+		})
+	}
+}
+
 func TestKnowUpdate_BodyFileFromStdin_ReplacesTheWholeBody(t *testing.T) {
 	root := newKnowStore(t)
 

@@ -121,7 +121,9 @@ the comma.
 
 **Commit:** `fix(cli): apply every repeated body edit of capcom update`
 
-## 3. Repeated body edits on capcom know update
+## 3. Repeated body edits on capcom know update — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): a single --body-replace-old that does not match on know update now also fails worded `--body-replace-old #1 "<old>": <the former message>`, still at the Note file, since applyNoteUpdate goes through the shared bodyEdits.apply
 
 Depends on item 2.
 

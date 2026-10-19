@@ -36,10 +36,10 @@ type knowUpdateOptions struct {
 	addSuccessors    []string
 	removeSuccessors []string
 	bodyFile         string
-	bodyAppend       string
+	bodyAppend       []string
 	bodyAppendFile   string
-	replaceOld       string
-	replaceNew       string
+	replaceOld       []string
+	replaceNew       []string
 	ifMatch          string
 }
 
@@ -50,10 +50,14 @@ const (
 		"marks it retired, so it and its subtree leave browsing, --unretire clears that, and " +
 		"--add-superseded-by names the Notes that replace it. --body-file replaces the whole body, " +
 		"--body-append and --body-append-file add to it, and --body-replace-old with --body-replace-new " +
-		"replaces text that occurs exactly once. It prints the Note's id, path and new etag."
+		"replaces text that occurs exactly once. --body-append and the --body-replace-old/--body-replace-new " +
+		"pair repeat: every pair applies in order, each against the body the pairs before it left, then " +
+		"every append in order, and when one pair fails nothing is written. It prints the Note's id, path " +
+		"and new etag."
 	knowUpdateExample = "  capcom know update release-steps --add-label release --if-match <etag>   # etag from know show\n" +
 		"  capcom know update adr-0012 --retire --add-superseded-by adr-0031   # replaced in whole\n" +
 		"  capcom know update release-steps --body-append \"Run the gate first.\"   # add to the body\n" +
+		"  capcom know update release-steps --body-replace-old \"v1\" --body-replace-new \"v2\" --body-replace-old \"draft\" --body-replace-new \"final\"   # pairs apply in order\n" +
 		"  capcom know update release-steps --body-file notes.md   # replace the whole body"
 )
 
@@ -87,6 +91,9 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 				flagBodyFile, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld) {
 				return output.UsageErrorf("know update needs at least one flag that changes the Note")
 			}
+			if err := options.bodyEdits().checkPairs(); err != nil {
+				return err
+			}
 			inputs, err := readNoteInputs(cmd, options)
 			if err != nil {
 				return err
@@ -116,10 +123,13 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 	flags.StringArrayVar(&options.removeSuccessors, flagRemoveSupersededBy, nil,
 		"the id, alias or prefix of a superseded-by entry to remove; repeat for more")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the whole new markdown body; - reads stdin")
-	flags.StringVar(&options.bodyAppend, flagBodyAppend, "", "text to append to the body, taken literally")
+	flags.StringArrayVar(&options.bodyAppend, flagBodyAppend, nil,
+		"text to append to the body, taken literally; repeat to append several in order")
 	flags.StringVar(&options.bodyAppendFile, flagBodyAppendFile, "", "file to append to the body; - reads stdin")
-	flags.StringVar(&options.replaceOld, flagBodyReplaceOld, "", "body text to replace; must occur exactly once")
-	flags.StringVar(&options.replaceNew, flagBodyReplaceNew, "", "text that replaces --body-replace-old")
+	flags.StringArrayVar(&options.replaceOld, flagBodyReplaceOld, nil,
+		"body text to replace; must occur exactly once; repeat with --body-replace-new for several pairs")
+	flags.StringArrayVar(&options.replaceNew, flagBodyReplaceNew, nil,
+		"text that replaces the --body-replace-old in the same position")
 	flags.StringVar(&options.ifMatch, flagIfMatch, "", "only write when the file's etag is this one (see know show)")
 	cmd.MarkFlagsMutuallyExclusive(flagBodyAppend, flagBodyAppendFile)
 	cmd.MarkFlagsMutuallyExclusive(flagBodyFile, flagBodyAppend)
@@ -275,9 +285,10 @@ func (r noteResolver) Resolve(arg string) (nodestore.Target, error) {
 }
 
 // applyNoteUpdate applies the changed flags to note in the order title, labels, refs, retired,
-// superseded-by, whole body, body replacement, append. It fails on a new ref of the wrong form, on
-// a superseded-by edit reflist refuses (editSuccessors) and on replacement text that does not
-// occur exactly once.
+// superseded-by, whole body, then the body replacements and appends in the order bodyEdits.apply
+// gives them, then the --body-append-file text. It fails on a new ref of the wrong form, on a
+// superseded-by edit reflist refuses (editSuccessors) and on a replacement pair whose old text
+// does not occur exactly once.
 func applyNoteUpdate(
 	cmd *cobra.Command,
 	options *knowUpdateOptions,
@@ -317,18 +328,19 @@ func applyNoteUpdate(
 	if flags.Changed(flagBodyFile) {
 		note.Body = noteBody(inputs.body)
 	}
-	if flags.Changed(flagBodyReplaceOld) {
-		replaced, err := edit.ReplaceBody(note.Body, options.replaceOld, options.replaceNew)
-		if err != nil {
-			return knowledge.Note{}, err
-		}
-		note.Body = replaced
+	body, err := options.bodyEdits().apply(note.Body)
+	if err != nil {
+		return knowledge.Note{}, err
 	}
-	if flags.Changed(flagBodyAppend) {
-		note.Body = edit.AppendBody(note.Body, options.bodyAppend)
-	}
+	note.Body = body
 	if flags.Changed(flagBodyAppendFile) {
 		note.Body = edit.AppendBody(note.Body, inputs.appendFile)
 	}
 	return note, nil
+}
+
+// bodyEdits returns the --body-replace-old/--body-replace-new pairs and the --body-append texts
+// of the know update, in the order given.
+func (o *knowUpdateOptions) bodyEdits() bodyEdits {
+	return bodyEdits{olds: o.replaceOld, news: o.replaceNew, appends: o.bodyAppend}
 }
