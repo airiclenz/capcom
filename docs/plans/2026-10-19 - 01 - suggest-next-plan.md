@@ -194,7 +194,9 @@ present, exit 4; `--kv` exit 4 if offered); a `--label` filter selecting a lower
 - `go vet ./internal/cli/...`
 **Commit:** `feat(cli): add capcom next, the top Ready Issue in full`
 
-## 4. The Managed block names capcom next
+## 4. The Managed block names capcom next — ✅ DONE (2026-10-19)
+
+NOTES (2026-10-19): internal/cli/agents_test.go needed no change: its stale-block tests build the block from render rather than holding a golden copy, so it is left out of FILES.
 
 Depends on item 3.
 

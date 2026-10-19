@@ -29,6 +29,7 @@ markdown files under ` + "`.capcom/`" + `, versioned with the code; track work t
 
 Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclenz/capcom#install.
 
+- ` + "`capcom next`" + `: the most urgent ready issue, in full
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
 - ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
 - ` + "`capcom update <id> --status active`" + `: claim it before you start

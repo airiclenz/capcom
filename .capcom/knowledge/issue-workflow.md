@@ -6,6 +6,9 @@ title: "Before filing, starting or closing an issue: its body, claiming it, depe
 is done under `## Acceptance`, readable without its plan. The plan says how and in what order, so
 archiving a plan strands no issue. Never file a stub: `create` without a body warns.
 
+**Starting work.** Start a session with `capcom next`: it prints the most urgent Ready issue in
+full. `capcom ready` lists the rest.
+
 **Claiming work.** Move the issue to a doing status (`capcom update <id> --status active` in this
 repository) and hold this worktree's Tree lock with `capcom lock acquire --purpose <id>`. `prime`
 lists the doing issues, so the next session sees who works on what. There is no assignee key.

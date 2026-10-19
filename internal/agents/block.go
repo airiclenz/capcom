@@ -56,7 +56,8 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 `
 
 // loopOpening is the command list up to the claim line: finding work and reading it.
-const loopOpening = "- `capcom ready`: the issues ready to work on, most urgent first\n" +
+const loopOpening = "- `capcom next`: the most urgent ready issue, in full\n" +
+	"- `capcom ready`: the issues ready to work on, most urgent first\n" +
 	"- `capcom show <id>`: one issue in full, with what blocks it\n"
 
 // claimCommand opens the claim line; the configured doing status follows it.
