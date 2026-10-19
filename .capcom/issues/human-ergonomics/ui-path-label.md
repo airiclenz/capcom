@@ -1,10 +1,12 @@
 ---
 title: The UI tab bar does not say which worktree it shows
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-19 - 02 - ui-path-label-plan
 created: 2026-10-19T19:17:00Z
+closed: 2026-10-19T19:51:52Z
+reason: "Resolved by plan 2026-10-19 - 02 - ui-path-label-plan (archived in f45f76c): the tab bar ends in the ~-shortened worktree path ahead of the version label."
 ---
 
 The tab bar of `capcom ui` ends in a version label, `v0.9.1 · capcom`, but never says which
