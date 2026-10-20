@@ -23,3 +23,7 @@ The site build lives in the separate `airiclenz.com` repository (Astro), which i
 - The manual's home page carries JSON-LD `SoftwareApplication` markup (name, operating systems,
   MIT license, download URL).
 - The GitHub repository's homepage URL points at the manual.
+
+## Log
+
+- 2026-10-20 Airic Lenz: Site live 2026-10-20: all 63 manual pages serve, /capcom/llms.txt + llms-full/small, root /llms.txt, SoftwareApplication JSON-LD. GitHub homepage set to https://airiclenz.com/capcom/. downloadUrl added to JSON-LD in airiclenz.com 00eaa24, awaiting deploy. Per-page .md sources accepted as met by llms-full.txt and the raw GitHub links in the root llms.txt.
