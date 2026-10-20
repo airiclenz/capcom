@@ -1,6 +1,6 @@
 ---
 title: "Agent setup"
-description: "Wire capcom into a coding agent: the Managed block in AGENTS.md, and session hooks that run capcom prime for Claude Code and Codex."
+description: "Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code and Codex, and the Claude Code plugin."
 sidebar: { order: 1 }
 ---
 
@@ -110,6 +110,34 @@ headed "To brief Claude Code at every session start and before compaction, add t
 together they brief the agent at the start of every session and again around every compaction.
 
 Commit `.claude/settings.json` so every clone gets the hooks.
+
+## Claude Code plugin
+
+capcom's repository is also a Claude Code plugin marketplace. In Claude Code 2.1.275 or later:
+
+```console
+/plugin install capcom --marketplace airiclenz/capcom
+```
+
+On an older Claude Code, add the marketplace first:
+
+```console
+/plugin marketplace add airiclenz/capcom
+/plugin install capcom@capcom
+```
+
+The plugin installs once for you, not per repository, and brings two things:
+
+- **A `capcom` skill.** It tells Claude how to install the binary, set a repository up with
+  `capcom init` and `capcom agents`, and work an Issue from `capcom next` to `capcom close`.
+- **The same two hooks as above**, running `capcom prime` at session start and before compaction.
+  They stay silent when the `capcom` binary is missing, when the repository has no `.capcom/`, and
+  when `.claude/settings.json`, `.claude/settings.local.json` or your user-level settings already
+  run `capcom prime`, so a repository set up with `--claude-hooks` is never briefed twice.
+
+The plugin does not install the binary or replace Step 1: the Managed block in `AGENTS.md` is
+still what tells every agent, and every collaborator, how the repository uses capcom. Keep
+`--claude-hooks` for collaborators who do not have the plugin.
 
 ## Codex hooks
 

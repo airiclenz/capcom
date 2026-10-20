@@ -1,0 +1,15 @@
+{
+  "name": "capcom",
+  "owner": {
+    "name": "Airic Lenz",
+    "url": "https://airiclenz.com/"
+  },
+  "description": "capcom, the git-native issue tracker and knowledge base for coding agents",
+  "plugins": [
+    {
+      "name": "capcom",
+      "source": "./plugins/capcom",
+      "description": "Track issues and project knowledge as markdown files in your repository, and brief every Claude Code session with capcom prime"
+    }
+  ]
+}

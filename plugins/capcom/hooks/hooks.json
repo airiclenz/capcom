@@ -1,0 +1,28 @@
+{
+  "description": "Brief the session with capcom prime in repositories that have a capcom store",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/prime.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/prime.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

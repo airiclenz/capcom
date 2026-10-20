@@ -1,6 +1,6 @@
 ---
 title: Agents cannot find capcom in a plugin or skill marketplace
-status: open
+status: active
 type: task
 priority: 3
 labels: [agents]

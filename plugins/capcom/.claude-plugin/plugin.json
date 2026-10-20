@@ -1,0 +1,15 @@
+{
+  "name": "capcom",
+  "displayName": "capcom",
+  "description": "Git-native issue tracker and knowledge base for coding agents: issues and Notes are markdown files under .capcom/, versioned with your code. Teaches Claude the capcom work loop and runs capcom prime at session start.",
+  "author": {
+    "name": "Airic Lenz",
+    "url": "https://airiclenz.com/"
+  },
+  "homepage": "https://airiclenz.com/capcom/",
+  "repository": "https://github.com/airiclenz/capcom",
+  "documentationUrl": "https://airiclenz.com/capcom/agents/agent-setup/",
+  "supportUrl": "https://github.com/airiclenz/capcom/issues",
+  "license": "MIT",
+  "keywords": ["issue-tracker", "git", "markdown", "knowledge-base", "agents", "task-management"]
+}

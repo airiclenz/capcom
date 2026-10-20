@@ -4,7 +4,7 @@
 
 An agent's work loop: `capcom next` (the most urgent Ready Issue in full), `capcom update <id> --status active` to claim it, `capcom log <id> <text>` for progress, `capcom close <id> --reason <text>` when done. `capcom prime` prints a session briefing, `capcom know tree` and `capcom know show <id>` read project Knowledge, and every command takes `--json`.
 
-Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `airiclenz`), `winget install AiricLenz.Capcom`, or `go install github.com/airiclenz/capcom/cmd/capcom@latest`.
+Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `airiclenz`), `winget install AiricLenz.Capcom`, or `go install github.com/airiclenz/capcom/cmd/capcom@latest`. Claude Code plugin (skill plus session hooks): `/plugin install capcom --marketplace airiclenz/capcom`.
 
 ## Docs
 
@@ -26,7 +26,7 @@ Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `ai
 
 ## Agents
 
-- [Agent setup](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/agent-setup.md): Wire capcom into a coding agent: the Managed block in AGENTS.md, and session hooks that run capcom prime for Claude Code and Codex.
+- [Agent setup](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/agent-setup.md): Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code and Codex, and the Claude Code plugin.
 - [The session briefing](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/briefing.md): What capcom prime prints at the start of an agent session (Ready work, Issues in progress, Tree locks, broken Note refs, store health, Elsewhere) and when to run it.
 - [The Managed block](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/managed-block.md): capcom agents writes and refreshes a marked section of AGENTS.md telling agents how to use capcom and listing the top of the Knowledge tree; the rest of the file stays yours.
 
