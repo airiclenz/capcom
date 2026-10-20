@@ -123,7 +123,7 @@ On an older Claude Code, add the marketplace first:
 
 ```console
 /plugin marketplace add airiclenz/capcom
-/plugin install capcom@capcom
+/plugin install capcom@airiclenz
 ```
 
 The plugin installs once for you, not per repository, and brings two things:
