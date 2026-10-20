@@ -16,3 +16,7 @@ none, so an agent can only learn of it from a person or a README it happens to r
 - capcom is published as a Claude Code plugin (or skill) whose install runs or explains
   `capcom init` and `capcom agents`, listed in at least one public marketplace.
 - The README's "Works with any coding agent" section links the listing.
+
+## Log
+
+- 2026-10-20 Airic Lenz: Plugin and marketplace committed (plugins/capcom, .claude-plugin/marketplace.json). claude plugin validate passes; only warning is the deliberately omitted version. Installs from a local marketplace. Remaining: push, then submit at claude.ai/directory/manage.
