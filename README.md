@@ -13,7 +13,9 @@ capcom is a command-line issue tracker, task manager and project knowledge base 
 agents such as Claude Code, apogee, OpenAI Codex, Cursor, Gemini CLI, Aider and GitHub Copilot, and for
 the people working beside them. Issues and notes are plain markdown files in your git repository.
 No server, no account, no database to sync. One binary for Linux, macOS and Windows, written in
-Go, with a command line for agents and a terminal UI for people.
+Go, with a command line for agents and a terminal UI for people. The name comes from spaceflight,
+where CAPCOM is the one voice on the ground that talks to the crew; capcom is not affiliated with
+Capcom Co., Ltd., the video game company.
 
 **Contents:** [Why](#why) · [Features](#features) · [Terminal UI](#terminal-ui) ·
 [Works with](#works-with-any-coding-agent) · [Install](#install) · [Quick start](#quick-start) ·
@@ -179,9 +181,23 @@ process or a sync chore, so they will not be added:
 
 ## FAQ
 
+More answers are in the manual's [FAQ](docs/site/getting-started/faq.md).
+
+**Which coding agents does capcom work with?**
+Any agent that can run a shell command: Claude Code, OpenAI Codex, Cursor, Gemini CLI, Aider,
+GitHub Copilot and others. `capcom agents` writes the how-to block into `AGENTS.md`, and
+`capcom init --claude-hooks` or `--codex-hooks` briefs every new session
+([agent setup](docs/site/agents/agent-setup.md)).
+
+**How do I give a coding agent project knowledge that lasts across sessions?**
+Write it as Knowledge Notes under `.capcom/knowledge/`, committed with the code. An agent opens
+only the Notes it needs with `capcom know tree` and `capcom know show <id>`, and
+`capcom know verify` flags Notes whose files or symbols are gone
+([Knowledge](docs/site/concepts/knowledge.md)).
+
 **Does capcom need a server, an account or a database?**
 No. Issues and Notes are files in your repository. The SQLite index is a local cache under the
-git directory, never committed.
+git directory, never committed, and capcom makes no network calls.
 
 **How do a team and several agents share issues?**
 Through git: push, pull and merge. Each issue is its own file, so edits to different issues
@@ -219,9 +235,16 @@ jobs:
       - run: capcom fmt --check
 ```
 
-**How is it different from beads?**
+**How is capcom different from beads, GitHub Issues or Task Master?**
 beads keeps a database and exports it to git; capcom keeps only the files, so there is nothing
-to sync. See [migrating from beads](docs/site/getting-started/migrating-from-beads.md).
+to sync. GitHub Issues lives on a server, apart from your branches; capcom works offline and
+merges with the code. Task Master generates tasks with an LLM; capcom calls none. See
+[capcom compared](docs/site/getting-started/comparison.md) and
+[migrating from beads](docs/site/getting-started/migrating-from-beads.md).
+
+**Is capcom related to Capcom, the video game company?**
+No. capcom is an open-source developer tool named after spaceflight's CAPCOM and is not
+affiliated with Capcom Co., Ltd.
 
 **Is it only for AI agents?**
 No. The files are readable markdown, and the terminal UI and plain-text output are made for

@@ -1,0 +1,42 @@
+# capcom
+
+> capcom is a git-native issue tracker and knowledge base for AI coding agents such as Claude Code, OpenAI Codex, Cursor and Gemini CLI. Issues and knowledge Notes are plain markdown files under `.capcom/` in the git repository, versioned with the code; a disposable SQLite index under the git directory is never committed. One Go binary for Linux, macOS and Windows: a CLI for agents and a terminal UI (`capcom ui`) for people. Not affiliated with Capcom Co., Ltd., the video game company.
+
+An agent's work loop: `capcom next` (the most urgent Ready Issue in full), `capcom update <id> --status active` to claim it, `capcom log <id> <text>` for progress, `capcom close <id> --reason <text>` when done. `capcom prime` prints a session briefing, `capcom know tree` and `capcom know show <id>` read project Knowledge, and every command takes `--json`.
+
+Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `airiclenz`), `winget install AiricLenz.Capcom`, or `go install github.com/airiclenz/capcom/cmd/capcom@latest`.
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/airiclenz/capcom/main/README.md): Overview, features, install, quick start, commands and FAQ
+- [Manual](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/index.md): A git-native issue tracker and knowledge base for coding agents: issues and Notes are markdown files under .capcom/, versioned with your code.
+- [Install](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/getting-started/install.md): Install the capcom binary with Homebrew, Scoop, winget, go install or a release archive, and check it runs.
+- [Quick start](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/getting-started/quickstart.md): Set capcom up in a git repository and take one Issue from creation to close, with the real output of each command.
+- [FAQ](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/getting-started/faq.md): Short answers to the questions people ask about capcom: what it is, which agents it works with, how agents share a repository, and how it differs from other trackers.
+- [capcom compared](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/getting-started/comparison.md): How capcom compares with beads, GitHub Issues, Task Master and a markdown TODO or agent instructions file for tracking the work of AI coding agents.
+- [Terminal UI](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/getting-started/terminal-ui.md): Watch the Issues and Knowledge change while agents work, and claim, set a status, close, reopen or log an Issue from capcom ui.
+
+## Concepts
+
+- [Issues](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/issues.md): What an Issue is in capcom: its file, its Id and Aliases, its place in the Tree, its Status, when it is Ready, how it is Closed and its Log.
+- [Dependencies](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/dependencies.md): How Dependencies decide which Issues are Ready, how Related links differ from them, the order capcom ready lists work in, and the dep graph.
+- [Branches and merging](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/branches-and-merging.md): Issues branch and merge with the code: what capcom reports from other branches (Elsewhere), how the Log merge driver merges Logs, and checking the store after a merge.
+- [Knowledge](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/knowledge.md): How capcom keeps project Knowledge as a Tree of small Notes: Labels, Refs and suspect Notes, Retired Notes and Supersession, Background Notes, know tree and know verify.
+- [Tree locks](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/tree-locks.md): The Tree lock: an advisory claim one agent session holds on a working tree, its Lock token, when it goes Stale, and acquire, touch, release, break, check and status.
+
+## Agents
+
+- [Agent setup](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/agent-setup.md): Wire capcom into a coding agent: the Managed block in AGENTS.md, and session hooks that run capcom prime for Claude Code and Codex.
+- [The session briefing](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/briefing.md): What capcom prime prints at the start of an agent session (Ready work, Issues in progress, Tree locks, broken Note refs, store health, Elsewhere) and when to run it.
+- [The Managed block](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/managed-block.md): capcom agents writes and refreshes a marked section of AGENTS.md telling agents how to use capcom and listing the top of the Knowledge tree; the rest of the file stays yours.
+
+## Reference
+
+- [CLI reference](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/cli/capcom.md): Every command, flag and example, one page per command linked from here
+- [File format](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/file-format.md): The files capcom keeps under .capcom/: issue files, Note files, the tree, config.yaml, the lock record, the Managed block, the two files capcom ui keeps outside the repository: its per-user config.yaml and its state.yaml, and its per-worktree ui-state.yaml under the git directory.
+- [JSON and KV output](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/json-output.md): The versioned --json envelope every command prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer.
+
+## Optional
+
+- [Migrating from beads](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/getting-started/migrating-from-beads.md): How an agent moves a repository off beads by writing capcom issue files and checking them until clean.
+- [Changelog](https://raw.githubusercontent.com/airiclenz/capcom/main/CHANGELOG.md): Every user-visible change, newest first

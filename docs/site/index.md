@@ -15,7 +15,7 @@ Windows.
 In spaceflight, CAPCOM is the one voice on the ground that talks to the crew. `capcom` plays that
 role for a code repository: it keeps the issue list, says who is currently working on the tree,
 and answers the agents' questions about the project, all from plain files that live in the repo
-itself.
+itself. capcom is not affiliated with Capcom Co., Ltd., the video game company.
 
 ## Why capcom
 
@@ -58,6 +58,9 @@ output, in the [quick start](getting-started/quickstart.md).
   archive.
 - [Quick start](getting-started/quickstart.md): from `capcom init` to closing your first Issue.
 - [Migrating from beads](getting-started/migrating-from-beads.md): move a repository off `bd`.
+- [capcom compared](getting-started/comparison.md): capcom next to beads, GitHub Issues, Task
+  Master and a `TODO.md`.
+- [FAQ](getting-started/faq.md): short answers to the common questions.
 - [Agent setup](agents/agent-setup.md): wire capcom into Claude Code, Codex and other agents.
 - [CLI reference](reference/cli/capcom.md): every command, flag and example.
 - [File format](reference/file-format.md): the files capcom keeps under `.capcom/`.
