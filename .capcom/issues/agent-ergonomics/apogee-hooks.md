@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 2
 labels: [agents]
+plan: 2026-10-20 - 00 - apogee-hooks-plan
 created: 2026-10-20T09:00:44Z
 ---
 
