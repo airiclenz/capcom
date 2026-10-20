@@ -4,6 +4,8 @@ description: "A git-native issue tracker and knowledge base for coding agents: i
 sidebar: { order: 0 }
 ---
 
+![capcom ui: claim an issue, watch an agent close another, browse the Issue tree and the Knowledge](../../graphics/demo.gif)
+
 **Mission control for a repository and the coding agents working in it.**
 
 capcom is a command-line issue tracker and project knowledge base built for AI coding agents such

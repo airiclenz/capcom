@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The manual's start page opens with the README's demo GIF.
 - The manual gains a [FAQ](docs/site/getting-started/faq.md) and a [comparison](docs/site/getting-started/comparison.md) with beads, GitHub Issues, Task Master and a `TODO.md`; the README FAQ answers which agents capcom works with and how to keep project knowledge across sessions; the README and manual say capcom is not affiliated with Capcom Co., Ltd.; and a root `llms.txt` indexes the docs for agents and answer engines.
 - `capcom ui`: the tab bar now names the worktree it shows ahead of the version, as `~/repos/capcom · v<version> · capcom`: the worktree's top directory, with your home directory shown as `~` and any path outside it shown in full. A terminal too narrow for that shows `v<version> · capcom` alone, and a narrower one neither, so the tabs are never cut.
 - A mistyped command or subcommand now names the closest valid one: `capcom shwo x` fails (exit 2) with `capcom: unknown command "shwo" for "capcom"; did you mean show?`, and `capcom know shwo x` suggests `know show`. `--json` carries it as `error.suggestion` and `--kv` as a `SUGGESTION=` line before `STATUS=`; nothing is suggested when no command is close. A mistyped subcommand of `know`, `dep`, `lock` or `related` now fails with exit 2 instead of printing the group's help and exiting 0; each still prints its help when called alone.
