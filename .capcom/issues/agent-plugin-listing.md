@@ -1,10 +1,12 @@
 ---
 title: Agents cannot find capcom in a plugin or skill marketplace
-status: active
+status: done
 type: task
 priority: 3
 labels: [agents]
 created: 2026-10-20T06:03:14Z
+closed: 2026-10-20T20:42:24Z
+reason: Published as a Claude Code plugin in the repo's own airiclenz marketplace (capcom@airiclenz, installs from GitHub); submitted to the claude.ai directory 2026-10-20, review pending; README links the install
 ---
 
 Coding agents discover tools through plugin and skill marketplaces (the Claude Code plugin
