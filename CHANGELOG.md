@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-10-21
+
 - capcom is now a Claude Code plugin: `/plugin install capcom --marketplace airiclenz/capcom` (or `/plugin marketplace add airiclenz/capcom` then `/plugin install capcom@airiclenz`) adds a `capcom` skill, which tells Claude how to install capcom, set a repository up and work an Issue, and runs `capcom prime` at session start and before compaction in any repository with a `.capcom/`. The hook stays silent without the `capcom` binary, without a store, or when the project or user settings already run `capcom prime`. [Agent setup](docs/site/agents/agent-setup.md#claude-code-plugin) has the details.
 - The manual's start page opens with the README's demo GIF.
 - The manual gains a [FAQ](docs/site/getting-started/faq.md) and a [comparison](docs/site/getting-started/comparison.md) with beads, GitHub Issues, Task Master and a `TODO.md`; the README FAQ answers which agents capcom works with and how to keep project knowledge across sessions; the README and manual say capcom is not affiliated with Capcom Co., Ltd.; and a root `llms.txt` indexes the docs for agents and answer engines.
