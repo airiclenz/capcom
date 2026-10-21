@@ -78,8 +78,8 @@ capcom is a plain CLI, so any agent that can run a shell command can use it.
 - **Claude Code plugin.** In Claude Code, `/plugin install capcom --marketplace airiclenz/capcom`
   adds a capcom skill and runs `capcom prime` at session start in any repository with a
   `.capcom/` ([Agent setup](https://airiclenz.com/capcom/agents/agent-setup/#claude-code-plugin)).
-- **Claude Code and Codex hooks.** `capcom init --claude-hooks` or `--codex-hooks` runs
-  `capcom prime` at session start, so every session begins with a briefing.
+- **Claude Code, Codex and apogee hooks.** `capcom init --claude-hooks`, `--codex-hooks` or
+  `--apogee-hooks` runs `capcom prime` at session start, so every session begins with a briefing.
 - **Stable output.** `--json` and `--kv` are easy to parse; `capcom check` errors are easy to fix
   in a loop.
 
@@ -189,7 +189,7 @@ More answers are in the manual's [FAQ](docs/site/getting-started/faq.md).
 **Which coding agents does capcom work with?**
 Any agent that can run a shell command: Claude Code, OpenAI Codex, Cursor, Gemini CLI, Aider,
 GitHub Copilot and others. `capcom agents` writes the how-to block into `AGENTS.md`, and
-`capcom init --claude-hooks` or `--codex-hooks` briefs every new session
+`capcom init --claude-hooks`, `--codex-hooks` or `--apogee-hooks` briefs every new session
 ([agent setup](docs/site/agents/agent-setup.md)).
 
 **How do I give a coding agent project knowledge that lasts across sessions?**

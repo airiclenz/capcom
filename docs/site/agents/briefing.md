@@ -66,7 +66,7 @@ Section by section:
 ## When to run it
 
 - **At the start of every session.** The agent learns the state of the work before it touches
-  anything. The [Claude Code and Codex hooks](agent-setup.md) do this automatically.
+  anything. The [Claude Code, Codex and apogee hooks](agent-setup.md) do this automatically.
 - **Around a context compaction.** A long session forgets its early context when it is compacted;
   the hooks run `prime` again so the agent keeps an up-to-date picture.
 - **After a merge or a branch switch.** The Ready list and the Elsewhere report are those of the
@@ -98,6 +98,6 @@ The Elsewhere entries sit in the envelope's top-level `elsewhere` array, as for 
 
 ## Next
 
-- [Agent setup](agent-setup.md): run `prime` from Claude Code and Codex hooks.
+- [Agent setup](agent-setup.md): run `prime` from Claude Code, Codex and apogee hooks.
 - [The Managed block](managed-block.md): the standing instructions an agent reads beside the
   Briefing.

@@ -52,8 +52,8 @@ To brief Claude Code at every session start and before compaction, add to .claud
 
 `.capcom/config.yaml` lists every setting with its default value and a comment. The snippet at
 the end is for Claude Code users: `capcom init --claude-hooks` writes it for you, and
-`capcom init --codex-hooks` does the same for Codex. The [agent setup](../agents/agent-setup.md)
-page covers both.
+`capcom init --codex-hooks` and `capcom init --apogee-hooks` do the same for Codex and apogee.
+The [agent setup](../agents/agent-setup.md) page covers all three.
 
 ## 2. Tell your agents
 
@@ -180,7 +180,7 @@ broken Note refs: 0
 check: no problems
 ```
 
-With the Claude Code or Codex hooks installed, every session starts with this output.
+With the Claude Code, Codex or apogee hooks installed, every session starts with this output.
 
 ## 8. Commit
 

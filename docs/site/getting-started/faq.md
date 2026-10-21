@@ -20,8 +20,8 @@ comes from spaceflight, where CAPCOM is the one voice on the ground that talks t
 
 capcom works with any agent that can run a shell command: Claude Code, OpenAI Codex, Cursor,
 Gemini CLI, Aider, GitHub Copilot and others. `capcom agents` writes a short how-to block into
-`AGENTS.md` and links it from `CLAUDE.md` and `GEMINI.md`, and `capcom init --claude-hooks` or
-`--codex-hooks` runs the session briefing when a session starts. In Claude Code,
+`AGENTS.md` and links it from `CLAUDE.md` and `GEMINI.md`, and `capcom init --claude-hooks`,
+`--codex-hooks` or `--apogee-hooks` runs the session briefing when a session starts. In Claude Code,
 `/plugin install capcom --marketplace airiclenz/capcom` installs a capcom plugin that does the same
 in every repository with a `.capcom/`. See [Agent setup](../agents/agent-setup.md).
 

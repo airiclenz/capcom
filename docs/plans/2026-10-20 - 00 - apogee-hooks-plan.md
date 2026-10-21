@@ -198,7 +198,11 @@ write all three files; the no-apogee path above.
 
 **Commit:** `feat(cli): add capcom init --apogee-hooks`
 
-## 4. Document apogee hooks
+## 4. Document apogee hooks — ✅ DONE (2026-10-21)
+
+NOTES (2026-10-21): minimum apogee phrased as "the first apogee release after v0.27.0" per the run's DECISION (item 1's gate waived; no release named yet); the old-apogee start-up line is described, never quoted.
+NOTES (2026-10-21): the "sets up both agents at once" paragraph stays at the end of "## Codex hooks", reworded to the three hook flags, with the new "## apogee hooks" section directly after it.
+NOTES (2026-10-21): the installed capcom on PATH reports "AGENTS.md:29: the capcom block is out of date" in capcom check (pre-existing, file untouched by this item); the binary built from this tree reports no problems.
 
 Depends on item 3.
 

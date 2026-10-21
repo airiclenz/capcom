@@ -1,6 +1,6 @@
 ---
 title: "Agent setup"
-description: "Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code and Codex, and the Claude Code plugin."
+description: "Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code, Codex and apogee, and the Claude Code plugin."
 sidebar: { order: 1 }
 ---
 
@@ -159,8 +159,53 @@ Codex's `config.toml`:
 hooks = true
 ```
 
-The two flags are independent and combine with each other and with `--merge-driver`:
-`capcom init --claude-hooks --codex-hooks` sets up both agents at once.
+The hook flags are independent and combine with each other and with `--merge-driver`:
+`capcom init --claude-hooks --codex-hooks --apogee-hooks` sets up all three agents at once.
+
+## apogee hooks
+
+`capcom init --apogee-hooks` does the same for [apogee](https://github.com/airiclenz/apogee),
+adding a reaction that runs `capcom prime` to the repository's `.apogee/config.yaml`:
+
+```console
+$ capcom init --apogee-hooks
+...
+added the capcom prime reaction to .apogee/config.yaml
+apogee asks to adopt reaction capcom-prime at the next session start
+needs an apogee release after v0.27.0; an older apogee ignores the capcom-prime entry
+```
+
+It creates the file when it is missing and otherwise adds one entry under `reactions:`, keeping
+everything else in the file as it was:
+
+```yaml
+reactions:
+  - id: capcom-prime
+    on: [session-started, compaction-finished]
+    advise: ["capcom", "prime"]
+```
+
+An `advise:` reaction is one whose output the model reads. On `session-started` the Briefing lands
+ahead of the session's first prompt, and on `compaction-finished` it lands again after every
+compaction fold. That is the one difference from Claude Code and Codex: their `PreCompact` hook
+runs before the fold, while apogee's `compaction-finished` briefs the model after it. The run
+starts as the fold begins, and its answer lands once the fold has replaced the conversation.
+
+**Adopt it once.** apogee treats a reaction in a project's config as proposed until each user
+adopts it, and keeps that answer on the user's own machine, never in the repository. Until then the
+entry stays inert. apogee offers it in a pane at the next session start; the `/settings` screen and
+`apogee project adopt`, run from a shell, answer it too. An edit to the entry asks again.
+
+**Where it runs.** apogee runs `capcom prime` in the Project root. With `confine-to-workspace` on,
+it runs inside apogee's workspace box, and on a host that cannot build that box it does not run.
+The run has a default `timeout:` of 10 s, and the model reads at most 8 KiB of its output.
+
+**Which apogee.** Briefing on `session-started` and `compaction-finished` needs the first apogee
+release after v0.27.0. An older apogee ignores the capcom-prime entry, with one start-up line naming
+it, and loads the rest of the project config. apogee's retracted 1.x releases (v1.0.0 to v1.8.0)
+predate it despite their higher numbers.
+
+Commit `.apogee/config.yaml` so every clone gets the reaction.
 
 ## Other agents
 

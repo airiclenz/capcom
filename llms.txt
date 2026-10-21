@@ -26,7 +26,7 @@ Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `ai
 
 ## Agents
 
-- [Agent setup](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/agent-setup.md): Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code and Codex, and the Claude Code plugin.
+- [Agent setup](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/agent-setup.md): Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code, Codex and apogee, and the Claude Code plugin.
 - [The session briefing](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/briefing.md): What capcom prime prints at the start of an agent session (Ready work, Issues in progress, Tree locks, broken Note refs, store health, Elsewhere) and when to run it.
 - [The Managed block](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/managed-block.md): capcom agents writes and refreshes a marked section of AGENTS.md telling agents how to use capcom and listing the top of the Knowledge tree; the rest of the file stays yours.
 
