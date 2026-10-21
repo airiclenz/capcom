@@ -624,6 +624,192 @@ func TestInitCodexHooks_WithoutClaudeHooks_StillPrintsTheClaudeSnippet(t *testin
 	}
 }
 
+// The lines init --apogee-hooks prints after its added or present line, exactly as the user reads
+// them.
+const (
+	wantApogeeAdopt   = "apogee asks to adopt reaction capcom-prime at the next session start\n"
+	wantApogeeVersion = "needs an apogee release after v0.27.0; an older apogee ignores the capcom-prime entry\n"
+)
+
+// apogeeConfigNew is the .apogee/config.yaml init --apogee-hooks creates.
+const apogeeConfigNew = `reactions:
+  - id: capcom-prime
+    on: [session-started, compaction-finished]
+    advise: ["capcom", "prime"]
+`
+
+// apogeeConfigBefore is a project apogee config with another key, a reaction and a trailing comment.
+const apogeeConfigBefore = `model: local
+reactions:
+  - id: vet
+    on: [turn-finished]
+    run: [go, vet, ./...]
+# end of reactions
+`
+
+// apogeeConfigAfter is apogeeConfigBefore once init --apogee-hooks added the capcom prime reaction.
+const apogeeConfigAfter = `model: local
+reactions:
+  - id: vet
+    on: [turn-finished]
+    run: [go, vet, ./...]
+  - id: capcom-prime
+    on: [session-started, compaction-finished]
+    advise: ["capcom", "prime"]
+# end of reactions
+`
+
+// writeApogeeConfig writes content as the .apogee/config.yaml of root.
+func writeApogeeConfig(t *testing.T, root string, content string) string {
+	t.Helper()
+	path := filepath.Join(root, ".apogee", "config.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	return path
+}
+
+func TestInitApogeeHooks_NoConfig_CreatesIt(t *testing.T) {
+	root := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--apogee-hooks", "--json")
+
+	content, err := os.ReadFile(filepath.Join(root, ".apogee", "config.yaml"))
+	if err != nil || string(content) != apogeeConfigNew {
+		t.Errorf("config.yaml = %v\n%s\nwant\n%s", err, content, apogeeConfigNew)
+	}
+	data := decodeEnvelope(t, stdout)["data"].(map[string]any)
+	_, isClaude := data["claude_hooks"]
+	_, isCodex := data["codex_hooks"]
+	if data["apogee_hooks"] != claudeHooksAdded || isClaude || isCodex {
+		t.Errorf("data = %v, want apogee_hooks %s and no claude_hooks or codex_hooks", data, claudeHooksAdded)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".claude")); !os.IsNotExist(err) {
+		t.Errorf("init --apogee-hooks created .claude: %v", err)
+	}
+}
+
+func TestInitApogeeHooks_ExistingConfig_KeepsItsEntriesAndIsIdempotent(t *testing.T) {
+	root := newGitRepo(t)
+	path := writeApogeeConfig(t, root, apogeeConfigBefore)
+
+	first := mustRun(t, root, "init", "--apogee-hooks")
+	merged, err := os.ReadFile(path)
+	second := mustRun(t, root, "init", "--apogee-hooks")
+	secondJSON := mustRun(t, root, "init", "--apogee-hooks", "--json")
+	again, againErr := os.ReadFile(path)
+
+	if err != nil || string(merged) != apogeeConfigAfter {
+		t.Fatalf("config.yaml = %v\n%s\nwant\n%s", err, merged, apogeeConfigAfter)
+	}
+	if againErr != nil || string(again) != apogeeConfigAfter {
+		t.Errorf("a second init --apogee-hooks changed config.yaml:\n%s", again)
+	}
+	wantFirst := "added the capcom prime reaction to .apogee/config.yaml\n" + wantApogeeAdopt + wantApogeeVersion
+	if !strings.Contains(first, wantFirst) {
+		t.Errorf("init --apogee-hooks output = %q, want it to contain %q", first, wantFirst)
+	}
+	wantSecond := ".apogee/config.yaml already runs capcom prime\n" + wantApogeeAdopt + wantApogeeVersion
+	if !strings.Contains(second, wantSecond) {
+		t.Errorf("re-run output = %q, want it to contain %q", second, wantSecond)
+	}
+	if data := decodeEnvelope(t, secondJSON)["data"].(map[string]any); data["apogee_hooks"] != claudeHooksPresent {
+		t.Errorf("re-run apogee_hooks = %v, want %s", data["apogee_hooks"], claudeHooksPresent)
+	}
+}
+
+func TestInitApogeeHooks_UnusableConfig_FailsWithPath(t *testing.T) {
+	cases := []struct {
+		name       string
+		content    string
+		wantStderr string
+	}{
+		{"broken YAML", "allow:\n  - go test\nmodel: \"x\n",
+			"capcom: .apogee/config.yaml:3: invalid config: found unexpected end of stream\n"},
+		{"flow reactions list", "allow: [go test]\nreactions: []\n",
+			"capcom: .apogee/config.yaml:2: reactions must be a block list; add the capcom-prime entry by hand\n"},
+		{"broken YAML without a line", "a: b: c\n",
+			"capcom: .apogee/config.yaml: invalid config: yaml: mapping values are not allowed in this context\n"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newGitRepo(t)
+			path := writeApogeeConfig(t, root, testCase.content)
+
+			_, stderr, exitCode := runCLI(t, root, "init", "--apogee-hooks")
+
+			content, _ := os.ReadFile(path)
+			if exitCode != ExitError || stderr != testCase.wantStderr || string(content) != testCase.content {
+				t.Errorf("init --apogee-hooks = %d, stderr %q, file %q; want 1, %q and the file untouched",
+					exitCode, stderr, content, testCase.wantStderr)
+			}
+		})
+	}
+}
+
+func TestInitApogeeHooks_WithoutClaudeHooks_StillPrintsTheClaudeSnippet(t *testing.T) {
+	root := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--apogee-hooks")
+
+	if !strings.HasSuffix(stdout, wantApogeeVersion+"\n"+claudeHooksSnippet()) {
+		t.Errorf("init --apogee-hooks stdout:\n%s\nwant the apogee lines, then the Claude snippet as plain init prints it", stdout)
+	}
+}
+
+func TestInitApogeeHooks_WithTheOtherHookFlags_WritesAllThreeFiles(t *testing.T) {
+	root := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--claude-hooks", "--codex-hooks", "--apogee-hooks", "--json")
+
+	data := decodeEnvelope(t, stdout)["data"].(map[string]any)
+	if data["claude_hooks"] != claudeHooksAdded || data["codex_hooks"] != claudeHooksAdded || data["apogee_hooks"] != claudeHooksAdded {
+		t.Errorf("data = %v, want claude_hooks, codex_hooks and apogee_hooks all %s", data, claudeHooksAdded)
+	}
+	for _, path := range []string{".claude/settings.json", ".codex/hooks.json", ".apogee/config.yaml"} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(path))); err != nil {
+			t.Errorf("init with all three hook flags wrote no %s: %v", path, err)
+		}
+	}
+}
+
+func TestInit_WithoutApogeeHooks_NamesNothingOfApogee(t *testing.T) {
+	cases := []struct {
+		name  string
+		flags []string
+	}{
+		{"plain", nil},
+		{"claude hooks", []string{"--claude-hooks"}},
+		{"codex hooks", []string{"--codex-hooks"}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newGitRepo(t)
+			jsonRoot := newGitRepo(t)
+
+			text := mustRun(t, root, append([]string{"init"}, testCase.flags...)...)
+			jsonOut := mustRun(t, jsonRoot, append([]string{"init", "--json"}, testCase.flags...)...)
+
+			for _, apogeeText := range []string{".apogee/config.yaml", "capcom prime reaction", wantApogeeAdopt, wantApogeeVersion} {
+				if strings.Contains(text, apogeeText) {
+					t.Errorf("init %v stdout names %q:\n%s", testCase.flags, apogeeText, text)
+				}
+			}
+			if _, isApogee := decodeEnvelope(t, jsonOut)["data"].(map[string]any)["apogee_hooks"]; isApogee {
+				t.Errorf("init %v --json data carries apogee_hooks: %s", testCase.flags, jsonOut)
+			}
+			for _, dir := range []string{root, jsonRoot} {
+				if _, err := os.Stat(filepath.Join(dir, ".apogee")); !os.IsNotExist(err) {
+					t.Errorf("init %v created .apogee: %v", testCase.flags, err)
+				}
+			}
+		})
+	}
+}
+
 // The git config lines init --merge-driver prints, exactly as the user runs them.
 const (
 	wantDriverName    = `git config merge.capcom-log.name "capcom Log merge"`

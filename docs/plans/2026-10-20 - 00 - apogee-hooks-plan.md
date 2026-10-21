@@ -145,7 +145,10 @@ unchanged; `InstallApogee` creates `.apogee/` and keeps an existing file's mode.
 
 **Commit:** `feat(hooks): merge a capcom prime reaction into .apogee/config.yaml`
 
-## 3. capcom init --apogee-hooks
+## 3. capcom init --apogee-hooks — ✅ DONE (2026-10-21)
+
+NOTES (2026-10-21): minimum-version line reads `needs an apogee release after v0.27.0; an older apogee ignores the capcom-prime entry` (the plan's `needs apogee <minimum> or later` template rephrased per the run's DECISION, since item 1 recorded no released version); initLong carries the same "needs an apogee release after v0.27.0".
+NOTES (2026-10-21): the apogee lines print after the Codex lines and before the --merge-driver lines when flags are combined; the initExample line is column-aligned with its siblings (three spaces before `#`, not the plan's two).
 
 Depends on item 2.
 

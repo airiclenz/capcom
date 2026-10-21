@@ -23,17 +23,21 @@ type initData struct {
 	ClaudeHooks string `json:"claude_hooks,omitempty"`
 	// CodexHooks is what --codex-hooks did to the Codex hooks file: added or present.
 	CodexHooks string `json:"codex_hooks,omitempty"`
+	// ApogeeHooks is what --apogee-hooks did to the apogee project config: added or present.
+	ApogeeHooks string `json:"apogee_hooks,omitempty"`
 	// MergeDriver is what --merge-driver did to .gitattributes: added or present.
 	MergeDriver string `json:"merge_driver,omitempty"`
 	// GitConfig lists the git config commands --merge-driver leaves for the user to run.
 	GitConfig []string `json:"git_config,omitempty"`
 }
 
-// Flags of init: add the capcom prime hooks to the Claude Code settings or to the Codex hooks, or
-// hand issue files to the capcom-log merge driver in .gitattributes.
+// Flags of init: add the capcom prime hooks to the Claude Code settings or to the Codex hooks, add
+// the capcom prime reaction to the apogee project config, or hand issue files to the capcom-log
+// merge driver in .gitattributes.
 const (
 	flagClaudeHooks = "claude-hooks"
 	flagCodexHooks  = "codex-hooks"
+	flagApogeeHooks = "apogee-hooks"
 	flagMergeDriver = "merge-driver"
 )
 
@@ -43,12 +47,16 @@ const (
 		"knowledge directories and config.yaml. An existing store is left as it is. Without " +
 		"--claude-hooks it prints the Claude Code hooks that run capcom prime at session start and " +
 		"before compaction, for you to add; --claude-hooks merges those SessionStart and PreCompact " +
-		"hooks into .claude/settings.json, and --codex-hooks into .codex/hooks.json. --merge-driver " +
+		"hooks into .claude/settings.json, and --codex-hooks into .codex/hooks.json. --apogee-hooks " +
+		"adds a reaction running capcom prime on apogee's session-started and compaction-finished to " +
+		".apogee/config.yaml, which apogee asks each user to adopt once; it needs an apogee release " +
+		"after v0.27.0. --merge-driver " +
 		"hands issue files to the capcom-log merge driver in .gitattributes and prints the two git " +
 		"config commands that define it. The flags are independent and can be combined."
 	initExample = "  capcom init                  # create .capcom/ in this git repository\n" +
 		"  capcom init --claude-hooks   # ...and run capcom prime from Claude Code's session hooks\n" +
 		"  capcom init --codex-hooks    # ...and from Codex's, which needs [features] hooks = true\n" +
+		"  capcom init --apogee-hooks   # ...and from apogee's session-started and compaction-finished reaction\n" +
 		"  capcom init --merge-driver   # ...and merge issue Logs by entry (prints two git config lines)"
 )
 
@@ -56,7 +64,15 @@ const (
 // unless the feature is on.
 const codexFeatureNote = "Codex runs hooks only with [features] hooks = true in its config.toml\n"
 
-// ClaudeHooks, CodexHooks and MergeDriver values of initData.
+// apogeeAdoptNote and apogeeVersionNote are what init --apogee-hooks prints in text mode after its
+// added or present line: apogee runs a project reaction only once the user adopts it, and an apogee
+// before the release that admits advise on session-started and compaction-finished skips the entry.
+const (
+	apogeeAdoptNote   = "apogee asks to adopt reaction capcom-prime at the next session start\n"
+	apogeeVersionNote = "needs an apogee release after v0.27.0; an older apogee ignores the capcom-prime entry\n"
+)
+
+// ClaudeHooks, CodexHooks, ApogeeHooks and MergeDriver values of initData.
 const (
 	claudeHooksAdded   = string(hooks.Added)
 	claudeHooksPresent = string(hooks.Present)
@@ -65,12 +81,14 @@ const (
 // newInitCommand creates the store in the current git working tree, or does nothing when it
 // already exists. With --claude-hooks it also merges the hooks running capcom prime into
 // .claude/settings.json; without it, text mode prints those hooks for the user to add. With
-// --codex-hooks it merges the same hooks into .codex/hooks.json. With --merge-driver it adds the
-// capcom-log merge driver line to .gitattributes and prints the git config commands that define the
-// driver. The three flags are independent.
+// --codex-hooks it merges the same hooks into .codex/hooks.json. With --apogee-hooks it adds the
+// reaction running capcom prime on session-started and compaction-finished to .apogee/config.yaml.
+// With --merge-driver it adds the capcom-log merge driver line to .gitattributes and prints the git
+// config commands that define the driver. The four flags are independent.
 func (a *app) newInitCommand() *cobra.Command {
 	isClaudeHooks := false
 	isCodexHooks := false
+	isApogeeHooks := false
 	isMergeDriver := false
 	cmd := &cobra.Command{
 		Use:     "init",
@@ -108,6 +126,13 @@ func (a *app) newInitCommand() *cobra.Command {
 				}
 				text += line + codexFeatureNote
 			}
+			if isApogeeHooks {
+				var line string
+				if data.ApogeeHooks, line, err = installApogeeHooks(opened.WorktreeRoot); err != nil {
+					return err
+				}
+				text += line + apogeeAdoptNote + apogeeVersionNote
+			}
 			if isMergeDriver {
 				var line string
 				if data.MergeDriver, line, err = installMergeDriver(opened.WorktreeRoot); err != nil {
@@ -123,6 +148,8 @@ func (a *app) newInitCommand() *cobra.Command {
 		"also add SessionStart and PreCompact hooks running capcom prime to "+hooks.Claude.Path)
 	cmd.Flags().BoolVar(&isCodexHooks, flagCodexHooks, false,
 		"also add SessionStart and PreCompact hooks running capcom prime to "+codexHooksPath)
+	cmd.Flags().BoolVar(&isApogeeHooks, flagApogeeHooks, false,
+		"also add a reaction running capcom prime at session start and after compaction to "+hooks.ApogeePath)
 	cmd.Flags().BoolVar(&isMergeDriver, flagMergeDriver, false,
 		"also hand issue files to the capcom-log merge driver in "+hooks.GitattributesPath)
 	return cmd
@@ -140,6 +167,21 @@ func installHooks(worktreeRoot string, target hooks.Target) (status string, line
 		return claudeHooksAdded, "added the " + primeCommand + " hooks to " + target.Path + "\n", nil
 	default:
 		return claudeHooksPresent, target.Path + " already runs " + primeCommand + "\n", nil
+	}
+}
+
+// installApogeeHooks adds the capcom prime reaction to the apogee project config and returns the
+// initData value and the text line saying what it did. A config hooks refuses is invalid at its
+// path and, where one is to blame, its line.
+func installApogeeHooks(worktreeRoot string) (status string, line string, err error) {
+	installed, err := hooks.InstallApogee(worktreeRoot)
+	switch {
+	case err != nil:
+		return "", "", hooksFailure(err)
+	case installed == hooks.Added:
+		return claudeHooksAdded, "added the " + primeCommand + " reaction to " + hooks.ApogeePath + "\n", nil
+	default:
+		return claudeHooksPresent, hooks.ApogeePath + " already runs " + primeCommand + "\n", nil
 	}
 }
 
@@ -210,7 +252,7 @@ func initText(root string, created []string) string {
 // tree root.
 var codexHooksPath = hooks.Codex.Path
 
-// primeCommand is the command the Claude Code and Codex hooks run.
+// primeCommand is the command the Claude Code and Codex hooks and the apogee reaction run.
 const primeCommand = hooks.PrimeCommand
 
 // claudeHooksSnippet is what plain init prints: the settings that make Claude Code run capcom
