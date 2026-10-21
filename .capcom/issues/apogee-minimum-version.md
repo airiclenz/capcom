@@ -1,9 +1,11 @@
 ---
 title: Name the real minimum apogee version for --apogee-hooks
-status: open
+status: done
 type: task
 priority: 3
 created: 2026-10-21T14:40:40Z
+closed: 2026-10-21T18:04:18Z
+reason: apogee v0.28.0 released; init --apogee-hooks, its help, agent-setup and CHANGELOG name it (dabb8a6)
 ---
 
 `capcom init --apogee-hooks` and its docs name the minimum apogee only as a placeholder, "an apogee release after v0.27.0", because apogee had not yet cut the release carrying `advise:` on `session-started` and the `compaction-finished` moment (apogee main 4b290a8b) when the feature landed. Once apogee cuts that release, every placeholder should name the real version, so a user can check their apogee against it.

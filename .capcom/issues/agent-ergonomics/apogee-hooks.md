@@ -1,11 +1,13 @@
 ---
 title: capcom init cannot wire capcom prime into apogee
-status: open
+status: done
 type: task
 priority: 2
 labels: [agents]
 plan: 2026-10-20 - 00 - apogee-hooks-plan
 created: 2026-10-20T09:00:44Z
+closed: 2026-10-21T18:04:18Z
+reason: minimum apogee named as v0.28.0; all acceptance met
 ---
 `capcom init --claude-hooks` and `--codex-hooks` wire `capcom prime` into Claude Code and Codex
 sessions, each on its own flag, so a user installs only the agent they run. apogee users have no
