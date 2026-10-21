@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // GitattributesPath is the .gitattributes file InstallMergeAttribute adds to, relative to the
@@ -42,15 +40,8 @@ func InstallMergeAttribute(worktreeRoot string) (Status, error) {
 	if !isAdded {
 		return Present, nil
 	}
-	if isMissing {
-		// A new file has no bytes, mode or line ending to keep.
-		if err := nodefile.WriteFileAtomic(path, bytes.NewReader(appended)); err != nil {
-			return "", err
-		}
-		return Added, nil
-	}
-	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(appended)); err != nil {
-		return "", &Error{Path: GitattributesPath, Message: err.Error()}
+	if err := writeWorktreeFile(path, GitattributesPath, appended, isMissing); err != nil {
+		return "", err
 	}
 	return Added, nil
 }

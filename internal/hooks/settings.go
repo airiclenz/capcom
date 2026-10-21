@@ -153,15 +153,8 @@ func Install(worktreeRoot string, target Target) (Status, error) {
 	if !isAdded {
 		return Present, nil
 	}
-	if isMissing {
-		// A new file has no mode to keep.
-		if err := nodefile.WriteFileAtomic(path, bytes.NewReader(merged)); err != nil {
-			return "", err
-		}
-		return Added, nil
-	}
-	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(merged)); err != nil {
-		return "", &Error{Path: target.Path, Message: err.Error()}
+	if err := writeWorktreeFile(path, target.Path, merged, isMissing); err != nil {
+		return "", err
 	}
 	return Added, nil
 }
@@ -184,6 +177,21 @@ func readWorktreeFile(path, displayPath string) (content []byte, isMissing bool,
 		}
 	}
 	return nil, false, &Error{Path: displayPath, Message: err.Error()}
+}
+
+// writeWorktreeFile writes content to the file at path, shown as displayPath, that readWorktreeFile
+// read. A missing file is created, with its directory, through nodefile.WriteFileAtomic, whose error
+// is returned as is: a new file has no bytes, mode or line ending to keep. An existing file is
+// replaced through nodefile.ReplaceFileVerbatim, never nodefile.WriteFileAtomic, which would reset
+// its mode; a failed replace is an *Error naming displayPath.
+func writeWorktreeFile(path, displayPath string, content []byte, isMissing bool) error {
+	if isMissing {
+		return nodefile.WriteFileAtomic(path, bytes.NewReader(content))
+	}
+	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(content)); err != nil {
+		return &Error{Path: displayPath, Message: err.Error()}
+	}
+	return nil
 }
 
 // Merge adds the capcom prime hook group to each event of target in the settings content, which may

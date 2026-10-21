@@ -11,8 +11,6 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
-
-	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // ApogeePath is the project apogee config InstallApogee adds the capcom prime reaction to, relative
@@ -72,15 +70,8 @@ func InstallApogee(worktreeRoot string) (Status, error) {
 	if err != nil || status == Present {
 		return status, err
 	}
-	if isMissing {
-		// A new file has no bytes, mode or line ending to keep.
-		if err := nodefile.WriteFileAtomic(path, bytes.NewReader(merged)); err != nil {
-			return "", err
-		}
-		return Added, nil
-	}
-	if err := nodefile.ReplaceFileVerbatim(path, bytes.NewReader(merged)); err != nil {
-		return "", &Error{Path: ApogeePath, Message: err.Error()}
+	if err := writeWorktreeFile(path, ApogeePath, merged, isMissing); err != nil {
+		return "", err
 	}
 	return Added, nil
 }
