@@ -1,10 +1,12 @@
 ---
 title: The manual at airiclenz.com/capcom returns 404
-status: open
+status: done
 type: task
 priority: 1
 labels: [docs]
 created: 2026-10-20T06:03:14Z
+closed: 2026-10-21T18:21:22Z
+reason: "manual live: all 62 docs/site pages serve at https://airiclenz.com/capcom/, llms.txt at /capcom/ and the root, SoftwareApplication JSON-LD, GitHub homepage set"
 ---
 
 The README, `docs/site/` and the `docs-layout` Note link the user manual at
