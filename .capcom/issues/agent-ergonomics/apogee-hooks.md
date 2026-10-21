@@ -35,3 +35,7 @@ supported, decide whether it should name all three flags instead.
   and combine freely.
 - `docs/site/agents/agent-setup.md` has an apogee section, and the CLI reference is regenerated.
 - Tests cover a fresh file, a merge into an existing file and a second run.
+
+## Log
+
+- 2026-10-21 Airic Lenz: plan 2026-10-20 - 00 - apogee-hooks-plan landed (9b738b6): --apogee-hooks merges the capcom-prime reaction, flags independent, docs and CLI reference, tests; open only for the real minimum apogee version, tracked in apogee-minimum-version
