@@ -40,7 +40,12 @@ and `compaction-finished` to the repository's `.apogee/config.yaml`, opt-in and 
 - Any change to plain `capcom init`, `--claude-hooks` or `--codex-hooks` output.
 - Running or probing apogee from capcom.
 
-## 1. Gate: a released apogee ships session-start and compaction advice
+## 1. Gate: a released apogee ships session-start and compaction advice — ✅ DONE (2026-10-21)
+
+NOTES (2026-10-21): release gate waived by the user (run invoked "even though apogee is not yet released"); no non-retracted release heading or v* tag carries both CHANGELOG lines yet: both sit under apogee's [Unreleased] at main 4b290a8b, after the latest release v0.27.0.
+NOTES (2026-10-21): source check passed: apogee main 4b290a8b ships both moments: CHANGELOG [Unreleased] carries "`advise:` on `session-started` is admitted" and "`compaction-finished` joins the Reaction vocabulary" (commits e8349c23, 33c095c2); internal/domain/reaction.go admits advise on MomentSessionStarted and MomentCompactionFinished; `grep -c 'pending admission' docs/manual/reactions.md` prints 0.
+NOTES (2026-10-21): minimum apogee: the first apogee release after v0.27.0 (no version named yet; it will carry apogee main 4b290a8b); the retracted 1.x series predates it.
+NOTES (2026-10-21): probe skipped: apogee on PATH is v0.27.0+4683.gae50b5bc7f56 (dev build, not a release tag).
 
 **What:**
 **Goal:** a released apogee accepts an `advise:` entry with `on: [session-started,
