@@ -172,7 +172,7 @@ $ capcom init --apogee-hooks
 ...
 added the capcom prime reaction to .apogee/config.yaml
 apogee asks to adopt reaction capcom-prime at the next session start
-needs an apogee release after v0.27.0; an older apogee ignores the capcom-prime entry
+needs apogee v0.28.0 or later; an older apogee ignores the capcom-prime entry
 ```
 
 It creates the file when it is missing and otherwise adds one entry under `reactions:`, keeping
@@ -200,10 +200,10 @@ entry stays inert. apogee offers it in a pane at the next session start; the `/s
 it runs inside apogee's workspace box, and on a host that cannot build that box it does not run.
 The run has a default `timeout:` of 10 s, and the model reads at most 8 KiB of its output.
 
-**Which apogee.** Briefing on `session-started` and `compaction-finished` needs the first apogee
-release after v0.27.0. An older apogee ignores the capcom-prime entry, with one start-up line naming
-it, and loads the rest of the project config. apogee's retracted 1.x releases (v1.0.0 to v1.8.0)
-predate it despite their higher numbers.
+**Which apogee.** Briefing on `session-started` and `compaction-finished` needs apogee v0.28.0 or
+later. An older apogee ignores the capcom-prime entry, with one start-up line naming it, and loads
+the rest of the project config. apogee's retracted 1.x releases (v1.0.0 to v1.8.0) predate it
+despite their higher numbers.
 
 Commit `.apogee/config.yaml` so every clone gets the reaction.
 

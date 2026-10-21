@@ -11,7 +11,7 @@ Create the capcom store (.capcom/) in this git repository
 
 ### Synopsis
 
-Create the capcom store in the current git working tree: .capcom/ with its issues and knowledge directories and config.yaml. An existing store is left as it is. Without --claude-hooks it prints the Claude Code hooks that run capcom prime at session start and before compaction, for you to add; --claude-hooks merges those SessionStart and PreCompact hooks into .claude/settings.json, and --codex-hooks into .codex/hooks.json. --apogee-hooks adds a reaction running capcom prime on apogee's session-started and compaction-finished to .apogee/config.yaml, which apogee asks each user to adopt once; it needs an apogee release after v0.27.0. --merge-driver hands issue files to the capcom-log merge driver in .gitattributes and prints the two git config commands that define it. The flags are independent and can be combined.
+Create the capcom store in the current git working tree: .capcom/ with its issues and knowledge directories and config.yaml. An existing store is left as it is. Without --claude-hooks it prints the Claude Code hooks that run capcom prime at session start and before compaction, for you to add; --claude-hooks merges those SessionStart and PreCompact hooks into .claude/settings.json, and --codex-hooks into .codex/hooks.json. --apogee-hooks adds a reaction running capcom prime on apogee's session-started and compaction-finished to .apogee/config.yaml, which apogee asks each user to adopt once; it needs apogee v0.28.0 or later. --merge-driver hands issue files to the capcom-log merge driver in .gitattributes and prints the two git config commands that define it. The flags are independent and can be combined.
 
 ```
 capcom init [flags]

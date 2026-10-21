@@ -628,7 +628,7 @@ func TestInitCodexHooks_WithoutClaudeHooks_StillPrintsTheClaudeSnippet(t *testin
 // them.
 const (
 	wantApogeeAdopt   = "apogee asks to adopt reaction capcom-prime at the next session start\n"
-	wantApogeeVersion = "needs an apogee release after v0.27.0; an older apogee ignores the capcom-prime entry\n"
+	wantApogeeVersion = "needs apogee v0.28.0 or later; an older apogee ignores the capcom-prime entry\n"
 )
 
 // apogeeConfigNew is the .apogee/config.yaml init --apogee-hooks creates.

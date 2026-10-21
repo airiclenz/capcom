@@ -49,8 +49,8 @@ const (
 		"before compaction, for you to add; --claude-hooks merges those SessionStart and PreCompact " +
 		"hooks into .claude/settings.json, and --codex-hooks into .codex/hooks.json. --apogee-hooks " +
 		"adds a reaction running capcom prime on apogee's session-started and compaction-finished to " +
-		".apogee/config.yaml, which apogee asks each user to adopt once; it needs an apogee release " +
-		"after v0.27.0. --merge-driver " +
+		".apogee/config.yaml, which apogee asks each user to adopt once; it needs apogee v0.28.0 or " +
+		"later. --merge-driver " +
 		"hands issue files to the capcom-log merge driver in .gitattributes and prints the two git " +
 		"config commands that define it. The flags are independent and can be combined."
 	initExample = "  capcom init                  # create .capcom/ in this git repository\n" +
@@ -66,10 +66,10 @@ const codexFeatureNote = "Codex runs hooks only with [features] hooks = true in 
 
 // apogeeAdoptNote and apogeeVersionNote are what init --apogee-hooks prints in text mode after its
 // added or present line: apogee runs a project reaction only once the user adopts it, and an apogee
-// before the release that admits advise on session-started and compaction-finished skips the entry.
+// before v0.28.0, the release that admits advise on session-started and compaction-finished skips the entry.
 const (
 	apogeeAdoptNote   = "apogee asks to adopt reaction capcom-prime at the next session start\n"
-	apogeeVersionNote = "needs an apogee release after v0.27.0; an older apogee ignores the capcom-prime entry\n"
+	apogeeVersionNote = "needs apogee v0.28.0 or later; an older apogee ignores the capcom-prime entry\n"
 )
 
 // ClaudeHooks, CodexHooks, ApogeeHooks and MergeDriver values of initData.
