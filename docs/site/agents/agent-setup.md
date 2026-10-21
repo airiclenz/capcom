@@ -194,7 +194,8 @@ starts as the fold begins, and its answer lands once the fold has replaced the c
 **Adopt it once.** apogee treats a reaction in a project's config as proposed until each user
 adopts it, and keeps that answer on the user's own machine, never in the repository. Until then the
 entry stays inert. apogee offers it in a pane at the next session start; the `/settings` screen and
-`apogee project adopt`, run from a shell, answer it too. An edit to the entry asks again.
+`apogee project adopt`, run from a shell, answer it too. Changing the entry's `id` or `advise:`
+asks again; changing `on:`, `timeout:`, `enabled:` or `workspace:` does not.
 
 **Where it runs.** apogee runs `capcom prime` in the Project root. With `confine-to-workspace` on,
 it runs inside apogee's workspace box, and on a host that cannot build that box it does not run.
