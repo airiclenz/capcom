@@ -3,7 +3,10 @@
 // the pure JSON edit; Install reads, merges and writes one Target in a working tree. Only the hooks
 // member is ever rewritten: every other member keeps its key order and its value its bytes. The
 // .gitattributes file hands issue files to the capcom-log merge driver: AppendMergeAttribute is the
-// pure line edit, InstallMergeAttribute reads, appends and writes it in a working tree.
+// pure line edit, InstallMergeAttribute reads, appends and writes it in a working tree. The project
+// apogee config, .apogee/config.yaml, gains a reaction running capcom prime: MergeApogee is the
+// YAML edit, made on lines so every other byte is kept, and InstallApogee reads, merges and writes
+// it in a working tree.
 package hooks
 
 import (
@@ -20,7 +23,7 @@ import (
 	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
-// PrimeCommand is the command the Claude Code and Codex hooks run.
+// PrimeCommand is the command the Claude Code and Codex hooks and the apogee reaction run.
 const PrimeCommand = "capcom prime"
 
 // Keys and layout of the settings files capcom writes.
@@ -31,21 +34,23 @@ const (
 	settingsSeparator = ","
 )
 
-// Status is what Install did to a settings file.
+// Status is what Install, InstallMergeAttribute or InstallApogee did to its file.
 type Status string
 
-// Status values of Install.
+// Status values of the installers.
 const (
-	// Added means the file was written: at least one event gained the capcom prime group.
+	// Added means the file was written: at least one settings event gained the capcom prime group,
+	// or the .gitattributes line or the apogee reaction was added.
 	Added Status = "added"
-	// Present means every event already ran capcom prime; the file was left as it is.
+	// Present means every settings event already ran capcom prime, or the .gitattributes line or
+	// the apogee reaction was already there; the file was left as it is.
 	Present Status = "present"
 )
 
-// Error is a file that cannot be read, a .gitattributes that cannot be replaced, or a settings file
-// that is not shaped as Claude Code and Codex read it. Path is the file relative to the working tree
-// root, slash-separated; Line is the 1-based line of a JSON syntax error, or 0 when no single line is
-// to blame.
+// Error is a file that cannot be read, a .gitattributes that cannot be replaced, a settings file
+// that is not shaped as Claude Code and Codex read it, or an apogee config MergeApogee cannot edit.
+// Path is the file relative to the working tree root, slash-separated; Line is the 1-based line of
+// a JSON or YAML syntax error or of the YAML node at fault, or 0 when no single line is to blame.
 type Error struct {
 	Path    string
 	Line    int

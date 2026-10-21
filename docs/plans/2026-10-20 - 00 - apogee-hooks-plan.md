@@ -82,7 +82,11 @@ series predates it". Items 3 and 4 use the recorded value, never one pinned in t
 
 **Commit:** none (gate only)
 
-## 2. Merge the capcom prime reaction into .apogee/config.yaml
+## 2. Merge the capcom prime reaction into .apogee/config.yaml — ✅ DONE (2026-10-21)
+
+NOTES (2026-10-21): Present is also recognised in a flow-style reactions list (checked before the block-list refusal), so an entry hand-added in flow form, as the refusal message invites, does not make every re-run fail; a flow list without it is still refused.
+NOTES (2026-10-21): an empty `reactions:` (null value) is refused as not a block list, and an explicit `~`/`null` document as not a mapping; an implicit empty document (empty, comments only, a lone `---`) gets `reactions:` appended. A yaml.v3 error without a `yaml: line N: ` prefix keeps its full text after `invalid config: `, with Line 0.
+NOTES (2026-10-21): InstallApogee repeats the create-or-replace write tail of Install and InstallMergeAttribute (third copy); folding the three into one helper was left out of scope.
 
 Depends on item 1.
 
