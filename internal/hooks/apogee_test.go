@@ -76,6 +76,21 @@ func TestMergeApogee_UsableContent_AddsTheReaction(t *testing.T) {
 				"model: x\n",
 		},
 		{
+			"anchored list",
+			"reactions: &r\n  - id: lint\n    on: [stop]\nmodel: x\n",
+			"reactions: &r\n  - id: lint\n    on: [stop]\n" + apogeeReaction + "model: x\n",
+		},
+		{
+			"tagged list",
+			"reactions: !!seq\n  - id: lint\n    on: [stop]\nmodel: x\n",
+			"reactions: !!seq\n  - id: lint\n    on: [stop]\n" + apogeeReaction + "model: x\n",
+		},
+		{
+			"anchored list, dash alone on its line",
+			"reactions: &r\n  -\n    id: lint\n    on: [stop]\nmodel: x\n",
+			"reactions: &r\n  -\n    id: lint\n    on: [stop]\n" + apogeeReaction + "model: x\n",
+		},
+		{
 			"last item on the last line without a line break",
 			"reactions:\n  - id: lint\n    on: [stop]",
 			"reactions:\n  - id: lint\n    on: [stop]\n" + apogeeReaction,

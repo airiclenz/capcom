@@ -124,9 +124,27 @@ func MergeApogee(content []byte) (merged []byte, status Status, err error) {
 	if reactions.Kind != yaml.SequenceNode || reactions.Style&yaml.FlowStyle != 0 {
 		return nil, "", &Error{Path: ApogeePath, Line: key.Line, Message: apogeeReactionsMessage}
 	}
-	indent := strings.Repeat(" ", reactions.Column-1)
-	after := lastItemLine(lines, reactions.Content[len(reactions.Content)-1].Line-1, reactions.Column-1)
-	return insertBlock(lines, after+1, reactionBlock(indent, ending), ending), Added, nil
+	last := reactions.Content[len(reactions.Content)-1]
+	dashIndent := itemDashIndent(lines, last)
+	after := lastItemLine(lines, last.Line-1, dashIndent)
+	return insertBlock(lines, after+1, reactionBlock(strings.Repeat(" ", dashIndent), ending), ending), Added, nil
+}
+
+// itemDashIndent returns the number of spaces before the `- ` of the block-list item. It is read
+// from the item's own lines, never from the list node's Column: yaml.v3 puts that at the list's
+// anchor or tag when it has one (`reactions: &r`), not at its first dash. The dash is the first
+// line, from the item's line upwards, that starts with `-` left of the item's own column; it sits
+// on a line above when the dash stands alone (`-` with the item on the next line).
+func itemDashIndent(lines [][]byte, item *yaml.Node) int {
+	indent := 0
+	for index := item.Line - 1; index >= 0; index-- {
+		content := bytes.TrimLeft(lines[index], " ")
+		indent = len(lines[index]) - len(content)
+		if bytes.HasPrefix(content, []byte("-")) && indent < item.Column-1 {
+			break
+		}
+	}
+	return indent
 }
 
 // isDocumentEnd reports whether line is a `...` document end marker. yaml.v3 stops reading at one
