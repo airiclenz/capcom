@@ -1,7 +1,7 @@
 // Package agents owns the Managed block of AGENTS.md: the part of the hand-written agent guide
 // between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes. The block is
-// rendered deterministically from the top level of the Knowledge tree and the configured doing
-// status, the one its claim line names, and a write splices it in by its markers, or appends it
+// rendered deterministically from the top level of the Knowledge tree and whether the config
+// declares a doing status, which its claim line needs, and a write splices it in by its markers, or appends it
 // when absent, keeping every byte outside the markers and the file's line ending. Sync is the one way callers reconcile the block with the Knowledge tree: it reads the
 // top level and inspects, refreshes or writes in one pass. The block is read and written only in a
 // file inside the working tree: an AGENTS.md that links outside it is never read or written. Guides
@@ -60,16 +60,14 @@ const loopOpening = "- `capcom next`: the most urgent ready issue, in full\n" +
 	"- `capcom ready`: the issues ready to work on, most urgent first\n" +
 	"- `capcom show <id>`: one issue in full, with what blocks it\n"
 
-// claimCommand opens the claim line; the configured doing status follows it.
-const claimCommand = "- `capcom update <id> --status "
-
-// claimPurpose closes the claim line after the doing status.
-const claimPurpose = "`: claim it before you start\n"
+// claimLine is the claim line: capcom start claims the Issue and takes the Tree lock in one step.
+const claimLine = "- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n"
 
 // loopClosing is the command list after the claim line: the rest of the work loop, then the other
 // commands, then where their flags are.
 const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" +
 	"- `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready\n" +
+	"- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next\n" +
 	"- `capcom reopen <id> --reason <text>`: undo a close\n" +
 	"- `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue\n" +
 	"- `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides\n" +
@@ -244,16 +242,16 @@ func relativeTo(dir, path string) string {
 }
 
 // render returns the block for notes and doingStatus, the begin and end markers included, with LF
-// line endings and no line ending after the end marker. The claim line names doingStatus, and is
-// left out when doingStatus is empty, the config declaring no doing status. Titles are flattened
-// onto one line.
+// line endings and no line ending after the end marker. The claim line names capcom start, and is
+// left out when doingStatus is empty, the config declaring no doing status; any other value of
+// doingStatus renders the same block. Titles are flattened onto one line.
 func render(notes []Note, doingStatus string) string {
 	var block strings.Builder
 	block.WriteString(BeginMarker + lineFeed)
 	block.WriteString(blockHeader)
 	block.WriteString(loopOpening)
 	if doingStatus != "" {
-		block.WriteString(claimCommand + doingStatus + claimPurpose)
+		block.WriteString(claimLine)
 	}
 	block.WriteString(loopClosing)
 	block.WriteString(blockGuidance)
@@ -291,9 +289,10 @@ func write(worktreeRoot string, notes []Note, doingStatus string) (Status, error
 }
 
 // Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
-// tree in knowledgeDir and with doingStatus, the configured doing status the claim line names (the
-// empty string when the config declares none, which leaves the claim line out), as mode says, and
-// returns the Status found before any write. Renaming the doing status therefore stales the block. It reads the
+// tree in knowledgeDir and with doingStatus, the configured doing status (the empty string when the
+// config declares none, which leaves the claim line out), as mode says, and returns the Status found
+// before any write. Only whether doingStatus is empty shapes the block, so renaming the doing status
+// does not stale it. It reads the
 // file once: the Status it reports is the one it acted on. It fails as topNotes does, as inspect
 // does, and, when mode writes, when the file cannot be written. An AGENTS.md that links outside the
 // working tree is never read: ModeWrite fails as write does, and the other modes report

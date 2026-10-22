@@ -843,8 +843,8 @@ the block capcom owns in it, the **Managed block**: the lines from `<!-- BEGIN C
 capcom as the issue register of record,
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
 install instructions, https://github.com/airiclenz/capcom#install), the commands an agent needs,
-the work loop first in the order it runs (`ready`, `show`, `update <id> --status <doing>` to claim
-an issue, `log`, `close`, `reopen`), then `create` with `--dep`, `dep add` and `dep list`,
+the work loop first in the order it runs (`next`, `ready`, `show`, `start` to claim an issue and
+take the Tree lock, `log`, `close`, `finish` to close it and free the lock, `reopen`), then `create` with `--dep`, `dep add` and `dep list`,
 `list --tree --depth 2` and `know tree`, followed by one line pointing to `capcom <cmd> --help` for
 each command's flags, a paragraph on what an issue's body holds (what is wrong
 or wanted, why, and an `## Acceptance` section, readable on its own; the how and the order belong
@@ -856,10 +856,10 @@ token it prints for `touch`, `release` and resuming, and asking the user when `c
 reports another session's lock), and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
 `background` left out, and so is one whose file a load problem names (a duplicate id or alias, an
-invalid or repeated alias). The claim line names the configured doing status, the first status of
-the `doing` category in `config.yaml` (`active` by default), and is left out when the config
-declares none. The block is rendered from the Note files and that doing status alone, so the same
-tree and config always yield the same block.
+invalid or repeated alias). The claim line names `capcom start`, and is left out when the config
+declares no doing status, no status of the `doing` category in `config.yaml`; what that status is
+called does not change the block. The block is rendered from the Note files and whether a doing
+status is declared alone, so the same tree and config always yield the same block.
 
 - `capcom agents` writes the block: it replaces the lines between the markers, or appends the
   block to the end of the file when it has none, and creates `AGENTS.md` when there is none. Every
@@ -872,7 +872,7 @@ tree and config always yield the same block.
   `capcom know update` of a top-level Note's title, retired flag or `background` label, a
   `capcom know mv` into, out of or within the top level, and a `capcom know rm` of a top-level Note. It never adds a block to
   a file without one. A write below the top level changes nothing, since the block lists only the
-  top level. A hand edit of a Note, or of `config.yaml` renaming the doing status, refreshes
+  top level. A hand edit of a Note, or of `config.yaml` adding or removing the doing status, refreshes
   nothing: `capcom check` reports the stale block, and `capcom agents` rewrites it.
 - A marker that appears twice, an end marker before the begin marker, or a begin marker that is
   never closed is an error at that marker's line, for `agents` and `check` alike.

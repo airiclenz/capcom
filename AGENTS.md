@@ -38,9 +38,10 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 - `capcom next`: the most urgent ready issue, in full
 - `capcom ready`: the issues ready to work on, most urgent first
 - `capcom show <id>`: one issue in full, with what blocks it
-- `capcom update <id> --status active`: claim it before you start
+- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints
 - `capcom log <id> <text>`: note progress as work lands
 - `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready
+- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next
 - `capcom reopen <id> --reason <text>`: undo a close
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue
 - `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides

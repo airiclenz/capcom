@@ -16,7 +16,7 @@ var goldenNotes = []Note{
 	{ID: "testing-rules", Title: "Testing rules\nand fixtures"},
 }
 
-// goldenDoing is the doing status the golden block's claim line names.
+// goldenDoing is the doing status the golden config declares, which keeps the claim line in.
 const goldenDoing = "active"
 
 // goldenBlock is render(goldenNotes, goldenDoing), byte for byte.
@@ -32,9 +32,10 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 - ` + "`capcom next`" + `: the most urgent ready issue, in full
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
 - ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
-- ` + "`capcom update <id> --status active`" + `: claim it before you start
+- ` + "`capcom start <id>`" + `: claim it and take the Tree lock before you start; keep the token it prints
 - ` + "`capcom log <id> <text>`" + `: note progress as work lands
 - ` + "`capcom close <id> --reason <text>`" + `: close an issue; it names the issues this made ready
+- ` + "`capcom finish <id> --reason <text> --token <token>`" + `: close it and free the Tree lock; it names the issue to work on next
 - ` + "`capcom reopen <id> --reason <text>`" + `: undo a close
 - ` + "`capcom create --id <slug> --title <title> [--dep <id>]`" + `: file a new issue
 - ` + "`capcom dep add <id> <dep-id>`" + `: make an issue wait for another; ` + "`capcom dep list <id>`" + ` shows both sides
@@ -115,6 +116,15 @@ Knowledge tree, top level:
 - ` + "`testing-rules`" + `: Testing rules and fixtures
 <!-- END CAPCOM -->`
 
+// preStartBlock is goldenBlock as capcom rendered it before the work loop named capcom start and
+// capcom finish: the claim line named the doing status, and no finish line followed close.
+var preStartBlock = strings.NewReplacer(
+	"- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n",
+	"- `capcom update <id> --status active`: claim it before you start\n",
+	"- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next\n",
+	"",
+).Replace(goldenBlock)
+
 // writeGuide writes content as the AGENTS.md of a new temp working tree and returns the tree.
 func writeGuide(t *testing.T, content string) string {
 	t.Helper()
@@ -145,16 +155,34 @@ func TestRender_Notes_MatchesGolden(t *testing.T) {
 	}
 }
 
-func TestRender_WorkLoop_NamesTheDoingStatus(t *testing.T) {
+func TestRender_WorkLoop_ClaimsWithStartAndClosesWithFinish(t *testing.T) {
+	t.Parallel()
+
+	block := render(goldenNotes, goldenDoing)
+
+	wants := []string{
+		"with what blocks it\n- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n" +
+			"- `capcom log <id> <text>`",
+		"made ready\n- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; " +
+			"it names the issue to work on next\n- `capcom reopen <id>",
+	}
+	for _, want := range wants {
+		if !strings.Contains(block, want) {
+			t.Errorf("render =\n%s\nwant it to contain %q", block, want)
+		}
+	}
+	if strings.Contains(block, "--status") {
+		t.Errorf("render =\n%s\nwant no claim line naming a status", block)
+	}
+}
+
+func TestRender_RenamedDoingStatus_RendersTheSameBlock(t *testing.T) {
 	t.Parallel()
 
 	block := render(goldenNotes, "wip")
 
-	if !strings.Contains(block, "- `capcom update <id> --status wip`: claim it before you start\n") {
-		t.Errorf("render =\n%s\nwant the claim line to name the doing status wip", block)
-	}
-	if strings.Contains(block, "--status active") {
-		t.Errorf("render =\n%s\nwant no claim line naming active", block)
+	if block != goldenBlock {
+		t.Errorf("render(goldenNotes, \"wip\") =\n%s\nwant the golden block", block)
 	}
 }
 
@@ -163,8 +191,11 @@ func TestRender_NoDoingStatus_LeavesOutTheClaimLine(t *testing.T) {
 
 	block := render(goldenNotes, "")
 
-	if strings.Contains(block, "capcom update") {
+	if strings.Contains(block, "capcom start") {
 		t.Errorf("render =\n%s\nwant no claim line", block)
+	}
+	if !strings.Contains(block, "- `capcom finish <id>") {
+		t.Errorf("render =\n%s\nwant the finish line kept", block)
 	}
 	if want := "with what blocks it\n- `capcom log <id> <text>`"; !strings.Contains(block, want) {
 		t.Errorf("render =\n%s\nwant the log line right after the show line", block)
@@ -385,7 +416,8 @@ func TestInspect_States(t *testing.T) {
 		{"hand-edited inside", strings.Replace(goldenBlock, "most urgent", "least urgent", 1), StateStale},
 		{"without the install line", "# Guide\n\n" + preInstallLineBlock + "\n", StateStale},
 		{"before the store map", "# Guide\n\n" + preStoreMapBlock + "\n", StateStale},
-		{"another doing status", "# Guide\n\n" + render(goldenNotes, "wip") + "\n", StateStale},
+		{"another doing status", "# Guide\n\n" + render(goldenNotes, "wip") + "\n", StateCurrent},
+		{"before start and finish", "# Guide\n\n" + preStartBlock + "\n", StateStale},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

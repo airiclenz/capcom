@@ -7,8 +7,8 @@ sidebar: { order: 3 }
 `AGENTS.md` at the root of a repository is the instructions file most coding agents read when a
 session starts. capcom owns one marked section of it, the **Managed block**: a pointer to capcom,
 the work loop as commands in the order an agent runs them (take the most urgent issue in full, or
-find one and read it, claim it with the repository's doing status, log progress, close it, reopen
-it), a few more core commands, a pointer to each command's `--help`, a map of the store, a
+find one and read it, claim it and take the Tree lock with `capcom start`, log progress, close it,
+or close it and free the lock with `capcom finish`, reopen it), a few more core commands, a pointer to each command's `--help`, a map of the store, a
 warning never to claim or close a [Standing Parent](../concepts/issues.md#standing-parent), a
 recommendation to take the [Tree lock](../concepts/tree-locks.md) before an extensive change, and
 the top level of the [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is
@@ -48,9 +48,10 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 - `capcom next`: the most urgent ready issue, in full
 - `capcom ready`: the issues ready to work on, most urgent first
 - `capcom show <id>`: one issue in full, with what blocks it
-- `capcom update <id> --status active`: claim it before you start
+- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints
 - `capcom log <id> <text>`: note progress as work lands
 - `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready
+- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next
 - `capcom reopen <id> --reason <text>`: undo a close
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue
 - `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides
@@ -80,10 +81,10 @@ Knowledge tree, top level: no Notes yet.
 <!-- END CAPCOM -->
 ```
 
-The claim line names the repository's own doing status, the first status of the `doing` category
-in [`config.yaml`](../reference/file-format.md#config): `active` in the default config, and
-whatever that status is renamed to in yours. A config that declares no doing status leaves the
-claim line out.
+The claim line names `capcom start`, which claims the issue in the repository's own doing status,
+the first status of the `doing` category in [`config.yaml`](../reference/file-format.md#config),
+and takes the Tree lock in the same step. A config that declares no doing status leaves the claim
+line out; what the doing status is called does not change the block.
 
 Write anything you want agents to know outside the markers: edits inside them are overwritten on
 the next refresh.
@@ -104,8 +105,8 @@ A [Retired](../concepts/knowledge.md#retired-notes-and-supersession) top-level N
 and so is a [Background](../concepts/knowledge.md#background-note) one. So is a top-level Note that
 does not parse or validate (a blank title, a ref that names no path), or that shares its id or an
 alias with another Note: `capcom know tree` hides it too, and `capcom check` reports it. The block
-is rendered from the Note files and the configured doing status alone, so the same Tree and config
-always produce the same block.
+is rendered from the Note files and whether the config declares a doing status alone, so the same
+Tree and config always produce the same block.
 
 ## Keeping it current
 
@@ -125,7 +126,7 @@ title or its `background` label. A write below the top level changes nothing, si
 lists only the top level. A Note write never adds a block to a file that has none: the block is
 opt-in, through `capcom agents`.
 
-A hand edit of a Note refreshes nothing, and neither does renaming the doing status in
+A hand edit of a Note refreshes nothing, and neither does adding or removing the doing status in
 `config.yaml`. `capcom check` then reports the block as out of date, at
 the line of its begin marker, and `capcom agents --check` fails the same way:
 

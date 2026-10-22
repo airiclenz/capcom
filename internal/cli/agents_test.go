@@ -76,7 +76,7 @@ const renamedDoingConfig = `statuses:
   closed: done
 `
 
-func TestAgents_RenamedDoingStatus_WritesItIntoTheClaimLine(t *testing.T) {
+func TestAgents_RenamedDoingStatus_ClaimsWithStart(t *testing.T) {
 	root := newKnowStore(t)
 	if err := os.WriteFile(filepath.Join(root, ".capcom", "config.yaml"), []byte(renamedDoingConfig), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -85,11 +85,16 @@ func TestAgents_RenamedDoingStatus_WritesItIntoTheClaimLine(t *testing.T) {
 	mustRun(t, root, "agents")
 
 	block := agentsBlockOf(t, readAgentsGuide(t, root))
-	if !strings.Contains(block, "- `capcom update <id> --status wip`: claim it before you start\n") {
-		t.Errorf("block lacks the claim line naming wip:\n%s", block)
+	for _, line := range []string{
+		"- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n",
+		"- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next\n",
+	} {
+		if !strings.Contains(block, line) {
+			t.Errorf("block lacks %q:\n%s", line, block)
+		}
 	}
-	if strings.Contains(block, "--status active") {
-		t.Errorf("block names the default doing status active:\n%s", block)
+	if strings.Contains(block, "--status") {
+		t.Errorf("block names a doing status:\n%s", block)
 	}
 }
 

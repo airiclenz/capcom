@@ -78,10 +78,22 @@ func TestRun_StaleAgentsBlock_ReportsOneProblemAtTheBeginMarkerLine(t *testing.T
 	}
 }
 
-func TestRun_RenamedDoingStatus_ReportsTheBlockOutOfDate(t *testing.T) {
+func TestRun_RenamedDoingStatus_KeepsTheBlockCurrent(t *testing.T) {
 	root := newRepo(t)
 	writeCurrentBlock(t, root)
 	writeFiles(t, root, map[string]string{".capcom/config.yaml": "statuses:\n  open: todo\n  wip: doing\n  closed: done\n"})
+
+	problems := runCheck(t, root)
+
+	if got := codedProblems(problems); len(got) != 0 {
+		t.Errorf("problems = %q\nwant none: the claim line names capcom start, not the doing status", got)
+	}
+}
+
+func TestRun_NoDoingStatus_ReportsTheBlockOutOfDate(t *testing.T) {
+	root := newRepo(t)
+	writeCurrentBlock(t, root)
+	writeFiles(t, root, map[string]string{".capcom/config.yaml": "statuses:\n  open: todo\n  closed: done\n"})
 
 	problems := runCheck(t, root)
 

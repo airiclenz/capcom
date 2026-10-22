@@ -169,7 +169,11 @@ message, exit 0; standing Issue fails and the lock is unchanged; a corrupt lock 
 
 **Commit:** `feat(cli): add capcom finish to close an Issue and free its Tree lock`
 
-## 4. The Managed block teaches start and finish
+## 4. The Managed block teaches start and finish — ✅ DONE (2026-10-22)
+
+NOTES (2026-10-22): agents.Sync and render keep their doingStatus string parameter; only whether it is empty shapes the block now (doc comments say so), so the callers in internal/cli/agents.go and internal/check/agents.go are unchanged.
+NOTES (2026-10-22): TestRun_RenamedDoingStatus_ReportsTheBlockOutOfDate recast as TestRun_RenamedDoingStatus_KeepsTheBlockCurrent, plus TestRun_NoDoingStatus_ReportsTheBlockOutOfDate for the one config change that still stales the block; block_test.go's "another doing status" inspect case now expects StateCurrent and a pre-start/finish block case expects StateStale.
+NOTES (2026-10-22): the block's Tree lock paragraph still recommends `capcom lock acquire` for a multi-file change; left as is since it stays true for work outside an Issue. plugins/capcom/skills/capcom/SKILL.md still teaches the old claim line; item 5 owns it.
 
 **What:**
 **Goal:** The Managed block's claim line is `capcom start <id>` (claim it, take the Tree lock, keep
