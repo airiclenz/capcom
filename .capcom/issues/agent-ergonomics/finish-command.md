@@ -1,11 +1,13 @@
 ---
 title: Finishing an issue leaves the lock to be released by hand
-status: open
+status: done
 type: feature
 priority: 1
 deps: [next-command]
 plan: 2026-10-22 - 00 - start-finish-commands-plan
 created: 2026-10-19T14:54:44Z
+closed: 2026-10-22T09:57:10Z
+reason: "Delivered by plan 2026-10-22 - 00 - start-finish-commands-plan (archived in bfe8cfc): capcom finish, its tests, Managed block and guides"
 ---
 
 Finishing an Issue takes `capcom close <id> --reason <text>`, `capcom lock release --token

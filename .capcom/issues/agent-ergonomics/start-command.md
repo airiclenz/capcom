@@ -1,10 +1,12 @@
 ---
 title: Starting an issue takes three commands agents get wrong
-status: open
+status: done
 type: feature
 priority: 1
 plan: 2026-10-22 - 00 - start-finish-commands-plan
 created: 2026-10-19T14:54:44Z
+closed: 2026-10-22T09:57:09Z
+reason: "Delivered by plan 2026-10-22 - 00 - start-finish-commands-plan (archived in bfe8cfc): capcom start, its tests, Managed block and guides"
 ---
 
 Starting work on an Issue takes three commands: `capcom update <id> --status active`,
