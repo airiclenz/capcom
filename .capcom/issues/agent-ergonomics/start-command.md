@@ -3,6 +3,7 @@ title: Starting an issue takes three commands agents get wrong
 status: open
 type: feature
 priority: 1
+plan: 2026-10-22 - 00 - start-finish-commands-plan
 created: 2026-10-19T14:54:44Z
 ---
 
