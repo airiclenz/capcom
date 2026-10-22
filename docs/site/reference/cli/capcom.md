@@ -41,6 +41,7 @@ capcom [flags]
 * [capcom close](capcom_close.md)	 - Close issues, recording why
 * [capcom create](capcom_create.md)	 - Create an issue with a chosen id
 * [capcom dep](capcom_dep.md)	 - Manage dependencies between issues
+* [capcom finish](capcom_finish.md)	 - Close an Issue and free this worktree's Tree lock
 * [capcom fmt](capcom_fmt.md)	 - Rewrite every issue and Note file in canonical form
 * [capcom init](capcom_init.md)	 - Create the capcom store (.capcom/) in this git repository
 * [capcom know](capcom_know.md)	 - Read, search, add, update, move, remove and verify Knowledge Notes

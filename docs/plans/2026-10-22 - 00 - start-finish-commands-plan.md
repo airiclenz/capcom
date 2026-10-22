@@ -127,7 +127,12 @@ by a `beforeStartClaim` hook after the acquire) releases the lock and exits non-
 
 **Commit:** `feat(cli): add capcom start to claim an Issue and its Tree lock`
 
-## 3. capcom finish
+## 3. capcom finish — ✅ DONE (2026-10-22)
+
+NOTES (2026-10-22): consequential edit — internal/cli/doc.go: made necessary by the new internal/cli/finish.go (the doc.go file map lists every file of the package)
+NOTES (2026-10-22): finish reuses closeResult (which wraps closeOne / ops.Closer) for its single argument, so its close and `now ready:` lines are close's own; the done status is the config's first done status (no --status, per the plan's out-of-scope list)
+NOTES (2026-10-22): lock line wording the plan left open: a kept lock reads "<worktree>: <state ...>; kept (--keep-lock)" (finish reads the lock for it, writing nothing); a left-alone one appends "; left alone: no --token given|--token does not hold it; run capcom lock status"; an unreadable record is LOCK=invalid (Lock overview says so) or unreadable, with the read error as a warning — warnings render after the text, so then the next line is not the very last line
+NOTES (2026-10-22): finish prints no Elsewhere report and takes no --no-elsewhere or ready filters; it picks the next Issue with next's default options
 
 **What:**
 **Goal:** `capcom finish <id> --reason <text> [--token <t>] [--keep-lock]` closes the Issue,
