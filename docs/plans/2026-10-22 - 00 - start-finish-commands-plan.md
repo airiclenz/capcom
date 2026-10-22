@@ -273,7 +273,12 @@ indented → silent; no `.capcom/` → silent.
 
 **Commit:** `fix(plugin): stand down only for a real capcom prime hook`
 
-## 7. Doc statements that no longer match the code
+## 7. Doc statements that no longer match the code — ✅ DONE (2026-10-22)
+
+NOTES (2026-10-22): root help in scope: internal/cli/root.go rootLong now says "Every command except capcom ui prints plain text, or with --json ..."; docs/site/reference/cli/capcom.md regenerated with go run ./cmd/gendocs (only that page changed).
+NOTES (2026-10-22): the guard grep's other hits were also corrected: json-output frontmatter description and its llms.txt mirror (line 37), the llms.txt work-loop line, and the plugin skill's "Every command takes --json" sentence.
+NOTES (2026-10-22): the --kv paragraph links the CLI reference as cli/capcom.md (the page the file's Next section already uses) rather than the bare cli/ directory the approach named, and also states that a failure prints no WARNING= line, as kvRenderer.RenderError emits none.
+NOTES (2026-10-22): cobra's built-in completion and help commands also print no JSON envelope with --json; the docs name only capcom ui, as the Goal does.
 
 **What:**
 **Goal:** `AGENTS.md` names `cmd/gendocs` as a dev tool beside `cmd/release`; `README.md` and

@@ -47,8 +47,8 @@ branch, merge and show up in code review, just like the code they describe.
   changes on other branches and store health.
 - **Validator and formatter.** `capcom check` reports problems as `path:line: message`;
   `capcom fmt` keeps files in canonical form. Both work in CI.
-- **Machine-readable output.** Every command prints plain text, or JSON with `--json`. Many also
-  take `--kv` for `KEY=VALUE` lines.
+- **Machine-readable output.** Every command except `capcom ui` prints plain text, or JSON with
+  `--json`; the terminal UI refuses `--json`. Many also take `--kv` for `KEY=VALUE` lines.
 
 ## Terminal UI
 

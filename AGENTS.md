@@ -4,7 +4,8 @@ capcom is a git-native issue tracker and knowledge store for coding agents, writ
 and knowledge notes are markdown files under `.capcom/`, versioned with the code; a disposable
 SQLite index lives under the git directory and is never committed. The binary is built from
 `cmd/capcom`; everything else is in `internal/`, and `cli.Run` drives every command in process.
-`cmd/release` is the release dev tool and is never shipped.
+`cmd/release` (the release tool) and `cmd/gendocs` (generates the CLI reference) are dev tools,
+never shipped.
 
 Project knowledge lives in capcom's Knowledge tree (listed at the end of this file). Before
 starting work, run `capcom know tree --depth 2`, then `capcom know tree <id>` to open a branch,

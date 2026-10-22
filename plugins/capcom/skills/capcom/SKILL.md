@@ -53,9 +53,9 @@ When `capcom start --help` fails, the binary predates these two commands: claim 
 `capcom update <id> --status active` plus `capcom lock acquire --purpose <id>`, and close with
 `capcom close <id> --reason <text>` plus `capcom lock release --token <token>`.
 
-A standing Issue only groups its children: never claim or close it. Every command takes `--json`,
-and `capcom <cmd> --help` lists its flags. After editing a file under `.capcom/` by hand, run
-`capcom check`.
+A standing Issue only groups its children: never claim or close it. Every command except
+`capcom ui` takes `--json`, and `capcom <cmd> --help` lists its flags. After editing a file under
+`.capcom/` by hand, run `capcom check`.
 
 ## 4. Tree lock
 

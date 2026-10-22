@@ -1,12 +1,13 @@
 ---
 title: "JSON and KV output"
-description: "The versioned --json envelope every command prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer."
+description: "The versioned --json envelope every command except capcom ui prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer."
 sidebar: { order: 3 }
 ---
 
 Every capcom command prints plain text by default. For agents and scripts there are two
-machine-readable formats: `--json`, which every command takes, and `--kv`, which some commands
-take. Both are stable: a script written against them keeps working as capcom grows.
+machine-readable formats: `--json`, which every command except `capcom ui` takes (the terminal UI
+refuses it), and `--kv`, which some commands take. Both are stable: a script written against them
+keeps working as capcom grows.
 
 ## The `--json` envelope
 
@@ -162,9 +163,9 @@ STATUS=invalid
 ```
 
 Unlike `--json`, `--kv` is offered only by some commands, it goes after the command name, and it
-leaves out the Elsewhere report. Which commands take it, and where its `WARNING=` lines go
-relative to `STATUS=`, are listed in the paragraph on output in the README's
-[What it does](../../../README.md#what-it-does) section.
+leaves out the Elsewhere report. Which commands take it is on each command's page in
+[the CLI reference](cli/capcom.md). Its `WARNING=` lines come first, before every record and so
+before every `STATUS=` line; a failure prints none.
 
 ## Next
 
