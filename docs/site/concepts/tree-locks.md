@@ -129,15 +129,48 @@ locks: 1
 this worktree: held; if the token is yours resume with capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it
 ```
 
+## Start and finish: the lock with an Issue
+
+Work on an Issue takes the lock with the Issue. `capcom start <id>` claims a Ready Issue and
+acquires the lock with the Issue id as its purpose, printing the Issue and the token:
+
+```console
+$ capcom start db-schema
+...
+_main: acquired by claude@devbox since 2026-10-22T09:45:59Z (heartbeat 2026-10-22T09:45:59Z): db-schema
+token 670fa2ee31064cc626fff5a087e22d95
+```
+
+`capcom start <id> --token <token>` resumes your lock after a restart, as `acquire --token` does. A
+lock another session holds refuses the start with exit code 3, and the Issue is not claimed.
+
+`capcom finish <id> --reason <text> --token <token>` closes the Issue and releases the lock, then
+names the Ready Issue to work on next:
+
+```console
+$ capcom finish db-schema --reason "Added in the sessions migration." --token 670fa2ee31064cc626fff5a087e22d95
+db-schema  closed
+now ready: session-refresh
+_main: released
+next: session-refresh  Refresh the session token
+```
+
+Without `--token`, or with a token that does not hold the lock, `finish` still closes the Issue and
+leaves the lock alone, naming `capcom lock status`; `--keep-lock` keeps it for more work under it.
+`acquire` and `release` remain the way to hold the lock for a change outside an Issue.
+
 ## A session's lock, end to end
 
 ```sh
-token=$(capcom lock acquire --purpose "implementing login-flow" --kv | sed -n 's/^TOKEN=//p')
+token=$(capcom start login-flow --kv | sed -n 's/^TOKEN=//p')
 # ... work, running this every so often:
 capcom lock touch --token "$token"
-# ... and when done, or on any exit path:
-capcom lock release --token "$token"
+# ... and when done:
+capcom finish login-flow --reason "Reworked in 3f2a1c9" --token "$token"
 ```
+
+Outside an Issue, `capcom lock acquire --purpose <text> --kv` prints the same `TOKEN=` line, and
+`capcom lock release --token "$token"` frees the lock on any exit path.
 
 The `--kv` output prints one `KEY=VALUE` line per field, the token as `TOKEN=`, and ends with
 `STATUS=`; see [JSON and KV output](../reference/json-output.md).

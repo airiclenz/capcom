@@ -206,7 +206,12 @@ claim line; the renamed-doing-status test in `internal/check/agents_test.go` is 
 
 **Commit:** `feat(agents): name capcom start and finish in the Managed block`
 
-## 5. The guides teach start and finish
+## 5. The guides teach start and finish — ✅ DONE (2026-10-22)
+
+NOTES (2026-10-22): consequential edit — docs/site/agents/agent-setup.md: made necessary by the SKILL.md edit (its line said the skill works an Issue "from capcom next to capcom close")
+NOTES (2026-10-22): docs/site/getting-started/faq.md edited under the item's site rule (it described claiming the tree with lock acquire alone) though the plan's Files list did not name it
+NOTES (2026-10-22): the installed capcom 0.9.2 reports AGENTS.md's block out of date (it predates item 4); `go run ./cmd/capcom check` on the tree reports no problems, so the Acceptance check was run with the tree's binary
+NOTES (2026-10-22): the start/finish console examples in issues.md and tree-locks.md are real output from this tree's binary, with the holder shown as claude@devbox as the pages' other examples do
 
 **What:**
 **Goal:** The `issue-workflow` Note, the plugin skill and every manual page that tells an agent to

@@ -43,9 +43,10 @@ See [Knowledge](../concepts/knowledge.md).
 
 ## Can two agents work in the same repository at once?
 
-Yes. An agent claims the working tree with `capcom lock acquire` while it edits, and every other
-session sees who holds the Tree lock, why and since when. Each git worktree has its own lock, so
-agents can work side by side in separate worktrees. See [Tree locks](../concepts/tree-locks.md).
+Yes. An agent claims the working tree with `capcom start <id>` while it works an Issue, or with
+`capcom lock acquire` for other edits, and every other session sees who holds the Tree lock, why
+and since when. Each git worktree has its own lock, so agents can work side by side in separate
+worktrees. See [Tree locks](../concepts/tree-locks.md).
 
 ## Does capcom need a server, an account or a database?
 

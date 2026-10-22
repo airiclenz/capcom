@@ -2,7 +2,7 @@
 
 > capcom is a git-native issue tracker and knowledge base for AI coding agents such as Claude Code, OpenAI Codex, Cursor and Gemini CLI. Issues and knowledge Notes are plain markdown files under `.capcom/` in the git repository, versioned with the code; a disposable SQLite index under the git directory is never committed. One Go binary for Linux, macOS and Windows: a CLI for agents and a terminal UI (`capcom ui`) for people. Not affiliated with Capcom Co., Ltd., the video game company.
 
-An agent's work loop: `capcom next` (the most urgent Ready Issue in full), `capcom update <id> --status active` to claim it, `capcom log <id> <text>` for progress, `capcom close <id> --reason <text>` when done. `capcom prime` prints a session briefing, `capcom know tree` and `capcom know show <id>` read project Knowledge, and every command takes `--json`.
+An agent's work loop: `capcom next` (the most urgent Ready Issue in full), `capcom start <id>` to claim it and take the Tree lock (it prints a Lock token to keep), `capcom log <id> <text>` for progress, `capcom finish <id> --reason <text> --token <token>` to close it and free the lock when done. `capcom prime` prints a session briefing, `capcom know tree` and `capcom know show <id>` read project Knowledge, and every command takes `--json`.
 
 Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `airiclenz`), `winget install AiricLenz.Capcom`, or `go install github.com/airiclenz/capcom/cmd/capcom@latest`. Claude Code plugin (skill plus session hooks): `/plugin install capcom --marketplace airiclenz/capcom`.
 

@@ -138,11 +138,30 @@ category: a `review` status in the `doing` category, say. When capcom moves an I
 category (on `create`, `close` or `reopen`) it uses the first status listed for that category. See
 [Config](../reference/file-format.md#config).
 
-Claim an Issue by moving it into the `doing` category:
+Claim an Issue by moving it into the `doing` category. `capcom start` does that and takes the
+worktree's [Tree lock](tree-locks.md#start-and-finish-the-lock-with-an-issue) in one step, then
+prints the Issue in full and the Lock token to keep:
 
-```sh
-capcom update db-schema --status active
+```console
+$ capcom start db-schema
+id: db-schema
+path: .capcom/issues/db-schema.md
+etag: 31ea8488cc1aa362
+title: Add the sessions table
+status: active
+category: doing
+type: task
+priority: 2
+dependents: [session-refresh]
+created: 2026-10-22T09:45:59Z
+
+_main: acquired by claude@devbox since 2026-10-22T09:45:59Z (heartbeat 2026-10-22T09:45:59Z): db-schema
+token 670fa2ee31064cc626fff5a087e22d95
 ```
+
+It refuses, writing nothing, an Issue that is Closed, standing or not Ready, and a lock another
+session holds. `capcom update db-schema --status active` moves the Issue alone and leaves the lock
+untouched.
 
 ## Ready
 
@@ -181,6 +200,17 @@ now ready: session-refresh
 ```
 
 The `now ready:` line names the Issues this close made Ready, so the next step is in front of you.
+`capcom finish` closes the Issue and frees the Tree lock `capcom start` took, then names the Ready
+Issue to work on next:
+
+```console
+$ capcom finish db-schema --reason "Added in the sessions migration." --token 670fa2ee31064cc626fff5a087e22d95
+db-schema  closed
+now ready: session-refresh
+_main: released
+next: session-refresh  Refresh the session token
+```
+
 Close as dropped with `--status dropped`. `capcom reopen <id> --reason <text>` moves a Closed Issue
 back to `todo` and appends the reason to its Log.
 

@@ -40,12 +40,18 @@ Ready Issues, the work in progress and who holds the Tree locks. Then:
 
 - `capcom next`: the most urgent Ready Issue in full. `capcom ready` lists all of them.
 - `capcom show <id>`: one Issue in full, with what blocks it.
-- `capcom update <id> --status active`: claim the Issue before starting.
+- `capcom start <id>`: claim the Issue and take the Tree lock before starting; keep the Lock
+  token it prints. `capcom start <id> --token <token>` resumes the lock after a restart.
 - `capcom log <id> <text>`: note progress as work lands.
-- `capcom close <id> --reason <text>`: close it; the output names the Issues this made Ready.
+- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; the output
+  names the Issues this made Ready and the one to work on next.
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file new work. The body says what is
   wrong or wanted, why, and how to tell it is done, under `## Acceptance`.
 - `capcom know tree`, then `capcom know show <id>`: read project Knowledge before starting.
+
+When `capcom start --help` fails, the binary predates these two commands: claim with
+`capcom update <id> --status active` plus `capcom lock acquire --purpose <id>`, and close with
+`capcom close <id> --reason <text>` plus `capcom lock release --token <token>`.
 
 A standing Issue only groups its children: never claim or close it. Every command takes `--json`,
 and `capcom <cmd> --help` lists its flags. After editing a file under `.capcom/` by hand, run
@@ -53,7 +59,8 @@ and `capcom <cmd> --help` lists its flags. After editing a file under `.capcom/`
 
 ## 4. Tree lock
 
-Before a change that spans several files or commits, claim the worktree with
+`capcom start` and `capcom finish` take and free the lock with an Issue. For a change that spans
+several files or commits outside an Issue, claim the worktree with
 `capcom lock acquire --purpose <text>` and keep the token it prints. Renew it with
 `capcom lock touch --token <token>` and free it with `capcom lock release --token <token>`. When
 `capcom lock check` exits 3, another session holds this worktree: ask the user before editing.
