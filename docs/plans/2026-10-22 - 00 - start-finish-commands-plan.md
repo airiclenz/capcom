@@ -39,7 +39,11 @@ proposed ADR settles how agents keep the Lock token. The plugin hook stands down
 - 6: guard folded (writer's decision)
 - 7: guard folded
 
-## 1. ADR 0016: how an agent session keeps its Lock token
+## 1. ADR 0016: how an agent session keeps its Lock token — ✅ DONE (2026-10-22)
+
+NOTES (2026-10-22): adr-0016-rejected carries the `background` label as adr-0015-rejected does, so `capcom know tree adr-0016` lists both children only with `--background` (same as adr-0015); the plain form shows adr-0016-decision.
+NOTES (2026-10-22): the decision fixes the token file as `<git-common-dir>/capcom/locks/<worktree-key>.<sha256-hex-of-purpose>.token` (non-.json, so recordKeys never reads it) and names the alternative placements the guard allows; touch keeps `--token`, break deletes the worktree's token files.
+NOTES (2026-10-22): start-finish-token-file also depends on lock-token-file, start-command and finish-command besides lock-token-recall, since it builds on all three.
 
 **What:**
 **Goal:** Knowledge holds a proposed `adr-0016` Note tree recommending a purpose-keyed token file,

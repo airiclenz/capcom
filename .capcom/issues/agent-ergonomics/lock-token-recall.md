@@ -30,3 +30,7 @@ Options include: a token file named by the holder and purpose under `<git-dir>/c
   above and recommends one, plus its Note tree under `decisions` (see `adr-0010`).
 - Follow-up implementation Issues are filed under `agent-ergonomics`, depending on this one.
 - No code changes in this Issue; the owner accepts or rejects the ADR.
+
+## Log
+
+- 2026-10-22 Airic Lenz: Proposed ADR 0016 (adr-0016, with adr-0016-decision and adr-0016-rejected): a token file keyed by worktree and purpose under capcom/locks, resumed by naming the purpose again. Follow-ups lock-token-file and start-finish-token-file wait on this Issue; accepting the ADR closes it.
