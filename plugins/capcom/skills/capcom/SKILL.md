@@ -35,8 +35,8 @@ repository root:
 
 ## 3. Work loop
 
-This plugin runs `capcom prime` at session start in any repository with a `.capcom/`: it lists the
-Ready Issues, the work in progress and who holds the Tree locks. Then:
+This plugin runs `capcom prime` at session start and before compaction in any repository with a
+`.capcom/`: it lists the Ready Issues, the work in progress and who holds the Tree locks. Then:
 
 - `capcom next`: the most urgent Ready Issue in full. `capcom ready` lists all of them.
 - `capcom show <id>`: one Issue in full, with what blocks it.

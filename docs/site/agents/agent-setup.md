@@ -133,7 +133,8 @@ The plugin installs once for you, not per repository, and brings two things:
 - **The same two hooks as above**, running `capcom prime` at session start and before compaction.
   They stay silent when the `capcom` binary is missing, when the repository has no `.capcom/`, and
   when `.claude/settings.json`, `.claude/settings.local.json` or your user-level settings already
-  run `capcom prime`, so a repository set up with `--claude-hooks` is never briefed twice.
+  run `capcom prime` as a hook, so a repository set up with `--claude-hooks` is never briefed
+  twice.
 
 The plugin does not install the binary or replace Step 1: the Managed block in `AGENTS.md` is
 still what tells every agent, and every collaborator, how the repository uses capcom. Keep

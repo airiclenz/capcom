@@ -241,7 +241,10 @@ docs/site/concepts/tree-locks.md — acquire, release, scripted token example; R
 
 **Closes:** start-command; finish-command
 
-## 6. Plugin hook stands down only for a real capcom prime hook
+## 6. Plugin hook stands down only for a real capcom prime hook — ✅ DONE (2026-10-22)
+
+NOTES (2026-10-22): docs/site/agents/agent-setup.md said "already run `capcom prime`" without "as a hook", so it was reworded to "already run `capcom prime` as a hook", per the approach's check.
+NOTES (2026-10-22): README.md:79 still says the plugin runs `capcom prime` "at session start" only, without "before compaction"; left as is because it is outside this item's files.
 
 **What:**
 **Goal:** `plugins/capcom/hooks/prime.sh` stays silent only when a settings file holds a hook whose
