@@ -76,8 +76,8 @@ capcom is a plain CLI, so any agent that can run a shell command can use it.
 - **`AGENTS.md`.** `capcom agents` writes a short how-to block into `AGENTS.md` and links it
   from `CLAUDE.md` and `GEMINI.md` when they exist.
 - **Claude Code plugin.** In Claude Code, `/plugin install capcom --marketplace airiclenz/capcom`
-  adds a capcom skill and runs `capcom prime` at session start in any repository with a
-  `.capcom/` ([Agent setup](https://airiclenz.com/capcom/agents/agent-setup/#claude-code-plugin)).
+  adds a capcom skill and runs `capcom prime` at session start and before compaction in any
+  repository with a `.capcom/` ([Agent setup](https://airiclenz.com/capcom/agents/agent-setup/#claude-code-plugin)).
 - **Claude Code, Codex and apogee hooks.** `capcom init --claude-hooks`, `--codex-hooks` or
   `--apogee-hooks` runs `capcom prime` at session start, so every session begins with a briefing.
 - **Stable output.** `--json` and `--kv` are easy to parse; `capcom check` errors are easy to fix
