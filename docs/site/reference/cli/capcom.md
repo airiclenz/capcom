@@ -58,6 +58,7 @@ capcom [flags]
 * [capcom rm](capcom_rm.md)	 - Remove an issue that has no children
 * [capcom search](capcom_search.md)	 - Find issues whose title or body contains every word
 * [capcom show](capcom_show.md)	 - Show issues in full
+* [capcom start](capcom_start.md)	 - Claim a Ready Issue and this worktree's Tree lock
 * [capcom ui](capcom_ui.md)	 - Open the terminal UI
 * [capcom update](capcom_update.md)	 - Change an issue's fields or body
 * [capcom version](capcom_version.md)	 - Print the capcom version

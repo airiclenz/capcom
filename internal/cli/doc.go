@@ -49,6 +49,7 @@
 //   - `root.go` — Run, Command, the root command, capcom version and the index lifecycle of every command
 //   - `search.go` — capcom search: finds issues whose title or body contains every word
 //   - `show.go` — capcom show and the resolution of an issue argument to its index entry
+//   - `start.go` — capcom start: claims a Ready Issue and this worktree's Tree lock, through internal/ops
 //   - `suggest.go` — the closest flag named for an unknown flag, beside the command suggestions root.go makes
 //   - `ui.go` — capcom ui: checks for a terminal and hands the opened store and index to internal/ui
 //   - `update.go` — capcom update: changes an issue's fields or body

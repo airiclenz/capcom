@@ -78,7 +78,11 @@ internal/lock/overview.go — Locks.Overview; docs/adr/README.md
 
 **Commit:** `docs(adr): propose ADR 0016 on keeping the Lock token`
 
-## 2. capcom start
+## 2. capcom start — ✅ DONE (2026-10-22)
+
+NOTES (2026-10-22): consequential edit — internal/cli/doc.go: made necessary by the new internal/cli/start.go (the doc.go file map lists every file of the package)
+NOTES (2026-10-22): refusal codes the plan left open: Closed and standing are invalid (as update and close refuse them), not-todo, not-Ready and doing-without-your-lock are conflict, a lock held by another is locked (exit 3); no doing status declared is invalid with ops.ErrNoDoingStatus's message, checked before the acquire
+NOTES (2026-10-22): start prints no Elsewhere report and takes no --no-elsewhere, unlike show; it is not in read_test.go's --kv-supporting command table
 
 **What:**
 **Goal:** `capcom start <id> [--token <t>]` claims a Ready Issue (first doing status), holds this
