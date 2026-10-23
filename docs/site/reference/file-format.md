@@ -844,8 +844,8 @@ capcom as the issue register of record,
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
 install instructions, https://github.com/airiclenz/capcom#install), the commands an agent needs,
 the work loop first in the order it runs (`next`, `ready`, `show`, `start` to claim an issue and
-take the Tree lock, `log`, `close`, `finish` to close it and free the lock, `reopen`), then `create` with `--dep`, `dep add` and `dep list`,
-`list --tree --depth 2` and `know tree`, followed by one line pointing to `capcom <cmd> --help` for
+take the Tree lock, `log`, `close`, `finish` to close it and free the lock, `reopen`), then
+`create` with `--dep`, `dep add` and `dep list`, `list --tree --depth 2` and `know tree`, followed by one line pointing to `capcom <cmd> --help` for
 each command's flags, a paragraph on what an issue's body holds (what is wrong
 or wanted, why, and an `## Acceptance` section, readable on its own; the how and the order belong
 in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its children in the
@@ -872,8 +872,8 @@ status is declared alone, so the same tree and config always yield the same bloc
   `capcom know update` of a top-level Note's title, retired flag or `background` label, a
   `capcom know mv` into, out of or within the top level, and a `capcom know rm` of a top-level Note. It never adds a block to
   a file without one. A write below the top level changes nothing, since the block lists only the
-  top level. A hand edit of a Note, or of `config.yaml` adding or removing the doing status, refreshes
-  nothing: `capcom check` reports the stale block, and `capcom agents` rewrites it.
+  top level. A hand edit of a Note, or of `config.yaml` adding or removing the doing status,
+  refreshes nothing: `capcom check` reports the stale block, and `capcom agents` rewrites it.
 - A marker that appears twice, an end marker before the begin marker, or a begin marker that is
   never closed is an error at that marker's line, for `agents` and `check` alike.
 - Every other agent guide that `agents.guides` lists (see [Config](#config); `CLAUDE.md` and

@@ -8,8 +8,8 @@ sidebar: { order: 3 }
 session starts. capcom owns one marked section of it, the **Managed block**: a pointer to capcom,
 the work loop as commands in the order an agent runs them (take the most urgent issue in full, or
 find one and read it, claim it and take the Tree lock with `capcom start`, log progress, close it,
-or close it and free the lock with `capcom finish`, reopen it), a few more core commands, a pointer to each command's `--help`, a map of the store, a
-warning never to claim or close a [Standing Parent](../concepts/issues.md#standing-parent), a
+or close it and free the lock with `capcom finish`, reopen it), a few more core commands, a
+pointer to each command's `--help`, a map of the store, a warning never to claim or close a [Standing Parent](../concepts/issues.md#standing-parent), a
 recommendation to take the [Tree lock](../concepts/tree-locks.md) before an extensive change, and
 the top level of the [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is
 your own hand-written guide, and capcom never touches it.

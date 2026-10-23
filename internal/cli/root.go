@@ -25,9 +25,9 @@ const (
 const (
 	rootLong = "capcom is a git-native issue tracker and knowledge store for coding agents. Issues and " +
 		"Knowledge Notes are markdown files under .capcom/, versioned with the code; a disposable " +
-		"SQLite index lives under the git directory and is never committed. Every command except capcom " +
-		"ui prints plain text, or with --json a versioned JSON envelope. Run capcom <command> --help for a command's " +
-		"flags and examples."
+		"SQLite index lives under the git directory and is never committed. Every command except " +
+		"capcom ui prints plain text, or with --json a versioned JSON envelope. Run " +
+		"capcom <command> --help for a command's flags and examples."
 	rootExample = "  capcom init                  # create .capcom/ in this git repository\n" +
 		"  capcom prime                 # the session-start briefing\n" +
 		"  capcom ready                 # the Issues ready to work on, most urgent first\n" +

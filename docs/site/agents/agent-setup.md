@@ -129,7 +129,8 @@ On an older Claude Code, add the marketplace first:
 The plugin installs once for you, not per repository, and brings two things:
 
 - **A `capcom` skill.** It tells Claude how to install the binary, set a repository up with
-  `capcom init` and `capcom agents`, and work an Issue from `capcom next` through `capcom start` to `capcom finish`.
+  `capcom init` and `capcom agents`, and work an Issue from `capcom next` through `capcom start`
+  to `capcom finish`.
 - **The same two hooks as above**, running `capcom prime` at session start and before compaction.
   They stay silent when the `capcom` binary is missing, when the repository has no `.capcom/`, and
   when `.claude/settings.json`, `.claude/settings.local.json` or your user-level settings already

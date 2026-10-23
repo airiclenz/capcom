@@ -1,9 +1,10 @@
 // Package agents owns the Managed block of AGENTS.md: the part of the hand-written agent guide
 // between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes. The block is
 // rendered deterministically from the top level of the Knowledge tree and whether the config
-// declares a doing status, which its claim line needs, and a write splices it in by its markers, or appends it
-// when absent, keeping every byte outside the markers and the file's line ending. Sync is the one way callers reconcile the block with the Knowledge tree: it reads the
-// top level and inspects, refreshes or writes in one pass. The block is read and written only in a
+// declares a doing status, which its claim line needs, and a write splices it in by its markers,
+// or appends it when absent, keeping every byte outside the markers and the file's line ending.
+// Sync is the one way callers reconcile the block with the Knowledge tree: it reads the top level
+// and inspects, refreshes or writes in one pass. The block is read and written only in a
 // file inside the working tree: an AGENTS.md that links outside it is never read or written. Guides
 // checks that the other agent guides beside AGENTS.md (CLAUDE.md, GEMINI.md) reach the block, by
 // being AGENTS.md through a link or by an `@AGENTS.md` import line, and appends that line to the
@@ -268,35 +269,34 @@ func render(notes []Note, doingStatus string) string {
 }
 
 // inspect reads the AGENTS.md of worktreeRoot and reports whether its block is absent, current or
-// stale against notes and doingStatus. A missing file is StateAbsent, and so is one that links outside the working
-// tree, which is not read. Line endings are ignored in the comparison, so a CRLF file holding the
-// current block is current. It fails with an *Error on markers that cannot be told apart and on a
-// file that is not a regular file or is larger than 1 MiB, and when the file cannot be read.
+// stale against notes and doingStatus. A missing file is StateAbsent, and so is one that links
+// outside the working tree, which is not read. Line endings are ignored in the comparison, so a
+// CRLF file holding the current block is current. It fails with an *Error on markers that cannot
+// be told apart and on a file that is not a regular file or is larger than 1 MiB, and when the
+// file cannot be read.
 func inspect(worktreeRoot string, notes []Note, doingStatus string) (Status, error) {
 	return reconcile(worktreeRoot, notes, doingStatus, ModeInspect)
 }
 
 // write brings the block of the AGENTS.md of worktreeRoot up to date with notes and doingStatus and
-// returns the
-// Status found before writing. A stale block is replaced in place, an absent one is appended after
-// a blank line, and a missing file is created holding the block alone; a current block leaves the
-// file untouched. Every byte outside the markers is kept, and the block takes the file's line
-// ending (CRLF when the file has any). It fails as inspect does, and when the file cannot be
-// written. An AGENTS.md that links outside the working tree fails it with an *Error, the file it
-// links to neither read nor written.
+// returns the Status found before writing. A stale block is replaced in place, an absent one is
+// appended after a blank line, and a missing file is created holding the block alone; a current
+// block leaves the file untouched. Every byte outside the markers is kept, and the block takes the
+// file's line ending (CRLF when the file has any). It fails as inspect does, and when the file
+// cannot be written. An AGENTS.md that links outside the working tree fails it with an *Error, the
+// file it links to neither read nor written.
 func write(worktreeRoot string, notes []Note, doingStatus string) (Status, error) {
 	return reconcile(worktreeRoot, notes, doingStatus, ModeWrite)
 }
 
 // Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
 // tree in knowledgeDir and with doingStatus, the configured doing status (the empty string when the
-// config declares none, which leaves the claim line out), as mode says, and returns the Status found
-// before any write. Only whether doingStatus is empty shapes the block, so renaming the doing status
-// does not stale it. It reads the
-// file once: the Status it reports is the one it acted on. It fails as topNotes does, as inspect
-// does, and, when mode writes, when the file cannot be written. An AGENTS.md that links outside the
-// working tree is never read: ModeWrite fails as write does, and the other modes report
-// StateAbsent.
+// config declares none, which leaves the claim line out), as mode says, and returns the Status
+// found before any write. Only whether doingStatus is empty shapes the block, so renaming the
+// doing status does not stale it. It reads the file once: the Status it reports is the one it
+// acted on. It fails as topNotes does, as inspect does, and, when mode writes, when the file cannot
+// be written. An AGENTS.md that links outside the working tree is never read: ModeWrite fails as
+// write does, and the other modes report StateAbsent.
 func Sync(worktreeRoot, knowledgeDir, doingStatus string, mode Mode) (Status, error) {
 	notes, err := topNotes(knowledgeDir)
 	if err != nil {
