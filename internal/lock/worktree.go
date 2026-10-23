@@ -34,6 +34,12 @@ func (w Worktree) Acquire(claim Claim, token string, isTakeStale bool) (Status, 
 	return w.locks.Acquire(w.key, claim, token, isTakeStale)
 }
 
+// SessionToken returns the Lock token a session acquiring this worktree's lock for purpose holds,
+// as Locks.SessionToken does.
+func (w Worktree) SessionToken(token, purpose string) (string, error) {
+	return w.locks.SessionToken(w.key, token, purpose)
+}
+
 // Touch refreshes the heartbeat of this worktree's lock for the holder of token, as Locks.Touch
 // does.
 func (w Worktree) Touch(token string) (Status, error) {

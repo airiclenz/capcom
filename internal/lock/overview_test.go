@@ -271,3 +271,21 @@ func TestWorktree_Overview_GivesThisWorktreesState(t *testing.T) {
 		t.Fatalf("Overview = %+v, err %v; want this worktree held by %s", overview, err, testClaim.Holder)
 	}
 }
+
+func TestOverview_TokenFileBesideTheRecord_ListsOneWorktree(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	mustAcquire(t, locks, MainWorktreeKey)
+	if _, err := os.Stat(locks.tokenPath(MainWorktreeKey, testClaim.Purpose)); err != nil {
+		t.Fatalf("token file: %v", err)
+	}
+
+	overview := mustOverview(t, locks, MainWorktreeKey)
+
+	if got := strings.Join(lockKeys(overview.Locks), ","); got != MainWorktreeKey {
+		t.Errorf("locks = %s, want %s", got, MainWorktreeKey)
+	}
+	if len(overview.Problems) != 0 {
+		t.Errorf("problems = %v, want none", overview.Problems)
+	}
+}

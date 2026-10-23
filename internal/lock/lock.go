@@ -2,7 +2,9 @@
 // agent session through a token and kept live by a heartbeat. The records of all of a clone's
 // worktrees live together under `<git-common-dir>/capcom/locks/<key>.json`, never in git. Every
 // read-modify-write of a record runs under an OS file lock on a sibling `<key>.lck` file, which is
-// held only for that moment; the record itself is replaced atomically.
+// held only for that moment; the record itself is replaced atomically. Beside them, each
+// `<key>.<sha256 of purpose>.token` token file keeps the Lock token a session acquired with that
+// purpose (ADR 0016), so a later command resumes or releases the lock without being handed it.
 package lock
 
 import (
@@ -54,7 +56,8 @@ var errCorruptRecord = errors.New("invalid lock record")
 
 // Record is one worktree's lock as stored on disk.
 type Record struct {
-	// Token is the secret the holder presents to touch, release and re-acquire.
+	// Token is the Lock token the holder presents to touch, release and re-acquire. It tells
+	// sessions apart, and a token file beside the record keeps it in the open (ADR 0016).
 	Token string `json:"token"`
 	// Purpose says what the holder is doing.
 	Purpose string `json:"purpose"`
@@ -174,7 +177,8 @@ func (l *Locks) RecordPath(key string) string {
 // holder's, the lock is resumed, even a stale one: its heartbeat is refreshed, its purpose and
 // holder replaced by claim's, and isResumed is true. A lock another session holds fails with a
 // *HeldError, unless isTakeStale is set and that lock is stale, in which case it is taken over
-// with a new token.
+// with a new token. The lock's token is kept in the token file for claim's purpose, written before
+// the record, so a failed write takes no lock; an empty purpose keeps no token.
 func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool) (Status, bool, error) {
 	var acquired Status
 	isResumed := false
@@ -205,6 +209,9 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 			if err != nil {
 				return err
 			}
+		}
+		if err := l.writeTokenFile(key, record.Token, claim.Purpose); err != nil {
+			return err
 		}
 		if err := l.write(key, record); err != nil {
 			return err
@@ -243,42 +250,51 @@ func (l *Locks) Touch(key, token string) (Status, error) {
 	return touched, err
 }
 
-// Release frees key's lock for the holder of token and returns the lock as it was. Releasing a
-// free lock succeeds and changes nothing; a lock another session holds fails with a *HeldError.
+// Release frees key's lock for the holder of token and returns the lock as it was, then deletes
+// every token file of key that keeps token. Releasing a free lock succeeds and deletes those token
+// files too; a lock another session holds fails with a *HeldError and deletes nothing.
 func (l *Locks) Release(key, token string) (Status, error) {
 	var released Status
 	err := l.withGuard(key, func(now time.Time) error {
 		current, err := l.read(key, now)
-		if err != nil || !current.IsHeld {
+		if err != nil {
 			released = current
 			return err
 		}
-		if current.Record.Token != token {
+		if current.IsHeld && current.Record.Token != token {
 			return l.heldError(current, now)
 		}
 		released = current
-		return l.remove(key)
+		if current.IsHeld {
+			if err := l.remove(key); err != nil {
+				return err
+			}
+		}
+		return l.removeTokenFiles(key, token)
 	})
 	return released, err
 }
 
-// Break frees key's lock whoever holds it, and returns the lock as it was. A record that holds no
-// valid lock is discarded too, and the free Status returned says so with IsCorrupt; a record that
-// cannot be read at all fails and is left in place.
+// Break frees key's lock whoever holds it, deletes every token file of key, and returns the lock as
+// it was. A record that holds no valid lock is discarded too, and the free Status returned says so
+// with IsCorrupt; a record that cannot be read at all fails and is left in place, its token files
+// with it.
 func (l *Locks) Break(key string) (Status, error) {
 	var broken Status
 	err := l.withGuard(key, func(now time.Time) error {
 		current, err := l.read(key, now)
-		if errors.Is(err, errCorruptRecord) {
-			broken = Status{Key: key, IsCorrupt: true}
-			return l.remove(key)
-		}
-		if err != nil || !current.IsHeld {
+		switch {
+		case errors.Is(err, errCorruptRecord):
+			current = Status{Key: key, IsCorrupt: true}
+		case err != nil:
 			broken = current
 			return err
 		}
 		broken = current
-		return l.remove(key)
+		if err := l.remove(key); err != nil {
+			return err
+		}
+		return l.removeAllTokenFiles(key)
 	})
 	return broken, err
 }
@@ -409,11 +425,7 @@ func (l *Locks) write(key string, record Record) error {
 
 // remove deletes key's record. The caller holds the guard.
 func (l *Locks) remove(key string) error {
-	path := l.RecordPath(key)
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	return nil
+	return removeFile(l.RecordPath(key))
 }
 
 // heldError reports current, held by another session, as seen at now.

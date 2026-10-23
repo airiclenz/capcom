@@ -35,7 +35,12 @@
 - `--purpose` on `lock touch` or `lock release`; harness session ids.
 - Sweeping token files whose lock is gone, beyond release, break and the next acquire replacing them.
 
-## 1. The token file in internal/lock
+## 1. The token file in internal/lock — ✅ DONE (2026-10-23)
+
+NOTES (2026-10-23): Locks.remove in lock.go now calls the new removeFile helper in token.go instead of repeating the remove-ignoring-not-exist code.
+NOTES (2026-10-23): Release deletes token files after it removes the record, so a failed token-file delete leaves a free lock and a leftover token file, which the next acquire for that purpose replaces. Break leaves token files alone when the record cannot be read at all, just as it leaves the record.
+NOTES (2026-10-23): SessionToken reads without the guard, since token files are replaced atomically, so reading creates no lock directory. A token file is malformed when it has no line end or an empty first line.
+NOTES (2026-10-23): no CHANGELOG entry for this item: nothing users see changes until items 2 and 3 use the token file.
 
 **What:**
 **Goal:** `internal/lock` writes a token file whenever Acquire takes or resumes a lock, returns the
