@@ -126,7 +126,7 @@ or `unreadable` when it cannot be read):
 ```text
 locks: 1
   _main: held by claude@devbox for 0m, heartbeat 0m ago: implementing the login rework
-this worktree: held; if the token is yours resume with capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it
+this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> or capcom start <id> again to resume it (or pass --token <token>), otherwise do not edit it
 ```
 
 ## Start and finish: the lock with an Issue

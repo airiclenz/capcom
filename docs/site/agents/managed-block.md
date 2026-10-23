@@ -48,10 +48,10 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 - `capcom next`: the most urgent ready issue, in full
 - `capcom ready`: the issues ready to work on, most urgent first
 - `capcom show <id>`: one issue in full, with what blocks it
-- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints
+- `capcom start <id>`: claim it and take the Tree lock before you start
 - `capcom log <id> <text>`: note progress as work lands
 - `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready
-- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next
+- `capcom finish <id> --reason <text>`: close it and free the Tree lock; it names the issue to work on next
 - `capcom reopen <id> --reason <text>`: undo a close
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue
 - `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides
@@ -70,10 +70,12 @@ Prefer capcom commands; after a hand edit run `capcom check`.
 A standing issue (`standing: true` in its file) only groups its children: never claim or close it.
 
 Tree lock: before a change that spans several files or commits, it is recommended to claim this
-worktree with `capcom lock acquire --purpose <text>` and keep the token it prints.
+worktree with `capcom lock acquire --purpose <text>`. capcom keeps the Lock token for the session:
+running the same acquire again resumes the lock after a restart or compaction and prints the token
+again (or pass `--token <token>`).
+`capcom start <id>` takes the lock for an issue, and running the same start again resumes it too.
 `capcom lock touch --token <token>` renews it during long work,
-`capcom lock release --token <token>` frees it when done, and acquiring again with `--token <token>`
-resumes it after a restart or compaction. When `capcom lock check --token <token>` exits 3, or
+`capcom lock release --token <token>` frees it when done. When `capcom lock check --token <token>` exits 3, or
 `capcom lock check` does while you hold no token, another session holds this worktree: ask the user
 before editing it.
 
@@ -83,8 +85,11 @@ Knowledge tree, top level: no Notes yet.
 
 The claim line names `capcom start`, which claims the issue in the repository's own doing status,
 the first status of the `doing` category in [`config.yaml`](../reference/file-format.md#config),
-and takes the Tree lock in the same step. A config that declares no doing status leaves the claim
-line out; what the doing status is called does not change the block.
+and takes the Tree lock in the same step. capcom keeps the Lock token for the session, so the
+block never asks an agent to keep it: running the same `capcom lock acquire` or `capcom start`
+again resumes the lock after a restart or compaction, and `capcom finish` frees it. A config that
+declares no doing status leaves the claim line and the Tree lock paragraph's `capcom start`
+sentence out; what the doing status is called does not change the block.
 
 Write anything you want agents to know outside the markers: edits inside them are overwritten on
 the next refresh.

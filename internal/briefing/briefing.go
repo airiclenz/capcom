@@ -59,6 +59,9 @@ type Briefing struct {
 	Health *Health
 	// Elsewhere is the issue changes on other branches, nil when there are none.
 	Elsewhere []elsewhere.Entry
+	// HasDoingStatus is whether the store's config.yaml declares a doing status, which capcom
+	// start needs; false when the store could not be opened.
+	HasDoingStatus bool
 	// Failures are in the order Compose reads the sources: store, index, ready, doing, locks (one
 	// per invalid or unreadable lock record when the rest were listed), check, then one per
 	// Elsewhere scan warning, worded as the scan wrote it.
@@ -102,6 +105,7 @@ func Compose(cwd string, now time.Time) (composed Briefing) {
 		composed.fail(SectionStore, err)
 		return composed
 	}
+	_, composed.HasDoingStatus = s.Config.DefaultStatus(config.CategoryDoing)
 	composed.readWork(s)
 	composed.readLocks(s)
 	composed.readHealth(s)

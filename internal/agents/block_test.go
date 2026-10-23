@@ -32,6 +32,58 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 - ` + "`capcom next`" + `: the most urgent ready issue, in full
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
 - ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
+- ` + "`capcom start <id>`" + `: claim it and take the Tree lock before you start
+- ` + "`capcom log <id> <text>`" + `: note progress as work lands
+- ` + "`capcom close <id> --reason <text>`" + `: close an issue; it names the issues this made ready
+- ` + "`capcom finish <id> --reason <text>`" + `: close it and free the Tree lock; it names the issue to work on next
+- ` + "`capcom reopen <id> --reason <text>`" + `: undo a close
+- ` + "`capcom create --id <slug> --title <title> [--dep <id>]`" + `: file a new issue
+- ` + "`capcom dep add <id> <dep-id>`" + `: make an issue wait for another; ` + "`capcom dep list <id>`" + ` shows both sides
+- ` + "`capcom list --tree --depth 2`" + `: the outline of the issues
+- ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+
+Each command's flags are in ` + "`capcom <cmd> --help`" + `.
+
+An issue's body says what is wrong or wanted, why, and how to tell it is done (` + "`## Acceptance`" + `),
+readable on its own; a plan says how and in what order.
+
+Where things are: an issue is ` + "`.capcom/issues/<id>.md`" + `, and its children sit in the directory
+` + "`.capcom/issues/<id>/`" + ` beside it; Notes follow the same shape under ` + "`.capcom/knowledge/`" + `.
+Prefer capcom commands; after a hand edit run ` + "`capcom check`" + `.
+
+A standing issue (` + "`standing: true`" + ` in its file) only groups its children: never claim or close it.
+
+Tree lock: before a change that spans several files or commits, it is recommended to claim this
+worktree with ` + "`capcom lock acquire --purpose <text>`" + `. capcom keeps the Lock token for the session:
+running the same acquire again resumes the lock after a restart or compaction and prints the token
+again (or pass ` + "`--token <token>`" + `).
+` + "`capcom start <id>`" + ` takes the lock for an issue, and running the same start again resumes it too.
+` + "`capcom lock touch --token <token>`" + ` renews it during long work,
+` + "`capcom lock release --token <token>`" + ` frees it when done. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
+` + "`capcom lock check`" + ` does while you hold no token, another session holds this worktree: ask the user
+before editing it.
+
+Knowledge tree, top level:
+
+- ` + "`release-flow`" + `: Release flow
+- ` + "`testing-rules`" + `: Testing rules and fixtures
+<!-- END CAPCOM -->`
+
+// keepTheTokenBlock is goldenBlock as capcom rendered it before it kept the Lock token for the
+// session: the claim line and the Tree lock paragraph told the agent to keep the token it prints,
+// and the finish line took --token.
+const keepTheTokenBlock = `<!-- BEGIN CAPCOM -->
+<!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->
+## Issues and knowledge: capcom
+
+capcom is the issue register of record for this repository. Issues and Knowledge Notes are
+markdown files under ` + "`.capcom/`" + `, versioned with the code; track work there and nowhere else.
+
+Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclenz/capcom#install.
+
+- ` + "`capcom next`" + `: the most urgent ready issue, in full
+- ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
+- ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
 - ` + "`capcom start <id>`" + `: claim it and take the Tree lock before you start; keep the token it prints
 - ` + "`capcom log <id> <text>`" + `: note progress as work lands
 - ` + "`capcom close <id> --reason <text>`" + `: close an issue; it names the issues this made ready
@@ -116,14 +168,14 @@ Knowledge tree, top level:
 - ` + "`testing-rules`" + `: Testing rules and fixtures
 <!-- END CAPCOM -->`
 
-// preStartBlock is goldenBlock as capcom rendered it before the work loop named capcom start and
+// preStartBlock is keepTheTokenBlock as capcom rendered it before the work loop named capcom start and
 // capcom finish: the claim line named the doing status, and no finish line followed close.
 var preStartBlock = strings.NewReplacer(
 	"- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n",
 	"- `capcom update <id> --status active`: claim it before you start\n",
 	"- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next\n",
 	"",
-).Replace(goldenBlock)
+).Replace(keepTheTokenBlock)
 
 // writeGuide writes content as the AGENTS.md of a new temp working tree and returns the tree.
 func writeGuide(t *testing.T, content string) string {
@@ -161,9 +213,9 @@ func TestRender_WorkLoop_ClaimsWithStartAndClosesWithFinish(t *testing.T) {
 	block := render(goldenNotes, goldenDoing)
 
 	wants := []string{
-		"with what blocks it\n- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n" +
+		"with what blocks it\n- `capcom start <id>`: claim it and take the Tree lock before you start\n" +
 			"- `capcom log <id> <text>`",
-		"made ready\n- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; " +
+		"made ready\n- `capcom finish <id> --reason <text>`: close it and free the Tree lock; " +
 			"it names the issue to work on next\n- `capcom reopen <id>",
 	}
 	for _, want := range wants {
@@ -173,6 +225,9 @@ func TestRender_WorkLoop_ClaimsWithStartAndClosesWithFinish(t *testing.T) {
 	}
 	if strings.Contains(block, "--status") {
 		t.Errorf("render =\n%s\nwant no claim line naming a status", block)
+	}
+	if strings.Contains(block, "keep the token") {
+		t.Errorf("render =\n%s\nwant no line telling the agent to keep the token", block)
 	}
 }
 
@@ -199,6 +254,9 @@ func TestRender_NoDoingStatus_LeavesOutTheClaimLine(t *testing.T) {
 	}
 	if want := "with what blocks it\n- `capcom log <id> <text>`"; !strings.Contains(block, want) {
 		t.Errorf("render =\n%s\nwant the log line right after the show line", block)
+	}
+	if want := "running the same acquire again resumes the lock"; !strings.Contains(block, want) {
+		t.Errorf("render =\n%s\nwant the Tree lock paragraph to keep the acquire resume sentence", block)
 	}
 }
 
@@ -418,6 +476,7 @@ func TestInspect_States(t *testing.T) {
 		{"before the store map", "# Guide\n\n" + preStoreMapBlock + "\n", StateStale},
 		{"another doing status", "# Guide\n\n" + render(goldenNotes, "wip") + "\n", StateCurrent},
 		{"before start and finish", "# Guide\n\n" + preStartBlock + "\n", StateStale},
+		{"keeping the token", "# Guide\n\n" + keepTheTokenBlock + "\n", StateStale},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

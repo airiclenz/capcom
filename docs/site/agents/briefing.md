@@ -20,7 +20,7 @@ doing: 1
   login-error-copy  active  P1  Reword the login errors
 locks: 1
   _main: held by claude@devbox for 0m, heartbeat 0m ago: implementing the login rework
-this worktree: held; if the token is yours resume with capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it
+this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> or capcom start <id> again to resume it (or pass --token <token>), otherwise do not edit it
 broken Note refs: 0
 check: no problems
 elsewhere: rate-limit: active on rate-limit-work (unmerged)
@@ -40,12 +40,17 @@ Section by section:
   their holder, age, heartbeat and purpose. The `this worktree:` line after the list says what to
   do about the lock of the worktree `prime` runs in:
   - `free`: nobody holds it; take it with `capcom lock acquire --purpose <text>` before a change
-    that spans several files or commits, and keep the token it prints.
-  - `held`: a session holds it; if the token is yours, resume with
-    `capcom lock acquire --purpose <text> --token <token>`, otherwise another session is editing
-    the worktree, so do not edit it.
-  - `stale`: its holder stopped sending heartbeats; resume with your `--token` if it is yours,
-    otherwise ask the user before taking it over with `--take-stale`.
+    that spans several files or commits, or with `capcom start <id>` for an Issue.
+  - `held`: a session holds it; if it is yours, run the same `capcom lock acquire --purpose <text>`
+    or `capcom start <id>` again to resume it, capcom having kept its Lock token for the session
+    (or pass `--token <token>`); otherwise another session is editing the worktree, so do not edit
+    it.
+  - `stale`: its holder stopped sending heartbeats; if it is yours, run the same acquire or start
+    again to resume it (or pass `--token <token>`), otherwise ask the user before taking it over
+    with `--take-stale`.
+
+  A store whose `config.yaml` declares no doing status leaves `capcom start` out of these lines,
+  since `capcom start` cannot claim an Issue there.
   - `invalid`: its lock record does not parse, so `capcom lock acquire` fails; ask the user before
     `capcom lock break` frees it.
   - `unreadable`: its lock record cannot be read; ask the user before editing the worktree.

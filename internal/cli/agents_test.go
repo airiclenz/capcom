@@ -86,8 +86,9 @@ func TestAgents_RenamedDoingStatus_ClaimsWithStart(t *testing.T) {
 
 	block := agentsBlockOf(t, readAgentsGuide(t, root))
 	for _, line := range []string{
-		"- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n",
-		"- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next\n",
+		"- `capcom start <id>`: claim it and take the Tree lock before you start\n",
+		"- `capcom finish <id> --reason <text>`: close it and free the Tree lock; it names the issue to work on next\n",
+		"`capcom start <id>` takes the lock for an issue, and running the same start again resumes it too.\n",
 	} {
 		if !strings.Contains(block, line) {
 			t.Errorf("block lacks %q:\n%s", line, block)

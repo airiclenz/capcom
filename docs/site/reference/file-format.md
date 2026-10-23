@@ -851,13 +851,15 @@ or wanted, why, and an `## Acceptance` section, readable on its own; the how and
 in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its children in the
 directory `.capcom/issues/<id>/` beside it, Notes the same under `.capcom/knowledge/`; prefer capcom
 commands, and run `capcom check` after a hand edit), a paragraph recommending the Tree lock before
-a change that spans several files or commits (`capcom lock acquire --purpose <text>`, keeping the
-token it prints for `touch`, `release` and resuming, and asking the user when `capcom lock check`
-reports another session's lock), and the top level of the Knowledge tree, one
+a change that spans several files or commits (`capcom lock acquire --purpose <text>`, or
+`capcom start <id>` for an issue; capcom keeps the Lock token for the session, so running the same
+acquire or start again resumes the lock after a restart or compaction and prints the token for
+`touch` and `release`; and asking the user when `capcom lock check` reports another session's
+lock), and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
 `background` left out, and so is one whose file a load problem names (a duplicate id or alias, an
-invalid or repeated alias). The claim line names `capcom start`, and is left out when the config
-declares no doing status, no status of the `doing` category in `config.yaml`; what that status is
+invalid or repeated alias). The claim line names `capcom start`, and it and the Tree lock
+paragraph's `capcom start` sentence are left out when the config declares no doing status, no status of the `doing` category in `config.yaml`; what that status is
 called does not change the block. The block is rendered from the Note files and whether a doing
 status is declared alone, so the same tree and config always yield the same block.
 

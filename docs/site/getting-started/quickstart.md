@@ -175,7 +175,7 @@ ready, unplanned: 1
   write-docs  open  P2  Document the setup
 doing: 0
 locks: 0
-this worktree: free; before a multi-file change run capcom lock acquire --purpose <text> and keep the token
+this worktree: free; before a multi-file change run capcom lock acquire --purpose <text>, or capcom start <id> for an issue
 broken Note refs: 0
 check: no problems
 ```

@@ -62,13 +62,13 @@ const loopOpening = "- `capcom next`: the most urgent ready issue, in full\n" +
 	"- `capcom show <id>`: one issue in full, with what blocks it\n"
 
 // claimLine is the claim line: capcom start claims the Issue and takes the Tree lock in one step.
-const claimLine = "- `capcom start <id>`: claim it and take the Tree lock before you start; keep the token it prints\n"
+const claimLine = "- `capcom start <id>`: claim it and take the Tree lock before you start\n"
 
 // loopClosing is the command list after the claim line: the rest of the work loop, then the other
 // commands, then where their flags are.
 const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" +
 	"- `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready\n" +
-	"- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next\n" +
+	"- `capcom finish <id> --reason <text>`: close it and free the Tree lock; it names the issue to work on next\n" +
 	"- `capcom reopen <id> --reason <text>`: undo a close\n" +
 	"- `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue\n" +
 	"- `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides\n" +
@@ -78,7 +78,8 @@ const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" 
 	"Each command's flags are in `capcom <cmd> --help`.\n" +
 	"\n"
 
-// blockGuidance is the fixed part of the block between the command list and the Knowledge list.
+// blockGuidance is the fixed part of the block between the command list and the Tree lock
+// paragraph.
 const blockGuidance = `An issue's body says what is wrong or wanted, why, and how to tell it is done (` + "`## Acceptance`" + `),
 readable on its own; a plan says how and in what order.
 
@@ -88,11 +89,24 @@ Prefer capcom commands; after a hand edit run ` + "`capcom check`" + `.
 
 A standing issue (` + "`standing: true`" + ` in its file) only groups its children: never claim or close it.
 
-Tree lock: before a change that spans several files or commits, it is recommended to claim this
-worktree with ` + "`capcom lock acquire --purpose <text>`" + ` and keep the token it prints.
-` + "`capcom lock touch --token <token>`" + ` renews it during long work,
-` + "`capcom lock release --token <token>`" + ` frees it when done, and acquiring again with ` + "`--token <token>`" + `
-resumes it after a restart or compaction. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
+`
+
+// lockOpening is the Tree lock paragraph up to its capcom start sentence: taking the lock with
+// capcom lock acquire, and resuming it from the Lock token capcom keeps for the session.
+const lockOpening = `Tree lock: before a change that spans several files or commits, it is recommended to claim this
+worktree with ` + "`capcom lock acquire --purpose <text>`" + `. capcom keeps the Lock token for the session:
+running the same acquire again resumes the lock after a restart or compaction and prints the token
+again (or pass ` + "`--token <token>`" + `).
+`
+
+// lockStartSentence is the Tree lock paragraph's capcom start sentence, left out with the claim
+// line when the config declares no doing status.
+const lockStartSentence = "`capcom start <id>` takes the lock for an issue, and running the same start again resumes it too.\n"
+
+// lockClosing is the Tree lock paragraph after its capcom start sentence: renewing, releasing and
+// checking the lock.
+const lockClosing = "`capcom lock touch --token <token>`" + ` renews it during long work,
+` + "`capcom lock release --token <token>`" + ` frees it when done. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
 ` + "`capcom lock check`" + ` does while you hold no token, another session holds this worktree: ask the user
 before editing it.
 
@@ -243,9 +257,9 @@ func relativeTo(dir, path string) string {
 }
 
 // render returns the block for notes and doingStatus, the begin and end markers included, with LF
-// line endings and no line ending after the end marker. The claim line names capcom start, and is
-// left out when doingStatus is empty, the config declaring no doing status; any other value of
-// doingStatus renders the same block. Titles are flattened onto one line.
+// line endings and no line ending after the end marker. The claim line and the Tree lock
+// paragraph's capcom start sentence name capcom start, and are left out when doingStatus is empty,
+// the config declaring no doing status; any other value of doingStatus renders the same block. Titles are flattened onto one line.
 func render(notes []Note, doingStatus string) string {
 	var block strings.Builder
 	block.WriteString(BeginMarker + lineFeed)
@@ -256,6 +270,11 @@ func render(notes []Note, doingStatus string) string {
 	}
 	block.WriteString(loopClosing)
 	block.WriteString(blockGuidance)
+	block.WriteString(lockOpening)
+	if doingStatus != "" {
+		block.WriteString(lockStartSentence)
+	}
+	block.WriteString(lockClosing)
 	if len(notes) == 0 {
 		block.WriteString(noNotesLine + lineFeed)
 	} else {
@@ -291,9 +310,9 @@ func write(worktreeRoot string, notes []Note, doingStatus string) (Status, error
 
 // Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
 // tree in knowledgeDir and with doingStatus, the configured doing status (the empty string when the
-// config declares none, which leaves the claim line out), as mode says, and returns the Status
-// found before any write. Only whether doingStatus is empty shapes the block, so renaming the
-// doing status does not stale it. It reads the file once: the Status it reports is the one it
+// config declares none, which leaves the claim line and the capcom start sentence out), as mode
+// says, and returns the Status found before any write. Only whether doingStatus is empty shapes
+// the block, so renaming the doing status does not stale it. It reads the file once: the Status it reports is the one it
 // acted on. It fails as topNotes does, as inspect does, and, when mode writes, when the file cannot
 // be written. An AGENTS.md that links outside the working tree is never read: ModeWrite fails as
 // write does, and the other modes report StateAbsent.

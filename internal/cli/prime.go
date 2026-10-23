@@ -17,14 +17,24 @@ import (
 
 const kindPrime = "prime"
 
-// The advice the Briefing gives on this worktree's Tree lock, one line per state.
+// The advice the Briefing gives on this worktree's Tree lock, one line per state. A free, held or
+// stale lock has a second form, WithStart, for a store whose config.yaml declares a doing status:
+// it also names capcom start, which takes the lock for an Issue and resumes it when run again.
 const (
 	worktreeLockFree = "this worktree: free; before a multi-file change run " +
-		"capcom lock acquire --purpose <text> and keep the token"
-	worktreeLockHeld = "this worktree: held; if the token is yours resume with " +
-		"capcom lock acquire --purpose <text> --token <token>, otherwise do not edit it"
-	worktreeLockStale = "this worktree: stale; resume with your --token, " +
-		"otherwise ask the user before taking it over with --take-stale"
+		"capcom lock acquire --purpose <text>"
+	worktreeLockFreeWithStart = worktreeLockFree + ", or capcom start <id> for an issue"
+	worktreeLockHeld          = "this worktree: held; if it is yours, run the same " +
+		"capcom lock acquire --purpose <text> again to resume it (or pass --token <token>), " +
+		"otherwise do not edit it"
+	worktreeLockHeldWithStart = "this worktree: held; if it is yours, run the same " +
+		"capcom lock acquire --purpose <text> or capcom start <id> again to resume it " +
+		"(or pass --token <token>), otherwise do not edit it"
+	worktreeLockStale = "this worktree: stale; if it is yours, run the same acquire again to " +
+		"resume it (or pass --token <token>), otherwise ask the user before taking it over with --take-stale"
+	worktreeLockStaleWithStart = "this worktree: stale; if it is yours, run the same acquire or start " +
+		"again to resume it (or pass --token <token>), otherwise ask the user before taking it over " +
+		"with --take-stale"
 	worktreeLockInvalid = "this worktree: invalid; its lock record does not parse, so acquire fails; " +
 		"ask the user before capcom lock break frees it"
 	worktreeLockUnreadable = "this worktree: unreadable; its lock record cannot be read; " +
@@ -116,7 +126,7 @@ func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Re
 		text.WriteString(indentLines(issueLines(work.Doing, "")))
 	}
 	if overview := composed.LockOverview; overview != nil {
-		data.Locks = addLocks(&text, *overview, now)
+		data.Locks = addLocks(&text, *overview, composed.HasDoingStatus, now)
 	}
 	if health := composed.Health; health != nil {
 		data.BrokenRefs = append([]check.Problem{}, health.BrokenRefs...)
@@ -162,8 +172,8 @@ func addCappedList(text *strings.Builder, heading string, entries []index.Entry)
 }
 
 // addLocks writes the Tree lock of every worktree that has one, with its age and stale flag, then
-// the advice on the lock of the overview's own worktree.
-func addLocks(text *strings.Builder, overview lock.Overview, now time.Time) []lockData {
+// the advice on the lock of the overview's own worktree, naming capcom start when hasDoingStatus.
+func addLocks(text *strings.Builder, overview lock.Overview, hasDoingStatus bool, now time.Time) []lockData {
 	held := overview.Locks
 	data := make([]lockData, 0, len(held))
 	fmt.Fprintf(text, "locks: %d\n", len(held))
@@ -182,21 +192,29 @@ func addLocks(text *strings.Builder, overview lock.Overview, now time.Time) []lo
 		}
 		text.WriteString("\n")
 	}
-	text.WriteString(worktreeLockAdvice(overview.State) + "\n")
+	text.WriteString(worktreeLockAdvice(overview.State, hasDoingStatus) + "\n")
 	return data
 }
 
-// worktreeLockAdvice returns the advice on a worktree's lock in state, one line per state.
-func worktreeLockAdvice(state lock.State) string {
-	switch state {
-	case lock.StateHeld:
+// worktreeLockAdvice returns the advice on a worktree's lock in state, one line per state; a free,
+// held or stale lock's advice names capcom start too when hasDoingStatus, the config declaring a
+// doing status.
+func worktreeLockAdvice(state lock.State, hasDoingStatus bool) string {
+	switch {
+	case state == lock.StateHeld && hasDoingStatus:
+		return worktreeLockHeldWithStart
+	case state == lock.StateHeld:
 		return worktreeLockHeld
-	case lock.StateStale:
+	case state == lock.StateStale && hasDoingStatus:
+		return worktreeLockStaleWithStart
+	case state == lock.StateStale:
 		return worktreeLockStale
-	case lock.StateInvalid:
+	case state == lock.StateInvalid:
 		return worktreeLockInvalid
-	case lock.StateUnreadable:
+	case state == lock.StateUnreadable:
 		return worktreeLockUnreadable
+	case hasDoingStatus:
+		return worktreeLockFreeWithStart
 	default:
 		return worktreeLockFree
 	}

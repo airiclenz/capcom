@@ -166,7 +166,13 @@ expects "no --token given and no kept token for login-flow".
 
 **Commit:** `feat(cli): start and finish resume and release through the kept token`
 
-## 4. The Managed block and the Briefing stop asking agents to keep the token
+## 4. The Managed block and the Briefing stop asking agents to keep the token — ✅ DONE (2026-10-23)
+
+NOTES (2026-10-23): the CHANGELOG entry above supersedes CHANGELOG.md [Unreleased] line 12 (the Managed block entry naming "keeping the token it prints" and `finish ... --token <token>`): replace that line with it rather than adding a second one.
+NOTES (2026-10-23): re-derived from the assumption that prime.go alone knows whether config.yaml declares a doing status: renderBriefing receives only the composed Briefing, so briefing.Briefing gains HasDoingStatus, set in briefing.Compose from the store's config, which addLocks/worktreeLockAdvice take.
+NOTES (2026-10-23): the Tree lock paragraph is split into lockOpening, lockStartSentence (rendered only with a doing status) and lockClosing; blockGuidance now ends before the paragraph. prime.go has a free/held/stale constant and a WithStart form of each.
+NOTES (2026-10-23): internal/check/agents_test.go needed no change: writeCurrentBlock renders through agents.Sync and TestRun_NoDoingStatus_ReportsTheBlockOutOfDate still holds (the no-doing block also drops the start sentence).
+NOTES (2026-10-23): block_test.go keeps the base-rendered block as keepTheTokenBlock; preStartBlock is built from it, and TestInspect_States gains a "keeping the token" stale case. prime_test gains TestPrime_NoDoingStatus_AdvisesAcquireWithoutStart (free, held, stale) and asserts the doing-status free, held and stale lines verbatim.
 
 **What:**
 Recast at the regression check (2026-10-23).

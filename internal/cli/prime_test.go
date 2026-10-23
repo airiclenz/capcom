@@ -72,7 +72,8 @@ func TestPrime_FixtureStore_PrintsTheBriefing(t *testing.T) {
 		"doing: 1\n" +
 		"  busy-work  active  P2  Busy work\n" +
 		"locks: 0\n" +
-		worktreeLockFree + "\n" +
+		"this worktree: free; before a multi-file change run capcom lock acquire --purpose <text>, " +
+		"or capcom start <id> for an issue\n" +
 		"broken Note refs: 1\n" +
 		"  .capcom/knowledge/build-notes.md:3: ref \"gone.go\": no such file or directory\n" +
 		"check: 1 problem; run capcom check\n"
@@ -152,7 +153,9 @@ func TestPrime_Locks_ShowAgeAndStaleFlag(t *testing.T) {
 	if exitCode != ExitOK || !pattern.MatchString(stdout) {
 		t.Errorf("prime = %d, stdout:\n%s\nwant a stale lock line matching %s", exitCode, stdout, pattern)
 	}
-	if !strings.Contains(stdout, " (stale)\n"+worktreeLockStale+"\n") {
+	wantAdvice := "this worktree: stale; if it is yours, run the same acquire or start again to resume it " +
+		"(or pass --token <token>), otherwise ask the user before taking it over with --take-stale"
+	if !strings.Contains(stdout, " (stale)\n"+wantAdvice+"\n") {
 		t.Errorf("prime stdout:\n%s\nwant the stale advice after the locks list", stdout)
 	}
 }
@@ -163,8 +166,10 @@ func TestPrime_FreshLock_AdvisesItIsHeld(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "prime")
 
+	wantAdvice := "this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> " +
+		"or capcom start <id> again to resume it (or pass --token <token>), otherwise do not edit it"
 	pattern := regexp.MustCompile(`(?m)^  _main: held by bob for [^\n]*: refactor the parser\n` +
-		regexp.QuoteMeta(worktreeLockHeld) + `$`)
+		regexp.QuoteMeta(wantAdvice) + `$`)
 	if exitCode != ExitOK || !pattern.MatchString(stdout) {
 		t.Errorf("prime = %d, stdout:\n%s\nwant the held advice after the locks list", exitCode, stdout)
 	}
@@ -223,7 +228,7 @@ func TestPrime_UnreadableForeignLockRecord_ListsTheOtherLocksWithOneWarning(t *t
 	stdout, stderr, exitCode := runCLI(t, root, "prime")
 
 	pattern := regexp.MustCompile(`(?m)^locks: 1\n  _main: held by bob for [^\n]*: refactor the parser\n` +
-		regexp.QuoteMeta(worktreeLockHeld) + `$`)
+		regexp.QuoteMeta(worktreeLockHeldWithStart) + `$`)
 	if exitCode != ExitOK || stderr != "" || !pattern.MatchString(stdout) {
 		t.Errorf("prime = %d, stderr %q, stdout:\n%s\nwant the held lock and its advice", exitCode, stderr, stdout)
 	}
@@ -242,9 +247,53 @@ func TestPrime_LockHeldInMainWorktree_AdvisesALinkedWorktreeItIsFree(t *testing.
 	stdout, _, exitCode := runCLI(t, worktree, "prime")
 
 	pattern := regexp.MustCompile(`(?m)^locks: 1\n  _main: held by bob for [^\n]*: refactor the parser\n` +
-		regexp.QuoteMeta(worktreeLockFree) + `$`)
+		regexp.QuoteMeta(worktreeLockFreeWithStart) + `$`)
 	if exitCode != ExitOK || !pattern.MatchString(stdout) {
 		t.Errorf("prime = %d, stdout:\n%s\nwant the free advice after the locks list", exitCode, stdout)
+	}
+}
+
+// noDoingConfig is a config.yaml that declares no doing status, so capcom start cannot claim.
+const noDoingConfig = "statuses:\n  open: todo\n  closed: done\n"
+
+func TestPrime_NoDoingStatus_AdvisesAcquireWithoutStart(t *testing.T) {
+	cases := []struct {
+		name       string
+		lockAge    time.Duration
+		isLocked   bool
+		wantAdvice string
+	}{
+		{"free", 0, false, "this worktree: free; before a multi-file change run " +
+			"capcom lock acquire --purpose <text>"},
+		{"held", 0, true, "this worktree: held; if it is yours, run the same " +
+			"capcom lock acquire --purpose <text> again to resume it (or pass --token <token>), " +
+			"otherwise do not edit it"},
+		{"stale", 3 * time.Hour, true, "this worktree: stale; if it is yours, run the same acquire again to " +
+			"resume it (or pass --token <token>), otherwise ask the user before taking it over with --take-stale"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newIssueStore(t, nil)
+			configPath := filepath.Join(root, ".capcom", "config.yaml")
+			if err := os.WriteFile(configPath, []byte(noDoingConfig), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+			if testCase.isLocked {
+				mustRun(t, root, "lock", "acquire", "--purpose", "refactor the parser", "--holder", "bob")
+			}
+			if testCase.lockAge > 0 {
+				ageLockRecord(t, filepath.Join(root, ".git", "capcom", "locks", "_main.json"), testCase.lockAge)
+			}
+
+			stdout, _, exitCode := runCLI(t, root, "prime")
+
+			if exitCode != ExitOK || !strings.Contains(stdout, "\n"+testCase.wantAdvice+"\n") {
+				t.Errorf("prime = %d, stdout:\n%s\nwant the advice %q", exitCode, stdout, testCase.wantAdvice)
+			}
+			if strings.Contains(stdout, "capcom start") {
+				t.Errorf("prime stdout:\n%s\nwant no capcom start without a doing status", stdout)
+			}
+		})
 	}
 }
 
