@@ -1,11 +1,13 @@
 ---
 title: Keep the Lock token in a purpose-keyed token file (ADR 0016)
-status: open
+status: done
 type: feature
 priority: 1
 deps: [lock-token-recall]
 plan: 2026-10-23 - 00 - lock-token-file-plan
 created: 2026-10-22T09:29:07Z
+closed: 2026-10-23T09:37:21Z
+reason: "Resolved by plan 2026-10-23 - 00 - lock-token-file-plan (archived in e097246): token file in internal/lock, lock acquire resumes from it, release/break delete it, docs and Notes updated."
 ---
 
 Agents lose the Lock token across turns, fresh shells and context compactions (see

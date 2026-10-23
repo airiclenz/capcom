@@ -1,11 +1,13 @@
 ---
 title: start and finish resume and release through the token file (ADR 0016)
-status: open
+status: done
 type: feature
 priority: 1
 deps: [lock-token-recall, lock-token-file, start-command, finish-command]
 plan: 2026-10-23 - 00 - lock-token-file-plan
 created: 2026-10-22T09:29:08Z
+closed: 2026-10-23T09:37:21Z
+reason: "Resolved by plan 2026-10-23 - 00 - lock-token-file-plan (archived in e097246): start resumes and finish releases through the kept token, Managed block, Briefing, guides and Notes updated."
 ---
 
 `capcom start <id>` claims an Issue and acquires this worktree's Tree lock with the Issue id as
