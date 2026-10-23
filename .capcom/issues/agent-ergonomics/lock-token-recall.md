@@ -1,9 +1,11 @@
 ---
 title: Agents lose the Lock token across turns and compaction
-status: open
+status: done
 type: task
 priority: 1
 created: 2026-10-19T14:54:44Z
+closed: 2026-10-23T08:48:24Z
+reason: "Decided by ADR 0016 (accepted): capcom keeps the Lock token in a purpose-keyed token file; lock-token-file and start-finish-token-file implement it"
 ---
 
 The Tree lock (ADR 0005) needs the session to keep a secret Lock token and present it on

@@ -53,8 +53,10 @@ any session in the clone that names the same purpose resumes it. That is accepta
 purpose an agent names is the Issue id that `capcom prime` lists as doing, so a second session
 naming it is working the same Issue in the same worktree, which is a continuation of the same work,
 not a rival. A session naming any other purpose still fails `locked`, so the lock keeps telling
-different work apart, which is what it is for. The lock was always advisory (ADR 0005), and the
-token guards against accident, not against a process of the same user that reads the git dir.
+different work apart, which is what it is for. The lock was always advisory (ADR 0005): it is a
+public signal by which agents tell each other that a worktree is being worked on, and by which
+they recognise their own work again, not a secret that secures the worktree. The token guards
+against accident, not against a process of the same user that reads the git dir.
 
 **Against the constraints of `lock-token-recall`:**
 
