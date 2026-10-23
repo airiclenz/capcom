@@ -10,14 +10,15 @@ archiving a plan strands no issue. Never file a stub: `create` without a body wa
 full. `capcom ready` lists the rest.
 
 **Claiming work.** `capcom start <id>` moves the issue to the first doing status and takes this
-worktree's Tree lock with the issue id as its purpose, then prints the issue and the Lock token:
-keep the token. `capcom start <id> --token <token>` resumes the lock after a restart or compaction.
+worktree's Tree lock with the issue id as its purpose, then prints the issue and the Lock token.
+capcom keeps the token for the session in a token file, so running `capcom start <id>` again
+resumes the lock after a restart or compaction and prints the token again.
 `prime` lists the doing issues, so the next session sees who works on what. There is no assignee
 key.
 
-**Finishing work.** `capcom finish <id> --reason <text> --token <token>` closes the issue, frees
-the Tree lock and names the Ready issue to work on next; `--keep-lock` keeps the lock for more work
-under it.
+**Finishing work.** `capcom finish <id> --reason <text>` closes the issue, frees the Tree lock
+through the token kept for the issue, deletes that kept token and names the Ready issue to work on
+next; `--keep-lock` keeps the lock for more work under it.
 
 **Dependencies.**
 - Record them with `capcom create --dep <id>` or `capcom dep add <id> <dep-id>`.

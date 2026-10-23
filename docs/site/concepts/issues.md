@@ -140,7 +140,7 @@ category (on `create`, `close` or `reopen`) it uses the first status listed for 
 
 Claim an Issue by moving it into the `doing` category. `capcom start` does that and takes the
 worktree's [Tree lock](tree-locks.md#start-and-finish-the-lock-with-an-issue) in one step, then
-prints the Issue in full and the Lock token to keep:
+prints the Issue in full and the Lock token, which capcom keeps for the session:
 
 ```console
 $ capcom start db-schema
@@ -161,7 +161,8 @@ token 670fa2ee31064cc626fff5a087e22d95
 
 It refuses, writing nothing, an Issue that is Closed, standing or not Ready, and a lock another
 session holds. `capcom update db-schema --status active` moves the Issue alone and leaves the lock
-untouched.
+untouched. Running `capcom start db-schema` again, after a restart or a compaction, resumes the
+lock and prints the token again.
 
 ## Ready
 
@@ -204,7 +205,7 @@ The `now ready:` line names the Issues this close made Ready, so the next step i
 Issue to work on next:
 
 ```console
-$ capcom finish db-schema --reason "Added in the sessions migration." --token 670fa2ee31064cc626fff5a087e22d95
+$ capcom finish db-schema --reason "Added in the sessions migration."
 db-schema  closed
 now ready: session-refresh
 _main: released

@@ -136,16 +136,16 @@ capcom list --tree              # the issue outline
 capcom show login-timeout-race
 capcom search refresh timeout
 capcom update login-timeout-race --priority 1
-capcom start login-timeout-race   # claim it and the Tree lock; prints a token
+capcom start login-timeout-race   # claim it and the Tree lock; again to resume
 capcom log login-timeout-race "reproduced with two tabs"
 capcom dep add login-timeout-race token-store-rework   # wait for another issue
 capcom related add login-timeout-race session-bug      # link without blocking
 capcom mv login-timeout-race --parent login-flow       # the old id stays an alias
-capcom finish login-timeout-race --reason "Fixed in 3f2a1c9" --token <token>   # close, free the lock
+capcom finish login-timeout-race --reason "Fixed in 3f2a1c9"   # close, free the lock
 capcom reopen login-timeout-race --reason "Came back on Safari"
 
 # Tree lock
-capcom lock acquire --purpose "implementing the release plan"   # outside an Issue; prints a token
+capcom lock acquire --purpose "implementing the release plan"   # outside an Issue; again to resume
 capcom lock touch --token <token>
 capcom lock release --token <token>
 capcom lock status --all

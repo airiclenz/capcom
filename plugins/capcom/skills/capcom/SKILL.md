@@ -40,10 +40,10 @@ This plugin runs `capcom prime` at session start and before compaction in any re
 
 - `capcom next`: the most urgent Ready Issue in full. `capcom ready` lists all of them.
 - `capcom show <id>`: one Issue in full, with what blocks it.
-- `capcom start <id>`: claim the Issue and take the Tree lock before starting; keep the Lock
-  token it prints. `capcom start <id> --token <token>` resumes the lock after a restart.
+- `capcom start <id>`: claim the Issue and take the Tree lock before starting. capcom keeps the
+  Lock token for the session, so running `capcom start <id>` again resumes the lock after a restart.
 - `capcom log <id> <text>`: note progress as work lands.
-- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; the output
+- `capcom finish <id> --reason <text>`: close it and free the Tree lock; the output
   names the Issues this made Ready and the one to work on next.
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file new work. The body says what is
   wrong or wanted, why, and how to tell it is done, under `## Acceptance`.
@@ -61,8 +61,9 @@ A standing Issue only groups its children: never claim or close it. Every comman
 
 `capcom start` and `capcom finish` take and free the lock with an Issue. For a change that spans
 several files or commits outside an Issue, claim the worktree with
-`capcom lock acquire --purpose <text>` and keep the token it prints. Renew it with
-`capcom lock touch --token <token>` and free it with `capcom lock release --token <token>`. When
+`capcom lock acquire --purpose <text>`; running the same acquire again resumes the lock and
+prints its token again. Renew it with `capcom lock touch --token <token>` and free it with
+`capcom lock release --token <token>`, passing the token acquire printed. When
 `capcom lock check` exits 3, another session holds this worktree: ask the user before editing.
 
 The capcom block in `AGENTS.md` is the repository's own word on these commands; when it differs

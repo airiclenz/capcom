@@ -13,4 +13,5 @@ heartbeat is older than the configured TTL (2 h by default). Acquiring with your
 resumes, even a stale lock, which is how a session that lost its context to compaction carries
 on. A stale lock is only taken over on request (`--take-stale`), and `break` is an explicit human
 act. The lock is advisory: capcom installs no git hooks by default, and an OS file lock guards only
-the brief read-modify-write of the record.
+the brief read-modify-write of the record. ADR 0016 has capcom store the Lock token for the
+session in a token file beside the record, so naming the same purpose again resumes the lock.

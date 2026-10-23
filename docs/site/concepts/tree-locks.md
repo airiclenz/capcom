@@ -34,10 +34,9 @@ _main: acquired by claude@devbox since 2026-10-13T18:57:00Z (heartbeat 2026-10-1
 token 6071ae76aab99defb4d17a08f832bf3d
 ```
 
-`_main` names the primary worktree; a linked worktree is `wt-<name>`. The token is the secret
-that proves you are the holder: whoever presents it can renew, release or resume the lock. Keep
-it for the rest of the session. capcom prints it only to the session that acquired it; `status`
-never shows it. `--holder` defaults to `user@host`.
+`_main` names the primary worktree; a linked worktree is `wt-<name>`. The token marks the lock as
+yours: `touch` and `release` take it, and capcom keeps it for you (see
+[The kept token](#the-kept-token)). `status` never shows it. `--holder` defaults to `user@host`.
 
 While the lock is held, a second session's `acquire` fails with exit code 3:
 
@@ -46,8 +45,30 @@ $ capcom lock acquire --purpose "fixing the docs"
 capcom: /home/you/your-repo/.git/capcom/locks/_main.json: locked by claude@devbox (implementing the login rework) for 0s, heartbeat 0s ago
 ```
 
-Running `acquire` again with your own `--token` resumes your lock, even a stale one, and keeps its
-original `since` time.
+Running the same `acquire --purpose` again resumes your lock, even a stale one, prints the token
+again and keeps its original `since` time:
+
+```console
+$ capcom lock acquire --purpose "implementing the login rework" --holder claude@devbox
+_main: resumed by claude@devbox since 2026-10-13T18:57:00Z (heartbeat 2026-10-13T19:20:41Z): implementing the login rework
+token 6071ae76aab99defb4d17a08f832bf3d
+```
+
+## The kept token
+
+capcom keeps each session's Lock token in a token file under the git directory, one per worktree
+and purpose, beside the lock record (ADR 0016;
+[The lock record](../reference/file-format.md#the-lock-record) has the layout). `lock acquire`
+and `capcom start` write it whenever they take or resume the lock. Acquiring again with the same
+`--purpose` reads it, and resumes the lock when its token still holds it; this is how a session
+that lost its context to a restart or a compaction carries on, without having kept anything
+itself. A `--token` given on the command line is used in place of the kept one; it is the way back
+into a lock taken by an older capcom that kept no token file.
+
+The token tells different work apart, not who may touch the worktree: any session that names the
+same purpose resumes the lock, and a session naming another purpose fails `locked`. It is a public
+signal between agents, not a secret; the lock stays advisory. `lock release` and `capcom finish`
+delete the kept token they release, and `lock break` deletes all of the worktree's kept tokens.
 
 ## Touch: keep it fresh
 
@@ -66,7 +87,8 @@ A lock is **Stale** when its holder has not renewed it within the TTL: `lock.ttl
 `.capcom/config.yaml`, two hours by default (see [Config](../reference/file-format.md#config)).
 A stale lock is still held. It stays held until one of three things happens:
 
-- its holder resumes it with `lock acquire --token <token>` or renews it with `lock touch`;
+- its holder resumes it by running the same `lock acquire --purpose` again or renews it with
+  `lock touch`;
 - another session takes it over on purpose with `lock acquire --take-stale`, which gives it a
   new token;
 - someone breaks it.
@@ -84,8 +106,9 @@ time. Taking one over is a deliberate act.
 
 ## Release and break
 
-`capcom lock release --token <token>` frees the lock you hold. Releasing a lock that is already
-free succeeds and changes nothing, so it is safe on every exit path:
+`capcom lock release --token <token>` frees the lock you hold and deletes the kept token files
+holding that token. Releasing a lock that is already free succeeds, deleting only those kept token
+files, so it is safe on every exit path:
 
 ```console
 $ capcom lock release --token 6071ae76aab99defb4d17a08f832bf3d
@@ -94,9 +117,9 @@ $ capcom lock release --token 6071ae76aab99defb4d17a08f832bf3d
 _main: free
 ```
 
-`capcom lock break` frees the lock whoever holds it, without a token. Use it when the holder is
-gone for good, or when the lock record itself is damaged. The session that held the lock is not
-told; its next `touch` fails.
+`capcom lock break` frees the lock whoever holds it, without a token, and deletes the worktree's
+kept token files. Use it when the holder is gone for good, or when the lock record itself is
+damaged. The session that held the lock is not told; its next `touch` fails.
 
 ## Check and status
 
@@ -141,36 +164,39 @@ _main: acquired by claude@devbox since 2026-10-22T09:45:59Z (heartbeat 2026-10-2
 token 670fa2ee31064cc626fff5a087e22d95
 ```
 
-`capcom start <id> --token <token>` resumes your lock after a restart, as `acquire --token` does. A
-lock another session holds refuses the start with exit code 3, and the Issue is not claimed.
+capcom keeps the token for the Issue id, so running `capcom start <id>` again after a restart
+resumes your lock and prints the token again, as a repeated `acquire` does. A lock another session
+holds refuses the start with exit code 3, and the Issue is not claimed.
 
-`capcom finish <id> --reason <text> --token <token>` closes the Issue and releases the lock, then
-names the Ready Issue to work on next:
+`capcom finish <id> --reason <text>` closes the Issue and releases the lock through the token kept
+for it, deleting that kept token, then names the Ready Issue to work on next:
 
 ```console
-$ capcom finish db-schema --reason "Added in the sessions migration." --token 670fa2ee31064cc626fff5a087e22d95
+$ capcom finish db-schema --reason "Added in the sessions migration."
 db-schema  closed
 now ready: session-refresh
 _main: released
 next: session-refresh  Refresh the session token
 ```
 
-Without `--token`, or with a token that does not hold the lock, `finish` still closes the Issue and
-leaves the lock alone, naming `capcom lock status`; `--keep-lock` keeps it for more work under it.
+`--token` on `start` and `finish` is optional and, when given, is used in place of the kept token.
+When neither holds the lock, `finish` still closes the Issue and leaves the lock alone, naming
+`capcom lock status`; `--keep-lock` keeps it for more work under it.
 `acquire` and `release` remain the way to hold the lock for a change outside an Issue.
 
 ## A session's lock, end to end
 
 ```sh
+capcom start login-flow
+# ... work, renewing the heartbeat every so often (start again prints the token):
 token=$(capcom start login-flow --kv | sed -n 's/^TOKEN=//p')
-# ... work, running this every so often:
 capcom lock touch --token "$token"
 # ... and when done:
-capcom finish login-flow --reason "Reworked in 3f2a1c9" --token "$token"
+capcom finish login-flow --reason "Reworked in 3f2a1c9"
 ```
 
-Outside an Issue, `capcom lock acquire --purpose <text> --kv` prints the same `TOKEN=` line, and
-`capcom lock release --token "$token"` frees the lock on any exit path.
+Outside an Issue, `capcom lock acquire --purpose <text> --kv` resumes the same way and prints the
+same `TOKEN=` line, and `capcom lock release --token "$token"` frees the lock on any exit path.
 
 The `--kv` output prints one `KEY=VALUE` line per field, the token as `TOKEN=`, and ends with
 `STATUS=`; see [JSON and KV output](../reference/json-output.md).

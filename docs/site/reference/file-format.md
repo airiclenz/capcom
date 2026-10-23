@@ -456,7 +456,7 @@ leaves out a background Note and every Note below it unless `--background` is gi
 from a background Note named directly; `--background` and `--retired` are independent.
 `capcom know show`, `capcom know show --with-children` and `capcom know search` treat it like any
 other Note. The Managed block in AGENTS.md leaves out a background top-level Note. Every other
-Label is free-form and changes nothing capcom does.
+Label is free-form and has no effect on what capcom does.
 
 Notes may be edited by hand, in any editor, or changed through capcom's write verbs (ADR 0010).
 `capcom check` and `capcom fmt --check` are the validators of a hand edit: `check` reports a file
@@ -796,12 +796,24 @@ dir, shared by every worktree of the clone and never committed:
 <git-common-dir>/capcom/locks/
   _main.json         the primary worktree's lock
   _main.lck          the guard file of the record next to it
+  _main.<hash>.token the Lock token kept for one purpose of the primary worktree
   wt-<name>.json     the lock of the linked worktree named <name>
 ```
 
 A worktree's key is `_main` for the primary worktree and `wt-` plus the linked worktree's name
 otherwise (the last element of its git dir, `<git-common-dir>/worktrees/<name>`). A free lock has
 no record file.
+
+Beside the records, capcom keeps each session's Lock token in a **token file**
+`<key>.<hash>.token`, one per worktree and purpose (ADR 0016), never committed. `<hash>` is the
+lowercase hex SHA-256 of the purpose. The file holds the token on its first line and the purpose
+on its second, is readable and writable by its owner only, and is replaced atomically.
+`lock acquire --purpose <text>` and `capcom start <id>` (purpose: the Issue id) write it whenever
+they take or resume the lock; running either again reads it and resumes the lock when its token
+still matches the record. `lock release` and `capcom finish` delete the token files holding the
+token they released, and `lock break` deletes all of the worktree's token files. A token file
+whose token no longer matches the record resumes nothing, and the next acquire for that purpose
+replaces it. A token file is never read as a record: only `*.json` files are.
 
 ```json
 {
@@ -816,9 +828,10 @@ no record file.
 }
 ```
 
-- **token** — the secret `lock acquire` hands the holder: 128 random bits in hex. The holder
-  presents it to `lock touch`, `lock release` and a re-acquire; capcom never shows it to anyone
-  else.
+- **token** — the Lock token `lock acquire` hands the holder: 128 random bits in hex. The holder
+  presents it to `lock touch` and `lock release`, and capcom keeps it in a token file so that the
+  same acquire or start resumes the lock. It is a public signal between agents, not a secret: it
+  tells different work apart, and the lock stays advisory.
 - **purpose** — what the holder is doing, from `--purpose`.
 - **holder** — who holds the lock, from `--holder`; `user@host` by default.
 - **host**, **user**, **branch** — where the lock was acquired: the machine, the user and the

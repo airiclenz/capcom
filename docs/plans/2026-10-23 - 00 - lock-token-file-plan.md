@@ -221,7 +221,12 @@ gains a stale case for that constant as it renders at base (keep-the-token wordi
 
 **Commit:** `feat(agents): the Managed block and Briefing rely on the kept Lock token`
 
-## 5. The guides and Notes teach the kept token
+## 5. The guides and Notes teach the kept token — ✅ DONE (2026-10-23)
+
+NOTES (2026-10-23): the guard grep still prints three lines, all item 4's verbatim Briefing quotes (docs/site/agents/briefing.md:23 and :49, docs/site/concepts/tree-locks.md:152): the held/stale lines' "(or pass --token <token>)" fallback that item 4 kept by decision; the plan says item 5 leaves those quotes, so they stay and match only because the regex is wider than the rule.
+NOTES (2026-10-23): docs/site/reference/file-format.md:459 "Label is free-form and changes nothing capcom does" matched the guard's "free[^.]*changes nothing" without being about the lock; reworded to "has no effect on what capcom does" so the guard grep stays clean.
+NOTES (2026-10-23): docs/site/getting-started/quickstart.md needed no change: its only lock text is item 4's Briefing free line.
+NOTES (2026-10-23): the lock-token glossary Note's title changed with its body ("what a Tree lock holder presents to renew or release it; capcom keeps it for the session"); nothing else quotes the old title.
 
 **What:**
 **Goal:** No guide, Note or manual page tells an agent to keep the Lock token or that resuming needs
