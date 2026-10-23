@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 // finishFollowUp is the Issue that waits on startIssue, made Ready when finish closes it.
@@ -58,19 +60,58 @@ func TestFinish_KeepLock_LeavesTheLockHeld(t *testing.T) {
 	}
 }
 
+func TestFinish_WithoutToken_ReleasesThroughTheKeptToken(t *testing.T) {
+	root := newFinishStore(t)
+	mustRun(t, root, "start", startIssue)
+
+	stdout, stderr, exitCode := runCLI(t, root, "finish", startIssue, "--reason", "shipped", "--kv")
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("exit = %d stderr = %q\n%s", exitCode, stderr, stdout)
+	}
+	if kvValue(t, stdout, "LOCK") != lockReleased || lastLine(stdout) != "STATUS=closed" {
+		t.Errorf("stdout = %q, want LOCK=released and STATUS=closed", stdout)
+	}
+	if record := readOptionalFile(t, lockRecordPath(root)); record != "" {
+		t.Errorf("lock record = %q, want the lock released", record)
+	}
+	if left := keptTokenFiles(t, root); len(left) != 0 {
+		t.Errorf("token files after finish = %v, want none", left)
+	}
+}
+
 func TestFinish_TokenNotHoldingTheLock_LeavesItAndSaysSo(t *testing.T) {
 	tests := []struct {
 		name  string
+		hold  func(t *testing.T, root string)
 		token []string
 		want  string
 	}{
-		{name: "no token", want: "left alone: no --token given; run capcom lock status"},
-		{name: "wrong token", token: []string{"--token", "not-the-token"}, want: "left alone: --token does not hold it; run capcom lock status"},
+		{
+			name: "no token",
+			hold: func(t *testing.T, root string) { acquireToken(t, root, "agent-a") },
+			want: "left alone: no --token given and no kept token for login-flow; run capcom lock status",
+		},
+		{
+			name:  "wrong token",
+			hold:  func(t *testing.T, root string) { startToken(t, root) },
+			token: []string{"--token", "not-the-token"},
+			want:  "left alone: --token does not hold it; run capcom lock status",
+		},
+		{
+			name: "kept token taken over",
+			hold: func(t *testing.T, root string) {
+				startToken(t, root)
+				ageLockRecord(t, lockRecordPath(root), 3*time.Hour)
+				mustRun(t, root, "lock", "acquire", "--purpose", "other", "--holder", "agent-b", "--take-stale")
+			},
+			want: "left alone: the kept token for login-flow does not hold it; run capcom lock status",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			root := newFinishStore(t)
-			startToken(t, root)
+			test.hold(t, root)
 			lockBefore := readOptionalFile(t, lockRecordPath(root))
 
 			args := append([]string{"finish", startIssue, "--reason", "shipped"}, test.token...)
@@ -86,6 +127,62 @@ func TestFinish_TokenNotHoldingTheLock_LeavesItAndSaysSo(t *testing.T) {
 				t.Errorf("lock record changed:\n%s\nwant\n%s", after, lockBefore)
 			}
 		})
+	}
+}
+
+func TestFinish_UnreadableKeptToken_LeavesTheLockAndSaysSo(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		want        string
+		wantWarning bool
+	}{
+		{
+			name:        "release",
+			want:        "left alone: the kept token cannot be read; run capcom lock status",
+			wantWarning: true,
+		},
+		{name: "keep lock", args: []string{"--keep-lock"}, want: "kept (--keep-lock)"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := newFinishStore(t)
+			startToken(t, root)
+			makeKeptTokenUnreadable(t, root)
+			lockBefore := readOptionalFile(t, lockRecordPath(root))
+
+			args := append([]string{"finish", startIssue, "--reason", "shipped"}, test.args...)
+			stdout, stderr, exitCode := runCLI(t, root, args...)
+
+			if exitCode != ExitOK || stderr != "" {
+				t.Fatalf("exit = %d stderr = %q\n%s", exitCode, stderr, stdout)
+			}
+			if !strings.Contains(stdout, "login-flow  closed\n") || !strings.Contains(stdout, "_main: held by ") ||
+				!strings.Contains(stdout, test.want) {
+				t.Errorf("stdout = %q, want the close and the held lock with %q", stdout, test.want)
+			}
+			if hasWarning := strings.Contains(stdout, ".token"); hasWarning != test.wantWarning {
+				t.Errorf("stdout = %q, want a warning naming the token file: %v", stdout, test.wantWarning)
+			}
+			if after := readOptionalFile(t, lockRecordPath(root)); after != lockBefore {
+				t.Errorf("lock record changed:\n%s\nwant\n%s", after, lockBefore)
+			}
+		})
+	}
+}
+
+// makeKeptTokenUnreadable replaces root's one token file with a directory, so reading it fails.
+func makeKeptTokenUnreadable(t *testing.T, root string) {
+	t.Helper()
+	paths := keptTokenFiles(t, root)
+	if len(paths) != 1 {
+		t.Fatalf("token files = %v, want one", paths)
+	}
+	if err := os.Remove(paths[0]); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if err := os.Mkdir(paths[0], 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
 	}
 }
 

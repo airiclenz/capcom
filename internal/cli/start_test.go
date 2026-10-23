@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -209,6 +210,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			entry := issueFilePath(root, file)
 			before := readOptionalFile(t, entry)
 			lockBefore := readOptionalFile(t, lockRecordPath(root))
+			tokensBefore := keptTokenFiles(t, root)
 
 			stdout, stderr, exitCode := runCLI(t, root, "start", test.arg)
 
@@ -227,7 +229,28 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			if after := readOptionalFile(t, lockRecordPath(root)); after != lockBefore {
 				t.Errorf("lock record changed:\n%s\nwant\n%s", after, lockBefore)
 			}
+			if after := keptTokenFiles(t, root); !slices.Equal(after, tokensBefore) {
+				t.Errorf("token files = %v, want %v", after, tokensBefore)
+			}
 		})
+	}
+}
+
+func TestStart_AgainWithoutToken_ResumesFromTheKeptToken(t *testing.T) {
+	root := newStartStore(t, nil)
+	token := kvValue(t, mustRun(t, root, "start", startIssue, "--kv"), "TOKEN")
+	before := readOptionalFile(t, issueFilePath(root, startIssue+".md"))
+
+	stdout, stderr, exitCode := runCLI(t, root, "start", startIssue, "--kv")
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("exit = %d stderr = %q\n%s", exitCode, stderr, stdout)
+	}
+	if kvValue(t, stdout, "LOCK") != lockResumed || kvValue(t, stdout, "TOKEN") != token {
+		t.Errorf("stdout = %q, want LOCK=resumed with the same token", stdout)
+	}
+	if after := readOptionalFile(t, issueFilePath(root, startIssue+".md")); after != before {
+		t.Errorf("issue file changed:\n%s\nwant\n%s", after, before)
 	}
 }
 
@@ -265,5 +288,8 @@ func TestStart_ClaimFailsAfterAcquire_ReleasesTheLock(t *testing.T) {
 	}
 	if record := readOptionalFile(t, lockRecordPath(root)); record != "" {
 		t.Errorf("lock record = %q, want the lock released", record)
+	}
+	if left := keptTokenFiles(t, root); len(left) != 0 {
+		t.Errorf("token files = %v, want none", left)
 	}
 }

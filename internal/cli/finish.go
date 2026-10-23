@@ -26,14 +26,15 @@ const (
 	finishLong = "Close an Issue and free this worktree's Tree lock in one step, then name the Ready Issue to " +
 		"work on next. --reason is required; the Issue moves to the first done status, and the output " +
 		"gives close's line and its \"now ready:\" line, a lock line, and a last line naming the top " +
-		"Ready Issue as capcom next chooses it, or \"" + nothingReadyMessage + "\". --token, the Lock " +
-		"token start or lock acquire printed, releases the lock; without it, or with a token that does " +
-		"not hold the lock, the lock is left alone and the lock line names capcom lock status. " +
+		"Ready Issue as capcom next chooses it, or \"" + nothingReadyMessage + "\". The lock is released " +
+		"through the Lock token capcom kept for the Issue when start took the lock, and that kept token " +
+		"is deleted; --token is optional and, when given, is used in place of the kept token. When " +
+		"neither holds the lock, the lock is left alone and the lock line names capcom lock status. " +
 		"--keep-lock leaves the lock held and needs no token. An Issue already Closed is reported " +
 		"already_closed and the lock is still released. An Issue that does not exist or is standing " +
 		"fails the command and the lock is not touched. --kv gives one record with ID=, LOCK= and NEXT=, " +
 		"and --json gives the close, the lock and the next Issue."
-	finishExample = "  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\" --token <token>\n" +
+	finishExample = "  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\"\n" +
 		"  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\" --keep-lock   # more work under this lock\n" +
 		"  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\" --token <token> --kv"
 )
@@ -60,8 +61,8 @@ type finishLockOutcome struct {
 	warning string
 }
 
-// newFinishCommand closes one Issue, frees the Tree lock the caller's token holds, and names the
-// Ready Issue to work on next. A failed close fails finish before the lock is looked at; after a
+// newFinishCommand closes one Issue, frees the Tree lock the caller's token or the token kept for
+// the Issue holds, and names the Ready Issue to work on next. A failed close fails finish before the lock is looked at; after a
 // close, nothing the lock does changes the exit code.
 func (a *app) newFinishCommand() *cobra.Command {
 	var reason, token string
@@ -82,7 +83,7 @@ func (a *app) newFinishCommand() *cobra.Command {
 	}
 	flags := cmd.Flags()
 	flags.StringVar(&reason, flagReason, "", "why the Issue is closed (required)")
-	flags.StringVar(&token, flagToken, "", "your token from start or lock acquire, to release the lock")
+	flags.StringVar(&token, flagToken, "", "your token from start or lock acquire, used in place of the kept one")
 	flags.BoolVar(&isKeepLock, flagKeepLock, false, "leave the Tree lock held")
 	return a.withKV(cmd)
 }
@@ -100,7 +101,7 @@ func (a *app) finish(cmd *cobra.Command, arg string, reason string, token string
 	}
 	outcome := closed.Data.([]closeData)[0]
 
-	held := finishLock(a.openLockTarget().lock, token, isKeepLock)
+	held := finishLock(a.openLockTarget().lock, outcome.ID, token, isKeepLock)
 
 	next, err := a.nextAfterFinish()
 	if err != nil {
@@ -109,9 +110,10 @@ func (a *app) finish(cmd *cobra.Command, arg string, reason string, token string
 	return a.emit(cmd, finishResult(closed.Text, outcome, held, next))
 }
 
-// finishLock releases worktree's lock for token, or with isKeepLock only reads it. A lock token does
-// not hold is left alone, and a record that cannot be read is reported; neither is a failure.
-func finishLock(worktree lock.Worktree, token string, isKeepLock bool) finishLockOutcome {
+// finishLock releases worktree's lock for token, or for the Lock token kept for the Issue id when
+// token is empty, or with isKeepLock only reads it. A lock neither token holds is left alone, and a
+// record or kept token that cannot be read is reported; none of them is a failure.
+func finishLock(worktree lock.Worktree, id string, token string, isKeepLock bool) finishLockOutcome {
 	if isKeepLock {
 		status, err := worktree.Read()
 		if err != nil {
@@ -120,22 +122,48 @@ func finishLock(worktree lock.Worktree, token string, isKeepLock bool) finishLoc
 		return finishLockOutcome{data: newLockData(lockStateName(status.State()), status, ""), note: "kept (--keep-lock)"}
 	}
 
-	status, err := worktree.Release(token)
+	sessionToken, err := worktree.SessionToken(token, id)
+	if err != nil {
+		return unreadableKeptToken(worktree, err)
+	}
+	status, err := worktree.Release(sessionToken)
 	var held *lock.HeldError
 	switch {
 	case errors.As(err, &held):
-		why := "--token does not hold it"
-		if token == "" {
-			why = "no --token given"
-		}
 		return finishLockOutcome{
 			data: newLockData(lockStateName(held.Status.State()), held.Status, ""),
-			note: "left alone: " + why + "; run capcom lock status",
+			note: "left alone: " + notHoldingReason(id, token, sessionToken) + "; run capcom lock status",
 		}
 	case err != nil:
 		return unreadableFinishLock(worktree, err)
 	}
 	return finishLockOutcome{data: newLockData(endedState(status), status, "")}
+}
+
+// notHoldingReason says why finish did not release the lock for the Issue id: the --token given
+// does not hold it, the token kept for id does not, or neither was there to try.
+func notHoldingReason(id string, token string, sessionToken string) string {
+	switch {
+	case token != "":
+		return "--token does not hold it"
+	case sessionToken != "":
+		return "the kept token for " + id + " does not hold it"
+	}
+	return "no --token given and no kept token for " + id
+}
+
+// unreadableKeptToken reports worktree's lock, left alone because the kept Lock token failed to
+// read with err; the lock is described as Read finds it.
+func unreadableKeptToken(worktree lock.Worktree, err error) finishLockOutcome {
+	status, readErr := worktree.Read()
+	if readErr != nil {
+		return unreadableFinishLock(worktree, readErr)
+	}
+	return finishLockOutcome{
+		data:    newLockData(lockStateName(status.State()), status, ""),
+		note:    "left alone: the kept token cannot be read; run capcom lock status",
+		warning: err.Error(),
+	}
 }
 
 // unreadableFinishLock reports worktree's lock whose record failed to read with err: invalid when

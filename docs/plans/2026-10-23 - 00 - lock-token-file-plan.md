@@ -120,7 +120,11 @@ uses a purpose other than "item 12"; `lock release --help` no longer says "chang
 
 **Commit:** `feat(lock): acquire resumes the Tree lock from the kept token`
 
-## 3. capcom start and finish use the kept token
+## 3. capcom start and finish use the kept token — ✅ DONE (2026-10-23)
+
+NOTES (2026-10-23): finish resolves the kept token inside finishLock (now taking the Issue id), after its --keep-lock branch, rather than in app.finish before the call; --keep-lock still never reads the token file. A kept token that cannot be read reports the lock as Read finds it, falling back to the unreadable-record report when Read fails too.
+NOTES (2026-10-23): added TestFinish_UnreadableKeptToken_LeavesTheLockAndSaysSo (release and --keep-lock cases), a token-file check to TestStart_RefusedIssue_WritesNothingAndNamesTheResolver, and a no-token-file check to TestStart_ClaimFailsAfterAcquire_ReleasesTheLock; the taken-over case backdates the record with prime_test's ageLockRecord.
+NOTES (2026-10-23): the CHANGELOG entry supersedes CHANGELOG.md [Unreleased] lines 10-11 (start's "--token resumes your lock", finish "Without --token ... left alone"); the closeout should fold or reword those lines.
 
 **What:**
 **Goal:** `capcom start <id>` resumes from the token kept for the Issue id, and `capcom finish <id>`

@@ -21,16 +21,17 @@ const kindStart = "start"
 // The help text of capcom start.
 const (
 	startLong = "Claim a Ready Issue and this worktree's Tree lock in one step, then print the Issue in full " +
-		"and the Lock token to keep. The Issue moves to the first doing status and the lock is held " +
-		"with the Issue id as its purpose; --token, the Lock token an earlier start or lock acquire " +
-		"printed, resumes your lock instead of acquiring a new one. Starting an Issue already in doing " +
-		"under your own --token changes nothing in its file and resumes the lock. It refuses, writing " +
-		"nothing, an Issue that is Closed, standing, not Ready or already in doing without your lock, " +
-		"and a lock another session holds (locked, exit code 3); each refusal names the command that " +
-		"resolves it. --kv adds LOCK= and TOKEN= to show's record, and --json adds a lock object to " +
-		"show's data."
-	startExample = "  capcom start login-timeout-race                   # prints the Issue, then the token to keep\n" +
-		"  capcom start login-timeout-race --token <token>   # resume after a restart\n" +
+		"and the Lock token. The Issue moves to the first doing status and the lock is held with the " +
+		"Issue id as its purpose. capcom keeps the Lock token for the session in a token file under " +
+		"the git directory, so starting the same Issue again resumes your lock, even after a restart, " +
+		"and finish releases it; --token is optional and, when given, is used in place of the kept " +
+		"token. Starting an Issue already in doing under your own lock changes nothing in its file and " +
+		"resumes the lock. It refuses, writing nothing, an Issue that is Closed, standing, not Ready or " +
+		"already in doing without your lock, and a lock another session holds (locked, exit code 3); " +
+		"each refusal names the command that resolves it. --kv adds LOCK= and TOKEN= to show's record, " +
+		"and --json adds a lock object to show's data."
+	startExample = "  capcom start login-timeout-race                   # prints the Issue, then the Lock token\n" +
+		"  capcom start login-timeout-race                   # again after a restart: resumes the lock\n" +
 		"  capcom start login-timeout-race --kv              # TOKEN= carries the Lock token"
 )
 
@@ -60,12 +61,13 @@ func (a *app) newStartCommand() *cobra.Command {
 			return a.start(cmd, args[0], token)
 		}),
 	}
-	cmd.Flags().StringVar(&token, flagToken, "", "your token from an earlier start or lock acquire, to resume the lock")
+	cmd.Flags().StringVar(&token, flagToken, "", "your token from an earlier start or lock acquire, used in place of the kept one")
 	return a.withKV(cmd)
 }
 
 // start resolves arg, refuses an Issue start cannot claim or a lock another session holds, then
-// acquires (or resumes) the lock, claims the Issue unless it is already in doing, and prints both.
+// acquires the lock, or resumes it with token or the Lock token kept for the Issue id, claims the
+// Issue unless it is already in doing, and prints both.
 func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 	entry, err := a.resolveIssue(arg)
 	if err != nil {
@@ -79,6 +81,10 @@ func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 	}
 
 	target := a.openLockTarget()
+	token, err = target.lock.SessionToken(token, entry.ID)
+	if err != nil {
+		return err
+	}
 	checked, err := target.lock.Check(token)
 	if err := a.refuseLock(entry, isDoing, checked, err); err != nil {
 		return err
