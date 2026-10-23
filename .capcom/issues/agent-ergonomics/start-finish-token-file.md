@@ -4,6 +4,7 @@ status: open
 type: feature
 priority: 1
 deps: [lock-token-recall, lock-token-file, start-command, finish-command]
+plan: 2026-10-23 - 00 - lock-token-file-plan
 created: 2026-10-22T09:29:08Z
 ---
 
