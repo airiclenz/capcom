@@ -463,3 +463,101 @@ func TestLockAcquire_WithoutPurpose_ExitsUsage(t *testing.T) {
 		t.Errorf("exit = %d, want %d", exitCode, ExitUsage)
 	}
 }
+
+// keptTokenFiles returns the token files in root's lock directory.
+func keptTokenFiles(t *testing.T, root string) []string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join(root, ".git", "capcom", "locks", "*.token"))
+	if err != nil {
+		t.Fatalf("Glob: %v", err)
+	}
+	return paths
+}
+
+func TestLockAcquire_SamePurposeWithoutToken_ResumesFromKeptToken(t *testing.T) {
+	cases := []struct {
+		name    string
+		isStale bool
+	}{
+		{"fresh lock", false},
+		{"stale lock", true},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newLockStore(t)
+			token := acquireToken(t, root, "agent-a")
+			if testCase.isStale {
+				makeLocksStale(t, root)
+			}
+
+			stdout := mustRun(t, root, "lock", "acquire", "--purpose", "item 12", "--kv")
+
+			if kvValue(t, stdout, "LOCK") != "resumed" || kvValue(t, stdout, "TOKEN") != token {
+				t.Errorf("stdout = %q, want LOCK=resumed and TOKEN=%s", stdout, token)
+			}
+		})
+	}
+}
+
+func TestLockAcquire_WrongTokenBesideKeptOne_FailsLocked(t *testing.T) {
+	root := newLockStore(t)
+	acquireToken(t, root, "agent-a")
+
+	stdout, _, exitCode := runCLI(t, root, "lock", "acquire", "--purpose", "item 12", "--token", "someone-else", "--kv")
+
+	if exitCode != ExitNotFound || lastLine(stdout) != "STATUS=locked" || kvValue(t, stdout, "TOKEN") != "" {
+		t.Errorf("exit = %d stdout = %q, want STATUS=locked and no token", exitCode, stdout)
+	}
+}
+
+func TestLock_ReleaseAndBreak_DeleteTheKeptTokenFiles(t *testing.T) {
+	cases := []struct {
+		name string
+		args func(token string) []string
+	}{
+		{"release", func(token string) []string { return []string{"lock", "release", "--token", token} }},
+		{"break", func(string) []string { return []string{"lock", "break"} }},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newLockStore(t)
+			token := acquireToken(t, root, "agent-a")
+			if len(keptTokenFiles(t, root)) != 1 {
+				t.Fatalf("token files after acquire = %v, want one", keptTokenFiles(t, root))
+			}
+
+			mustRun(t, root, testCase.args(token)...)
+
+			if left := keptTokenFiles(t, root); len(left) != 0 {
+				t.Errorf("token files after %s = %v, want none", testCase.name, left)
+			}
+		})
+	}
+}
+
+func TestLock_TokenFileBesideRecord_IsNoLockAndNoWarning(t *testing.T) {
+	root := newLockStore(t)
+	token := acquireToken(t, root, "agent-a")
+
+	all := mustRun(t, root, "lock", "status", "--all", "--kv")
+	check := mustRun(t, root, "lock", "check", "--token", token, "--kv")
+
+	if strings.Count(all, "WORKTREE=") != 1 || strings.Contains(all, "WARNING=") {
+		t.Errorf("status --all = %q, want one worktree and no warning", all)
+	}
+	if strings.Contains(check, "WARNING=") || lastLine(check) != "STATUS=ok" {
+		t.Errorf("check = %q, want no warning and STATUS=ok", check)
+	}
+}
+
+func TestLockReleaseHelp_DoesNotSayChangesNothing(t *testing.T) {
+	root := newLockStore(t)
+
+	stdout := mustRun(t, root, "lock", "release", "--help")
+
+	if strings.Contains(stdout, "changes nothing") || !strings.Contains(stdout, "token files") {
+		t.Errorf("release --help = %q, want the token files and no \"changes nothing\"", stdout)
+	}
+}

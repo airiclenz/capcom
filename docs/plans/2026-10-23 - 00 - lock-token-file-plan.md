@@ -83,7 +83,10 @@ the guard grep above prints nothing.
 
 **Commit:** `feat(lock): keep the Lock token in a purpose-keyed token file`
 
-## 2. capcom lock acquire resumes from the kept token
+## 2. capcom lock acquire resumes from the kept token — ✅ DONE (2026-10-23)
+
+NOTES (2026-10-23): release's Short ("releasing a free lock does nothing") became "releasing a free lock succeeds", and acquire's --token flag help now says it is used in place of the kept one; both in lock.go, made false by the kept token files.
+NOTES (2026-10-23): "another purpose fails exit 3 locked" is covered by the existing TestLockAcquire_HeldByAnother_FailsLockedWithHolder (purpose "other"); no new test duplicates it.
 
 **What:**
 **Goal:** `capcom lock acquire --purpose <text>` without `--token` resumes the lock its token file

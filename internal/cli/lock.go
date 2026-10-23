@@ -72,23 +72,26 @@ type lockTarget struct {
 // The help text of capcom lock and its subcommands.
 const (
 	lockLong = "Manage this worktree's Tree lock: the advisory claim one agent session holds on one working " +
-		"tree while it edits. acquire claims it and prints a Lock token, touch renews its heartbeat with " +
-		"that token, and release frees it. A lock whose heartbeat is older than the TTL (lock.ttl in " +
+		"tree while it edits. acquire claims it, prints a Lock token and keeps that token for the " +
+		"session in a token file under the git directory; touch renews its heartbeat with that token, " +
+		"and release frees it. A lock whose heartbeat is older than the TTL (lock.ttl in " +
 		"config.yaml, two hours by default) is stale: it stays held until its holder resumes it, " +
 		"another session takes it over with acquire --take-stale, or someone breaks it. Each git " +
 		"worktree has a lock of its own, and capcom installs no git hooks: the lock binds only the " +
 		"sessions that check it."
-	lockExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints the token to keep\n" +
+	lockExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints and keeps the token\n" +
 		"  capcom lock touch --token <token>     # renew the heartbeat\n" +
 		"  capcom lock status --all              # every worktree's lock\n" +
 		"  capcom lock release --token <token>   # free it when the work is done"
 	lockAcquireLong = "Claim this worktree's Tree lock for --purpose, which is required. A free lock gets a new " +
-		"Lock token, printed on a token line: keep it, since touch and release need it. Your --token " +
-		"from an earlier acquire resumes your lock, even a stale one, and refreshes its heartbeat. A " +
+		"Lock token, printed on a token line; touch and release need it. capcom keeps the Lock token " +
+		"for the session in a token file under the git directory: acquiring again with the same " +
+		"--purpose and no --token resumes your lock, even a stale one, refreshes its heartbeat and " +
+		"prints the token again. A --token from an earlier acquire is used in place of the kept one. A " +
 		"lock another session holds fails locked, exit code 3, unless it is stale and --take-stale is " +
 		"given, which takes it over with a new token. --holder names the holder, user@host by default."
-	lockAcquireExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints the token to keep\n" +
-		"  capcom lock acquire --purpose \"implementing the release plan\" --token <token>   # resume after a restart\n" +
+	lockAcquireExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints and keeps the token\n" +
+		"  capcom lock acquire --purpose \"implementing the release plan\"   # again: resume after a restart\n" +
 		"  capcom lock acquire --purpose \"finishing the release\" --take-stale   # take over a stale lock"
 	lockTouchLong = "Refresh the heartbeat of the Tree lock you hold, so that it does not go stale; --token, the " +
 		"Lock token acquire printed, is required. Touch it more often than the lock TTL while the work " +
@@ -97,12 +100,14 @@ const (
 	lockTouchExample = "  capcom lock touch --token <token>\n" +
 		"  capcom lock touch --token <token> --kv   # KEY=VALUE lines ending in STATUS="
 	lockReleaseLong = "Free the Tree lock you hold; --token, the Lock token acquire printed, is required. " +
-		"Releasing a lock that is already free succeeds and changes nothing, so it is safe on every " +
-		"exit path. It prints the worktree and released, or free when there was nothing to release. A " +
-		"lock another session holds fails locked, exit code 3; break frees a lock whose holder is gone."
+		"It also deletes the kept token files holding that token. Releasing a lock that is already " +
+		"free succeeds and only deletes those token files, so it is safe on every exit path. It prints " +
+		"the worktree and released, or free when there was nothing to release. A lock another session " +
+		"holds fails locked, exit code 3, and deletes nothing; break frees a lock whose holder is gone."
 	lockReleaseExample = "  capcom lock release --token <token>\n" +
 		"  capcom lock release --token <token> --kv   # KEY=VALUE lines ending in STATUS="
-	lockBreakLong = "Free this worktree's Tree lock whoever holds it, without its Lock token. Use it when the " +
+	lockBreakLong = "Free this worktree's Tree lock whoever holds it, without its Lock token, and delete this " +
+		"worktree's kept token files, so no session resumes the lock from one. Use it when the " +
 		"holder is gone, for a stale lock nobody will resume, or when the lock record itself is " +
 		"invalid: such a record is discarded, with a warning. The session that held the lock is not " +
 		"told; its next touch fails not_found. It prints the worktree and released, or free when " +
@@ -159,7 +164,11 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, isResumed, err := target.lock.Acquire(claim, token, isTakeStale)
+			sessionToken, err := target.lock.SessionToken(token, purpose)
+			if err != nil {
+				return err
+			}
+			status, isResumed, err := target.lock.Acquire(claim, sessionToken, isTakeStale)
 			state := lockAcquired
 			if isResumed {
 				state = lockResumed
@@ -169,7 +178,7 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&purpose, flagPurpose, "", "what the lock is held for")
 	cmd.Flags().StringVar(&holder, flagHolder, "", "who holds the lock (default user@host)")
-	cmd.Flags().StringVar(&token, flagToken, "", "your token from an earlier acquire, to resume the lock")
+	cmd.Flags().StringVar(&token, flagToken, "", "your token from an earlier acquire, used in place of the kept one")
 	cmd.Flags().BoolVar(&isTakeStale, flagTakeStale, false, "take the lock over when it is stale")
 	_ = cmd.MarkFlagRequired(flagPurpose) // fails only for an undefined flag
 	return a.withKV(cmd)
@@ -199,7 +208,7 @@ func (a *app) newLockReleaseCommand() *cobra.Command {
 	var token string
 	cmd := &cobra.Command{
 		Use:         "release",
-		Short:       "Release the lock you hold; releasing a free lock does nothing",
+		Short:       "Release the lock you hold; releasing a free lock succeeds",
 		Long:        lockReleaseLong,
 		Example:     lockReleaseExample,
 		Args:        cobra.NoArgs,
