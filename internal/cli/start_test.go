@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 )
 
@@ -117,6 +118,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 		file     string
 		isLocked bool
 		wantExit int
+		wantCode output.Code
 		want     string
 	}{
 		{
@@ -124,6 +126,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			files:    map[string]string{"shipped.md": readyIssue("Shipped", "done", 2, "")},
 			arg:      "shipped",
 			wantExit: ExitError,
+			wantCode: output.CodeInvalid,
 			want:     "capcom reopen shipped --reason <text>",
 		},
 		{
@@ -131,6 +134,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			files:    map[string]string{"area.md": readyIssue("Area", "open", 2, "standing: true\n")},
 			arg:      "area",
 			wantExit: ExitError,
+			wantCode: output.CodeInvalid,
 			want:     "capcom list --tree area",
 		},
 		{
@@ -138,6 +142,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			files:    map[string]string{"gated.md": readyIssue("Gated", "open", 2, "deps: [login-flow]\n")},
 			arg:      "gated",
 			wantExit: ExitError,
+			wantCode: output.CodeConflict,
 			want:     "capcom dep list gated",
 		},
 		{
@@ -145,6 +150,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			files:    map[string]string{"epic.md": readyIssue("Epic", "open", 2, ""), "epic/part.md": readyIssue("Part", "open", 2, "")},
 			arg:      "epic",
 			wantExit: ExitError,
+			wantCode: output.CodeConflict,
 			want:     "capcom list --tree epic",
 		},
 		{
@@ -153,6 +159,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			arg:      "part",
 			file:     "epic/part.md",
 			wantExit: ExitError,
+			wantCode: output.CodeConflict,
 			want:     "capcom show epic",
 		},
 		{
@@ -160,6 +167,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			files:    map[string]string{"later.md": readyIssue("Later", "parked", 2, "")},
 			arg:      "later",
 			wantExit: ExitError,
+			wantCode: output.CodeConflict,
 			want:     "capcom update later --status open",
 		},
 		{
@@ -167,6 +175,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			files:    map[string]string{"busy.md": readyIssue("Busy", "active", 2, "")},
 			arg:      "busy",
 			wantExit: ExitError,
+			wantCode: output.CodeConflict,
 			want:     "capcom lock acquire --purpose busy",
 		},
 		{
@@ -175,6 +184,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			arg:      "busy",
 			isLocked: true,
 			wantExit: ExitError,
+			wantCode: output.CodeConflict,
 			want:     "capcom start busy --token <token>",
 		},
 		{
@@ -182,6 +192,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			arg:      startIssue,
 			isLocked: true,
 			wantExit: ExitNotFound,
+			wantCode: output.CodeLocked,
 			want:     "capcom lock status",
 		},
 	}
@@ -204,6 +215,11 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			if exitCode != test.wantExit || !strings.Contains(stderr, test.want) {
 				t.Errorf("exit = %d, want %d; stderr = %q, want it to name %q\n%s",
 					exitCode, test.wantExit, stderr, test.want, stdout)
+			}
+			jsonOut, _, _ := runCLI(t, root, "start", test.arg, "--json")
+			failure, _ := decodeEnvelope(t, jsonOut)["error"].(map[string]any)
+			if failure["code"] != string(test.wantCode) {
+				t.Errorf("--json error = %v, want code %s", failure, test.wantCode)
 			}
 			if after := readOptionalFile(t, entry); after != before {
 				t.Errorf("issue file changed:\n%s\nwant\n%s", after, before)
