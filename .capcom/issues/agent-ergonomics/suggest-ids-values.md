@@ -23,3 +23,7 @@ Wanted:
 - `capcom update <id> --type bugg` lists the configured types.
 - No suggestion is printed when nothing is close.
 - Tests cover issues and Notes, text and `--json`.
+
+## Log
+
+- 2026-10-26 Airic Lenz: Field evaluation (capcom 0.9.1): two of nine experiments hit this. eval-full-cycle ran update --status doing and eval-help-discovery ran list --status closed (a category word); both errors say only 'not a status declared in config.yaml', so the agent read config.yaml or retried blind. Still the same on 0.10.0. Listing the declared statuses in the error saves about one call each.

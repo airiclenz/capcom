@@ -30,3 +30,7 @@ Wanted: `capcom context <id>` prints, in one output and in this order:
 - Output stays under a size limit documented in `--help`; long sections are cut with a line
   naming the command that prints the rest.
 - The Managed block tells agents to run `capcom context <id>` before starting an Issue.
+
+## Log
+
+- 2026-10-26 Airic Lenz: Field evaluation (capcom 0.9.1, eval-gather-context): gathering an issue's deps and dependents with status plus its applicable Notes took six show calls; show prints deps and dependents without status, and nothing lists the Notes that apply to an issue. The report ranks a context view second by calls saved (about five). Confirms the wanted output, including statuses on deps and dependents.
