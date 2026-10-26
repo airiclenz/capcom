@@ -98,9 +98,17 @@ func Discover(dir string) (Paths, error) {
 // run runs a read-only git command in dir and returns its stdout. A command that exits non-zero
 // fails with an *Error carrying git's stderr. Callers must pass read-only commands only.
 func run(dir string, args ...string) (string, error) {
+	return runWithInput(dir, nil, args...)
+}
+
+// runWithInput is run with input fed to the command's standard input; nil input gives it none.
+func runWithInput(dir string, input []byte, args ...string) (string, error) {
 	command := exec.Command(gitProgram, args...)
 	command.Dir = dir
 	command.Env = append(os.Environ(), optionalLocksOff)
+	if input != nil {
+		command.Stdin = bytes.NewReader(input)
+	}
 	var stdout, stderr bytes.Buffer
 	command.Stdout = &stdout
 	command.Stderr = &stderr

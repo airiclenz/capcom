@@ -218,7 +218,9 @@ NOTES (2026-10-26): TestShow_KV_ClosesEachIDWithItsStatus pinned the old five-ke
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'KV|Start'`
 **Commit:** `feat(show): print type, priority, labels, parent, deps and plan in --kv`
 
-## 9. gitx reports which paths git ignores
+## 9. gitx reports which paths git ignores — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): `run` now delegates to a new private `runWithInput(dir, input, args...)` that feeds `check-ignore --stdin`; paths go to git with forward slashes and come back in the caller's order and spelling. Tests also cover an absolute path inside the tree and a path outside it (fails with a git *Error).
 
 **What:**
 **Goal:** `internal/gitx` offers a read-only call that, given a worktree and paths, returns the
