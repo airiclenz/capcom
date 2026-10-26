@@ -55,11 +55,11 @@ func (a *app) newFmtCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			issues, err := nodestore.Issues(a.store, nil).Format(isCheck)
 			if err != nil {
-				return kindFailure(err)
+				return a.kindFailure(err, issueIDs)
 			}
 			notes, err := nodestore.Notes(a.store, nil).Format(isCheck)
 			if err != nil {
-				return kindFailure(err)
+				return a.kindFailure(err, noteIDs)
 			}
 			run := formatRun{
 				app:      a,

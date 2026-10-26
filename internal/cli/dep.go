@@ -111,7 +111,7 @@ func (a *app) newDepRmCommand() *cobra.Command {
 func (a *app) depWritten(written nodestore.Written, err error, words refusalWords) (nodestore.Written, error) {
 	var refusal *reflist.Refusal
 	if errors.As(err, &refusal) {
-		return nodestore.Written{}, refusalFailure(err, written.Path, words)
+		return nodestore.Written{}, a.refusalFailure(err, issueIDs, written.Path, words)
 	}
-	return a.written(written, err)
+	return a.written(issueIDs, written, err)
 }

@@ -573,6 +573,52 @@ func TestShow_OneOfSeveralMissingJSON_CarriesDataAndError(t *testing.T) {
 	}
 }
 
+func TestShow_UnknownID_SuggestsTheClosestIDs(t *testing.T) {
+	root := newReadStore(t)
+	cases := []struct {
+		name string
+		arg  string
+		want string
+	}{
+		{"an id", "login-flwo", "capcom: id \"login-flwo\" not found; did you mean login-flow?\n"},
+		{"an alias", "apogee-kk0.5", "capcom: id \"apogee-kk0.5\" not found; did you mean apogee-kk0.4?\n"},
+		{"a shared word", "session-timeout", "capcom: id \"session-timeout\" not found; did you mean session-refresh?\n"},
+		{"nothing close", "zzzzzz", "capcom: id \"zzzzzz\" not found\n"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, stderr, exitCode := runCLI(t, root, "show", testCase.arg)
+
+			if exitCode != ExitNotFound || stderr != testCase.want {
+				t.Errorf("show %s exit = %d stderr = %q, want %q", testCase.arg, exitCode, stderr, testCase.want)
+			}
+		})
+	}
+}
+
+func TestShow_UnknownIDJSON_CarriesSuggestions(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "show", "--json", "login-flwo")
+
+	errorBody, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	suggestions, _ := errorBody["suggestions"].([]any)
+	if exitCode != ExitNotFound || len(suggestions) != 1 || suggestions[0] != "login-flow" {
+		t.Errorf("exit = %d error = %v, want suggestions [login-flow]", exitCode, errorBody)
+	}
+}
+
+func TestShow_KVUnknownID_RecordCarriesSuggestions(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "show", "--kv", "login-flwo")
+
+	want := "ID=login-flwo\nMESSAGE=id \"login-flwo\" not found\nSUGGESTIONS=login-flow\nSTATUS=not_found\n"
+	if exitCode != ExitNotFound || stdout != want {
+		t.Errorf("exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
+	}
+}
+
 func TestShow_KV_ClosesEachIDWithItsStatus(t *testing.T) {
 	root := newReadStore(t)
 

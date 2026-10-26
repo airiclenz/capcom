@@ -44,6 +44,23 @@ func (e *UnusableError) Is(target error) bool {
 	return target == ErrNotFound
 }
 
+// NotFoundError reports an argument that matches no id, Alias or id prefix (see ResolveIn). It
+// matches ErrNotFound under errors.Is.
+type NotFoundError struct {
+	// Arg is the argument as given.
+	Arg string
+}
+
+// Error renders the argument as given.
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("id %q %v", e.Arg, ErrNotFound)
+}
+
+// Is reports whether target is ErrNotFound.
+func (e *NotFoundError) Is(target error) bool {
+	return target == ErrNotFound
+}
+
 // Lookup returns the node whose id or one of whose Aliases is exactly name.
 func (t *Tree) Lookup(name string) (Node, bool) {
 	if i, found := t.byID[name]; found {
@@ -101,8 +118,8 @@ func (m NameMatch) refusalError(arg string) error {
 
 // ResolveIn finds the id of the node an argument names among names, once NormalizeArg has turned a
 // citation spelling into a name: an exact id first, then an Alias, then the one id the name is a
-// prefix of. It fails with an *AmbiguousError when the prefix matches several ids, and with
-// ErrNotFound when it matches none; both quote the argument as given. An error names returns comes
+// prefix of. It fails with an *AmbiguousError when the prefix matches several ids, and with a
+// *NotFoundError when it matches none; both quote the argument as given. An error names returns comes
 // back unchanged.
 //
 // Before any of that, a name the membership verdicts refuse fails: one that two or more files
@@ -131,7 +148,7 @@ func ResolveIn(names NameReader, arg string) (string, error) {
 	}
 	switch len(candidates) {
 	case 0:
-		return "", fmt.Errorf("id %q %w", arg, ErrNotFound)
+		return "", &NotFoundError{Arg: arg}
 	case 1:
 		return prefixMatch(names, arg, candidates[0])
 	default:
@@ -154,7 +171,7 @@ func prefixMatch(names NameReader, arg, id string) (string, error) {
 	case match.Refusal != 0:
 		return "", match.refusalError(arg)
 	default:
-		return "", fmt.Errorf("id %q %w", arg, ErrNotFound)
+		return "", &NotFoundError{Arg: arg}
 	}
 }
 

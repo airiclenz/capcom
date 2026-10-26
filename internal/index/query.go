@@ -160,6 +160,30 @@ func (x *Index) resolveID(q querier, nodes nodeTable, arg string) (string, error
 	return tree.ResolveIn(snapshotNames{x: x, q: q, nodes: nodes}, arg)
 }
 
+// IssueNames returns every id and Alias of a usable issue, each once and in order: the names an
+// argument could have meant, from one read snapshot.
+func (x *Index) IssueNames() ([]string, error) {
+	return x.names(issueNodes)
+}
+
+// NoteNames returns every id and Alias of a usable Note, each once and in order, as IssueNames
+// does for issues.
+func (x *Index) NoteNames() ([]string, error) {
+	return x.names(noteNodes)
+}
+
+// names returns every id and Alias of the usable nodes of one kind, each once and in order.
+func (x *Index) names(nodes nodeTable) (names []string, err error) {
+	table := nodes.table
+	err = x.snapshot(func(q querier) error {
+		names, err = x.strings(context.Background(), q, `SELECT id FROM `+table+` WHERE excluded = 0
+			UNION SELECT aliases.alias FROM aliases JOIN `+table+` ON `+table+`.path = aliases.path
+			WHERE aliases.kind = ? AND `+table+`.excluded = 0 ORDER BY 1`, nodes.kind)
+		return err
+	})
+	return names, err
+}
+
 // snapshotNames is the tree.NameReader of one kind as a read snapshot of the index holds them: the
 // stored membership verdicts and the usable node rows.
 type snapshotNames struct {

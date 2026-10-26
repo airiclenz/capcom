@@ -82,7 +82,7 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 			}
 			addition, err := a.ops().ReferenceList(graph.graph, holder.ID, holder.Related).Add(args[1])
 			if err != nil {
-				return refusalFailure(err, holder.Path, refusalWords{self: relatedSelfFormat})
+				return a.refusalFailure(err, issueIDs, holder.Path, refusalWords{self: relatedSelfFormat})
 			}
 			isLinked := addition.IsPresent ||
 				slices.ContainsFunc(graph.entries[addition.ID].Related, graph.names(holder.ID))
@@ -134,7 +134,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				dropped, err := removal.Drop(target.Related)
 				if err != nil {
-					return issue.Issue{}, refusalFailure(err, "", notRelated)
+					return issue.Issue{}, a.refusalFailure(err, issueIDs, "", notRelated)
 				}
 				target.Related = ops.WithoutEntries(target.Related, dropped)
 				return target, nil
@@ -156,7 +156,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.Entry, reflist.Removal, error) {
 	removal, err := a.ops().ReferenceList(graph.graph, first.ID, first.Related).Remove(arg)
 	if err != nil {
-		return index.Entry{}, reflist.Removal{}, refusalFailure(err, "", refusalWords{})
+		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, "", refusalWords{})
 	}
 	if _, err := removal.Drop(first.Related); removal.ID == "" || err == nil {
 		return first, removal, nil
@@ -164,11 +164,11 @@ func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.E
 	other := graph.entries[removal.ID]
 	reverse, err := a.ops().ReferenceList(graph.graph, other.ID, other.Related).Remove(first.ID)
 	if err != nil {
-		return index.Entry{}, reflist.Removal{}, refusalFailure(err, "", refusalWords{})
+		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, "", refusalWords{})
 	}
 	if _, err := reverse.Drop(other.Related); err != nil {
 		notRelated := refusalWords{notFound: fmt.Sprintf("%s and %s are not related", first.ID, removal.ID)}
-		return index.Entry{}, reflist.Removal{}, refusalFailure(err, first.Path, notRelated)
+		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, first.Path, notRelated)
 	}
 	return other, reverse, nil
 }

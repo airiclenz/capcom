@@ -45,7 +45,8 @@ func (a *app) newReopenCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			written, err := a.written(a.ops().Reopen(args[0], "", status, options.reason, time.Now()))
+			reopened, err := a.ops().Reopen(args[0], "", status, options.reason, time.Now())
+			written, err := a.written(issueIDs, reopened, err)
 			if err != nil {
 				return err
 			}

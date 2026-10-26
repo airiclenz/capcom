@@ -146,7 +146,14 @@ as at the base (`TestRenderError_NoSuggestion_OmitsIt` still passes).
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/cli/output/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Show'`
 **Commit:** `feat(output): carry suggestions and valid values on errors`
 
-## 6. An unknown id names the closest ids
+## 6. An unknown id names the closest ids — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): re-derived from the assumption that every site mapping tree.ErrNotFound holds the argument and its kind: kindFailure and refusalFailure (errors.go) get only the error, from nodestore, reflist and ops writes, so tree.ResolveIn now fails with a new *tree.NotFoundError carrying Arg (same message, still matches ErrNotFound), and resolveFailure, kindFailure, refusalFailure, writeFailure and written became app methods taking an idKind (issueIDs or noteIDs); every caller passes its kind (create.go, dep.go, related.go, fmt.go, rm.go, node_verbs.go with a new idKind field and removeFailure taking the app, node_edit.go with editNode taking the kind, log.go, reopen.go, start.go), and editSuccessors and applyNoteUpdate in know_update.go became app methods to reach it.
+NOTES (2026-10-26): the index query is two methods, IssueNames and NoteNames, over one names(nodeTable) helper, beside snapshotNames; a failure to list the names is returned as the index failure, never dropped, and a name only an unusable file claims (tree.UnusableError) gets no suggestions.
+NOTES (2026-10-26): the unknown id is compared in its citation spelling normalised (tree.NormalizeArg), so "ADR 9999" is ranked as adr-9999; "3+ letters" counts letters, so a digits-only word such as 0004 is never a shared word.
+NOTES (2026-10-26): consequential edit — internal/cli/doc.go: made necessary by suggest.go now also ranking ids (its file-map line).
+NOTES (2026-10-26): docs/site/reference/json-output.md gains one sentence on what counts as close and that suggestions are of the id's own kind (user-facing behaviour, per the docs rule).
+NOTES (2026-10-26): retry — closeResult (close.go) rebuilt the joined failure without the first failure's Suggestions, so `close`/`finish` of an unknown id lost its "did you mean"; the joined failure now keeps them, covered by TestSuggest_CloseUnknownID_NamesTheClosestIssue.
 
 Depends on item 5.
 

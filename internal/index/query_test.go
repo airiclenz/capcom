@@ -237,6 +237,50 @@ func TestResolve_NoMatch_IsNotFound(t *testing.T) {
 	}
 }
 
+func TestIssueNames_EveryIDAndAliasOnceInOrder(t *testing.T) {
+	t.Parallel()
+	x := listFixture(t)
+
+	got, err := x.IssueNames()
+
+	want := []string{"apogee-kk0.4", "login-flow", "old-idea", "release-checklist", "session-refresh", "token-store"}
+	if err != nil || !slices.Equal(got, want) {
+		t.Errorf("IssueNames() = %v, %v; want %v", got, err, want)
+	}
+}
+
+func TestNoteNames_OnlyTheNamesOfNotes(t *testing.T) {
+	t.Parallel()
+	_, x := noteFixture(t)
+
+	notes, noteErr := x.NoteNames()
+	issues, issueErr := x.IssueNames()
+
+	wantNotes := []string{"no-parallel-cli", "old-cli-rule", "release-flow", "testing-rules"}
+	if noteErr != nil || !slices.Equal(notes, wantNotes) {
+		t.Errorf("NoteNames() = %v, %v; want %v", notes, noteErr, wantNotes)
+	}
+	if issueErr != nil || !slices.Equal(issues, []string{"release-flow"}) {
+		t.Errorf("IssueNames() = %v, %v; want [release-flow]", issues, issueErr)
+	}
+}
+
+func TestIssueNames_ExcludedNode_IsLeftOut(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "kept.md", issueText("Kept", "open", ""))
+	writeIssue(t, s, "twin.md", issueText("A", "open", ""))
+	writeIssue(t, s, "kept/twin.md", issueText("B", "open", ""))
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	got, err := x.IssueNames()
+
+	if err != nil || !slices.Equal(got, []string{"kept"}) {
+		t.Errorf("IssueNames() = %v, %v; want [kept]", got, err)
+	}
+}
+
 func TestResolve_AmbiguousPrefix_ListsCandidates(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

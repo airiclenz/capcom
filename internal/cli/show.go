@@ -76,7 +76,7 @@ func (a *app) showResult(args []string) (output.Result, []string, error) {
 	for _, arg := range args {
 		entry, err := a.issueIndex.Resolve(arg)
 		if err != nil {
-			failure, isArgument := resolveFailure(err)
+			failure, isArgument := a.resolveFailure(err, issueIDs)
 			if !isArgument {
 				return output.Result{}, nil, failure
 			}
@@ -209,13 +209,14 @@ func (a *app) showLinks(entry index.Entry) ([]string, error) {
 	return links, nil
 }
 
-// resolveFailure types a failure to resolve an argument: no match is not_found, an ambiguous
-// prefix is invalid and names the candidates, anything else is the index failing. isArgument is
-// false for the last, which a multi-id command cannot go on from.
-func resolveFailure(err error) (failure *output.Error, isArgument bool) {
+// resolveFailure types a failure to resolve an argument naming a node of kind: no match is
+// not_found, typed by notFoundFailure, an ambiguous prefix is invalid and names the candidates,
+// anything else is the index failing. isArgument is false for the last, which a multi-id command
+// cannot go on from, and for the index failing to list the names of kind.
+func (a *app) resolveFailure(err error, kind idKind) (failure *output.Error, isArgument bool) {
 	switch {
 	case errors.Is(err, tree.ErrNotFound):
-		return output.Errorf(output.CodeNotFound, "%s", err.Error()), true
+		return a.notFoundFailure(err, kind)
 	case errors.Is(err, tree.ErrAmbiguous):
 		return output.Errorf(output.CodeInvalid, "%s", err.Error()), true
 	default:
@@ -223,11 +224,12 @@ func resolveFailure(err error) (failure *output.Error, isArgument bool) {
 	}
 }
 
-// resolveIssue resolves one argument to its issue, typing the failure as resolveFailure does.
+// resolveIssue resolves one argument to its issue, typing the failure as resolveFailure does for
+// an issue.
 func (a *app) resolveIssue(arg string) (index.Entry, error) {
 	entry, err := a.issueIndex.Resolve(arg)
 	if err != nil {
-		failure, _ := resolveFailure(err) // either way the command stops here
+		failure, _ := a.resolveFailure(err, issueIDs) // either way the command stops here
 		return index.Entry{}, failure
 	}
 	return entry, nil

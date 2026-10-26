@@ -60,11 +60,12 @@ func (a *app) newKnowCommand() *cobra.Command {
 	return withSubcommandDispatch(know)
 }
 
-// resolveNote resolves one argument to its Note, typing the failure as resolveFailure does.
+// resolveNote resolves one argument to its Note, typing the failure as resolveFailure does for a
+// Note.
 func (a *app) resolveNote(arg string) (index.NoteEntry, error) {
 	entry, err := a.issueIndex.ResolveNote(arg)
 	if err != nil {
-		failure, _ := resolveFailure(err) // either way the command stops here
+		failure, _ := a.resolveFailure(err, noteIDs) // either way the command stops here
 		return index.NoteEntry{}, failure
 	}
 	return entry, nil

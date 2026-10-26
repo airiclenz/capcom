@@ -17,8 +17,9 @@ import (
 // stale --if-match, or a file changed between the command's read and its write, a conflict and an
 // id another node answers to exists, each at the file the failure names, relative to the working
 // tree root, and its line when known. An argument that resolves to no node or to several goes
-// through resolveFailure; any other failure through output.AsError.
-func kindFailure(err error) *output.Error {
+// through resolveFailure for kind, the kind of node the Kind holds; any other failure through
+// output.AsError.
+func (a *app) kindFailure(err error, kind idKind) *output.Error {
 	var file *nodestore.FileError
 	if errors.As(err, &file) {
 		return &output.Error{Code: output.CodeInvalid, Path: file.Path, Line: file.Line, Message: file.Message}
@@ -32,7 +33,7 @@ func kindFailure(err error) *output.Error {
 		return &output.Error{Code: output.CodeExists, Path: exists.Path, Message: exists.Message}
 	}
 	if errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrAmbiguous) {
-		failure, _ := resolveFailure(err) // an argument failure: the command stops here
+		failure, _ := a.resolveFailure(err, kind) // an argument failure: the command stops here
 		return failure
 	}
 	return output.AsError(err)
@@ -48,14 +49,15 @@ type refusalWords struct {
 }
 
 // refusalFailure types a failure of reflist's decision on an edit of the reference list of the
-// node at path. A refusal of the argument, a name of no node, an ambiguous prefix or a name two
-// files claim, and any failure that is no refusal, go through resolveFailure, with no path. A
-// refusal of the edit is placed at path and worded by words: adding the holder to its own list or
-// closing a cycle is invalid, and a removal that drops no entry is not_found.
-func refusalFailure(err error, path string, words refusalWords) *output.Error {
+// node at path, whose entries name nodes of kind. A refusal of the argument, a name of no node, an
+// ambiguous prefix or a name two files claim, and any failure that is no refusal, go through
+// resolveFailure for kind, with no path. A refusal of the edit is placed at path and worded by
+// words: adding the holder to its own list or closing a cycle is invalid, and a removal that drops
+// no entry is not_found.
+func (a *app) refusalFailure(err error, kind idKind, path string, words refusalWords) *output.Error {
 	var refusal *reflist.Refusal
 	if !errors.As(err, &refusal) || refusal.Err != nil {
-		failure, _ := resolveFailure(err) // an argument failure: the command stops here
+		failure, _ := a.resolveFailure(err, kind) // an argument failure: the command stops here
 		return failure
 	}
 	failure := &output.Error{Code: output.CodeInvalid, Path: path}

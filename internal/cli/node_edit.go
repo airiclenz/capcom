@@ -37,44 +37,48 @@ func (a *app) editIssue(
 	ifMatch string,
 	change func(issue.Issue) (issue.Issue, error),
 ) (nodestore.Written, error) {
-	return a.written(a.ops().EditIssue(arg, ifMatch, change))
+	edited, err := a.ops().EditIssue(arg, ifMatch, change)
+	return a.written(issueIDs, edited, err)
 }
 
-// editNode runs kind.Edit through ops.EditNode and types its outcome as written does.
+// editNode runs kind.Edit through ops.EditNode and types its outcome as written does for idKind,
+// the kind of node kind holds.
 func editNode[T any](
 	a *app,
 	kind *nodestore.Kind[T],
+	idKind idKind,
 	arg string,
 	ifMatch string,
 	change func(T) (T, error),
 ) (nodestore.Written, error) {
-	return a.written(ops.EditNode(kind, arg, ifMatch, change))
+	edited, err := ops.EditNode(kind, arg, ifMatch, change)
+	return a.written(idKind, edited, err)
 }
 
 // written types the outcome of an ops write for the command. An edit that raised the store
 // format, because the file it wrote carries a key line config.yaml's format lacks, adds
 // formatRaisedWarning to the warnings the command's result renders, so every edit verb warns of
-// the raise once. A failure is typed by writeFailure, with the id the Written still names when the
-// node resolved.
-func (a *app) written(written nodestore.Written, err error) (nodestore.Written, error) {
+// the raise once. A failure is typed by writeFailure for kind, the kind of node written, with the
+// id the Written still names when the node resolved.
+func (a *app) written(kind idKind, written nodestore.Written, err error) (nodestore.Written, error) {
 	if err != nil {
-		return nodestore.Written{}, writeFailure(written.ID, err)
+		return nodestore.Written{}, a.writeFailure(kind, written.ID, err)
 	}
 	a.warnRaisedFormat(written.Effects)
 	return written, nil
 }
 
-// writeFailure types the failure of an ops write on the node id names. A refusal of the change
-// itself (*ops.ChangeError) is worded by statusChangeFailure when it is a status rule's refusal, and
-// by kindFailure otherwise, and placed at the node's file when it names no file, so a refusal of the
-// change still names the file. Any other failure is typed by kindFailure.
-func writeFailure(id string, err error) *output.Error {
+// writeFailure types the failure of an ops write on the node of kind id names. A refusal of the
+// change itself (*ops.ChangeError) is worded by statusChangeFailure when it is a status rule's
+// refusal, and by kindFailure otherwise, and placed at the node's file when it names no file, so a
+// refusal of the change still names the file. Any other failure is typed by kindFailure.
+func (a *app) writeFailure(kind idKind, id string, err error) *output.Error {
 	var refusal *ops.ChangeError
 	if !errors.As(err, &refusal) {
-		return kindFailure(err)
+		return a.kindFailure(err, kind)
 	}
 	var statusRefusal *issue.StatusError
-	failure := kindFailure(refusal.Err)
+	failure := a.kindFailure(refusal.Err, kind)
 	if errors.As(refusal.Err, &statusRefusal) {
 		failure = output.AsError(statusChangeFailure(id, refusal.Err))
 	}

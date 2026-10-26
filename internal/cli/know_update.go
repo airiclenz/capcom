@@ -164,7 +164,7 @@ func readNoteInputs(cmd *cobra.Command, options *knowUpdateOptions) (noteInputs,
 func (a *app) successorList(arg string) (reflist.List, error) {
 	holder, err := a.issueIndex.ResolveNote(arg)
 	if err != nil {
-		failure, _ := resolveFailure(err) // either way the command stops here
+		failure, _ := a.resolveFailure(err, noteIDs) // either way the command stops here
 		return reflist.List{}, failure
 	}
 	notes, err := a.issueIndex.Notes(true)
@@ -213,7 +213,7 @@ func noteNames(notes []index.NoteEntry) reflist.NamesFunc {
 // addition appends the id its argument resolves to unless an entry already names that Note, by id
 // or by any Alias; a removal drops the entries it matches, and one matching none changes nothing.
 // It fails on reflist's refusals, typed by refusalFailure with no path.
-func editSuccessors(
+func (a *app) editSuccessors(
 	list reflist.List,
 	addArgs []string,
 	removeArgs []string,
@@ -224,7 +224,7 @@ func editSuccessors(
 		list.Entries = entries
 		addition, err := list.Add(arg)
 		if err != nil {
-			return nil, refusalFailure(err, "", successorWords)
+			return nil, a.refusalFailure(err, noteIDs, "", successorWords)
 		}
 		if !addition.IsPresent {
 			entries = append(entries, addition.ID)
@@ -234,7 +234,7 @@ func editSuccessors(
 		list.Entries = entries
 		removal, err := list.Remove(arg)
 		if err != nil {
-			return nil, refusalFailure(err, "", successorWords)
+			return nil, a.refusalFailure(err, noteIDs, "", successorWords)
 		}
 		// Drop's only failure is a removal that drops no entry: a silent no-op here.
 		if dropped, err := removal.Drop(entries); err == nil {
@@ -258,8 +258,8 @@ func (a *app) updateNote(
 	inputs noteInputs,
 ) (output.Result, error) {
 	notes := a.notes(noteResolver{index: a.issueIndex})
-	written, err := editNode(a, notes, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
-		return applyNoteUpdate(cmd, options, inputs, note)
+	written, err := editNode(a, notes, noteIDs, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
+		return a.applyNoteUpdate(cmd, options, inputs, note)
 	})
 	if err != nil {
 		return output.Result{}, err
@@ -289,7 +289,7 @@ func (r noteResolver) Resolve(arg string) (nodestore.Target, error) {
 // gives them, then the --body-append-file text. It fails on a new ref of the wrong form, on a
 // superseded-by edit reflist refuses (editSuccessors) and on a replacement pair whose old text
 // does not occur exactly once.
-func applyNoteUpdate(
+func (a *app) applyNoteUpdate(
 	cmd *cobra.Command,
 	options *knowUpdateOptions,
 	inputs noteInputs,
@@ -314,7 +314,7 @@ func applyNoteUpdate(
 		note.IsRetired = false
 	}
 	if len(options.addSuccessors) > 0 || len(options.removeSuccessors) > 0 {
-		successors, err := editSuccessors(
+		successors, err := a.editSuccessors(
 			inputs.successors,
 			options.addSuccessors,
 			options.removeSuccessors,

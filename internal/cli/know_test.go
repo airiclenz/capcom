@@ -158,6 +158,50 @@ func TestKnowShow_CitationSpelling_Resolves(t *testing.T) {
 	}
 }
 
+func TestKnowShow_UnknownID_SuggestsTheClosestNoteIDs(t *testing.T) {
+	root := newKnowStore(t)
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"a Note id", []string{"know", "show", "cli-testz"}, "capcom: id \"cli-testz\" not found; did you mean cli-tests?\n"},
+		{"a shared word", []string{"know", "show", "git-setup"}, "capcom: id \"git-setup\" not found; did you mean git-fixtures?\n"},
+		{"never an issue id", []string{"show", "cli-testz"}, "capcom: id \"cli-testz\" not found\n"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, stderr, exitCode := runCLI(t, root, testCase.args...)
+
+			if exitCode != ExitNotFound || stderr != testCase.want {
+				t.Errorf("%v exit = %d stderr = %q, want %q", testCase.args, exitCode, stderr, testCase.want)
+			}
+		})
+	}
+}
+
+func TestKnowShow_UnknownIDJSON_CarriesSuggestions(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "show", "--json", "release-flwo")
+
+	errorBody, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	suggestions, _ := errorBody["suggestions"].([]any)
+	if exitCode != ExitNotFound || len(suggestions) != 1 || suggestions[0] != "release-flow" {
+		t.Errorf("exit = %d error = %v, want suggestions [release-flow]", exitCode, errorBody)
+	}
+}
+
+func TestKnowUpdate_UnknownSuccessor_SuggestsTheClosestNoteID(t *testing.T) {
+	root := newKnowStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "know", "update", "release-flow", "--add-superseded-by", "cli-testz")
+
+	if exitCode != ExitNotFound || !strings.HasSuffix(stderr, "; did you mean cli-tests?\n") {
+		t.Errorf("know update exit = %d stderr = %q, want cli-tests suggested", exitCode, stderr)
+	}
+}
+
 func TestKnowShow_CitationSpellingNotFound_QuotesTheArgumentAsTyped(t *testing.T) {
 	root := newKnowStore(t)
 

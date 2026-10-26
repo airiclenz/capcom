@@ -34,7 +34,8 @@ func (a *app) newLogCommand() *cobra.Command {
 			if strings.TrimSpace(text) == "" {
 				return output.Errorf(output.CodeInvalid, "the log text is empty")
 			}
-			written, err := a.written(a.ops().AppendLog(args[0], "", text, time.Now()))
+			appended, err := a.ops().AppendLog(args[0], "", text, time.Now())
+			written, err := a.written(issueIDs, appended, err)
 			if err != nil {
 				return err
 			}

@@ -135,7 +135,11 @@ func (a *app) closeResult(args []string, status string, reason string) (output.R
 		fmt.Fprintf(&text, "now ready: %s\n", strings.Join(nowReady, ", "))
 	}
 	if result.Failure != nil {
-		result.Failure = output.Errorf(result.Failure.Code, "%s", strings.Join(messages, failureSeparator))
+		// The joined failure keeps the first failure's closest ids, so an unknown id is still
+		// answered with a "did you mean".
+		joined := output.Errorf(result.Failure.Code, "%s", strings.Join(messages, failureSeparator))
+		joined.Suggestions = result.Failure.Suggestions
+		result.Failure = joined
 	}
 	result.Data = data
 	result.Text = text.String()
@@ -167,7 +171,7 @@ func (a *app) closeOne(
 ) (outcome closeData, failure *output.Error, err error) {
 	entry, err := a.issueIndex.Resolve(arg)
 	if err != nil {
-		resolveErr, isArgument := resolveFailure(err)
+		resolveErr, isArgument := a.resolveFailure(err, issueIDs)
 		if !isArgument {
 			return closeData{}, nil, resolveErr
 		}
@@ -187,7 +191,7 @@ func (a *app) closeOne(
 	if errors.Is(err, issue.ErrAlreadyClosed) {
 		return a.alreadyClosed(outcome)
 	}
-	written, err := a.written(closed.Written, err)
+	written, err := a.written(issueIDs, closed.Written, err)
 	if err != nil {
 		return closeData{}, output.AsError(err), nil
 	}

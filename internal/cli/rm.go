@@ -67,8 +67,8 @@ type noteRemoveData struct {
 
 // issueRemovalFailure types err, a failure of the removal of an issue: dependents are invalid at
 // the issue file, with the flag that drops their deps entries named, and the rest are typed as
-// kindFailure types them.
-func issueRemovalFailure(err error) error {
+// kindFailure types them for an issue.
+func (a *app) issueRemovalFailure(err error) error {
 	var dependents *nodestore.DependentsError
 	if errors.As(err, &dependents) {
 		return &output.Error{
@@ -77,7 +77,7 @@ func issueRemovalFailure(err error) error {
 			Message: fmt.Sprintf("%s; pass --%s to remove those deps entries", dependents.Message, flagDropDeps),
 		}
 	}
-	return kindFailure(err)
+	return a.kindFailure(err, issueIDs)
 }
 
 // issueRemoveResult is the result of rm: the id and path of the removed issue file and the ids of

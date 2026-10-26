@@ -247,7 +247,8 @@ func (a *app) claimForStart(worktree lock.Worktree, entry index.Entry, token str
 	if beforeStartClaim != nil {
 		beforeStartClaim(entry)
 	}
-	_, claimErr := a.written(a.ops().Claim(entry.ID, ""))
+	claimed, claimErr := a.ops().Claim(entry.ID, "")
+	_, claimErr = a.written(issueIDs, claimed, claimErr)
 	if claimErr == nil {
 		return nil
 	}

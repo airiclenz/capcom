@@ -136,7 +136,7 @@ func (a *app) resolveDeps(args []string) ([]string, error) {
 		}
 		addition, err := reflist.List{Entries: deps, Resolve: a.ops().ResolveIssueID, Names: namesItself}.Add(arg)
 		if err != nil {
-			return nil, refusalFailure(err, "", refusalWords{})
+			return nil, a.refusalFailure(err, issueIDs, "", refusalWords{})
 		}
 		if !addition.IsPresent {
 			deps = append(deps, addition.ID)

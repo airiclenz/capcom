@@ -39,8 +39,10 @@ type nodeVerbs[T any] struct {
 	writeResult func(id string, path string, etag string) output.Result
 	// removeResult is the result of a command that removed a node.
 	removeResult func(removed nodestore.Removed) output.Result
+	// idKind is the kind of node the verbs' id arguments name.
+	idKind idKind
 	// removeFailure types a failure of the removal of a node.
-	removeFailure func(err error) error
+	removeFailure func(a *app, err error) error
 	// afterWrite renders the Effects a write returned onto its result; nil when the kind has
 	// nothing to render.
 	afterWrite func(result *output.Result, effects nodestore.Effects)
@@ -71,7 +73,8 @@ var issueVerbs = nodeVerbs[issue.Issue]{
 	descriptor:    nodestore.IssueDescriptor(config.Config{}),
 	writeResult:   writeResult,
 	removeResult:  issueRemoveResult,
-	removeFailure: issueRemovalFailure,
+	idKind:        issueIDs,
+	removeFailure: (*app).issueRemovalFailure,
 	hasKV:         true,
 	hasDropDeps:   true,
 	mvHelp:        issueMvHelp,
@@ -90,8 +93,9 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 	descriptor:   nodestore.NoteDescriptor(),
 	writeResult:  noteWriteResult,
 	removeResult: noteRemoveResult,
-	removeFailure: func(err error) error {
-		return kindFailure(err)
+	idKind:       noteIDs,
+	removeFailure: func(a *app, err error) error {
+		return a.kindFailure(err, noteIDs)
 	},
 	afterWrite:  addSyncEffects,
 	hasKV:       false,
@@ -163,7 +167,7 @@ func move[T any](
 	}
 	moved, problems, err := verbs.kind(a).Move(args[0], destination, options.ifMatch)
 	if err != nil {
-		return output.Result{}, kindFailure(err)
+		return output.Result{}, a.kindFailure(err, verbs.idKind)
 	}
 	result := verbs.writeResult(moved.ID, moved.Path, moved.ETag)
 	indexWarnings, warnings := a.movedWarnings(moved, problems)
@@ -241,7 +245,7 @@ func remove[T any](
 ) (output.Result, error) {
 	removed, problems, err := verbs.kind(a).Remove(arg, options.ifMatch, options.shouldDropDeps)
 	if err != nil {
-		return output.Result{}, verbs.removeFailure(err)
+		return output.Result{}, verbs.removeFailure(a, err)
 	}
 	result := verbs.removeResult(removed)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
@@ -293,7 +297,7 @@ func createNode[T any](
 ) (output.Result, error) {
 	written, problems, err := verbs.kind(a).Create(id, parent, build)
 	if err != nil {
-		return output.Result{}, kindFailure(err)
+		return output.Result{}, a.kindFailure(err, verbs.idKind)
 	}
 	result := verbs.writeResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
