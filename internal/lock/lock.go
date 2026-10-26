@@ -49,10 +49,10 @@ const (
 // ErrNotHeld reports a touch of a worktree whose lock nobody holds.
 var ErrNotHeld = errors.New("no lock is held on this worktree")
 
-// errCorruptRecord marks a record file that was read but holds no lock: it does not parse, or it
-// carries no token. Break discards such a record and the Lock overview reports it as invalid; an
-// I/O error reading a record never matches it.
-var errCorruptRecord = errors.New("invalid lock record")
+// ErrCorruptRecord marks a record file that was read but holds no lock: it does not parse, or it
+// carries no token. Break discards such a record, the Lock overview reports it as invalid, and every
+// other read of it fails wrapping ErrCorruptRecord; an I/O error reading a record never matches it.
+var ErrCorruptRecord = errors.New("invalid lock record")
 
 // Record is one worktree's lock as stored on disk.
 type Record struct {
@@ -293,7 +293,7 @@ func (l *Locks) Break(key string) (Status, error) {
 	err := l.withGuard(key, func(now time.Time) error {
 		current, err := l.read(key, now)
 		switch {
-		case errors.Is(err, errCorruptRecord):
+		case errors.Is(err, ErrCorruptRecord):
 			current = Status{Key: key, IsCorrupt: true}
 		case err != nil:
 			broken = current
@@ -388,7 +388,7 @@ func (l *Locks) withGuard(key string, body func(now time.Time) error) error {
 }
 
 // read loads key's record, if any, and judges its staleness at now. A record that does not parse or
-// carries no token fails wrapping errCorruptRecord. Writers call it holding the guard; readers
+// carries no token fails wrapping ErrCorruptRecord. Writers call it holding the guard; readers
 // call it without, as write replaces a record by an atomic rename, so they see a whole record.
 func (l *Locks) read(key string, now time.Time) (Status, error) {
 	path := l.RecordPath(key)
@@ -402,10 +402,10 @@ func (l *Locks) read(key string, now time.Time) (Status, error) {
 
 	var record Record
 	if err := json.Unmarshal(data, &record); err != nil {
-		return Status{}, fmt.Errorf("%s: %w: %w", path, errCorruptRecord, err)
+		return Status{}, fmt.Errorf("%s: %w: %w", path, ErrCorruptRecord, err)
 	}
 	if record.Token == "" {
-		return Status{}, fmt.Errorf("%s: %w: no token", path, errCorruptRecord)
+		return Status{}, fmt.Errorf("%s: %w: no token", path, ErrCorruptRecord)
 	}
 	return Status{
 		Key:     key,

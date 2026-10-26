@@ -164,7 +164,7 @@ func TestOverview_ForeignInvalidRecordBesideAHeldLock_IsOneProblem(t *testing.T)
 	if problem.Key != foreignKey || problem.Path != path || problem.State != StateInvalid || problem.Error() != want {
 		t.Errorf("problem = %+v (%q), want key %q path %s state invalid, wording %q", problem, problem.Error(), foreignKey, path, want)
 	}
-	if !errors.Is(problem, errCorruptRecord) {
+	if !errors.Is(problem, ErrCorruptRecord) {
 		t.Errorf("problem %v does not carry read's error", problem)
 	}
 }

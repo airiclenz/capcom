@@ -462,7 +462,7 @@ func TestBreak_UnreadableRecord_FailsAndKeepsIt(t *testing.T) {
 
 	_, err := locks.Break(MainWorktreeKey)
 
-	if err == nil || errors.Is(err, errCorruptRecord) {
+	if err == nil || errors.Is(err, ErrCorruptRecord) {
 		t.Fatalf("err = %v; want a read error that is not a corrupt record", err)
 	}
 	if _, statErr := os.Stat(locks.RecordPath(MainWorktreeKey)); statErr != nil {

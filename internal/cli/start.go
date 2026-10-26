@@ -90,7 +90,7 @@ func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 		return err
 	}
 	checked, err := target.lock.Check(token)
-	if err := a.refuseLock(entry, isDoing, checked, err); err != nil {
+	if err := a.refuseLock(target.lock.RecordPath(), entry, isDoing, checked, err); err != nil {
 		return err
 	}
 
@@ -100,7 +100,7 @@ func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 	}
 	acquired, isResumed, err := target.lock.Acquire(claim, token, false)
 	if err != nil {
-		return startLockFailure(err)
+		return startLockFailure(target.lock.RecordPath(), err)
 	}
 	state := lockAcquired
 	if isResumed {
@@ -194,19 +194,19 @@ func readinessResolvers(verdict issue.Readiness) []string {
 	return resolvers
 }
 
-// refuseLock refuses on the lock as Check found it (checked, or checkErr): an Issue already in
-// doing is started only under the caller's own held lock, and any other Issue only when the lock is
-// free or the caller's.
-func (a *app) refuseLock(entry index.Entry, isDoing bool, checked lock.Status, checkErr error) error {
+// refuseLock refuses on the lock as Check found it at recordPath (checked, or checkErr): an Issue
+// already in doing is started only under the caller's own held lock, and any other Issue only when
+// the lock is free or the caller's. A record that holds no valid lock refuses every start.
+func (a *app) refuseLock(recordPath string, entry index.Entry, isDoing bool, checked lock.Status, checkErr error) error {
 	id := entry.ID
 	var held *lock.HeldError
 	isHeldByOther := errors.As(checkErr, &held)
 	if checkErr != nil && !isHeldByOther {
-		return checkErr
+		return startLockFailure(recordPath, checkErr)
 	}
 	if !isDoing {
 		if isHeldByOther {
-			return startLockFailure(checkErr)
+			return startLockFailure(recordPath, checkErr)
 		}
 		return nil
 	}
@@ -241,8 +241,12 @@ func (a *app) refuseLock(entry index.Entry, isDoing bool, checked lock.Status, c
 }
 
 // startLockFailure types a lock another session holds as locked, its hint naming capcom lock
-// status; any other failure passes through.
-func startLockFailure(err error) error {
+// status, and a record at recordPath that holds no valid lock as corruptLockFailure does; any other
+// failure passes through.
+func startLockFailure(recordPath string, err error) error {
+	if errors.Is(err, lock.ErrCorruptRecord) {
+		return corruptLockFailure(recordPath, err)
+	}
 	var held *lock.HeldError
 	if !errors.As(err, &held) {
 		return err

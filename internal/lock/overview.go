@@ -79,7 +79,7 @@ func (l *Locks) Overview(key string) (Overview, error) {
 				State: StateUnreadable,
 				Err:   err,
 			}
-			if errors.Is(err, errCorruptRecord) {
+			if errors.Is(err, ErrCorruptRecord) {
 				problem.State = StateInvalid
 			}
 			overview.Problems = append(overview.Problems, problem)

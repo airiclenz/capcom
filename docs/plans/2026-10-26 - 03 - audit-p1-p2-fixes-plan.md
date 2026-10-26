@@ -241,7 +241,10 @@ reference test passes on the regenerated pages.
 **Closes:** lock-future-heartbeat-sticks
 **Commit:** `fix(lock): treat a heartbeat dated past one TTL ahead as stale`
 
-## 6. A corrupt lock record names its fix
+## 6. A corrupt lock record names its fix — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): startLockFailure and refuseLock take the record path as a new first parameter (refuseLock's non-held Check error now goes through startLockFailure), so start's Check and Acquire paths both reach corruptLockFailure; emitLock takes the path from a.openLockTarget().lock.RecordPath() rather than a new parameter.
+NOTES (2026-10-26): consequential edit — docs/site/concepts/tree-locks.md: made necessary by the new invalid failure and hint of the lock commands and start on a corrupt record
 
 **What:**
 **Goal:** `lock check`, `lock acquire`, `lock touch`, `lock release` and `start`, meeting a record

@@ -128,7 +128,9 @@ damaged. The session that held the lock is not told; its next `touch` fails.
 `capcom lock status` shows this worktree's lock (`free`, `held` or `stale`, with the holder,
 purpose and times). A record that does not parse shows as `invalid`, and one that cannot be read
 as `unreadable`, each with a warning naming the file; the command still exits 0, and `lock break`
-frees an invalid record. `capcom lock status --all` shows every held lock in the repository, one
+frees an invalid record. `lock check`, `lock acquire`, `lock touch`, `lock release` and
+`capcom start` fail on an invalid record with exit 1 and error `invalid`, saying the lock record
+cannot be read, with the hint `capcom lock status, then capcom lock break`. `capcom lock status --all` shows every held lock in the repository, one
 per worktree, with one warning per invalid or unreadable record:
 
 ```console

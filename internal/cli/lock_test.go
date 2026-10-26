@@ -297,8 +297,55 @@ func TestLockCheck_CorruptRecord_FailsWithExitOne(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "lock", "check")
 
-	if exitCode != ExitError || !strings.Contains(stderr, "_main.json: invalid lock record") {
+	if exitCode != ExitError || !strings.Contains(stderr, "_main.json: the lock record cannot be read: invalid lock record") {
 		t.Errorf("exit = %d, want %d\nstdout = %s\nstderr = %s", exitCode, ExitError, stdout, stderr)
+	}
+}
+
+func TestLockCommands_CorruptRecord_FailInvalidWithTheBreakHint(t *testing.T) {
+	const wantMessage = "the lock record cannot be read"
+	records := []struct {
+		name string
+		data string
+	}{
+		{"unparsable", "not json{{{"},
+		{"token-less", "{}"},
+	}
+	commands := [][]string{
+		{"lock", "check"},
+		{"lock", "acquire", "--purpose", "item 6"},
+		{"lock", "touch", "--token", "any"},
+		{"lock", "release", "--token", "any"},
+		{"start", startIssue},
+	}
+	for _, record := range records {
+		t.Run(record.name, func(t *testing.T) {
+			root := newLockStore(t)
+			mustRun(t, root, "create", "--id", startIssue, "--title", "Start me")
+			writeLockRecord(t, root, "_main", record.data)
+
+			for _, args := range commands {
+				_, stderr, exitCode := runCLI(t, root, args...)
+				if exitCode != ExitError || !strings.Contains(stderr, "_main.json: "+wantMessage) ||
+					lastLine(stderr) != "hint: "+corruptLockHint {
+					t.Errorf("%v: exit = %d, want %d\nstderr = %s", args, exitCode, ExitError, stderr)
+				}
+
+				stdout, _, jsonExit := runCLI(t, root, append(args, "--json")...)
+				failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+				message, _ := failure["message"].(string)
+				path, _ := failure["path"].(string)
+				if jsonExit != ExitError || failure["code"] != string(CodeInvalid) || !strings.HasPrefix(message, wantMessage) ||
+					!strings.HasSuffix(path, "_main.json") || failure["hint"] != corruptLockHint {
+					t.Errorf("%v --json: exit = %d, error = %v", args, jsonExit, failure)
+				}
+			}
+
+			stdout, stderr, exitCode := runCLI(t, root, "lock", "status")
+			if exitCode != ExitOK || !strings.Contains(stdout, "invalid") {
+				t.Errorf("lock status: exit = %d\nstdout = %s\nstderr = %s", exitCode, stdout, stderr)
+			}
+		})
 	}
 }
 

@@ -303,6 +303,22 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 // who holds this worktree's lock, if anyone.
 const lockStatusHint = "capcom lock status"
 
+// corruptLockHint is the hint of a command that met a lock record holding no valid lock: capcom lock
+// status shows the record as invalid, and capcom lock break discards it.
+const corruptLockHint = "capcom lock status, then capcom lock break"
+
+// corruptLockFailure types err, a read of the lock record at path that holds no valid lock
+// (lock.ErrCorruptRecord), as invalid: the record cannot be read, and the hint names the commands
+// that show and discard it. The message drops err's leading path, as Error prefixes Path itself.
+func corruptLockFailure(path string, err error) *output.Error {
+	return &output.Error{
+		Code:    output.CodeInvalid,
+		Message: "the lock record cannot be read: " + strings.TrimPrefix(err.Error(), path+": "),
+		Path:    path,
+		Hint:    corruptLockHint,
+	}
+}
+
 // openLockTarget pairs the store the root opened with the current worktree's lock.
 func (a *app) openLockTarget() lockTarget {
 	return lockTarget{store: a.store, lock: lock.ForWorktree(a.store)}
@@ -311,7 +327,7 @@ func (a *app) openLockTarget() lockTarget {
 // emitLock renders a lock command's outcome: status in state on success. A lock held by another
 // session fails locked, and a touch of a free lock fails not_found; either failure hints capcom
 // lock status and still renders the lock as found, so --kv keeps its LOCK= record and closes it
-// with the failure's code.
+// with the failure's code. A record that holds no valid lock fails invalid (corruptLockFailure).
 func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, token string, err error) error {
 	var held *lock.HeldError
 	var notHeld *lock.NotHeldError
@@ -327,6 +343,8 @@ func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, tok
 			Hint:    lockStatusHint,
 		}
 		return a.emit(cmd, failedLockResult(lockFree, status, failure))
+	case errors.Is(err, lock.ErrCorruptRecord):
+		return corruptLockFailure(a.openLockTarget().lock.RecordPath(), err)
 	case err != nil:
 		return err
 	}
