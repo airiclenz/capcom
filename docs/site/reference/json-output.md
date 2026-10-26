@@ -166,6 +166,29 @@ ID=audit-log2
 STATUS=closed
 ```
 
+`capcom show <id> --kv` prints one record per issue, every key present in this order, with an
+empty value when the file leaves the field out and list values comma-separated:
+
+```console
+$ capcom show audit-log --kv
+ID=audit-log
+ETAG=58756f0fb416f617
+ISSUE_STATUS=open
+CATEGORY=todo
+TITLE=Log failed logins
+TYPE=bug
+PRIORITY=1
+LABELS=auth,security
+PARENT=
+DEPS=session-store
+PLAN=
+STATUS=ok
+```
+
+`ISSUE_STATUS=` is the issue's own status, `STATUS=` the outcome of looking it up, and `ETAG=` the
+value `--if-match` takes. `capcom next --kv` prints the same record; `capcom start --kv` adds
+`LOCK=` and `TOKEN=` just before `STATUS=`.
+
 A failure is a record too, with a `MESSAGE=` line and the error code as its status:
 
 ```console

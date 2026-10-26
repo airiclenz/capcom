@@ -671,7 +671,8 @@ func TestShow_KV_ClosesEachIDWithItsStatus(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "show", "--kv", "rel", "absent")
 
-	want := "ID=release-checklist\nETAG=" + fileETag(t, root, "release-checklist.md") + "\nISSUE_STATUS=open\nCATEGORY=todo\nTITLE=Release checklist\nSTATUS=ok\n" +
+	want := "ID=release-checklist\nETAG=" + fileETag(t, root, "release-checklist.md") + "\nISSUE_STATUS=open\nCATEGORY=todo\nTITLE=Release checklist\n" +
+		"TYPE=chore\nPRIORITY=0\nLABELS=\nPARENT=\nDEPS=\nPLAN=\nSTATUS=ok\n" +
 		"ID=absent\nMESSAGE=id \"absent\" not found\nSTATUS=not_found\n"
 	if exitCode != ExitNotFound || stdout != want {
 		t.Errorf("exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
@@ -1155,6 +1156,64 @@ func TestShow_KV_EndsWithStatus(t *testing.T) {
 
 	if !strings.HasPrefix(lastLine(stdout), "STATUS=") {
 		t.Errorf("stdout = %q, want a closing STATUS= line", stdout)
+	}
+}
+
+// showKVKeys is every key of a show --kv record, in order.
+var showKVKeys = []string{
+	"ID", "ETAG", "ISSUE_STATUS", "CATEGORY", "TITLE",
+	"TYPE", "PRIORITY", "LABELS", "PARENT", "DEPS", "PLAN", "STATUS",
+}
+
+func TestShow_KV_PrintsEveryKeyEvenWhenEmpty(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout := mustRun(t, root, "show", "release-checklist", "--kv")
+
+	if keys := kvKeys(stdout); !slices.Equal(keys, showKVKeys) {
+		t.Fatalf("keys = %v, want %v", keys, showKVKeys)
+	}
+	for _, key := range []string{"LABELS", "PARENT", "DEPS", "PLAN"} {
+		if value := kvValue(t, stdout, key); value != "" {
+			t.Errorf("%s = %q, want empty", key, value)
+		}
+	}
+}
+
+func TestShow_KV_AfterUpdate_PrintsTypePriorityAndLabels(t *testing.T) {
+	root := newReadStore(t)
+	mustRun(t, root, "update", "release-checklist", "--add-label", "alpha", "--type", "bug", "--priority", "3")
+
+	stdout := mustRun(t, root, "show", "release-checklist", "--kv")
+
+	want := map[string]string{"TYPE": "bug", "PRIORITY": "3", "LABELS": "alpha"}
+	for key, value := range want {
+		if got := kvValue(t, stdout, key); got != value {
+			t.Errorf("%s = %q, want %q", key, got, value)
+		}
+	}
+}
+
+func TestShow_KV_PrintsParentDepsAndPlan(t *testing.T) {
+	root := newReadStore(t)
+	mustRun(t, root, "dep", "add", "session-refresh", "release-checklist")
+	mustRun(t, root, "dep", "add", "session-refresh", "old-idea")
+
+	child := mustRun(t, root, "show", "session-refresh", "--kv")
+	parent := mustRun(t, root, "show", "login-flow", "--kv")
+
+	if got := kvValue(t, child, "PARENT"); got != "login-flow" {
+		t.Errorf("PARENT = %q, want login-flow", got)
+	}
+	if got := kvValue(t, child, "DEPS"); got != "old-idea,release-checklist" &&
+		got != "release-checklist,old-idea" {
+		t.Errorf("DEPS = %q, want old-idea and release-checklist comma-separated", got)
+	}
+	if got := kvValue(t, parent, "LABELS"); got != "auth,epic" {
+		t.Errorf("LABELS = %q, want auth,epic", got)
+	}
+	if got := kvValue(t, parent, "PLAN"); got != "2026-10-11 - 00 - login-plan" {
+		t.Errorf("PLAN = %q, want 2026-10-11 - 00 - login-plan", got)
 	}
 }
 

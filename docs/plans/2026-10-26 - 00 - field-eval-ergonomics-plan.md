@@ -199,7 +199,10 @@ command's exit code at the base. `update --status doing` and `update --type bugg
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'List|Create|Update|Close|Reopen'`
 **Commit:** `feat(cli): list the declared values for an invalid flag value`
 
-## 8. show --kv prints every field
+## 8. show --kv prints every field — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): issueKV joins lists with a new local const kvListSeparator (","), mirroring the unexported one in internal/cli/output rather than exporting (renaming) it.
+NOTES (2026-10-26): TestShow_KV_ClosesEachIDWithItsStatus pinned the old five-key record and was updated to the new keys; start --kv's test now pins the full key order with LOCK= and TOKEN= before STATUS=.
 
 **What:**
 **Goal:** `capcom show <id> --kv` prints, after `TITLE=`, `TYPE=`, `PRIORITY=`, `LABELS=`, `PARENT=`,

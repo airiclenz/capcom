@@ -91,8 +91,9 @@ func TestStart_KV_AddsLockAndToken(t *testing.T) {
 	if kvValue(t, stdout, "LOCK") != lockAcquired || kvValue(t, stdout, "TOKEN") == "" {
 		t.Errorf("stdout = %q, want LOCK=acquired and a TOKEN", stdout)
 	}
-	if !strings.HasPrefix(lastLine(stdout), "STATUS=") {
-		t.Errorf("stdout = %q, want a closing STATUS= line", stdout)
+	wantKeys := slices.Insert(slices.Clone(showKVKeys), len(showKVKeys)-1, "LOCK", "TOKEN")
+	if keys := kvKeys(stdout); !slices.Equal(keys, wantKeys) {
+		t.Errorf("keys = %v, want %v", keys, wantKeys)
 	}
 }
 

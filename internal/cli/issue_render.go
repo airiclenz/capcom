@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 
 // textIndent is the indentation per tree depth in issue lines.
 const textIndent = "  "
+
+// kvListSeparator joins a list field's values in a --kv line, as the failure record joins its
+// SUGGESTIONS= and VALID= lists.
+const kvListSeparator = ","
 
 // issueData is one issue in the --json data of list, show and search. Lists are always present,
 // empty when the file has none; standing is left out when false; ETag and Body are set by show
@@ -237,7 +242,8 @@ func readyText(verdict *issue.Readiness) string {
 }
 
 // issueKV is the --kv record of one issue. STATUS is the outcome of looking it up; the issue's own
-// status is ISSUE_STATUS. ETAG is the file's etag, for update --if-match.
+// status is ISSUE_STATUS. ETAG is the file's etag, for update --if-match. Every key is present,
+// with an empty value when the file leaves the field out; lists are comma-separated.
 func issueKV(entry index.Entry, etag string) output.KVRecord {
 	return output.KVRecord{Pairs: []output.KVPair{
 		{Key: "ID", Value: entry.ID},
@@ -245,6 +251,12 @@ func issueKV(entry index.Entry, etag string) output.KVRecord {
 		{Key: "ISSUE_STATUS", Value: entry.Status},
 		{Key: "CATEGORY", Value: string(entry.Category)},
 		{Key: "TITLE", Value: entry.Title},
+		{Key: "TYPE", Value: entry.Type},
+		{Key: "PRIORITY", Value: strconv.Itoa(entry.Priority)},
+		{Key: "LABELS", Value: strings.Join(entry.Labels, kvListSeparator)},
+		{Key: "PARENT", Value: entry.ParentID},
+		{Key: "DEPS", Value: strings.Join(entry.Deps, kvListSeparator)},
+		{Key: "PLAN", Value: entry.Plan},
 	}}
 }
 
