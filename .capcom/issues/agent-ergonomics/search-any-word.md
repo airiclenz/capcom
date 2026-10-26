@@ -1,9 +1,11 @@
 ---
 title: Search returns nothing unless every word matches
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-19T14:54:44Z
+closed: 2026-10-26T09:47:07Z
+reason: "Resolved by field-eval-ergonomics plan (archived 39bac45), item 2: search and know search fall back to any-word matches with match all/any in --json"
 ---
 
 `capcom search` and `capcom know search` match only items that contain every word

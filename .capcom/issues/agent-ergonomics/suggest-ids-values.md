@@ -1,9 +1,11 @@
 ---
 title: Unknown ids and bad flag values get no suggestion
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-19T14:54:45Z
+closed: 2026-10-26T09:47:07Z
+reason: "Resolved by field-eval-ergonomics plan (archived 39bac45), items 5-7: unknown ids name closest ids, invalid --status/--type/--priority list declared values, suggestions/valid on the error envelope"
 ---
 
 A mistyped Issue or Note id fails with `id "x" not found` and nothing else, and a wrong value

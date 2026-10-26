@@ -1,9 +1,11 @@
 ---
 title: show --kv leaves out labels, type, priority and deps
-status: open
+status: done
 type: feature
 priority: 2
 created: 2026-10-26T07:51:30Z
+closed: 2026-10-26T09:47:07Z
+reason: "Resolved by field-eval-ergonomics plan (archived 39bac45), item 8: show --kv prints TYPE, PRIORITY, LABELS, PARENT, DEPS and PLAN, keys documented in json-output.md"
 ---
 
 `capcom show <id> --kv` prints `ID`, `ETAG`, `ISSUE_STATUS`, `CATEGORY`, `TITLE` and `STATUS`

@@ -27,3 +27,7 @@ as it is today.
 - The same flag works on `capcom search` for Issues.
 - Each excerpt is bounded in size; the limit is stated in `--help`.
 - `--json` includes the excerpt; tests cover text and `--json` for Issues and Notes.
+
+## Log
+
+- 2026-10-26 Airic Lenz: Partly landed: --excerpt on search and know search (text and --json, bounded, limit in --help) via field-eval-ergonomics plan (archived 39bac45), item 4. Left open: index.Excerpt does not fold diacritics like FTS5 unicode61, so a hit on 'cafe' for 'café' gets an empty excerpt.

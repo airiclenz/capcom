@@ -1,9 +1,11 @@
 ---
 title: A Note ref to a path a clone lacks fails check only there
-status: open
+status: done
 type: bug
 priority: 2
 created: 2026-10-26T07:51:30Z
+closed: 2026-10-26T09:47:07Z
+reason: "Resolved by field-eval-ergonomics plan (archived 39bac45), items 9-11: check and know verify report unshared-ref; know add/update refuse git-dir refs and warn on missing or ignored ones"
 ---
 
 A Note's ref can name a path that will not exist in another clone, and capcom does not notice until
