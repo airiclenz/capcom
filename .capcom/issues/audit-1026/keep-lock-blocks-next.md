@@ -3,6 +3,7 @@ title: finish --keep-lock then start on its own next issue is refused
 status: open
 type: bug
 priority: 2
+deps: [lock-purpose-alias-resume]
 created: 2026-10-26T20:06:49Z
 ---
 
@@ -19,16 +20,23 @@ Reproduced:
       -> exit 3, "locked by ... (a) for 0s, heartbeat 0s ago"
          hint: capcom lock status
 
-`--keep-lock` exists so one session can do more work under one claim, but the state it leaves is
-indistinguishable from a dead holder, and the output's own `next:` line invites the command that
-then fails.
+`finishLock` with `--keep-lock` only reads the lock (`internal/cli/finish.go:122-128`). `start b`
+finds no token file for `b` (`internal/cli/start.go:88`) and is refused. `capcom start b --token <T>`
+works, but nothing says so: the hint (`internal/cli/start.go:254`) names only `capcom lock status`.
 
-This is the single most common dead end for an agent following capcom's own advice, because
-`finish` is the documented way to end a piece of work.
+`--keep-lock` exists so one session can do more work under one claim, but the output's own `next:`
+line invites the command that then fails, and `finish` is the documented way to end a piece of work.
+
+The ADR 0016 amendment of 2026-10-26 (`adr-0016-amend-1026`) decides the fix: the `next:` line names
+`capcom start <next-id> --token <token>`, and that start moves the token file to the new purpose.
+The move is `lock-purpose-alias-resume`, which this waits for.
 
 ## Acceptance
 
-- `--keep-lock` either retitles the purpose to something resumable, or keeps a token file that
-  `capcom start <next-id>` resumes without `--token` and without `--take-stale`.
-- The refusal, when one remains, says how to proceed, not just `capcom lock status`.
-- A test runs `finish --keep-lock` then `start` on the named next issue and asserts exit 0.
+- `finish --keep-lock` prints the token, and its `next:` line names
+  `capcom start <next-id> --token <token>`.
+- That start exits 0 and leaves one token file, for `<next-id>`.
+- `capcom start <other-id>` without `--token` after `--keep-lock` still fails `locked`, and its hint
+  names `--token` alongside `capcom lock status`.
+- A test runs `finish --keep-lock`, then the start its `next:` line names, and asserts exit 0 and a
+  single token file.

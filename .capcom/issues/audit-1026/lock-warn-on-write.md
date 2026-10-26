@@ -1,9 +1,9 @@
 ---
-title: A write while another session holds the lock is silent
+title: A CLI write while another session holds the lock is silent
 status: open
 type: feature
 priority: 2
-labels: [audit]
+deps: [lock-check-writes-file]
 created: 2026-10-26T20:13:21Z
 ---
 
@@ -20,42 +20,28 @@ Reproduced: one session takes the lock, then, in the same worktree,
 
 So `lock check` correctly reports the worktree as taken while `create` and `mv` write anyway. One
 agent with a half-finished multi-file change, and a second agent running a command, now hold
-overlapping work that neither of them caused on purpose.
+overlapping work that neither of them caused on purpose. No mutating command reads the lock today;
+only `start`, `finish`, `prime`, `lock` and the UI import `internal/lock`.
 
-This is not an oversight in the code: ADR 0013 decided that only the UI asks before writing, and
-its rejected list turns down blocking CLI writes because a supervisor often needs to act exactly
-then, and `$EDITOR` would bypass a block anyway. That reasoning holds. But it leaves a gap for the
-case capcom is built for — several agents on one worktree — where the lock separates them on
-paper and not in practice. A warning keeps the supervisor's escape hatch and closes the silence.
-
-## Proposal
-
-Warn on stderr when a mutating command lands a write while this worktree's lock is held by another
-session, naming the holder, and pending on nothing: the write still happens and the exit code does
-not change.
-
-The warning belongs on stderr rather than in the `warnings` array, which every existing warning
-uses. `warnings` are part of the result written to stdout inside the envelope, and an agent that
-pipes a result into a parser would have to learn a second place to look. A note about the tree's
-state is not part of the result, and stderr is where capcom already writes what must not be parsed
-as output. The same warning should also reach the envelope's `warnings` when `--json` is set, or
-`--json` callers learn nothing.
-
-Not this Issue: refusing the write (ADR 0013 rejected it), and warning while the lock is your own
-— `capcom start`, `finish` and `lock acquire` hold it by design.
+ADR 0017 decides the behaviour: warn, never refuse, and tell the holder apart by the lock's purpose,
+since a CLI write takes no token. Read it before starting; it also says why a `--token` flag on
+writes, a block and a stderr-only warning were rejected.
 
 ## Acceptance
 
-- A mutating command that writes while another session holds this worktree's lock prints one
-  warning on stderr naming the holder and the purpose, and still exits 0 with its normal output.
-- No warning when the lock is free, when the token belongs to this session, or when the command is
-  `start`, `finish` or any `lock` verb.
-- A stale lock warns and says it is stale, so the reader knows `--take-stale` is available; a
-  corrupt or unreadable record warns without failing the command.
-- `--json` and `--kv` carry the same warning for a parsing caller, in the envelope's `warnings`;
-  stdout keeps its documented shape.
-- A read-only command (`list`, `show`, `ready`, `search`, `prime`) never warns.
-- A test holds a foreign lock, runs `create` and `mv`, and asserts exit 0, the file written, and
-  the stderr warning; and runs them with a free lock and asserts stderr is empty.
+- A mutating command that writes while this worktree's lock is held adds one warning naming the
+  holder, the purpose and the heartbeat age, and still exits 0 with its normal output.
+- No warning when the write targets the Issue whose id is the lock's purpose (so `log`, `update`
+  and `close` of the started Issue stay silent), when the lock is free, or when the command is
+  `start`, `finish` or any `lock` verb. A read-only command (`list`, `show`, `ready`, `search`,
+  `prime`) never warns.
+- A stale lock's warning says it is stale; an invalid or unreadable record warns and names
+  `capcom lock status` without failing the write.
+- The warning goes where every warning goes: the text output's warning lines, and the envelope's
+  `warnings` with `--json` and `--kv`.
+- Checking the lock creates no file under `.git/capcom/locks/` (see `lock-check-writes-file`).
+- A test holds a foreign lock and runs `create` and `mv`, asserting exit 0, the file written and
+  the warning; runs `log` on the purpose's Issue and asserts no warning; and runs with a free lock
+  and asserts no warning.
 - The behaviour is named in `AGENTS.md`'s managed block and in the `issue-workflow` Note, so an
   agent reading either learns the lock is signalled and not enforced.

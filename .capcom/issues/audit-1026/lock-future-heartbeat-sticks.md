@@ -1,16 +1,17 @@
 ---
-title: A lock heartbeat in the future can never go stale or be taken over
+title: A lock heartbeat in the future is not stale until the clock catches up
 status: open
 type: bug
-priority: 1
+priority: 2
 created: 2026-10-26T20:06:45Z
 ---
 
-A Tree lock whose heartbeat is dated in the future never counts as stale, so it can never be
-taken over: `lock acquire --take-stale` refuses forever and prints a nonsense age.
+A Tree lock whose heartbeat is dated in the future does not count as stale until the clock passes
+the heartbeat plus the TTL, so `lock acquire --take-stale` refuses it until then, and the refusal
+prints a negative age.
 
-Staleness is `now - heartbeat > ttl`. A heartbeat later than now makes that negative, so the
-lock looks fresh indefinitely.
+Staleness is `now - heartbeat > ttl` (`internal/lock/lock.go:412`). A heartbeat later than now makes
+that negative, so the lock looks fresh.
 
 Reproduced (ttl 1s, heartbeat patched to 2099):
 
@@ -18,17 +19,20 @@ Reproduced (ttl 1s, heartbeat patched to 2099):
     capcom lock check   -> exit 3, "locked by ... (dead) for 5s, heartbeat -632739h58m52s ago"
     capcom lock acquire --purpose me --take-stale -> exit 3, same message
 
-Real triggers are ordinary: a laptop or VM whose clock runs ahead acquires on a shared worktree;
-an NTP correction steps the clock backwards after acquisition; a container has a skewed clock.
-The only way out is a human running `capcom lock break`, which is exactly the dead end ADR 0005
-and ADR 0016 were written to remove.
+Real triggers: a machine whose clock runs ahead acquires on a worktree another machine reaches (a
+network or synced share); an NTP correction steps the clock back after an acquire; a container runs
+with a skewed clock. Ordinary skew heals once the clock passes the heartbeat and the TTL, so the
+cost is a takeover delayed by the skew, not a lock held forever; a holder resuming with its own
+token is not affected, and `lock break` still works.
 
-The negative duration also leaks into `lock check`, `prime` and the UI status bar.
+The negative age comes from the `locked` error (`heldError`, `internal/lock/lock.go:436-437`),
+printed by `lock check`, `lock acquire` and `start`. `prime` and the UI print the age through
+`AgeText`, which already clamps it to 0.
 
 ## Acceptance
 
-- A heartbeat far enough in the future (say more than one TTL ahead) is treated as stale, so
-  `lock acquire --take-stale` takes the lock.
-- No user-facing message prints a negative age; `AgeText` and `HeldError` agree.
+- A heartbeat more than one TTL in the future is treated as stale, so `lock acquire --take-stale`
+  takes the lock.
+- The `locked` error never prints a negative age.
 - A test patches a record's heartbeat into the future and asserts the lock is stale and
   `--take-stale` succeeds.

@@ -15,18 +15,23 @@ Reproduced with `.git/capcom/locks/_main.json` holding `not json{{{`:
     capcom lock touch --token x  -> exit 1, hint: capcom lock touch --help
     capcom lock release --token x-> exit 1, hint: capcom lock release --help
     capcom lock acquire --purpose p -> exit 1, hint: capcom lock acquire --help
+    capcom start <id>            -> exit 1, the same generic hint
     capcom lock status           -> exit 0, "_main: invalid" + warning   (this one is right)
 
-`lock status` handles the state well; every command that would fix it does not. `finish` already
-gets this right (`run capcom lock status, then capcom lock break to free it`), so the wording
-exists in the codebase to copy.
+`read` returns `errCorruptRecord` (`internal/lock/lock.go:402-406`), which `emitLock`
+(`internal/cli/lock.go:330`) and `start` (`internal/cli/start.go:248`) report as a generic
+`invalid` with the command's own `--help` as hint. `finish` already gets this right (`run capcom
+lock status, then capcom lock break to free it`), so the wording exists to copy. `lock break`
+already clears such a record.
 
-A lock nobody can acquire, touch or release is worse than a stale one, because `--take-stale`
-cannot help and the exit code is 1 rather than 3, so a hook cannot tell it apart from an I/O
-failure.
+The code stays `invalid` with exit 1: no session holds the record, so `locked` would misreport it,
+and a hook gating on a non-zero exit already blocks edits. What is missing is the way out.
 
 ## Acceptance
 
-- Every lock command that meets an unreadable record exits 3 and names `capcom lock break`.
-- `--json` carries the same code and message.
-- A test corrupts the record and asserts all five commands agree.
+- `lock check`, `lock acquire`, `lock touch`, `lock release` and `start`, meeting an unreadable or
+  token-less record, fail `invalid` with exit 1, a message saying the lock record cannot be read,
+  and a hint naming `capcom lock status`, then `capcom lock break`.
+- `lock status` keeps exit 0 and its `invalid` line; `lock break` keeps clearing the record.
+- `--json` carries the same code, message and hint.
+- A test corrupts the record and asserts the five commands agree.

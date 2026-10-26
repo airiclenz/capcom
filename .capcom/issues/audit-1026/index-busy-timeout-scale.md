@@ -1,5 +1,5 @@
 ---
-title: A rebuild outlasts the busy timeout and concurrent commands fail
+title: A rebuild outlasts the busy timeout and concurrent commands fail with SQLITE_BUSY
 status: open
 type: bug
 priority: 3
@@ -9,23 +9,22 @@ created: 2026-10-26T20:06:45Z
 At a plausible store size, a rebuild outlasts the busy timeout and concurrent commands fail.
 
 Reproduced with 12,000 issues: `capcom reindex` takes about 19 s, while the SQLite busy timeout is
-5 s. A `capcom list` started during the rebuild fails:
+5 s with no retry (`internal/index/index.go:40`). Every command, reads included, opens the index
+with a refresh in an IMMEDIATE transaction (`internal/index/refresh.go:64`), and a rebuild holds
+that lock for its whole run. A `capcom list` started during the rebuild fails:
 
     capcom reindex &
     capcom list -> begin refresh: database is locked (5) (SQLITE_BUSY)
 
-Three concurrent lists all failed. There is no retry past the 5 s timeout.
-
-Related, measured on the same store: `list` runs about five statements per issue (0.52 s for
-12,000 rows), and `search --excerpt` runs one body query per hit (1.10 s versus 0.14 s without).
-Both grow linearly with the store, and `ready` walks every issue to rank them.
+Three concurrent lists all failed.
 
 A long rebuild is the moment a user is most likely to run something else, so this is the common
-case, not an edge one.
+case at that size, not an edge one.
+
+The per-row query cost that makes the store slow at this size is `list-per-row-queries`.
 
 ## Acceptance
 
-- A command that meets a busy index waits, retries, or reports a clear message naming
-  `capcom reindex` and how long it may take, rather than a raw SQLITE_BUSY.
-- `list` and `search --excerpt` stop issuing per-row queries.
-- A benchmark records the timings so a regression is visible.
+- A command that meets a busy index waits, retries, or fails with a message naming
+  `capcom reindex` and saying the index is being rebuilt, rather than a raw SQLITE_BUSY.
+- A test holds the index's write lock past the busy timeout and asserts the command's behaviour.

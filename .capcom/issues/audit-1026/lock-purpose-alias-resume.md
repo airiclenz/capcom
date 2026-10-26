@@ -16,16 +16,18 @@ Reproduced:
     ls .git/capcom/locks/*.token                     -> TWO token files, both e9d9...
     capcom lock acquire --purpose alpha              -> exit 0, "resumed ... : alpha"   (should be exit 3)
 
-ADR 0016 says "a session naming any other purpose still fails `locked`, so the lock keeps telling
-different work apart". That holds only until one token is reused under a second purpose, which is
-exactly what an agent does when it holds the token and runs `capcom start <id>` after a
-`capcom lock acquire --purpose "<free text>"`.
+`writeTokenFile` (`internal/lock/lock.go:213`) adds a file for the new purpose and never removes the
+others holding the same token. ADR 0016 says "a session naming any other purpose still fails
+`locked`", which holds only until one token is reused under a second purpose: exactly what an agent
+does when it runs `capcom start <id> --token <T>` after a `capcom lock acquire --purpose "<text>"`,
+and what `finish --keep-lock` will recommend (`keep-lock-blocks-next`). It also leaks one token
+file per purpose resumed; only `release` or `break` cleans them up.
 
-It also leaks one token file per purpose ever resumed; only `release` or `break` with a matching
-token cleans them up.
+The ADR 0016 amendment of 2026-10-26 (`adr-0016-amend-1026`) decides the fix: the token file moves.
 
 ## Acceptance
 
-- Resuming a token under a new purpose moves the token file rather than adding one.
+- Resuming a token under a new purpose writes the new purpose's token file and deletes every other
+  token file of this worktree holding the same token, in the same guarded step.
 - After the move, the old purpose fails `locked` with exit 3.
 - A test resumes one token under two purposes and asserts one token file and a refusal.

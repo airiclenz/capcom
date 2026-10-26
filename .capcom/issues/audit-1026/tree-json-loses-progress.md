@@ -17,8 +17,9 @@ agent reading JSON believes it has the whole picture when it does not.
 The same call with `--json` gives one row with `"depth": 0` and nothing else: no child count, no
 cut marker, and a second child hidden entirely.
 
-`capcom dep list --depth 0 --json` loses the `(see above)` repeat marker, so a diamond root
-appears twice as two ordinary rows with no hint that the second is a repeat, and a `--depth` cut
+`capcom dep list --depth 0 --json` loses the `(see above)` repeat marker, so the shared dependency of a
+diamond appears twice as two ordinary rows (only `via` differs) with no mark that the second is a
+repeat, and a `--depth` cut
 is invisible for the same reason.
 
 An agent cannot tell "this parent has two children, none closed" from "I was shown a truncated

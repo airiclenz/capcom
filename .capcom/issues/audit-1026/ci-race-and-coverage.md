@@ -14,9 +14,10 @@ CI never runs the race detector or a coverage check, and the Makefile test targe
     Makefile:20                  go test $(PKG)
 
 The three-OS matrix is good, but nothing runs `-race` and nothing gates coverage. The packages
-with real concurrency — the lock guard and heartbeat, the index refresh, the UI's polling — are
-never race-checked on any OS. The Makefile target also reuses cached results, so a local `make
-test` can pass on stale output.
+with real concurrency (the lock guard and heartbeat, the index refresh, the UI's polling) are
+never race-checked on any OS. The Makefile target reuses cached results, so a local `make test`
+can pass on a cached run of a test whose outcome depends on files or environment outside its
+inputs, where CI's `-count=1` would rerun it.
 
 AGENTS.md rules out `-race` on the Raspberry Pi host, but Linux and macOS CI can run it.
 

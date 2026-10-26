@@ -1,9 +1,11 @@
 ---
 title: An issue and a Note can share one id and nothing reports it
-status: open
+status: done
 type: bug
 priority: 2
 created: 2026-10-26T20:06:45Z
+closed: 2026-10-26T20:27:17Z
+reason: "Refuted: docs/site/reference/file-format.md:421-422 says the Knowledge and Issue trees are checked apart, so a Note may share an id with an issue. A change would amend ADR 0002 and the file format first."
 ---
 
 An issue and a Note can hold the same id, and nothing reports it.

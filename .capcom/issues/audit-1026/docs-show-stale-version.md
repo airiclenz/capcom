@@ -20,14 +20,17 @@ Two documentation defects, both reproduced.
    but there is no `docs/release.md`; the file is `docs/releasing.md`. Run verbatim, capcom
    accepts the write, warns `ref "docs/release.md": no such file or directory`, and the next
    `capcom know verify` fails with exit 1. A reader copying the README's own example lands in a
-   failing verify.
+   failing verify. The same example is in `capcom know add --help`, so the generated reference
+   carries it too.
 
-The generated CLI reference is current — `go run ./cmd/gendocs` diffs clean — so only the
-hand-written pages are affected.
+The generated CLI reference is otherwise current: `go run ./cmd/gendocs` diffs clean.
+
+Not every `--ref` in the docs is meant to resolve here: `docs/site/concepts/knowledge.md:42` refs
+`internal/auth/refresh.go#func RefreshToken` as a made-up example of another project.
 
 ## Acceptance
 
 - No hand-written page pins a capcom version.
-- Every `--ref` in a doc example points at a file that exists, checked by the docs test if one
-  can cover it.
-- A test or check fails when a doc example references a missing path.
+- The README's and `know add --help`'s `--ref` example names a file that exists in this repository.
+- A test fails when a `--ref` in the README or in a command's help names a path missing from this
+  repository; examples of other projects in docs/site are not checked.

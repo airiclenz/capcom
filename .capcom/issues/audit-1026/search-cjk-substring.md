@@ -1,27 +1,34 @@
 ---
-title: Search cannot find a substring of a run of CJK characters
+title: Search help does not say a run of CJK characters counts as one word
 status: open
-type: bug
+type: chore
 priority: 3
 created: 2026-10-26T20:06:46Z
 ---
 
-Search cannot find a substring inside a run of CJK characters, and nothing says so.
+Search matches whole words, and a run of CJK characters counts as one word, so a word inside such a
+run is never found. Nothing says so.
 
-The full-text table uses the default tokenizer, which treats a run of Han characters as one
-token. Reproduced with a title `登录超时问题 login timeout bug`:
+The full-text table uses the default `unicode61` tokenizer (`internal/index/schema.go:129`), and a
+query term is matched as a whole word (`internal/index/index.go:291`). Reproduced with a title
+`登录超时问题 login timeout bug`:
 
     capcom search timeout   -> matches
     capcom search 超时      -> no issue matches
     capcom search 登录      -> no issue matches
     capcom search 登录超时  -> no issue matches
 
-The same holds for Notes in a mixed title. For anyone writing titles or bodies in Chinese,
-Japanese or Korean, search is effectively broken for everything except an exact whole token,
-while every other language behaves as expected.
+Latin substrings miss too (`search time` does not find "timeout"), and `capcom search --help`
+already says words are "matched as whole words". What a reader cannot guess is that Chinese and
+Japanese text, which separates words with no spaces, makes a whole sentence one word, so search in
+those languages finds only a query equal to an entire run. The same holds for `know search`.
+
+Decided on 2026-10-26: document the limit rather than change the tokenizer. A trigram tokenizer
+would still miss two-character words such as 登录, so a real fix needs a substring fallback or a CJK
+tokenizer, which is not worth it until someone asks.
 
 ## Acceptance
 
-- A substring of a CJK run finds the issue, or the limitation is documented where search is
-  documented and in `capcom search --help`.
-- A test searches a CJK substring of a title and asserts a hit.
+- `capcom search --help` and `capcom know search --help` say that a run of CJK characters with no
+  spaces counts as one word, with a short example.
+- The CLI reference is regenerated with `go run ./cmd/gendocs`.
