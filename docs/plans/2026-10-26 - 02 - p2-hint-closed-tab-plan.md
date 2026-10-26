@@ -44,7 +44,7 @@ instead of `capcom search`, and `capcom ui` gains a fourth tab, Closed, for brow
 - Any change to the Issues tab's `/status:closed` behaviour.
 - CHANGELOG release headings, VERSION, tags.
 
-## 1. A missing body input file hints a stdin retry
+## 1. A missing body input file hints a stdin retry — ✅ DONE (2026-10-26)
 
 **What:**
 **Goal:** a `--body-file` or `--body-append-file` naming a file that does not exist fails with code

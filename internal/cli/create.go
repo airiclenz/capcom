@@ -252,7 +252,7 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 func newIssueBody(cmd *cobra.Command, options *createOptions) (string, error) {
 	text := options.body
 	if options.bodyFile != "" {
-		read, err := readTextInput(cmd, options.bodyFile)
+		read, err := readTextInput(cmd, flagBodyFile, options.bodyFile)
 		if err != nil {
 			return "", err
 		}

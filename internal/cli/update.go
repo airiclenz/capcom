@@ -96,7 +96,7 @@ func (a *app) newUpdateCommand() *cobra.Command {
 			}
 			appendFile := ""
 			if cmd.Flags().Changed(flagBodyAppendFile) {
-				text, err := readTextInput(cmd, options.bodyAppendFile)
+				text, err := readTextInput(cmd, flagBodyAppendFile, options.bodyAppendFile)
 				if err != nil {
 					return err
 				}

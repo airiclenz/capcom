@@ -205,7 +205,7 @@ func newNote(cmd *cobra.Command, options *knowAddOptions) (knowledge.Note, error
 	if options.bodyFile == "" {
 		return note, nil
 	}
-	body, err := readTextInput(cmd, options.bodyFile)
+	body, err := readTextInput(cmd, flagBodyFile, options.bodyFile)
 	if err != nil {
 		return knowledge.Note{}, err
 	}

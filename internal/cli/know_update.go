@@ -152,12 +152,12 @@ func readNoteInputs(cmd *cobra.Command, options *knowUpdateOptions) (noteInputs,
 	var inputs noteInputs
 	var err error
 	if cmd.Flags().Changed(flagBodyFile) {
-		if inputs.body, err = readTextInput(cmd, options.bodyFile); err != nil {
+		if inputs.body, err = readTextInput(cmd, flagBodyFile, options.bodyFile); err != nil {
 			return noteInputs{}, err
 		}
 	}
 	if cmd.Flags().Changed(flagBodyAppendFile) {
-		if inputs.appendFile, err = readTextInput(cmd, options.bodyAppendFile); err != nil {
+		if inputs.appendFile, err = readTextInput(cmd, flagBodyAppendFile, options.bodyAppendFile); err != nil {
 			return noteInputs{}, err
 		}
 	}

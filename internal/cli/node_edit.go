@@ -141,8 +141,9 @@ func (e bodyEdits) apply(body string) (string, error) {
 	return body, nil
 }
 
-// readTextInput reads the file at path, or stdin when path is "-". Errors name the file.
-func readTextInput(cmd *cobra.Command, path string) (string, error) {
+// readTextInput reads the file at path, which the flag named flag gave, or stdin when path is "-".
+// Errors name the file; a missing file hints retrying the command with the text on stdin.
+func readTextInput(cmd *cobra.Command, flag string, path string) (string, error) {
 	if path == stdinPath {
 		data, err := io.ReadAll(cmd.InOrStdin())
 		if err != nil {
@@ -152,7 +153,12 @@ func readTextInput(cmd *cobra.Command, path string) (string, error) {
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return "", &output.Error{Code: output.CodeNotFound, Path: path, Message: "no such file"}
+		return "", &output.Error{
+			Code:    output.CodeNotFound,
+			Path:    path,
+			Message: "no such file",
+			Hint:    "capcom <command> --" + flag + " " + stdinPath,
+		}
 	}
 	if err != nil {
 		return "", &output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()}
