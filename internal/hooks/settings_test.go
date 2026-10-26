@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/hooks"
@@ -126,36 +127,45 @@ func TestMerge_UsableContent_AddsTheMissingGroups(t *testing.T) {
 	}
 }
 
+// TestMerge_UnusableContent_FailsWithPathAndLine pins capcom's own wording. A syntax error's
+// message carries the JSON decoder's prose after capcom's prefix, which differs between the
+// encoding/json v1 and v2 decoders, so that case matches the prefix only: isPrefix marks it.
 func TestMerge_UnusableContent_FailsWithPathAndLine(t *testing.T) {
 	cases := []struct {
-		name    string
-		content string
-		want    hooks.Error
+		name     string
+		content  string
+		want     hooks.Error
+		isPrefix bool
 	}{
 		{
 			"syntax error",
 			"{\n  \"a\": 1,\n  oops\n}\n",
-			hooks.Error{Path: ".codex/hooks.json", Line: 3, Message: "invalid settings: invalid character 'o' looking for beginning of object key string"},
+			hooks.Error{Path: ".codex/hooks.json", Line: 3, Message: "invalid settings: "},
+			true,
 		},
 		{
 			"not an object",
 			"[1, 2]\n",
 			hooks.Error{Path: ".codex/hooks.json", Message: "invalid settings: must be a JSON object"},
+			false,
 		},
 		{
 			"trailing data",
 			"{} {}\n",
 			hooks.Error{Path: ".codex/hooks.json", Message: "invalid settings: unexpected data after the JSON object"},
+			false,
 		},
 		{
 			"hooks not an object",
 			`{"hooks": [1]}`,
 			hooks.Error{Path: ".codex/hooks.json", Message: "hooks must be a JSON object"},
+			false,
 		},
 		{
 			"event not an array",
 			`{"hooks": {"PreCompact": {}}}`,
 			hooks.Error{Path: ".codex/hooks.json", Message: "hooks.PreCompact must be an array of hook groups"},
+			false,
 		},
 	}
 	for _, testCase := range cases {
@@ -163,11 +173,21 @@ func TestMerge_UnusableContent_FailsWithPathAndLine(t *testing.T) {
 			merged, _, err := hooks.Merge([]byte(testCase.content), hooks.Codex)
 
 			var failure *hooks.Error
-			if !errors.As(err, &failure) || *failure != testCase.want || merged != nil {
-				t.Errorf("Merge = %q, %v; want nil, %+v", merged, err, testCase.want)
+			if !errors.As(err, &failure) || merged != nil ||
+				failure.Path != testCase.want.Path || failure.Line != testCase.want.Line ||
+				!messageMatches(failure.Message, testCase.want.Message, testCase.isPrefix) {
+				t.Errorf("Merge = %q, %v; want nil, %+v (message prefix only: %v)", merged, err, testCase.want, testCase.isPrefix)
 			}
 		})
 	}
+}
+
+// messageMatches reports whether message is want, or only starts with it when isPrefix is set.
+func messageMatches(message, want string, isPrefix bool) bool {
+	if isPrefix {
+		return strings.HasPrefix(message, want)
+	}
+	return message == want
 }
 
 func TestMerge_SecondMerge_ChangesNothing(t *testing.T) {

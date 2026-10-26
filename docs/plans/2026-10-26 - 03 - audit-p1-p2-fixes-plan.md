@@ -360,7 +360,10 @@ parsing as a `kind: error` envelope.
 **Closes:** group-json-prints-help
 **Commit:** `fix(cli): refuse --json on group commands`
 
-## 10. hooks tests assert capcom's wording, not the decoder's
+## 10. hooks tests assert capcom's wording, not the decoder's — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): the syntax-error case is marked by a new `isPrefix` table field and checked through a small `messageMatches` helper in settings_test.go; Path and Line are compared explicitly for every case, the other four cases keep exact message matches.
+NOTES (2026-10-26): TestMergeApogee_UnusableContent_FailsWithPathAndLine (apogee_test.go) still pins YAML decoder prose ("found unexpected end of stream", "yaml: mapping values are not allowed in this context"); it is untouched by GOEXPERIMENT=jsonv2 and outside this item's Files, but would break on a YAML library upgrade.
 
 **What:**
 **Goal:** `go test ./internal/hooks` passes with `GOEXPERIMENT=jsonv2` and `GOEXPERIMENT=nojsonv2`;
