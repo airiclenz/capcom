@@ -50,34 +50,27 @@ const (
 	helpRuleMaxLines = 4
 )
 
-// shortRuleCommands are the commands whose Long is already split into short rules.
-var shortRuleCommands = []string{
-	"capcom", "capcom version", "capcom agents", "capcom check", "capcom close", "capcom create",
-	"capcom dep", "capcom dep add", "capcom dep rm", "capcom dep list", "capcom dep graph",
-	"capcom finish", "capcom fmt", "capcom init",
-	"capcom know", "capcom know add", "capcom know update", "capcom know verify", "capcom know tree",
-	"capcom know show", "capcom know search", "capcom list", "capcom lock", "capcom lock acquire",
-	"capcom lock touch", "capcom lock release", "capcom lock break", "capcom lock check",
-	"capcom lock status", "capcom log", "capcom merge-driver",
-	"capcom mv", "capcom know mv", "capcom rm", "capcom know rm", "capcom next", "capcom reopen",
-	"capcom search", "capcom reindex", "capcom update", "capcom show", "capcom ready", "capcom related",
-	"capcom related add", "capcom related rm", "capcom prime", "capcom start", "capcom ui",
-}
-
-// TestHelpText_ShortRuleCommands_LongRulesFitFourLines checks that every paragraph or bullet of the
-// Long of each command in shortRuleCommands fits in helpRuleMaxLines lines at helpRuleColumns.
-func TestHelpText_ShortRuleCommands_LongRulesFitFourLines(t *testing.T) {
-	commands := map[string]*cobra.Command{}
+// TestHelpText_EveryCommand_PrintsExamplesBeforeShortRules renders the --help of every available
+// command and checks that each example line comes before the first line of Long, and that every
+// paragraph or bullet of Long fits in helpRuleMaxLines lines at helpRuleColumns.
+func TestHelpText_EveryCommand_PrintsExamplesBeforeShortRules(t *testing.T) {
 	for _, cmd := range availableCommands() {
-		commands[cmd.CommandPath()] = cmd
-	}
-	for _, path := range shortRuleCommands {
+		path := cmd.CommandPath()
 		t.Run(path, func(t *testing.T) {
-			cmd, ok := commands[path]
-			if !ok {
-				t.Fatalf("%s: no such available command", path)
+			stdout, stderr, exitCode := runCLI(t, "", helpArgs(path)...)
+			if exitCode != ExitOK || stderr != "" {
+				t.Fatalf("%s --help: exit = %d stderr = %q, want 0 and empty", path, exitCode, stderr)
 			}
 
+			longStart := strings.LastIndex(stdout, firstLine(cmd.Long))
+			if longStart < 0 {
+				t.Fatalf("%s --help does not print the first line of Long:\n%s", path, stdout)
+			}
+			for _, line := range strings.Split(cmd.Example, "\n") {
+				if at := strings.Index(stdout, line); at < 0 || at > longStart {
+					t.Errorf("%s --help: example line %q is missing or comes after Long", path, line)
+				}
+			}
 			for _, rule := range helpRules(cmd.Long) {
 				if lines := wrappedLineCount(rule, helpRuleColumns); lines > helpRuleMaxLines {
 					t.Errorf("%s: rule runs to %d lines at %d columns, want at most %d: %q",
@@ -86,6 +79,60 @@ func TestHelpText_ShortRuleCommands_LongRulesFitFourLines(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHelpText_Help_PrintsSectionsInOrder checks the section order of --help once for a command
+// (create) and once for a group (lock), whose subcommands come before its examples.
+func TestHelpText_Help_PrintsSectionsInOrder(t *testing.T) {
+	tests := []struct {
+		path     string
+		sections []string
+	}{
+		{
+			path:     "capcom create",
+			sections: []string{"Usage:\n", "\nExamples:\n", "\nFlags:\n", "\nGlobal Flags:\n"},
+		},
+		{
+			path: "capcom lock",
+			sections: []string{
+				"Usage:\n", "\nAvailable Commands:\n", "\nExamples:\n", "\nFlags:\n", "\nGlobal Flags:\n",
+			},
+		},
+	}
+	commands := map[string]*cobra.Command{}
+	for _, cmd := range availableCommands() {
+		commands[cmd.CommandPath()] = cmd
+	}
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			cmd := commands[test.path]
+			markers := append([]string{cmd.Short + "\n"}, test.sections...)
+			markers = append(markers, firstLine(cmd.Long))
+
+			stdout := mustRun(t, "", helpArgs(test.path)...)
+
+			rest := stdout
+			for _, marker := range markers {
+				at := strings.Index(rest, marker)
+				if at < 0 {
+					t.Fatalf("%s --help: %q missing or out of order:\n%s", test.path, marker, stdout)
+				}
+				rest = rest[at+len(marker):]
+			}
+		})
+	}
+}
+
+// helpArgs returns the arguments that print the help of the command at path, a command path
+// starting with capcom.
+func helpArgs(path string) []string {
+	return append(strings.Fields(path)[1:], "--help")
+}
+
+// firstLine returns the first line of text.
+func firstLine(text string) string {
+	line, _, _ := strings.Cut(text, "\n")
+	return line
 }
 
 func TestHelpRules_SplitsParagraphsAndBullets(t *testing.T) {

@@ -1,10 +1,4 @@
-Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never generates, and the title given by --title; both are required.
-
---parent files it below another Note, --label and --ref set its Labels and Refs, and --body-file reads its markdown body from a file, - for stdin.
-
-A --ref inside the git directory is refused, since a clone never has it; one that does not resolve here, or that git ignores, is written with a warning, as capcom check fails on it.
-
-It prints the new Note's id, path and etag, and a refreshed line when the capcom block of AGENTS.md was rewritten.
+Add a Note with a chosen id
 
 Usage:
   capcom know add --id <slug> --title <title> [flags]
@@ -25,3 +19,11 @@ Flags:
 
 Global Flags:
       --json   print a versioned JSON envelope
+
+Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never generates, and the title given by --title; both are required.
+
+--parent files it below another Note, --label and --ref set its Labels and Refs, and --body-file reads its markdown body from a file, - for stdin.
+
+A --ref inside the git directory is refused, since a clone never has it; one that does not resolve here, or that git ignores, is written with a warning, as capcom check fails on it.
+
+It prints the new Note's id, path and etag, and a refreshed line when the capcom block of AGENTS.md was rewritten.

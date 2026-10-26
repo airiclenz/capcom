@@ -117,7 +117,10 @@ internal/cli/node_verbs_test.go — TestHelp_NodeVerbs_MatchGolden; internal/cli
 **Acceptance:** as item 1.
 **Commit:** `docs(cli): split the Long help of mv to ui into short rules`
 
-## 4. --help prints the examples before the rules
+## 4. --help prints the examples before the rules — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): root sets a help template (Short, usage section, then Long, with no heading over Long) and a usage template copied from cobra v1.10.2's default with Examples moved below Available Commands; the command-group, "Additional Commands" and help-topic sections are left out because capcom declares none. For a group the "Use \"capcom <group> [command] --help\"" line closes the usage section, so it sits before Long.
+NOTES (2026-10-26): shortRuleCommands and TestHelpText_ShortRuleCommands_LongRulesFitFourLines are replaced by TestHelpText_EveryCommand_PrintsExamplesBeforeShortRules, which renders `--help` through runCLI for every available command (48 subtests) and checks both the example order and the four-line rule; TestHelpText_Help_PrintsSectionsInOrder asserts the section order once for `create` and once for `lock`. All six goldens were rewritten from `capcom <verb> --help`. `go run ./cmd/gendocs` changed no file under docs/site/reference/cli/, as cobra/doc does not use the help templates.
 
 Depends on items 1–3.
 

@@ -41,6 +41,39 @@ const (
 		"  capcom version --json   # {version} in a JSON envelope"
 )
 
+// helpTemplate lays out a command's --help: its Short, then the usage section of usageTemplate,
+// then its Long, so the examples come before the rules.
+const helpTemplate = `{{with .Short}}{{. | trimTrailingWhitespaces}}
+
+{{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}{{with .Long}}
+{{. | trimTrailingWhitespaces}}
+{{end}}`
+
+// usageTemplate is cobra's default usage template with Examples moved below Available Commands, so
+// a group lists its subcommands first. capcom declares no command groups or help topics, so their
+// sections are left out.
+const usageTemplate = `Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasAvailableSubCommands}}
+
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasExample}}
+
+Examples:
+{{.Example}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
+
 // annotationIndex is the cobra annotation a command sets to have the store, and with it the index,
 // ready before its body runs: indexRefresh brings the index up to date, indexRebuild recreates it,
 // and storeOnly opens the store without the index. Commands without it never open the store or
@@ -117,6 +150,8 @@ func (a *app) newRootCommand() *cobra.Command {
 		PersistentPreRunE: a.prepare,
 	}
 	root.SetFlagErrorFunc(unknownCommandOnFlagError)
+	root.SetHelpTemplate(helpTemplate)
+	root.SetUsageTemplate(usageTemplate)
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
 	root.AddCommand(a.newAgentsCommand())
 	root.AddCommand(a.newCheckCommand())

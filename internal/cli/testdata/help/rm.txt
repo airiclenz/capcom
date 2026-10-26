@@ -1,12 +1,4 @@
-Remove an Issue's file.
-
-An Issue with children is refused, so no orphan directory is left behind, and so is an Issue other Issues depend on, unless --drop-deps removes their deps entries naming it.
-
-Every other reference to the Issue is dropped, and its Aliases go with the file.
-
-capcom deletes the file itself and never runs git.
-
-It prints the removed Issue's id and path, and the Issues whose deps entries were dropped.
+Remove an issue that has no children
 
 Usage:
   capcom rm <id|alias|prefix> [--if-match <etag>] [--drop-deps] [flags]
@@ -23,3 +15,13 @@ Flags:
 
 Global Flags:
       --json   print a versioned JSON envelope
+
+Remove an Issue's file.
+
+An Issue with children is refused, so no orphan directory is left behind, and so is an Issue other Issues depend on, unless --drop-deps removes their deps entries naming it.
+
+Every other reference to the Issue is dropped, and its Aliases go with the file.
+
+capcom deletes the file itself and never runs git.
+
+It prints the removed Issue's id and path, and the Issues whose deps entries were dropped.
