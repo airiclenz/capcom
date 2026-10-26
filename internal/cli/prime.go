@@ -52,6 +52,7 @@ type primeData struct {
 	Doing          []issueData     `json:"doing,omitzero"`
 	Locks          []lockData      `json:"locks,omitzero"`
 	BrokenRefs     []check.Problem `json:"broken_refs,omitzero"`
+	UnsharedRefs   []check.Problem `json:"unshared_refs,omitzero"`
 	CheckProblems  *int            `json:"check_problems,omitempty"`
 }
 
@@ -66,7 +67,8 @@ const (
 	primeLong = "Print the Briefing an agent session starts with: the Ready Issues, split into those with a " +
 		"plan and those without, each list capped at 15; the Issues in progress; the Tree locks held " +
 		"in every worktree; changes to Issues on other branches that are not merged yet; Note refs " +
-		"that no longer resolve; and the number of problems capcom check finds.\n\n" +
+		"that no longer resolve, and those a clone lacks; and the number of problems capcom check " +
+		"finds.\n\n" +
 		"It never fails: a part that cannot be read becomes a warning line, and the command exits " +
 		"0.\n\n" +
 		"init --claude-hooks and init --codex-hooks run it at session start and before compaction; " +
@@ -77,7 +79,7 @@ const (
 
 // newPrimeCommand prints the Briefing an agent session starts with: Ready work split planned and
 // unplanned, the issues in progress, every worktree's Tree lock, issue changes on other branches,
-// broken Note refs and the count of check problems. It never fails: a source that cannot be read
+// broken and unshared Note refs and the count of check problems. It never fails: a source that cannot be read
 // becomes one warning line, and the command exits 0.
 func (a *app) newPrimeCommand() *cobra.Command {
 	return &cobra.Command{
@@ -131,6 +133,9 @@ func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Re
 	}
 	if health := composed.Health; health != nil {
 		data.BrokenRefs = append([]check.Problem{}, health.BrokenRefs...)
+		if len(health.UnsharedRefs) > 0 {
+			data.UnsharedRefs = append([]check.Problem{}, health.UnsharedRefs...)
+		}
 		data.CheckProblems = &health.ProblemCount
 		addHealth(&text, *health)
 	}
@@ -221,11 +226,18 @@ func worktreeLockAdvice(state lock.State, hasDoingStatus bool) string {
 	}
 }
 
-// addHealth writes the broken Note refs and the count of every check problem.
+// addHealth writes the broken Note refs, the unshared Note refs when there are any, and the count
+// of every check problem.
 func addHealth(text *strings.Builder, health briefing.Health) {
 	fmt.Fprintf(text, "broken Note refs: %d\n", len(health.BrokenRefs))
 	for _, problem := range health.BrokenRefs {
 		text.WriteString("  " + problem.String() + "\n")
+	}
+	if len(health.UnsharedRefs) > 0 {
+		fmt.Fprintf(text, "unshared Note refs: %d\n", len(health.UnsharedRefs))
+		for _, problem := range health.UnsharedRefs {
+			text.WriteString("  " + problem.String() + "\n")
+		}
 	}
 	if health.ProblemCount == 0 {
 		text.WriteString("check: no problems\n")

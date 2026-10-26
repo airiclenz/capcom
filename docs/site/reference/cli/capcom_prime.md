@@ -11,7 +11,7 @@ Print the session Briefing: ready work, locks, other branches and store health
 
 ### Synopsis
 
-Print the Briefing an agent session starts with: the Ready Issues, split into those with a plan and those without, each list capped at 15; the Issues in progress; the Tree locks held in every worktree; changes to Issues on other branches that are not merged yet; Note refs that no longer resolve; and the number of problems capcom check finds.
+Print the Briefing an agent session starts with: the Ready Issues, split into those with a plan and those without, each list capped at 15; the Issues in progress; the Tree locks held in every worktree; changes to Issues on other branches that are not merged yet; Note refs that no longer resolve, and those a clone lacks; and the number of problems capcom check finds.
 
 It never fails: a part that cannot be read becomes a warning line, and the command exits 0.
 

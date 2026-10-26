@@ -1,6 +1,6 @@
 ---
 title: "The session briefing"
-description: "What capcom prime prints at the start of an agent session (Ready work, Issues in progress, Tree locks, broken Note refs, store health, Elsewhere) and when to run it."
+description: "What capcom prime prints at the start of an agent session (Ready work, Issues in progress, Tree locks, broken and unshared Note refs, store health, Elsewhere) and when to run it."
 sidebar: { order: 2 }
 ---
 
@@ -62,6 +62,9 @@ Section by section:
 - **`broken Note refs`**: the [Refs](../concepts/knowledge.md#ref-and-suspect-notes) of Notes that
   no longer resolve, each as `path:line: ref "<ref>": <why>`. Those Notes are suspect: read them
   with care, and fix them when the work touches them.
+- **`unshared Note refs`**: printed only when there are any. The Refs that resolve in this working
+  tree but name a path a clone lacks, one inside the git directory or one git ignores, each as
+  `path:line: ref "<ref>": <why>`. Point such a Ref at a tracked file, or drop it.
 - **`check`**: the number of problems `capcom check` finds. Anything other than `no problems` is
   worth a `capcom check` before going further. A Standing Parent whose status was moved into the
   `doing` category or a closed one by hand is one of them.
@@ -97,6 +100,7 @@ with kind `prime`. Its `data` holds:
 | `doing` | the Issues in the `doing` category |
 | `locks` | one object per held lock: `lock`, `worktree`, `holder`, `purpose`, `host`, `user`, `branch`, `since`, `heartbeat`, `stale` |
 | `broken_refs` | the Note Refs that do not resolve |
+| `unshared_refs` | the Note Refs a clone lacks, in the shape of `broken_refs`; left out when there are none |
 | `check_problems` | the number of problems `capcom check` finds |
 
 The Elsewhere entries sit in the envelope's top-level `elsewhere` array, as for every command.

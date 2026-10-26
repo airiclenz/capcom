@@ -551,8 +551,8 @@ A **Ref** is either a path or `path#symbol`:
 A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists every such Ref as
 `path:line: ref "<ref>": <why>`, citing the Ref's line in the Note file, and fails when it finds
 one; `capcom check` reports them too (`broken-ref`), and `capcom prime` counts them in its
-briefing. `capcom know verify` and `capcom check` list an `unshared-ref` Ref the same way. All
-three leave out the Refs of a retired Note and of every Note below it.
+briefing. `capcom know verify`, `capcom check` and `capcom prime` list an `unshared-ref` Ref the
+same way. All three leave out the Refs of a retired Note and of every Note below it.
 
 ## Config
 

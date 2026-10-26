@@ -82,7 +82,10 @@ type Work struct {
 type Health struct {
 	// BrokenRefs is the check problems of Note refs that name no file, never nil.
 	BrokenRefs []check.Problem
-	// ProblemCount counts every check problem, the broken refs included.
+	// UnsharedRefs is the check problems of Note refs that resolve here but name a path a clone
+	// lacks, never nil.
+	UnsharedRefs []check.Problem
+	// ProblemCount counts every check problem, the broken and unshared refs included.
 	ProblemCount int
 }
 
@@ -178,10 +181,17 @@ func (b *Briefing) readHealth(s *store.Store) {
 		b.fail(SectionCheck, err)
 		return
 	}
-	health := &Health{BrokenRefs: []check.Problem{}, ProblemCount: len(problems)}
+	health := &Health{
+		BrokenRefs:   []check.Problem{},
+		UnsharedRefs: []check.Problem{},
+		ProblemCount: len(problems),
+	}
 	for _, problem := range problems {
-		if problem.Code == diagnose.BrokenRef {
+		switch problem.Code {
+		case diagnose.BrokenRef:
 			health.BrokenRefs = append(health.BrokenRefs, problem)
+		case diagnose.UnsharedRef:
+			health.UnsharedRefs = append(health.UnsharedRefs, problem)
 		}
 	}
 	b.Health = health

@@ -127,8 +127,8 @@ directory (`.git/...`), or one to a file git ignores. `capcom know add --ref` an
 that does not resolve, or that git ignores, with a warning naming it.
 
 `capcom check` reports the same problems, and `capcom prime` lists the broken ones in the session
-[briefing](../agents/briefing.md) under `broken Note refs:`, so a stale Note surfaces the next time
-an agent starts work. Fix it by updating the Note, its Refs or both:
+[briefing](../agents/briefing.md) under `broken Note refs:` and the unshared ones under
+`unshared Note refs:`, so a stale Note surfaces the next time an agent starts work. Fix it by updating the Note, its Refs or both:
 
 ```sh
 capcom know update token-refresh \

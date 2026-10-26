@@ -325,7 +325,10 @@ Issue and a Note.
 `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Excerpt'`; `go vet ./internal/index/`; `grep -qx 'go 1.25.0' go.mod`
 **Commit:** `fix(index): fold diacritics in search excerpts`
 
-## 11. prime names unshared Note refs
+## 11. prime names unshared Note refs — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): consequential edit — docs/site/concepts/knowledge.md: made necessary by prime now listing unshared refs (it said prime lists only the broken ones)
+NOTES (2026-10-26): consequential edit — docs/site/reference/file-format.md: made necessary by prime now listing unshared-ref Refs beside verify and check
 
 **What:**
 **Goal:** `capcom prime` prints `unshared Note refs: N` with one indented `path:line: message` per

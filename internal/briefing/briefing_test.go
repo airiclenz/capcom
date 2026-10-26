@@ -135,6 +135,30 @@ func TestCompose_FixtureStore_ReturnsEverySection(t *testing.T) {
 		got.Health.BrokenRefs[0].Code != wantRef.Code {
 		t.Errorf("Health = %+v; want one problem, the broken ref at %s:%d", got.Health, wantRef.Path, wantRef.Line)
 	}
+	if got.Health.UnsharedRefs == nil || len(got.Health.UnsharedRefs) != 0 {
+		t.Errorf("UnsharedRefs = %#v, want empty and not nil", got.Health.UnsharedRefs)
+	}
+}
+
+func TestCompose_RefToIgnoredFile_IsAnUnsharedRefNotABrokenOne(t *testing.T) {
+	files := briefingStore()
+	files["logs/.gitignore"] = "*.log\n"
+	files["logs/build.log"] = "ignored\n"
+	files[".capcom/knowledge/log-notes.md"] = "---\ntitle: Log notes\nrefs: [logs/build.log]\n---\n"
+	root := newBriefingRepo(t, files)
+
+	got := Compose(root, time.Now())
+
+	if got.Health == nil {
+		t.Fatalf("Compose = %+v; want the health section", got)
+	}
+	wantRef := check.Problem{Path: ".capcom/knowledge/log-notes.md", Line: 3, Code: diagnose.UnsharedRef}
+	if got.Health.ProblemCount != 2 || len(got.Health.BrokenRefs) != 1 || len(got.Health.UnsharedRefs) != 1 ||
+		got.Health.UnsharedRefs[0].Path != wantRef.Path || got.Health.UnsharedRefs[0].Line != wantRef.Line ||
+		got.Health.UnsharedRefs[0].Code != wantRef.Code {
+		t.Errorf("Health = %+v; want two problems, one broken ref and the unshared ref at %s:%d",
+			got.Health, wantRef.Path, wantRef.Line)
+	}
 }
 
 func TestCompose_BrokenRefsInRetiredSubtree_AreNotCounted(t *testing.T) {

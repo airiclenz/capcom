@@ -125,6 +125,77 @@ func TestPrime_JSONBrokenRef_IsACheckProblemAtItsLine(t *testing.T) {
 	}
 }
 
+// addUnsharedRef adds to the store at root a Note whose one Ref names a file git ignores.
+func addUnsharedRef(t *testing.T, root string) {
+	t.Helper()
+	files := map[string]string{"logs/.gitignore": "*.log\n", "logs/build.log": "ignored\n"}
+	for name, content := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+	writeNoteFiles(t, root, map[string]string{
+		"log-notes.md": "---\ntitle: Log notes\nrefs: [logs/build.log]\n---\n",
+	})
+}
+
+func TestPrime_UnsharedRef_IsListedAfterTheBrokenRefs(t *testing.T) {
+	root := newPrimeStore(t)
+	addUnsharedRef(t, root)
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+	want := "broken Note refs: 1\n" +
+		"  .capcom/knowledge/build-notes.md:3: ref \"gone.go\": no such file or directory\n" +
+		"unshared Note refs: 1\n" +
+		"  .capcom/knowledge/log-notes.md:3: ref \"logs/build.log\": " +
+		"is ignored by git, so a clone does not have it\n" +
+		"check: 2 problems; run capcom check\n"
+	if exitCode != ExitOK || stderr != "" || !strings.HasSuffix(stdout, want) {
+		t.Fatalf("prime = %d, stderr %q, stdout:\n%s\nwant it to end with:\n%s", exitCode, stderr, stdout, want)
+	}
+}
+
+func TestPrime_JSONUnsharedRef_IsACheckProblemBesideTheBrokenRefs(t *testing.T) {
+	root := newPrimeStore(t)
+	addUnsharedRef(t, root)
+
+	stdout, _, exitCode := runCLI(t, root, "prime", "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	data, isObject := envelope["data"].(map[string]any)
+	if exitCode != ExitOK || !isObject {
+		t.Fatalf("prime --json = %d\n%s", exitCode, stdout)
+	}
+	want := []any{map[string]any{
+		"path":    ".capcom/knowledge/log-notes.md",
+		"line":    float64(3),
+		"code":    "unshared-ref",
+		"message": `ref "logs/build.log": is ignored by git, so a clone does not have it`,
+	}}
+	if !reflect.DeepEqual(data["unshared_refs"], want) {
+		t.Errorf("unshared_refs = %v, want %v", data["unshared_refs"], want)
+	}
+	if brokenRefs, isList := data["broken_refs"].([]any); !isList || len(brokenRefs) != 1 {
+		t.Errorf("broken_refs = %v, want the one broken ref", data["broken_refs"])
+	}
+}
+
+func TestPrime_JSONWithoutUnsharedRefs_LeavesTheKeyOut(t *testing.T) {
+	root := newPrimeStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "prime", "--json")
+
+	data, isObject := decodeEnvelope(t, stdout)["data"].(map[string]any)
+	if _, isPresent := data["unshared_refs"]; exitCode != ExitOK || !isObject || isPresent {
+		t.Errorf("prime --json = %d, data %v; want no unshared_refs key", exitCode, data)
+	}
+}
+
 func TestPrime_ManyReadyIssues_CapsEachListAndCountsAll(t *testing.T) {
 	root := newIssueStore(t, nil)
 	files := map[string]string{}
