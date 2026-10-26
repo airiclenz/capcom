@@ -416,6 +416,26 @@ func TestLock_KVShape_EveryCommandEmitsTheLockRecord(t *testing.T) {
 	}
 }
 
+func TestLockAcquire_HeldByAnother_HintsLockStatus(t *testing.T) {
+	root := newLockStore(t)
+	acquireToken(t, root, "agent-a")
+
+	assertFailureHint(t, root, "capcom lock status", "lock", "acquire", "--purpose", "other", "--holder", "agent-b")
+}
+
+func TestLockTouch_FreeLock_HintsLockStatus(t *testing.T) {
+	root := newLockStore(t)
+
+	assertFailureHint(t, root, "capcom lock status", "lock", "touch", "--token", "any")
+}
+
+func TestLockRelease_HeldByAnother_HintsLockStatus(t *testing.T) {
+	root := newLockStore(t)
+	acquireToken(t, root, "agent-a")
+
+	assertFailureHint(t, root, "capcom lock status", "lock", "release", "--token", "not-the-token")
+}
+
 func TestLockTouch_FreeLock_FailsNotFoundWithFreeRecord(t *testing.T) {
 	root := newLockStore(t)
 

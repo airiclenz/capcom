@@ -91,6 +91,12 @@ func TestKnowMv_RenameWithChildren_CarriesTheSubtree(t *testing.T) {
 	}
 }
 
+func TestKnowMv_OntoTakenID_HintsShowingTheNoteHoldingIt(t *testing.T) {
+	root := newKnowStore(t)
+
+	assertFailureHint(t, root, "capcom know show testing-rules", "know", "mv", "git-fixtures", "testing-rules")
+}
+
 func TestKnowMv_OntoTakenIDOrAlias_FailsExistsNamingTheNote(t *testing.T) {
 	root := newKnowStore(t)
 	mustRun(t, root, "know", "mv", "release-flow", "release-steps")

@@ -24,8 +24,9 @@ const (
 	mergeDriverMaxArgs = 7
 	// mergeTempDirPattern names the temp directory that holds the text merge's inputs.
 	mergeTempDirPattern = "capcom-merge-*"
-	// conflictMessage is the failure of a merge that leaves conflict markers in ours.
-	conflictMessage = "conflict markers remain; resolve them and stage the file"
+	// conflictMessage is the failure of a merge that leaves conflict markers in ours; its hint
+	// stages the file once they are resolved.
+	conflictMessage = "conflict markers remain; resolve them"
 	// mergeInputPermissions are the permissions of the text merge's temp input files.
 	mergeInputPermissions = 0o600
 )
@@ -81,7 +82,8 @@ func (a *app) newMergeDriverCommand() *cobra.Command {
 
 // mergeIssueFile runs one merge-driver invocation on args and returns its result: a failure when
 // an input cannot be read, the merge fails or ours cannot be written (ours is then left as it was),
-// and a conflict failure, with ours written, when conflict markers remain.
+// and a conflict failure, with ours written and a hint of git add for path, when conflict markers
+// remain.
 func mergeIssueFile(args []string) output.Result {
 	path := args[mergeArgPath]
 	inputs := args[:mergeArgPath]
@@ -110,7 +112,7 @@ func mergeIssueFile(args []string) output.Result {
 
 	result := output.Result{Kind: kindMerge, Data: mergeDriverData{Path: path}}
 	if hasConflict {
-		result.Failure = &output.Error{Code: output.CodeConflict, Path: path, Message: conflictMessage}
+		result.Failure = &output.Error{Code: output.CodeConflict, Path: path, Message: conflictMessage, Hint: "git add " + path}
 	}
 	return result
 }

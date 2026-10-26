@@ -16,21 +16,37 @@ import (
 // kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a
 // stale --if-match, or a file changed between the command's read and its write, a conflict and an
 // id another node answers to exists, each at the file the failure names, relative to the working
-// tree root, and its line when known. An argument that resolves to no node or to several goes
-// through resolveFailure for kind, the kind of node the Kind holds; any other failure through
-// output.AsError.
+// tree root, and its line when known. A node file that cannot be read or parsed hints capcom check,
+// unlike a node that does not validate before it is written; a conflict hints showing a node of
+// kind again, and an id another node answers to showing that node. An argument that resolves to no
+// node or to several goes through resolveFailure for kind, the kind of node the Kind holds; any
+// other failure through output.AsError.
 func (a *app) kindFailure(err error, kind idKind) *output.Error {
 	var file *nodestore.FileError
 	if errors.As(err, &file) {
-		return &output.Error{Code: output.CodeInvalid, Path: file.Path, Line: file.Line, Message: file.Message}
+		failure := &output.Error{Code: output.CodeInvalid, Path: file.Path, Line: file.Line, Message: file.Message}
+		if !file.IsValidation {
+			failure.Hint = checkHint
+		}
+		return failure
 	}
 	var conflict *nodestore.ConflictError
 	if errors.As(err, &conflict) {
-		return &output.Error{Code: output.CodeConflict, Path: conflict.Path, Message: conflict.Message}
+		return &output.Error{
+			Code:    output.CodeConflict,
+			Path:    conflict.Path,
+			Message: conflict.Message,
+			Hint:    showCommand(kind) + " <id>",
+		}
 	}
 	var exists *nodestore.ExistsError
 	if errors.As(err, &exists) {
-		return &output.Error{Code: output.CodeExists, Path: exists.Path, Message: exists.Message}
+		return &output.Error{
+			Code:    output.CodeExists,
+			Path:    exists.Path,
+			Message: exists.Message,
+			Hint:    showCommand(kind) + " " + exists.Holder,
+		}
 	}
 	if errors.Is(err, tree.ErrNotFound) || errors.Is(err, tree.ErrAmbiguous) {
 		failure, _ := a.resolveFailure(err, kind) // an argument failure: the command stops here
@@ -39,13 +55,28 @@ func (a *app) kindFailure(err error, kind idKind) *output.Error {
 	return output.AsError(err)
 }
 
+// checkHint is the hint of a node file that cannot be read or parsed: capcom check names every
+// such file in the store.
+const checkHint = "capcom check"
+
+// showCommand returns the command that shows one node of kind: capcom show for an issue, capcom
+// know show for a Note.
+func showCommand(kind idKind) string {
+	if kind == noteIDs {
+		return "capcom know show"
+	}
+	return "capcom show"
+}
+
 // refusalWords words the refusals of one reference-list edit that refuse the edit rather than its
 // argument: self is a format of the holder's id, cycle a format of the holder's id, the id the
-// argument names and the cycle, and notFound the whole message of a removal that drops no entry.
+// argument names and the cycle, notFound the whole message of a removal that drops no entry, and
+// notFoundHint the command that lists the entries it could drop.
 type refusalWords struct {
-	self     string
-	cycle    string
-	notFound string
+	self         string
+	cycle        string
+	notFound     string
+	notFoundHint string
 }
 
 // refusalFailure types a failure of reflist's decision on an edit of the reference list of the
@@ -53,7 +84,7 @@ type refusalWords struct {
 // ambiguous prefix or a name two files claim, and any failure that is no refusal, go through
 // resolveFailure for kind, with no path. A refusal of the edit is placed at path and worded by
 // words: adding the holder to its own list or closing a cycle is invalid, and a removal that drops
-// no entry is not_found.
+// no entry is not_found, hinting the words' notFoundHint.
 func (a *app) refusalFailure(err error, kind idKind, path string, words refusalWords) *output.Error {
 	var refusal *reflist.Refusal
 	if !errors.As(err, &refusal) || refusal.Err != nil {
@@ -69,6 +100,7 @@ func (a *app) refusalFailure(err error, kind idKind, path string, words refusalW
 	default: // reflist.ReasonNotFound: a removal that drops no entry
 		failure.Code = output.CodeNotFound
 		failure.Message = words.notFound
+		failure.Hint = words.notFoundHint
 	}
 	return failure
 }

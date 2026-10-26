@@ -137,8 +137,8 @@ the line of its begin marker, and `capcom agents --check` fails the same way:
 
 ```console
 $ capcom agents --check
-capcom: AGENTS.md:5: the capcom block is out of date; run capcom agents to refresh it
-hint: capcom agents --help
+capcom: AGENTS.md:5: the capcom block is out of date
+hint: capcom agents
 ```
 
 Run `capcom agents` to rewrite it. In CI, `capcom agents --check` (or `capcom check`) catches a
@@ -194,8 +194,8 @@ not reach it, as an `agents-guide` problem, and `capcom agents --check` fails on
 
 ```console
 $ capcom agents --check
-capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md
-hint: capcom agents --help
+capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; it needs the line @AGENTS.md
+hint: capcom agents
 ```
 
 An `AGENTS.md` without the block reports no guide: there is nothing yet to reach.

@@ -101,6 +101,32 @@ func TestMergeDriver_ConflictingTitles_LabelsMarkersAndExitsOne(t *testing.T) {
 	}
 }
 
+func TestMergeDriver_ConflictingTitles_HintStagingTheFile(t *testing.T) {
+	dir := outsideGitDir(t)
+	want := "git add " + mergeDriverPath
+	for _, format := range [][]string{nil, {"--json"}} {
+		basePath, oursPath, theirsPath := writeDriverInputs(
+			t,
+			dir,
+			driverIssueFile("Login", driverEntryBase),
+			driverIssueFile("Login form", driverEntryBase),
+			driverIssueFile("Login page", driverEntryBase),
+		)
+		args := append([]string{"merge-driver", basePath, oursPath, theirsPath, mergeDriverPath}, format...)
+
+		stdout, stderr, exitCode := runCLI(t, dir, args...)
+
+		hint := strings.TrimPrefix(lastLine(stderr), "hint: ")
+		if format != nil {
+			failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+			hint, _ = failure["hint"].(string)
+		}
+		if exitCode != ExitError || hint != want {
+			t.Errorf("%v = %d, stdout %q, stderr %q; want 1 and the hint %q", format, exitCode, stdout, stderr, want)
+		}
+	}
+}
+
 func TestMergeDriver_LabelsAbsentOrUnexpanded_FallBackToPath(t *testing.T) {
 	cases := map[string][]string{
 		"absent":     nil,

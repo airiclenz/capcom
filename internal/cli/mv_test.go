@@ -375,6 +375,13 @@ func TestMv_UnparseableIssue_FailsInvalidAtItsRelativeFileAndLine(t *testing.T) 
 	assertWorktreeRelativeFailure(t, root, stdout, ".capcom/issues/renamed-issue.md", true)
 }
 
+func TestMv_UnparseableIssue_HintsCapcomCheck(t *testing.T) {
+	root := newMoveStore(t)
+	breakIssueFile(t, root, "renamed-issue.md")
+
+	assertFailureHint(t, root, "capcom check", "mv", "renamed-issue", "other-name")
+}
+
 func TestMv_IfMatchFromShow_Moves(t *testing.T) {
 	root := newMoveStore(t)
 	etag := textETag(mustRun(t, root, "show", "renamed-issue"))

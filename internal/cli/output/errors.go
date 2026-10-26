@@ -207,8 +207,13 @@ func AsError(err error) *Error {
 	return &Error{Code: CodeInvalid, Message: err.Error()}
 }
 
+// initClause is the clause store.ErrNotInitialized ends with to name capcom init; StoreFailure
+// drops it from the message, as the not_initialized hint names the command.
+const initClause = "; run capcom init"
+
 // StoreFailure types a failure to open or create the store: a bad config.yaml is invalid at its
-// file and line, a missing store is not_initialized, and a directory outside git is invalid.
+// file and line, a missing store is not_initialized, its message without the clause naming capcom
+// init, which its hint names, and a directory outside git is invalid.
 func StoreFailure(err error) *Error {
 	var configFailure *config.Error
 	switch {
@@ -220,7 +225,7 @@ func StoreFailure(err error) *Error {
 			Line:    configFailure.Line,
 		}
 	case errors.Is(err, store.ErrNotInitialized):
-		return Errorf(CodeNotInitialized, "%s", err.Error())
+		return Errorf(CodeNotInitialized, "%s", strings.Replace(err.Error(), initClause, "", 1))
 	default:
 		return Errorf(CodeInvalid, "%s", err.Error())
 	}

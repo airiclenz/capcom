@@ -212,7 +212,14 @@ internal/cli/create.go — newIssue; internal/cli/finish.go — notHoldingReason
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`; `go vet ./internal/cli/`
 **Commit:** `feat(cli): name the fixing command as a hint on issue write errors`
 
-## 7. Store, Note and lock errors set specific hints
+## 7. Store, Note and lock errors set specific hints — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): re-derived from the assumption that refusalFailure alone could bind the `capcom dep list <id>` hint: related rm shares its not-found branch, so refusalWords gained notFoundHint, set in internal/cli/dep.go (`capcom dep list <id>`) and internal/cli/related.go (`capcom show <id>`, which lists an issue's Related links), files the item's Files line did not list.
+NOTES (2026-10-26): write validation is excluded by marking it: nodestore.FileError gained IsValidation, set only by validationError; every other FileError (read, parse, a write that lost its file) hints `capcom check`.
+NOTES (2026-10-26): `lock release` of a free lock succeeds, so only `lock touch` on a free lock fails with the hint; a release refused because another session holds the lock hints `capcom lock status` (tested).
+NOTES (2026-10-26): beyond the bound overrides, an exists failure now fills the holder's id (`capcom show <holder>` for an issue), a conflict on a Note hints `capcom know show <id>` instead of the issue-only `capcom show <id>`, and the merge driver's conflict drops "and stage the file" from its message for the hint `git add <path>`.
+NOTES (2026-10-26): agents --check's unreached-guide message is now "does not reach the capcom block in AGENTS.md; it needs the line @AGENTS.md" (Guide.Problem() is unchanged for capcom check); ui.go and node_edit.go needed no change, as no error there names a next command. A missing --body-file still takes not_found's default hint `capcom search <text>`, which does not fit it.
+NOTES (2026-10-26): nodestore ConflictError messages ("show the Note again", "run the command again") were left as they are; they name an action, not a capcom command.
 
 Depends on item 6.
 

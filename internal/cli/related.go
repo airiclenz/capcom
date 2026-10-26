@@ -136,7 +136,10 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			notRelated := refusalWords{notFound: fmt.Sprintf("%s is not related to %s", first.ID, args[1])}
+			notRelated := refusalWords{
+				notFound:     fmt.Sprintf("%s is not related to %s", first.ID, args[1]),
+				notFoundHint: relatedListHint(first.ID),
+			}
 			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				dropped, err := removal.Drop(target.Related)
 				if err != nil {
@@ -153,6 +156,12 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&ifMatch, flagIfMatch, "", "only write when the etag of the issue holding the link is this one (see show)")
 	return a.withKV(cmd)
+}
+
+// relatedListHint is the hint of a related rm that drops no link of id: capcom show lists the
+// issues id is related to.
+func relatedListHint(id string) string {
+	return "capcom show " + id
 }
 
 // linkHolder finds the issue holding the link between first and the issue arg names, and reflist's
@@ -173,7 +182,10 @@ func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.E
 		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, "", refusalWords{})
 	}
 	if _, err := reverse.Drop(other.Related); err != nil {
-		notRelated := refusalWords{notFound: fmt.Sprintf("%s and %s are not related", first.ID, removal.ID)}
+		notRelated := refusalWords{
+			notFound:     fmt.Sprintf("%s and %s are not related", first.ID, removal.ID),
+			notFoundHint: relatedListHint(first.ID),
+		}
 		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, first.Path, notRelated)
 	}
 	return other, reverse, nil

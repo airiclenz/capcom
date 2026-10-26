@@ -95,10 +95,14 @@ const (
 // notFoundFailure types err, a failure to resolve an argument naming a node of kind that matches
 // tree.ErrNotFound, as not_found. When the argument matched nothing at all (*tree.NotFoundError),
 // its Suggestions are the closest ids or Aliases of kind; a name only an unusable file claims gets
-// none. isArgument is false only when the index fails to list the names of kind, which a multi-id
-// command cannot go on from.
+// none. An unknown Note hints capcom know search, as capcom search finds issues only. isArgument
+// is false only when the index fails to list the names of kind, which a multi-id command cannot go
+// on from.
 func (a *app) notFoundFailure(err error, kind idKind) (failure *output.Error, isArgument bool) {
 	failure = output.Errorf(output.CodeNotFound, "%s", err.Error())
+	if kind == noteIDs {
+		failure.Hint = "capcom know search <text>"
+	}
 	var notFound *tree.NotFoundError
 	if !errors.As(err, &notFound) {
 		return failure, true

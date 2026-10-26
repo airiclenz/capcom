@@ -139,7 +139,7 @@ func TestSuggest_KnowMvUnknownID_NamesTheClosestNote(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "know", "mv", "git-fixturez", "git-setup")
 
-	want := "capcom: id \"git-fixturez\" not found; did you mean git-fixtures?\nhint: capcom search <text>\n"
+	want := "capcom: id \"git-fixturez\" not found; did you mean git-fixtures?\nhint: capcom know search <text>\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("know mv exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}

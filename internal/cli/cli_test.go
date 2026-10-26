@@ -31,6 +31,19 @@ func lastLine(output string) string {
 	return lines[len(lines)-1]
 }
 
+// assertFailureHint runs args in root as text and as --json, and fails t unless the failure's hint
+// is want in both: the last stderr line "hint: <want>" and the JSON error body's hint.
+func assertFailureHint(t *testing.T, root string, want string, args ...string) {
+	t.Helper()
+	_, stderr, exitCode := runCLI(t, root, args...)
+	if exitCode == ExitOK || lastLine(stderr) != "hint: "+want {
+		t.Errorf("%v = %d, stderr %q; want a failure ending in hint: %s", args, exitCode, stderr, want)
+	}
+	if hint := jsonErrorHint(t, root, args...); hint != want {
+		t.Errorf("%v --json hint = %q, want %q", args, hint, want)
+	}
+}
+
 func TestRun_UnknownCommandWithJSON_WritesInvalidEnvelopeAndExitsUsage(t *testing.T) {
 	stdout, stderr, exitCode := runCLI(t, t.TempDir(), "--json", "no-such-command")
 
@@ -352,6 +365,17 @@ func commandHelpHint(commandPath string) string {
 	return commandPath + " --help"
 }
 
+func TestStoreCommands_NoStore_HintCapcomInitWithoutNamingItInTheMessage(t *testing.T) {
+	root := newGitRepo(t)
+
+	_, stderr, _ := runCLI(t, root, "list")
+
+	if strings.Contains(stderr, "run capcom init") {
+		t.Errorf("stderr = %q, want the message without its run capcom init clause", stderr)
+	}
+	assertFailureHint(t, root, "capcom init", "list")
+}
+
 func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 	commands := [][]string{{"agents"}, {"fmt"}, {"lock", "status"}}
 	badConfig := "statuses:\n  open: todo\n  review: reviewing\n  done: done\n"
@@ -374,7 +398,7 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 			name:  "no store",
 			setup: newGitRepo,
 			wantFail: func(root string) string {
-				return "capcom: " + filepath.Join(root, ".capcom") + ": " + store.ErrNotInitialized.Error() + "\n"
+				return "capcom: " + filepath.Join(root, ".capcom") + ": no capcom store here\n"
 			},
 			wantHint: func(string) string { return "capcom init" },
 		},

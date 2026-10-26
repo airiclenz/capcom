@@ -131,6 +131,20 @@ func TestAgentsCheck_StaleBlock_FailsAtTheMarkerLine(t *testing.T) {
 	}
 }
 
+func TestAgentsCheck_StaleBlock_HintsCapcomAgents(t *testing.T) {
+	root := newKnowStore(t)
+	writeAgentsGuide(t, root, "# Guide\n")
+	mustRun(t, root, "agents")
+	writeAgentsGuide(t, root, strings.Replace(readAgentsGuide(t, root), "`: Release flow\n", "`: Release steps\n", 1))
+
+	_, stderr, _ := runCLI(t, root, "agents", "--check")
+
+	if strings.Contains(stderr, "run capcom agents") {
+		t.Errorf("stderr = %q, want the message without its run capcom agents clause", stderr)
+	}
+	assertFailureHint(t, root, "capcom agents", "agents", "--check")
+}
+
 func TestCheck_AgentsBlockWithoutInstallLine_IsStaleUntilAgentsRefreshesIt(t *testing.T) {
 	root := newKnowStore(t)
 	mustRun(t, root, "agents")
@@ -335,7 +349,7 @@ func TestAgentsCheck_UnreachedGuides_FailNamingTheFirstGuide(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "agents", "--check")
 
-	want := "capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md\nhint: capcom agents --help\n"
+	want := "capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; it needs the line @AGENTS.md\nhint: capcom agents\n"
 	if exitCode != ExitError || stdout != "" || stderr != want {
 		t.Errorf("agents --check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
 	}

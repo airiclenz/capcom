@@ -165,8 +165,8 @@ func TestKnowShow_UnknownID_SuggestsTheClosestNoteIDs(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"a Note id", []string{"know", "show", "cli-testz"}, "capcom: id \"cli-testz\" not found; did you mean cli-tests?\nhint: capcom search <text>\n"},
-		{"a shared word", []string{"know", "show", "git-setup"}, "capcom: id \"git-setup\" not found; did you mean git-fixtures?\nhint: capcom search <text>\n"},
+		{"a Note id", []string{"know", "show", "cli-testz"}, "capcom: id \"cli-testz\" not found; did you mean cli-tests?\nhint: capcom know search <text>\n"},
+		{"a shared word", []string{"know", "show", "git-setup"}, "capcom: id \"git-setup\" not found; did you mean git-fixtures?\nhint: capcom know search <text>\n"},
 		{"never an issue id", []string{"show", "cli-testz"}, "capcom: id \"cli-testz\" not found\nhint: capcom search <text>\n"},
 	}
 	for _, testCase := range cases {
@@ -178,6 +178,18 @@ func TestKnowShow_UnknownID_SuggestsTheClosestNoteIDs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKnowShow_UnknownID_HintsKnowSearch(t *testing.T) {
+	root := newKnowStore(t)
+
+	assertFailureHint(t, root, "capcom know search <text>", "know", "show", "cli-testz")
+}
+
+func TestKnowUpdate_EmptyTitle_HintsItsHelpNotCapcomCheck(t *testing.T) {
+	root := newKnowStore(t)
+
+	assertFailureHint(t, root, "capcom know update --help", "know", "update", "release-flow", "--title", "")
 }
 
 func TestKnowShow_UnknownIDJSON_CarriesSuggestions(t *testing.T) {
@@ -197,7 +209,7 @@ func TestKnowUpdate_UnknownSuccessor_SuggestsTheClosestNoteID(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "know", "update", "release-flow", "--add-superseded-by", "cli-testz")
 
-	if exitCode != ExitNotFound || !strings.HasSuffix(stderr, "; did you mean cli-tests?\nhint: capcom search <text>\n") {
+	if exitCode != ExitNotFound || !strings.HasSuffix(stderr, "; did you mean cli-tests?\nhint: capcom know search <text>\n") {
 		t.Errorf("know update exit = %d stderr = %q, want cli-tests suggested", exitCode, stderr)
 	}
 }
@@ -207,7 +219,7 @@ func TestKnowShow_CitationSpellingNotFound_QuotesTheArgumentAsTyped(t *testing.T
 
 	_, stderr, exitCode := runCLI(t, root, "know", "show", "ADR 9999")
 
-	if exitCode != ExitNotFound || stderr != "capcom: id \"ADR 9999\" not found\nhint: capcom search <text>\n" {
+	if exitCode != ExitNotFound || stderr != "capcom: id \"ADR 9999\" not found\nhint: capcom know search <text>\n" {
 		t.Errorf("know show \"ADR 9999\" = %d, stderr %q", exitCode, stderr)
 	}
 }

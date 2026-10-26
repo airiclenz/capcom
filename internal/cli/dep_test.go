@@ -287,10 +287,16 @@ func TestDepRm_NotADep_FailsNotFound(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "dep", "rm", "login-flow", "db-schema")
 
-	want := "capcom: .capcom/issues/login-flow.md: login-flow does not depend on db-schema\nhint: capcom search <text>\n"
+	want := "capcom: .capcom/issues/login-flow.md: login-flow does not depend on db-schema\nhint: capcom dep list login-flow\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
+}
+
+func TestDepRm_NotADep_HintsListingItsDeps(t *testing.T) {
+	root := newDepStore(t)
+
+	assertFailureHint(t, root, "capcom dep list login-flow", "dep", "rm", "login-flow", "db-schema")
 }
 
 func TestDepRm_EntryTextOrIssue_RemovesTheMatchingDeps(t *testing.T) {

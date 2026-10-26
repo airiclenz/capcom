@@ -153,7 +153,8 @@ func guidesText(guides []agents.Guide) string {
 
 // checkAgentsBlock reports the block's state and the guides'; a stale block fails invalid at its
 // marker line, and, the block current, the first guide that does not reach it fails invalid at
-// that guide.
+// that guide. Either failure hints capcom agents, which refreshes the block and adds the import
+// line to the guides.
 func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 	status, err := syncAgentsBlock(opened, agents.ModeInspect)
 	if err != nil {
@@ -170,7 +171,8 @@ func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 			Code:    output.CodeInvalid,
 			Path:    agents.FileName,
 			Line:    status.Line,
-			Message: "the capcom block is out of date; run capcom agents to refresh it",
+			Message: "the capcom block is out of date",
+			Hint:    agentsCommand,
 		}
 	}
 	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.Guides, agents.ModeInspect)
@@ -179,12 +181,21 @@ func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 	}
 	for _, guide := range guides {
 		if guide.State == agents.GuideUnreached {
-			return &output.Error{Code: output.CodeInvalid, Path: guide.Path, Message: guide.Problem()}
+			return &output.Error{
+				Code:    output.CodeInvalid,
+				Path:    guide.Path,
+				Message: "does not reach the capcom block in " + agents.FileName + "; it needs the line " + guide.ImportLine,
+				Hint:    agentsCommand,
+			}
 		}
 	}
 	data.Guides = newAgentsGuideData(guides)
 	return a.emit(cmd, output.Result{Kind: "agents", Data: data, Text: text})
 }
+
+// agentsCommand is the command that refreshes the capcom block and makes every agent guide reach
+// it.
+const agentsCommand = "capcom agents"
 
 // agentsFailure types tangled markers as invalid at AGENTS.md and its line, an AGENTS.md that
 // cannot be read (not a regular file, or larger than 1 MiB) or that links outside the working tree

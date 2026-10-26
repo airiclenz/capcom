@@ -299,23 +299,33 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
+// lockStatusHint is the hint of a lock command refused by the lock's state: capcom lock status shows
+// who holds this worktree's lock, if anyone.
+const lockStatusHint = "capcom lock status"
+
 // openLockTarget pairs the store the root opened with the current worktree's lock.
 func (a *app) openLockTarget() lockTarget {
 	return lockTarget{store: a.store, lock: lock.ForWorktree(a.store)}
 }
 
 // emitLock renders a lock command's outcome: status in state on success. A lock held by another
-// session fails locked, and a touch of a free lock fails not_found; either failure still renders
-// the lock as found, so --kv keeps its LOCK= record and closes it with the failure's code.
+// session fails locked, and a touch of a free lock fails not_found; either failure hints capcom
+// lock status and still renders the lock as found, so --kv keeps its LOCK= record and closes it
+// with the failure's code.
 func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, token string, err error) error {
 	var held *lock.HeldError
 	var notHeld *lock.NotHeldError
 	switch {
 	case errors.As(err, &held):
-		failure := &output.Error{Code: output.CodeLocked, Message: held.Message(), Path: held.Path}
+		failure := &output.Error{Code: output.CodeLocked, Message: held.Message(), Path: held.Path, Hint: lockStatusHint}
 		return a.emit(cmd, failedLockResult(lockStateName(held.Status.State()), held.Status, failure))
 	case errors.As(err, &notHeld):
-		failure := &output.Error{Code: output.CodeNotFound, Message: lock.ErrNotHeld.Error(), Path: notHeld.Path}
+		failure := &output.Error{
+			Code:    output.CodeNotFound,
+			Message: lock.ErrNotHeld.Error(),
+			Path:    notHeld.Path,
+			Hint:    lockStatusHint,
+		}
 		return a.emit(cmd, failedLockResult(lockFree, status, failure))
 	case err != nil:
 		return err

@@ -102,7 +102,10 @@ func (a *app) newDepRmCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			written, err := a.ops().RemoveDep(args[0], "", args[1])
-			notDep := refusalWords{notFound: fmt.Sprintf("%s does not depend on %s", written.ID, args[1])}
+			notDep := refusalWords{
+				notFound:     fmt.Sprintf("%s does not depend on %s", written.ID, args[1]),
+				notFoundHint: "capcom dep list " + written.ID,
+			}
 			written, err = a.depWritten(written, err, notDep)
 			if err != nil {
 				return err

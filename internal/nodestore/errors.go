@@ -13,10 +13,13 @@ import (
 // FileError is a node file that cannot be read or used: Path is the file relative to the working
 // tree root with forward slashes, Line its 1-based line at fault (0 when no single line is to
 // blame), and Message the problem, naming any other file relative to the working tree root too.
+// IsValidation marks a node that does not validate and so was not written: the file on disk is
+// not at fault.
 type FileError struct {
-	Path    string
-	Line    int
-	Message string
+	Path         string
+	Line         int
+	Message      string
+	IsValidation bool
 }
 
 // Error renders "path:line: message", or "path: message" when the line is unknown.

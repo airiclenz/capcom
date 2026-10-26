@@ -214,7 +214,7 @@ func TestRelatedRm_NotRelated_FailsNotFound(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "related", "rm", "login-flow", "db-schema")
 
-	want := "capcom: .capcom/issues/login-flow.md: login-flow and db-schema are not related\nhint: capcom search <text>\n"
+	want := "capcom: .capcom/issues/login-flow.md: login-flow and db-schema are not related\nhint: capcom show login-flow\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
@@ -279,7 +279,7 @@ func TestRelatedRm_NameMatchingNoIssueAndNoEntry_FailsNotFoundNamingTheArgument(
 
 	_, stderr, exitCode := runCLI(t, root, "related", "rm", "login-flow", "absent")
 
-	want := "capcom: .capcom/issues/login-flow.md: login-flow is not related to absent\nhint: capcom search <text>\n"
+	want := "capcom: .capcom/issues/login-flow.md: login-flow is not related to absent\nhint: capcom show login-flow\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}

@@ -68,15 +68,16 @@ func (k *Kind[T]) place(path string, id string, data []byte, mode writeMode) (Wr
 }
 
 // validationError is the *FileError of a node at path, relative to the working tree root, that
-// does not validate: every problem's message, at the first problem's line.
+// does not validate: every problem's message, at the first problem's line, marked IsValidation.
 func validationError(path string, problems []*frontmatter.Error) *FileError {
 	messages := make([]string, 0, len(problems))
 	for _, problem := range problems {
 		messages = append(messages, problem.Message)
 	}
 	return &FileError{
-		Path:    path,
-		Line:    problems[0].Line,
-		Message: strings.Join(messages, problemSeparator),
+		Path:         path,
+		Line:         problems[0].Line,
+		Message:      strings.Join(messages, problemSeparator),
+		IsValidation: true,
 	}
 }
