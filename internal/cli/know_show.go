@@ -38,12 +38,13 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 	isWithChildren := false
 	isRetiredIncluded := false
 	cmd := &cobra.Command{
-		Use:         "show <id|alias|prefix>",
-		Short:       "Show a Note in full",
-		Long:        knowShowLong,
-		Example:     knowShowExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "show <id|alias|prefix>",
+		Short:             "Show a Note in full",
+		Long:              knowShowLong,
+		Example:           knowShowExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeNoteIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			entry, err := a.resolveNote(args[0])
 			if err != nil {

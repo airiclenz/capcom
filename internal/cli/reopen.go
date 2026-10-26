@@ -58,6 +58,7 @@ func (a *app) newReopenCommand() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&options.reason, flagReason, "", "why the issue is reopened (required)")
 	flags.StringVar(&options.status, flagStatus, "", "status that is not closed (default: the first todo status)")
+	a.completeFlag(cmd, flagStatus, completeStatuses(isOpenCategory))
 	return a.withKV(cmd)
 }
 

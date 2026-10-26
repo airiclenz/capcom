@@ -129,10 +129,8 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 			return a.emit(cmd, result)
 		}),
 	}
-	if verbs.idKind == issueIDs {
-		// Only the first argument completes: the second is a new id, which an existing one never is.
-		cmd.ValidArgsFunction = completeIssueIDs(1)
-	}
+	// Only the first argument completes: the second is a new id, which an existing one never is.
+	cmd.ValidArgsFunction = completeIDs(verbs.idKind, 1)
 	flags := cmd.Flags()
 	flags.StringVar(
 		&options.parent,
@@ -140,6 +138,7 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 		"",
 		"move the "+verbs.flagNoun+" below this one; . moves it to the top of the tree",
 	)
+	a.completeFlag(cmd, flagParent, completeIDValue(verbs.idKind))
 	flags.StringVar(
 		&options.ifMatch,
 		flagIfMatch,
@@ -212,9 +211,7 @@ func newRmCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 			return a.emit(cmd, result)
 		}),
 	}
-	if verbs.idKind == issueIDs {
-		cmd.ValidArgsFunction = completeIssueIDs(1)
-	}
+	cmd.ValidArgsFunction = completeIDs(verbs.idKind, 1)
 	flags := cmd.Flags()
 	flags.StringVar(
 		&options.ifMatch,

@@ -95,6 +95,7 @@ func (a *app) newCloseCommand() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringVar(&options.reason, flagReason, "", "why the issues are closed (required)")
 	flags.StringVar(&options.status, flagStatus, "", "status in the done or dropped category (default: the first done status)")
+	a.completeFlag(cmd, flagStatus, completeStatuses(config.Category.IsClosed))
 	return a.withKV(cmd)
 }
 

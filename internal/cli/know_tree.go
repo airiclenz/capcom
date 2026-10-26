@@ -51,12 +51,13 @@ func (a *app) newKnowTreeCommand() *cobra.Command {
 	isRetiredIncluded := false
 	isBackgroundIncluded := false
 	cmd := &cobra.Command{
-		Use:         "tree [id|alias|prefix]",
-		Short:       "Print the outline of Note ids and titles",
-		Long:        knowTreeLong,
-		Example:     knowTreeExample,
-		Args:        cobra.MaximumNArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "tree [id|alias|prefix]",
+		Short:             "Print the outline of Note ids and titles",
+		Long:              knowTreeLong,
+		Example:           knowTreeExample,
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeNoteIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if depth < unlimitedDepth {
 				return output.UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)

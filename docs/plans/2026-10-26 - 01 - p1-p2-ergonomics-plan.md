@@ -526,7 +526,11 @@ internal/ui/ui.go — TabReady, TabIssues, TabKnowledge, Tab.String (tabOrder is
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Complete|DocFileMap'`; `go vet ./internal/cli/`
 **Commit:** `feat(cli): complete issue ids in shell completion`
 
-## 19. Completion offers Note ids, statuses and types
+## 19. Completion offers Note ids, statuses and types — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): flag completions are registered through `app.completeFlag`, which registers only when `Run` sees `__complete`/`__completeNoDesc` as the first argument (`app.isCompleting`, set from `isCompletionRequest`), so normal runs, tests and `cli.Command()` add nothing to cobra's global flag-completion map; a test pins that `cli.Command()`'s `create --status` has no completion function.
+NOTES (2026-10-26): consequential edit — internal/cli/doc.go: made necessary by complete.go now completing Note ids, statuses, categories and types (file-map role line).
+NOTES (2026-10-26): `list --category` completes the fixed status categories even outside a store; every other new completion yields nothing there. `noteCandidates` gained an `isRetiredIncluded` parameter: `ui knowledge` keeps retired Notes, every Note-id argument and flag leaves them out.
 
 Depends on item 18.
 

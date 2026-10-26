@@ -83,12 +83,13 @@ var successorWords = refusalWords{self: "%s cannot be superseded by itself"}
 func (a *app) newKnowUpdateCommand() *cobra.Command {
 	options := &knowUpdateOptions{}
 	cmd := &cobra.Command{
-		Use:         "update <id|alias|prefix>",
-		Short:       "Change a Note's title, labels, refs, retirement or body",
-		Long:        knowUpdateLong,
-		Example:     knowUpdateExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "update <id|alias|prefix>",
+		Short:             "Change a Note's title, labels, refs, retirement or body",
+		Long:              knowUpdateLong,
+		Example:           knowUpdateExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeNoteIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if !hasAnyFlag(cmd, flagTitle, flagAddLabel, flagRemoveLabel, flagAddRef, flagRemoveRef,
 				flagRetire, flagUnretire, flagAddSupersededBy, flagRemoveSupersededBy,
@@ -126,6 +127,8 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 		"the id, alias or prefix of a Note that replaces this one; repeat for more")
 	flags.StringArrayVar(&options.removeSuccessors, flagRemoveSupersededBy, nil,
 		"the id, alias or prefix of a superseded-by entry to remove; repeat for more")
+	a.completeFlag(cmd, flagAddSupersededBy, completeIDValue(noteIDs))
+	a.completeFlag(cmd, flagRemoveSupersededBy, completeIDValue(noteIDs))
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the whole new markdown body; - reads stdin")
 	flags.StringArrayVar(&options.bodyAppend, flagBodyAppend, nil,
 		"text to append to the body, taken literally; repeat to append several in order")

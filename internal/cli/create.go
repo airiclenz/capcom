@@ -100,17 +100,21 @@ func (a *app) newCreateCommand() *cobra.Command {
 	flags.StringVar(&options.id, flagID, "", "the new issue's id: a kebab slug of 1 to 4 words (required)")
 	flags.StringVar(&options.title, flagTitle, "", "the issue's title (required)")
 	flags.StringVar(&options.parent, flagParent, "", "create the issue below this one")
+	a.completeFlag(cmd, flagParent, completeIDValue(issueIDs))
 	flags.StringVar(&options.issueType, flagType, "", "the issue's type (default task, or the first configured type)")
+	a.completeFlag(cmd, flagType, completeTypes)
 	flags.IntVar(&options.priority, flagPriority, issue.DefaultPriority, "priority, 0 (most urgent) to 4")
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "labels; repeat or separate with commas")
 	flags.StringVar(&options.plan, flagPlan, "", "basename of the plan the issue belongs to")
 	flags.StringVar(&options.status, flagStatus, "", "initial status, not in a closed category (default: the first todo status)")
+	a.completeFlag(cmd, flagStatus, completeStatuses(isOpenCategory))
 	flags.StringVar(&options.body, flagBody, "", "the markdown body, taken literally")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
 	flags.StringVar(&options.why, flagWhy, "", "text of a \"## Why\" section added after the body")
 	flags.StringArrayVar(&options.acceptance, flagAcceptance, nil,
 		"a bullet of the \"## Acceptance\" section added last; repeat for more")
 	flags.StringSliceVar(&options.deps, flagDep, nil, "issues the new one depends on; repeat or separate with commas")
+	a.completeFlag(cmd, flagDep, commaSeparated(completeIDValue(issueIDs)))
 	flags.BoolVar(&options.isStanding, flagStanding, false, "mark the issue standing: it only groups its children")
 	_ = cmd.MarkFlagRequired(flagID)    // fails only for an undefined flag
 	_ = cmd.MarkFlagRequired(flagTitle) // fails only for an undefined flag

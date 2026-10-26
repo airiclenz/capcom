@@ -95,6 +95,9 @@ type app struct {
 	isJSON   bool
 	isKV     bool
 	renderer output.Renderer
+	// isCompleting reports whether the invocation is cobra's __complete or __completeNoDesc, the
+	// only one that registers flag completions (app.completeFlag).
+	isCompleting bool
 	// store is set for a command annotated with annotationIndex, and issueIndex for one that
 	// asks for the index; Run closes the index. indexReport is what opening the index did.
 	// indexWarnings are the index warnings that go with the result: the report's own, or the
@@ -114,7 +117,7 @@ type app struct {
 // report it on stdout. A failure names the command cobra ran, or failed to parse, as the one that
 // failed, so its hint can name that command.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	application := &app{stdout: stdout, stderr: stderr}
+	application := &app{stdout: stdout, stderr: stderr, isCompleting: isCompletionRequest(args)}
 	root := application.newRootCommand()
 	root.SetArgs(args)
 	root.SetIn(stdin)

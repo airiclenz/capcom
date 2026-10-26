@@ -91,13 +91,17 @@ func (a *app) newListCommand() *cobra.Command {
 	}
 	flags := cmd.Flags()
 	flags.StringSliceVar(&options.statuses, flagStatus, nil, "only issues with one of these statuses (includes closed ones)")
+	a.completeFlag(cmd, flagStatus, commaSeparated(completeStatuses(isAnyCategory)))
 	flags.StringSliceVar(&options.categories, flagCategory, nil, "only issues in one of these categories (includes closed ones)")
+	a.completeFlag(cmd, flagCategory, commaSeparated(completeCategories))
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "only issues carrying every one of these labels")
 	flags.StringSliceVar(&options.noLabels, flagNoLabel, nil, "only issues carrying none of these labels")
 	flags.StringSliceVar(&options.types, flagType, nil, "only issues of one of these types")
+	a.completeFlag(cmd, flagType, commaSeparated(completeTypes))
 	flags.IntSliceVar(&options.priorities, flagPriority, nil, "only issues with one of these priorities")
 	flags.StringVar(&options.parent, flagParent, "",
 		"only the direct children of this issue (id, alias or prefix); with --tree, this issue first, then its subtree")
+	a.completeFlag(cmd, flagParent, completeIDValue(issueIDs))
 	flags.StringVar(&options.plan, flagPlan, "", "only issues whose plan contains this text")
 	flags.BoolVar(&options.isPlanned, flagPlanned, false, "only issues with a plan")
 	flags.BoolVar(&options.isUnplanned, flagUnplanned, false, "only issues without a plan")

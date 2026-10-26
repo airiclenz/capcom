@@ -141,3 +141,114 @@ func TestComplete_OutsideAStore_HasNoCandidatesAndNoFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestComplete_NoteArguments_ListNotRetiredNoteIDsWithTitles(t *testing.T) {
+	root := newCompleteStore(t)
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"know show empty prefix", []string{"know", "show", ""}, []string{"store-layout\tStore layout"}},
+		{"know show retired", []string{"know", "show", "rel"}, nil},
+		{"know update prefix", []string{"know", "update", "st"}, []string{"store-layout\tStore layout"}},
+		{"know tree prefix", []string{"know", "tree", "st"}, []string{"store-layout\tStore layout"}},
+		{"know mv first argument", []string{"know", "mv", "st"}, []string{"store-layout\tStore layout"}},
+		{"know mv new id", []string{"know", "mv", "store-layout", ""}, nil},
+		{"know rm prefix", []string{"know", "rm", "st"}, []string{"store-layout\tStore layout"}},
+		{"know show second argument", []string{"know", "show", "store-layout", ""}, nil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := runComplete(t, root, test.args...)
+
+			want := append(slices.Clone(test.want), completeDirective)
+			if !slices.Equal(got, want) {
+				t.Errorf("__complete %v =\n%q\nwant\n%q", test.args, got, want)
+			}
+		})
+	}
+}
+
+func TestComplete_FlagValues_ListWhatTheFlagAccepts(t *testing.T) {
+	root := newCompleteStore(t)
+	openStatuses := []string{"open\ttodo", "active\tdoing", "parked\twaiting"}
+	types := []string{"bug", "feature", "task", "chore"}
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"know add parent", []string{"know", "add", "--parent", "st"}, []string{"store-layout\tStore layout"}},
+		{"know add parent retired", []string{"know", "add", "--parent", "rel"}, nil},
+		{"know mv parent", []string{"know", "mv", "store-layout", "--parent", "st"}, []string{"store-layout\tStore layout"}},
+		{"know update add superseded by", []string{"know", "update", "store-layout", "--add-superseded-by", "st"},
+			[]string{"store-layout\tStore layout"}},
+		{"know update remove superseded by", []string{"know", "update", "store-layout", "--remove-superseded-by", "st"},
+			[]string{"store-layout\tStore layout"}},
+		{"mv parent", []string{"mv", "auth-flow", "--parent", "st"},
+			[]string{"stale-docs\tStale docs", "standing-parents\tStanding parents"}},
+		{"create parent", []string{"create", "--parent", "au"}, []string{"auth-flow\tAuth flow"}},
+		{"list parent", []string{"list", "--parent", "sh"}, []string{"shipped-login\tShipped login"}},
+		{"create dep", []string{"create", "--dep", "ab"}, []string{"abandoned-cache\tAbandoned cache"}},
+		{"create status", []string{"create", "--status", ""}, openStatuses},
+		{"update status", []string{"update", "auth-flow", "--status", ""}, openStatuses},
+		{"reopen status", []string{"reopen", "shipped-login", "--status", ""}, openStatuses},
+		{"close status", []string{"close", "auth-flow", "--status", ""}, []string{"done\tdone", "dropped\tdropped"}},
+		{"list status", []string{"list", "--status", ""}, append(slices.Clone(openStatuses), "done\tdone", "dropped\tdropped")},
+		{"list category", []string{"list", "--category", ""}, []string{"todo", "doing", "waiting", "done", "dropped"}},
+		{"create type", []string{"create", "--type", ""}, types},
+		{"update type prefix", []string{"update", "auth-flow", "--type", "b"}, []string{"bug"}},
+		{"list type", []string{"list", "--type", ""}, types},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := runComplete(t, root, test.args...)
+
+			want := append(slices.Clone(test.want), completeDirective)
+			if !slices.Equal(got, want) {
+				t.Errorf("__complete %v =\n%q\nwant\n%q", test.args, got, want)
+			}
+		})
+	}
+}
+
+func TestComplete_CommaSeparatedFlag_CompletesThePartAfterTheLastComma(t *testing.T) {
+	root := newCompleteStore(t)
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"list status", []string{"list", "--status", "open,d"}, []string{"open,done\tdone", "open,dropped\tdropped"}},
+		{"list category", []string{"list", "--category", "todo,waiting,do"},
+			[]string{"todo,waiting,doing", "todo,waiting,done"}},
+		{"list type", []string{"list", "--type", "bug,f"}, []string{"bug,feature"}},
+		{"create dep", []string{"create", "--dep", "auth-flow,sta"},
+			[]string{"auth-flow,stale-docs\tStale docs", "auth-flow,standing-parents\tStanding parents"}},
+		{"string array takes no commas", []string{"know", "update", "store-layout", "--add-superseded-by", "x,st"}, nil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := runComplete(t, root, test.args...)
+
+			want := append(slices.Clone(test.want), completeDirective)
+			if !slices.Equal(got, want) {
+				t.Errorf("__complete %v =\n%q\nwant\n%q", test.args, got, want)
+			}
+		})
+	}
+}
+
+func TestComplete_CommandTreeOutsideCompletion_RegistersNoFlagCompletions(t *testing.T) {
+	root := Command()
+
+	create, _, err := root.Find([]string{"create"})
+	if err != nil {
+		t.Fatalf("Find create: %v", err)
+	}
+
+	if _, isRegistered := create.GetFlagCompletionFunc(flagStatus); isRegistered {
+		t.Errorf("create --%s has a completion function outside __complete", flagStatus)
+	}
+}

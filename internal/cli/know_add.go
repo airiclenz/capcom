@@ -69,6 +69,7 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 	flags.StringVar(&options.id, flagID, "", "the new Note's id: a kebab slug of 1 to 4 words (required)")
 	flags.StringVar(&options.title, flagTitle, "", "the Note's title (required)")
 	flags.StringVar(&options.parent, flagParent, "", "add the Note below this one")
+	a.completeFlag(cmd, flagParent, completeIDValue(noteIDs))
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "labels; repeat or separate with commas")
 	flags.StringArrayVar(&options.refs, flagRef, nil, "a path or path#symbol the Note depends on; repeat for more")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
