@@ -150,8 +150,10 @@ func (p palette) foreground(role string) lipgloss.Style {
 type theme struct {
 	// colors is the palette the styles were built from.
 	colors palette
-	// activeTab marks the open tab on the tab bar, in the accent colour.
+	// activeTab marks the open tab on the tab bar, in the accent colour. tabCount paints the
+	// count of every other tab's label, muted and faint.
 	activeTab lipgloss.Style
+	tabCount  lipgloss.Style
 	// border paints the frame: the tab bar's separators, the separator between the panes, the
 	// rules above and under them, and the connectors of the sidebar trees.
 	border lipgloss.Style
@@ -194,6 +196,7 @@ func newTheme(settings userconfig.UI, isLightBackground, isNoColor bool) theme {
 	return theme{
 		colors:           colors,
 		activeTab:        colors.foreground(roleAccent).Bold(true).Reverse(true),
+		tabCount:         colors.foreground(roleMuted).Faint(true),
 		border:           colors.foreground(roleBorder),
 		dividerActive:    colors.foreground(roleAccent).Bold(true),
 		hints:            colors.foreground(roleMuted),

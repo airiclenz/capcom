@@ -389,7 +389,8 @@ func (m model) dividerStyle() lipgloss.Style {
 }
 
 // tabBar lists the tabs in tabOrder, each labelled as tabBarLabel draws it with its count, the
-// open one marked by the theme's active tab style, the separators in its border style, and ends
+// open one marked by the theme's active tab style and the others' counts in its tab count style,
+// the separators in its border style, and ends
 // in the version label in the theme's hints style, its last character in the frame's last column: `<path> · v<version> · capcom`, the worktree path as
 // displayPath names it, or `v<version> · capcom` when the path does not fit. The label is left
 // out when the model has no version or when even the shorter one would leave fewer than
@@ -397,9 +398,10 @@ func (m model) dividerStyle() lipgloss.Style {
 func (m model) tabBar() string {
 	labels := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {
-		label := m.tabBarLabel(tab)
+		name, count := m.tabBarParts(tab)
+		label := " " + name + m.theme.tabCount.Render(count) + " "
 		if tab == m.tab {
-			label = m.theme.activeTab.Render(label)
+			label = m.theme.activeTab.Render(" " + name + count + " ")
 		}
 		labels = append(labels, label)
 	}
@@ -436,18 +438,23 @@ func displayPath(root, home string) string {
 }
 
 // tabBarLabel returns tab's label as the tab bar draws it, unstyled, padded by a space on either
-// side: its name, then `[n]` once tabCount counts it, or `[m/n]` while a filter is in effect.
+// side: its name, then its count as tabBarParts gives it.
 func (m model) tabBarLabel(tab Tab) string {
-	label := tabLabels[tab]
+	name, count := m.tabBarParts(tab)
+	return " " + name + count + " "
+}
+
+// tabBarParts returns the two parts of tab's label, unstyled: its name, and its count, ` [n]`
+// once tabCount counts it, ` [m/n]` while a filter is in effect, and empty before then.
+func (m model) tabBarParts(tab Tab) (string, string) {
 	matched, total, isCounted := m.tabCount(tab)
 	switch {
 	case !isCounted:
+		return tabLabels[tab], ""
 	case m.filters[tab].isActive():
-		label += fmt.Sprintf(tabFilteredCountFormat, matched, total)
-	default:
-		label += fmt.Sprintf(tabCountFormat, total)
+		return tabLabels[tab], fmt.Sprintf(tabFilteredCountFormat, matched, total)
 	}
-	return " " + label + " "
+	return tabLabels[tab], fmt.Sprintf(tabCountFormat, total)
 }
 
 // tabCount returns the counts of tab's label: total, the rows the tab lists with no filter, and

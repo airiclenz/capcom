@@ -64,7 +64,8 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
   the Issues outside a closed category, the Ready queue, the Notes the Knowledge tree shows, and
   the Issues in a closed category. With a filter in effect
   it counts the matches the tab shows over that total, as `Ready [1/4]`; a `status:` filter naming
-  a closed Status counts the Closed Issues in the total too. A rule under it sets it off from the
+  a closed Status counts the Closed Issues in the total too. The counts of the tabs not open are
+  drawn in a dim grey. A rule under it sets it off from the
   panes. Its right end names the worktree and
   capcom's version, as `~/repos/capcom · v0.7.0 · capcom`: the worktree's top directory, your
   home directory shown as `~`. A terminal too narrow for that shows the version alone, as
