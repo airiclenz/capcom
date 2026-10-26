@@ -276,7 +276,7 @@ internal/cli/lock_test.go — TestLockCheck_CorruptRecord_FailsWithExitOne
 **Closes:** lock-corrupt-record-hint
 **Commit:** `fix(lock): hint lock status and lock break on a corrupt record`
 
-## 7. prime --json says whether this worktree is free
+## 7. prime --json says whether this worktree is free — ✅ DONE (2026-10-26)
 
 **What:**
 **Goal:** `prime --json` data carries `worktree: {key, state, advice}`: this worktree's key, its

@@ -53,6 +53,14 @@ one list per group: `closed`, `filed`, `status_changed`, `log`, `notes_added`, `
 
 `--json` is a global flag, so it may stand before or after the command name.
 
+### prime
+
+`capcom prime --json` gives kind `prime` with `data` an object holding one member per section of
+the Briefing: `ready_planned`, `ready_unplanned`, `doing`, `locks`, `worktree`, `broken_refs`,
+`unshared_refs` and `check_problems`. A section whose source failed is left out, and the failure is
+one of the `warnings`. [The Briefing's JSON table](../agents/briefing.md#as-json) describes each
+member.
+
 ### Versioning
 
 `schema` changes only when an existing field changes its meaning or disappears. New fields can

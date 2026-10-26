@@ -99,6 +99,7 @@ with kind `prime`. Its `data` holds:
 | `ready_planned`, `ready_unplanned` | `{"count": N, "issues": [...]}`, the issues as `capcom show --json` describes them, capped at 15 |
 | `doing` | the Issues in the `doing` category |
 | `locks` | one object per held lock: `lock`, `worktree`, `holder`, `purpose`, `host`, `user`, `branch`, `since`, `heartbeat`, `stale` |
+| `worktree` | this worktree's Tree lock: `{"key": ..., "state": ..., "advice": ...}`, its key, its state (`free`, `held`, `stale`, `invalid` or `unreadable`) and `advice`, the `this worktree:` line of the text; left out when the lock section failed |
 | `broken_refs` | the Note Refs that do not resolve |
 | `unshared_refs` | the Note Refs a clone lacks, in the shape of `broken_refs`; left out when there are none |
 | `check_problems` | the number of problems `capcom check` finds |

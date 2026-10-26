@@ -51,9 +51,18 @@ type primeData struct {
 	ReadyUnplanned *primeListData  `json:"ready_unplanned,omitempty"`
 	Doing          []issueData     `json:"doing,omitzero"`
 	Locks          []lockData      `json:"locks,omitzero"`
+	Worktree       *primeWorktree  `json:"worktree,omitempty"`
 	BrokenRefs     []check.Problem `json:"broken_refs,omitzero"`
 	UnsharedRefs   []check.Problem `json:"unshared_refs,omitzero"`
 	CheckProblems  *int            `json:"check_problems,omitempty"`
+}
+
+// primeWorktree is the Tree lock state of this worktree: its key, its state as the text names it,
+// and the advice, the text's `this worktree:` line.
+type primeWorktree struct {
+	Key    string `json:"key"`
+	State  string `json:"state"`
+	Advice string `json:"advice"`
 }
 
 // primeListData is one capped Ready list: how many issues there are, and the first primeListCap.
@@ -129,7 +138,7 @@ func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Re
 		text.WriteString(indentLines(issueLines(work.Doing, "")))
 	}
 	if overview := composed.LockOverview; overview != nil {
-		data.Locks = addLocks(&text, *overview, composed.HasDoingStatus, now)
+		data.Locks, data.Worktree = addLocks(&text, *overview, composed.HasDoingStatus, now)
 	}
 	if health := composed.Health; health != nil {
 		data.BrokenRefs = append([]check.Problem{}, health.BrokenRefs...)
@@ -179,7 +188,10 @@ func addCappedList(text *strings.Builder, heading string, entries []index.Entry)
 
 // addLocks writes the Tree lock of every worktree that has one, with its age and stale flag, then
 // the advice on the lock of the overview's own worktree, naming capcom start when hasDoingStatus.
-func addLocks(text *strings.Builder, overview lock.Overview, hasDoingStatus bool, now time.Time) []lockData {
+// It returns the data of every lock and that worktree's state with the same advice.
+func addLocks(
+	text *strings.Builder, overview lock.Overview, hasDoingStatus bool, now time.Time,
+) ([]lockData, *primeWorktree) {
 	held := overview.Locks
 	data := make([]lockData, 0, len(held))
 	fmt.Fprintf(text, "locks: %d\n", len(held))
@@ -198,8 +210,10 @@ func addLocks(text *strings.Builder, overview lock.Overview, hasDoingStatus bool
 		}
 		text.WriteString("\n")
 	}
-	text.WriteString(worktreeLockAdvice(overview.State, hasDoingStatus) + "\n")
-	return data
+	advice := worktreeLockAdvice(overview.State, hasDoingStatus)
+	text.WriteString(advice + "\n")
+	worktree := &primeWorktree{Key: overview.Key, State: lockStateName(overview.State), Advice: advice}
+	return data, worktree
 }
 
 // worktreeLockAdvice returns the advice on a worktree's lock in state, one line per state; a free,

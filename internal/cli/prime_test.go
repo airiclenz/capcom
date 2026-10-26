@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/airiclenz/capcom/internal/briefing"
 )
 
 // primeConfig declares a doing status, so the Briefing has issues in progress to list.
@@ -92,7 +94,9 @@ func TestPrime_JSON_CarriesEverySection(t *testing.T) {
 	if exitCode != ExitOK || envelope["kind"] != kindPrime || !isObject {
 		t.Fatalf("prime --json = %d\n%s", exitCode, stdout)
 	}
-	for _, key := range []string{"ready_planned", "ready_unplanned", "doing", "locks", "broken_refs", "check_problems"} {
+	for _, key := range []string{
+		"ready_planned", "ready_unplanned", "doing", "locks", "worktree", "broken_refs", "check_problems",
+	} {
 		if _, isPresent := data[key]; !isPresent {
 			t.Errorf("data lacks %s: %v", key, data)
 		}
@@ -365,6 +369,68 @@ func TestPrime_NoDoingStatus_AdvisesAcquireWithoutStart(t *testing.T) {
 				t.Errorf("prime stdout:\n%s\nwant no capcom start without a doing status", stdout)
 			}
 		})
+	}
+}
+
+// The JSON worktree state is the one the text names, and its advice is the text's line, for every
+// state the Briefing tells apart.
+func TestPrime_JSONWorktree_MatchesTheTextAdvice(t *testing.T) {
+	cases := []struct {
+		state string
+		setUp func(t *testing.T, root string)
+	}{
+		{"free", func(*testing.T, string) {}},
+		{"held", func(t *testing.T, root string) {
+			mustRun(t, root, "lock", "acquire", "--purpose", "refactor the parser", "--holder", "bob")
+		}},
+		{"stale", func(t *testing.T, root string) {
+			mustRun(t, root, "lock", "acquire", "--purpose", "refactor the parser", "--holder", "bob")
+			ageLockRecord(t, filepath.Join(root, ".git", "capcom", "locks", "_main.json"), 3*time.Hour)
+		}},
+		{"invalid", func(t *testing.T, root string) {
+			writeLockRecord(t, root, "_main", "not json")
+		}},
+		{"unreadable", func(t *testing.T, root string) {
+			recordPath := filepath.Join(root, ".git", "capcom", "locks", "_main.json")
+			if err := os.MkdirAll(recordPath, 0o755); err != nil {
+				t.Fatalf("MkdirAll: %v", err)
+			}
+		}},
+	}
+	advicePattern := regexp.MustCompile(`(?m)^this worktree: [^\n]*$`)
+	for _, testCase := range cases {
+		t.Run(testCase.state, func(t *testing.T) {
+			root := newLockStore(t)
+			testCase.setUp(t, root)
+
+			text, _, _ := runCLI(t, root, "prime")
+			stdout, _, exitCode := runCLI(t, root, "prime", "--json")
+
+			wantAdvice := advicePattern.FindString(text)
+			if !strings.HasPrefix(wantAdvice, "this worktree: "+testCase.state+";") {
+				t.Fatalf("prime stdout:\n%s\nwant a this worktree: %s line", text, testCase.state)
+			}
+			envelope := decodeEnvelope(t, stdout)
+			data, _ := envelope["data"].(map[string]any)
+			worktree, isObject := data["worktree"].(map[string]any)
+			if exitCode != ExitOK || envelope["schema"] != 1.0 || !isObject {
+				t.Fatalf("prime --json = %d\n%s\nwant schema 1 and a worktree object", exitCode, stdout)
+			}
+			want := map[string]any{"key": "_main", "state": testCase.state, "advice": wantAdvice}
+			if !reflect.DeepEqual(worktree, want) {
+				t.Errorf("data.worktree = %v, want %v", worktree, want)
+			}
+		})
+	}
+}
+
+// A Briefing whose lock section failed has no worktree state in its data.
+func TestPrime_WithoutLockOverview_LeavesTheWorktreeOut(t *testing.T) {
+	result := renderBriefing(briefing.Briefing{}, time.Now())
+
+	data, isPrimeData := result.Data.(primeData)
+	if !isPrimeData || data.Worktree != nil {
+		t.Errorf("data = %#v, want primeData without a worktree", result.Data)
 	}
 }
 
