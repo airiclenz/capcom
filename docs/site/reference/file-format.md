@@ -769,10 +769,11 @@ ui:
     ready: "login-timeout-race"
     issues: "release-x"
     knowledge: "store-layout"
+    closed: "session-store"
 ```
 
-- **ui.tab** — the open tab: `ready`, `issues` or `knowledge`. A name this capcom does not know
-  opens Ready.
+- **ui.tab** — the open tab: `ready`, `issues`, `knowledge` or `closed`. A name this capcom does
+  not know opens Ready.
 - **ui.selected** — the id selected on each tab, keyed by the same names. An id that is gone, or
   not on its tab, selects the first row; one the Issues or Knowledge tree still holds, a closed
   Issue or a retired Note among them, is selected and revealed.

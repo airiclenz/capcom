@@ -55,7 +55,8 @@ branch, merge and show up in code review, just like the code they describe.
 `capcom ui` opens a full-screen terminal UI to browse and update issues and Notes without
 leaving the terminal.
 
-- **Three tabs:** Ready, Issues (a collapsible tree) and Knowledge.
+- **Four tabs:** Ready, Issues (a collapsible tree), Knowledge and Closed (the closed issues,
+  newest first).
 - **Detail pane** with rendered markdown and clickable issue and Note links.
 - **Filter** with `/`: words, `status:<name>` and `label:<name>`.
 - **Quick edits:** claim (`a`), change status (`s`), close (`c`), reopen (`R`), add a log line

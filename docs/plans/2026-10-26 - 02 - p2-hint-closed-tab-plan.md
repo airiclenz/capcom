@@ -220,7 +220,12 @@ want extended with `closed`.
 - `go run ./cmd/gendocs && git diff --exit-code docs/site/reference/cli/` after the commit
 **Commit:** `feat(cli): open the Closed tab with capcom ui closed`
 
-## 7. Docs and ADR 0015 name the Closed tab
+## 7. Docs and ADR 0015 name the Closed tab — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): the screen diagrams in terminal-ui.md and tui.md were widened (12 and 10 columns) so the tab bar holds `Closed` and still fits the version label, as the build draws it at that width.
+NOTES (2026-10-26): beyond the tab lists, terminal-ui.md gains a **Closed** bullet under "The tabs" and tui.md a "### Closed tab" view section (order, row format, R/e only, a s c L inert); the Keys blocks now mirror the help screen's `tabs  Tab  1 Issues  2 Ready  3 Knowledge  4 Closed` line.
+NOTES (2026-10-26): the "Selecting and copying" passages (terminal-ui.md Mouse, tui.md Keys) now say "on every tab", since detail-pane selection is not gated by tab and works on Closed.
+NOTES (2026-10-26): the ADR 0015 decision child (`adr-0015-decision`) still lists three tab names; per the amendment shape of `adr-0002-amend-1012`, the amendment records the change and the decision text stays as decided.
 
 **What:** Depends on items 5 and 6.
 **Goal:** every doc that enumerates the UI's tabs, their keys or the ui-state tab names includes Closed,

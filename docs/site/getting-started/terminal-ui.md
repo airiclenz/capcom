@@ -5,9 +5,9 @@ sidebar: { order: 4 }
 ---
 
 `capcom ui` is a terminal UI for the person working next to the coding agents. It shows the Ready
-queue, the Issue tree and the Knowledge tree, redraws them as the agents change the files, and
-makes the small changes a supervisor makes: claim an Issue, set its Status, close or reopen it,
-add a Log entry. Anything larger opens the file in your editor.
+queue, the Issue tree, the Knowledge tree and the closed Issues, redraws them as the agents
+change the files, and makes the small changes a supervisor makes: claim an Issue, set its Status,
+close or reopen it, add a Log entry. Anything larger opens the file in your editor.
 
 It is a viewer with light writes, not an editor: it never creates, renames, moves or removes an
 Issue or a Note, and it never edits dependencies, labels or titles. Every write it makes is the
@@ -20,16 +20,17 @@ capcom ui                           # the last tab and selection in this worktre
 capcom ui issues                    # the Issues tab
 capcom ui issues login-timeout-race # the Issues tab with that Issue selected
 capcom ui knowledge store-layout    # the Knowledge tab with that Note selected
+capcom ui closed login-timeout-race # the Closed tab with that closed Issue selected
 ```
 
 With no argument `capcom ui` reopens where you left it in this worktree: on the tab you were on,
 with the Issue or Note you had selected on each tab selected again, a closed Issue or a retired
 Note revealed in its tree. The first time, it opens on the Ready tab. The first argument names the
-tab (`ready`, `issues` or `knowledge`), and an id after it selects that Issue or Note there; an
-Alias resolves as it does for `capcom show`. The arguments win: a tab name opens that tab, and
-every tab still selects what it last had, except where an id names the selection. An id the tab
-does not hold is reported in the status bar; a remembered one that is gone just selects the first
-row.
+tab (`ready`, `issues`, `knowledge` or `closed`), and an id after it selects that Issue or Note
+there; an Alias resolves as it does for `capcom show`. The arguments win: a tab name opens that
+tab, and every tab still selects what it last had, except where an id names the selection. An id
+the tab does not hold is reported in the status bar; a remembered one that is gone just selects
+the first row.
 
 The tab and the selections are kept in `ui-state.yaml` under the repository's git directory, beside
 the index, so they are never committed and each worktree of a clone keeps its own. A change of tab
@@ -45,22 +46,23 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
 ## The screen
 
 ```text
- Issues [12]  │  Ready [4]  │  Knowledge [9]      v0.7.0 · capcom
-─────────────────────┬───────────────────────────────────────────
-▼ capcom-ui        ┃ │ Ready queue view                         ┃
-┝ ▶ ready-view     ┃ │                                          ┃
-┕ ▼ issue-detail   ┃ │ status: active · P1                      ┃
-  ┕ · deep-links   ┃ │ deps: knowledge-view                     │
-▶ release-x        │ │                                          │
-· docs-pass        │ │ Body markdown...                         │
-─────────────────────┴───────────────────────────────────────────
+ Issues [12]  │  Ready [4]  │  Knowledge [9]  │  Closed [31]  v0.7.0 · capcom
+─────────────────────┬───────────────────────────────────────────────────────
+▼ capcom-ui        ┃ │ Ready queue view                                     ┃
+┝ ▶ ready-view     ┃ │                                                      ┃
+┕ ▼ issue-detail   ┃ │ status: active · P1                                  ┃
+  ┕ · deep-links   ┃ │ deps: knowledge-view                                 │
+▶ release-x        │ │                                                      │
+· docs-pass        │ │ Body markdown...                                     │
+─────────────────────┴───────────────────────────────────────────────────────
  lock  free · ? help · q quit
 ```
 
-- **Tab bar**: Issues, Ready and Knowledge. `Tab` moves to the next one, and `1`, `2` and `3`
-  open Issues, Ready and Knowledge directly. Each tab keeps its own selection, expanded nodes and
-  filter. Each label counts what its tab lists with no filter, as `Ready [4]`: the Issues outside a
-  closed category, the Ready queue, and the Notes the Knowledge tree shows. With a filter in effect
+- **Tab bar**: Issues, Ready, Knowledge and Closed. `Tab` moves to the next one, and `1`, `2`,
+  `3` and `4` open Issues, Ready, Knowledge and Closed directly. Each tab keeps its own selection,
+  expanded nodes and filter. Each label counts what its tab lists with no filter, as `Ready [4]`:
+  the Issues outside a closed category, the Ready queue, the Notes the Knowledge tree shows, and
+  the Issues in a closed category. With a filter in effect
   it counts the matches the tab shows over that total, as `Ready [1/4]`; a `status:` filter naming
   a closed Status counts the Closed Issues in the total too. A rule under it sets it off from the
   panes. Its right end names the worktree and
@@ -127,6 +129,10 @@ described under [The state file](../reference/file-format.md#the-state-file).
   [filter](#filter) on a closed Status shows them.
 - **Knowledge** shows the Note tree `capcom know tree` prints. Retired and Background Notes are
   hidden, as in `know tree`. The only write here is `e`, the editor.
+- **Closed** lists the Issues in a closed category, most recently closed first: each Issue's
+  Closed date (`2026-10-26`, in UTC), id and title; two closed at the same time sort by id. The
+  only writes here are `R`, which reopens the Issue and takes it off the tab, and `e`; `a`, `s`,
+  `c` and `L` do nothing.
 
 On the Ready and Issues tabs the Statuses line up in one column and the priorities in another, at
 every depth of the Tree, so they stay put as you scroll.
@@ -140,7 +146,7 @@ muted, with its ancestors, for as long as it stays selected.
 ```text
 move     ↑↓←→  j k h l
 expand   → / l    collapse ← / h
-tabs     Tab  1 2 3
+tabs     Tab  1 Issues  2 Ready  3 Knowledge  4 Closed
 open     Enter    back     Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
 resize   < >      drag the divider, double-click resets
@@ -165,11 +171,11 @@ help     ?        quit     q
 
 ### Dependencies
 
-On the Ready and Issues tabs, `d` swaps the detail pane for the selected Issue's dependencies, as
-`capcom dep list` prints them: what it **waits on** and what it **blocks**, each row with its id,
-Status, priority and title. A dependency that names no Issue is marked missing. The arrows and
-`j` `k` move a cursor over the rows, Enter selects that Issue in the Issues tab, and `d` or Esc
-returns to the detail pane. Moving the sidebar's selection closes the view.
+On the Ready, Issues and Closed tabs, `d` swaps the detail pane for the selected Issue's
+dependencies, as `capcom dep list` prints them: what it **waits on** and what it **blocks**, each
+row with its id, Status, priority and title. A dependency that names no Issue is marked missing.
+The arrows and `j` `k` move a cursor over the rows, Enter selects that Issue in the Issues tab,
+and `d` or Esc returns to the detail pane. Moving the sidebar's selection closes the view.
 
 ### Filter
 
@@ -180,17 +186,20 @@ clears it, and Esc from the sidebar clears a kept one. The words of the line all
   Knowledge tab) finds them when an item holds every word; the filter does not fall back to items
   holding only some of the words;
 - `status:<name>` keeps the Issues in that Status; the Status must be declared in
-  `config.yaml`, and Notes have none;
+  `config.yaml`, and Notes have none. On the Closed tab it must be a closed Status: an open one,
+  such as `status:active`, is reported in the sidebar, as `status:` is on the Knowledge tab;
 - `label:<name>` keeps the Issues or Notes carrying that Label; some Issue or Note must carry it.
 
 In a tree a match keeps its ancestors, all expanded, so the shape stays readable. Text and label
 filters keep the default visibility; a `status:` filter naming a closed Status, such as
-`status:done`, is the way to Closed Issues: the Issues tab then shows the Closed Issues in that
-Status, with their ancestors, ready to read or reopen.
+`status:done`, is the way to Closed Issues in the Issues tab: it then shows the Closed Issues in
+that Status, with their ancestors, ready to read or reopen. The Closed tab lists every Closed
+Issue without one.
 
 ## Writes
 
-The writes act on the Issue the detail pane shows, on the Ready and Issues tabs:
+The writes act on the Issue the detail pane shows, on the Ready and Issues tabs; on the Closed
+tab only `R` and `e` do:
 
 | Key | Action | Same as |
 |---|---|---|
@@ -266,7 +275,7 @@ version: restart capcom ui`.
 - A drag on the divider between the panes resizes the sidebar, and a double-click on it resets
   it; in the stacked layout the divider is the rule row between the panes. See
   [Resizing the sidebar](#resizing-the-sidebar).
-- A drag in the detail pane selects its text, on the Ready, Issues and Knowledge tabs, and
+- A drag in the detail pane selects its text, on every tab, and
   releasing the button copies it; there is no copy key. See [Copying text](#copying-text).
 - While the help screen, the filter line, the status picker or a prompt is open, the mouse does
   nothing.

@@ -17,7 +17,7 @@ node, and it never edits dependencies, labels or titles.
 ## Command
 
 ```
-capcom ui [issues|ready|knowledge] [id]
+capcom ui [issues|ready|knowledge|closed] [id]
 ```
 
 - No argument reopens on the tab and each tab's selection last saved for this worktree in
@@ -34,19 +34,19 @@ capcom ui [issues|ready|knowledge] [id]
 ## Layout
 
 ```
- Issues  │  Ready  │  Knowledge   v0.7.0 · capcom
-─────────────────────┬───────────────────────────
-▼ capcom-ui        ┃ │ Ready queue view         ┃
-┝ ▶ ready-view     ┃ │                          ┃
-┕ ▼ issue-detail   ┃ │ status: active · P1      ┃
-  ┕ · deep-links   ┃ │ deps: knowledge-view     │
-▶ release-x        │ │                          │
-· docs-pass        │ │ Body markdown...         │
-─────────────────────┴───────────────────────────
+ Issues  │  Ready  │  Knowledge  │  Closed  v0.7.0 · capcom
+─────────────────────┬─────────────────────────────────────
+▼ capcom-ui        ┃ │ Ready queue view                   ┃
+┝ ▶ ready-view     ┃ │                                    ┃
+┕ ▼ issue-detail   ┃ │ status: active · P1                ┃
+  ┕ · deep-links   ┃ │ deps: knowledge-view               │
+▶ release-x        │ │                                    │
+· docs-pass        │ │ Body markdown...                   │
+─────────────────────┴─────────────────────────────────────
  lock  free · ? help · q quit
 ```
 
-- **Tab bar**: Issues, Ready, Knowledge, in that order for `1 2 3`. Each tab keeps its own
+- **Tab bar**: Issues, Ready, Knowledge, Closed, in that order for `1 2 3 4`. Each tab keeps its own
   selection, expanded nodes and filter. The open tab and each tab's selection persist across runs
   in `ui-state.yaml`, per worktree (ADR 0015): a tab change saves at once, a selection change one
   second after the last (`internal/ui/uistate.go` debounces), and quitting flushes a pending save;
@@ -123,10 +123,10 @@ capcom ui [issues|ready|knowledge] [id]
   Filter). The tree opens collapsed to the top level; selecting an id expands its ancestors, and
   a selected node the outline hides (a Closed issue) shows muted, with its ancestors, while it
   stays selected.
-- **Dependency view**: `d`, on the Ready and Issues tabs, swaps the detail pane for the selected
-  issue's "waits on" and "blocks" lists, both sides as `capcom dep list` prints them, a dep naming
-  no issue marked missing. It has its own cursor (↑↓, j k); Enter selects that issue in the
-  Issues tab; Esc or `d` returns to the detail. Moving the sidebar's selection closes it.
+- **Dependency view**: `d`, on the Ready, Issues and Closed tabs, swaps the detail pane for the
+  selected issue's "waits on" and "blocks" lists, both sides as `capcom dep list` prints them, a
+  dep naming no issue marked missing. It has its own cursor (↑↓, j k); Enter selects that issue
+  in the Issues tab; Esc or `d` returns to the detail. Moving the sidebar's selection closes it.
 
 ### Ready tab
 
@@ -140,17 +140,28 @@ refs, retired flag, superseded-by and aliases. Retired and Background Notes are 
 `know tree`, and revealed muted while selected, as in the Issues tree; the tree opens collapsed to
 the top level. The only write here is `e` (`$EDITOR`).
 
+### Closed tab
+
+The issues in a closed category, as an `index.List` over `config.ClosedCategories()`, newest
+Closed time first and, on a tie, by id. Each row is `<closed date>  id  title`: the Closed time's
+day in UTC as `2006-01-02`, and the id padded to the widest id of the whole list, so scrolling
+never shifts the titles. It shares Ready's flat entry list (`internal/ui/entrylist.go`). `R`
+reopens the selected issue, which leaves the tab on the next read; `e` opens its file; `a`, `s`,
+`c` and `L` do nothing here. `d` opens the dependency view as on the Ready and Issues tabs.
+
 ### Filter
 
 `/` opens a filter line over the current sidebar: free text matches the title and body (as
 `search` or `know search` does), and `status:<name>` and `label:<name>` narrow by field; every
 term must hold. Enter keeps the filter, Esc on the line or from the sidebar clears it. A status
-`config.yaml` does not declare, a label nothing carries and `status:` on the Knowledge tab are
-reported instead. In the tree a match keeps its ancestors, expanded, so the shape stays readable.
+`config.yaml` does not declare, a label nothing carries, `status:` on the Knowledge tab and a
+`status:` naming an open-category status on the Closed tab are reported instead. In the tree a
+match keeps its ancestors, expanded, so the shape stays readable.
 
 Text and label filters keep the default visibility. A `status:<name>` filter naming a
 closed-category status (e.g. `status:done`) includes Closed issues, shown with their ancestors:
-that is the route to a Closed issue, to read or reopen it. There is no toggle key.
+that is the route to a Closed issue in the Issues tree, to read or reopen it; the Closed tab lists
+them all. There is no toggle key.
 
 ## Writes
 
@@ -164,8 +175,8 @@ that is the route to a Closed issue, to read or reopen it. There is no toggle ke
 | `e` | open the Issue or Note file in `$EDITOR` (`$VISUAL` first); the UI suspends, then runs the `capcom check` checks and shows any problem | editing by hand |
 
 Every write goes through the shared ops package (ADR 0012), the same code path the CLI uses.
-The writes act on the Ready and Issues tabs; a blank reason or log line is refused, and an issue
-whose file does not parse takes no write.
+The writes act on the Ready and Issues tabs, and `R` and `e` on the Closed tab; a blank reason or
+log line is refused, and an issue whose file does not parse takes no write.
 
 **Conflicts.** Each write sends the ETag of the version on screen as if-match. When the file
 changed in the meantime, the write is refused; the UI reloads the issue and asks
@@ -184,7 +195,7 @@ multi-file changes the lock exists for (ADR 0013).
 ```
 move     ↑↓←→  j k h l
 expand   → / l   collapse ← / h
-tabs     Tab  1 2 3
+tabs     Tab  1 Issues  2 Ready  3 Knowledge  4 Closed
 open     Enter    back Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
 resize   < >      drag the divider, double-click resets
@@ -209,7 +220,7 @@ double-click on it resets it, the width side by side or the height when stacked 
 row, over the detail pane it scrolls three rows (or moves the dependency view's cursor). The mouse
 does nothing while the help screen, the filter line, the status picker or a prompt is open.
 
-**Selecting and copying**: on the Ready, Issues and Knowledge tabs a left press in the detail pane
+**Selecting and copying**: on every tab a left press in the detail pane
 anchors a selection and a drag extends it, across lines; the selected cells are painted in the
 `selection` role over the rendered markdown. The selection is held in content coordinates
 (rendered line, column), so a wheel scroll keeps it; motion outside the detail pane does not
