@@ -51,13 +51,15 @@ const standingReason = "standing: holds children"
 // The help text of capcom ready.
 const (
 	readyLong = "List the Ready Issues, most urgent first: Issues in the todo category whose dependencies are " +
-		"all closed, with no open children and no waiting or dropped ancestor. Each line gives the id, " +
-		"status, priority and title, and how many Issues closing it would make Ready. --all also lists " +
-		"the todo Issues that are not Ready, with what holds each one back; a standing Issue, which " +
-		"only groups its children, is never Ready and is held back by \"standing: holds children\". " +
+		"all closed, with no open children and no waiting or dropped ancestor.\n\n" +
+		"Each line gives the id, status, priority and title, and how many Issues closing it would make " +
+		"Ready.\n\n" +
+		"--all also lists the todo Issues that are not Ready, with what holds each one back; a " +
+		"standing Issue, which only groups its children, is never Ready and is held back by " +
+		"\"standing: holds children\".\n\n" +
 		"Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden " +
-		"is given. Changes to Issues on other branches are reported as Elsewhere unless " +
-		"--no-elsewhere is given."
+		"is given.\n\n" +
+		"Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given."
 	readyExample = "  capcom ready                               # what to work on next\n" +
 		"  capcom ready --limit 1                     # only the most urgent\n" +
 		"  capcom ready --all                         # also the todo issues that are not ready, and why\n" +

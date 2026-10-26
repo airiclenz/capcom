@@ -11,7 +11,13 @@ Show issues in full
 
 ### Synopsis
 
-Print one or more Issues in full: their fields, readiness, dependencies and dependents, child progress, Related links, body and Log. Name an Issue by its id, an Alias or a unique id prefix. The etag printed is the value --if-match takes on update, mv and rm. Changes to these Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
+Print one or more Issues in full: their fields, readiness, dependencies and dependents, child progress, Related links, body and Log.
+
+Name an Issue by its id, an Alias or a unique id prefix.
+
+The etag printed is the value --if-match takes on update, mv and rm.
+
+Changes to these Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
 
 ```
 capcom show <id|alias|prefix>... [flags]

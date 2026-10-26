@@ -19,22 +19,25 @@ const (
 
 // issueRmHelp is the help text of capcom rm.
 var issueRmHelp = commandHelp{
-	long: "Remove an Issue's file. An Issue with children is refused, so no orphan directory is left " +
-		"behind, and so is an Issue other Issues depend on, unless --drop-deps removes their deps entries " +
-		"naming it. Every other reference to the Issue is dropped, and its Aliases go with the file. " +
-		"capcom deletes the file itself and never runs git. It prints the removed Issue's id and path, " +
-		"and the Issues whose deps entries were dropped.",
+	long: "Remove an Issue's file.\n\n" +
+		"An Issue with children is refused, so no orphan directory is left behind, and so is an Issue " +
+		"other Issues depend on, unless --drop-deps removes their deps entries naming it.\n\n" +
+		"Every other reference to the Issue is dropped, and its Aliases go with the file.\n\n" +
+		"capcom deletes the file itself and never runs git.\n\n" +
+		"It prints the removed Issue's id and path, and the Issues whose deps entries were dropped.",
 	example: "  capcom rm login-copy                       # refused while it has children or dependents\n" +
 		"  capcom rm login-timeout-race --drop-deps   # also drops the deps entries that name it",
 }
 
 // noteRmHelp is the help text of capcom know rm.
 var noteRmHelp = commandHelp{
-	long: "Remove a Note's file. A Note with children is refused, so no orphan directory is left behind. " +
-		"Every superseded-by entry naming it is dropped, and its Aliases go with the file. capcom deletes " +
-		"the file itself and never runs git. It prints the removed Note's id and path, and the Notes " +
-		"whose superseded-by entries were dropped. To keep a Note that no longer holds on record, retire " +
-		"it with know update --retire instead.",
+	long: "Remove a Note's file.\n\n" +
+		"A Note with children is refused, so no orphan directory is left behind.\n\n" +
+		"Every superseded-by entry naming it is dropped, and its Aliases go with the file.\n\n" +
+		"capcom deletes the file itself and never runs git.\n\n" +
+		"It prints the removed Note's id and path, and the Notes whose superseded-by entries were " +
+		"dropped.\n\n" +
+		"To keep a Note that no longer holds on record, retire it with know update --retire instead.",
 	example: "  capcom know rm release-tags                    # refused while it has children\n" +
 		"  capcom know rm release-tags --if-match <etag>  # etag from know show",
 }

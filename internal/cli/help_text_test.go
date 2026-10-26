@@ -59,6 +59,9 @@ var shortRuleCommands = []string{
 	"capcom know show", "capcom know search", "capcom list", "capcom lock", "capcom lock acquire",
 	"capcom lock touch", "capcom lock release", "capcom lock break", "capcom lock check",
 	"capcom lock status", "capcom log", "capcom merge-driver",
+	"capcom mv", "capcom know mv", "capcom rm", "capcom know rm", "capcom next", "capcom reopen",
+	"capcom search", "capcom reindex", "capcom update", "capcom show", "capcom ready", "capcom related",
+	"capcom related add", "capcom related rm", "capcom prime", "capcom start", "capcom ui",
 }
 
 // TestHelpText_ShortRuleCommands_LongRulesFitFourLines checks that every paragraph or bullet of the

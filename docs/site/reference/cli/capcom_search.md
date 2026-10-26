@@ -11,7 +11,15 @@ Find issues whose title or body contains every word, else some of them
 
 ### Synopsis
 
-Find the Issues whose title or body contains every word given, matched as whole words and case-insensitively, best match first; closed Issues are searched too. It prints one line per Issue with its id, status, priority and title. When no Issue holds every word, it lists the Issues holding some of them under the line "No item holds every word; these hold some of them:", and --json sets "match" to "any" instead of "all". --excerpt prints under each Issue the body lines holding a word searched for, indented four spaces, and --json gives them as "excerpt". It fails with not_found when no Issue holds any word.
+Find the Issues whose title or body contains every word given, matched as whole words and case-insensitively, best match first; closed Issues are searched too.
+
+It prints one line per Issue with its id, status, priority and title.
+
+When no Issue holds every word, it lists the Issues holding some of them under the line "No item holds every word; these hold some of them:", and --json sets "match" to "any" instead of "all".
+
+--excerpt prints under each Issue the body lines holding a word searched for, indented four spaces, and --json gives them as "excerpt".
+
+It fails with not_found when no Issue holds any word.
 
 ```
 capcom search <word>... [flags]

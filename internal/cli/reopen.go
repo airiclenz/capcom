@@ -12,9 +12,10 @@ import (
 
 // The help text of capcom reopen.
 const (
-	reopenLong = "Reopen a closed Issue and append the reason to its Log; --reason is required. The Issue moves " +
-		"to the first todo status, or to the todo, doing or waiting status --status names. It prints " +
-		"the Issue's id, path and new etag."
+	reopenLong = "Reopen a closed Issue and append the reason to its Log; --reason is required.\n\n" +
+		"The Issue moves to the first todo status, or to the todo, doing or waiting status --status " +
+		"names.\n\n" +
+		"It prints the Issue's id, path and new etag."
 	reopenExample = "  capcom reopen login-timeout-race --reason \"Came back on Safari\"\n" +
 		"  capcom reopen login-timeout-race --status active --reason \"Picking it up again now\""
 )

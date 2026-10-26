@@ -11,7 +11,17 @@ Open the terminal UI
 
 ### Synopsis
 
-Open the terminal UI over this store: the Ready, Issues and Knowledge tabs. With no argument it reopens on the tab and the selection of each tab it last had in this worktree, kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time. A tab name opens that tab, and an id after it selects that Issue or Note there; the arguments win over what was kept. It needs a terminal: when stdin or stdout is not one, it fails. q or ctrl+c quits. --json does not apply and is refused.
+Open the terminal UI over this store: the Ready, Issues and Knowledge tabs.
+
+With no argument it reopens on the tab and the selection of each tab it last had in this worktree, kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time.
+
+A tab name opens that tab, and an id after it selects that Issue or Note there; the arguments win over what was kept.
+
+It needs a terminal: when stdin or stdout is not one, it fails.
+
+q or ctrl+c quits.
+
+--json does not apply and is refused.
 
 ```
 capcom ui [issues|ready|knowledge] [id] [flags]

@@ -65,11 +65,12 @@ type primeListData struct {
 const (
 	primeLong = "Print the Briefing an agent session starts with: the Ready Issues, split into those with a " +
 		"plan and those without, each list capped at 15; the Issues in progress; the Tree locks held " +
-		"in every worktree; changes to Issues on other branches that are not merged yet; Note refs that no longer " +
-		"resolve; and the number of problems capcom check finds. It never fails: a part that cannot be " +
-		"read becomes a warning line, and the command exits 0. init --claude-hooks and " +
-		"init --codex-hooks run it at session start and before compaction; init --apogee-hooks runs " +
-		"it at session start and after compaction."
+		"in every worktree; changes to Issues on other branches that are not merged yet; Note refs " +
+		"that no longer resolve; and the number of problems capcom check finds.\n\n" +
+		"It never fails: a part that cannot be read becomes a warning line, and the command exits " +
+		"0.\n\n" +
+		"init --claude-hooks and init --codex-hooks run it at session start and before compaction; " +
+		"init --apogee-hooks runs it at session start and after compaction."
 	primeExample = "  capcom prime          # the session-start Briefing\n" +
 		"  capcom prime --json   # the same Briefing as a JSON envelope"
 )

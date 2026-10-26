@@ -19,10 +19,11 @@ type reindexData struct {
 
 // Help text of capcom reindex.
 const (
-	reindexLong = "Rebuild the index from the Issue and Note files. The index is a disposable SQLite file " +
-		"under the git directory, never committed, that the other commands bring up to date " +
-		"themselves; reindex recreates it from scratch. It prints the number of Issues indexed and the " +
-		"index path, and reports each file it left out as a warning."
+	reindexLong = "Rebuild the index from the Issue and Note files.\n\n" +
+		"The index is a disposable SQLite file under the git directory, never committed, that the " +
+		"other commands bring up to date themselves; reindex recreates it from scratch.\n\n" +
+		"It prints the number of Issues indexed and the index path, and reports each file it left out " +
+		"as a warning."
 	reindexExample = "  capcom reindex          # rebuild the index from scratch\n" +
 		"  capcom reindex --json   # {path, issues} in a JSON envelope"
 )

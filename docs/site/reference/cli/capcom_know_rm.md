@@ -11,7 +11,17 @@ Remove a Note that has no children
 
 ### Synopsis
 
-Remove a Note's file. A Note with children is refused, so no orphan directory is left behind. Every superseded-by entry naming it is dropped, and its Aliases go with the file. capcom deletes the file itself and never runs git. It prints the removed Note's id and path, and the Notes whose superseded-by entries were dropped. To keep a Note that no longer holds on record, retire it with know update --retire instead.
+Remove a Note's file.
+
+A Note with children is refused, so no orphan directory is left behind.
+
+Every superseded-by entry naming it is dropped, and its Aliases go with the file.
+
+capcom deletes the file itself and never runs git.
+
+It prints the removed Note's id and path, and the Notes whose superseded-by entries were dropped.
+
+To keep a Note that no longer holds on record, retire it with know update --retire instead.
 
 ```
 capcom know rm <id|alias|prefix> [--if-match <etag>] [flags]

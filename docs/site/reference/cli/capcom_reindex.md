@@ -11,7 +11,11 @@ Rebuild the index from the issue and Note files
 
 ### Synopsis
 
-Rebuild the index from the Issue and Note files. The index is a disposable SQLite file under the git directory, never committed, that the other commands bring up to date themselves; reindex recreates it from scratch. It prints the number of Issues indexed and the index path, and reports each file it left out as a warning.
+Rebuild the index from the Issue and Note files.
+
+The index is a disposable SQLite file under the git directory, never committed, that the other commands bring up to date themselves; reindex recreates it from scratch.
+
+It prints the number of Issues indexed and the index path, and reports each file it left out as a warning.
 
 ```
 capcom reindex [flags]

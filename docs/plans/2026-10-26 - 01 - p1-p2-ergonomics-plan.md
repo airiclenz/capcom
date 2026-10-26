@@ -98,7 +98,10 @@ internal/clidoc/reference_test.go — TestReferenceUpToDate
 **Acceptance:** as item 1.
 **Commit:** `docs(cli): split the Long help of know to merge-driver into short rules`
 
-## 3. Long help split into short rules: mv to ui
+## 3. Long help split into short rules: mv to ui — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): all Longs split into blank-line-separated paragraphs (no bullets), as in items 1–2; the word diff of the regenerated docs and goldens is whitespace-only. shortRuleCommands widened by this item's 17 command paths and now covers every command in docs/site/reference/cli/ (48 subtests). Goldens mv.txt, rm.txt, know-mv.txt and know-rm.txt rewritten from `capcom <verb> --help`; create.txt and know-add.txt unaffected.
+NOTES (2026-10-26): node_verbs.go, listed on Files, holds no Long text of its own (only the commandHelp plumbing), so it is unchanged; the mv/rm Long text lives in mv.go and rm.go.
 
 **What:**
 **Goal:** Same rule as item 1 for `node_verbs.go`, `next.go`, `reopen.go`, `search.go`, `reindex.go`,

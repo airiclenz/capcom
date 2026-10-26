@@ -20,9 +20,11 @@ const failureSeparator = "; "
 // The help text of capcom show.
 const (
 	showLong = "Print one or more Issues in full: their fields, readiness, dependencies and dependents, child " +
-		"progress, Related links, body and Log. Name an Issue by its id, an Alias or a unique id prefix. " +
-		"The etag printed is the value --if-match takes on update, mv and rm. Changes to these Issues " +
-		"on other branches are reported as Elsewhere unless --no-elsewhere is given."
+		"progress, Related links, body and Log.\n\n" +
+		"Name an Issue by its id, an Alias or a unique id prefix.\n\n" +
+		"The etag printed is the value --if-match takes on update, mv and rm.\n\n" +
+		"Changes to these Issues on other branches are reported as Elsewhere unless --no-elsewhere is " +
+		"given."
 	showExample = "  capcom show login-timeout-race\n" +
 		"  capcom show login-timeout-race refresh-retry   # several at once\n" +
 		"  capcom show login-ti                           # a unique id prefix\n" +

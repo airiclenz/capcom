@@ -39,19 +39,23 @@ type updateOptions struct {
 // The help text of capcom update.
 const (
 	updateLong = "Change an Issue's fields, labels or body in place; at least one flag that changes the Issue " +
-		"is required. --status moves it between statuses that are not closed: close and reopen cross into " +
-		"and out of the closed categories. --body-append and --body-append-file (- reads stdin) add to " +
-		"the end of the body, and --body-replace-old with --body-replace-new replaces text that must " +
-		"occur exactly once. --body-append and the --body-replace-old/--body-replace-new pair repeat: " +
-		"every pair applies in order, each against the body the pairs before it left, then every " +
-		"append in order, and when one pair fails nothing is written. --standing marks the Issue a " +
-		"standing Parent that only groups its children: it is never Ready, and while it is marked a --status in the doing category is refused, as is " +
-		"close. An Issue that is closed or in the doing category cannot be marked. --no-standing " +
-		"clears the mark, and is applied before --status, so one call can clear it and claim the " +
-		"Issue. The first standing Issue in a store " +
-		"below format 5 raises the store format to 5, with a warning that older capcom releases can no " +
-		"longer read the store. --if-match refuses the write when the file no longer has the etag show " +
-		"printed. It prints the Issue's id, path and new etag."
+		"is required.\n\n" +
+		"--status moves it between statuses that are not closed: close and reopen cross into and out " +
+		"of the closed categories.\n\n" +
+		"--body-append and --body-append-file (- reads stdin) add to the end of the body, and " +
+		"--body-replace-old with --body-replace-new replaces text that must occur exactly once.\n\n" +
+		"--body-append and the --body-replace-old/--body-replace-new pair repeat: every pair applies " +
+		"in order, each against the body the pairs before it left, then every append in order, and " +
+		"when one pair fails nothing is written.\n\n" +
+		"--standing marks the Issue a standing Parent that only groups its children: it is never " +
+		"Ready, and while it is marked a --status in the doing category is refused, as is close.\n\n" +
+		"An Issue that is closed or in the doing category cannot be marked.\n\n" +
+		"--no-standing clears the mark, and is applied before --status, so one call can clear it and " +
+		"claim the Issue.\n\n" +
+		"The first standing Issue in a store below format 5 raises the store format to 5, with a " +
+		"warning that older capcom releases can no longer read the store.\n\n" +
+		"--if-match refuses the write when the file no longer has the etag show printed.\n\n" +
+		"It prints the Issue's id, path and new etag."
 	updateExample = "  capcom update login-timeout-race --priority 1 --add-label owner-run\n" +
 		"  capcom update login-timeout-race --status active   # claim it: a status in the doing category\n" +
 		"  capcom update login-timeout-race --body-append \"Seen on Safari only.\"\n" +

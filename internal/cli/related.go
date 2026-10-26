@@ -22,24 +22,30 @@ const formatRaisedWarning = "%s: store format raised to %d; capcom releases that
 
 // The help text of capcom related, related add and related rm.
 const (
-	relatedLong = "Manage Related links: an undirected tie between two Issues that blocks neither of them. A " +
-		"link is stored in one Issue's file, under the canonical id of the other, and show lists it on " +
-		"both. Use a Dependency instead when one Issue has to wait for the other."
+	relatedLong = "Manage Related links: an undirected tie between two Issues that blocks neither of them.\n\n" +
+		"A link is stored in one Issue's file, under the canonical id of the other, and show lists it " +
+		"on both.\n\n" +
+		"Use a Dependency instead when one Issue has to wait for the other."
 	relatedExample = "  capcom related add login-timeout-race session-refresh-bug   # shown on both; blocks neither\n" +
 		"  capcom related rm login-timeout-race session-refresh-bug"
 	relatedAddLong = "Link the first Issue to the second by writing the second's id into the first's related " +
-		"list. Either argument may be an id, an Alias or a unique id prefix. Linking an Issue to itself " +
-		"is refused, and a link already there, on either Issue, is left as it is. --if-match writes " +
-		"only when the first Issue's etag still matches. It prints the id, path and etag of the first " +
-		"Issue. The first link in a store below format 2 raises the store format to 2, with a warning " +
-		"that older capcom releases can no longer read the store."
+		"list.\n\n" +
+		"Either argument may be an id, an Alias or a unique id prefix.\n\n" +
+		"Linking an Issue to itself is refused, and a link already there, on either Issue, is left as " +
+		"it is.\n\n" +
+		"--if-match writes only when the first Issue's etag still matches.\n\n" +
+		"It prints the id, path and etag of the first Issue.\n\n" +
+		"The first link in a store below format 2 raises the store format to 2, with a warning that " +
+		"older capcom releases can no longer read the store."
 	relatedAddExample = "  capcom related add login-timeout-race session-refresh-bug   # shown on both; blocks neither\n" +
 		"  capcom related add login-timeout-race session-refresh-bug --if-match <etag>   # etag from show"
 	relatedRmLong = "Remove the Related link between two Issues from whichever of them holds it, so the " +
-		"arguments may come in either order. An argument that names no Issue removes the first " +
-		"Issue's entry with that text, so a link that names no Issue any more can still be removed. --if-match " +
-		"writes only when the etag of the Issue holding the link still matches. It prints the id, path " +
-		"and etag of that Issue, and fails not_found, exit code 3, when the two are not linked."
+		"arguments may come in either order.\n\n" +
+		"An argument that names no Issue removes the first Issue's entry with that text, so a link " +
+		"that names no Issue any more can still be removed.\n\n" +
+		"--if-match writes only when the etag of the Issue holding the link still matches.\n\n" +
+		"It prints the id, path and etag of that Issue, and fails not_found, exit code 3, when the two " +
+		"are not linked."
 	relatedRmExample = "  capcom related rm login-timeout-race session-refresh-bug\n" +
 		"  capcom related rm session-refresh-bug login-timeout-race   # either order removes the same link"
 )

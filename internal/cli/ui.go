@@ -20,12 +20,14 @@ const noColorVariable = "NO_COLOR"
 
 // The help text of capcom ui.
 const (
-	uiLong = "Open the terminal UI over this store: the Ready, Issues and Knowledge tabs. With no " +
-		"argument it reopens on the tab and the selection of each tab it last had in this worktree, " +
-		"kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time. A tab name " +
-		"opens that tab, and an id after it selects that Issue or Note there; the arguments win " +
-		"over what was kept. It needs a terminal: when stdin or stdout is not one, it fails. q or " +
-		"ctrl+c quits. --json does not apply and is refused."
+	uiLong = "Open the terminal UI over this store: the Ready, Issues and Knowledge tabs.\n\n" +
+		"With no argument it reopens on the tab and the selection of each tab it last had in this " +
+		"worktree, kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time.\n\n" +
+		"A tab name opens that tab, and an id after it selects that Issue or Note there; the " +
+		"arguments win over what was kept.\n\n" +
+		"It needs a terminal: when stdin or stdout is not one, it fails.\n\n" +
+		"q or ctrl+c quits.\n\n" +
+		"--json does not apply and is refused."
 	uiExample = "  capcom ui                           # the last tab and selection in this worktree\n" +
 		"  capcom ui issues                    # the Issues tab\n" +
 		"  capcom ui issues login-timeout-race # the Issues tab with that Issue selected\n" +

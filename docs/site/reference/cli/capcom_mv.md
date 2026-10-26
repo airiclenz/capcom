@@ -11,7 +11,15 @@ Rename an issue or move it below another
 
 ### Synopsis
 
-Rename an Issue, move it below another Issue, or both; --parent . moves it to the top of the tree. A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every deps entry that named the Issue. Its children move with it. capcom renames the files itself and never runs git. It prints the Issue's new id, path and etag.
+Rename an Issue, move it below another Issue, or both; --parent . moves it to the top of the tree.
+
+A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every deps entry that named the Issue.
+
+Its children move with it.
+
+capcom renames the files itself and never runs git.
+
+It prints the Issue's new id, path and etag.
 
 ```
 capcom mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if-match <etag>] [flags]

@@ -11,7 +11,11 @@ Manage related links between issues
 
 ### Synopsis
 
-Manage Related links: an undirected tie between two Issues that blocks neither of them. A link is stored in one Issue's file, under the canonical id of the other, and show lists it on both. Use a Dependency instead when one Issue has to wait for the other.
+Manage Related links: an undirected tie between two Issues that blocks neither of them.
+
+A link is stored in one Issue's file, under the canonical id of the other, and show lists it on both.
+
+Use a Dependency instead when one Issue has to wait for the other.
 
 ```
 capcom related [flags]

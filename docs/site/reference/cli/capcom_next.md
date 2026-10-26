@@ -11,7 +11,15 @@ Show the top Ready Issue in full
 
 ### Synopsis
 
-Print the Issue on the first line of capcom ready in full, as capcom show prints it: the most urgent Ready Issue, the one that unblocks more Issues first among equals. --label, --no-label, --planned, --unplanned and --show-hidden select as they do for ready. --json gives show's envelope for that Issue. With nothing Ready it prints "nothing is ready to work on" and exits 4, a code used for nothing else; --json then gives kind next with data null. Changes on other branches are reported as Elsewhere unless --no-elsewhere is given.
+Print the Issue on the first line of capcom ready in full, as capcom show prints it: the most urgent Ready Issue, the one that unblocks more Issues first among equals.
+
+--label, --no-label, --planned, --unplanned and --show-hidden select as they do for ready.
+
+--json gives show's envelope for that Issue.
+
+With nothing Ready it prints "nothing is ready to work on" and exits 4, a code used for nothing else; --json then gives kind next with data null.
+
+Changes on other branches are reported as Elsewhere unless --no-elsewhere is given.
 
 ```
 capcom next [flags]

@@ -16,10 +16,11 @@ const nextLimit = 1
 // The help text of capcom next.
 const (
 	nextLong = "Print the Issue on the first line of capcom ready in full, as capcom show prints it: the " +
-		"most urgent Ready Issue, the one that unblocks more Issues first among equals. --label, " +
-		"--no-label, --planned, --unplanned and --show-hidden select as they do for ready. --json " +
-		"gives show's envelope for that Issue. With nothing Ready it prints \"" + nothingReadyMessage +
-		"\" and exits 4, a code used for nothing else; --json then gives kind next with data null. " +
+		"most urgent Ready Issue, the one that unblocks more Issues first among equals.\n\n" +
+		"--label, --no-label, --planned, --unplanned and --show-hidden select as they do for ready.\n\n" +
+		"--json gives show's envelope for that Issue.\n\n" +
+		"With nothing Ready it prints \"" + nothingReadyMessage + "\" and exits 4, a code used for " +
+		"nothing else; --json then gives kind next with data null.\n\n" +
 		"Changes on other branches are reported as Elsewhere unless --no-elsewhere is given."
 	nextExample = "  capcom next                    # the Issue to work on now, in full\n" +
 		"  capcom next --label auth       # the top Ready Issue labelled auth\n" +
