@@ -540,12 +540,17 @@ A **Ref** is either a path or `path#symbol`:
   (`internal/lock/lock.go#func Open`). It is not parsed as code, so any text works, and a symbol
   needs a file, not a directory: a regular file of at most 1 MiB. A symbol whose file is a named
   pipe or another entry that is not a regular file, or is larger than 1 MiB, is not searched, and
-  the Ref does not resolve.
+  the Ref does not resolve;
+- a Ref must name a path every clone has: one whose first component is `.git`, one that resolves
+  inside the git directory or the git common directory, and one to a path git ignores is reported
+  as `unshared-ref`, even when the file exists in this working tree. A tracked file is never
+  ignored, even when an ignore pattern matches it.
 
 A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists every such Ref as
 `path:line: ref "<ref>": <why>`, citing the Ref's line in the Note file, and fails when it finds
-one; `capcom check` reports them too, and `capcom prime` counts them in its briefing. All three
-leave out the Refs of a retired Note and of every Note below it.
+one; `capcom check` reports them too (`broken-ref`), and `capcom prime` counts them in its
+briefing. `capcom know verify` and `capcom check` list an `unshared-ref` Ref the same way. All
+three leave out the Refs of a retired Note and of every Note below it.
 
 ## Config
 

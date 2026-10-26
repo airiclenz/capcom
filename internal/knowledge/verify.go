@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -20,14 +21,28 @@ const symbolSeparator = "#"
 // parentPrefix starts a relative path that climbs out of the directory it is relative to.
 const parentPrefix = ".."
 
+// gitDirName is the name of the git directory, or of the file pointing to it in a linked worktree,
+// at the root of a working tree.
+const gitDirName = ".git"
+
+// Why a Ref resolves here yet a clone of the repository lacks it.
+const (
+	inGitDirMessage  = "is inside the git directory, which a clone does not share"
+	isIgnoredMessage = "is ignored by git, so a clone does not have it"
+)
+
 // ErrEscapes reports a Ref that names a path outside the working tree.
 var ErrEscapes = errors.New("escapes the working tree")
 
 // errNoPath reports a Ref without a path before its symbol.
 var errNoPath = errors.New("names no path; write path or path" + symbolSeparator + "symbol")
 
-// Finding is one Ref of a Note that does not resolve in the working tree.
+// Finding is one Ref of a Note that does not resolve in the working tree, or that resolves here
+// but names a path a clone of the repository lacks.
 type Finding struct {
+	// Code is diagnose.BrokenRef for a Ref that does not resolve, or diagnose.UnsharedRef for one
+	// into the git directory or to a path git ignores.
+	Code diagnose.Kind
 	// NoteID is the id of the Note holding the Ref.
 	NoteID string
 	// Path is the Note file, relative to the working tree root with forward slashes.
@@ -59,33 +74,126 @@ func ValidateRef(ref string) error {
 	return nil
 }
 
-// Verify checks every Ref of note, the Note with id noteID stored at notePath (relative to
-// worktreeRoot with forward slashes), and returns a Finding for each one that does not resolve: a
-// malformed Ref, one escaping the working tree (symbolic links included), a missing path (one
-// below a file included), a `path#symbol` whose file does not contain the symbol text or is not a
-// regular file of at most 1 MiB, and a Ref the disk cannot resolve (a symbolic-link loop, a name
-// too long, a permission refused). A Note without Refs has no Findings. It fails only when
-// worktreeRoot itself cannot be resolved.
-func Verify(worktreeRoot string, notePath string, noteID string, note Note) ([]Finding, error) {
-	root, err := filepath.EvalSymlinks(worktreeRoot)
+// IgnoreFunc returns the subset of paths, relative to the working tree root dir with forward
+// slashes, that git ignores; gitx.IgnoredPaths is one.
+type IgnoreFunc func(dir string, paths []string) ([]string, error)
+
+// Repository is the git working tree Verify checks Refs against.
+type Repository struct {
+	// WorktreeRoot is the top directory of the working tree.
+	WorktreeRoot string
+	// GitDir is this worktree's git directory, or "" when there is none to check against.
+	GitDir string
+	// GitCommonDir is the git directory every worktree shares, or "" when there is none.
+	GitCommonDir string
+	// IgnoredPaths says which paths git ignores; nil treats no path as ignored.
+	IgnoredPaths IgnoreFunc
+}
+
+// NoteFile is one Note for Verify: the Note, its id, and its file relative to the working tree
+// root with forward slashes.
+type NoteFile struct {
+	ID   string
+	Path string
+	Note Note
+}
+
+// refCheck is the state of one Ref while Verify checks it: a finding's Code and Message once it
+// fails, or the resolved path and symbol still waiting for the ignore and symbol checks.
+type refCheck struct {
+	code     diagnose.Kind
+	message  string
+	resolved string
+	symbol   string
+}
+
+// Verify checks every Ref of notes and returns a Finding for each one that does not resolve
+// (Code diagnose.BrokenRef): a malformed Ref, one escaping the working tree (symbolic links
+// included), a missing path (one below a file included), a `path#symbol` whose file does not
+// contain the symbol text or is not a regular file of at most 1 MiB, and a Ref the disk cannot
+// resolve (a symbolic-link loop, a name too long, a permission refused). It also returns one for
+// each Ref that resolves here but that a clone lacks (Code diagnose.UnsharedRef): one whose first
+// path component is .git, one resolving inside the git directory or the git common directory, and
+// one whose resolved path git ignores. Findings follow the order of notes and of their Refs; a
+// Note without Refs has none. It asks repository.IgnoredPaths once per call, and fails only when
+// that fails or when the working tree root itself cannot be resolved.
+func Verify(repository Repository, notes []NoteFile) ([]Finding, error) {
+	root, err := filepath.EvalSymlinks(repository.WorktreeRoot)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", worktreeRoot, err)
+		return nil, fmt.Errorf("%s: %w", repository.WorktreeRoot, err)
+	}
+	gitDirs := resolvedGitDirs(root, repository.GitDir, repository.GitCommonDir)
+	checks := make([][]refCheck, len(notes))
+	var pending []string
+	for i, file := range notes {
+		checks[i] = make([]refCheck, len(file.Note.Refs))
+		for j, ref := range file.Note.Refs {
+			checks[i][j] = checkRef(root, gitDirs, ref)
+			if checks[i][j].resolved != "" {
+				pending = append(pending, checks[i][j].resolved)
+			}
+		}
+	}
+
+	ignored, err := ignoredSet(repository.IgnoredPaths, root, pending)
+	if err != nil {
+		return nil, err
 	}
 	var findings []Finding
-	for i, ref := range note.Refs {
-		message := checkRef(root, ref)
-		if message == "" {
-			continue
+	for i, file := range notes {
+		for j, ref := range file.Note.Refs {
+			check := finishCheck(root, checks[i][j], ignored)
+			if check.message == "" {
+				continue
+			}
+			findings = append(findings, Finding{
+				Code:    check.code,
+				NoteID:  file.ID,
+				Path:    file.Path,
+				Line:    file.Note.RefLine(j),
+				Ref:     ref,
+				Message: check.message,
+			})
 		}
-		findings = append(findings, Finding{
-			NoteID:  noteID,
-			Path:    notePath,
-			Line:    note.RefLine(i),
-			Ref:     ref,
-			Message: message,
-		})
 	}
 	return findings, nil
+}
+
+// resolvedGitDirs returns the non-empty git directories with their symbolic links resolved, so a
+// resolved Ref compares against them; a directory that cannot be resolved is kept as given. A git
+// directory holding the working tree root is left out, or it would claim every Ref.
+func resolvedGitDirs(root string, dirs ...string) []string {
+	var resolved []string
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		if resolvedDir, err := filepath.EvalSymlinks(dir); err == nil {
+			dir = resolvedDir
+		}
+		dir = filepath.Clean(dir)
+		if !isWithin(dir, root) {
+			resolved = append(resolved, dir)
+		}
+	}
+	return resolved
+}
+
+// ignoredSet asks isIgnored once which of paths, relative to root, git ignores, and returns them
+// as a set. A nil isIgnored, or no paths, ignores none.
+func ignoredSet(isIgnored IgnoreFunc, root string, paths []string) (map[string]bool, error) {
+	set := map[string]bool{}
+	if isIgnored == nil || len(paths) == 0 {
+		return set, nil
+	}
+	ignored, err := isIgnored(root, paths)
+	if err != nil {
+		return nil, fmt.Errorf("find the git-ignored Refs: %w", err)
+	}
+	for _, path := range ignored {
+		set[path] = true
+	}
+	return set, nil
 }
 
 // splitRef splits a Ref into its slash path and symbol ("" when it names none). Its error, which
@@ -111,29 +219,71 @@ func isOutside(relative string) bool {
 	return relative == parentPrefix || strings.HasPrefix(relative, parentPrefix+string(filepath.Separator))
 }
 
-// checkRef resolves one Ref below root and returns why it does not resolve, or "" when it does.
+// checkRef resolves one Ref below root and returns its failure, or, for a Ref resolving inside
+// the tree outside gitDirs, its resolved path relative to root, which finishCheck completes.
 // Every reason is a message, the disk's own errors included: one unreadable Ref never stops the
 // check of the others.
-func checkRef(root string, ref string) string {
+func checkRef(root string, gitDirs []string, ref string) refCheck {
 	refPath, symbol, formErr := splitRef(ref)
 	if formErr != nil {
-		return formErr.Error()
+		return broken(formErr.Error())
+	}
+	if isGitDirName(refPath) {
+		return refCheck{code: diagnose.UnsharedRef, message: inGitDirMessage}
 	}
 	target := filepath.Join(root, filepath.FromSlash(refPath))
 	resolved, err := filepath.EvalSymlinks(target)
 	if isMissing(err) {
-		return "no such file or directory"
+		return broken("no such file or directory")
 	}
 	if err != nil {
-		return unresolvable(err)
+		return broken(unresolvable(err))
 	}
-	if relative, relErr := filepath.Rel(root, resolved); relErr != nil || isOutside(relative) {
-		return ErrEscapes.Error() + " through a symbolic link"
+	for _, gitDir := range gitDirs {
+		if isWithin(gitDir, resolved) {
+			return refCheck{code: diagnose.UnsharedRef, message: inGitDirMessage}
+		}
 	}
-	if symbol == "" {
-		return ""
+	relative, relErr := filepath.Rel(root, resolved)
+	if relErr != nil || isOutside(relative) {
+		return broken(ErrEscapes.Error() + " through a symbolic link")
 	}
-	return checkSymbol(resolved, symbol)
+	return refCheck{resolved: filepath.ToSlash(relative), symbol: symbol}
+}
+
+// finishCheck completes a Ref checkRef resolved inside the tree: a path git ignores is unshared,
+// and otherwise its symbol, if any, must be in the file. A failed check is returned as it is.
+func finishCheck(root string, check refCheck, ignored map[string]bool) refCheck {
+	switch {
+	case check.resolved == "":
+		return check
+	case ignored[check.resolved]:
+		return refCheck{code: diagnose.UnsharedRef, message: isIgnoredMessage}
+	case check.symbol == "":
+		return refCheck{}
+	}
+	return broken(checkSymbol(filepath.Join(root, filepath.FromSlash(check.resolved)), check.symbol))
+}
+
+// broken is the failed check of a Ref that does not resolve, or the passed check when message is
+// "".
+func broken(message string) refCheck {
+	if message == "" {
+		return refCheck{}
+	}
+	return refCheck{code: diagnose.BrokenRef, message: message}
+}
+
+// isGitDirName reports whether the first component of a Ref's cleaned slash path is .git.
+func isGitDirName(refPath string) bool {
+	first, _, _ := strings.Cut(filepath.ToSlash(filepath.Clean(filepath.FromSlash(refPath))), "/")
+	return first == gitDirName
+}
+
+// isWithin reports whether path is dir or lies below it; both are absolute and cleaned.
+func isWithin(dir string, path string) bool {
+	relative, err := filepath.Rel(dir, path)
+	return err == nil && !isOutside(relative) && !filepath.IsAbs(relative)
 }
 
 // unresolvable renders a disk error on a Ref as "cannot be resolved: <reason>". The reason drops

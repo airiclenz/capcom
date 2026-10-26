@@ -57,6 +57,9 @@ const (
 	Standing Kind = "standing"
 	// BrokenRef is a Note Ref that does not resolve in the working tree.
 	BrokenRef Kind = "broken-ref"
+	// UnsharedRef is a Note Ref that resolves in this working tree but names a path a clone lacks:
+	// one inside the git directory, or one git ignores.
+	UnsharedRef Kind = "unshared-ref"
 	// AgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled, or
 	// one that is not a regular file or is larger than 1 MiB.
 	AgentsBlock Kind = "agents-block"

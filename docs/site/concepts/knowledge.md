@@ -120,7 +120,10 @@ $ capcom know verify
 capcom: 1 Note refs do not resolve
 ```
 
-`capcom check` reports the same problems, and `capcom prime` lists them in the session
+It also lists a Ref that resolves here but that a fresh clone would lack: one inside the git
+directory (`.git/...`), or one to a file git ignores.
+
+`capcom check` reports the same problems, and `capcom prime` lists the broken ones in the session
 [briefing](../agents/briefing.md) under `broken Note refs:`, so a stale Note surfaces the next time
 an agent starts work. Fix it by updating the Note, its Refs or both:
 

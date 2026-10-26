@@ -312,6 +312,37 @@ func TestRun_RetiredSubtree_SkipsRefChecksButStillValidatesFields(t *testing.T) 
 	}
 }
 
+func TestRun_UnsharedRefs_ReportedEvenWhenTheFileExists(t *testing.T) {
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{
+		".capcom/config.yaml": "format: 3\n",
+		".gitignore":          "*.log\n",
+		"build.log":           "ignored\n",
+		"kept.log":            "tracked although ignored\n",
+		knowledge + "lock-notes.md": "---\ntitle: Lock notes\nrefs:\n" +
+			"  - .git/HEAD\n  - build.log\n  - kept.log\n  - .gitignore\n---\n",
+		knowledge + "old-locks.md":          "---\ntitle: Old locks\nretired: true\nrefs: [.git/HEAD]\n---\n",
+		knowledge + "old-locks/step-one.md": "---\ntitle: Step one\nrefs: [build.log]\n---\n",
+	})
+	if output, err := exec.Command("git", "-C", root, "add", "-f", "kept.log").CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, output)
+	}
+
+	problems := runCheck(t, root)
+
+	got := locations(t, problems)
+	want := []string{
+		knowledge + "lock-notes.md:4:" + string(diagnose.UnsharedRef),
+		knowledge + "lock-notes.md:5:" + string(diagnose.UnsharedRef),
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("problems = %v, want %v", problems, want)
+	}
+	if !strings.Contains(problems[0].Message, `ref ".git/HEAD"`) || !strings.Contains(problems[1].Message, `ref "build.log"`) {
+		t.Errorf("messages = %q, %q; want each to name its ref", problems[0].Message, problems[1].Message)
+	}
+}
+
 func TestRun_RelatedNamingAnAlias_ReportsNothing(t *testing.T) {
 	root := newRepo(t)
 	writeFiles(t, root, map[string]string{
@@ -1035,6 +1066,7 @@ func TestCodes_ClosedSet_PinsEveryCodeString(t *testing.T) {
 		"MissingPlan":         "missing-plan",
 		"Standing":            "standing",
 		"BrokenRef":           "broken-ref",
+		"UnsharedRef":         "unshared-ref",
 		"AgentsBlock":         "agents-block",
 		"AgentsGuide":         "agents-guide",
 	}

@@ -234,7 +234,16 @@ no paths, none ignored.
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/gitx/`
 **Commit:** `feat(gitx): report which paths git ignores`
 
-## 10. check and know verify report refs a clone would lack
+## 10. check and know verify report refs a clone would lack — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): knowledge.Verify now checks a whole run at once — `Verify(Repository, []NoteFile)`, where Repository carries the worktree root, git dir, common dir and an `IgnoredPaths` func (gitx.IgnoredPaths in production) asked once per call — instead of one Note per call; Finding gained `Code diagnose.Kind`. check now reports Field findings per Note and verifies all live Notes' Refs in one pass (checkFields/checkRefs replace checkNote).
+NOTES (2026-10-26): ignore status is asked for each Ref's symlink-resolved path relative to the root, never the Ref as written, since `git check-ignore` fails the whole batch on a path beyond a symbolic link; an ignored Ref is unshared-ref even when its #symbol is also missing; a `.git`-first-component Ref is unshared-ref even when missing; a git dir containing the worktree root is not used for the containment test.
+NOTES (2026-10-26): know verify's failure message counts the two kinds separately ("N Note refs do not resolve; M Note refs name a path a clone lacks"), keeping the old text when only broken refs are found; its --json findings gain a `code` field.
+NOTES (2026-10-26): consequential edit — internal/diagnose/diagnose_test.go: made necessary by the new diagnose.UnsharedRef kind (the test enumerates every Kind string).
+NOTES (2026-10-26): consequential edit — docs/site/reference/cli/capcom_know_verify.md: made necessary by the know verify Long text change (regenerated with go run ./cmd/gendocs).
+NOTES (2026-10-26): consequential edit — docs/site/reference/file-format.md: made necessary by the new unshared-ref rule for Refs.
+NOTES (2026-10-26): consequential edit — docs/site/concepts/knowledge.md: made necessary by know verify now listing unshared Refs.
+NOTES (2026-10-26): prime's briefing still lists only broken-ref problems under `broken Note refs:` (briefing filters on diagnose.BrokenRef); an unshared-ref counts in its problem total only.
 
 Depends on item 9.
 

@@ -684,6 +684,36 @@ func TestKnowVerify_BrokenRefsInRetiredSubtree_AreNotListed(t *testing.T) {
 	}
 }
 
+func TestKnowVerify_UnsharedRefs_ListsGitDirAndIgnoredRefsWithTheirCode(t *testing.T) {
+	root := newKnowStore(t)
+	for name, content := range map[string]string{".gitignore": "*.log\n", "build.log": "ignored\n"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+	writeNoteFiles(t, root, map[string]string{
+		"lock-notes.md": "---\ntitle: Lock notes\nrefs:\n  - .git/HEAD\n  - build.log\n  - go.mod\n---\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "verify")
+	jsonOut, _, _ := runCLI(t, root, "know", "verify", "--json")
+
+	want := ".capcom/knowledge/lock-notes.md:4: ref \".git/HEAD\": is inside the git directory, which a clone does not share\n" +
+		".capcom/knowledge/lock-notes.md:5: ref \"build.log\": is ignored by git, so a clone does not have it\n"
+	if exitCode != ExitError || stdout != want || !strings.Contains(stderr, "2 Note refs name a path a clone lacks") {
+		t.Errorf("know verify = %d\n%s%s\nwant\n%s", exitCode, stdout, stderr, want)
+	}
+	data, _ := decodeEnvelope(t, jsonOut)["data"].([]any)
+	var codes []string
+	for _, entry := range data {
+		finding, _ := entry.(map[string]any)
+		codes = append(codes, fmt.Sprint(finding["code"]))
+	}
+	if !slices.Equal(codes, []string{"unshared-ref", "unshared-ref"}) {
+		t.Errorf("--json codes = %v, want two unshared-ref", codes)
+	}
+}
+
 func TestKnowVerify_EveryRefResolves_PrintsNothing(t *testing.T) {
 	root := newKnowStore(t)
 

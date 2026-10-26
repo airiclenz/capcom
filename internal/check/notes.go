@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/diagnose"
+	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -45,17 +46,19 @@ func (c *checker) notes() error {
 	nodes := loaded.Nodes()
 	isRetired := retiredSubtrees(nodes, parsed)
 	leftOut := leftOutNames(loaded)
+	var live []knowledge.NoteFile
 	for _, node := range nodes {
 		note, isParsed := parsed[node.Path]
 		if !isParsed {
 			continue
 		}
 		c.checkSupersession(node, note, loaded, leftOut, c.store.Config.Format)
-		if err := c.checkNote(node, note, fields[node.Path], isRetired[node.ID]); err != nil {
-			return err
+		c.checkFields(node, fields[node.Path])
+		if !isRetired[node.ID] {
+			live = append(live, knowledge.NoteFile{ID: node.ID, Path: c.store.Relative(node.Path), Note: note})
 		}
 	}
-	return nil
+	return c.checkRefs(live)
 }
 
 // leftOutNames returns the ids and aliases of the node files Load left out of loaded for a
@@ -117,22 +120,22 @@ func retiredSubtrees(nodes []tree.Node, parsed map[string]knowledge.Note) map[st
 	return isRetired
 }
 
-// checkNote checks one parsed Note: its fields, reporting fieldFindings, the Field findings of its
-// Reading, then, unless isRetired says it sits in a retired subtree, whether each Ref resolves.
-func (c *checker) checkNote(
-	node tree.Node,
-	note knowledge.Note,
-	fieldFindings []diagnose.Finding,
-	isRetired bool,
-) error {
-	path := c.store.Relative(node.Path)
+// checkFields reports fieldFindings, the Field findings of the Reading of the Note file at node.
+func (c *checker) checkFields(node tree.Node, fieldFindings []diagnose.Finding) {
 	for _, finding := range fieldFindings {
-		c.add(path, finding.Line, kindCode(finding.Code), finding.Message)
+		c.add(node.Path, finding.Line, kindCode(finding.Code), finding.Message)
 	}
-	if isRetired {
-		return nil
-	}
-	findings, err := knowledge.Verify(c.store.WorktreeRoot, path, node.ID, note)
+}
+
+// checkRefs checks the Refs of notes, the parsed Notes outside a retired subtree, in one pass:
+// whether each resolves, and whether a clone of the repository would have it.
+func (c *checker) checkRefs(notes []knowledge.NoteFile) error {
+	findings, err := knowledge.Verify(knowledge.Repository{
+		WorktreeRoot: c.store.WorktreeRoot,
+		GitDir:       c.store.GitDir,
+		GitCommonDir: c.store.GitCommonDir,
+		IgnoredPaths: gitx.IgnoredPaths,
+	}, notes)
 	if err != nil {
 		return err
 	}
@@ -140,7 +143,7 @@ func (c *checker) checkNote(
 		if refPath, _, _ := strings.Cut(finding.Ref, refSymbolSeparator); refPath == "" {
 			continue // Validate already reported a Ref without a path
 		}
-		c.add(path, finding.Line, diagnose.BrokenRef, fmt.Sprintf("ref %q: %s", finding.Ref, finding.Message))
+		c.add(finding.Path, finding.Line, finding.Code, fmt.Sprintf("ref %q: %s", finding.Ref, finding.Message))
 	}
 	return nil
 }

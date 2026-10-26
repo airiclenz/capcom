@@ -101,6 +101,7 @@ func TestKind_EachKind_PinsItsString(t *testing.T) {
 		diagnose.MissingPlan:         "missing-plan",
 		diagnose.Standing:            "standing",
 		diagnose.BrokenRef:           "broken-ref",
+		diagnose.UnsharedRef:         "unshared-ref",
 		diagnose.AgentsBlock:         "agents-block",
 		diagnose.AgentsGuide:         "agents-guide",
 	}
