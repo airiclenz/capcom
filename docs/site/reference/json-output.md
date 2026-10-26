@@ -167,7 +167,8 @@ STATUS=closed
 ```
 
 `capcom show <id> --kv` prints one record per issue, every key present in this order, with an
-empty value when the file leaves the field out and list values comma-separated:
+empty value when the file leaves the field out (except `PRIORITY=`, which then reads as the default
+2) and list values comma-separated:
 
 ```console
 $ capcom show audit-log --kv
@@ -198,7 +199,7 @@ MESSAGE=id "nosuch" not found
 STATUS=not_found
 ```
 
-A failure that carries a `suggestion` in `--json` adds it as a `SUGGESTION=` line just before its
+A failure that carries a `suggestion` in `--json` adds it as a `SUGGESTION=` line before its
 `STATUS=` line:
 
 ```console
@@ -208,9 +209,9 @@ SUGGESTION=show
 STATUS=invalid
 ```
 
-Its `suggestions` and `valid` lists follow as `SUGGESTIONS=` and `VALID=` lines, in that order,
-each comma-separated, also before `STATUS=`; a failure record of a multi-id command such as `show`
-carries them too.
+Its `suggestions` and `valid` lists follow the `SUGGESTION=` line as `SUGGESTIONS=` and `VALID=`
+lines, in that order, each comma-separated, also before `STATUS=`; a failure record of a multi-id
+command such as `show` carries them too.
 
 Unlike `--json`, `--kv` is offered only by some commands, it goes after the command name, and it
 leaves out the Elsewhere report. Which commands take it is on each command's page in
