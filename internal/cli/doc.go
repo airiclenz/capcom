@@ -26,7 +26,7 @@
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search
 //   - `know.go` — capcom know and the Note data and resolution its subcommands share
 //   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and AGENTS.md refresh
-//   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word
+//   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word, else some
 //   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
 //   - `know_tree.go` — capcom know tree: the outline of Note ids and titles
 //   - `know_update.go` — capcom know update: changes a Note through internal/ops and the node store
@@ -48,7 +48,7 @@
 //   - `reopen.go` — capcom reopen: moves a closed issue back to an open status, logging why
 //   - `rm.go` — the results, failure typing and warnings of rm and know rm, which node_verbs.go builds
 //   - `root.go` — Run, Command, the root command, capcom version and the index lifecycle of every command
-//   - `search.go` — capcom search: finds issues whose title or body contains every word
+//   - `search.go` — capcom search: finds issues whose title or body contains every word, else some
 //   - `show.go` — capcom show and the resolution of an issue argument to its index entry
 //   - `start.go` — capcom start: claims a Ready Issue and this worktree's Tree lock, through internal/ops
 //   - `suggest.go` — the closest flag named for an unknown flag, beside the command suggestions root.go makes

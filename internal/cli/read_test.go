@@ -796,6 +796,54 @@ func TestSearch_NoMatch_IsNotFound(t *testing.T) {
 	}
 }
 
+func TestSearch_OneWordInNoIssue_ListsAnyWordHitsUnderTheHeading(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"refresh-twice.md": readIssue("Refresh refresh", "open", "", "\nrefresh refresh refresh\n"),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "search", "refresh", "absent")
+	jsonOut, _, jsonExit := runCLI(t, root, "search", "--json", "refresh", "absent")
+
+	want := "No item holds every word; these hold some of them:\n" +
+		"refresh-twice  open  P2  Refresh refresh\nsession-refresh  parked  P2  " + longTitle + "\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	envelope := decodeEnvelope(t, jsonOut)
+	if got := envelopeIDs(t, jsonOut); jsonExit != ExitOK || envelope["match"] != "any" ||
+		!slices.Equal(got, []string{"refresh-twice", "session-refresh"}) {
+		t.Errorf("search --json exit = %d envelope = %v, want match any and both issues", jsonExit, envelope)
+	}
+}
+
+func TestSearch_EveryWordHeld_CarriesMatchAll(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "search", "--json", "refresh", "config.yaml")
+
+	envelope := decodeEnvelope(t, stdout)
+	if got := envelopeIDs(t, stdout); exitCode != ExitOK || envelope["match"] != "all" ||
+		!slices.Equal(got, []string{"session-refresh"}) {
+		t.Errorf("search --json exit = %d envelope = %v, want match all and session-refresh", exitCode, envelope)
+	}
+}
+
+func TestSearch_OperatorWordInNoIssue_StaysLiteralInTheFallback(t *testing.T) {
+	root := newReadStore(t)
+
+	for _, operator := range []string{"NOT", "OR", "NEAR"} {
+		stdout, stderr, exitCode := runCLI(t, root, "search", "--json", operator, "epic")
+
+		envelope := decodeEnvelope(t, stdout)
+		if got := envelopeIDs(t, stdout); exitCode != ExitOK || envelope["match"] != "any" ||
+			!slices.Equal(got, []string{"login-flow"}) {
+			t.Errorf("search %s epic exit = %d envelope = %v stderr = %q, want match any and login-flow",
+				operator, exitCode, envelope, stderr)
+		}
+	}
+}
+
 // elsewhereLine is the text line reporting session-refresh closed on the fix-login branch.
 const elsewhereLine = "elsewhere: session-refresh: done on fix-login (unmerged)\n"
 

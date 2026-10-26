@@ -60,7 +60,7 @@ open one branch at a time:
 capcom know tree --depth 2      # the top level and its direct children
 capcom know tree auth           # one branch, from the Note auth down
 capcom know show token-refresh  # one Note in full
-capcom know search refresh      # Notes whose title or body contains every word
+capcom know search refresh      # Notes whose title or body contains every word, else some
 ```
 
 ```console

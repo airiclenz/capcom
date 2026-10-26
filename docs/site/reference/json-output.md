@@ -23,6 +23,7 @@ $ capcom show session-refresh --json
 | --- | --- | --- |
 | `schema` | yes | The envelope's version, currently `1`. |
 | `kind` | yes | What `data` holds: `issue`, `issue-write`, `close`, `ready`, `prime`, `check`, `version`, ..., or `error`. |
+| `match` | no | Only on kinds `search` and `know-search`: `all` when every hit holds every word searched for, `any` when no item held them all and the hits hold some of them. |
 | `data` | no | The command's result. Left out when a command fails before it has one. `null` when `capcom next` finds nothing Ready (kind `next`, exit code 4). |
 | `error` | no | Present only when the command failed; see Errors below. |
 | `elsewhere` | yes | [Issue changes on other branches](../concepts/branches-and-merging.md#elsewhere), `[]` when there are none or the command does not scan. |

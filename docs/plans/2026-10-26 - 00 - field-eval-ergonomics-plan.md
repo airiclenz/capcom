@@ -53,7 +53,12 @@ apply to Notes as in `SearchNotes`.
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/index/ -run 'Search'`; `go vet ./internal/index/`
 **Commit:** `feat(index): add any-word Issue and Note search`
 
-## 2. search and know search fall back to any-word matches
+## 2. search and know search fall back to any-word matches — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): consequential edit — internal/ui/filter.go: made necessary by the search fallback; the matchIssues/matchNotes comments said the UI filter keeps what capcom search finds, now they say every word, never only some
+NOTES (2026-10-26): consequential edit — docs/site/getting-started/terminal-ui.md: made necessary by the search fallback; the filter section said free text matches as capcom search finds, now it says the filter does not fall back to some of the words
+NOTES (2026-10-26): README.md left unchanged: it has no prose saying search needs every word (only bare example lines), so nothing there became false
+NOTES (2026-10-26): the fallback is shared by both commands through searchEveryWordFirst and searchText in internal/cli/search.go; anyWordHeadingLine is a constant there and is quoted in both commands' Long help
 
 Depends on item 1.
 

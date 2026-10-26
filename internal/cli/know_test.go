@@ -669,6 +669,42 @@ func TestKnowSearch_WordsAndLabel_FindNotesOnly(t *testing.T) {
 	}
 }
 
+func TestKnowSearch_OneWordInNoNote_ListsAnyWordHitsUnderTheHeading(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "search", "harness", "absent")
+	jsonOut := mustRun(t, root, "know", "search", "harness", "absent", "--json")
+
+	want := "No item holds every word; these hold some of them:\nno-parallel  No parallel\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	if match := decodeEnvelope(t, jsonOut)["match"]; match != "any" {
+		t.Errorf("know search --json match = %v, want any\n%s", match, jsonOut)
+	}
+}
+
+func TestKnowSearch_EveryWordHeld_CarriesMatchAll(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout := mustRun(t, root, "know", "search", "harness", "directory", "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	if got := envelopeIDs(t, stdout); envelope["match"] != "all" || !slices.Equal(got, []string{"no-parallel"}) {
+		t.Errorf("know search --json envelope = %v, want match all and no-parallel", envelope)
+	}
+}
+
+func TestKnowSearch_AnyWordFallback_KeepsTheLabelFilter(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout := mustRun(t, root, "know", "search", "tag", "harness", "--label", "process")
+
+	if want := "No item holds every word; these hold some of them:\nrelease-flow  Release flow\n"; stdout != want {
+		t.Errorf("know search tag harness --label process = %q, want %q", stdout, want)
+	}
+}
+
 func TestKnow_IssueAndNoteShareAnID_EachCommandFindsItsOwn(t *testing.T) {
 	root := newKnowStore(t)
 

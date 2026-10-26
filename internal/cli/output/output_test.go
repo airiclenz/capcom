@@ -17,6 +17,28 @@ func decodeEnvelope(t *testing.T, stdout string) map[string]any {
 	return envelope
 }
 
+func TestJSONRenderer_Render_CarriesMatchOnlyWhenSet(t *testing.T) {
+	cases := []struct {
+		match     string
+		wantMatch any
+	}{
+		{MatchAny, "any"},
+		{MatchAll, "all"},
+		{"", nil},
+	}
+	for _, testCase := range cases {
+		var stdout bytes.Buffer
+
+		err := NewRenderer(FormatJSON, &stdout, nil).Render(Result{Kind: "search", Match: testCase.match})
+
+		envelope := decodeEnvelope(t, stdout.String())
+		if gotMatch, hasMatch := envelope["match"]; err != nil || gotMatch != testCase.wantMatch ||
+			hasMatch != (testCase.wantMatch != nil) {
+			t.Errorf("Match %q: err = %v envelope = %v, want match %v", testCase.match, err, envelope, testCase.wantMatch)
+		}
+	}
+}
+
 func TestKVRenderer_Render_ClosesEveryRecordWithStatus(t *testing.T) {
 	var stdout bytes.Buffer
 	result := Result{

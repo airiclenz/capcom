@@ -173,7 +173,8 @@ returns to the detail pane. Moving the sidebar's selection closes the view.
 clears it, and Esc from the sidebar clears a kept one. The words of the line all have to match:
 
 - free text matches the title and body, as `capcom search` (or `capcom know search` on the
-  Knowledge tab) finds them;
+  Knowledge tab) finds them when an item holds every word; the filter does not fall back to items
+  holding only some of the words;
 - `status:<name>` keeps the Issues in that Status; the Status must be declared in
   `config.yaml`, and Notes have none;
 - `label:<name>` keeps the Issues or Notes carrying that Label; some Issue or Note must carry it.

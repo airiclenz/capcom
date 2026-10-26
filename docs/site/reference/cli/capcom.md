@@ -57,7 +57,7 @@ capcom [flags]
 * [capcom related](capcom_related.md)	 - Manage related links between issues
 * [capcom reopen](capcom_reopen.md)	 - Reopen a closed issue, logging why
 * [capcom rm](capcom_rm.md)	 - Remove an issue that has no children
-* [capcom search](capcom_search.md)	 - Find issues whose title or body contains every word
+* [capcom search](capcom_search.md)	 - Find issues whose title or body contains every word, else some of them
 * [capcom show](capcom_show.md)	 - Show issues in full
 * [capcom start](capcom_start.md)	 - Claim a Ready Issue and this worktree's Tree lock
 * [capcom ui](capcom_ui.md)	 - Open the terminal UI

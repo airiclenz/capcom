@@ -1,17 +1,17 @@
 ---
 title: "capcom know search"
-description: "Find Notes whose title or body contains every word"
+description: "Find Notes whose title or body contains every word, else some of them"
 sidebar:
   order: 1
 ---
 
 ## capcom know search
 
-Find Notes whose title or body contains every word
+Find Notes whose title or body contains every word, else some of them
 
 ### Synopsis
 
-Find the Notes whose title or body contains every word given, each as a whole word, and list them best match first, one line each with the id and title. --label keeps only the Notes carrying every label given. Retired Notes and everything below them are left out unless --retired is given. No match fails with not_found, exit code 3.
+Find the Notes whose title or body contains every word given, each as a whole word, and list them best match first, one line each with the id and title. When no Note holds every word, it lists the Notes holding some of them under the line "No item holds every word; these hold some of them:", and --json sets "match" to "any" instead of "all". --label keeps only the Notes carrying every label given. Retired Notes and everything below them are left out unless --retired is given. A Note holding no word fails with not_found, exit code 3.
 
 ```
 capcom know search <word>... [flags]

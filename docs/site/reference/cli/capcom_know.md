@@ -44,7 +44,7 @@ capcom know [flags]
 * [capcom know add](capcom_know_add.md)	 - Add a Note with a chosen id
 * [capcom know mv](capcom_know_mv.md)	 - Rename a Note or move it below another
 * [capcom know rm](capcom_know_rm.md)	 - Remove a Note that has no children
-* [capcom know search](capcom_know_search.md)	 - Find Notes whose title or body contains every word
+* [capcom know search](capcom_know_search.md)	 - Find Notes whose title or body contains every word, else some of them
 * [capcom know show](capcom_know_show.md)	 - Show a Note in full
 * [capcom know tree](capcom_know_tree.md)	 - Print the outline of Note ids and titles
 * [capcom know update](capcom_know_update.md)	 - Change a Note's title, labels, refs, retirement or body

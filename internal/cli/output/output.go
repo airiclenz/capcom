@@ -14,6 +14,12 @@ import (
 // changes meaning or disappears.
 const SchemaVersion = 1
 
+// The values of a search's Match: every query word held, or at least one of them.
+const (
+	MatchAll = "all"
+	MatchAny = "any"
+)
+
 const (
 	KindError    = "error"
 	kvKeyStatus  = "STATUS"
@@ -36,9 +42,12 @@ const (
 // writes it to stderr after the result, --json sets it as the envelope's error next to its data,
 // and --kv leaves it to the records' own STATUS lines. Elsewhere holds the issue changes on other
 // branches, reported apart from the result: text writes one line each after it, --json puts them
-// in the envelope's elsewhere member, and --kv leaves them out.
+// in the envelope's elsewhere member, and --kv leaves them out. Match, set only by the search
+// commands, tells --json whether the hits hold every query word (MatchAll) or some (MatchAny);
+// text and --kv leave it out.
 type Result struct {
 	Kind      string
+	Match     string
 	Data      any
 	Text      string
 	KV        []KVRecord
@@ -63,10 +72,11 @@ type KVPair struct {
 // Envelope is the --json document every command writes to stdout. Data is set on success, null
 // when a command found nothing to report (a typed nil, such as next's with no Ready Issue), and
 // Error on failure; Elsewhere and Warnings are always present, empty when there is nothing to
-// report.
+// report. Match is present only on a search's result: MatchAll or MatchAny.
 type Envelope struct {
 	Schema    int               `json:"schema"`
 	Kind      string            `json:"kind"`
+	Match     string            `json:"match,omitempty"`
 	Data      any               `json:"data,omitempty"`
 	Error     *ErrorBody        `json:"error,omitempty"`
 	Elsewhere []elsewhere.Entry `json:"elsewhere"`
@@ -196,6 +206,7 @@ type jsonRenderer struct {
 func (r jsonRenderer) Render(result Result) error {
 	envelope := Envelope{
 		Kind:      result.Kind,
+		Match:     result.Match,
 		Data:      result.Data,
 		Elsewhere: result.Elsewhere,
 		Warnings:  result.Warnings,

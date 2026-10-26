@@ -131,7 +131,8 @@ func matchFilter(cfg config.Config, issueIndex *index.Index, tab Tab, terms filt
 
 // matchIssues returns the filter of terms over every issue, Closed ones included: the issues
 // whose status is every status term's, that carry every label term's label and, when there are
-// text words, that capcom search finds for them. A status cfg does not declare, and a label no
+// text words, that hold every one of them as capcom search matches words. The filter never falls
+// back to issues holding only some words. A status cfg does not declare, and a label no
 // issue carries, is the filter's problem instead.
 func matchIssues(cfg config.Config, issueIndex *index.Index, terms filterTerms) (sidebarFilter, error) {
 	var filter sidebarFilter
@@ -175,8 +176,9 @@ func matchIssues(cfg config.Config, issueIndex *index.Index, terms filterTerms) 
 }
 
 // matchNotes returns the filter of terms over every Note, retired ones included: the Notes that
-// carry every label term's label and, when there are text words, that capcom know search finds
-// for them. A status term, and a label no Note carries, is the filter's problem instead.
+// carry every label term's label and, when there are text words, that hold every one of them as
+// capcom know search matches words, never only some. A status term, and a label no Note carries,
+// is the filter's problem instead.
 func matchNotes(issueIndex *index.Index, terms filterTerms) (sidebarFilter, error) {
 	var filter sidebarFilter
 	if len(terms.statuses) > 0 {
