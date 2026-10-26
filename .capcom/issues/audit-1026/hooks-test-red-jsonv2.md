@@ -3,6 +3,7 @@ title: internal/hooks asserts the JSON decoder's wording and fails under encodin
 status: open
 type: bug
 priority: 2
+plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 

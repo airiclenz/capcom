@@ -3,6 +3,7 @@ title: reindex cannot repair a corrupt index, so the named fix fails
 status: open
 type: bug
 priority: 1
+plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 

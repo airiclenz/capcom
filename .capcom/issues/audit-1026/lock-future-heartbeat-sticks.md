@@ -3,6 +3,7 @@ title: A lock heartbeat in the future is not stale until the clock catches up
 status: open
 type: bug
 priority: 2
+plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 

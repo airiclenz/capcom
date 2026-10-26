@@ -3,6 +3,7 @@ title: CI runs no race detector and no coverage check
 status: open
 type: chore
 priority: 2
+plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 
