@@ -178,7 +178,7 @@ func (r textRenderer) RenderError(failure *Error) error {
 		line += fmt.Sprintf(textSuggestionFormat, failure.Suggestion)
 	}
 	if len(failure.Suggestions) > 0 {
-		line += fmt.Sprintf(textSuggestionFormat, joinAlternatives(failure.Suggestions))
+		line += fmt.Sprintf(textSuggestionFormat, JoinAlternatives(failure.Suggestions))
 	}
 	if len(failure.Valid) > 0 {
 		line += fmt.Sprintf(textValidFormat, strings.Join(failure.Valid, textListSeparator))
@@ -191,9 +191,9 @@ func (r textRenderer) RenderError(failure *Error) error {
 	return err
 }
 
-// joinAlternatives lists items as "a", "a or b" or "a, b or c": comma-separated, the last two
+// JoinAlternatives lists items as "a", "a or b" or "a, b or c": comma-separated, the last two
 // joined by "or".
-func joinAlternatives(items []string) string {
+func JoinAlternatives(items []string) string {
 	if len(items) == 1 {
 		return items[0]
 	}

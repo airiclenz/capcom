@@ -667,6 +667,46 @@ func TestShow_KVUnknownID_RecordCarriesSuggestions(t *testing.T) {
 	}
 }
 
+func TestShow_SeveralUnknownIDs_NamesEachIDsSuggestions(t *testing.T) {
+	root := newReadStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "show", "login-flwo", "session-timeout", "zzzzzz")
+
+	want := "capcom: id \"login-flwo\" not found, did you mean login-flow?; " +
+		"id \"session-timeout\" not found, did you mean session-refresh?; id \"zzzzzz\" not found\n" +
+		"hint: capcom search <text>\n"
+	if exitCode != ExitNotFound || stderr != want {
+		t.Errorf("exit = %d\nstderr = %q\nwant     %q", exitCode, stderr, want)
+	}
+}
+
+func TestShow_SeveralUnknownIDsJSON_MessageNamesEachIDsSuggestions(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "show", "--json", "login-flwo", "session-timeout")
+
+	errorBody, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	want := "id \"login-flwo\" not found, did you mean login-flow?; " +
+		"id \"session-timeout\" not found, did you mean session-refresh?"
+	_, hasSuggestions := errorBody["suggestions"]
+	if exitCode != ExitNotFound || errorBody["message"] != want || hasSuggestions {
+		t.Errorf("exit = %d error = %v, want message %q and no suggestions", exitCode, errorBody, want)
+	}
+}
+
+func TestShow_KVSeveralUnknownIDs_EachRecordCarriesItsSuggestions(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "show", "--kv", "login-flwo", "session-timeout")
+
+	want := "ID=login-flwo\nMESSAGE=id \"login-flwo\" not found\nSUGGESTIONS=login-flow\nHINT=capcom search <text>\nSTATUS=not_found\n" +
+		"ID=session-timeout\nMESSAGE=id \"session-timeout\" not found\nSUGGESTIONS=session-refresh\n" +
+		"HINT=capcom search <text>\nSTATUS=not_found\n"
+	if exitCode != ExitNotFound || stdout != want {
+		t.Errorf("exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
+	}
+}
+
 func TestShow_KV_ClosesEachIDWithItsStatus(t *testing.T) {
 	root := newReadStore(t)
 

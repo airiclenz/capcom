@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -16,6 +17,10 @@ import (
 
 // failureSeparator joins the messages of several failed lookups into one failure.
 const failureSeparator = "; "
+
+// idSuggestionFormat ends one failed lookup's message with its own suggestions when several
+// lookups fail and their messages are joined.
+const idSuggestionFormat = "%s, did you mean %s?"
 
 // The help text of capcom show.
 const (
@@ -63,7 +68,8 @@ func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bo
 }
 
 // showResult looks up every argument and builds the result: the issues found, a --kv record per
-// argument closed by its own STATUS, and the joined failure of the arguments that failed. It also
+// argument closed by its own STATUS, and the joined failure of the arguments that failed: when
+// several fail, each message names its own suggestions and the joined failure carries none. It also
 // returns the paths of the issues found, relative to the worktree root. Each issue's fields, body
 // and etag come from one read of its file, the bytes a later --if-match is checked against;
 // readiness, dependents, child progress and reverse Related links are the index's. Each failed
@@ -87,7 +93,7 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 			if result.Failure == nil {
 				result.Failure = failure
 			}
-			messages = append(messages, failure.Message)
+			messages = append(messages, messageWithSuggestions(failure))
 			pairs := []output.KVPair{{Key: "ID", Value: arg}, {Key: output.KVKeyMessage, Value: failure.Message}}
 			result.KV = append(result.KV, output.KVRecord{
 				Pairs:  append(pairs, output.ErrorHintPairs(failure)...),
@@ -127,12 +133,23 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 		result.KV = append(result.KV, issueKV(entry, etag))
 		shownPaths = append(shownPaths, entry.Path)
 	}
-	if result.Failure != nil {
+	if len(messages) > 1 {
 		result.Failure.Message = strings.Join(messages, failureSeparator)
+		result.Failure.Suggestions = nil
 	}
 	result.Data = data
 	result.Text = text.String()
 	return result, shownPaths, nil
+}
+
+// messageWithSuggestions is failure's message ending in its own suggestions, as in
+// `id "a" not found, did you mean x?`, so that a joined failure of several lookups names each
+// id's suggestions after it; the message alone when it has none.
+func messageWithSuggestions(failure *output.Error) string {
+	if len(failure.Suggestions) == 0 {
+		return failure.Message
+	}
+	return fmt.Sprintf(idSuggestionFormat, failure.Message, output.JoinAlternatives(failure.Suggestions))
 }
 
 // issueFromFile returns entry with every frontmatter field taken from parsed, the issue its file

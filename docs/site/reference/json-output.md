@@ -105,7 +105,9 @@ $ capcom update x --statsu active --json
 An unknown id or a value a flag does not accept can set two lists, each left out when empty:
 `suggestions`, the closest known ids or aliases (at most three, closest first), and `valid`, the
 values the flag accepts (a status as `name (category)`). Text output ends the message with
-`; did you mean a, b or c?` and `; use one of: x, y, z`. An unknown id is matched against the
+`; did you mean a, b or c?` and `; use one of: x, y, z`. When `show` gets several unknown ids,
+the message names each id's suggestions after it (`id "a" not found, did you mean x?; id "b" not
+found, did you mean y?`) and `suggestions` is left out. An unknown id is matched against the
 ids and aliases of its own kind, Issues or Notes: a name within two edits of it, or sharing a
 hyphen-separated word of three or more letters with it, is close; when none is, `suggestions` is
 left out. `list`, `create`, `update`, `close` and `reopen` set `valid` for an undeclared

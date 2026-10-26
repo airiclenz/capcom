@@ -245,7 +245,9 @@ internal/cli/next.go — emitNothingReady; internal/cli/agents.go — checkAgent
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`; `go vet ./internal/cli/`
 **Commit:** `feat(cli): name the fixing command as a hint on store, Note and lock errors`
 
-## 8. show names suggestions per unknown id
+## 8. show names suggestions per unknown id — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): docs/site/reference/json-output.md gains one sentence on the per-id suggestion message, as user-facing behaviour changed (help text unchanged, no gendocs run needed).
 
 Depends on item 5.
 
