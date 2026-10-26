@@ -386,7 +386,11 @@ the `invalid settings: ` prefix.
 **Closes:** hooks-test-red-jsonv2
 **Commit:** `fix(hooks): assert the refusal's path and line, not decoder prose`
 
-## 11. CI runs -race and gates coverage
+## 11. CI runs -race and gates coverage — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): measured total coverage 92.0% on the Pi (`GOMEMLIMIT=2GiB go test -p 1 -count=1 -coverprofile=… ./...`, all packages ok); COVERAGE_FLOOR set to 90 (92 - 2), as a job-level `env:` value on the test job.
+NOTES (2026-10-26): no PyYAML or ruby on the host; ci.yml was parsed with gopkg.in/yaml.v3 in a throwaway test (removed) to confirm each runner.os step's `if:` and `run:`, and the floor step was run against the measured profile (passes at 92.0, fails closed on an empty total).
+NOTES (2026-10-26): CONTRIBUTING.md's `make test` comment now reads `go test -count=1 ./...` to match the Makefile; the ADR 0008 amendment Note names `make test` only as "go test over PKG" and was left as is.
 
 **What:**
 **Goal:** CI runs `go test -race -count=1 ./...` on Linux and macOS (Windows keeps

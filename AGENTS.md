@@ -25,7 +25,8 @@ top level and its direct children only.
 
 Memory is tight. Run single packages or single tests with `GOMEMLIMIT=2GiB`. Never run `./...`
 with `-race`, and never run two test commands at once. CI runs `go vet ./...` and
-`go test ./...` on Linux, macOS and Windows.
+`go test -count=1 ./...` on Linux, macOS and Windows, with `-race` on Linux and macOS; the Linux
+job fails when total coverage drops below `COVERAGE_FLOOR` in `.github/workflows/ci.yml`.
 
 <!-- BEGIN CAPCOM -->
 <!-- Managed by capcom: run "capcom agents" to refresh. Edits inside these markers are overwritten. -->

@@ -17,7 +17,7 @@ vet:
 	go vet $(PKG)
 
 test:
-	go test $(PKG)
+	go test -count=1 $(PKG)
 
 clean:
 	rm -f $(BINARY) $(BINARY).exe

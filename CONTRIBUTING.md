@@ -11,7 +11,7 @@ capcom needs the Go version named in [`go.mod`](go.mod).
 ```sh
 make build    # static ./capcom: CGO_ENABLED=0 go build -trimpath ./cmd/capcom
 make vet      # go vet ./...
-make test     # go test ./...
+make test     # go test -count=1 ./...
 make clean    # remove ./capcom
 ```
 
@@ -20,8 +20,10 @@ is one of them. `make vet` and `make test` take `PKG=<package>` to narrow them, 
 `make test PKG=./internal/ui/`. `make build` takes `BUILDFLAGS` and `LDFLAGS` for extra build
 flags. Releases never go through `make` (Note `adr-0008-amend-makefile`).
 
-CI runs `go vet ./...` and `go test ./...` on Linux, macOS and Windows. On a machine with little
-memory, such as a Raspberry Pi, test one package at a time with `GOMEMLIMIT=2GiB`
+CI runs `go vet ./...` and `go test -count=1 ./...` on Linux, macOS and Windows, with `-race` on
+Linux and macOS; the Linux job fails when total coverage drops below `COVERAGE_FLOOR` in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). On a machine with little memory,
+such as a Raspberry Pi, test one package at a time with `GOMEMLIMIT=2GiB`
 (`GOMEMLIMIT=2GiB make test PKG=./internal/cli/`), and never run `./...` with `-race` (see
 [`AGENTS.md`](AGENTS.md)).
 

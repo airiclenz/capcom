@@ -15,6 +15,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      # The Linux job fails when total coverage drops below this percentage. Set from the
+      # measured total (92.0% on 2026-10-26), rounded down to a whole percent, minus 2.
+      COVERAGE_FLOOR: '90'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -22,7 +26,23 @@ jobs:
           go-version-file: go.mod
       - name: Vet
         run: go vet ./...
+      - name: Test (race detector, coverage)
+        if: runner.os == 'Linux'
+        run: go test -race -count=1 -coverprofile=coverage.out ./...
+      - name: Coverage floor
+        if: runner.os == 'Linux'
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ { sub(/%$/, "", $NF); print $NF }')
+          echo "Total coverage: ${total}% (floor ${COVERAGE_FLOOR}%)"
+          if awk -v total="$total" -v floor="$COVERAGE_FLOOR" 'BEGIN { exit !(total + 0 < floor + 0) }'; then
+            echo "::error::total coverage ${total}% is below the ${COVERAGE_FLOOR}% floor in .github/workflows/ci.yml"
+            exit 1
+          fi
+      - name: Test (race detector)
+        if: runner.os == 'macOS'
+        run: go test -race -count=1 ./...
       - name: Test
+        if: runner.os == 'Windows'
         run: go test -count=1 ./...
 
   # Cross-compiles the six release targets so every archive `go run ./cmd/release dist`
