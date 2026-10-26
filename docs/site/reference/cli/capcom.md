@@ -43,6 +43,7 @@ capcom [flags]
 * [capcom agents](capcom_agents.md)	 - Write or refresh the capcom block of AGENTS.md
 * [capcom check](capcom_check.md)	 - Validate every config, issue and Note file of the store
 * [capcom close](capcom_close.md)	 - Close issues, recording why
+* [capcom context](capcom_context.md)	 - Show an issue with its deps, plan and the Notes that apply
 * [capcom create](capcom_create.md)	 - Create an issue with a chosen id
 * [capcom dep](capcom_dep.md)	 - Manage dependencies between issues
 * [capcom finish](capcom_finish.md)	 - Close an Issue and free this worktree's Tree lock

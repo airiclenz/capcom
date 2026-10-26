@@ -369,7 +369,11 @@ skips retired subtrees; a duplicate-id Note's refs are left out.
 `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/ -run Note`; `go vet ./internal/config/ ./internal/check/ ./internal/index/`
 **Commit:** `refactor(config): share plan path resolution and list Note refs`
 
-## 13. capcom context prints an issue with what it needs
+## 13. capcom context prints an issue with what it needs — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): flagBrief is declared in internal/cli/context.go, not internal/cli/flags.go: flags.go holds only flags two or more commands share, and --brief belongs to context alone.
+NOTES (2026-10-26): --brief read as "no bodies": the Issue prints as its list line (id, status, priority, title), the deps, dependents, plan and notes lines are unchanged, no Note body prints, and --json leaves out the issue and Note bodies.
+NOTES (2026-10-26): context runs no Elsewhere scan and takes no --no-elsewhere; the --json data is not cut (caps apply to the text only) and plan is null or {name, path}, path empty when not found.
 
 Depends on items 4, 5, 12.
 

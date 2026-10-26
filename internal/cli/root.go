@@ -160,6 +160,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newAgentsCommand())
 	root.AddCommand(a.newCheckCommand())
 	root.AddCommand(a.newCloseCommand())
+	root.AddCommand(a.newContextCommand())
 	root.AddCommand(a.newCreateCommand())
 	root.AddCommand(a.newDepCommand())
 	root.AddCommand(a.newFinishCommand())
