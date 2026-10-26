@@ -232,6 +232,39 @@ func TestRun_GroupWithoutSubcommand_PrintsHelp(t *testing.T) {
 	}
 }
 
+func TestRun_GroupWithJSON_WritesInvalidEnvelopeAndExitsUsage(t *testing.T) {
+	for _, command := range availableCommands() {
+		if !command.HasSubCommands() || command.Name() == "completion" || command.Name() == "help" {
+			continue
+		}
+		path := strings.Fields(command.CommandPath())[1:]
+		t.Run(command.CommandPath(), func(t *testing.T) {
+			stdout, stderr, exitCode := runCLI(t, "", append(path, "--json")...)
+
+			if exitCode != ExitUsage || stderr != "" {
+				t.Fatalf("exit = %d stderr = %q, want %d and no stderr", exitCode, stderr, ExitUsage)
+			}
+			envelope := decodeEnvelope(t, stdout)
+			if envelope["kind"] != kindError {
+				t.Fatalf("kind = %v, want %s", envelope["kind"], kindError)
+			}
+			errorBody, isObject := envelope["error"].(map[string]any)
+			want := command.CommandPath() + " does not support --json"
+			if !isObject || errorBody["code"] != string(CodeInvalid) || errorBody["message"] != want {
+				t.Errorf("error = %v, want code %s and message %q", envelope["error"], CodeInvalid, want)
+			}
+		})
+	}
+}
+
+func TestRun_GroupWithJSONAndHelp_PrintsHelp(t *testing.T) {
+	stdout, _, exitCode := runCLI(t, "", "know", "--json", "--help")
+
+	if exitCode != ExitOK || !strings.Contains(stdout, "Usage:") {
+		t.Errorf("exit = %d stdout = %q, want 0 and the help", exitCode, stdout)
+	}
+}
+
 func TestRun_UsageFailures_ExitUsage(t *testing.T) {
 	cases := map[string][]string{
 		"unknown flag":       {"version", "--no-such-flag"},

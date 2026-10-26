@@ -1,14 +1,17 @@
 ---
 title: "JSON and KV output"
-description: "The versioned --json envelope every command except capcom ui prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer."
+description: "The versioned --json envelope every command except capcom ui and the bare command groups prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer."
 sidebar: { order: 3 }
 ---
 
 Every capcom command prints plain text by default. For agents and scripts there are two
 machine-readable formats: `--json`, which every command except `capcom ui` takes (the terminal UI
 refuses it), and `--kv`, which some commands take. Both are stable: a script written against them
-keeps working as capcom grows. Help (`capcom help` and any `--help`) and `capcom completion` are
-not commands of the tracker: they print their text whatever `--json` says.
+keeps working as capcom grows. A command group called without a subcommand (`capcom`,
+`capcom know`, `capcom dep`, `capcom lock`, `capcom related`) prints its help in text, so with
+`--json` it is refused like `capcom ui`: a usage error `<path> does not support --json`, exit 2.
+Help (`capcom help` and any `--help`) and `capcom completion` are not commands of the tracker: they
+print their text whatever `--json` says.
 
 ## The `--json` envelope
 

@@ -201,11 +201,20 @@ const suggestionDistance = 2
 // withSubcommandDispatch gives group, a command with subcommands and no body of its own, the body
 // every such group shares and returns it: called alone it prints its help, and a first argument
 // that names none of its subcommands is refused as an unknown command, naming the closest one.
-// Without it cobra prints the help and exits 0 for a mistyped subcommand.
+// Called alone with --json it is refused as a usage error, as capcom ui is: its help is text, and
+// a JSON caller must never read text on stdout with exit 0. Without it cobra prints the help and
+// exits 0 for a mistyped subcommand.
 func withSubcommandDispatch(group *cobra.Command) *cobra.Command {
 	group.Args = cobra.ArbitraryArgs
 	group.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
+			isJSON, err := cmd.Flags().GetBool(flagJSON)
+			if err != nil {
+				return err
+			}
+			if isJSON {
+				return output.UsageErrorf("%s does not support --%s", cmd.CommandPath(), flagJSON)
+			}
 			return cmd.Help()
 		}
 		return unknownCommandError(cmd, args[0])

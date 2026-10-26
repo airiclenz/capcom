@@ -327,7 +327,10 @@ internal/cli/read_test.go — TestListTree_JSON_ItemsCarryDepth, newReadStore
 **Closes:** tree-json-loses-progress
 **Commit:** `fix(cli): keep child counts, cuts and repeats in tree --json`
 
-## 9. Group commands refuse --json
+## 9. Group commands refuse --json — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): added TestRun_GroupWithJSONAndHelp_PrintsHelp beside the planned walk test, to pin the Goal's "--help still prints help" clause.
+NOTES (2026-10-26): rootLong and README.md:50 ("Every command except capcom ui prints plain text, or JSON with --json") left unchanged: they describe the commands that do work, never named the groups, and rewording rootLong would churn the generated CLI reference; json-output.md now states the group refusal.
 
 **What:**
 **Goal:** `capcom --json`, `capcom know --json`, `capcom dep --json`, `capcom lock --json` (and any
