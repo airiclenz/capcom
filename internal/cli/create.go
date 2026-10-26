@@ -101,6 +101,9 @@ func (a *app) newCreateCommand() *cobra.Command {
 // warned about it, and a warning when the new issue has no body or only whitespace. A --dep that
 // resolves to no issue fails the create before anything is written.
 func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result, error) {
+	if err := a.checkCreateValues(options); err != nil {
+		return output.Result{}, err
+	}
 	deps, err := a.resolveDeps(options.deps)
 	if err != nil {
 		return output.Result{}, err
@@ -124,6 +127,24 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result,
 		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, options.id, options.id))
 	}
 	return result, nil
+}
+
+// checkCreateValues refuses an undeclared --status or --type and a --priority out of range, listing
+// the values the flag accepts, before anything is resolved or written. An empty --status or --type
+// takes the default, so it is not checked.
+func (a *app) checkCreateValues(options *createOptions) error {
+	values := invalidValues(a.store.Config)
+	if options.status != "" {
+		if err := values.status(options.status); err != nil {
+			return err
+		}
+	}
+	if options.issueType != "" {
+		if err := values.issueType(options.issueType); err != nil {
+			return err
+		}
+	}
+	return values.priority(options.priority)
 }
 
 // resolveDeps returns the canonical ids of the issues args name, in the order given and once each;

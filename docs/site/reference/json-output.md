@@ -108,7 +108,14 @@ values the flag accepts (a status as `name (category)`). Text output ends the me
 `; did you mean a, b or c?` and `; use one of: x, y, z`. An unknown id is matched against the
 ids and aliases of its own kind, Issues or Notes: a name within two edits of it, or sharing a
 hyphen-separated word of three or more letters with it, is close; when none is, `suggestions` is
-left out.
+left out. `list`, `create`, `update`, `close` and `reopen` set `valid` for an undeclared
+`--status` or `--type`, an unknown `--category` (`list`) and a `--priority` outside 0 to 4, and
+refuse it before anything is written:
+
+```console
+$ capcom update login-flow --type bugg --json
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"--type \"bugg\": not a type declared in config.yaml","valid":["bug","feature","task","chore"]},"elsewhere":[],"warnings":[]}
+```
 
 `code` is one of a closed set:
 

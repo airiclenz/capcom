@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -9,7 +8,6 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
-	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/outline"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -192,27 +190,28 @@ func (a *app) listFilter(options *listOptions) (index.Filter, error) {
 }
 
 // checkListValues rejects flag values that could never match: an undeclared status or type, an
-// unknown category, a priority out of range, a negative limit.
+// unknown category, a priority out of range, a negative limit. Each refusal but the limit's lists the
+// values its flag accepts.
 func (a *app) checkListValues(options *listOptions) error {
-	cfg := a.store.Config
+	values := usageValues(a.store.Config)
 	for _, status := range options.statuses {
-		if _, isDeclared := cfg.CategoryOf(status); !isDeclared {
-			return output.UsageErrorf("--%s %q: not a status declared in config.yaml", flagStatus, status)
+		if err := values.status(status); err != nil {
+			return err
 		}
 	}
 	for _, category := range options.categories {
-		if !slices.Contains(statusCategories, config.Category(category)) {
-			return output.UsageErrorf("--%s %q: must be one of %v", flagCategory, category, statusCategories)
+		if err := values.category(category); err != nil {
+			return err
 		}
 	}
 	for _, issueType := range options.types {
-		if !slices.Contains(cfg.Types, issueType) {
-			return output.UsageErrorf("--%s %q: not a type declared in config.yaml", flagType, issueType)
+		if err := values.issueType(issueType); err != nil {
+			return err
 		}
 	}
 	for _, priority := range options.priorities {
-		if priority < issue.MinPriority || priority > issue.MaxPriority {
-			return output.UsageErrorf("--%s %d: must be %d to %d", flagPriority, priority, issue.MinPriority, issue.MaxPriority)
+		if err := values.priority(priority); err != nil {
+			return err
 		}
 	}
 	if options.limit < 0 {

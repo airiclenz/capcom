@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1114,5 +1115,127 @@ func TestUpdate_StatusActiveOnAStandingIssue_IsRefusedNamingTheMark(t *testing.T
 	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
 	if exitCode != ExitError || stderr != want || readStoreFile(t, root, "feature-requests.md") != before {
 		t.Errorf("exit = %d\nstderr = %q\nwant     %q", exitCode, stderr, want)
+	}
+}
+
+// The valid values the default config declares, as an invalid flag value lists them.
+var (
+	declaredStatuses = []string{"open (todo)", "active (doing)", "parked (waiting)", "done (done)", "dropped (dropped)"}
+	declaredTypes    = []string{"bug", "feature", "task", "chore"}
+	validPriorities  = []string{"0", "1", "2", "3", "4"}
+)
+
+// envelopeValid returns the valid list of the --json error envelope in stdout.
+func envelopeValid(t *testing.T, stdout string) []string {
+	t.Helper()
+	body, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	values, _ := body["valid"].([]any)
+	valid := make([]string, 0, len(values))
+	for _, value := range values {
+		text, _ := value.(string)
+		valid = append(valid, text)
+	}
+	return valid
+}
+
+func TestCreateUpdateCloseReopen_InvalidFlagValue_ListsTheValidValuesAndWritesNothing(t *testing.T) {
+	tests := map[string]struct {
+		args        []string
+		wantMessage string
+		wantValid   []string
+	}{
+		"create status": {
+			args:        []string{"create", "--id", "new-one", "--title", "New", "--status", "doing"},
+			wantMessage: `--status "doing": not a status declared in config.yaml`,
+			wantValid:   declaredStatuses,
+		},
+		"create type": {
+			args:        []string{"create", "--id", "new-one", "--title", "New", "--type", "bugg"},
+			wantMessage: `--type "bugg": not a type declared in config.yaml`,
+			wantValid:   declaredTypes,
+		},
+		"create priority": {
+			args:        []string{"create", "--id", "new-one", "--title", "New", "--priority", "9"},
+			wantMessage: "--priority 9: out of range",
+			wantValid:   validPriorities,
+		},
+		"update status": {
+			args:        []string{"update", "login-flow", "--status", "doing"},
+			wantMessage: `--status "doing": not a status declared in config.yaml`,
+			wantValid:   declaredStatuses,
+		},
+		"update type": {
+			args:        []string{"update", "login-flow", "--type", "bugg"},
+			wantMessage: `--type "bugg": not a type declared in config.yaml`,
+			wantValid:   declaredTypes,
+		},
+		"update priority": {
+			args:        []string{"update", "login-flow", "--priority", "-1"},
+			wantMessage: "--priority -1: out of range",
+			wantValid:   validPriorities,
+		},
+		"close status": {
+			args:        []string{"close", "login-flow", "--reason", "shipped", "--status", "finished"},
+			wantMessage: `--status "finished": not a status declared in config.yaml`,
+			wantValid:   declaredStatuses,
+		},
+		"reopen status": {
+			args:        []string{"reopen", "shipped-fix", "--reason", "regressed", "--status", "doing"},
+			wantMessage: `--status "doing": not a status declared in config.yaml`,
+			wantValid:   declaredStatuses,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := newWriteStore(t)
+			loginBefore := readStoreFile(t, root, "login-flow.md")
+			shippedBefore := readStoreFile(t, root, "shipped-fix.md")
+
+			stdout, stderr, exitCode := runCLI(t, root, test.args...)
+			jsonOut, _, jsonExitCode := runCLI(t, root, append(test.args, "--json")...)
+
+			wantStderr := "capcom: " + test.wantMessage + "; use one of: " + strings.Join(test.wantValid, ", ") + "\n"
+			if exitCode != ExitError || stdout != "" || stderr != wantStderr {
+				t.Errorf("exit = %d stdout = %q stderr = %q\nwant exit %d and stderr %q",
+					exitCode, stdout, stderr, ExitError, wantStderr)
+			}
+			if valid := envelopeValid(t, jsonOut); jsonExitCode != ExitError || !slices.Equal(valid, test.wantValid) {
+				t.Errorf("--json exit = %d valid = %q, want %d and %q", jsonExitCode, valid, ExitError, test.wantValid)
+			}
+			if !strings.Contains(jsonOut, `"code":"invalid"`) {
+				t.Errorf("--json = %s, want code invalid", jsonOut)
+			}
+			if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "new-one.md")); !os.IsNotExist(err) {
+				t.Errorf("new-one.md exists (err = %v), want nothing created", err)
+			}
+			if readStoreFile(t, root, "login-flow.md") != loginBefore ||
+				readStoreFile(t, root, "shipped-fix.md") != shippedBefore {
+				t.Error("an issue file changed, want nothing written")
+			}
+		})
+	}
+}
+
+func TestUpdate_InvalidValueAndUnknownID_RefusesTheValueFirst(t *testing.T) {
+	root := newWriteStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "update", "absent", "--type", "bugg")
+
+	if exitCode != ExitError || !strings.Contains(stderr, `--type "bugg"`) {
+		t.Errorf("exit = %d stderr = %q, want the --type refusal", exitCode, stderr)
+	}
+}
+
+func TestCreateCloseReopen_DeclaredFlagValues_WriteAsBefore(t *testing.T) {
+	root := newWriteStore(t)
+
+	mustRun(t, root, "create", "--id", "new-one", "--title", "New", "--status", "active", "--type", "bug",
+		"--priority", "4")
+	mustRun(t, root, "close", "new-one", "--reason", "done", "--status", "dropped")
+	mustRun(t, root, "reopen", "new-one", "--reason", "back", "--status", "parked")
+
+	content := readStoreFile(t, root, "new-one.md")
+	if !strings.Contains(content, "status: parked\ntype: bug\npriority: 4\n") {
+		t.Errorf("new-one.md = %q, want status parked, type bug, priority 4", content)
 	}
 }

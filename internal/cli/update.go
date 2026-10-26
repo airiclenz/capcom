@@ -82,6 +82,9 @@ func (a *app) newUpdateCommand() *cobra.Command {
 			if err := options.bodyEdits().checkPairs(); err != nil {
 				return err
 			}
+			if err := a.checkUpdateValues(cmd, options); err != nil {
+				return err
+			}
 			appendFile := ""
 			if cmd.Flags().Changed(flagBodyAppendFile) {
 				text, err := readTextInput(cmd, options.bodyAppendFile)
@@ -121,6 +124,28 @@ func (a *app) newUpdateCommand() *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive(flagStanding, flagNoStanding)
 	cmd.MarkFlagsRequiredTogether(flagBodyReplaceOld, flagBodyReplaceNew)
 	return a.withKV(cmd)
+}
+
+// checkUpdateValues refuses an undeclared --status or --type and a --priority out of range, listing
+// the values the flag accepts, before the issue is read or written. A declared status is judged by
+// the status rules in applyUpdate.
+func (a *app) checkUpdateValues(cmd *cobra.Command, options *updateOptions) error {
+	flags := cmd.Flags()
+	values := invalidValues(a.store.Config)
+	if flags.Changed(flagStatus) {
+		if err := values.status(options.status); err != nil {
+			return err
+		}
+	}
+	if flags.Changed(flagType) {
+		if err := values.issueType(options.issueType); err != nil {
+			return err
+		}
+	}
+	if flags.Changed(flagPriority) {
+		return values.priority(options.priority)
+	}
+	return nil
 }
 
 // applyUpdate applies the changed flags to target: the standing mark first, so a status change is

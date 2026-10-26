@@ -20,7 +20,7 @@
 //   - `errors.go` — kindFailure, which types a nodestore failure, and the tree-problem warnings
 //   - `finish.go` — capcom finish: closes an Issue, frees this worktree's Tree lock and names the next Ready Issue
 //   - `flag_once.go` — refuses a single-value flag given more than once
-//   - `flags.go` — the flag names two or more commands share, and unlimitedDepth
+//   - `flags.go` — the flag names two or more commands share, unlimitedDepth, and valueChecker, which lists the valid values
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search

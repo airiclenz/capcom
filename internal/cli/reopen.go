@@ -60,7 +60,7 @@ func (a *app) newReopenCommand() *cobra.Command {
 }
 
 // targetStatus returns the status close or reopen moves issues to: the --status given, which must
-// be declared and in one of the categories, or else the first status listed in the first category
+// be declared (a refusal lists the declared statuses) and in one of the categories, or else the first status listed in the first category
 // (config.DefaultStatus). The config always declares a todo and a done status.
 func targetStatus(
 	cmd *cobra.Command,
@@ -72,10 +72,10 @@ func targetStatus(
 		status, _ := cfg.DefaultStatus(categories[0])
 		return status, nil
 	}
-	category, isDeclared := cfg.CategoryOf(given)
-	if !isDeclared {
-		return "", output.Errorf(output.CodeInvalid, "status %q is not declared in config", given)
+	if err := invalidValues(cfg).status(given); err != nil {
+		return "", err
 	}
+	category, _ := cfg.CategoryOf(given)
 	if !slices.Contains(categories, category) {
 		return "", output.Errorf(
 			output.CodeInvalid,

@@ -173,7 +173,14 @@ record, `close.go`, `know_update.go`; find them with `grep -rn 'ErrNotFound\|res
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Suggest|Show|Know'`; `GOMEMLIMIT=2GiB go test ./internal/index/ -run 'Name|Resolve'`
 **Commit:** `feat(cli): suggest the closest ids for an unknown id`
 
-## 7. An invalid --status, --type or --priority lists the valid values
+## 7. An invalid --status, --type or --priority lists the valid values — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): the helper is a valueChecker type in flags.go (status, issueType, category, priority methods), built with usageValues (list: usage error, exit 2) or invalidValues (create/update/close/reopen: invalid, exit 1); the refusal is built through a constructor so list keeps its usage typing.
+NOTES (2026-10-26): messages reworded to name the flag uniformly, since the valid list now follows them: create/update (previously the file validation's `path:line: status "x" is not declared in config; use one of [...]`), close/reopen (`status "x" is not declared in config`) and list's --category (`must be one of [...]`) and --priority (`must be 0 to 4`, now `out of range`) all now read `--<flag> <value>: ...; use one of: ...`, without a path; exit codes unchanged.
+NOTES (2026-10-26): `valid` lists every declared status for close and reopen too (not only the categories they accept), as the issue's acceptance asks for "the configured statuses with categories"; the targetStatus category-mismatch refusal and issue.SetStatus's category rules are unchanged and carry no valid list.
+NOTES (2026-10-26): update checks the values before resolving the id, so `update absent --type bugg` reports the --type refusal rather than not_found; create skips an empty --status or --type, which takes the default as before.
+NOTES (2026-10-26): consequential edit — internal/cli/doc.go: made necessary by flags.go now also holding valueChecker (its file-map line).
+NOTES (2026-10-26): docs/site/reference/json-output.md gains a sentence and an example naming which commands and flags set `valid` (user-facing behaviour, per the docs rule).
 
 Depends on item 5.
 

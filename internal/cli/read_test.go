@@ -243,6 +243,53 @@ func TestCheck_NewerStoreFormat_ReportsAConfigProblem(t *testing.T) {
 	}
 }
 
+func TestList_InvalidFlagValue_IsUsageListingTheValidValues(t *testing.T) {
+	tests := map[string]struct {
+		args        []string
+		wantMessage string
+		wantValid   []string
+	}{
+		"status": {
+			args:        []string{"--status", "closed"},
+			wantMessage: `--status "closed": not a status declared in config.yaml`,
+			wantValid:   declaredStatuses,
+		},
+		"category": {
+			args:        []string{"--category", "closed"},
+			wantMessage: `--category "closed": not a status category`,
+			wantValid:   []string{"todo", "doing", "waiting", "done", "dropped"},
+		},
+		"type": {
+			args:        []string{"--type", "bugg"},
+			wantMessage: `--type "bugg": not a type declared in config.yaml`,
+			wantValid:   declaredTypes,
+		},
+		"priority": {
+			args:        []string{"--priority", "5"},
+			wantMessage: "--priority 5: out of range",
+			wantValid:   validPriorities,
+		},
+	}
+	root := newReadStore(t)
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			args := append([]string{"list"}, test.args...)
+
+			stdout, stderr, exitCode := runCLI(t, root, args...)
+			jsonOut, _, jsonExitCode := runCLI(t, root, append(args, "--json")...)
+
+			wantStderr := "capcom: " + test.wantMessage + "; use one of: " + strings.Join(test.wantValid, ", ") + "\n"
+			if exitCode != ExitUsage || stdout != "" || stderr != wantStderr {
+				t.Errorf("exit = %d stdout = %q stderr = %q\nwant exit %d and stderr %q",
+					exitCode, stdout, stderr, ExitUsage, wantStderr)
+			}
+			if valid := envelopeValid(t, jsonOut); jsonExitCode != ExitUsage || !slices.Equal(valid, test.wantValid) {
+				t.Errorf("--json exit = %d valid = %q, want %d and %q", jsonExitCode, valid, ExitUsage, test.wantValid)
+			}
+		})
+	}
+}
+
 func TestList_UnknownParent_IsNotFound(t *testing.T) {
 	root := newReadStore(t)
 
