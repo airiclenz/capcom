@@ -54,7 +54,7 @@ A warning never fails a command. In `--json` it goes into `warnings`, beside a n
 
 ```console
 $ capcom create --id audit-log2 --title "Log failed logins" --json
-{"schema":1,"kind":"issue-write","data":{"etag":"58756f0fb416f617","id":"audit-log2","path":".capcom/issues/audit-log2.md"},"elsewhere":[],"warnings":["audit-log2 has no body: state what, why and a \"## Acceptance\" section with capcom update audit-log2 --body-append-file <file>"]}
+{"schema":1,"kind":"issue-write","data":{"etag":"58756f0fb416f617","id":"audit-log2","path":".capcom/issues/audit-log2.md"},"elsewhere":[],"warnings":["audit-log2 has no body: add what, why and acceptance with capcom update audit-log2 --body-append <text>; create takes --body, --why and --acceptance"]}
 ```
 
 A file capcom cannot read (a bad issue file, say) is reported as a warning by every command that
@@ -154,7 +154,7 @@ value with a `sed` or a `grep` instead of a JSON parser:
 
 ```console
 $ capcom create --id audit-log --title "Log failed logins" --kv
-WARNING=audit-log has no body: state what, why and a "## Acceptance" section with capcom update audit-log --body-append-file <file>
+WARNING=audit-log has no body: add what, why and acceptance with capcom update audit-log --body-append <text>; create takes --body, --why and --acceptance
 ID=audit-log
 PATH=.capcom/issues/audit-log.md
 ETAG=58756f0fb416f617

@@ -271,7 +271,11 @@ internal/cli/read_test.go — TestShow_UnknownID_SuggestsTheClosestIDs, TestShow
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Show'`; `go vet ./internal/cli/`
 **Commit:** `fix(cli): name suggestions per id when show gets several unknown ids`
 
-## 9. create takes the body inline
+## 9. create takes the body inline — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): flag consts flagBody, flagWhy, flagAcceptance live in create.go's own flag block, not flags.go: flags.go holds only flags two or more commands share, and these are create-only; flags.go is unchanged.
+NOTES (2026-10-26): an empty --acceptance entry adds no bullet; an --acceptance list of only empty entries adds no section.
+NOTES (2026-10-26): the --body-file example kept under a new id (cache-evict) and the inline example added as cache-warmup, so the examples show both forms.
 
 **What:**
 **Goal:** `capcom create` accepts `--body <text>` (literal), `--why <text>` and repeatable

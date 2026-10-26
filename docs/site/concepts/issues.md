@@ -36,7 +36,7 @@ $ capcom create --id login-copy --title "Reword the login errors" --parent login
 id: login-copy
 path: .capcom/issues/login-flow/login-copy.md
 etag: ee3c737826bc9fb6
-warning: login-copy has no body: state what, why and a "## Acceptance" section with capcom update login-copy --body-append-file <file>
+warning: login-copy has no body: add what, why and acceptance with capcom update login-copy --body-append <text>; create takes --body, --why and --acceptance
 ```
 
 `capcom list --tree` shows the outline, with how many of each Parent's children are closed:
@@ -242,8 +242,19 @@ log on the same Issue merge cleanly with capcom's merge driver; see
 
 Everything after the header is free markdown, kept byte for byte. By convention an Issue's body
 says what is wrong or wanted and why, then holds an `## Acceptance` section saying how to tell it
-is done, then the `## Log`. `capcom create` warns when a new Issue has no body; add one with
-`capcom update <id> --body-append-file <file>`.
+is done, then the `## Log`.
+
+`capcom create` takes the body inline: `--body <text>` (or `--body-file`, where `-` reads
+standard input), then `--why <text>` for a `## Why` section and a repeatable `--acceptance <text>`
+for each bullet of the `## Acceptance` section. `--body` and `--body-file` cannot be combined:
+
+```console
+$ capcom create --id login-copy --title "Reword the login errors" --body "The errors name no fix." \
+    --why "Users retry blindly." --acceptance "Each error names its fix"
+```
+
+`capcom create` warns when a new Issue has no body; add one with
+`capcom update <id> --body-append <text>`.
 
 ## Next
 

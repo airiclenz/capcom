@@ -17,7 +17,16 @@ import (
 
 // Flags of capcom create.
 const (
-	flagDep = "dep"
+	flagDep        = "dep"
+	flagBody       = "body"
+	flagWhy        = "why"
+	flagAcceptance = "acceptance"
+)
+
+// The headings of the body sections create builds from --why and --acceptance.
+const (
+	whyHeading        = "## Why"
+	acceptanceHeading = "## Acceptance"
 )
 
 // preferredDefaultType is the type a new issue gets without --type, when the config declares it;
@@ -26,7 +35,8 @@ const preferredDefaultType = "task"
 
 // emptyBodyWarning is the warning of a create that leaves the new issue without a body; it takes
 // the new issue's id twice.
-const emptyBodyWarning = `%s has no body: state what, why and a "## Acceptance" section with capcom update %s --body-append-file <file>`
+const emptyBodyWarning = `%s has no body: add what, why and acceptance with capcom update %s --body-append <text>; ` +
+	`create takes --body, --why and --acceptance`
 
 // createOptions holds the flags of one capcom create.
 type createOptions struct {
@@ -38,7 +48,10 @@ type createOptions struct {
 	labels     []string
 	plan       string
 	status     string
+	body       string
 	bodyFile   string
+	why        string
+	acceptance []string
 	deps       []string
 	isStanding bool
 }
@@ -49,8 +62,9 @@ const (
 		"work.\n\n" +
 		"--parent files it below another Issue, and --dep makes it wait for the Issues named; a " +
 		"--dep that names no Issue fails the create before anything is written.\n\n" +
-		"The body comes from --body-file (- reads stdin) and states what is wrong or wanted, why, and " +
-		"a \"## Acceptance\" section; an Issue created without a body draws a warning.\n\n" +
+		"The body comes from --body, or --body-file (- reads stdin); --why adds a \"## Why\" section and " +
+		"each --acceptance a bullet under \"## Acceptance\". An Issue created without a body draws a " +
+		"warning.\n\n" +
 		"--standing marks it a standing Parent that only groups its children: it is never Ready, and " +
 		"it is not claimed or closed while marked, so it cannot be created in the doing category.\n\n" +
 		"The first standing Issue in a store below format 5 raises the store format to 5, with a " +
@@ -59,7 +73,8 @@ const (
 	createExample = "  capcom create --id login-timeout-race --title \"Session refresh races the login timeout\" --type bug\n" +
 		"  capcom create --id refresh-retry --title \"Retry a failed token refresh\" --dep login-timeout-race   # waits for it\n" +
 		"  capcom create --id login-copy --title \"Reword the login errors\" --parent login-flow --priority 1\n" +
-		"  capcom create --id cache-warmup --title \"Warm the cache on deploy\" --body-file - < body.md   # body from stdin\n" +
+		"  capcom create --id cache-warmup --title \"Warm the cache on deploy\" --body \"Deploys start cold.\" --why \"The first request times out.\" --acceptance \"Warm after deploy\"\n" +
+		"  capcom create --id cache-evict --title \"Evict stale cache entries\" --body-file - < body.md   # body from stdin\n" +
 		"  capcom create --id feature-requests --title \"Feature requests\" --standing   # only groups its children: never Ready"
 )
 
@@ -90,11 +105,16 @@ func (a *app) newCreateCommand() *cobra.Command {
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "labels; repeat or separate with commas")
 	flags.StringVar(&options.plan, flagPlan, "", "basename of the plan the issue belongs to")
 	flags.StringVar(&options.status, flagStatus, "", "initial status, not in a closed category (default: the first todo status)")
+	flags.StringVar(&options.body, flagBody, "", "the markdown body, taken literally")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
+	flags.StringVar(&options.why, flagWhy, "", "text of a \"## Why\" section added after the body")
+	flags.StringArrayVar(&options.acceptance, flagAcceptance, nil,
+		"a bullet of the \"## Acceptance\" section added last; repeat for more")
 	flags.StringSliceVar(&options.deps, flagDep, nil, "issues the new one depends on; repeat or separate with commas")
 	flags.BoolVar(&options.isStanding, flagStanding, false, "mark the issue standing: it only groups its children")
 	_ = cmd.MarkFlagRequired(flagID)    // fails only for an undefined flag
 	_ = cmd.MarkFlagRequired(flagTitle) // fails only for an undefined flag
+	cmd.MarkFlagsMutuallyExclusive(flagBody, flagBodyFile)
 	return a.withKV(cmd)
 }
 
@@ -213,15 +233,44 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 		}
 		created = marked
 	}
-	if options.bodyFile == "" {
-		return created, nil
-	}
-	body, err := readTextInput(cmd, options.bodyFile)
+	body, err := newIssueBody(cmd, options)
 	if err != nil {
 		return issue.Issue{}, err
 	}
-	created.Body = edit.AppendBody(created.Body, body)
+	created.Body = body
 	return created, nil
+}
+
+// newIssueBody returns the body the flags describe: the --body or --body-file text, then a
+// "## Why" section holding --why, then an "## Acceptance" section with one bullet per non-empty
+// --acceptance, each block separated by a blank line. A flag left out adds nothing, so no flag
+// gives an empty body.
+func newIssueBody(cmd *cobra.Command, options *createOptions) (string, error) {
+	text := options.body
+	if options.bodyFile != "" {
+		read, err := readTextInput(cmd, options.bodyFile)
+		if err != nil {
+			return "", err
+		}
+		text = read
+	}
+	body := ""
+	if options.body != "" || options.bodyFile != "" {
+		body = edit.AppendBody(body, text)
+	}
+	if options.why != "" {
+		body = edit.AppendBody(body, whyHeading+"\n\n"+options.why)
+	}
+	var bullets []string
+	for _, criterion := range options.acceptance {
+		if criterion != "" {
+			bullets = append(bullets, "- "+criterion)
+		}
+	}
+	if len(bullets) > 0 {
+		body = edit.AppendBody(body, acceptanceHeading+"\n\n"+strings.Join(bullets, "\n"))
+	}
+	return body, nil
 }
 
 // defaultType is the type of an issue created without --type; config guarantees at least one

@@ -233,8 +233,8 @@ func TestCreate_MissingDep_FailsLikeDepAddAndWritesNothing(t *testing.T) {
 }
 
 func TestCreate_EmptyOrWhitespaceBody_WritesAndWarnsInTextAndJSON(t *testing.T) {
-	const want = `new-thing has no body: state what, why and a "## Acceptance" section with ` +
-		`capcom update new-thing --body-append-file <file>`
+	const want = `new-thing has no body: add what, why and acceptance with ` +
+		`capcom update new-thing --body-append <text>; create takes --body, --why and --acceptance`
 	cases := []struct {
 		name  string
 		stdin string
@@ -272,6 +272,69 @@ func TestCreate_WithBody_DoesNotWarn(t *testing.T) {
 	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
 	if exitCode != ExitOK || len(warnings) != 0 {
 		t.Errorf("exit = %d stderr = %q warnings = %v, want none", exitCode, stderr, warnings)
+	}
+}
+
+func TestCreate_InlineBodyWhyAndAcceptance_WritesComposedBody(t *testing.T) {
+	cases := []struct {
+		name  string
+		stdin string
+		args  []string
+		want  string
+	}{
+		{
+			name: "body, why and two acceptance bullets",
+			args: []string{"--body", "What.", "--why", "Because.", "--acceptance", "A", "--acceptance", "B"},
+			want: "---\n\nWhat.\n\n## Why\n\nBecause.\n\n## Acceptance\n\n- A\n- B\n",
+		},
+		{
+			name:  "body file with why",
+			stdin: "What.\r\n",
+			args:  []string{"--body-file", "-", "--why", "Because."},
+			want:  "---\n\nWhat.\n\n## Why\n\nBecause.\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newWriteStore(t)
+			args := append([]string{"create", "--json", "--id", "new-thing", "--title", "New thing"}, tc.args...)
+
+			stdout, stderr, exitCode := runCLIWith(t, root, tc.stdin, nil, args...)
+
+			warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+			content := readStoreFile(t, root, "new-thing.md")
+			if exitCode != ExitOK || len(warnings) != 0 || !strings.HasSuffix(content, tc.want) {
+				t.Errorf("exit = %d stderr = %q warnings = %v content = %q, want suffix %q",
+					exitCode, stderr, warnings, content, tc.want)
+			}
+		})
+	}
+}
+
+func TestCreate_AcceptanceAlone_WritesBodyAndDoesNotWarn(t *testing.T) {
+	root := newWriteStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "create", "--json", "--id", "new-thing", "--title", "New thing",
+		"--acceptance", "It works")
+
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	content := readStoreFile(t, root, "new-thing.md")
+	if exitCode != ExitOK || len(warnings) != 0 || !strings.HasSuffix(content, "---\n\n## Acceptance\n\n- It works\n") {
+		t.Errorf("exit = %d stderr = %q warnings = %v content = %q", exitCode, stderr, warnings, content)
+	}
+}
+
+func TestCreate_BodyWithBodyFile_IsRefusedAndWritesNothing(t *testing.T) {
+	root := newWriteStore(t)
+
+	_, stderr, exitCode := runCLIWith(t, root, "What.\n", nil, "create", "--id", "new-thing", "--title", "New thing",
+		"--body", "What.", "--body-file", "-")
+
+	if exitCode == ExitOK || !strings.Contains(stderr, "body") {
+		t.Errorf("exit = %d stderr = %q, want a refusal naming the body flags", exitCode, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "new-thing.md")); !os.IsNotExist(err) {
+		t.Errorf("new-thing.md: Stat err = %v, want not exist", err)
 	}
 }
 
