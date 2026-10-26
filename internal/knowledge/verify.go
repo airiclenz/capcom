@@ -34,6 +34,9 @@ const (
 // ErrEscapes reports a Ref that names a path outside the working tree.
 var ErrEscapes = errors.New("escapes the working tree")
 
+// inGitDir is the failed check of a Ref inside the git directory.
+var inGitDir = refCheck{code: diagnose.UnsharedRef, message: inGitDirMessage, isInGitDir: true}
+
 // errNoPath reports a Ref without a path before its symbol.
 var errNoPath = errors.New("names no path; write path or path" + symbolSeparator + "symbol")
 
@@ -43,6 +46,9 @@ type Finding struct {
 	// Code is diagnose.BrokenRef for a Ref that does not resolve, or diagnose.UnsharedRef for one
 	// into the git directory or to a path git ignores.
 	Code diagnose.Kind
+	// IsInGitDir is set on an UnsharedRef Finding whose Ref is inside the git directory, and unset
+	// on one git ignores.
+	IsInGitDir bool
 	// NoteID is the id of the Note holding the Ref.
 	NoteID string
 	// Path is the Note file, relative to the working tree root with forward slashes.
@@ -101,10 +107,11 @@ type NoteFile struct {
 // refCheck is the state of one Ref while Verify checks it: a finding's Code and Message once it
 // fails, or the resolved path and symbol still waiting for the ignore and symbol checks.
 type refCheck struct {
-	code     diagnose.Kind
-	message  string
-	resolved string
-	symbol   string
+	code       diagnose.Kind
+	message    string
+	isInGitDir bool
+	resolved   string
+	symbol     string
 }
 
 // Verify checks every Ref of notes and returns a Finding for each one that does not resolve
@@ -147,12 +154,13 @@ func Verify(repository Repository, notes []NoteFile) ([]Finding, error) {
 				continue
 			}
 			findings = append(findings, Finding{
-				Code:    check.code,
-				NoteID:  file.ID,
-				Path:    file.Path,
-				Line:    file.Note.RefLine(j),
-				Ref:     ref,
-				Message: check.message,
+				Code:       check.code,
+				IsInGitDir: check.isInGitDir,
+				NoteID:     file.ID,
+				Path:       file.Path,
+				Line:       file.Note.RefLine(j),
+				Ref:        ref,
+				Message:    check.message,
 			})
 		}
 	}
@@ -229,7 +237,7 @@ func checkRef(root string, gitDirs []string, ref string) refCheck {
 		return broken(formErr.Error())
 	}
 	if isGitDirName(refPath) {
-		return refCheck{code: diagnose.UnsharedRef, message: inGitDirMessage}
+		return inGitDir
 	}
 	target := filepath.Join(root, filepath.FromSlash(refPath))
 	resolved, err := filepath.EvalSymlinks(target)
@@ -241,7 +249,7 @@ func checkRef(root string, gitDirs []string, ref string) refCheck {
 	}
 	for _, gitDir := range gitDirs {
 		if isWithin(gitDir, resolved) {
-			return refCheck{code: diagnose.UnsharedRef, message: inGitDirMessage}
+			return inGitDir
 		}
 	}
 	relative, relErr := filepath.Rel(root, resolved)

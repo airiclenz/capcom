@@ -46,7 +46,9 @@ type knowUpdateOptions struct {
 // Help text of capcom know update.
 const (
 	knowUpdateLong = "Change one Note; only the flags given change anything, and at least one is required. " +
-		"--title, --add-label, --remove-label, --add-ref and --remove-ref edit its frontmatter. --retire " +
+		"--title, --add-label, --remove-label, --add-ref and --remove-ref edit its frontmatter; an --add-ref " +
+		"inside the git directory is refused, since a clone never has it, and one that does not resolve " +
+		"here, or that git ignores, is written with a warning, as capcom check fails on it. --retire " +
 		"marks it retired, so it and its subtree leave browsing, --unretire clears that, and " +
 		"--add-superseded-by names the Notes that replace it. --body-file replaces the whole body, " +
 		"--body-append and --body-append-file add to it, and --body-replace-old with --body-replace-new " +
@@ -258,13 +260,17 @@ func (a *app) updateNote(
 	inputs noteInputs,
 ) (output.Result, error) {
 	notes := a.notes(noteResolver{index: a.issueIndex})
+	var unresolved []knowledge.Finding
 	written, err := editNode(a, notes, noteIDs, arg, options.ifMatch, func(note knowledge.Note) (knowledge.Note, error) {
-		return a.applyNoteUpdate(cmd, options, inputs, note)
+		var err error
+		note, unresolved, err = a.applyNoteUpdate(cmd, options, inputs, note)
+		return note, err
 	})
 	if err != nil {
 		return output.Result{}, err
 	}
 	result := noteWriteResult(written.ID, written.Path, written.ETag)
+	result.Warnings = append(result.Warnings, refWarnings(unresolved, written.Path)...)
 	addSyncEffects(&result, written.Effects)
 	return result, nil
 }
@@ -286,15 +292,16 @@ func (r noteResolver) Resolve(arg string) (nodestore.Target, error) {
 
 // applyNoteUpdate applies the changed flags to note in the order title, labels, refs, retired,
 // superseded-by, whole body, then the body replacements and appends in the order bodyEdits.apply
-// gives them, then the --body-append-file text. It fails on a new ref of the wrong form, on a
-// superseded-by edit reflist refuses (editSuccessors) and on a replacement pair whose old text
-// does not occur exactly once.
+// gives them, then the --body-append-file text. It returns the Findings checkNewRefs reports on
+// the added refs the Note keeps. It fails on a new ref of the wrong form or inside the git
+// directory, on a superseded-by edit reflist refuses (editSuccessors) and on a replacement pair
+// whose old text does not occur exactly once.
 func (a *app) applyNoteUpdate(
 	cmd *cobra.Command,
 	options *knowUpdateOptions,
 	inputs noteInputs,
 	note knowledge.Note,
-) (knowledge.Note, error) {
+) (knowledge.Note, []knowledge.Finding, error) {
 	flags := cmd.Flags()
 	if flags.Changed(flagTitle) {
 		note.Title = options.title
@@ -302,11 +309,18 @@ func (a *app) applyNoteUpdate(
 	note.Labels = edit.List(note.Labels, options.addLabels, options.removeLabels)
 	for _, ref := range options.addRefs {
 		if err := knowledge.ValidateRef(ref); err != nil {
-			return knowledge.Note{}, err
+			return knowledge.Note{}, nil, err
 		}
 	}
 	// Refs merge like labels: an ordered set, added before removed.
 	note.Refs = edit.List(note.Refs, options.addRefs, options.removeRefs)
+	kept := slices.DeleteFunc(edit.List(nil, options.addRefs, nil), func(ref string) bool {
+		return !slices.Contains(note.Refs, ref)
+	})
+	unresolved, err := a.checkNewRefs(kept)
+	if err != nil {
+		return knowledge.Note{}, nil, err
+	}
 	if options.isRetiring {
 		note.IsRetired = true
 	}
@@ -321,7 +335,7 @@ func (a *app) applyNoteUpdate(
 			note.SupersededBy,
 		)
 		if err != nil {
-			return knowledge.Note{}, err
+			return knowledge.Note{}, nil, err
 		}
 		note.SupersededBy = successors
 	}
@@ -330,13 +344,13 @@ func (a *app) applyNoteUpdate(
 	}
 	body, err := options.bodyEdits().apply(note.Body)
 	if err != nil {
-		return knowledge.Note{}, err
+		return knowledge.Note{}, nil, err
 	}
 	note.Body = body
 	if flags.Changed(flagBodyAppendFile) {
 		note.Body = edit.AppendBody(note.Body, inputs.appendFile)
 	}
-	return note, nil
+	return note, unresolved, nil
 }
 
 // bodyEdits returns the --body-replace-old/--body-replace-new pairs and the --body-append texts

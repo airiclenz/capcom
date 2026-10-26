@@ -9,6 +9,7 @@ import (
 	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/edit"
+	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
@@ -23,7 +24,9 @@ const (
 	knowAddLong = "Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never " +
 		"generates, and the title given by --title; both are required. --parent files it below another " +
 		"Note, --label and --ref set its Labels and Refs, and --body-file reads its markdown body from a " +
-		"file, - for stdin. It prints the new Note's id, path and etag, and a refreshed line when the " +
+		"file, - for stdin. A --ref inside the git directory is refused, since a clone never has it; one " +
+		"that does not resolve here, or that git ignores, is written with a warning, as capcom check " +
+		"fails on it. It prints the new Note's id, path and etag, and a refreshed line when the " +
 		"capcom block of AGENTS.md was rewritten."
 	knowAddExample = "  capcom know add --id release-steps --title \"How a release is cut\" --ref docs/release.md   # a Note that depends on a file\n" +
 		"  capcom know add --id release-tags --parent release-steps --title \"Tagging a release\" --label release   # below release-steps\n" +
@@ -75,22 +78,69 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 
 // addNote places the new Note in the Knowledge tree and writes it, reporting the etag of the
 // bytes written, with a warning for every tree problem that concerns neither the Note's path nor
-// its parent, unless the index refresh already warned about it. A malformed --ref is refused
-// before the Note's id is weighed against the tree. A Note added at the top of the tree refreshes
-// a stale capcom block of AGENTS.md through the Kind's sync hook (see notes).
+// its parent, unless the index refresh already warned about it, and for every --ref checkNewRefs
+// warns about. A malformed --ref, or one inside the git directory, is refused before the Note's
+// id is weighed against the tree. A Note added at the top of the tree refreshes a stale capcom
+// block of AGENTS.md through the Kind's sync hook (see notes).
 func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (output.Result, error) {
 	for _, ref := range options.refs {
 		if err := knowledge.ValidateRef(ref); err != nil {
 			return output.Result{}, output.Errorf(output.CodeInvalid, "%s", err.Error())
 		}
 	}
-	return createNode(
+	unresolved, err := a.checkNewRefs(options.refs)
+	if err != nil {
+		return output.Result{}, err
+	}
+	result, err := createNode(
 		a,
 		noteVerbs,
 		options.id,
 		options.parent,
 		func() (knowledge.Note, error) { return newNote(cmd, options) },
 	)
+	if err != nil {
+		return output.Result{}, err
+	}
+	written, _ := result.Data.(map[string]string) // noteWriteResult's data
+	result.Warnings = append(result.Warnings, refWarnings(unresolved, written["path"])...)
+	return result, nil
+}
+
+// checkNewRefs checks refs, each of a valid form, against the working tree as know verify checks
+// the Refs of a Note. It refuses with invalid the first Ref inside the git directory, naming it,
+// since a clone never has that path, and returns the Findings of the Refs that do not resolve here
+// or that git ignores, which refWarnings renders once the Note is written.
+func (a *app) checkNewRefs(refs []string) ([]knowledge.Finding, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	findings, err := knowledge.Verify(knowledge.Repository{
+		WorktreeRoot: a.store.WorktreeRoot,
+		GitDir:       a.store.GitDir,
+		GitCommonDir: a.store.GitCommonDir,
+		IgnoredPaths: gitx.IgnoredPaths,
+	}, []knowledge.NoteFile{{Note: knowledge.Note{Refs: refs}}})
+	if err != nil {
+		return nil, output.AsError(err)
+	}
+	for _, finding := range findings {
+		if finding.IsInGitDir {
+			return nil, output.Errorf(output.CodeInvalid, "ref %q %s", finding.Ref, finding.Message)
+		}
+	}
+	return findings, nil
+}
+
+// refWarnings renders the Findings of checkNewRefs as warnings at notePath, the Note file written:
+// "path: ref "<ref>": message", one per Ref.
+func refWarnings(findings []knowledge.Finding, notePath string) []string {
+	warnings := make([]string, 0, len(findings))
+	for _, finding := range findings {
+		finding.Path = notePath
+		warnings = append(warnings, finding.String())
+	}
+	return warnings
 }
 
 // noteWriteResult is the result of a command that wrote a Note: its id, path and new etag.

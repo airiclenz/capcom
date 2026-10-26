@@ -262,7 +262,13 @@ retired subtrees skipped as for `broken-ref`; `know verify` lists both.
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/knowledge/`; `GOMEMLIMIT=2GiB go test ./internal/check/`; `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'KnowVerify'`
 **Commit:** `feat(check): report Note refs into the git directory or to ignored files`
 
-## 11. know add and know update refuse git-dir refs and warn on missing or ignored ones
+## 11. know add and know update refuse git-dir refs and warn on missing or ignored ones — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): re-derived from the assumption that item 10 exposes a per-Ref classification telling a git-dir Ref from an ignored one; it exposes only knowledge.Verify, whose Findings carry diagnose.UnsharedRef for both, so knowledge.Finding gains `IsInGitDir` (internal/knowledge/verify.go) and the CLI calls Verify on the new Refs (checkNewRefs in know_add.go).
+NOTES (2026-10-26): every broken-ref Finding on a new Ref warns, not only a missing path: a missing #symbol, a symbol on a directory or an oversized file and a symbolic link out of the tree warn too, worded as know verify words them (`<note path>: ref "<ref>": <why>`); know update checks only the added Refs the Note keeps (an --add-ref also given to --remove-ref is not checked), and a failing `git check-ignore` fails the command as it fails know verify.
+NOTES (2026-10-26): consequential edit — internal/cli/testdata/help/know-add.txt: made necessary by the know add Long text change (TestHelp_NodeVerbs_MatchGolden).
+NOTES (2026-10-26): consequential edit — docs/site/concepts/knowledge.md: made necessary by know add and know update now refusing git-dir Refs and warning on unshared ones.
+NOTES (2026-10-26): consequential edit — docs/site/reference/file-format.md: made necessary by know add and know update now refusing git-dir Refs and warning on unshared ones.
 
 Depends on item 10.
 

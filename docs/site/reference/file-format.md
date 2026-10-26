@@ -544,7 +544,9 @@ A **Ref** is either a path or `path#symbol`:
 - a Ref must name a path every clone has: one whose first component is `.git`, one that resolves
   inside the git directory or the git common directory, and one to a path git ignores is reported
   as `unshared-ref`, even when the file exists in this working tree. A tracked file is never
-  ignored, even when an ignore pattern matches it.
+  ignored, even when an ignore pattern matches it. `capcom know add --ref` and
+  `capcom know update --add-ref` refuse a Ref inside the git directory, and warn about one that
+  does not resolve or that git ignores.
 
 A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists every such Ref as
 `path:line: ref "<ref>": <why>`, citing the Ref's line in the Note file, and fails when it finds

@@ -619,6 +619,66 @@ func TestKnowAdd_BlankTitle_FailsInvalidWithoutWriting(t *testing.T) {
 	}
 }
 
+// writeIgnoredLog writes a .gitignore ignoring *.log and the ignored file build.log at root.
+func writeIgnoredLog(t *testing.T, root string) {
+	t.Helper()
+	for name, content := range map[string]string{".gitignore": "*.log\n", "build.log": "ignored\n"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+}
+
+func TestKnowAdd_GitDirRef_FailsNamingTheRefWithoutWriting(t *testing.T) {
+	root := newKnowStore(t)
+	args := []string{"know", "add", "--id", "lock-notes", "--title", "Lock notes", "--ref", "go.mod", "--ref", ".git/HEAD"}
+	wantMessage := `ref ".git/HEAD" is inside the git directory, which a clone does not share`
+
+	_, stderr, exitCode := runCLI(t, root, args...)
+	jsonOut, _, jsonExit := runCLI(t, root, append(args, "--json")...)
+
+	if exitCode != ExitError || stderr != "capcom: "+wantMessage+"\n" {
+		t.Errorf("know add = %d, stderr %q; want 1 with %q", exitCode, stderr, wantMessage)
+	}
+	failure, _ := decodeEnvelope(t, jsonOut)["error"].(map[string]any)
+	if jsonExit != ExitError || failure["code"] != string(CodeInvalid) || failure["message"] != wantMessage {
+		t.Errorf("know add --json = %d, error %v; want invalid with %q", jsonExit, failure, wantMessage)
+	}
+	if noteFileExists(t, root, "lock-notes.md") {
+		t.Error("lock-notes.md was written although a ref is inside the git directory")
+	}
+}
+
+func TestKnowAdd_MissingAndIgnoredRefs_WarnAndWrite(t *testing.T) {
+	root := newKnowStore(t)
+	writeIgnoredLog(t, root)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "build-notes", "--title", "Build notes",
+		"--ref", "go.mod", "--ref", "gone.go", "--ref", "build.log")
+	jsonOut, _, jsonExit := runCLI(t, root, "know", "add", "--id", "more-build-notes", "--title", "More",
+		"--ref", "gone.go", "--ref", "build.log", "--json")
+
+	wantWarnings := "warning: .capcom/knowledge/build-notes.md: ref \"gone.go\": no such file or directory\n" +
+		"warning: .capcom/knowledge/build-notes.md: ref \"build.log\": is ignored by git, so a clone does not have it\n"
+	if exitCode != ExitOK || !strings.HasSuffix(stdout, wantWarnings) {
+		t.Errorf("know add = %d\n%s%s\nwant the warnings\n%s", exitCode, stdout, stderr, wantWarnings)
+	}
+	if got, want := readNoteFile(t, root, "build-notes.md"), "---\ntitle: Build notes\nrefs: [go.mod, gone.go, build.log]\n---\n"; got != want {
+		t.Errorf("build-notes.md = %q; want %q", got, want)
+	}
+	warnings, _ := decodeEnvelope(t, jsonOut)["warnings"].([]any)
+	wantJSON := []any{
+		`.capcom/knowledge/more-build-notes.md: ref "gone.go": no such file or directory`,
+		`.capcom/knowledge/more-build-notes.md: ref "build.log": is ignored by git, so a clone does not have it`,
+	}
+	if jsonExit != ExitOK || !slices.Equal(warnings, wantJSON) {
+		t.Errorf("know add --json = %d, warnings %v; want %v", jsonExit, warnings, wantJSON)
+	}
+	if !noteFileExists(t, root, "more-build-notes.md") {
+		t.Error("more-build-notes.md was not written")
+	}
+}
+
 func TestKnowVerify_BrokenRefs_ListsEachWithItsLineAndFails(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{

@@ -347,6 +347,11 @@ func TestVerify_GitDirRefs_AreUnsharedEvenWhenTheyExist(t *testing.T) {
 	if got := findingCodes(findings); !slices.Equal(got, want) {
 		t.Errorf("findings =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
+	for _, finding := range findings {
+		if finding.IsInGitDir != (finding.Code == diagnose.UnsharedRef) {
+			t.Errorf("ref %q IsInGitDir = %v, want it set on the unshared-ref findings only", finding.Ref, finding.IsInGitDir)
+		}
+	}
 }
 
 func TestVerify_IgnoredRefs_AreUnsharedAndAskedOnce(t *testing.T) {
@@ -381,6 +386,9 @@ func TestVerify_IgnoredRefs_AreUnsharedAndAskedOnce(t *testing.T) {
 	wantAsked := [][]string{{"internal/cli/harness.go", "internal/cli", "internal/cli/harness.go"}}
 	if len(asked) != 1 || !slices.Equal(asked[0], wantAsked[0]) {
 		t.Errorf("IgnoredPaths asked %v, want once with %v", asked, wantAsked[0])
+	}
+	if findings[0].IsInGitDir || findings[1].IsInGitDir {
+		t.Errorf("ignored refs carry IsInGitDir, want it unset")
 	}
 	if findings[0].NoteID != "first" || findings[1].NoteID != "second" {
 		t.Errorf("findings name %q and %q, want first and second", findings[0].NoteID, findings[1].NoteID)

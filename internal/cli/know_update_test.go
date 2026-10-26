@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -249,6 +250,59 @@ func TestKnowUpdate_RefusedEdits_NameTheFileAndWriteNothing(t *testing.T) {
 	}
 	if after := readNoteFile(t, root, "release-flow.md"); after != before {
 		t.Errorf("note file changed to %q", after)
+	}
+}
+
+func TestKnowUpdate_GitDirRef_FailsNamingTheRefAndWritesNothing(t *testing.T) {
+	root := newKnowStore(t)
+	before := readNoteFile(t, root, "release-flow.md")
+	args := []string{"know", "update", "release-flow", "--add-ref", "go.mod", "--add-ref", ".git/HEAD"}
+	wantMessage := `ref ".git/HEAD" is inside the git directory, which a clone does not share`
+
+	_, stderr, exitCode := runCLI(t, root, args...)
+	jsonOut, _, jsonExit := runCLI(t, root, append(args, "--json")...)
+
+	if want := "capcom: .capcom/knowledge/release-flow.md: " + wantMessage + "\n"; exitCode != ExitError || stderr != want {
+		t.Errorf("know update = %d, stderr %q; want 1 with %q", exitCode, stderr, want)
+	}
+	failure, _ := decodeEnvelope(t, jsonOut)["error"].(map[string]any)
+	if jsonExit != ExitError || failure["code"] != string(CodeInvalid) || failure["message"] != wantMessage ||
+		failure["path"] != ".capcom/knowledge/release-flow.md" {
+		t.Errorf("know update --json = %d, error %v; want invalid at release-flow.md with %q", jsonExit, failure, wantMessage)
+	}
+	if after := readNoteFile(t, root, "release-flow.md"); after != before {
+		t.Errorf("note file changed to %q", after)
+	}
+}
+
+func TestKnowUpdate_MissingAndIgnoredRefs_WarnAndWrite(t *testing.T) {
+	root := newKnowStore(t)
+	writeIgnoredLog(t, root)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "update", "release-flow",
+		"--add-ref", "go.mod", "--add-ref", "gone.go", "--add-ref", "build.log")
+	jsonOut, _, jsonExit := runCLI(t, root, "know", "update", "testing-rules",
+		"--add-ref", "gone.go", "--add-ref", "build.log", "--add-ref", "dropped.go", "--remove-ref", "dropped.go", "--json")
+
+	wantWarnings := "warning: .capcom/knowledge/release-flow.md: ref \"gone.go\": no such file or directory\n" +
+		"warning: .capcom/knowledge/release-flow.md: ref \"build.log\": is ignored by git, so a clone does not have it\n"
+	if exitCode != ExitOK || !strings.HasSuffix(stdout, wantWarnings) {
+		t.Errorf("know update = %d\n%s%s\nwant the warnings\n%s", exitCode, stdout, stderr, wantWarnings)
+	}
+	want := "---\ntitle: Release flow\nlabels: [process]\nrefs: [go.mod, gone.go, build.log]\n---\n\nTag, then publish.\n"
+	if got := readNoteFile(t, root, "release-flow.md"); got != want {
+		t.Errorf("release-flow.md = %q; want %q", got, want)
+	}
+	warnings, _ := decodeEnvelope(t, jsonOut)["warnings"].([]any)
+	wantJSON := []any{
+		`.capcom/knowledge/testing-rules.md: ref "gone.go": no such file or directory`,
+		`.capcom/knowledge/testing-rules.md: ref "build.log": is ignored by git, so a clone does not have it`,
+	}
+	if jsonExit != ExitOK || !slices.Equal(warnings, wantJSON) {
+		t.Errorf("know update --json = %d, warnings %v; want %v", jsonExit, warnings, wantJSON)
+	}
+	if got := readNoteFile(t, root, "testing-rules.md"); !strings.Contains(got, "refs: [gone.go, build.log]\n") {
+		t.Errorf("testing-rules.md = %q; want refs gone.go and build.log", got)
 	}
 }
 

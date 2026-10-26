@@ -121,7 +121,9 @@ capcom: 1 Note refs do not resolve
 ```
 
 It also lists a Ref that resolves here but that a fresh clone would lack: one inside the git
-directory (`.git/...`), or one to a file git ignores.
+directory (`.git/...`), or one to a file git ignores. `capcom know add --ref` and
+`capcom know update --add-ref` refuse a Ref inside the git directory before writing, and write a Ref
+that does not resolve, or that git ignores, with a warning naming it.
 
 `capcom check` reports the same problems, and `capcom prime` lists the broken ones in the session
 [briefing](../agents/briefing.md) under `broken Note refs:`, so a stale Note surfaces the next time
