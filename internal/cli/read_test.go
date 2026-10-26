@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -840,6 +842,107 @@ func TestSearch_OperatorWordInNoIssue_StaysLiteralInTheFallback(t *testing.T) {
 			!slices.Equal(got, []string{"login-flow"}) {
 			t.Errorf("search %s epic exit = %d envelope = %v stderr = %q, want match any and login-flow",
 				operator, exitCode, envelope, stderr)
+		}
+	}
+}
+
+// hitExcerpts returns, by id, the excerpt of each hit in a search envelope's data list; a hit
+// carrying no excerpt member is left out.
+func hitExcerpts(t *testing.T, stdout string) map[string][]string {
+	t.Helper()
+	hits, _ := decodeEnvelope(t, stdout)["data"].([]any)
+	excerpts := map[string][]string{}
+	for _, item := range hits {
+		hit := item.(map[string]any)
+		lines, isPresent := hit["excerpt"].([]any)
+		if !isPresent {
+			continue
+		}
+		excerpt := make([]string, 0, len(lines))
+		for _, line := range lines {
+			excerpt = append(excerpt, line.(string))
+		}
+		excerpts[hit["id"].(string)] = excerpt
+	}
+	return excerpts
+}
+
+func TestSearch_Excerpt_PrintsTheMatchingBodyLinesUnderEachHit(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"refresh-twice.md": readIssue("Refresh refresh", "open", "", "\nrefresh refresh refresh\n"),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "search", "refresh", "--excerpt")
+	jsonOut := mustRun(t, root, "search", "refresh", "--excerpt", "--json")
+
+	want := "refresh-twice  open  P2  Refresh refresh\n    \n    refresh refresh refresh\n" +
+		"session-refresh  parked  P2  " + longTitle + "\n    \n" +
+		"    Blocked by login-timeout-race; the refresh doesn't wait for config.yaml.\n    \n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	wantJSON := map[string][]string{
+		"refresh-twice":   {"", "refresh refresh refresh"},
+		"session-refresh": {"", "Blocked by login-timeout-race; the refresh doesn't wait for config.yaml.", ""},
+	}
+	if got := hitExcerpts(t, jsonOut); !maps.EqualFunc(got, wantJSON, slices.Equal) {
+		t.Errorf("search --excerpt --json excerpts = %q, want %q", got, wantJSON)
+	}
+}
+
+func TestSearch_NoExcerptFlag_LeavesTheExcerptOut(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout := mustRun(t, root, "search", "refresh", "--json")
+
+	if got := hitExcerpts(t, stdout); len(got) != 0 {
+		t.Errorf("search --json excerpts = %q, want none without --excerpt", got)
+	}
+}
+
+func TestSearch_ExcerptOnTheAnyWordFallback_ShowsTheLinesOfTheWordsHeld(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "search", "epic", "absent", "--excerpt")
+	jsonOut := mustRun(t, root, "search", "epic", "absent", "--excerpt", "--json")
+
+	want := "No item holds every word; these hold some of them:\n" +
+		"login-flow  open  P2  Login flow\n    \n    The login epic.\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	wantJSON := map[string][]string{"login-flow": {"", "The login epic."}}
+	if got := hitExcerpts(t, jsonOut); !maps.EqualFunc(got, wantJSON, slices.Equal) {
+		t.Errorf("search --excerpt --json excerpts = %q, want %q", got, wantJSON)
+	}
+}
+
+func TestSearch_ExcerptOfALongBody_HoldsAtMostEightLines(t *testing.T) {
+	root := newReadStore(t)
+	var body strings.Builder
+	for line := range 40 {
+		if line%4 == 0 {
+			body.WriteString("alpha " + strings.Repeat("long ", 40) + "\n")
+			continue
+		}
+		body.WriteString("filler\n")
+	}
+	writeIssueFiles(t, root, map[string]string{
+		"long-body.md": readIssue("Long body", "open", "", "\n"+body.String()),
+	})
+
+	stdout := mustRun(t, root, "search", "alpha", "--excerpt")
+	excerpt := hitExcerpts(t, mustRun(t, root, "search", "alpha", "--excerpt", "--json"))["long-body"]
+
+	excerptLines := strings.Split(strings.TrimSuffix(stdout, "\n"), "\n")[1:]
+	if len(excerptLines) == 0 || len(excerptLines) > 8 || len(excerpt) != len(excerptLines) {
+		t.Errorf("search alpha --excerpt = %d text lines and %d --json lines, want 1 to 8 each\n%s",
+			len(excerptLines), len(excerpt), stdout)
+	}
+	for _, line := range excerpt {
+		if utf8.RuneCountInString(line) > 120 {
+			t.Errorf("excerpt line of %d runes, want at most 120: %q", utf8.RuneCountInString(line), line)
 		}
 	}
 }

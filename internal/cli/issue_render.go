@@ -35,6 +35,8 @@ type issueData struct {
 	Reason     string   `json:"reason,omitempty"`
 	ETag       string   `json:"etag,omitempty"`
 	Body       *string  `json:"body,omitempty"`
+	// Excerpt holds the body lines a search hit matches on, set only by search --excerpt.
+	Excerpt []string `json:"excerpt,omitempty"`
 }
 
 // newIssueData converts an indexed issue to its --json form.

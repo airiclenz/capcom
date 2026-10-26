@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -702,6 +703,37 @@ func TestKnowSearch_AnyWordFallback_KeepsTheLabelFilter(t *testing.T) {
 
 	if want := "No item holds every word; these hold some of them:\nrelease-flow  Release flow\n"; stdout != want {
 		t.Errorf("know search tag harness --label process = %q, want %q", stdout, want)
+	}
+}
+
+func TestKnowSearch_Excerpt_PrintsTheMatchingBodyLinesUnderEachHit(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "search", "harness", "--excerpt")
+	jsonOut := mustRun(t, root, "know", "search", "harness", "--excerpt", "--json")
+	plainJSON := mustRun(t, root, "know", "search", "harness", "--json")
+
+	if want := "no-parallel  No parallel\n    \n    The harness changes directory.\n"; exitCode != ExitOK ||
+		stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	wantJSON := map[string][]string{"no-parallel": {"", "The harness changes directory."}}
+	if got := hitExcerpts(t, jsonOut); !maps.EqualFunc(got, wantJSON, slices.Equal) {
+		t.Errorf("know search --excerpt --json excerpts = %q, want %q", got, wantJSON)
+	}
+	if got := hitExcerpts(t, plainJSON); len(got) != 0 {
+		t.Errorf("know search --json excerpts = %q, want none without --excerpt", got)
+	}
+}
+
+func TestKnowSearch_ExcerptOnTheAnyWordFallback_ShowsTheLinesOfTheWordsHeld(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout := mustRun(t, root, "know", "search", "tag", "harness", "--label", "process", "--excerpt")
+
+	want := "No item holds every word; these hold some of them:\nrelease-flow  Release flow\n    \n    Tag, then publish.\n"
+	if stdout != want {
+		t.Errorf("know search tag harness --label process --excerpt = %q, want %q", stdout, want)
 	}
 }
 

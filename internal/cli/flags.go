@@ -43,6 +43,9 @@ const (
 	flagRetired = "retired"
 )
 
+// flagExcerpt makes capcom search and capcom know search print the body lines each hit matches on.
+const flagExcerpt = "excerpt"
+
 // flagNoElsewhere skips the Elsewhere scan of the commands that run one.
 const flagNoElsewhere = "no-elsewhere"
 

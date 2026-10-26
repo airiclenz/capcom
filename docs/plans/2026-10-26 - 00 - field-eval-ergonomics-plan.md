@@ -104,7 +104,10 @@ gives no lines; `Body` returns the indexed body for an Issue and a Note.
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/index/ -run 'Excerpt|Body'`
 **Commit:** `feat(index): build search excerpts from indexed bodies`
 
-## 4. --excerpt on search and know search
+## 4. --excerpt on search and know search — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): the shared --excerpt usage text (excerptFlagUsage), excerptIndent and the helpers searchExcerpts/withExcerpts live in search.go beside the other search-shared pieces (anyWordHeadingLine, searchEveryWordFirst); flags.go holds only the flag name, as for --retired.
+NOTES (2026-10-26): a blank context line from index.Excerpt is printed indented like any other excerpt line (four spaces); JSON `excerpt` is left out (omitempty) on a hit whose body holds no searched word, as when only its title matched — documented in json-output.md.
 
 Depends on items 2 and 3.
 

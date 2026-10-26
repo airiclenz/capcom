@@ -33,6 +33,12 @@ An Issue in `data` (`show`, `list`, `ready`, `prime`, `dep list`) carries `"stan
 it is a [Standing Parent](../concepts/issues.md#standing-parent); the member is left out otherwise.
 Such an Issue always has `"ready": false`, and its `standing` member is what holds it back.
 
+With `--excerpt`, each hit of `search` and `know search` carries `excerpt`: the body lines that
+hold a word searched for, as a list of strings. It holds the first 3 such lines with 1 line of
+context either side, a `"…"` line between parts of the body kept apart, at most 8 lines, each cut
+at 120 characters. The member is left out without `--excerpt`, and on a hit whose body holds no
+word searched for, as when only its title matched.
+
 `--json` is a global flag, so it may stand before or after the command name.
 
 ### Versioning

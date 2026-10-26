@@ -37,6 +37,8 @@ type noteData struct {
 	SupersededBy []string `json:"superseded_by"`
 	Aliases      []string `json:"aliases"`
 	Body         *string  `json:"body,omitempty"`
+	// Excerpt holds the body lines a search hit matches on, set only by know search --excerpt.
+	Excerpt []string `json:"excerpt,omitempty"`
 }
 
 // newKnowCommand groups the commands that read, add, change, move and remove Knowledge Notes.
