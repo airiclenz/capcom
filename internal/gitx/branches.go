@@ -140,15 +140,8 @@ func CurrentBranch(dir string) (string, error) {
 // for HEAD on an unborn branch. A git failure other than "names no commit", such as dir lying
 // outside any repository, is returned as an error.
 func HasCommit(dir, revision string) (bool, error) {
-	_, err := run(dir, "rev-parse", "--verify", "--quiet", revision+"^{commit}")
-	if err == nil {
-		return true, nil
-	}
-	var exitFailure *exec.ExitError
-	if errors.As(err, &exitFailure) && exitFailure.ExitCode() == noCommitExit {
-		return false, nil
-	}
-	return false, err
+	commit, err := ResolveCommit(dir, revision)
+	return commit != "", err
 }
 
 // IsAncestor reports whether ancestor is reachable from descendant: IsAncestor(dir, branch, "HEAD")

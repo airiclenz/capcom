@@ -3,6 +3,7 @@ package issue_test
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -322,6 +323,59 @@ func TestMergeFile_VersionHoldsPlaceholder_FallsBackToTextMerge(t *testing.T) {
 				t.Errorf(
 					"MergeFile = %q, conflict %v\nwant the text merge alone %q, conflict %v",
 					got, hasConflict, want, wantConflict,
+				)
+			}
+		})
+	}
+}
+
+func TestLogEntries_IssueFiles(t *testing.T) {
+	multiLine := entryOctFifth + "\n  second line"
+	cases := []struct {
+		name            string
+		data            string
+		wantEntries     []string
+		wantIsEntryOnly bool
+	}{
+		{
+			name:            "entries",
+			data:            issueFile("T", entryOctFirst, multiLine),
+			wantEntries:     []string{entryOctFirst, multiLine},
+			wantIsEntryOnly: true,
+		},
+		{
+			name:            "CRLF line endings",
+			data:            crlf(issueFile("T", entryOctFirst, multiLine)),
+			wantEntries:     []string{entryOctFirst, multiLine},
+			wantIsEntryOnly: true,
+		},
+		{
+			name:            "Log quoted in a fence above the real one",
+			data:            fencedLogExampleFile(entryOctTenth),
+			wantEntries:     []string{entryOctTenth},
+			wantIsEntryOnly: true,
+		},
+		{
+			name:            "no Log section",
+			data:            "---\ntitle: T\nstatus: open\n---\n\nBody.\n",
+			wantEntries:     nil,
+			wantIsEntryOnly: true,
+		},
+		{
+			name:            "free text in the Log",
+			data:            issueFile("T", entryOctFirst, "not an entry"),
+			wantEntries:     nil,
+			wantIsEntryOnly: false,
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			entries, isEntryOnly := issue.LogEntries([]byte(test.data))
+
+			if !slices.Equal(entries, test.wantEntries) || isEntryOnly != test.wantIsEntryOnly {
+				t.Errorf(
+					"LogEntries = %q, %v; want %q, %v",
+					entries, isEntryOnly, test.wantEntries, test.wantIsEntryOnly,
 				)
 			}
 		})

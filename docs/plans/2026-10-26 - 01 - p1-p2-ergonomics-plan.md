@@ -444,7 +444,11 @@ after; ls-tree at two revisions; an unborn HEAD returns empty with no error.
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/gitx/`; `go vet ./internal/gitx/`
 **Commit:** `feat(gitx): read the commit before a time and the files at a revision`
 
-## 16. Compute a recap between two commits
+## 16. Compute a recap between two commits — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): added gitx.ResolveCommit (internal/gitx/history.go, test in history_test.go) to "resolve HEAD to its object name once" as the regression guard asks, since gitx had no helper returning a commit's object name; HasCommit (internal/gitx/branches.go) now delegates to it instead of duplicating the rev-parse call. Item 17 can use it for the --since ref too.
+NOTES (2026-10-26): Compute takes the opened store, `recap.Compute(s *store.Store, boundary string) (Report, error)`, instead of separate root and cfg, since the store carries the worktree root, config and both tree directories; a boundary that names no commit fails with recap.ErrUnknownBoundary.
+NOTES (2026-10-26): a renamed Note whose file changed (it gains the alias) is listed once, under Notes changed; a renamed Issue is listed only if its status or Log changed. A removed Note counts as retired even when it was already retired at the boundary, following the item text literally. An issue Log holding a non-entry line gets a warning and contributes no Log entries.
 
 Depends on item 15.
 

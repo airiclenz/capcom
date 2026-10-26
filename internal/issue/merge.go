@@ -90,6 +90,17 @@ func MergeFile(base []byte, ours []byte, theirs []byte, textMerge TextMerge) ([]
 	return bytes.ReplaceAll(merged, []byte(logPlaceholder), []byte(log.render(newline))), hasConflict, nil
 }
 
+// LogEntries returns the entries of the Log section of the issue file data, in file order: each
+// entry is its `- YYYY-MM-DD <author>: <text>` line with its continuation lines, joined by "\n"
+// and without line terminators, so a CRLF file and its LF copy give the same entries. The section
+// is found as MergeFile finds it, outside fenced code blocks. A file without a Log section gives no
+// entry. isEntryOnly is false, with no entry, when the section holds a line that is neither part of
+// an entry nor blank before the first entry or after the last.
+func LogEntries(data []byte) (entries []string, isEntryOnly bool) {
+	section, isEntryOnly := parseLog(data)
+	return section.entries, isEntryOnly
+}
+
 // parseLog reads the Log section of an issue file: the section that opens with the first
 // LogHeading line and runs to the next level-one or level-two heading, both outside a fenced code
 // block of the body, as logBounds finds them. A file without one gives a section that is not

@@ -59,6 +59,40 @@ func datedRepo(t *testing.T) (root, first, second string) {
 	return root, first, second
 }
 
+func TestResolveCommit_RefsAndUnknownNames(t *testing.T) {
+	root, first, second := datedRepo(t)
+	git(t, root, "tag", "start", first)
+	tests := []struct {
+		name     string
+		revision string
+		want     string
+	}{
+		{name: "HEAD", revision: "HEAD", want: second},
+		{name: "tag", revision: "start", want: first},
+		{name: "relative", revision: "HEAD~1", want: first},
+		{name: "unknown ref", revision: "no-such-ref", want: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			commit, err := ResolveCommit(root, test.revision)
+
+			if commit != test.want || err != nil {
+				t.Errorf("ResolveCommit(%q) = %q, %v; want %q", test.revision, commit, err, test.want)
+			}
+		})
+	}
+}
+
+func TestResolveCommit_UnbornHead_IsEmptyWithoutError(t *testing.T) {
+	root := newUnbornRepo(t)
+
+	commit, err := ResolveCommit(root, "HEAD")
+
+	if commit != "" || err != nil {
+		t.Errorf("ResolveCommit on an unborn HEAD = %q, %v; want empty and no error", commit, err)
+	}
+}
+
 func TestCommitBefore_PicksTheNewestCommitAtOrBeforeTheTime(t *testing.T) {
 	root, first, second := datedRepo(t)
 	cases := []struct {

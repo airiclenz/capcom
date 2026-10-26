@@ -1,7 +1,9 @@
 package gitx
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -23,6 +25,22 @@ type TreeFile struct {
 	// Blob is the object name of the file's content at the revision; two revisions hold the
 	// same content for a path exactly when the Blob is the same.
 	Blob string
+}
+
+// ResolveCommit returns the object name of the commit revision names, such as a branch, a tag or
+// HEAD, so that later reads all see the same commit even when the ref moves. It returns "" with no
+// error when revision names no commit, as HEAD on an unborn branch does. A git failure other than
+// "names no commit", such as dir lying outside any repository, is returned as an error.
+func ResolveCommit(dir, revision string) (string, error) {
+	output, err := run(dir, "rev-parse", "--verify", "--quiet", revision+"^{commit}")
+	if err == nil {
+		return strings.TrimSpace(output), nil
+	}
+	var exitFailure *exec.ExitError
+	if errors.As(err, &exitFailure) && exitFailure.ExitCode() == noCommitExit {
+		return "", nil
+	}
+	return "", err
 }
 
 // CommitBefore returns the object name of the newest commit on HEAD whose committer time is at or
