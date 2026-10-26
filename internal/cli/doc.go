@@ -44,6 +44,7 @@
 //   - `output.go` — the Elsewhere scan of a result and the pathspec of the whole issue tree
 //   - `prime.go` — capcom prime: the session Briefing
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first
+//   - `recap.go` — capcom recap: what changed in .capcom since a date or a commit, group by group
 //   - `reindex.go` — capcom reindex: rebuilds the index from the issue and Note files
 //   - `related.go` — capcom related add and rm: the related links between issues, raising the store format
 //   - `reopen.go` — capcom reopen: moves a closed issue back to an open status, logging why

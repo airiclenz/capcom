@@ -473,7 +473,10 @@ each listed once in the right group; a renamed Issue and Note as one id; a retir
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/recap/ ./internal/issue/`; `go vet ./internal/recap/ ./internal/issue/`
 **Commit:** `feat(recap): compute what changed in .capcom between two commits`
 
-## 17. capcom recap
+## 17. capcom recap — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): text headings follow prime's `<heading>: <count>` form (`closed: 1`, `status changed: 1`, `notes added: 2`); a Closed line ends `: <reason>`, a Status changed line `: <status>`, and Log entries print indented four spaces below their issue's `  <id>  <title>` line, consecutive entries of one issue sharing it.
+NOTES (2026-10-26): --json data adds `since` (the value as given) and `boundary` (the start commit, empty when the window starts before the first commit) beside the seven groups, each `[]` when empty; a --since value starting with `-` is refused as unknown before reaching git, so git never reads it as an option.
 
 Depends on items 5, 16.
 

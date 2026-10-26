@@ -58,6 +58,7 @@ capcom [flags]
 * [capcom next](capcom_next.md)	 - Show the top Ready Issue in full
 * [capcom prime](capcom_prime.md)	 - Print the session Briefing: ready work, locks, other branches and store health
 * [capcom ready](capcom_ready.md)	 - List the issues ready to work on, most urgent first
+* [capcom recap](capcom_recap.md)	 - List what changed in .capcom since a date or a commit
 * [capcom reindex](capcom_reindex.md)	 - Rebuild the index from the issue and Note files
 * [capcom related](capcom_related.md)	 - Manage related links between issues
 * [capcom reopen](capcom_reopen.md)	 - Reopen a closed issue, logging why

@@ -22,7 +22,7 @@ $ capcom show session-refresh --json
 | Member | Always present | Value |
 | --- | --- | --- |
 | `schema` | yes | The envelope's version, currently `1`. |
-| `kind` | yes | What `data` holds: `issue`, `issue-write`, `close`, `ready`, `prime`, `context`, `check`, `version`, ..., or `error`. |
+| `kind` | yes | What `data` holds: `issue`, `issue-write`, `close`, `ready`, `prime`, `context`, `recap`, `check`, `version`, ..., or `error`. |
 | `match` | no | Only on kinds `search` and `know-search`: `all` when every hit holds every word searched for, `any` when no item held them all and the hits hold some of them. |
 | `data` | no | The command's result. Left out when a command fails before it has one. `null` when `capcom next` finds nothing Ready (kind `next`, exit code 4). |
 | `error` | no | Present only when the command failed; see Errors below. |
@@ -44,6 +44,12 @@ word searched for, as when only its title matched.
 else `name` and `path`, the path empty when no plans directory holds the file) and `notes` (the Notes
 that apply, each with `source` `ref` or `search`, `ref` for the first, and `body` for the first three).
 Unlike the text, nothing in it is cut; `--brief` leaves out every `body`.
+
+`capcom recap` gives kind `recap` with `data` an object: `since` (the `--since` value as given),
+`boundary` (the commit the window starts after, empty when it starts before the first commit) and
+one list per group: `closed`, `filed`, `status_changed`, `log`, `notes_added`, `notes_changed` and
+`notes_retired`, each `[]` when empty. An entry holds `id` and `title`, plus `status` in `closed` and
+`status_changed`, `reason` in `closed` when the Issue gives one, and `entry` (one Log entry) in `log`.
 
 `--json` is a global flag, so it may stand before or after the command name.
 
