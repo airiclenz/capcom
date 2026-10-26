@@ -26,3 +26,7 @@ hint in one table so a test can walk it.
 - Every error code has a hint, held in one table.
 - A test fails when a new error code is added without a hint.
 - The hint appears as the last line in text output and as a field in `--json`.
+
+## Log
+
+- 2026-10-26 Airic Lenz: Partly landed via plan 2026-10-26 - 01 - p1-p2-ergonomics-plan (archived 6c800bf), items 5-7: default hint table per code, test for missing hints, hint line in text and field in --json. Left open: a missing --body-file still gets not_found's default hint 'capcom search <text>', which does not fit that error.

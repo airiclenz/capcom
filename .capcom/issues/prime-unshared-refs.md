@@ -1,10 +1,12 @@
 ---
 title: prime does not name unshared Note refs
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-26 - 01 - p1-p2-ergonomics-plan
 created: 2026-10-26T09:46:10Z
+closed: 2026-10-26T13:30:36Z
+reason: Resolved by plan 2026-10-26 - 01 - p1-p2-ergonomics-plan (archived 6c800bf)
 ---
 
 `capcom check` now reports `unshared-ref` problems (a Note Ref into the git directory or to an

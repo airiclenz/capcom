@@ -1,11 +1,13 @@
 ---
 title: Reading an issue's deps, plan and Notes takes many calls
-status: open
+status: done
 type: feature
 priority: 1
 deps: [search-any-word]
 plan: 2026-10-26 - 01 - p1-p2-ergonomics-plan
 created: 2026-10-19T14:54:45Z
+closed: 2026-10-26T13:30:36Z
+reason: Resolved by plan 2026-10-26 - 01 - p1-p2-ergonomics-plan (archived 6c800bf)
 ---
 
 Before working an Issue an agent should read its dependencies, its plan and the Knowledge

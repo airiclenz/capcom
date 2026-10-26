@@ -1,10 +1,12 @@
 ---
 title: No summary of what changed since a human last looked
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-26 - 01 - p1-p2-ergonomics-plan
 created: 2026-10-19T14:54:45Z
+closed: 2026-10-26T13:30:36Z
+reason: Resolved by plan 2026-10-26 - 01 - p1-p2-ergonomics-plan (archived 6c800bf)
 ---
 
 A human coming back to a repository after agents have worked on it has no quick answer to

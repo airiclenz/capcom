@@ -1,10 +1,12 @@
 ---
 title: Search excerpts miss words that differ only by diacritics
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-26 - 01 - p1-p2-ergonomics-plan
 created: 2026-10-26T09:46:10Z
+closed: 2026-10-26T13:30:36Z
+reason: Resolved by plan 2026-10-26 - 01 - p1-p2-ergonomics-plan (archived 6c800bf)
 ---
 
 `index.Excerpt` (internal/index/excerpt.go:32) splits the query and body with `textTokens`
