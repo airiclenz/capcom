@@ -269,7 +269,7 @@ func (a *app) emitStarted(cmd *cobra.Command, id string, held lockData) error {
 	if _, err := a.issueIndex.Refresh(); err != nil {
 		return err
 	}
-	shown, _, err := a.showResult([]string{id})
+	shown, _, err := a.showResult(cmd, []string{id})
 	if err != nil {
 		return err
 	}

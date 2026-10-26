@@ -4,7 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/config"
@@ -73,10 +78,10 @@ func TestExit_MapsEachOutcome(t *testing.T) {
 	}{
 		{"nil", nil, nil, ExitOK, ""},
 		{"rendered not_found", Rendered(notFound), nil, ExitNotFound, ""},
-		{"untyped", errors.New(`unknown command "frob"`), nil, ExitUsage, "capcom: unknown command \"frob\"\n"},
-		{"invalid", Errorf(CodeInvalid, "bad title"), nil, ExitError, "capcom: bad title\n"},
-		{"locked", Errorf(CodeLocked, "tree held"), nil, ExitNotFound, "capcom: tree held\n"},
-		{"usage", UsageErrorf("too many args"), nil, ExitUsage, "capcom: too many args\n"},
+		{"untyped", errors.New(`unknown command "frob"`), nil, ExitUsage, "capcom: unknown command \"frob\"\nhint: capcom --help\n"},
+		{"invalid", Errorf(CodeInvalid, "bad title"), nil, ExitError, "capcom: bad title\nhint: capcom --help\n"},
+		{"locked", Errorf(CodeLocked, "tree held"), nil, ExitNotFound, "capcom: tree held\nhint: capcom lock status\n"},
+		{"usage", UsageErrorf("too many args"), nil, ExitUsage, "capcom: too many args\nhint: capcom --help\n"},
 		{"failing renderer", Errorf(CodeNotFound, "gone"), failingWriter{}, ExitError, ""},
 	}
 	for _, testCase := range cases {
@@ -131,4 +136,112 @@ func TestStoreFailure_MapsInitAndOpenErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// declaredCodes returns the names and values of every constant of type Code this package declares,
+// read from its source, so a Code added later is found without being listed here.
+func declaredCodes(t *testing.T) map[string]Code {
+	t.Helper()
+	sources, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("list sources: %v", err)
+	}
+	fileSet := token.NewFileSet()
+	codes := map[string]Code{}
+	for _, source := range sources {
+		if strings.HasSuffix(source, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fileSet, source, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", source, err)
+		}
+		for _, declaration := range file.Decls {
+			collectCodeConstants(t, declaration, codes)
+		}
+	}
+	return codes
+}
+
+// collectCodeConstants adds to codes each constant of type Code that declaration declares.
+func collectCodeConstants(t *testing.T, declaration ast.Decl, codes map[string]Code) {
+	t.Helper()
+	general, isGeneral := declaration.(*ast.GenDecl)
+	if !isGeneral || general.Tok != token.CONST {
+		return
+	}
+	for _, spec := range general.Specs {
+		value := spec.(*ast.ValueSpec)
+		typeName, isNamed := value.Type.(*ast.Ident)
+		if !isNamed || typeName.Name != "Code" {
+			continue
+		}
+		for position, name := range value.Names {
+			literal := value.Values[position].(*ast.BasicLit)
+			codes[name.Name] = Code(literal.Value[1 : len(literal.Value)-1])
+		}
+	}
+}
+
+func TestDefaultHints_EveryCode_HasOne(t *testing.T) {
+	codes := declaredCodes(t)
+
+	if len(codes) == 0 {
+		t.Fatal("found no Code constants")
+	}
+	for name, code := range codes {
+		if defaultHints[code] == "" {
+			t.Errorf("%s (%q) has no default hint", name, code)
+		}
+	}
+}
+
+func TestError_WithCommand_FillsCommandInHint(t *testing.T) {
+	cases := []struct {
+		name    string
+		failure *Error
+		path    string
+		want    string
+	}{
+		{"default named", Errorf(CodeInvalid, "bad"), "capcom update", "capcom update --help"},
+		{"default unnamed", Errorf(CodeInvalid, "bad"), "", "capcom --help"},
+		{"override named", &Error{Code: CodeInvalid, Hint: "capcom <command> --json"}, "capcom know show", "capcom know show --json"},
+		{"no placeholder", Errorf(CodeNotFound, "gone"), "capcom update", "capcom search <text>"},
+		{"first name kept", Errorf(CodeInvalid, "bad").WithCommand("capcom dep add"), "capcom dep", "capcom dep add --help"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			named := testCase.failure.WithCommand(testCase.path)
+
+			if got := named.hintText(); got != testCase.want {
+				t.Errorf("hint = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestInCommand_TypesAndNamesEveryError(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		if got := InCommand(nil, "capcom show"); got != nil {
+			t.Errorf("InCommand(nil) = %v, want nil", got)
+		}
+	})
+	t.Run("untyped", func(t *testing.T) {
+		got := InCommand(errors.New("accepts 1 arg(s)"), "capcom show").(*Error)
+
+		if got.ExitCode() != ExitUsage || got.hintText() != "capcom show --help" {
+			t.Errorf("InCommand(untyped) = exit %d hint %q, want usage exit and capcom show --help", got.ExitCode(), got.hintText())
+		}
+	})
+	t.Run("typed", func(t *testing.T) {
+		original := Errorf(CodeLocked, "tree held")
+
+		got := InCommand(original, "capcom start").(*Error)
+
+		if got == original || original.commandPath != "" || got.commandPath != "capcom start" {
+			t.Errorf("InCommand(typed) = %+v from %+v, want a named copy", got, original)
+		}
+	})
 }

@@ -111,7 +111,8 @@ type app struct {
 // Run executes capcom with args (the program name excluded) against the given streams and
 // returns the process exit code output.Exit decides: 0 ok, 1 error, 2 usage, 3 not_found or
 // locked, 4 nothing Ready (capcom next). Results go to stdout; in text mode a failure goes to stderr, while --json and --kv
-// report it on stdout.
+// report it on stdout. A failure names the command cobra ran, or failed to parse, as the one that
+// failed, so its hint can name that command.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	application := &app{stdout: stdout, stderr: stderr}
 	root := application.newRootCommand()
@@ -120,9 +121,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 
-	err := root.Execute()
+	executed, err := root.ExecuteC()
 	if closeErr := application.closeIndex(); closeErr != nil && err == nil {
 		err = output.AsError(closeErr)
+	}
+	if executed != nil {
+		err = output.InCommand(err, executed.CommandPath())
 	}
 	renderer := application.renderer
 	if renderer == nil {
@@ -381,11 +385,14 @@ func runE(body func(cmd *cobra.Command, args []string) error) func(*cobra.Comman
 // emit renders a successful result in the selected format, the index's warnings ahead of the
 // command's own. A command offers --kv only through withKV; a result without KV records under
 // --kv is therefore a command's own defect, still rejected as a usage error, not output. A result
-// carrying a Failure is rendered with it, and emit then returns that failure, marked rendered, so
-// the command still exits with its code.
+// carrying a Failure is rendered with it, named as cmd's failure, and emit then returns that
+// failure, marked rendered, so the command still exits with its code.
 func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 	if a.isKV && result.KV == nil {
 		return output.UsageErrorf("%s does not support --kv", cmd.CommandPath())
+	}
+	if result.Failure != nil {
+		result.Failure = result.Failure.WithCommand(cmd.CommandPath())
 	}
 	warnings := make([]string, 0, len(a.indexWarnings)+len(a.writeWarnings)+len(result.Warnings))
 	for _, warning := range a.indexWarnings {

@@ -228,7 +228,7 @@ func TestAgents_GuideLinkedOutsideTheTree_FailsNamingTheLink(t *testing.T) {
 	stdout, stderr, exitCode := runCLI(t, root, "agents")
 
 	want := "capcom: AGENTS.md: links to " + resolved +
-		", outside the working tree; the capcom block is not read or written\n"
+		", outside the working tree; the capcom block is not read or written\nhint: capcom agents --help\n"
 	if exitCode != ExitError || stdout != "" || stderr != want {
 		t.Errorf("agents = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
 	}
@@ -335,7 +335,7 @@ func TestAgentsCheck_UnreachedGuides_FailNamingTheFirstGuide(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "agents", "--check")
 
-	want := "capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md\n"
+	want := "capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; run capcom agents to add @AGENTS.md\nhint: capcom agents --help\n"
 	if exitCode != ExitError || stdout != "" || stderr != want {
 		t.Errorf("agents --check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
 	}

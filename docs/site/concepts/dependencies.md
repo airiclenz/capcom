@@ -28,6 +28,7 @@ an edge that would close a cycle is refused, with the cycle named:
 ```console
 $ capcom dep add login-flow write-docs
 capcom: .capcom/issues/login-flow.md: login-flow cannot depend on write-docs: that would create the cycle login-flow -> write-docs -> login-flow
+hint: capcom dep add --help
 ```
 
 `capcom dep list <id>` shows both sides of one Issue: what it depends on, and what depends on it.

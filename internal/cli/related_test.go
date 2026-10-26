@@ -118,7 +118,7 @@ func TestRelatedAdd_Self_FailsInvalid(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "related", "add", "db-schema", "apogee-kk0.4")
 
-	want := "capcom: .capcom/issues/db-schema.md: db-schema cannot be related to itself\n"
+	want := "capcom: .capcom/issues/db-schema.md: db-schema cannot be related to itself\nhint: capcom related add --help\n"
 	if exitCode != ExitError || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
@@ -214,7 +214,7 @@ func TestRelatedRm_NotRelated_FailsNotFound(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "related", "rm", "login-flow", "db-schema")
 
-	want := "capcom: .capcom/issues/login-flow.md: login-flow and db-schema are not related\n"
+	want := "capcom: .capcom/issues/login-flow.md: login-flow and db-schema are not related\nhint: capcom search <text>\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
@@ -279,7 +279,7 @@ func TestRelatedRm_NameMatchingNoIssueAndNoEntry_FailsNotFoundNamingTheArgument(
 
 	_, stderr, exitCode := runCLI(t, root, "related", "rm", "login-flow", "absent")
 
-	want := "capcom: .capcom/issues/login-flow.md: login-flow is not related to absent\n"
+	want := "capcom: .capcom/issues/login-flow.md: login-flow is not related to absent\nhint: capcom search <text>\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
@@ -295,7 +295,7 @@ func TestRelatedRm_AmbiguousPrefixMatchingNoEntry_FailsNamingTheCandidates(t *te
 
 	_, stderr, exitCode := runCLI(t, root, "related", "rm", "login-flow", "b")
 
-	want := "capcom: ambiguous id prefix \"b\": matches build-pipeline, build-plan\n"
+	want := "capcom: ambiguous id prefix \"b\": matches build-pipeline, build-plan\nhint: capcom related rm --help\n"
 	if exitCode != ExitError || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}

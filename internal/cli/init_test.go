@@ -728,11 +728,11 @@ func TestInitApogeeHooks_UnusableConfig_FailsWithPath(t *testing.T) {
 		wantStderr string
 	}{
 		{"broken YAML", "allow:\n  - go test\nmodel: \"x\n",
-			"capcom: .apogee/config.yaml:3: invalid config: found unexpected end of stream\n"},
+			"capcom: .apogee/config.yaml:3: invalid config: found unexpected end of stream\nhint: capcom init --help\n"},
 		{"flow reactions list", "allow: [go test]\nreactions: []\n",
-			"capcom: .apogee/config.yaml:2: reactions must be a block list; add the capcom-prime entry by hand\n"},
+			"capcom: .apogee/config.yaml:2: reactions must be a block list; add the capcom-prime entry by hand\nhint: capcom init --help\n"},
 		{"broken YAML without a line", "a: b: c\n",
-			"capcom: .apogee/config.yaml: invalid config: yaml: mapping values are not allowed in this context\n"},
+			"capcom: .apogee/config.yaml: invalid config: yaml: mapping values are not allowed in this context\nhint: capcom init --help\n"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

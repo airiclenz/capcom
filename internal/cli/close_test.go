@@ -136,7 +136,7 @@ func TestReopen_OpenIssue_FailsInvalid(t *testing.T) {
 	stdout, _, jsonExitCode := runCLI(t, root, "reopen", "--json", "login-flow", "--reason", "again")
 
 	wantStderr := "capcom: .capcom/issues/login-flow.md: status \"open\" is in the todo category, " +
-		"so the issue is not closed; only a closed issue can be reopened\n"
+		"so the issue is not closed; only a closed issue can be reopened\nhint: capcom reopen --help\n"
 	if exitCode != ExitError || stderr != wantStderr {
 		t.Errorf("exit = %d\nstderr = %q\nwant     %q", exitCode, stderr, wantStderr)
 	}
@@ -412,7 +412,7 @@ func TestClose_StandingIssue_IsRefusedNamingTheMark(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "close", "feature-requests", "--reason", "done")
 
-	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests") + "hint: capcom close --help\n"
 	if exitCode != ExitError || stdout != "" || stderr != want ||
 		readStoreFile(t, root, "feature-requests.md") != before {
 		t.Errorf("exit = %d stdout = %q\nstderr = %q\nwant     %q", exitCode, stdout, stderr, want)
@@ -425,7 +425,8 @@ func TestClose_StandingAndPlainIssueTogether_ClosesThePlainOneAndRefusesTheStand
 
 	stdout, stderr, exitCode := runCLI(t, root, "close", "feature-requests", "login-flow", "--reason", "done")
 
-	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
+	// The refusal goes with a partial result, rendered before Run sees it, and still names close.
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests") + "hint: capcom close --help\n"
 	if exitCode != ExitError || stdout != "login-flow  closed\n" || stderr != want {
 		t.Errorf("exit = %d stdout = %q\nstderr = %q\nwant     %q", exitCode, stdout, stderr, want)
 	}

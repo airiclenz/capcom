@@ -118,6 +118,7 @@ finds one:
 $ capcom know verify
 .capcom/knowledge/auth/token-refresh.md:4: ref "internal/auth/refresh.go#func RefreshToken": symbol "func RefreshToken" is not in the file
 capcom: 1 Note refs do not resolve
+hint: capcom know verify --help
 ```
 
 It also lists a Ref that resolves here but that a fresh clone would lack: one inside the git

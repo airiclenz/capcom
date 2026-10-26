@@ -64,26 +64,26 @@ file is worded and located is described under
 
 ### Errors
 
-A command that fails sets `error`, with a `code`, a `message` and, when a file is to blame, its
-`path` and `line`:
+A command that fails sets `error`, with a `code`, a `message`, a `hint` naming the command to run
+next and, when a file is to blame, its `path` and `line`:
 
 ```console
 $ capcom dep add login-flow write-docs --json
-{"schema":1,"kind":"error","error":{"code":"invalid","message":"login-flow cannot depend on write-docs: that would create the cycle login-flow -> write-docs -> login-flow","path":".capcom/issues/login-flow.md"},"elsewhere":[],"warnings":[]}
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"login-flow cannot depend on write-docs: that would create the cycle login-flow -> write-docs -> login-flow","path":".capcom/issues/login-flow.md","hint":"capcom dep add --help"},"elsewhere":[],"warnings":[]}
 ```
 
 A command that fails on part of its work keeps its own `kind` and sets both `data` and `error`:
 
 ```console
 $ capcom close nosuch --reason x --json
-{"schema":1,"kind":"close","data":[{"id":"nosuch","outcome":"not_found","now_ready":[]}],"error":{"code":"not_found","message":"id \"nosuch\" not found"},"elsewhere":[],"warnings":[]}
+{"schema":1,"kind":"close","data":[{"id":"nosuch","outcome":"not_found","now_ready":[]}],"error":{"code":"not_found","message":"id \"nosuch\" not found","hint":"capcom search <text>"},"elsewhere":[],"warnings":[]}
 ```
 
 A refusal of a status rule is `invalid`; closing or claiming a Standing Parent, say:
 
 ```console
 $ capcom update feature-requests --status active --json
-{"schema":1,"kind":"error","error":{"code":"invalid","message":"the issue is standing: it only groups its children and is never claimed or closed; run capcom update feature-requests --no-standing first","path":".capcom/issues/feature-requests.md"},"elsewhere":[],"warnings":[]}
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"the issue is standing: it only groups its children and is never claimed or closed; run capcom update feature-requests --no-standing first","path":".capcom/issues/feature-requests.md","hint":"capcom update --help"},"elsewhere":[],"warnings":[]}
 ```
 
 A mistyped command or subcommand also sets `suggestion`, the path below `capcom` of the closest
@@ -91,7 +91,7 @@ valid one; it is left out when none is close:
 
 ```console
 $ capcom know shwo x --json
-{"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown command \"shwo\" for \"capcom know\"","suggestion":"know show"},"elsewhere":[],"warnings":[]}
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown command \"shwo\" for \"capcom know\"","suggestion":"know show","hint":"capcom know --help"},"elsewhere":[],"warnings":[]}
 ```
 
 A mistyped long flag sets it to the closest flag of that command, its own or one it inherits such
@@ -99,7 +99,7 @@ as `--json`; an unknown shorthand such as `-z` gets none:
 
 ```console
 $ capcom update x --statsu active --json
-{"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown flag: --statsu","suggestion":"--status"},"elsewhere":[],"warnings":[]}
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown flag: --statsu","suggestion":"--status","hint":"capcom update --help"},"elsewhere":[],"warnings":[]}
 ```
 
 An unknown id or a value a flag does not accept can set two lists, each left out when empty:
@@ -114,19 +114,22 @@ refuse it before anything is written:
 
 ```console
 $ capcom update login-flow --type bugg --json
-{"schema":1,"kind":"error","error":{"code":"invalid","message":"--type \"bugg\": not a type declared in config.yaml","valid":["bug","feature","task","chore"]},"elsewhere":[],"warnings":[]}
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"--type \"bugg\": not a type declared in config.yaml","valid":["bug","feature","task","chore"],"hint":"capcom update --help"},"elsewhere":[],"warnings":[]}
 ```
 
-`code` is one of a closed set:
+`code` is one of a closed set. Each code has a default `hint`, which a failure with a more specific
+next step replaces. A hint names the values capcom knows, such as the command that failed in place
+of `<command>`; any other `<placeholder>`, such as `<text>`, is yours to fill in. Text output prints
+the hint as a last line, `hint: <command>`, after the `capcom:` line.
 
-| Code | Meaning | Exit code |
-| --- | --- | --- |
-| `not_found` | No Issue, Note or lock matches. | 3 |
-| `locked` | Another session holds the [Tree lock](../concepts/tree-locks.md). | 3 |
-| `exists` | The id or alias is already taken. | 1 |
-| `invalid` | The input or a file is not valid. | 1 (2 for a usage error) |
-| `conflict` | The file changed under you: its etag no longer matches `--if-match`, or it changed while the command ran. | 1 |
-| `not_initialized` | There is no capcom store here; run `capcom init`. | 1 |
+| Code | Meaning | Default hint | Exit code |
+| --- | --- | --- | --- |
+| `not_found` | No Issue, Note or lock matches. | `capcom search <text>` | 3 |
+| `locked` | Another session holds the [Tree lock](../concepts/tree-locks.md). | `capcom lock status` | 3 |
+| `exists` | The id or alias is already taken. | `capcom show <id>` | 1 |
+| `invalid` | The input or a file is not valid. | `capcom <command> --help` | 1 (2 for a usage error) |
+| `conflict` | The file changed under you: its etag no longer matches `--if-match`, or it changed while the command ran. | `capcom show <id>` | 1 |
+| `not_initialized` | There is no capcom store here; run `capcom init`. | `capcom init` | 1 |
 
 ## Exit codes
 
@@ -190,12 +193,14 @@ STATUS=ok
 value `--if-match` takes. `capcom next --kv` prints the same record; `capcom start --kv` adds
 `LOCK=` and `TOKEN=` just before `STATUS=`.
 
-A failure is a record too, with a `MESSAGE=` line and the error code as its status:
+A failure is a record too, with a `MESSAGE=` line, its hint as a `HINT=` line and the error code as
+its status:
 
 ```console
 $ capcom show nosuch --kv
 ID=nosuch
 MESSAGE=id "nosuch" not found
+HINT=capcom search <text>
 STATUS=not_found
 ```
 
@@ -206,12 +211,13 @@ A failure that carries a `suggestion` in `--json` adds it as a `SUGGESTION=` lin
 $ capcom shwo nosuch --kv
 MESSAGE=unknown command "shwo" for "capcom"
 SUGGESTION=show
+HINT=capcom --help
 STATUS=invalid
 ```
 
 Its `suggestions` and `valid` lists follow the `SUGGESTION=` line as `SUGGESTIONS=` and `VALID=`
-lines, in that order, each comma-separated, also before `STATUS=`; a failure record of a multi-id
-command such as `show` carries them too.
+lines, in that order, each comma-separated, then the `HINT=` line, all before `STATUS=`; a failure
+record of a multi-id command such as `show` carries them too.
 
 Unlike `--json`, `--kv` is offered only by some commands, it goes after the command name, and it
 leaves out the Elsewhere report. Which commands take it is on each command's page in

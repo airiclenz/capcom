@@ -55,7 +55,7 @@ func (a *app) newShowCommand() *cobra.Command {
 // emitShown prints the issues args name in full, as show does, with the Elsewhere report of their
 // files unless isElsewhereSkipped. show and next both end here.
 func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bool) error {
-	result, shownPaths, err := a.showResult(args)
+	result, shownPaths, err := a.showResult(cmd, args)
 	if err != nil {
 		return err
 	}
@@ -66,8 +66,9 @@ func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bo
 // argument closed by its own STATUS, and the joined failure of the arguments that failed. It also
 // returns the paths of the issues found, relative to the worktree root. Each issue's fields, body
 // and etag come from one read of its file, the bytes a later --if-match is checked against;
-// readiness, dependents, child progress and reverse Related links are the index's.
-func (a *app) showResult(args []string) (output.Result, []string, error) {
+// readiness, dependents, child progress and reverse Related links are the index's. Each failed
+// argument's failure names cmd as the command that failed.
+func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []string, error) {
 	result := output.Result{Kind: "issue", KV: []output.KVRecord{}}
 	data := make([]showData, 0, len(args))
 	var graph *showGraph
@@ -82,6 +83,7 @@ func (a *app) showResult(args []string) (output.Result, []string, error) {
 			if !isArgument {
 				return output.Result{}, nil, failure
 			}
+			failure = failure.WithCommand(cmd.CommandPath())
 			if result.Failure == nil {
 				result.Failure = failure
 			}

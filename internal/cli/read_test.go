@@ -194,7 +194,7 @@ func TestList_NewerStoreFormat_FailsNamingTheFormatLine(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "list")
 
-	if exitCode == ExitOK || stdout != "" || stderr != "capcom: "+newerFormatMessage+"\n" {
+	if exitCode == ExitOK || stdout != "" || stderr != "capcom: "+newerFormatMessage+"\nhint: capcom list --help\n" {
 		t.Errorf("list = %d, stdout %q, stderr %q; want a failure carrying %q", exitCode, stdout, stderr, newerFormatMessage)
 	}
 }
@@ -210,7 +210,7 @@ func TestList_OversizedConfig_FailsNamingIt(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "list")
 
-	if want := "capcom: .capcom/config.yaml: file is larger than 1 MiB\n"; exitCode != ExitError || stdout != "" || stderr != want {
+	if want := "capcom: .capcom/config.yaml: file is larger than 1 MiB\nhint: capcom list --help\n"; exitCode != ExitError || stdout != "" || stderr != want {
 		t.Errorf("list = %d, stdout %q, stderr %q; want %d and stderr %q", exitCode, stdout, stderr, ExitError, want)
 	}
 }
@@ -278,7 +278,8 @@ func TestList_InvalidFlagValue_IsUsageListingTheValidValues(t *testing.T) {
 			stdout, stderr, exitCode := runCLI(t, root, args...)
 			jsonOut, _, jsonExitCode := runCLI(t, root, append(args, "--json")...)
 
-			wantStderr := "capcom: " + test.wantMessage + "; use one of: " + strings.Join(test.wantValid, ", ") + "\n"
+			wantStderr := "capcom: " + test.wantMessage + "; use one of: " + strings.Join(test.wantValid, ", ") +
+				"\nhint: capcom list --help\n"
 			if exitCode != ExitUsage || stdout != "" || stderr != wantStderr {
 				t.Errorf("exit = %d stdout = %q stderr = %q\nwant exit %d and stderr %q",
 					exitCode, stdout, stderr, ExitUsage, wantStderr)
@@ -601,7 +602,7 @@ func TestShow_OneOfSeveralMissing_PrintsFoundAndExitsNotFound(t *testing.T) {
 	stdout, stderr, exitCode := runCLI(t, root, "show", "login-flow", "absent", "old-idea")
 
 	if exitCode != ExitNotFound || !strings.HasPrefix(stdout, "id: login-flow\n") ||
-		!strings.Contains(stdout, "\nid: old-idea\n") || stderr != "capcom: id \"absent\" not found\n" {
+		!strings.Contains(stdout, "\nid: old-idea\n") || stderr != "capcom: id \"absent\" not found\nhint: capcom search <text>\n" {
 		t.Errorf("exit = %d stderr = %q\nstdout = %q", exitCode, stderr, stdout)
 	}
 }
@@ -627,10 +628,10 @@ func TestShow_UnknownID_SuggestsTheClosestIDs(t *testing.T) {
 		arg  string
 		want string
 	}{
-		{"an id", "login-flwo", "capcom: id \"login-flwo\" not found; did you mean login-flow?\n"},
-		{"an alias", "apogee-kk0.5", "capcom: id \"apogee-kk0.5\" not found; did you mean apogee-kk0.4?\n"},
-		{"a shared word", "session-timeout", "capcom: id \"session-timeout\" not found; did you mean session-refresh?\n"},
-		{"nothing close", "zzzzzz", "capcom: id \"zzzzzz\" not found\n"},
+		{"an id", "login-flwo", "capcom: id \"login-flwo\" not found; did you mean login-flow?\nhint: capcom search <text>\n"},
+		{"an alias", "apogee-kk0.5", "capcom: id \"apogee-kk0.5\" not found; did you mean apogee-kk0.4?\nhint: capcom search <text>\n"},
+		{"a shared word", "session-timeout", "capcom: id \"session-timeout\" not found; did you mean session-refresh?\nhint: capcom search <text>\n"},
+		{"nothing close", "zzzzzz", "capcom: id \"zzzzzz\" not found\nhint: capcom search <text>\n"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -660,7 +661,7 @@ func TestShow_KVUnknownID_RecordCarriesSuggestions(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "show", "--kv", "login-flwo")
 
-	want := "ID=login-flwo\nMESSAGE=id \"login-flwo\" not found\nSUGGESTIONS=login-flow\nSTATUS=not_found\n"
+	want := "ID=login-flwo\nMESSAGE=id \"login-flwo\" not found\nSUGGESTIONS=login-flow\nHINT=capcom search <text>\nSTATUS=not_found\n"
 	if exitCode != ExitNotFound || stdout != want {
 		t.Errorf("exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
 	}
@@ -673,7 +674,7 @@ func TestShow_KV_ClosesEachIDWithItsStatus(t *testing.T) {
 
 	want := "ID=release-checklist\nETAG=" + fileETag(t, root, "release-checklist.md") + "\nISSUE_STATUS=open\nCATEGORY=todo\nTITLE=Release checklist\n" +
 		"TYPE=chore\nPRIORITY=0\nLABELS=\nPARENT=\nDEPS=\nPLAN=\nSTATUS=ok\n" +
-		"ID=absent\nMESSAGE=id \"absent\" not found\nSTATUS=not_found\n"
+		"ID=absent\nMESSAGE=id \"absent\" not found\nHINT=capcom search <text>\nSTATUS=not_found\n"
 	if exitCode != ExitNotFound || stdout != want {
 		t.Errorf("exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
 	}
@@ -887,7 +888,7 @@ func TestSearch_NoMatch_IsNotFound(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "search", "absent")
 
-	if exitCode != ExitNotFound || stdout != "" || stderr != "capcom: no issue matches \"absent\"\n" {
+	if exitCode != ExitNotFound || stdout != "" || stderr != "capcom: no issue matches \"absent\"\nhint: capcom search <text>\n" {
 		t.Errorf("exit = %d stdout = %q stderr = %q, want not_found", exitCode, stdout, stderr)
 	}
 }

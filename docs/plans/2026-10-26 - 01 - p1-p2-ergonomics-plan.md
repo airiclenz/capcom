@@ -147,7 +147,11 @@ internal/cli/cli_test.go — TestRun_GroupWithoutSubcommand_PrintsHelp, TestRun_
 `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'HelpText|TestHelp_NodeVerbs_MatchGolden|PrintsHelp'`; `go vet ./internal/cli/`
 **Commit:** `feat(cli): print examples before the rules in command help`
 
-## 5. Errors carry a hint naming the next command
+## 5. Errors carry a hint naming the next command — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): re-derived from the assumption that runE and the flag-error func in root.go fill `<command>`: Run now takes the failing command from cobra's ExecuteC and names it on the final error (output.InCommand), which covers body, flag, argument-count and prepare failures in one place; emit names a partial result's Failure and showResult each per-id failure (output.Error.WithCommand). The placeholder is the whole `capcom <command>` token, filled with the command path, or `capcom` when no command is known.
+NOTES (2026-10-26): showResult now takes cmd so its per-id failures name show (or start); its caller in internal/cli/start.go passes cmd, a file the item's Files line did not list.
+NOTES (2026-10-26): the partial-result test is the existing TestClose_StandingAndPlainIssueTogether_ClosesThePlainOneAndRefusesTheStanding, now pinning `hint: capcom close --help`; the item's other new tests are TestRun_Failure_EndsWithItsHintInEveryFormat, TestRun_InvalidFailure_HintNamesTheFailingCommand, TestDefaultHints_EveryCode_HasOne (parses the package's non-test files with go/parser.ParseFile, since ParseDir's ast.Package is deprecated), TestError_WithCommand_FillsCommandInHint, TestInCommand_TypesAndNamesEveryError and TestRenderError_Hint_ReportedInEveryFormat.
 
 **What:**
 **Goal:** Every `output.Code` has a default hint in one table: not_found `capcom search <text>`,

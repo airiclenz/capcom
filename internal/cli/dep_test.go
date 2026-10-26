@@ -287,7 +287,7 @@ func TestDepRm_NotADep_FailsNotFound(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "dep", "rm", "login-flow", "db-schema")
 
-	want := "capcom: .capcom/issues/login-flow.md: login-flow does not depend on db-schema\n"
+	want := "capcom: .capcom/issues/login-flow.md: login-flow does not depend on db-schema\nhint: capcom search <text>\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
@@ -363,7 +363,7 @@ func TestDepRm_AmbiguousPrefixMatchingNoDep_FailsNamingTheCandidates(t *testing.
 
 	_, stderr, exitCode := runCLI(t, root, "dep", "rm", "login-flow", "b")
 
-	want := "capcom: ambiguous id prefix \"b\": matches build-pipeline, build-plan\n"
+	want := "capcom: ambiguous id prefix \"b\": matches build-pipeline, build-plan\nhint: capcom dep rm --help\n"
 	if exitCode != ExitError || stderr != want {
 		t.Errorf("exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}

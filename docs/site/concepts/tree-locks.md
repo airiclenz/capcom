@@ -43,6 +43,7 @@ While the lock is held, a second session's `acquire` fails with exit code 3:
 ```console
 $ capcom lock acquire --purpose "fixing the docs"
 capcom: /home/you/your-repo/.git/capcom/locks/_main.json: locked by claude@devbox (implementing the login rework) for 0s, heartbeat 0s ago
+hint: capcom lock status
 ```
 
 Running the same `acquire --purpose` again resumes your lock, even a stale one, prints the token

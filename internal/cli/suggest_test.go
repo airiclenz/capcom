@@ -108,7 +108,7 @@ func TestSuggest_UpdateUnknownID_NamesTheClosestIssue(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "update", "standng-parents", "--title", "Parents")
 
-	want := "capcom: id \"standng-parents\" not found; did you mean standing-parents?\n"
+	want := "capcom: id \"standng-parents\" not found; did you mean standing-parents?\nhint: capcom search <text>\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("update exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}
@@ -119,7 +119,7 @@ func TestSuggest_CloseUnknownID_NamesTheClosestIssue(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "close", "standng-parents", "--reason", "x")
 
-	if exitCode != ExitNotFound || !strings.HasSuffix(stderr, "; did you mean standing-parents?\n") {
+	if exitCode != ExitNotFound || !strings.HasSuffix(stderr, "; did you mean standing-parents?\nhint: capcom search <text>\n") {
 		t.Errorf("close exit = %d stderr = %q, want standing-parents suggested", exitCode, stderr)
 	}
 }
@@ -129,7 +129,7 @@ func TestSuggest_DepAddUnknownDependency_NamesTheClosestIssue(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "dep", "add", "release-checklist", "old-ideas")
 
-	if exitCode != ExitNotFound || !strings.HasSuffix(stderr, "; did you mean old-idea?\n") {
+	if exitCode != ExitNotFound || !strings.HasSuffix(stderr, "; did you mean old-idea?\nhint: capcom search <text>\n") {
 		t.Errorf("dep add exit = %d stderr = %q, want old-idea suggested", exitCode, stderr)
 	}
 }
@@ -139,7 +139,7 @@ func TestSuggest_KnowMvUnknownID_NamesTheClosestNote(t *testing.T) {
 
 	_, stderr, exitCode := runCLI(t, root, "know", "mv", "git-fixturez", "git-setup")
 
-	want := "capcom: id \"git-fixturez\" not found; did you mean git-fixtures?\n"
+	want := "capcom: id \"git-fixturez\" not found; did you mean git-fixtures?\nhint: capcom search <text>\n"
 	if exitCode != ExitNotFound || stderr != want {
 		t.Errorf("know mv exit = %d stderr = %q, want %q", exitCode, stderr, want)
 	}

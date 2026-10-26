@@ -262,7 +262,7 @@ func TestKnowUpdate_GitDirRef_FailsNamingTheRefAndWritesNothing(t *testing.T) {
 	_, stderr, exitCode := runCLI(t, root, args...)
 	jsonOut, _, jsonExit := runCLI(t, root, append(args, "--json")...)
 
-	if want := "capcom: .capcom/knowledge/release-flow.md: " + wantMessage + "\n"; exitCode != ExitError || stderr != want {
+	if want := "capcom: .capcom/knowledge/release-flow.md: " + wantMessage + "\nhint: capcom know update --help\n"; exitCode != ExitError || stderr != want {
 		t.Errorf("know update = %d, stderr %q; want 1 with %q", exitCode, stderr, want)
 	}
 	failure, _ := decodeEnvelope(t, jsonOut)["error"].(map[string]any)

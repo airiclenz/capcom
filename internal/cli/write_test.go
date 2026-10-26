@@ -129,7 +129,7 @@ func TestCreate_MissingIDOrClosedStatus_IsRefused(t *testing.T) {
 	_, _, missingExit := runCLI(t, root, "create", "--title", "No id")
 	_, stderr, closedExit := runCLI(t, root, "create", "--id", "born-done", "--title", "Done", "--status", "done")
 
-	wantStderr := "capcom: status \"done\" is in the done category; create the issue open, then close it\n"
+	wantStderr := "capcom: status \"done\" is in the done category; create the issue open, then close it\nhint: capcom create --help\n"
 	if missingExit != ExitUsage || closedExit != ExitError || stderr != wantStderr {
 		t.Errorf("missing id exit = %d, closed status exit = %d\nstderr = %q\nwant     %q",
 			missingExit, closedExit, stderr, wantStderr)
@@ -437,14 +437,14 @@ func TestUpdate_StatusIntoOrOutOfClosed_IsRefused(t *testing.T) {
 	root := newWriteStore(t)
 
 	const leavesClosed = "capcom: .capcom/issues/shipped-fix.md: " +
-		"status \"done\" is closed; use reopen to move the issue out of it\n"
+		"status \"done\" is closed; use reopen to move the issue out of it\nhint: capcom update --help\n"
 	cases := map[string]struct {
 		args       []string
 		wantStderr string
 	}{
 		"into done": {
 			args:       []string{"update", "login-flow", "--status", "done"},
-			wantStderr: "capcom: .capcom/issues/login-flow.md: status \"done\" is in the done category; use close\n",
+			wantStderr: "capcom: .capcom/issues/login-flow.md: status \"done\" is in the done category; use close\nhint: capcom update --help\n",
 		},
 		"out of done":  {args: []string{"update", "shipped-fix", "--status", "open"}, wantStderr: leavesClosed},
 		"done to drop": {args: []string{"update", "shipped-fix", "--status", "dropped"}, wantStderr: leavesClosed},
@@ -1005,7 +1005,7 @@ func TestCreate_StandingInTheDoingCategory_IsRefusedAndWritesNothing(t *testing.
 	_, stderr, exitCode := runCLI(t, root, "create", "--id", "feature-requests", "--title", "Feature requests",
 		"--standing", "--status", "active")
 
-	want := "capcom: " + fmt.Sprintf(standingNotOpenText, "active", "doing")
+	want := "capcom: " + fmt.Sprintf(standingNotOpenText, "active", "doing") + "hint: capcom create --help\n"
 	_, statErr := os.Stat(filepath.Join(root, ".capcom", "issues", "feature-requests.md"))
 	if exitCode != ExitError || stderr != want || !os.IsNotExist(statErr) {
 		t.Errorf("exit = %d stat = %v\nstderr = %q\nwant     %q", exitCode, statErr, stderr, want)
@@ -1077,7 +1077,8 @@ func TestUpdate_StandingOnAClosedOrDoingIssue_IsRefused(t *testing.T) {
 
 		_, stderr, exitCode := runCLI(t, root, "update", tc.id, "--standing")
 
-		want := "capcom: .capcom/issues/" + tc.id + ".md: " + fmt.Sprintf(standingNotOpenText, tc.status, tc.category)
+		want := "capcom: .capcom/issues/" + tc.id + ".md: " + fmt.Sprintf(standingNotOpenText, tc.status, tc.category) +
+			"hint: capcom update --help\n"
 		if exitCode != ExitError || stderr != want || readStoreFile(t, root, tc.id+".md") != before {
 			t.Errorf("%s: exit = %d\nstderr = %q\nwant     %q", name, exitCode, stderr, want)
 		}
@@ -1112,7 +1113,7 @@ func TestUpdate_StatusActiveOnAStandingIssue_IsRefusedNamingTheMark(t *testing.T
 
 	_, stderr, exitCode := runCLI(t, root, "update", "feature-requests", "--status", "active")
 
-	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests") + "hint: capcom update --help\n"
 	if exitCode != ExitError || stderr != want || readStoreFile(t, root, "feature-requests.md") != before {
 		t.Errorf("exit = %d\nstderr = %q\nwant     %q", exitCode, stderr, want)
 	}
@@ -1194,7 +1195,8 @@ func TestCreateUpdateCloseReopen_InvalidFlagValue_ListsTheValidValuesAndWritesNo
 			stdout, stderr, exitCode := runCLI(t, root, test.args...)
 			jsonOut, _, jsonExitCode := runCLI(t, root, append(test.args, "--json")...)
 
-			wantStderr := "capcom: " + test.wantMessage + "; use one of: " + strings.Join(test.wantValid, ", ") + "\n"
+			wantStderr := "capcom: " + test.wantMessage + "; use one of: " + strings.Join(test.wantValid, ", ") +
+				"\nhint: capcom " + test.args[0] + " --help\n"
 			if exitCode != ExitError || stdout != "" || stderr != wantStderr {
 				t.Errorf("exit = %d stdout = %q stderr = %q\nwant exit %d and stderr %q",
 					exitCode, stdout, stderr, ExitError, wantStderr)

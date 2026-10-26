@@ -97,8 +97,8 @@ func TestRenderError_Suggestion_ReportedInEveryFormat(t *testing.T) {
 		format OutputFormat
 		want   string
 	}{
-		{"text", FormatText, "capcom: unknown command \"shwo\" for \"capcom know\"; did you mean know show?\n"},
-		{"kv", FormatKV, "MESSAGE=unknown command \"shwo\" for \"capcom know\"\nSUGGESTION=know show\nSTATUS=invalid\n"},
+		{"text", FormatText, "capcom: unknown command \"shwo\" for \"capcom know\"; did you mean know show?\nhint: capcom --help\n"},
+		{"kv", FormatKV, "MESSAGE=unknown command \"shwo\" for \"capcom know\"\nSUGGESTION=know show\nHINT=capcom --help\nSTATUS=invalid\n"},
 		{"json", FormatJSON, `"suggestion":"know show"`},
 	}
 	for _, testCase := range cases {
@@ -160,13 +160,13 @@ func TestRenderError_SuggestionsAndValid_ReportedInEveryFormat(t *testing.T) {
 			"text one suggestion",
 			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login"}},
 			FormatText,
-			"capcom: id \"logn\" not found; did you mean login?\n",
+			"capcom: id \"logn\" not found; did you mean login?\nhint: capcom search <text>\n",
 		},
 		{
 			"text two suggestions",
 			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login", "logout"}},
 			FormatText,
-			"capcom: id \"logn\" not found; did you mean login or logout?\n",
+			"capcom: id \"logn\" not found; did you mean login or logout?\nhint: capcom search <text>\n",
 		},
 		{
 			"text three suggestions",
@@ -176,25 +176,25 @@ func TestRenderError_SuggestionsAndValid_ReportedInEveryFormat(t *testing.T) {
 				Suggestions: []string{"login", "logout", "log"},
 			},
 			FormatText,
-			"capcom: id \"logn\" not found; did you mean login, logout or log?\n",
+			"capcom: id \"logn\" not found; did you mean login, logout or log?\nhint: capcom search <text>\n",
 		},
 		{
 			"text valid",
 			&Error{Code: CodeInvalid, Message: `unknown type "bgu"`, Valid: []string{"bug", "feature", "task"}},
 			FormatText,
-			"capcom: unknown type \"bgu\"; use one of: bug, feature, task\n",
+			"capcom: unknown type \"bgu\"; use one of: bug, feature, task\nhint: capcom --help\n",
 		},
 		{
 			"kv one suggestion",
 			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login"}},
 			FormatKV,
-			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login\nSTATUS=not_found\n",
+			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login\nHINT=capcom search <text>\nSTATUS=not_found\n",
 		},
 		{
 			"kv two suggestions",
 			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login", "logout"}},
 			FormatKV,
-			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login,logout\nSTATUS=not_found\n",
+			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login,logout\nHINT=capcom search <text>\nSTATUS=not_found\n",
 		},
 		{
 			"kv three suggestions",
@@ -204,13 +204,13 @@ func TestRenderError_SuggestionsAndValid_ReportedInEveryFormat(t *testing.T) {
 				Suggestions: []string{"login", "logout", "log"},
 			},
 			FormatKV,
-			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login,logout,log\nSTATUS=not_found\n",
+			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login,logout,log\nHINT=capcom search <text>\nSTATUS=not_found\n",
 		},
 		{
 			"kv valid",
 			&Error{Code: CodeInvalid, Message: `unknown status "opne"`, Valid: []string{"open (open)", "done (closed)"}},
 			FormatKV,
-			"MESSAGE=unknown status \"opne\"\nVALID=open (open),done (closed)\nSTATUS=invalid\n",
+			"MESSAGE=unknown status \"opne\"\nVALID=open (open),done (closed)\nHINT=capcom --help\nSTATUS=invalid\n",
 		},
 		{
 			"kv every hint",
@@ -222,31 +222,31 @@ func TestRenderError_SuggestionsAndValid_ReportedInEveryFormat(t *testing.T) {
 				Valid:       []string{"bug"},
 			},
 			FormatKV,
-			"MESSAGE=x\nSUGGESTION=--status\nSUGGESTIONS=login\nVALID=bug\nSTATUS=invalid\n",
+			"MESSAGE=x\nSUGGESTION=--status\nSUGGESTIONS=login\nVALID=bug\nHINT=capcom --help\nSTATUS=invalid\n",
 		},
 		{
 			"json one suggestion",
 			&Error{Code: CodeNotFound, Message: "x", Suggestions: []string{"login"}},
 			FormatJSON,
-			`"error":{"code":"not_found","message":"x","suggestions":["login"]}`,
+			`"error":{"code":"not_found","message":"x","suggestions":["login"],"hint":"capcom search <text>"}`,
 		},
 		{
 			"json two suggestions",
 			&Error{Code: CodeNotFound, Message: "x", Suggestions: []string{"login", "logout"}},
 			FormatJSON,
-			`"error":{"code":"not_found","message":"x","suggestions":["login","logout"]}`,
+			`"error":{"code":"not_found","message":"x","suggestions":["login","logout"],"hint":"capcom search <text>"}`,
 		},
 		{
 			"json three suggestions",
 			&Error{Code: CodeNotFound, Message: "x", Suggestions: []string{"login", "logout", "log"}},
 			FormatJSON,
-			`"error":{"code":"not_found","message":"x","suggestions":["login","logout","log"]}`,
+			`"error":{"code":"not_found","message":"x","suggestions":["login","logout","log"],"hint":"capcom search <text>"}`,
 		},
 		{
 			"json valid",
 			&Error{Code: CodeInvalid, Message: "x", Valid: []string{"bug", "task"}},
 			FormatJSON,
-			`"error":{"code":"invalid","message":"x","valid":["bug","task"]}`,
+			`"error":{"code":"invalid","message":"x","valid":["bug","task"],"hint":"capcom --help"}`,
 		},
 	}
 	for _, testCase := range cases {
@@ -276,12 +276,12 @@ func TestRenderError_EmptyHintLists_RenderAsWithout(t *testing.T) {
 		format OutputFormat
 		want   string
 	}{
-		{"text", FormatText, "capcom: bad\n"},
-		{"kv", FormatKV, "MESSAGE=bad\nSTATUS=invalid\n"},
+		{"text", FormatText, "capcom: bad\nhint: capcom --help\n"},
+		{"kv", FormatKV, "MESSAGE=bad\nHINT=capcom --help\nSTATUS=invalid\n"},
 		{
 			"json",
 			FormatJSON,
-			`{"schema":1,"kind":"error","error":{"code":"invalid","message":"bad"},"elsewhere":[],"warnings":[]}` + "\n",
+			`{"schema":1,"kind":"error","error":{"code":"invalid","message":"bad","hint":"capcom --help"},"elsewhere":[],"warnings":[]}` + "\n",
 		},
 	}
 	for _, testCase := range cases {
@@ -360,7 +360,7 @@ func TestTextRenderer_ControlCharacters_EscapedInEveryStream(t *testing.T) {
 		{
 			name:       "failure",
 			result:     Result{Failure: &Error{Code: CodeNotFound, Message: controlInput}},
-			wantStderr: "capcom: " + controlEscaped + "\n",
+			wantStderr: "capcom: " + controlEscaped + "\nhint: capcom search <text>\n",
 		},
 	}
 	for _, current := range cases {
@@ -389,7 +389,7 @@ func TestTextRenderer_ControlCharacters_EscapedInEveryStream(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RenderError: %v", err)
 		}
-		if want := "capcom: " + controlEscaped + "\n"; stderr.String() != want {
+		if want := "capcom: " + controlEscaped + "\nhint: capcom --help\n"; stderr.String() != want {
 			t.Errorf("stderr = %q, want %q", stderr.String(), want)
 		}
 	})
@@ -464,8 +464,49 @@ func TestJSONAndKVRenderers_ControlCharacters_PassedVerbatim(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RenderError: %v", err)
 		}
-		if want := "MESSAGE=" + rawValue + "\nSTATUS=invalid\n"; stdout.String() != want {
+		if want := "MESSAGE=" + rawValue + "\nHINT=capcom --help\nSTATUS=invalid\n"; stdout.String() != want {
 			t.Errorf("stdout = %q, want %q", stdout.String(), want)
 		}
 	})
+}
+
+func TestRenderError_Hint_ReportedInEveryFormat(t *testing.T) {
+	defaulted := Errorf(CodeNotFound, "gone")
+	overridden := &Error{Code: CodeConflict, Message: "stale", Hint: "capcom show login"}
+	named := Errorf(CodeInvalid, "bad").WithCommand("capcom update")
+	cases := []struct {
+		name    string
+		failure *Error
+		format  OutputFormat
+		want    string
+	}{
+		{"text default", defaulted, FormatText, "capcom: gone\nhint: capcom search <text>\n"},
+		{"text override", overridden, FormatText, "capcom: stale\nhint: capcom show login\n"},
+		{"text command", named, FormatText, "capcom: bad\nhint: capcom update --help\n"},
+		{"kv default", defaulted, FormatKV, "MESSAGE=gone\nHINT=capcom search <text>\nSTATUS=not_found\n"},
+		{"kv override", overridden, FormatKV, "MESSAGE=stale\nHINT=capcom show login\nSTATUS=conflict\n"},
+		{"kv command", named, FormatKV, "MESSAGE=bad\nHINT=capcom update --help\nSTATUS=invalid\n"},
+		{"json default", defaulted, FormatJSON, `"error":{"code":"not_found","message":"gone","hint":"capcom search <text>"}`},
+		{"json override", overridden, FormatJSON, `"error":{"code":"conflict","message":"stale","hint":"capcom show login"}`},
+		{"json command", named, FormatJSON, `"error":{"code":"invalid","message":"bad","hint":"capcom update --help"}`},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var written bytes.Buffer
+
+			err := NewRenderer(testCase.format, &written, &written).RenderError(testCase.failure)
+
+			if err != nil {
+				t.Fatalf("RenderError: %v", err)
+			}
+			got := written.String()
+			isMatch := got == testCase.want
+			if testCase.format == FormatJSON {
+				isMatch = bytes.Contains(written.Bytes(), []byte(testCase.want))
+			}
+			if !isMatch {
+				t.Errorf("output = %q, want %q", got, testCase.want)
+			}
+		})
+	}
 }

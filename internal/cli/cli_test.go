@@ -64,17 +64,19 @@ func TestRun_UnknownCommandInText_WritesStderrOnly(t *testing.T) {
 	}
 }
 
-// unknownCommandCases are mistyped commands and subcommands, each with the suggestion it gets.
+// unknownCommandCases are mistyped commands and subcommands, each with the suggestion it gets and
+// the hint, which names the group the mistyped word was given to.
 var unknownCommandCases = []struct {
 	args           []string
 	wantSuggestion string
+	wantHint       string
 }{
-	{[]string{"shwo", "x"}, "show"},
-	{[]string{"know", "shwo", "x"}, "know show"},
-	{[]string{"know", "tre"}, "know tree"},
-	{[]string{"dep", "lst", "x"}, "dep list"},
-	{[]string{"related", "ad", "x", "y"}, "related add"},
-	{[]string{"updat", "x", "--status", "active"}, "update"},
+	{[]string{"shwo", "x"}, "show", "capcom --help"},
+	{[]string{"know", "shwo", "x"}, "know show", "capcom know --help"},
+	{[]string{"know", "tre"}, "know tree", "capcom know --help"},
+	{[]string{"dep", "lst", "x"}, "dep list", "capcom dep --help"},
+	{[]string{"related", "ad", "x", "y"}, "related add", "capcom related --help"},
+	{[]string{"updat", "x", "--status", "active"}, "update", "capcom --help"},
 }
 
 func TestRun_UnknownCommandInText_SuggestsClosest(t *testing.T) {
@@ -82,7 +84,7 @@ func TestRun_UnknownCommandInText_SuggestsClosest(t *testing.T) {
 		t.Run(strings.Join(testCase.args, " "), func(t *testing.T) {
 			stdout, stderr, exitCode := runCLI(t, "", testCase.args...)
 
-			want := "; did you mean " + testCase.wantSuggestion + "?\n"
+			want := "; did you mean " + testCase.wantSuggestion + "?\nhint: " + testCase.wantHint + "\n"
 			if exitCode != ExitUsage || stdout != "" || !strings.HasSuffix(stderr, want) {
 				t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and a line ending %q",
 					exitCode, stdout, stderr, ExitUsage, want)
@@ -106,11 +108,35 @@ func TestRun_UnknownCommandWithJSON_SuggestsClosest(t *testing.T) {
 	}
 }
 
+func TestRun_Failure_EndsWithItsHintInEveryFormat(t *testing.T) {
+	root := newWriteStore(t)
+	args := []string{"update", "nosuch", "--title", "x"}
+
+	_, stderr, exitCode := runCLI(t, root, args...)
+	jsonOut, _, jsonExitCode := runCLI(t, root, append(args, "--json")...)
+
+	if exitCode != ExitNotFound || lastLine(stderr) != "hint: capcom search <text>" {
+		t.Errorf("exit = %d stderr = %q, want %d ending in the not_found hint", exitCode, stderr, ExitNotFound)
+	}
+	errorBody, _ := decodeEnvelope(t, jsonOut)["error"].(map[string]any)
+	if jsonExitCode != ExitNotFound || errorBody["hint"] != "capcom search <text>" {
+		t.Errorf("exit = %d error = %v, want %d and hint capcom search <text>", jsonExitCode, errorBody, ExitNotFound)
+	}
+}
+
+func TestRun_InvalidFailure_HintNamesTheFailingCommand(t *testing.T) {
+	stdout, _, exitCode := runCLI(t, "", "dep", "add", "--kv", "only-one")
+
+	if exitCode != ExitUsage || !strings.Contains(stdout, "\nHINT=capcom dep add --help\nSTATUS=invalid\n") {
+		t.Errorf("exit = %d stdout = %q, want %d and the dep add help as HINT", exitCode, stdout, ExitUsage)
+	}
+}
+
 func TestRun_UnknownCommandNothingClose_OmitsSuggestion(t *testing.T) {
 	stdout, stderr, exitCode := runCLI(t, "", "zzzzqq")
 	jsonOut, _, jsonExitCode := runCLI(t, "", "--json", "zzzzqq")
 
-	if exitCode != ExitUsage || stdout != "" || stderr != "capcom: unknown command \"zzzzqq\" for \"capcom\"\n" {
+	if exitCode != ExitUsage || stdout != "" || stderr != "capcom: unknown command \"zzzzqq\" for \"capcom\"\nhint: capcom --help\n" {
 		t.Errorf("exit = %d stdout = %q stderr = %q, want %d and no suggestion", exitCode, stdout, stderr, ExitUsage)
 	}
 	errorBody, isObject := decodeEnvelope(t, jsonOut)["error"].(map[string]any)
@@ -120,13 +146,14 @@ func TestRun_UnknownCommandNothingClose_OmitsSuggestion(t *testing.T) {
 }
 
 // unknownFlagCases are mistyped flags, each with the suggestion it gets: one of the command's own
-// flags, or one it inherits from capcom.
+// flags, or one it inherits from capcom; the hint names the command's help.
 var unknownFlagCases = []struct {
 	args           []string
 	wantSuggestion string
+	wantHint       string
 }{
-	{[]string{"update", "x", "--statsu", "active"}, "--status"},
-	{[]string{"ready", "--jsno"}, "--json"},
+	{[]string{"update", "x", "--statsu", "active"}, "--status", "capcom update --help"},
+	{[]string{"ready", "--jsno"}, "--json", "capcom ready --help"},
 }
 
 func TestRun_UnknownFlagInText_SuggestsClosest(t *testing.T) {
@@ -134,7 +161,7 @@ func TestRun_UnknownFlagInText_SuggestsClosest(t *testing.T) {
 		t.Run(strings.Join(testCase.args, " "), func(t *testing.T) {
 			stdout, stderr, exitCode := runCLI(t, "", testCase.args...)
 
-			want := "; did you mean " + testCase.wantSuggestion + "?\n"
+			want := "; did you mean " + testCase.wantSuggestion + "?\nhint: " + testCase.wantHint + "\n"
 			if exitCode != ExitUsage || stdout != "" || !strings.Contains(stderr, "unknown flag: --") ||
 				!strings.HasSuffix(stderr, want) {
 				t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and an unknown flag line ending %q",
@@ -161,8 +188,8 @@ func TestRun_UnknownFlagWithJSON_SuggestsClosest(t *testing.T) {
 
 func TestRun_UnknownFlagNothingClose_OmitsSuggestion(t *testing.T) {
 	cases := map[string]string{
-		"--zzzzqq": "capcom: unknown flag: --zzzzqq\n",
-		"-z":       "capcom: unknown shorthand flag: 'z' in -z\n",
+		"--zzzzqq": "capcom: unknown flag: --zzzzqq\nhint: capcom ready --help\n",
+		"-z":       "capcom: unknown shorthand flag: 'z' in -z\nhint: capcom ready --help\n",
 	}
 	for flag, wantStderr := range cases {
 		t.Run(flag, func(t *testing.T) {
@@ -320,6 +347,11 @@ func TestUpdate_FrontmatterFailure_RelativizesOnlyAnAbsolutePath(t *testing.T) {
 	}
 }
 
+// commandHelpHint is the default hint of an invalid failure of the command at commandPath.
+func commandHelpHint(commandPath string) string {
+	return commandPath + " --help"
+}
+
 func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 	commands := [][]string{{"agents"}, {"fmt"}, {"lock", "status"}}
 	badConfig := "statuses:\n  open: todo\n  review: reviewing\n  done: done\n"
@@ -327,6 +359,8 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 		name     string
 		setup    func(t *testing.T) string
 		wantFail func(dir string) string
+		// wantHint is the hint line's command for the failing command's path.
+		wantHint func(commandPath string) string
 	}{
 		{
 			name:  "outside git",
@@ -334,6 +368,7 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 			wantFail: func(dir string) string {
 				return "capcom: " + dir + ": " + store.ErrNotGitRepository.Error() + "\n"
 			},
+			wantHint: commandHelpHint,
 		},
 		{
 			name:  "no store",
@@ -341,6 +376,7 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 			wantFail: func(root string) string {
 				return "capcom: " + filepath.Join(root, ".capcom") + ": " + store.ErrNotInitialized.Error() + "\n"
 			},
+			wantHint: func(string) string { return "capcom init" },
 		},
 		{
 			name: "bad config",
@@ -355,6 +391,7 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 			wantFail: func(string) string {
 				return "capcom: .capcom/config.yaml:3: status \"review\": category must be one of [todo doing waiting done dropped]\n"
 			},
+			wantHint: commandHelpHint,
 		},
 	}
 	for _, test := range tests {
@@ -364,7 +401,8 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 
 				stdout, stderr, exitCode := runCLI(t, dir, args...)
 
-				if want := test.wantFail(dir); exitCode != ExitError || stdout != "" || stderr != want {
+				want := test.wantFail(dir) + "hint: " + test.wantHint("capcom "+strings.Join(args, " ")) + "\n"
+				if exitCode != ExitError || stdout != "" || stderr != want {
 					t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and %q", exitCode, stdout, stderr, ExitError, want)
 				}
 			})
@@ -376,7 +414,7 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 
 		stdout, stderr, exitCode := runCLI(t, dir, "lock", "acquire")
 
-		want := "capcom: required flag(s) \"" + flagPurpose + "\" not set\n"
+		want := "capcom: required flag(s) \"" + flagPurpose + "\" not set\nhint: capcom lock acquire --help\n"
 		if exitCode != ExitUsage || stdout != "" || stderr != want {
 			t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and %q", exitCode, stdout, stderr, ExitUsage, want)
 		}
