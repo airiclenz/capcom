@@ -112,6 +112,16 @@ func (m model) applyClosed(msg closedMsg) (model, tea.Cmd) {
 	return next.withShownReloaded(TabClosed, msg.isReload, cmd)
 }
 
+// closedKey moves the Closed tab's selection for a cursor key and shows the issue it lands on. It
+// reports false for any other key, which it leaves to the model's own keys.
+func (m model) closedKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
+	if !m.closed.key(msg) {
+		return m, nil, false
+	}
+	next, cmd := m.showClosedSelection()
+	return next, cmd, true
+}
+
 // showClosedSelection paints the Closed sidebar and, when the selected issue is not the one the
 // detail pane shows, returns the command that loads it; an empty list clears the detail pane. It
 // does nothing on another tab.

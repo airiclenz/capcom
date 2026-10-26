@@ -128,11 +128,12 @@ func depRows(entries []index.Entry, id string) ([]depRow, []depRow) {
 }
 
 // depViewKey handles the keys of the dependency view, ahead of the model's own keys. While the
-// help screen is open it takes none. With the view closed, d on the Ready or Issues tab opens it
-// over the selected issue, filling a narrow, short screen. With it open, d and Esc close it, Enter
-// follows the selected row, and the up and down arrows and j k move its cursor; a tab key closes
-// it and goes on to switch the tab, / closes it and goes on to open the filter line where the
-// sidebar is on screen, and any other key the sidebar takes closes it before moving the sidebar. It reports false for every key it leaves to the model.
+// help screen is open it takes none. With the view closed, d on the Ready, Issues or Closed tab
+// opens it over the selected issue, filling a narrow, short screen. With it open, d and Esc close
+// it, Enter follows the selected row, and the up and down arrows and j k move its cursor; a tab
+// key closes it and goes on to switch the tab, / closes it and goes on to open the filter line
+// where the sidebar is on screen, and any other key the sidebar takes closes it before moving the
+// sidebar. It reports false for every key it leaves to the model.
 func (m model) depViewKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 	if m.isHelpOpen {
 		return m, nil, false
@@ -181,9 +182,9 @@ func (m model) sidebarKeyClosingDeps(msg tea.KeyPressMsg) (model, tea.Cmd, bool)
 	return m, nil, false
 }
 
-// openDeps opens the dependency view over the issue the Ready or Issues sidebar selects, clearing
-// the detail selection, and returns the command that reads its dependencies. It takes nothing on the Knowledge tab or with
-// nothing selected.
+// openDeps opens the dependency view over the issue the Ready, Issues or Closed sidebar selects,
+// clearing the detail selection, and returns the command that reads its dependencies. It takes
+// nothing on the Knowledge tab or with nothing selected.
 func (m model) openDeps() (model, tea.Cmd, bool) {
 	if m.tab == TabKnowledge {
 		return m, nil, false

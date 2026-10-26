@@ -119,6 +119,9 @@ func (m model) selectedPath() (string, bool) {
 	case TabKnowledge:
 		note, isSelected := m.knowledgeSelection()
 		return note.Path, isSelected
+	case TabClosed:
+		entry, isSelected := m.closedSelection()
+		return entry.Path, isSelected
 	}
 	return "", false
 }

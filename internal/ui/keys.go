@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
@@ -28,6 +29,10 @@ const (
 	keyGrowSidebar   = ">"
 )
 
+// closedInertKeys are the write keys that do nothing on the Closed tab: a closed issue takes no
+// claim, close, status change or Log line there, and R, which reopens it, is the tab's one write.
+var closedInertKeys = []string{keyClaim, keyClose, keyStatus, keyLog}
+
 // handleKey applies one key press. q and ctrl+c quit from anywhere. While the help screen is open
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
 // the one-pane layout's detail view, open the filter line, open the help screen, and scroll the
@@ -35,7 +40,8 @@ const (
 // narrow, short screen; on a narrow screen tall enough to stack the panes, Enter keeps both, as in
 // the split layout. Esc from the sidebar clears the open tab's filter. On the Ready and Issues
 // tabs a claims the shown issue, s opens the status picker over it, c and R ask for a reason and
-// close or reopen it, and L asks for a line and appends it to its Log. On every tab e opens the
+// close or reopen it, and L asks for a line and appends it to its Log; on the Closed tab R does
+// the same and a, s, c and L do nothing. On every tab e opens the
 // selected issue or Note file in the editor, and < and > move the divider on screen: in the split
 // layout they narrow and widen the sidebar, in the stacked layout they shorten and lengthen it,
 // and either saves the new position to the state file.
@@ -54,6 +60,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	}
 	if tab, isTabKey := tabForKey(key); isTabKey {
 		return m.openTab(tab)
+	}
+	if m.tab == TabClosed && slices.Contains(closedInertKeys, key) {
+		return m, nil
 	}
 
 	switch key {
@@ -114,6 +123,8 @@ func (m model) sidebarKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 		return m.issuesKey(msg)
 	case TabKnowledge:
 		return m.knowledgeKey(msg)
+	case TabClosed:
+		return m.closedKey(msg)
 	}
 	return m, nil, false
 }

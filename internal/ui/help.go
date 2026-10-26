@@ -7,7 +7,7 @@ var helpLines = []string{
 	"",
 	"  move     ↑↓←→  j k h l",
 	"  expand   → / l    collapse ← / h",
-	"  tabs     Tab  1 2 3",
+	"  tabs     Tab  1 Issues  2 Ready  3 Knowledge  4 Closed",
 	"  open     Enter    back     Esc",
 	"  scroll   PgUp PgDn  ctrl+u ctrl+d",
 	"  resize   < >      drag the divider, double-click resets",

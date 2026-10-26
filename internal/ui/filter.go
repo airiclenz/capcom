@@ -36,6 +36,8 @@ const (
 	unknownLabelFormat = "no %s carries label %q"
 	// statusOnNotesText is the Knowledge sidebar's one row for a status term.
 	statusOnNotesText = "status: applies to issues, not Notes"
+	// statusOnClosedText is the Closed sidebar's one row for a status term naming an open status.
+	statusOnClosedText = "status: on the Closed tab takes a closed status"
 	// hintsFilter are the key hints while the filter line is open.
 	hintsFilter = "enter keep · esc clear"
 )
@@ -85,8 +87,8 @@ type sidebarFilter struct {
 	// isClosedShown reports a status term naming a status of a closed category: Closed issues
 	// then show in the Issues tree with their ancestors.
 	isClosedShown bool
-	// problem is the sidebar's one row for a term that names no status or label, or a status
-	// term on the Knowledge tab; err is the error that kept the filter from being applied. Either
+	// problem is the sidebar's one row for a term that names no status or label, a status term
+	// on the Knowledge tab, or one naming an open status on the Closed tab; err is the error that kept the filter from being applied. Either
 	// leaves matched empty.
 	problem string
 	err     error
@@ -104,7 +106,7 @@ type filterMsg struct {
 }
 
 // loadFilter returns a command that matches the filter line text against the issues, for the
-// Ready and Issues tabs, or the Notes, for the Knowledge tab, through the session.
+// Ready, Issues and Closed tabs, or the Notes, for the Knowledge tab, through the session.
 func loadFilter(s *session, tab Tab, text string) tea.Cmd {
 	return func() tea.Msg {
 		var filter sidebarFilter
@@ -122,10 +124,26 @@ func loadFilter(s *session, tab Tab, text string) tea.Cmd {
 }
 
 // matchFilter matches terms against the Notes on the Knowledge tab and against the issues on the
-// others.
+// others, where the Closed tab refuses a status of an open category.
 func matchFilter(cfg config.Config, issueIndex *index.Index, tab Tab, terms filterTerms) (sidebarFilter, error) {
-	if tab == TabKnowledge {
+	switch tab {
+	case TabKnowledge:
 		return matchNotes(issueIndex, terms)
+	case TabClosed:
+		return matchClosed(cfg, issueIndex, terms)
+	}
+	return matchIssues(cfg, issueIndex, terms)
+}
+
+// matchClosed returns the filter of terms over the issues as matchIssues does, for the Closed tab:
+// a status term naming a declared status of an open category can match no closed issue, and is
+// the filter's problem instead.
+func matchClosed(cfg config.Config, issueIndex *index.Index, terms filterTerms) (sidebarFilter, error) {
+	for _, name := range terms.statuses {
+		category, isDeclared := cfg.CategoryOf(name)
+		if isDeclared && !category.IsClosed() {
+			return sidebarFilter{problem: statusOnClosedText}, nil
+		}
 	}
 	return matchIssues(cfg, issueIndex, terms)
 }
@@ -355,6 +373,8 @@ func (m model) withFilter(tab Tab, filter sidebarFilter) model {
 	switch tab {
 	case TabReady:
 		m.ready.refilter(filter)
+	case TabClosed:
+		m.closed.refilter(filter)
 	case TabIssues:
 		m.issues.tree, m.issues.unfilteredExpanded = refilterTree(
 			m.issues.tree, m.issues.unfilteredExpanded, wasActive, filter.isActive(), m.issuesTree,

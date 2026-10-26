@@ -230,6 +230,11 @@ func (m model) clickSidebar(point panePoint) (model, tea.Cmd) {
 			return m, nil
 		}
 		return m.showKnowledgeSelection()
+	case TabClosed:
+		if !m.closed.click(point.row) {
+			return m, nil
+		}
+		return m.closeDepsIfOpen().showClosedSelection()
 	}
 	return m, nil
 }
@@ -370,6 +375,9 @@ func (m model) wheelSidebar(msg tea.MouseWheelMsg) (model, tea.Cmd) {
 	case TabKnowledge:
 		m.knowledge.tree.wheel(msg)
 		return m.showKnowledgeSelection()
+	case TabClosed:
+		m.closed.wheel(msg)
+		return m.showClosedSelection()
 	}
 	return m, nil
 }

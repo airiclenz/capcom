@@ -160,7 +160,12 @@ not-on-Closed notice and selects the first row; at width 80 all four tab labels 
 - `go vet ./internal/ui/`
 **Commit:** `feat(ui): add a Closed tab listing the closed issues`
 
-## 5. Keys, reopen and filtering on the Closed tab
+## 5. Keys, reopen and filtering on the Closed tab — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): closedKey, the Closed case of sidebarKey, lives in internal/ui/closed.go beside showClosedSelection, as readyKey lives in ready.go; closed.go is not on the item's Files line.
+NOTES (2026-10-26): the a/c/s/L gate is a closedInertKeys list checked in handleKey ahead of its switch; shownWrite still allows the Closed tab, since R opens its prompt through it.
+NOTES (2026-10-26): matchClosed refuses only a declared status of an open category with the problem row; an undeclared status keeps matchIssues' `status %q is not declared in config.yaml` row.
+NOTES (2026-10-26): the comment grep's other hits (write.go startWrite/shownWrite, prompt.go openTextPrompt, statuspick.go openStatusPicker, detail.go applyDetail, mouse.go :318) describe shownWrite's Knowledge-only refusal or the Note/issue split and stay true, so they are unchanged; handleKey, depViewKey, openDeps, loadFilter, matchFilter and sidebarFilter.problem comments were updated.
 
 **What:** Depends on item 4.
 **Goal:** on the Closed tab, cursor keys, mouse click and wheel move the selection; `R` reopens the
