@@ -422,3 +422,57 @@ func TestNotes_RowsDeletedMidRead_ReturnsOneSnapshot(t *testing.T) {
 		t.Errorf("Notes = %v, want %v", got, want)
 	}
 }
+
+func TestNotes_SearchNotesAnyWord_MatchesAnyWordAndFiltersLabels(t *testing.T) {
+	t.Parallel()
+	_, x := noteFixture(t)
+
+	byWords, wordsErr := x.SearchNotesAnyWord("harness publish", nil, false)
+	byLabel, labelErr := x.SearchNotesAnyWord("harness temp", []string{"cli"}, false)
+	wrongLabel, wrongErr := x.SearchNotesAnyWord("harness publish", []string{"absent"}, false)
+	everyWord, everyErr := x.SearchNotes("harness publish", nil, false)
+
+	want := []string{"no-parallel-cli", "release-flow"}
+	if wordsErr != nil || !slices.Equal(slices.Sorted(slices.Values(noteIDs(byWords))), want) {
+		t.Errorf("SearchNotesAnyWord(harness publish) = %v, %v; want %v", noteIDs(byWords), wordsErr, want)
+	}
+	if labelErr != nil || !slices.Equal(noteIDs(byLabel), []string{"no-parallel-cli"}) {
+		t.Errorf("SearchNotesAnyWord(harness temp, cli) = %v, %v; want [no-parallel-cli]", noteIDs(byLabel), labelErr)
+	}
+	if wrongErr != nil || len(wrongLabel) != 0 {
+		t.Errorf("SearchNotesAnyWord(harness publish, absent) = %v, %v; want none", noteIDs(wrongLabel), wrongErr)
+	}
+	if everyErr != nil || len(everyWord) != 0 {
+		t.Errorf("SearchNotes(harness publish) = %v, %v; want none", noteIDs(everyWord), everyErr)
+	}
+}
+
+func TestNotes_SearchNotesAnyWord_HitUnderRetiredAncestorLeftOutUnlessIncluded(t *testing.T) {
+	t.Parallel()
+	_, x := retiredFixture(t)
+
+	current, currentErr := x.SearchNotesAnyWord("harness zeppelin", nil, false)
+	all, allErr := x.SearchNotesAnyWord("harness zeppelin", nil, true)
+
+	if currentErr != nil || !slices.Equal(noteIDs(current), []string{"second-design"}) {
+		t.Errorf("SearchNotesAnyWord(harness zeppelin, false) = %v, %v; want only the current note", noteIDs(current), currentErr)
+	}
+	if allErr != nil || len(all) != 4 {
+		t.Errorf("SearchNotesAnyWord(harness zeppelin, true) = %v, %v; want all four hits", noteIDs(all), allErr)
+	}
+}
+
+func TestNotes_SearchNotesAnyWord_OperatorWords_MatchLiterally(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "or-note.md", "---\ntitle: Or note\n---\nThis OR that.\n")
+	writeNote(t, s, "plain-note.md", "---\ntitle: Plain note\n---\nOrdinary words.\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	got, err := x.SearchNotesAnyWord(`OR NEAR "`, nil, false)
+
+	if err != nil || !slices.Equal(noteIDs(got), []string{"or-note"}) {
+		t.Errorf("SearchNotesAnyWord(OR NEAR \") = %v, %v; want [or-note]", noteIDs(got), err)
+	}
+}

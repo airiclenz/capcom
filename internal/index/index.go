@@ -255,11 +255,12 @@ func (x *Index) RelatedBy(id string) ([]string, error) {
 // best match first. Words are matched as whole tokens, case-insensitively; FTS5 operators in
 // text are taken literally.
 func (x *Index) Search(text string) ([]string, error) {
-	return x.searchIDs(x.db, text)
+	return x.searchIDs(x.db, text, matchExpression)
 }
 
-// searchIDs reads the ids Search returns through q.
-func (x *Index) searchIDs(q querier, text string) ([]string, error) {
+// searchIDs reads through q the ids of the usable issues that match the FTS5 query expression
+// builds from the words of text, ordered by FTS5 rank then id. Blank text matches nothing.
+func (x *Index) searchIDs(q querier, text string, expression func(words []string) string) ([]string, error) {
 	words := strings.Fields(text)
 	if len(words) == 0 {
 		return nil, nil
@@ -269,18 +270,30 @@ func (x *Index) searchIDs(q querier, text string) ([]string, error) {
 		q,
 		`SELECT issues.id FROM fts JOIN issues ON issues.path = fts.path
 			WHERE fts MATCH ? AND fts.kind = ? AND issues.excluded = 0 ORDER BY fts.rank, issues.id`,
-		matchExpression(words), kindIssue,
+		expression(words), kindIssue,
 	)
 }
 
 // matchExpression turns words into an FTS5 query that needs every word, each quoted so FTS5
 // operators in it are taken literally.
 func matchExpression(words []string) string {
+	return strings.Join(quotedTerms(words), " ")
+}
+
+// anyMatchExpression turns words into an FTS5 query that needs at least one of the words, each
+// quoted as matchExpression quotes it.
+func anyMatchExpression(words []string) string {
+	return strings.Join(quotedTerms(words), " OR ")
+}
+
+// quotedTerms quotes each word as an FTS5 string, doubling its quotes, so FTS5 reads every word
+// as a literal term and never as an operator.
+func quotedTerms(words []string) []string {
 	terms := make([]string, 0, len(words))
 	for _, word := range words {
 		terms = append(terms, `"`+strings.ReplaceAll(word, `"`, `""`)+`"`)
 	}
-	return strings.Join(terms, " ")
+	return terms
 }
 
 // querier is the part of *sql.DB and *sql.Conn the readers use, so one reader serves both a lone

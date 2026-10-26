@@ -268,9 +268,22 @@ func (x *Index) resolved(q querier, arg, id string) (Entry, error) {
 
 // SearchIssues returns the usable issues Search finds for text, best match first. Every row comes
 // from one read snapshot.
-func (x *Index) SearchIssues(text string) (entries []Entry, err error) {
+func (x *Index) SearchIssues(text string) ([]Entry, error) {
+	return x.searchIssues(text, matchExpression)
+}
+
+// SearchIssuesAnyWord returns the usable issues whose title or body contains at least one word
+// of text, ranked by FTS5 rank then id. Words match as Search's do, FTS5 operators included.
+// Every row comes from one read snapshot.
+func (x *Index) SearchIssuesAnyWord(text string) ([]Entry, error) {
+	return x.searchIssues(text, anyMatchExpression)
+}
+
+// searchIssues reads, from one snapshot, the usable issues searchIDs finds for text through
+// expression.
+func (x *Index) searchIssues(text string, expression func(words []string) string) (entries []Entry, err error) {
 	err = x.snapshot(func(q querier) error {
-		ids, err := x.searchIDs(q, text)
+		ids, err := x.searchIDs(q, text, expression)
 		if err != nil {
 			return err
 		}

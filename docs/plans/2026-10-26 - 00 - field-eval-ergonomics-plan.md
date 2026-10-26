@@ -36,7 +36,7 @@ and refs a fresh clone would lack.
 - `context-command` and `error-next-command` (unblocked by this plan, not done in it).
 - Any-word fallback or excerpts in `capcom ui`.
 
-## 1. Any-word search queries in the index
+## 1. Any-word search queries in the index — ✅ DONE (2026-10-26)
 
 **What:**
 **Goal:** `internal/index` offers any-word variants of Issue and Note search: an item matches when

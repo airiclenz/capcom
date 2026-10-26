@@ -612,3 +612,80 @@ func TestSearchIssues_Punctuation_MatchesWordsLiterally(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchIssuesAnyWord_TwoWords_FindsEitherWordBothFirst(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "both-words.md", issueText("Both", "open", "The parser drops the cache.\n"))
+	writeIssue(t, s, "parser-only.md", issueText("Parser", "open", "The parser is slow.\n"))
+	writeIssue(t, s, "cache-only.md", issueText("Cache", "open", "The cache is stale.\n"))
+	writeIssue(t, s, "neither-word.md", issueText("Neither", "open", "Nothing to see.\n"))
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	got, err := x.SearchIssuesAnyWord("parser cache")
+
+	if err != nil || len(got) != 3 || got[0].ID != "both-words" ||
+		!slices.Equal(slices.Sorted(slices.Values(ids(got))), []string{"both-words", "cache-only", "parser-only"}) {
+		t.Errorf("SearchIssuesAnyWord(parser cache) = %v, %v; want both-words first, then the one-word issues", ids(got), err)
+	}
+}
+
+func TestSearchIssuesAnyWord_WordInNoIssue_StillFindsTheOthers(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "login-race.md", issueText("Login race", "open", "The login times out.\n"))
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	anyWord, anyErr := x.SearchIssuesAnyWord("login zeppelin")
+	everyWord, everyErr := x.SearchIssues("login zeppelin")
+
+	if anyErr != nil || !slices.Equal(ids(anyWord), []string{"login-race"}) {
+		t.Errorf("SearchIssuesAnyWord(login zeppelin) = %v, %v; want [login-race]", ids(anyWord), anyErr)
+	}
+	if everyErr != nil || len(everyWord) != 0 {
+		t.Errorf("SearchIssues(login zeppelin) = %v, %v; want none", ids(everyWord), everyErr)
+	}
+}
+
+func TestSearchIssuesAnyWord_OperatorWords_MatchLiterally(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "or-word.md", issueText("Or", "open", "Pick this OR that.\n"))
+	writeIssue(t, s, "not-word.md", issueText("Not", "open", "Do NOT ship.\n"))
+	writeIssue(t, s, "near-word.md", issueText("Near", "open", "Stay NEAR here.\n"))
+	writeIssue(t, s, "plain.md", issueText("Plain", "open", "Ordinary words only.\n"))
+	x := openIndex(t, s)
+	refresh(t, x)
+	cases := map[string][]string{
+		"OR":         {"or-word"},
+		"NOT":        {"not-word"},
+		"NEAR":       {"near-word"},
+		`"`:          nil,
+		`" NEAR`:     {"near-word"},
+		"NOT absent": {"not-word"},
+	}
+
+	for text, want := range cases {
+		got, err := x.SearchIssuesAnyWord(text)
+
+		if err != nil || !slices.Equal(ids(got), want) {
+			t.Errorf("SearchIssuesAnyWord(%q) = %v, %v; want %v", text, ids(got), err, want)
+		}
+	}
+}
+
+func TestSearchIssuesAnyWord_BlankText_FindsNothing(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "any.md", issueText("Any", "open", "Some body.\n"))
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	got, err := x.SearchIssuesAnyWord("   ")
+
+	if err != nil || len(got) != 0 {
+		t.Errorf("SearchIssuesAnyWord(blank) = %v, %v; want none", ids(got), err)
+	}
+}

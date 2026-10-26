@@ -164,6 +164,25 @@ func (x *Index) Notes(isRetiredIncluded bool) (entries []NoteEntry, err error) {
 // isRetiredIncluded is set, it leaves out every Note that is retired or has a retired ancestor.
 // Every row comes from one read snapshot.
 func (x *Index) SearchNotes(text string, labels []string, isRetiredIncluded bool) ([]NoteEntry, error) {
+	return x.searchNotes(text, labels, isRetiredIncluded, matchExpression)
+}
+
+// SearchNotesAnyWord returns the usable Notes whose title or body contains at least one word of
+// text, filtered by labels and isRetiredIncluded as SearchNotes filters them, ranked by FTS5
+// rank then id. Words match as Search's do. Every row comes from one read snapshot.
+func (x *Index) SearchNotesAnyWord(text string, labels []string, isRetiredIncluded bool) ([]NoteEntry, error) {
+	return x.searchNotes(text, labels, isRetiredIncluded, anyMatchExpression)
+}
+
+// searchNotes reads, from one snapshot, the usable Notes that match the FTS5 query expression
+// builds from the words of text, carry every one of labels and, unless isRetiredIncluded is set,
+// are neither retired nor under a retired ancestor; ordered by FTS5 rank then id.
+func (x *Index) searchNotes(
+	text string,
+	labels []string,
+	isRetiredIncluded bool,
+	expression func(words []string) string,
+) ([]NoteEntry, error) {
 	words := strings.Fields(text)
 	if len(words) == 0 {
 		return nil, nil
@@ -171,7 +190,7 @@ func (x *Index) SearchNotes(text string, labels []string, isRetiredIncluded bool
 	with, condition := retiredFilter(isRetiredIncluded)
 	query := with + `SELECT notes.id FROM fts JOIN notes ON notes.path = fts.path
 		WHERE fts MATCH ? AND fts.kind = ? AND notes.excluded = 0` + condition
-	args := []any{matchExpression(words), kindNote}
+	args := []any{expression(words), kindNote}
 	for _, label := range labels {
 		query += ` AND EXISTS (SELECT 1 FROM labels
 			WHERE labels.path = notes.path AND labels.kind = ? AND label = ?)`
