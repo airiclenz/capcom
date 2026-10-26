@@ -81,7 +81,9 @@ Document `match` in `docs/site/reference/json-output.md`.
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Search'`; `GOMEMLIMIT=2GiB go test ./internal/cli/output/`; `GOMEMLIMIT=2GiB go test ./internal/clidoc/`
 **Commit:** `feat(search): fall back to any-word matches when no item holds every word`
 
-## 3. Excerpt lines from a body
+## 3. Excerpt lines from a body — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): interpretation of the excerpt shape — a cut line is at most 120 runes counting its trailing "…" (119 runes + "…"); windows that touch (no line between) merge like overlapping ones; a gap line is added only when a line of the next window still fits under the 8-line cap, so an excerpt never ends on "…". Body returns "" with no error for a path the index holds no file at (a refresh may drop a hit between search and Body).
 
 Depends on item 1.
 

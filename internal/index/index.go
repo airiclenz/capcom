@@ -296,6 +296,21 @@ func quotedTerms(words []string) []string {
 	return terms
 }
 
+// Body returns the indexed body of the Issue or Note file at path, the worktree-relative path an
+// Entry or a NoteEntry carries, as the full-text search reads it. A path the index holds no file
+// at, as when a refresh dropped the file since it was found, has the empty body.
+func (x *Index) Body(path string) (string, error) {
+	var body string
+	err := x.db.QueryRowContext(context.Background(), `SELECT body FROM fts WHERE path = ?`, path).Scan(&body)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("%s: read body of %s: %w", Path(x.store), path, err)
+	}
+	return body, nil
+}
+
 // querier is the part of *sql.DB and *sql.Conn the readers use, so one reader serves both a lone
 // statement on the pool and a statement inside a snapshot.
 type querier interface {
