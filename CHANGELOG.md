@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-26
+
 - `capcom search` and `capcom know search` no longer come back empty when no item holds every word: they list the items holding some of the words under the line `No item holds every word; these hold some of them:`, and the `--json` envelope gains a `match` member (`"all"` or `"any"`) on these two commands. A query whose words no item holds still fails with `not_found`.
 - `capcom search` and `capcom know search` take `--excerpt`: under each hit they print the body lines holding a word searched for (the first 3, with 1 line of context either side, at most 8 lines per hit, each cut at 120 characters), indented four spaces; `--json` hits carry them as `excerpt`. The output without the flag is unchanged.
 - The `--json` error body can now carry `suggestions` (the closest known ids or aliases) and `valid` (the values a flag accepts); text output ends the message with "did you mean a, b or c?" or "use one of: x, y, z", and `--kv` writes `SUGGESTIONS=` and `VALID=` lines before `STATUS=`.
