@@ -589,7 +589,7 @@ ready:
   hide: []
 
 lock:
-  # A Tree lock whose heartbeat is older than this is stale.
+  # A Tree lock whose heartbeat is older than this, or dated more than this ahead, is stale.
   ttl: 2h
 
 elsewhere:
@@ -851,9 +851,10 @@ replaces it. A token file is never read as a record: only `*.json` files are.
 - **heartbeat** — when the lock was last acquired, resumed or touched.
 
 Both times are RFC3339 in UTC. A lock whose heartbeat is older than `lock.ttl` in `config.yaml`
-(2 h by default) is **stale**: it is still held, but another session may take it over with
-`lock acquire --take-stale`, and `lock break` frees it whoever holds it. The lock is advisory;
-capcom installs no git hooks, and `lock check` lets a repository opt in to a check of its own.
+(2 h by default), or dated more than one `lock.ttl` ahead by a clock that ran fast, is **stale**:
+it is still held, but another session may take it over with `lock acquire --take-stale`, and
+`lock break` frees it whoever holds it. The lock is advisory; capcom installs no git hooks, and
+`lock check` lets a repository opt in to a check of its own.
 A record that does not parse or carries no token holds no lock: `lock break` discards it with a
 warning, and `lock status --all` and `capcom prime` skip it with a warning naming the file.
 Every change to a record runs under an OS file lock on its `.lck` file, held only for that read and

@@ -21,6 +21,9 @@ const (
 
 var tokenPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
+// negativeDurationPattern matches a negative duration in a message, such as ` -1h0m0s`.
+var negativeDurationPattern = regexp.MustCompile(` -[0-9]`)
+
 var testClaim = Claim{Purpose: "item 12", Holder: "agent-a", Host: "pi", User: "airic", Branch: "main"}
 
 // openTest returns locks in a fresh temp git common dir, with the hour TTL.
@@ -163,6 +166,68 @@ func TestAcquire_TakeStaleOnStaleLock_TakesItWithANewToken(t *testing.T) {
 	}
 	if taken.Record.Token == acquired.Record.Token || taken.Record.Holder != "agent-b" {
 		t.Errorf("taken = %+v", taken.Record)
+	}
+}
+
+// redateRecord rewrites key's record so that its since and heartbeat are both dated at.
+func redateRecord(t *testing.T, locks *Locks, key string, at time.Time) {
+	t.Helper()
+	stored, err := os.ReadFile(locks.RecordPath(key))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var record Record
+	if err := json.Unmarshal(stored, &record); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	record.Since, record.Heartbeat = at, at
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	writeRecord(t, locks, key, string(data))
+}
+
+func TestRead_FutureHeartbeat_StaleOnlyMoreThanOneTTLAhead(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name      string
+		ahead     time.Duration
+		wantStale bool
+	}{
+		{name: "two TTLs ahead", ahead: 2 * testTTL, wantStale: true},
+		{name: "half a TTL ahead", ahead: testTTL / 2, wantStale: false},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			locks, _ := openTest(t)
+			mustAcquire(t, locks, MainWorktreeKey)
+			redateRecord(t, locks, MainWorktreeKey, time.Now().Add(testCase.ahead))
+
+			status, err := locks.Read(MainWorktreeKey)
+
+			if err != nil || status.IsStale != testCase.wantStale {
+				t.Errorf("Read = stale %v, err %v; want stale %v", status.IsStale, err, testCase.wantStale)
+			}
+		})
+	}
+}
+
+func TestAcquire_HeldWithFutureTimes_ReportsNoNegativeAge(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	mustAcquire(t, locks, MainWorktreeKey)
+	redateRecord(t, locks, MainWorktreeKey, time.Now().Add(2*testTTL))
+
+	_, _, err := locks.Acquire(MainWorktreeKey, Claim{Purpose: "other", Holder: "agent-b"}, "", false)
+
+	held := asHeldError(t, err)
+	if held.Age < 0 || held.HeartbeatAge < 0 || negativeDurationPattern.MatchString(held.Message()) {
+		t.Errorf("held = age %v, heartbeat age %v, message %q; want no negative age", held.Age, held.HeartbeatAge, held.Message())
+	}
+	if !held.Status.IsStale {
+		t.Errorf("status = %+v, want stale", held.Status)
 	}
 }
 

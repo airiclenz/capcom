@@ -89,7 +89,8 @@ type Status struct {
 	Record Record
 	// IsHeld reports whether a record exists, stale or not.
 	IsHeld bool
-	// IsStale reports a held lock whose heartbeat is older than the TTL.
+	// IsStale reports a held lock whose heartbeat is older than the TTL, or dated more than one TTL
+	// ahead of now.
 	IsStale bool
 	// IsCorrupt reports a record that held no valid lock and was discarded; only Break sets it,
 	// and IsHeld is then false.
@@ -118,9 +119,9 @@ type HeldError struct {
 	Path string
 	// Status is the lock as found.
 	Status Status
-	// Age is how long the lock has been held.
+	// Age is how long the lock has been held; never negative.
 	Age time.Duration
-	// HeartbeatAge is how long ago the holder last refreshed it.
+	// HeartbeatAge is how long ago the holder last refreshed it; never negative.
 	HeartbeatAge time.Duration
 }
 
@@ -152,8 +153,9 @@ type Locks struct {
 	ttl time.Duration
 }
 
-// Open returns the locks kept under gitCommonDir; a lock whose heartbeat is older than ttl is
-// stale. Nothing is touched on disk until a lock is read or written.
+// Open returns the locks kept under gitCommonDir; a lock whose heartbeat is older than ttl, or
+// dated more than ttl ahead of now, is stale. Nothing is touched on disk until a lock is read or
+// written.
 func Open(gitCommonDir string, ttl time.Duration) *Locks {
 	return &Locks{dir: filepath.Join(gitCommonDir, capcomDir, locksDir), ttl: ttl}
 }
@@ -409,8 +411,15 @@ func (l *Locks) read(key string, now time.Time) (Status, error) {
 		Key:     key,
 		Record:  record,
 		IsHeld:  true,
-		IsStale: now.Sub(record.Heartbeat) > l.ttl,
+		IsStale: isStale(record.Heartbeat, now, l.ttl),
 	}, nil
+}
+
+// isStale reports a heartbeat more than ttl from now in either direction. A heartbeat dated ahead,
+// by a holder whose clock ran fast, would otherwise never age past the TTL, and the lock would
+// stick until someone broke it.
+func isStale(heartbeat, now time.Time, ttl time.Duration) bool {
+	return now.Sub(heartbeat) > ttl || heartbeat.Sub(now) > ttl
 }
 
 // write replaces key's record atomically. The caller holds the guard.
@@ -428,13 +437,14 @@ func (l *Locks) remove(key string) error {
 	return removeFile(l.RecordPath(key))
 }
 
-// heldError reports current, held by another session, as seen at now.
+// heldError reports current, held by another session, as seen at now. A time dated ahead of now
+// gives a zero age, as AgeText renders it, never a negative one.
 func (l *Locks) heldError(current Status, now time.Time) *HeldError {
 	return &HeldError{
 		Path:         l.RecordPath(current.Key),
 		Status:       current,
-		Age:          now.Sub(current.Record.Since),
-		HeartbeatAge: now.Sub(current.Record.Heartbeat),
+		Age:          max(now.Sub(current.Record.Since), 0),
+		HeartbeatAge: max(now.Sub(current.Record.Heartbeat), 0),
 	}
 }
 

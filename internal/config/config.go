@@ -131,7 +131,7 @@ ready:
   hide: []
 
 lock:
-  # A Tree lock whose heartbeat is older than this is stale.
+  # A Tree lock whose heartbeat is older than this, or dated more than this ahead, is stale.
   ttl: 2h
 
 elsewhere:

@@ -204,7 +204,9 @@ then `SessionToken(key, "", "alpha")` is `""` and `tokenPath(key, "alpha")` is g
 **Closes:** lock-purpose-alias-resume
 **Commit:** `fix(lock): move the token file when a resume names a new purpose`
 
-## 5. A heartbeat in the future is stale
+## 5. A heartbeat in the future is stale — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): consequential edit — internal/config/config.go: made necessary by the new stale rule; the `lock.ttl` comment in the config template `capcom init` writes ("older than this is stale") now names the future-heartbeat rule, and file-format.md's copy of that template block follows it. The repository's own `.capcom/config.yaml` keeps the old comment, as an existing user's config would.
 
 **What:**
 **Goal:** a lock whose heartbeat lies more than one TTL after now is stale, so `lock acquire

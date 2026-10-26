@@ -4,9 +4,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // staleLockConfig makes every Tree lock stale as soon as it is written.
@@ -160,6 +162,41 @@ func TestLockAcquire_StaleLock_RefusedWithoutTakeStaleAndTakenWithIt(t *testing.
 	}
 	if kvValue(t, taken, "LOCK") != "acquired" || kvValue(t, taken, "TOKEN") == token {
 		t.Errorf("with --take-stale: %q", taken)
+	}
+}
+
+// lockHeartbeatYear dates a lock record's heartbeat far in the future, as a fast clock would.
+const lockHeartbeatYear = 2099
+
+// futureLockAge is the negative age that dates a lock record at the start of lockHeartbeatYear.
+func futureLockAge() time.Duration {
+	return -time.Until(time.Date(lockHeartbeatYear, time.January, 1, 0, 0, 0, 0, time.UTC))
+}
+
+func TestLockAcquire_FutureHeartbeat_IsTakenWithTakeStale(t *testing.T) {
+	root := newLockStore(t)
+	token := acquireToken(t, root, "agent-a")
+	ageLockRecord(t, lockRecordPath(root), futureLockAge())
+
+	taken := mustRun(t, root, "lock", "acquire", "--purpose", "me", "--take-stale", "--kv")
+
+	if kvValue(t, taken, "LOCK") != "acquired" || kvValue(t, taken, "TOKEN") == token {
+		t.Errorf("with --take-stale: %q", taken)
+	}
+}
+
+func TestLockAcquire_FutureHeartbeatWithoutTakeStale_PrintsNoNegativeAge(t *testing.T) {
+	root := newLockStore(t)
+	acquireToken(t, root, "agent-a")
+	ageLockRecord(t, lockRecordPath(root), futureLockAge())
+
+	_, stderr, exitCode := runCLI(t, root, "lock", "acquire", "--purpose", "me")
+
+	if exitCode != ExitNotFound || !strings.Contains(stderr, "locked by agent-a") {
+		t.Fatalf("exit = %d stderr = %q", exitCode, stderr)
+	}
+	if regexp.MustCompile(` -[0-9]`).MatchString(stderr) || !strings.Contains(stderr, "for 0s, heartbeat 0s ago, stale") {
+		t.Errorf("stderr = %q, want zero ages and no negative duration", stderr)
 	}
 }
 

@@ -75,8 +75,8 @@ const (
 		"tree while it edits.\n\n" +
 		"acquire claims it, prints a Lock token and keeps that token for the session in a token file " +
 		"under the git directory; touch renews its heartbeat with that token, and release frees it.\n\n" +
-		"A lock whose heartbeat is older than the TTL (lock.ttl in config.yaml, two hours by default) " +
-		"is stale: it stays held until its holder resumes it, another session takes it over with " +
+		"A lock whose heartbeat is older than the TTL (lock.ttl in config.yaml, two hours by default), " +
+		"or dated more than one TTL ahead by a clock that ran fast, is stale: it stays held until its holder resumes it, another session takes it over with " +
 		"acquire --take-stale, or someone breaks it.\n\n" +
 		"Each git worktree has a lock of its own, and capcom installs no git hooks: the lock binds " +
 		"only the sessions that check it."
