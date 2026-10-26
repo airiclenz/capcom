@@ -5,7 +5,7 @@
 #   photon render graphics/demo/storyboards/hero.yaml   # writes graphics/demo.gif
 clip: hero
 ship: ../../demo.gif
-frame: {cols: 120, rows: 20, padding: 16, font_size: 14, line_height: 1.2, scale: 2, width: 960, fps: 20, max_colors: 128}
+frame: {cols: 120, rows: 20, padding: 16, font_size: 14, line_height: 1.2, scale: 2, width: 960, fps: 24, max_colors: 128}
 expect:
   - seen: 'v\d+\.\d+\.\d+ · capcom'
     area: tabs
@@ -38,11 +38,6 @@ beats:
       - type: {text: 'a', humanize: false}
       - wait: {screen: 'claimed flaky-redirect-test', timeout: 5s}
       - pause: {for: 720ms}
-    zoom:
-      target: {text: 'claimed flaky-redirect-test', area: status}
-      factor: 1.8
-      in: 1550ms
-      out: 1150ms
     expect:
       - seen: 'claimed flaky-redirect-test'
         area: status
@@ -55,11 +50,6 @@ beats:
     do:
       - wait: {screen: 'abuse-reports +open +P2', timeout: 10s}
       - pause: {for: 1200ms}
-    zoom:
-      target: {text: 'abuse-reports +open +P2'}
-      factor: 1.6
-      in: 1750ms
-      out: 3s
     expect:
       - seen: 'abuse-reports +open +P2'
       - run: 'cd stage && ../capcom show rate-limit | grep -q "^status: done$"'
@@ -113,3 +103,13 @@ beats:
     expect:
       - seen: 'It must stay'
       - run: 'grep -rqs "sidebar_ratio" config home && ! grep -rqs "sidebar_ratio: 0.5$" config home'
+
+camera:
+  # Beat 3: push into the claim on the status bar, then back out before the beat ends.
+  - zoom: {to: 1.8, at: {beat: 3}, over: 1550ms}
+  - pan: {to: {text: 'claimed flaky-redirect-test', area: status}, at: {beat: 3}, over: 1550ms}
+  - zoom: {to: 1, at: {beat: 3, offset: 2450ms}, over: 1150ms}
+  # Beat 4: push into the queue as the agent's close lands, then ease back out.
+  - zoom: {to: 1.6, at: {beat: 4}, over: 1750ms}
+  - pan: {to: {text: 'abuse-reports +open +P2'}, at: {beat: 4}, over: 1750ms}
+  - zoom: {to: 1, at: {beat: 4, offset: 3300ms}, over: 3s}
