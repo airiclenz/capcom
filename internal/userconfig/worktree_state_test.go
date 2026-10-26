@@ -45,9 +45,12 @@ func TestSaveWorktreeState_LoadWorktreeState_RoundTrips(t *testing.T) {
 		{"nothing stored", userconfig.WorktreeState{}, worktreeStateHeader},
 		{
 			"every field",
-			userconfig.WorktreeState{Tab: "knowledge", Ready: "fix-x", Issues: "epic-y", Knowledge: "adr-0015"},
-			worktreeStateHeader + "ui:\n  tab: \"knowledge\"\n  selected:\n" +
-				"    ready: \"fix-x\"\n    issues: \"epic-y\"\n    knowledge: \"adr-0015\"\n",
+			userconfig.WorktreeState{
+				Tab: "closed", Ready: "fix-x", Issues: "epic-y", Knowledge: "adr-0015", Closed: "done-z",
+			},
+			worktreeStateHeader + "ui:\n  tab: \"closed\"\n  selected:\n" +
+				"    ready: \"fix-x\"\n    issues: \"epic-y\"\n    knowledge: \"adr-0015\"\n" +
+				"    closed: \"done-z\"\n",
 		},
 		{
 			"only a tab",

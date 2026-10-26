@@ -17,6 +17,7 @@ const (
 	keyReady            = "ready"
 	keyIssues           = "issues"
 	keyKnowledge        = "knowledge"
+	keyClosed           = "closed"
 	worktreeStateHeader = "# capcom ui worktree state: written by capcom ui, not meant for editing (ADR 0015).\n"
 	// worktreeStateTempPattern names the temp file SaveWorktreeState writes before renaming it into
 	// place.
@@ -39,6 +40,8 @@ type WorktreeState struct {
 	Issues string
 	// Knowledge is the id selected on the Knowledge tab.
 	Knowledge string
+	// Closed is the id selected on the Closed tab.
+	Closed string
 }
 
 // selection pairs a key of the ui.selected mapping with the WorktreeState field it holds.
@@ -53,6 +56,7 @@ func (s *WorktreeState) selections() []selection {
 		{keyReady, &s.Ready},
 		{keyIssues, &s.Issues},
 		{keyKnowledge, &s.Knowledge},
+		{keyClosed, &s.Closed},
 	}
 }
 

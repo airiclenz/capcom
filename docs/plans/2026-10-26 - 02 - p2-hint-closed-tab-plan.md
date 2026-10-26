@@ -75,7 +75,7 @@ only, the `--kv` hint pair.
 **Closes:** body-file-hint; error-next-command
 **Commit:** `fix(cli): hint a stdin retry when a body input file is missing`
 
-## 2. The worktree state holds a Closed tab selection
+## 2. The worktree state holds a Closed tab selection — ✅ DONE (2026-10-26)
 
 **What:**
 **Goal:** `userconfig.WorktreeState` carries a `Closed` selection saved and loaded under
