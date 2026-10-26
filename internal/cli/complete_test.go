@@ -116,7 +116,7 @@ func TestComplete_UITab_ListsTabNamesInTabBarOrder(t *testing.T) {
 
 	got := runComplete(t, root, "ui", "")
 
-	if want := []string{"issues", "ready", "knowledge", completeDirective}; !slices.Equal(got, want) {
+	if want := []string{"issues", "ready", "knowledge", "closed", completeDirective}; !slices.Equal(got, want) {
 		t.Errorf("__complete ui \"\" = %q, want %q", got, want)
 	}
 }

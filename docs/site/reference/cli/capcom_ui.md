@@ -11,7 +11,7 @@ Open the terminal UI
 
 ### Synopsis
 
-Open the terminal UI over this store: the Ready, Issues and Knowledge tabs.
+Open the terminal UI over this store: the Ready, Issues, Knowledge and Closed tabs.
 
 With no argument it reopens on the tab and the selection of each tab it last had in this worktree, kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time.
 
@@ -24,7 +24,7 @@ q or ctrl+c quits.
 --json does not apply and is refused.
 
 ```
-capcom ui [issues|ready|knowledge] [id] [flags]
+capcom ui [issues|ready|knowledge|closed] [id] [flags]
 ```
 
 ### Examples
@@ -34,6 +34,7 @@ capcom ui [issues|ready|knowledge] [id] [flags]
   capcom ui issues                    # the Issues tab
   capcom ui issues login-timeout-race # the Issues tab with that Issue selected
   capcom ui knowledge store-layout    # the Knowledge tab with that Note selected
+  capcom ui closed login-timeout-race # the Closed tab with that closed Issue selected
 ```
 
 ### Options

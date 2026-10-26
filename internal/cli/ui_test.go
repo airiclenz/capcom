@@ -69,6 +69,8 @@ func TestUITarget_ValidArguments_ReportsTabIDAndWhetherATabWasGiven(t *testing.T
 		{name: "ready", args: []string{"ready"}, wantTab: ui.TabReady, wantIsTabGiven: true},
 		{name: "issues", args: []string{"issues"}, wantTab: ui.TabIssues, wantIsTabGiven: true},
 		{name: "knowledge with id", args: []string{"knowledge", "store-layout"}, wantTab: ui.TabKnowledge, wantID: "store-layout", wantIsTabGiven: true},
+		{name: "closed", args: []string{"closed"}, wantTab: ui.TabClosed, wantIsTabGiven: true},
+		{name: "closed with id", args: []string{"closed", "login-timeout-race"}, wantTab: ui.TabClosed, wantID: "login-timeout-race", wantIsTabGiven: true},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

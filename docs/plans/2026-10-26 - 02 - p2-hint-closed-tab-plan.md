@@ -197,7 +197,7 @@ issue's path. Help golden regenerated.
 - `go vet ./internal/ui/`
 **Commit:** `feat(ui): reopen, filter and browse on the Closed tab`
 
-## 6. `capcom ui closed [id]` opens the Closed tab
+## 6. `capcom ui closed [id]` opens the Closed tab — ✅ DONE (2026-10-26)
 
 **What:** Depends on item 4.
 **Goal:** `capcom ui closed` and `capcom ui closed <id>` are accepted, shell completion offers `closed`

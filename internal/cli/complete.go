@@ -27,7 +27,7 @@ const everyArgument = -1
 const valueSeparator = ","
 
 // uiTabs are the tabs capcom ui takes, in the order of its tab bar.
-var uiTabs = []ui.Tab{ui.TabIssues, ui.TabReady, ui.TabKnowledge}
+var uiTabs = []ui.Tab{ui.TabIssues, ui.TabReady, ui.TabKnowledge, ui.TabClosed}
 
 // isCompletionRequest reports whether args, the program name excluded, ask cobra's hidden
 // __complete or __completeNoDesc command for the shell's candidates.

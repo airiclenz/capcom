@@ -20,7 +20,7 @@ const noColorVariable = "NO_COLOR"
 
 // The help text of capcom ui.
 const (
-	uiLong = "Open the terminal UI over this store: the Ready, Issues and Knowledge tabs.\n\n" +
+	uiLong = "Open the terminal UI over this store: the Ready, Issues, Knowledge and Closed tabs.\n\n" +
 		"With no argument it reopens on the tab and the selection of each tab it last had in this " +
 		"worktree, kept in <git-dir>/capcom/ui-state.yaml, and on the Ready tab the first time.\n\n" +
 		"A tab name opens that tab, and an id after it selects that Issue or Note there; the " +
@@ -31,7 +31,8 @@ const (
 	uiExample = "  capcom ui                           # the last tab and selection in this worktree\n" +
 		"  capcom ui issues                    # the Issues tab\n" +
 		"  capcom ui issues login-timeout-race # the Issues tab with that Issue selected\n" +
-		"  capcom ui knowledge store-layout    # the Knowledge tab with that Note selected"
+		"  capcom ui knowledge store-layout    # the Knowledge tab with that Note selected\n" +
+		"  capcom ui closed login-timeout-race # the Closed tab with that closed Issue selected"
 )
 
 // newUICommand runs the terminal UI on the store and index prepare opened. The arguments and
@@ -39,7 +40,7 @@ const (
 // refreshed.
 func (a *app) newUICommand() *cobra.Command {
 	return &cobra.Command{
-		Use:     "ui [issues|ready|knowledge] [id]",
+		Use:     "ui [issues|ready|knowledge|closed] [id]",
 		Short:   "Open the terminal UI",
 		Long:    uiLong,
 		Example: uiExample,
