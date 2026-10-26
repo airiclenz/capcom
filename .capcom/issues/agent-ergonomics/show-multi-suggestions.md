@@ -3,6 +3,7 @@ title: show with several unknown ids blurs whose suggestions they are
 status: open
 type: bug
 priority: 2
+plan: 2026-10-26 - 01 - p1-p2-ergonomics-plan
 created: 2026-10-26T09:46:10Z
 ---
 

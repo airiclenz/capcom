@@ -3,6 +3,7 @@ title: The UI tabs do not show how many items they hold
 status: open
 type: feature
 priority: 2
+plan: 2026-10-26 - 01 - p1-p2-ergonomics-plan
 created: 2026-10-26T08:02:56Z
 ---
 
