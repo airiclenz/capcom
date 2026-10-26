@@ -22,9 +22,9 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// racyGranularity is the coarsest file mtime resolution the racy-clean rule allows for: a file
-// whose mtime falls in the same second as the refresh that recorded it is re-read next time,
-// since a same-size edit in that second could leave its mtime unchanged.
+// racyGranularity is the coarsest file time resolution the racy-clean rule allows for: a file
+// whose mtime or change time falls in the same second as the refresh that recorded it is re-read
+// next time, since a same-size edit in that second could leave both unchanged.
 const racyGranularity = time.Second
 
 // commitTx commits a refresh transaction. It is a variable so a test can make the commit fail.
@@ -52,9 +52,9 @@ func (x *Index) Refresh() (bool, error) {
 
 // refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
 // IMMEDIATE transaction, and records its report as the one Report returns. It re-parses only the
-// files that are new, changed in size or mtime, or racily clean, drops the rows of files that are
-// gone, and rebuilds everything when the schema version or the configured statuses and types
-// changed; isForced drops every table and indexes both trees again. It then stores the membership
+// files that are new, changed in size, mtime, change time or identity, or racily clean, drops the
+// rows of files that are gone, and rebuilds everything when the schema version or the configured
+// statuses and types changed; isForced drops every table and indexes both trees again. It then stores the membership
 // verdicts tree.DecideMembership gives on the rows it recorded. Files that cannot be used are
 // reported in the Report's Warnings and left out; refresh itself fails only when the index or
 // the tree cannot be read.
@@ -195,20 +195,30 @@ type foundFile struct {
 	parentID string
 	size     int64
 	mtime    int64
+	// ctime and identity are the change time, in Unix nanoseconds, and the identity changeStamp
+	// gives the file: 0 and "" where the system offers none.
+	ctime    int64
+	identity string
 }
 
 // recordedFile is a files row from an earlier refresh.
 type recordedFile struct {
 	size      int64
 	mtime     int64
+	ctime     int64
+	identity  string
 	refreshed int64
 	problems  sql.NullString
 }
 
-// isDirty reports whether the file must be read again: its size or mtime changed, or its mtime is
-// not older than the refresh that recorded it (racy-clean).
+// isDirty reports whether the file must be read again: its size, mtime, change time or identity
+// changed, or its mtime or change time is not older than the refresh that recorded it
+// (racy-clean). The change time and identity catch an edit that keeps the size and restores the
+// mtime, with no file body read.
 func (recorded recordedFile) isDirty(file foundFile) bool {
-	return recorded.size != file.size || recorded.mtime != file.mtime || recorded.mtime >= recorded.refreshed
+	return recorded.size != file.size || recorded.mtime != file.mtime ||
+		recorded.ctime != file.ctime || recorded.identity != file.identity ||
+		recorded.mtime >= recorded.refreshed || recorded.ctime >= recorded.refreshed
 }
 
 // sync re-indexes the new and changed files, keeps the clean ones and forgets the vanished ones.
@@ -250,7 +260,7 @@ func (r *refresher) sync(found []foundFile, report *Report) error {
 
 // recordedFiles reads every files row, by path.
 func (r *refresher) recordedFiles() (map[string]recordedFile, error) {
-	rows, err := r.tx.QueryContext(r.ctx, `SELECT path, size, mtime, refreshed, problems FROM files`)
+	rows, err := r.tx.QueryContext(r.ctx, `SELECT path, size, mtime, ctime, identity, refreshed, problems FROM files`)
 	if err != nil {
 		return nil, fmt.Errorf("read indexed files: %w", err)
 	}
@@ -259,7 +269,9 @@ func (r *refresher) recordedFiles() (map[string]recordedFile, error) {
 	for rows.Next() {
 		var path string
 		var file recordedFile
-		if err := rows.Scan(&path, &file.size, &file.mtime, &file.refreshed, &file.problems); err != nil {
+		if err := rows.Scan(
+			&path, &file.size, &file.mtime, &file.ctime, &file.identity, &file.refreshed, &file.problems,
+		); err != nil {
 			return nil, fmt.Errorf("read indexed files: %w", err)
 		}
 		recorded[path] = file
@@ -331,8 +343,9 @@ func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
 	}
 	_, err = r.tx.ExecContext(
 		r.ctx,
-		`INSERT INTO files (path, kind, size, mtime, refreshed, problems) VALUES (?, ?, ?, ?, ?, ?)`,
-		file.path, file.kind, file.size, file.mtime, r.refreshed, stored,
+		`INSERT INTO files (path, kind, size, mtime, ctime, identity, refreshed, problems)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		file.path, file.kind, file.size, file.mtime, file.ctime, file.identity, r.refreshed, stored,
 	)
 	if err != nil {
 		return false, fmt.Errorf("index %s: %w", file.path, err)

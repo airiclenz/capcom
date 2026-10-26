@@ -89,7 +89,11 @@ index file survives. CLI: garbage → `capcom list` exit 1 with `hint: capcom re
 **Closes:** reindex-cannot-repair-index
 **Commit:** `fix(index): let reindex discard an index SQLite reports corrupt`
 
-## 2. The index sees a content change that keeps size and mtime
+## 2. The index sees a content change that keeps size and mtime — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): the new index test rewrites the file (10 ms apart, at most 2 s) until changeStamp reads a different change time or identity, so a file system whose change time ticks coarsely cannot make it flaky; it skips only on systems other than Linux, macOS and Windows, where changeStamp reads nothing.
+NOTES (2026-10-26): in the two internal/ui tests the extra poll is `tick` (poll and apply), placed after waitPastNextSecond, a new helper in harness_test.go; newTestStore itself is unchanged apart from its comment.
+NOTES (2026-10-26): on Windows, windows.CreateFile gets the plain path, so a node file path past MAX_PATH falls back to size and mtime alone (changeStamp's (0, "") rule); a `\\?\` prefix would cover it.
 
 **What:**
 **Goal:** a node file rewritten with the same byte length and its old mtime restored is re-read on

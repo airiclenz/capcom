@@ -115,6 +115,8 @@ func TestRefresh_SelectedNodeRemoved_MovesTheSelection(t *testing.T) {
 func TestRefresh_NoChangeTick_ReloadsNothing(t *testing.T) {
 	ts := newTestStore(t, map[string]string{"issues/valid-issue.md": validIssue})
 	m := newIssuesModel(t, ts, "", 100, 20)
+	waitPastNextSecond(t)
+	m = tick(t, m)
 
 	msg := pollOnce(t, m)
 	_, cmd := m.Update(msg)
@@ -152,6 +154,8 @@ func TestRefresh_ConfigDeclaresStatus_ShowsWithoutRebuildLoop(t *testing.T) {
 	}
 	writeStoreFile(t, ts, "config.yaml", reviewConfig)
 
+	m = tick(t, m)
+	waitPastNextSecond(t)
 	m = tick(t, m)
 	next := pollOnce(t, m)
 

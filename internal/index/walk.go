@@ -25,7 +25,8 @@ var lstat = os.Lstat
 // without a valid node file, left out with its whole subtree — is warned about through r. A
 // missing issuesDir is an empty tree. A file gone before its stat is skipped. Every node file the
 // walk keeps is listed, the ones below a repeated id included: persistMembership leaves those out
-// by the one membership verdict of the refresh. A walk or stat failure names its path relative to
+// by the one membership verdict of the refresh. Each is listed with its size and mtime and with
+// the change time and identity changeStamp gives it. A walk or stat failure names its path relative to
 // worktreeRoot.
 // It also returns the names the files the walk leaves out claim, as tree.ClaimOnlyFacts, the one
 // builder tree.Load claims through, finds them with content, the ContentFunc of the tree's kind,
@@ -59,6 +60,7 @@ func walkIssues(
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s: %w", path, err)
 		}
+		ctime, identity := changeStamp(node.Path, info)
 		found = append(found, foundFile{
 			path:     path,
 			absolute: node.Path,
@@ -66,6 +68,8 @@ func walkIssues(
 			parentID: node.ParentID,
 			size:     info.Size(),
 			mtime:    info.ModTime().UnixNano(),
+			ctime:    ctime,
+			identity: identity,
 		})
 	}
 	slices.SortFunc(found, func(a, b foundFile) int {

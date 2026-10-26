@@ -2,11 +2,14 @@ package index
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
@@ -223,5 +226,68 @@ func TestRefresh_NodesBelowARepeatedID_LeftOutWithTheDirectoryWarningAlone(t *te
 		if strings.HasPrefix(warning.Path, ".capcom/issues/b/x/") || strings.HasPrefix(warning.Path, ".capcom/knowledge/b/x/") {
 			t.Errorf("warnings = %q, want none of a file below the repeated id x", warningStrings(report))
 		}
+	}
+}
+
+// rewriteKeepingMtime writes content over the file at path and sets its mtime back to mtime. It
+// writes again, at most for two seconds, until the change time and identity changeStamp reads
+// move off the ones before the first write, so a file system whose change time ticks coarsely
+// still shows the edit.
+func rewriteKeepingMtime(t *testing.T, path, content string, mtime time.Time) {
+	t.Helper()
+	before := stampOf(t, path)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+		if err := os.Chtimes(path, mtime, mtime); err != nil {
+			t.Fatalf("Chtimes: %v", err)
+		}
+		if stampOf(t, path) != before {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the change time of %s did not move in two seconds of rewrites", path)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// stampOf returns the change time and identity changeStamp reads for the file at path, joined.
+func stampOf(t *testing.T, path string) string {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("Lstat: %v", err)
+	}
+	ctime, identity := changeStamp(path, info)
+	return fmt.Sprintf("%d %s", ctime, identity)
+}
+
+func TestRefresh_SameSizeEditWithMtimeRestored_IsSeen(t *testing.T) {
+	t.Parallel()
+	if !slices.Contains([]string{"linux", "darwin", "windows"}, runtime.GOOS) {
+		t.Skipf("changeStamp reads no change time on %s", runtime.GOOS)
+	}
+	s := newStore(t)
+	then := time.Now().Add(-time.Hour).Truncate(time.Second)
+	path := writeIssue(t, s, "kept-mtime.md", issueText("Alpha title", "open", ""))
+	if err := os.Chtimes(path, then, then); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+	x := openIndex(t, s, laterClock())
+	rewriteKeepingMtime(t, path, issueText("Bravo title", "open", ""), then)
+
+	report := refresh(t, x)
+
+	if want := []string{".capcom/issues/kept-mtime.md"}; !slices.Equal(report.parsed, want) {
+		t.Errorf("parsed = %v, want %v: the same-size edit with its mtime restored", report.parsed, want)
+	}
+	if title := mustIssue(t, x, "kept-mtime").Title; title != "Bravo title" {
+		t.Errorf("title = %q, want the edit seen", title)
+	}
+	if found, err := x.Search("bravo"); err != nil || !slices.Equal(found, []string{"kept-mtime"}) {
+		t.Errorf("Search(bravo) = %v, %v; want [kept-mtime]", found, err)
 	}
 }

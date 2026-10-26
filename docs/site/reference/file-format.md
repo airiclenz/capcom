@@ -333,8 +333,9 @@ conflict markers passed over), with `id "<id>" may be an alias of issue <holder>
 parse: fix it first` (`note` in place of `issue` for a Note); every other problem of that file stays
 a warning. Two files that answer to the same
 id or alias are both left out, each warning naming the other. The index refreshes itself on every command that reads it,
-re-reading only the files whose size or modification time changed; `capcom reindex` rebuilds it
-from scratch.
+re-reading only the files whose size, modification time, change time or identity (device and
+inode on Linux and macOS) changed, so an edit that keeps the size and restores the modification
+time is still seen; `capcom reindex` rebuilds it from scratch.
 
 ### Merge conflicts in the Log
 

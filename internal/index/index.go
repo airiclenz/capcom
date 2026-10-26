@@ -1,10 +1,10 @@
 // Package index keeps the disposable SQLite index of a store at `<git-dir>/capcom/index.db`. The
 // index mirrors the issue tree and the Knowledge tree and is never committed; the markdown files
 // stay the truth. Open returns the index already up to date: ModeRefresh brings it up to date
-// incrementally, re-parsing only the files whose size or mtime changed, and ModeRebuild (or
-// deleting the file) recreates it from scratch. A file that cannot be used is reported as a
-// diagnose.Finding and left out while the rest stays queryable. The index only reads `.capcom/`;
-// it never writes there.
+// incrementally, re-parsing only the files whose size, mtime, change time or identity changed,
+// and ModeRebuild (or deleting the file) recreates it from scratch. A file that cannot be used is
+// reported as a diagnose.Finding and left out while the rest stays queryable. The index only
+// reads `.capcom/`; it never writes there.
 package index
 
 import (

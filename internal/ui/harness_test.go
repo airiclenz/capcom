@@ -35,9 +35,11 @@ type testStore struct {
 // newTestStore builds a store in a fresh temp git repository, as runCLI's tests do: the hermetic
 // git environment, the config.yaml capcom init writes, then files, keyed by their path relative
 // to .capcom with forward slashes (issues/a.md, knowledge/n.md), and an index refreshed over
-// them. Every store file is backdated by backdateAge before the index opens, so the index records
-// them clean and an edit a test makes later is a change, never racily clean. The index is closed
-// when the test ends. Tests using it never run in parallel: it sets the process environment.
+// them. Every store file is backdated by backdateAge before the index opens, so its mtime is
+// never racily clean and an edit a test makes later is a change. Backdating sets each file's
+// change time to now, though, so the index reads them racily clean once more on the first
+// refresh in a later second: a test that asserts a no-change poll first calls
+// waitPastNextSecond and polls once. The index is closed when the test ends. Tests using it never run in parallel: it sets the process environment.
 func newTestStore(t *testing.T, files map[string]string) *testStore {
 	t.Helper()
 	root := newGitRepo(t)
@@ -69,6 +71,14 @@ func newTestStore(t *testing.T, files map[string]string) *testStore {
 		}
 	})
 	return &testStore{root: root, store: opened, index: issueIndex}
+}
+
+// waitPastNextSecond returns once the clock has passed the next whole second, so a refresh from
+// then on is past the change time of every file written so far, never racily clean with it.
+func waitPastNextSecond(t *testing.T) {
+	t.Helper()
+	next := time.Now().Truncate(time.Second).Add(time.Second)
+	time.Sleep(time.Until(next) + 10*time.Millisecond)
 }
 
 // backdateAge is how far newTestStore backdates the store's files.
