@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -49,15 +48,10 @@ type readyMsg struct {
 	filter   *sidebarFilter
 }
 
-// readyTab is the Ready tab's state: the queue from the last read, its issues the Ready filter
-// keeps, the cursor over those and the first of them on screen. isRead reports a read taken in.
+// readyTab is the Ready tab's state: the queue from the last read, as an entry list over the
+// issues the Ready filter keeps.
 type readyTab struct {
-	all     []index.Entry
-	entries []index.Entry
-	err     error
-	isRead  bool
-	cursor  listCursor
-	top     int
+	entryList
 }
 
 // loadReady returns a command that reads the Ready queue through the session, as capcom ready
@@ -101,32 +95,13 @@ func loadReady(s *session, read tabRead) tea.Cmd {
 // holds it, reports the id in the status bar when it does not and the worktree state file did not
 // store it, and shows the selection; a reload's read also reads the shown issue again.
 func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
-	previous, wasSelected := m.readySelection()
-	previousIDs := make([]string, 0, len(m.ready.entries))
-	for _, entry := range m.ready.entries {
-		previousIDs = append(previousIDs, entry.ID)
-	}
 	m = m.takeRematched(TabReady, msg.filter)
-	m.ready.all = msg.entries
-	m.ready.entries = keepMatched(msg.entries, entryID, m.filters[TabReady])
-	m.ready.err = msg.err
-	m.ready.isRead = true
-	count := len(m.ready.entries)
-	m.ready.cursor.clampSelection(count)
-	if wasSelected {
-		m = m.keepReadySelection(previous, previousIDs)
-	}
+	m.ready.take(msg.entries, msg.err, m.filters[TabReady])
 	if msg.notice != "" {
 		m.notice = msg.notice
 	}
-	if msg.selectID != "" {
-		row := slices.IndexFunc(m.ready.entries, func(entry index.Entry) bool { return entry.ID == msg.selectID })
-		switch {
-		case row >= 0:
-			m.ready.cursor.seat(row, count)
-		case !msg.isStored:
-			m.notice = fmt.Sprintf(notInReadyFormat, msg.selectID)
-		}
+	if msg.selectID != "" && !m.ready.seatID(msg.selectID) && !msg.isStored {
+		m.notice = fmt.Sprintf(notInReadyFormat, msg.selectID)
 	}
 	next, cmd := m.showReadySelection()
 	return next.withShownReloaded(TabReady, msg.isReload, cmd)
@@ -135,7 +110,7 @@ func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
 // readyKey moves the Ready tab's selection for a cursor key and shows the issue it lands on. It
 // reports false for any other key, which it leaves to the model's own keys.
 func (m model) readyKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
-	if m.ready.cursor.key(msg, len(m.ready.entries), listStopsAtEnds) != listSwallowed {
+	if !m.ready.key(msg) {
 		return m, nil, false
 	}
 	next, cmd := m.showReadySelection()
@@ -167,11 +142,7 @@ func (m model) showReadySelection() (model, tea.Cmd) {
 // readySelection returns the selected issue of the Ready queue, and false when the queue is
 // empty.
 func (m model) readySelection() (index.Entry, bool) {
-	row := m.ready.cursor.highlight(len(m.ready.entries))
-	if row < 0 {
-		return index.Entry{}, false
-	}
-	return m.ready.entries[row], true
+	return m.ready.selection()
 }
 
 // paintReadySidebar fills the sidebar with the Ready queue the Ready filter keeps, one `id  status
@@ -194,17 +165,14 @@ func (m model) paintReadySidebar() model {
 	for _, entry := range m.ready.entries {
 		columns = columns.widen(0, entry)
 	}
-	height := max(m.sidebarHeight(), 1)
-	selected := m.ready.cursor.highlight(len(m.ready.entries))
-	m.ready.top = clampInt(m.ready.top, selected-height+1, selected)
-	end := min(m.ready.top+height, len(m.ready.entries))
-	rows := make([]string, 0, end-m.ready.top)
-	for row := m.ready.top; row < end; row++ {
+	start, end, selected := m.ready.window(max(m.sidebarHeight(), 1))
+	rows := make([]string, 0, end-start)
+	for row := start; row < end; row++ {
 		entry := m.ready.entries[row]
 		mark := m.theme.markOf(false, row == selected)
 		rows = append(rows, mark.render(readyRow(entry, m.theme.status(entry.Category), columns)...))
 	}
-	return m.withSidebar(rows, m.ready.top, len(m.ready.entries))
+	return m.withSidebar(rows, start, len(m.ready.entries))
 }
 
 // columnWidths are the widths a sidebar row pads its id and its status to, so the status and the

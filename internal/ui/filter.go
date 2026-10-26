@@ -353,7 +353,7 @@ func (m model) withFilter(tab Tab, filter sidebarFilter) model {
 	m.filters[tab] = filter
 	switch tab {
 	case TabReady:
-		return m.refilterReady()
+		m.ready.refilter(filter)
 	case TabIssues:
 		m.issues.tree, m.issues.unfilteredExpanded = refilterTree(
 			m.issues.tree, m.issues.unfilteredExpanded, wasActive, filter.isActive(), m.issuesTree,
@@ -395,22 +395,6 @@ func refilterTree[E any](
 		rebuilt.selectID(selected.ID)
 	}
 	return rebuilt, saved
-}
-
-// refilterReady narrows the Ready queue of the last read to the Ready filter, keeping the
-// selection on the same issue when it is still listed.
-func (m model) refilterReady() model {
-	selected, isSelected := m.readySelection()
-	m.ready.entries = keepMatched(m.ready.all, entryID, m.filters[TabReady])
-	m.ready.cursor = listCursor{}
-	m.ready.top = 0
-	if !isSelected {
-		return m
-	}
-	if row := slices.IndexFunc(m.ready.entries, func(entry index.Entry) bool { return entry.ID == selected.ID }); row >= 0 {
-		m.ready.cursor.seat(row, len(m.ready.entries))
-	}
-	return m
 }
 
 // issuesTree returns the Issues tree over the issues of the last read, with expanded expanded:

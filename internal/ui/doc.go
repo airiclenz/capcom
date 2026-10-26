@@ -18,6 +18,7 @@
 //   - `detail.go` — the detail pane: reading an issue or Note, its header, rendering and links
 //   - `doc.go` — the package comment and this file map
 //   - `editor.go` — e: opening the selected issue or Note file in the editor and checking it after
+//   - `entrylist.go` — entryList: a flat tab's issue list, its filter, kept selection and moves
 //   - `filter.go` — the / filter over a tab's sidebar: parsing, matching and the filtered trees
 //   - `help.go` — helpLines: the help screen ? opens, the full key map
 //   - `issues.go` — the Issues tab: loading the issues and painting their tree

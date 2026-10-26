@@ -192,23 +192,6 @@ func (m model) withShownReloaded(tab Tab, isReload bool, cmd tea.Cmd) (model, te
 	return m, nil
 }
 
-// keepReadySelection seats the Ready cursor, after a read replaced the queue, on previous, the
-// issue it was on, or on its replacement among the issues previousIDs listed when the read dropped
-// it. With neither listed the cursor stays clamped.
-func (m model) keepReadySelection(previous index.Entry, previousIDs []string) model {
-	rowOf := func(id string) int {
-		return slices.IndexFunc(m.ready.entries, func(entry index.Entry) bool { return entry.ID == id })
-	}
-	id := previous.ID
-	if rowOf(id) < 0 {
-		id = replacementID(previous.ID, previous.ParentID, previousIDs, func(id string) bool { return rowOf(id) >= 0 })
-	}
-	if row := rowOf(id); row >= 0 {
-		m.ready.cursor.seat(row, len(m.ready.entries))
-	}
-	return m
-}
-
 // carryInto returns next, the widget of a reload of w's tree, with w's scroll position and its
 // selection: on the same node when next shows it, or still holds it revealed, and otherwise on
 // that node's replacement.

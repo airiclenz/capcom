@@ -216,13 +216,10 @@ func (m model) clickSidebar(point panePoint) (model, tea.Cmd) {
 	}
 	switch m.tab {
 	case TabReady:
-		position := m.ready.top + point.row
-		if m.ready.err != nil || position >= len(m.ready.entries) {
+		if !m.ready.click(point.row) {
 			return m, nil
 		}
-		m = m.closeDepsIfOpen()
-		m.ready.cursor.seat(position, len(m.ready.entries))
-		return m.showReadySelection()
+		return m.closeDepsIfOpen().showReadySelection()
 	case TabIssues:
 		if m.issues.err != nil || !m.issues.tree.click(point.row, point.col) {
 			return m, nil
@@ -365,7 +362,7 @@ func (m model) mouseWheel(msg tea.MouseWheelMsg) (model, tea.Cmd) {
 func (m model) wheelSidebar(msg tea.MouseWheelMsg) (model, tea.Cmd) {
 	switch m.tab {
 	case TabReady:
-		m.ready.cursor.wheel(msg, len(m.ready.entries))
+		m.ready.wheel(msg)
 		return m.showReadySelection()
 	case TabIssues:
 		m.issues.tree.wheel(msg)

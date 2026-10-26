@@ -460,10 +460,7 @@ func (m model) tabCount(tab Tab) (matched int, total int, isCounted bool) {
 	filter := m.filters[tab]
 	switch tab {
 	case TabReady:
-		if !m.ready.isRead || m.ready.err != nil {
-			return 0, 0, false
-		}
-		return len(m.ready.entries), len(m.ready.all), true
+		return m.ready.count()
 	case TabIssues:
 		if !m.issues.isRead || m.issues.err != nil {
 			return 0, 0, false

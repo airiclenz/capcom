@@ -91,7 +91,11 @@ internal/ui/uistate.go — worktreeSnapshot, trackedSelection; internal/ui/model
 - `GOMEMLIMIT=2GiB go test ./internal/userconfig/`
 **Commit:** `feat(userconfig): store the Closed tab's selection in ui-state.yaml`
 
-## 3. Ready's flat list becomes a shared entry list
+## 3. Ready's flat list becomes a shared entry list — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): entryList (entrylist.go) owns all/entries/err/isRead/cursor/top plus selection, rowOf, take (filter + kept selection across a read), keepSelection, seatID, refilter, count, key, click, wheel and window (scroll); readyTab embeds it, so m.ready.entries/.all stay reachable. keepReadySelection (refresh.go) and refilterReady (filter.go) moved into entryList.keepSelection and entryList.refilter; readySelection, readyMsg and loadReady keep their names and signatures.
+NOTES (2026-10-26): internal/ui/model.go, listed under Files, needed no change: the `ready readyTab` field and its comment stay accurate with the embedded entry list.
+NOTES (2026-10-26): a Ready sidebar click now seats the cursor before closing an open dependency view rather than after; closeDeps does not touch the Ready list, so the result is unchanged (matches the Issues case's order).
 
 **What:**
 **Goal:** one type in `internal/ui/entrylist.go` owns a flat issue list's state (all and matched
