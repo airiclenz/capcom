@@ -178,7 +178,9 @@ func (l *Locks) RecordPath(key string) string {
 // holder replaced by claim's, and isResumed is true. A lock another session holds fails with a
 // *HeldError, unless isTakeStale is set and that lock is stale, in which case it is taken over
 // with a new token. The lock's token is kept in the token file for claim's purpose, written before
-// the record, so a failed write takes no lock; an empty purpose keeps no token.
+// the record, so a failed write takes no lock; an empty purpose keeps no token. A resume moves the
+// token file: every other token file of key keeping the token is deleted, so one token has one
+// token file and a session naming the purpose it was kept for before fails like any other.
 func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool) (Status, bool, error) {
 	var acquired Status
 	isResumed := false
@@ -212,6 +214,11 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 		}
 		if err := l.writeTokenFile(key, record.Token, claim.Purpose); err != nil {
 			return err
+		}
+		if isResumed {
+			if err := l.removeTokenFiles(key, token, l.keptTokenPath(key, claim.Purpose)); err != nil {
+				return err
+			}
 		}
 		if err := l.write(key, record); err != nil {
 			return err
@@ -270,7 +277,7 @@ func (l *Locks) Release(key, token string) (Status, error) {
 				return err
 			}
 		}
-		return l.removeTokenFiles(key, token)
+		return l.removeTokenFiles(key, token, "")
 	})
 	return released, err
 }

@@ -57,14 +57,15 @@ token 6071ae76aab99defb4d17a08f832bf3d
 
 ## The kept token
 
-capcom keeps each session's Lock token in a token file under the git directory, one per worktree
-and purpose, beside the lock record (ADR 0016;
+capcom keeps each session's Lock token in a token file under the git directory, one per token,
+named for the purpose it is kept for, beside the lock record (ADR 0016 and its amendment;
 [The lock record](../reference/file-format.md#the-lock-record) has the layout). `lock acquire`
 and `capcom start` write it whenever they take or resume the lock. Acquiring again with the same
 `--purpose` reads it, and resumes the lock when its token still holds it; this is how a session
 that lost its context to a restart or a compaction carries on, without having kept anything
 itself. A `--token` given on the command line is used in place of the kept one; it is the way back
-into a lock taken by an older capcom that kept no token file.
+into a lock taken by an older capcom that kept no token file. Resuming with `--token` under a new
+purpose moves the token file to that purpose, so a session naming the old one then fails `locked`.
 
 The token tells different work apart, not who may touch the worktree: any session that names the
 same purpose resumes the lock, and a session naming another purpose fails `locked`. It is a public

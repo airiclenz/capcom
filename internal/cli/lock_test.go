@@ -553,6 +553,24 @@ func keptTokenFiles(t *testing.T, root string) []string {
 	return paths
 }
 
+func TestLockAcquire_ResumeUnderNewPurpose_OldPurposeIsLocked(t *testing.T) {
+	root := newLockStore(t)
+	token := acquireToken(t, root, "agent-a")
+
+	resumed := mustRun(t, root, "lock", "acquire", "--purpose", "beta", "--token", token, "--kv")
+	stdout, _, exitCode := runCLI(t, root, "lock", "acquire", "--purpose", "item 12", "--kv")
+
+	if kvValue(t, resumed, "LOCK") != "resumed" {
+		t.Errorf("resume as beta = %q, want LOCK=resumed", resumed)
+	}
+	if paths := keptTokenFiles(t, root); len(paths) != 1 {
+		t.Errorf("token files after the resume = %v, want one", paths)
+	}
+	if exitCode != ExitNotFound || kvValue(t, stdout, "LOCK") != "held" {
+		t.Errorf("acquire under the old purpose: exit = %d stdout = %q, want %d and LOCK=held", exitCode, stdout, ExitNotFound)
+	}
+}
+
 func TestLockAcquire_SamePurposeWithoutToken_ResumesFromKeptToken(t *testing.T) {
 	cases := []struct {
 		name    string

@@ -814,12 +814,14 @@ otherwise (the last element of its git dir, `<git-common-dir>/worktrees/<name>`)
 no record file.
 
 Beside the records, capcom keeps each session's Lock token in a **token file**
-`<key>.<hash>.token`, one per worktree and purpose (ADR 0016), never committed. `<hash>` is the
-lowercase hex SHA-256 of the purpose. The file holds the token on its first line and the purpose
-on its second, is readable and writable by its owner only, and is replaced atomically.
-`lock acquire --purpose <text>` and `capcom start <id>` (purpose: the Issue id) write it whenever
-they take or resume the lock; running either again reads it and resumes the lock when its token
-still matches the record. `lock release` and `capcom finish` delete the token files holding the
+`<key>.<hash>.token`, one per token (ADR 0016 and its amendment of 2026-10-26), never committed.
+`<hash>` is the lowercase hex SHA-256 of the purpose the token is kept for. The file holds the
+token on its first line and the purpose on its second, is readable and writable by its owner only,
+and is replaced atomically. `lock acquire --purpose <text>` and `capcom start <id>` (purpose: the
+Issue id) write it whenever they take or resume the lock; running either again reads it and resumes
+the lock when its token still matches the record. A resume with `--token` under a new purpose moves
+the file: it writes the new purpose's token file and deletes every other token file of the
+worktree holding that token, so a session naming the old purpose then fails `locked`. `lock release` and `capcom finish` delete the token files holding the
 token they released, and `lock break` deletes all of the worktree's token files. A token file
 whose token no longer matches the record resumes nothing, and the next acquire for that purpose
 replaces it. A token file is never read as a record: only `*.json` files are.

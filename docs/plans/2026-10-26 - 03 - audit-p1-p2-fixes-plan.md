@@ -173,7 +173,10 @@ root); a record that does not parse → exit 1 (item 6).
 **Closes:** lock-check-writes-file
 **Commit:** `fix(lock): read the lock record without taking the guard`
 
-## 4. A resume under a new purpose moves the token file
+## 4. A resume under a new purpose moves the token file — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): consequential edit — docs/site/concepts/tree-locks.md: made necessary by the token file moving on a resume ("one per worktree and purpose" no longer held)
+NOTES (2026-10-26): a resume with an empty purpose (library callers only; the CLI requires --purpose) keeps no token file and so deletes every token file holding the token, via the new keptTokenPath helper returning "" for an empty purpose
 
 **What:**
 **Goal:** resuming a token under a new purpose leaves exactly one token file of this worktree

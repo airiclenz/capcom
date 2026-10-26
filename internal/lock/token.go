@@ -56,6 +56,15 @@ func (l *Locks) tokenPath(key, purpose string) string {
 	return filepath.Join(l.dir, name)
 }
 
+// keptTokenPath returns the token file writeTokenFile keeps key's token in for purpose, or "" for
+// an empty purpose, which keeps none.
+func (l *Locks) keptTokenPath(key, purpose string) string {
+	if purpose == "" {
+		return ""
+	}
+	return l.tokenPath(key, purpose)
+}
+
 // writeTokenFile keeps token in key's token file for purpose, owner-only and replaced atomically;
 // an empty purpose writes nothing. The caller holds the guard.
 func (l *Locks) writeTokenFile(key, token, purpose string) error {
@@ -70,10 +79,10 @@ func (l *Locks) writeTokenFile(key, token, purpose string) error {
 	)
 }
 
-// removeTokenFiles deletes every token file of key that keeps token; an empty token deletes
-// nothing. A token file that cannot be read or deleted fails, naming its path, after the others
-// are tried. The caller holds the guard.
-func (l *Locks) removeTokenFiles(key, token string) error {
+// removeTokenFiles deletes every token file of key that keeps token, except the one at keptPath;
+// an empty token deletes nothing and an empty keptPath spares none. A token file that cannot be
+// read or deleted fails, naming its path, after the others are tried. The caller holds the guard.
+func (l *Locks) removeTokenFiles(key, token, keptPath string) error {
 	if token == "" {
 		return nil
 	}
@@ -84,6 +93,9 @@ func (l *Locks) removeTokenFiles(key, token string) error {
 
 	var errs []error
 	for _, path := range paths {
+		if path == keptPath {
+			continue
+		}
 		data, err := os.ReadFile(path)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue

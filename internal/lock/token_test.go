@@ -197,6 +197,40 @@ func TestAcquire_Resume_RewritesTheTokenFile(t *testing.T) {
 	}
 }
 
+func TestAcquire_ResumeUnderNewPurpose_MovesTheTokenFile(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	alpha := Claim{Purpose: "alpha", Holder: "agent-a"}
+	beta := Claim{Purpose: "beta", Holder: "agent-a"}
+	const otherToken = "fedcba9876543210fedcba9876543210"
+	writeTokenFileContent(t, locks, MainWorktreeKey, "gamma", otherToken+"\ngamma\n")
+	acquired, _, err := locks.Acquire(MainWorktreeKey, alpha, "", false)
+	if err != nil {
+		t.Fatalf("Acquire(alpha): %v", err)
+	}
+
+	_, isResumed, err := locks.Acquire(MainWorktreeKey, beta, acquired.Record.Token, false)
+
+	if err != nil || !isResumed {
+		t.Fatalf("Acquire(beta) = resumed %v, %v; want a resume", isResumed, err)
+	}
+	assertExists(t, locks.tokenPath(MainWorktreeKey, alpha.Purpose), false)
+	assertExists(t, locks.tokenPath(MainWorktreeKey, "gamma"), true)
+	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", alpha.Purpose); kept != "" {
+		t.Errorf("SessionToken(alpha) = %q, want none", kept)
+	}
+	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", beta.Purpose); kept != acquired.Record.Token {
+		t.Errorf("SessionToken(beta) = %q, want %q", kept, acquired.Record.Token)
+	}
+	paths, err := locks.tokenFilePaths(MainWorktreeKey)
+	if err != nil {
+		t.Fatalf("tokenFilePaths: %v", err)
+	}
+	if len(paths) != 2 {
+		t.Errorf("token files = %v, want beta's and the other token's", paths)
+	}
+}
+
 func TestRelease_DeletesOnlyTheReleasedTokensFiles(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)
