@@ -12,6 +12,7 @@
 //   - `agents.go` — capcom agents: writes, refreshes or checks the capcom block of AGENTS.md
 //   - `check.go` — capcom check: validates every config, issue and Note file of the store
 //   - `close.go` — capcom close: closes issues, recording why
+//   - `complete.go` — shell completion: Issue ids and aliases, capcom ui's tab names and Note ids
 //   - `context.go` — capcom context: an issue with its deps and dependents, plan and the Notes that apply
 //   - `create.go` — capcom create: writes a new issue file under the caller's id
 //   - `dep.go` — capcom dep add and rm: adds and removes the dependencies between issues through internal/ops

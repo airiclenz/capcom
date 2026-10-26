@@ -97,12 +97,13 @@ type applyingNote struct {
 func (a *app) newContextCommand() *cobra.Command {
 	isBrief := false
 	cmd := &cobra.Command{
-		Use:         "context <id|alias|prefix>",
-		Short:       "Show an issue with its deps, plan and the Notes that apply",
-		Long:        contextLong,
-		Example:     contextExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "context <id|alias|prefix>",
+		Short:             "Show an issue with its deps, plan and the Notes that apply",
+		Long:              contextLong,
+		Example:           contextExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			entry, err := a.resolveIssue(args[0])
 			if err != nil {

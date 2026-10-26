@@ -50,7 +50,8 @@ func (a *app) newUICommand() *cobra.Command {
 			_, _, _, err := uiTarget(args)
 			return err
 		},
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
+		ValidArgsFunction: completeUITarget,
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			tab, id, isTabGiven, err := uiTarget(args)
 			if err != nil {

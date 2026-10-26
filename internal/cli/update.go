@@ -75,12 +75,13 @@ const (
 func (a *app) newUpdateCommand() *cobra.Command {
 	options := &updateOptions{}
 	cmd := &cobra.Command{
-		Use:         "update <id|alias|prefix>",
-		Short:       "Change an issue's fields or body",
-		Long:        updateLong,
-		Example:     updateExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "update <id|alias|prefix>",
+		Short:             "Change an issue's fields or body",
+		Long:              updateLong,
+		Example:           updateExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if !hasAnyFlag(cmd, flagTitle, flagStatus, flagType, flagPriority, flagPlan, flagAddLabel,
 				flagRemoveLabel, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld, flagStanding,

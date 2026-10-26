@@ -71,12 +71,13 @@ func (a *app) newDepCommand() *cobra.Command {
 // close a cycle are refused; an edge that is already there is left as it is.
 func (a *app) newDepAddCommand() *cobra.Command {
 	return a.withKV(&cobra.Command{
-		Use:         "add <id|alias|prefix> <dep-id|alias|prefix>",
-		Short:       "Make an issue depend on another",
-		Long:        depAddLong,
-		Example:     depAddExample,
-		Args:        cobra.ExactArgs(2),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "add <id|alias|prefix> <dep-id|alias|prefix>",
+		Short:             "Make an issue depend on another",
+		Long:              depAddLong,
+		Example:           depAddExample,
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeIssueIDs(2),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			written, err := a.ops().AddDep(args[0], "", args[1])
 			written, err = a.depWritten(written, err, refusalWords{self: depSelfFormat, cycle: depCycleFormat})
@@ -94,12 +95,13 @@ func (a *app) newDepAddCommand() *cobra.Command {
 // only by its text.
 func (a *app) newDepRmCommand() *cobra.Command {
 	return a.withKV(&cobra.Command{
-		Use:         "rm <id|alias|prefix> <dep-id|alias|prefix>",
-		Short:       "Remove a dependency of an issue",
-		Long:        depRmLong,
-		Example:     depRmExample,
-		Args:        cobra.ExactArgs(2),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "rm <id|alias|prefix> <dep-id|alias|prefix>",
+		Short:             "Remove a dependency of an issue",
+		Long:              depRmLong,
+		Example:           depRmExample,
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeIssueIDs(2),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			written, err := a.ops().RemoveDep(args[0], "", args[1])
 			notDep := refusalWords{

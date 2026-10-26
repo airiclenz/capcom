@@ -62,12 +62,13 @@ const (
 func (a *app) newDepListCommand() *cobra.Command {
 	depth := defaultDepListDepth
 	cmd := &cobra.Command{
-		Use:         "list <id|alias|prefix>",
-		Short:       "List an issue's dependencies and dependents",
-		Long:        depListLong,
-		Example:     depListExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "list <id|alias|prefix>",
+		Short:             "List an issue's dependencies and dependents",
+		Long:              depListLong,
+		Example:           depListExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if depth < unlimitedDepth {
 				return output.UsageErrorf("--%s must be %d (every level) or more", flagDepth, unlimitedDepth)

@@ -25,12 +25,13 @@ const (
 // when the issue has none.
 func (a *app) newLogCommand() *cobra.Command {
 	return a.withKV(&cobra.Command{
-		Use:         "log <id|alias|prefix> <text>",
-		Short:       "Append an entry to an issue's Log",
-		Long:        logLong,
-		Example:     logExample,
-		Args:        cobra.ExactArgs(2),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "log <id|alias|prefix> <text>",
+		Short:             "Append an entry to an issue's Log",
+		Long:              logLong,
+		Example:           logExample,
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			text := args[1]
 			if strings.TrimSpace(text) == "" {

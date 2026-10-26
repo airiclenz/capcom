@@ -72,12 +72,13 @@ func (a *app) newFinishCommand() *cobra.Command {
 	var reason, token string
 	var isKeepLock bool
 	cmd := &cobra.Command{
-		Use:         "finish <id|alias|prefix> --reason <text>",
-		Short:       "Close an Issue and free this worktree's Tree lock",
-		Long:        finishLong,
-		Example:     finishExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "finish <id|alias|prefix> --reason <text>",
+		Short:             "Close an Issue and free this worktree's Tree lock",
+		Long:              finishLong,
+		Example:           finishExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if err := requireReason(cmd, reason); err != nil {
 				return err

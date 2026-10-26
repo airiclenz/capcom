@@ -498,7 +498,10 @@ docs/site/reference/json-output.md — envelope `kind` row
 **Acceptance:** `go run ./cmd/gendocs`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Recap|HelpText|DocFileMap'`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`; `go vet ./internal/cli/`
 **Commit:** `feat(recap): summarise what changed since a date or ref`
 
-## 18. Completion offers issue ids
+## 18. Completion offers issue ids — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): candidates are filtered by the typed prefix in capcom (cobra hands every candidate to the shell unfiltered otherwise), so `__complete show stand` lists only matches; a failure to open the store or index is written to cobra's completion debug log (BASH_COMP_DEBUG_FILE) and yields no candidates.
+NOTES (2026-10-26): `know mv` and `know rm` (built by the same constructors) are left without completion here; item 19 wires Note ids there and reuses `noteCandidates` from complete.go. The issue `human-ergonomics/id-completion` stays open until item 19 (statuses, types, Note ids).
 
 Depends on item 13.
 

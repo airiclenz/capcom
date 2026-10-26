@@ -43,12 +43,13 @@ const (
 func (a *app) newShowCommand() *cobra.Command {
 	var isElsewhereSkipped bool
 	cmd := &cobra.Command{
-		Use:         "show <id|alias|prefix>...",
-		Short:       "Show issues in full",
-		Long:        showLong,
-		Example:     showExample,
-		Args:        cobra.MinimumNArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "show <id|alias|prefix>...",
+		Short:             "Show issues in full",
+		Long:              showLong,
+		Example:           showExample,
+		Args:              cobra.MinimumNArgs(1),
+		ValidArgsFunction: completeIssueIDs(everyArgument),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			return a.emitShown(cmd, args, isElsewhereSkipped)
 		}),

@@ -25,12 +25,13 @@ const (
 func (a *app) newReopenCommand() *cobra.Command {
 	options := &statusOptions{}
 	cmd := &cobra.Command{
-		Use:         "reopen <id|alias|prefix> --reason <text>",
-		Short:       "Reopen a closed issue, logging why",
-		Long:        reopenLong,
-		Example:     reopenExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "reopen <id|alias|prefix> --reason <text>",
+		Short:             "Reopen a closed issue, logging why",
+		Long:              reopenLong,
+		Example:           reopenExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if err := requireReason(cmd, options.reason); err != nil {
 				return err

@@ -71,12 +71,13 @@ func (a *app) newRelatedCommand() *cobra.Command {
 func (a *app) newRelatedAddCommand() *cobra.Command {
 	var ifMatch string
 	cmd := &cobra.Command{
-		Use:         "add <id|alias|prefix> <related-id|alias|prefix>",
-		Short:       "Link an issue to a related one",
-		Long:        relatedAddLong,
-		Example:     relatedAddExample,
-		Args:        cobra.ExactArgs(2),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "add <id|alias|prefix> <related-id|alias|prefix>",
+		Short:             "Link an issue to a related one",
+		Long:              relatedAddLong,
+		Example:           relatedAddExample,
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeIssueIDs(2),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			holder, err := a.resolveIssue(args[0])
 			if err != nil {
@@ -117,12 +118,13 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 func (a *app) newRelatedRmCommand() *cobra.Command {
 	var ifMatch string
 	cmd := &cobra.Command{
-		Use:         "rm <id|alias|prefix> <related-id|alias|prefix>",
-		Short:       "Remove the related link between two issues",
-		Long:        relatedRmLong,
-		Example:     relatedRmExample,
-		Args:        cobra.ExactArgs(2),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "rm <id|alias|prefix> <related-id|alias|prefix>",
+		Short:             "Remove the related link between two issues",
+		Long:              relatedRmLong,
+		Example:           relatedRmExample,
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: completeIssueIDs(2),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			first, err := a.resolveIssue(args[0])
 			if err != nil {

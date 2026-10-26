@@ -71,12 +71,13 @@ const (
 func (a *app) newDepGraphCommand() *cobra.Command {
 	isAll := false
 	cmd := &cobra.Command{
-		Use:         "graph [id|alias|prefix]",
-		Short:       "Print the dependencies as a Mermaid flowchart",
-		Long:        depGraphLong,
-		Example:     depGraphExample,
-		Args:        cobra.MaximumNArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "graph [id|alias|prefix]",
+		Short:             "Print the dependencies as a Mermaid flowchart",
+		Long:              depGraphLong,
+		Example:           depGraphExample,
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			var start string
 			if len(args) == 1 {

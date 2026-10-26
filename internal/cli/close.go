@@ -65,12 +65,13 @@ const (
 func (a *app) newCloseCommand() *cobra.Command {
 	options := &statusOptions{}
 	cmd := &cobra.Command{
-		Use:         "close <id|alias|prefix>... --reason <text>",
-		Short:       "Close issues, recording why",
-		Long:        closeLong,
-		Example:     closeExample,
-		Args:        cobra.MinimumNArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "close <id|alias|prefix>... --reason <text>",
+		Short:             "Close issues, recording why",
+		Long:              closeLong,
+		Example:           closeExample,
+		Args:              cobra.MinimumNArgs(1),
+		ValidArgsFunction: completeIssueIDs(everyArgument),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if err := requireReason(cmd, options.reason); err != nil {
 				return err

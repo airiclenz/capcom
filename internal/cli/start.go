@@ -54,12 +54,13 @@ var beforeStartClaim func(entry index.Entry)
 func (a *app) newStartCommand() *cobra.Command {
 	var token string
 	cmd := &cobra.Command{
-		Use:         "start <id|alias|prefix>",
-		Short:       "Claim a Ready Issue and this worktree's Tree lock",
-		Long:        startLong,
-		Example:     startExample,
-		Args:        cobra.ExactArgs(1),
-		Annotations: map[string]string{annotationIndex: indexRefresh},
+		Use:               "start <id|alias|prefix>",
+		Short:             "Claim a Ready Issue and this worktree's Tree lock",
+		Long:              startLong,
+		Example:           startExample,
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeIssueIDs(1),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			return a.start(cmd, args[0], token)
 		}),

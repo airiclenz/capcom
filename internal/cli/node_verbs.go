@@ -129,6 +129,10 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 			return a.emit(cmd, result)
 		}),
 	}
+	if verbs.idKind == issueIDs {
+		// Only the first argument completes: the second is a new id, which an existing one never is.
+		cmd.ValidArgsFunction = completeIssueIDs(1)
+	}
 	flags := cmd.Flags()
 	flags.StringVar(
 		&options.parent,
@@ -207,6 +211,9 @@ func newRmCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 			}
 			return a.emit(cmd, result)
 		}),
+	}
+	if verbs.idKind == issueIDs {
+		cmd.ValidArgsFunction = completeIssueIDs(1)
 	}
 	flags := cmd.Flags()
 	flags.StringVar(
