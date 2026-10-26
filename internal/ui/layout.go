@@ -453,14 +453,17 @@ func (m model) tabBarLabel(tab Tab) string {
 // tabCount returns the counts of tab's label: total, the rows the tab lists with no filter, and
 // matched, the issues or Notes the filter in effect matches that the tab shows, 0 when the filter
 // has a problem or an error. Ready counts its queue; Issues the issues outside a closed category,
-// or every issue while a status term names a closed status, since the tab then shows them; and
-// Knowledge the Notes its tree shows, outside retired subtrees and not background. It reports
+// or every issue while a status term names a closed status, since the tab then shows them;
+// Knowledge the Notes its tree shows, outside retired subtrees and not background; and Closed the
+// issues in a closed category. It reports
 // false for a tab whose first read is not in or whose last read failed.
 func (m model) tabCount(tab Tab) (matched int, total int, isCounted bool) {
 	filter := m.filters[tab]
 	switch tab {
 	case TabReady:
 		return m.ready.count()
+	case TabClosed:
+		return m.closed.count()
 	case TabIssues:
 		if !m.issues.isRead || m.issues.err != nil {
 			return 0, 0, false

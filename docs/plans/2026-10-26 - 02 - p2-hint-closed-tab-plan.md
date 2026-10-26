@@ -119,7 +119,12 @@ internal/ui/layout.go — tabCount; internal/ui/mouse.go — clickSidebar, wheel
 - `go vet ./internal/ui/`
 **Commit:** `refactor(ui): share the Ready tab's flat list as an entry list`
 
-## 4. The Closed tab lists the closed issues
+## 4. The Closed tab lists the closed issues — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): consequential edit — internal/ui/keys.go: made necessary by appending TabClosed to tabOrder (tabForKey's comment named only keys 1, 2 and 3).
+NOTES (2026-10-26): consequential edit — internal/ui/ready.go: made necessary by the closed tab name (selectFailureFormat's comment listed ready, issues and knowledge only).
+NOTES (2026-10-26): loadClosed repeats the wanted-id resolve block of loadReady and loadIssues, and showClosedSelection mirrors showReadySelection, following the per-tab loader the plan keeps per tab; the shared resolve is pre-existing duplication across the loaders.
+NOTES (2026-10-26): ParseTab now accepts `closed`, so `capcom ui closed [id]` already opens the tab through internal/cli/ui.go; its help, completion and docs stay with item 6. Cursor keys, sidebar click and wheel, and filter narrowing on Closed are not wired here (keys.go, mouse.go and withFilter in filter.go); they stay with item 5.
 
 **What:** Depends on items 2 and 3.
 **Goal:** `ui.TabClosed` exists, named `closed`, labelled `Closed`, last in the tab bar after Knowledge

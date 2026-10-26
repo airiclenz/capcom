@@ -93,6 +93,7 @@ func (m model) worktreeSnapshot() userconfig.WorktreeState {
 		Ready:     m.trackedSelection(TabReady),
 		Issues:    m.trackedSelection(TabIssues),
 		Knowledge: m.trackedSelection(TabKnowledge),
+		Closed:    m.trackedSelection(TabClosed),
 	}
 }
 
@@ -116,6 +117,9 @@ func (m model) trackedSelection(tab Tab) string {
 	case TabKnowledge:
 		note, selected := m.knowledgeSelection()
 		id, isSelected = note.ID, selected
+	case TabClosed:
+		entry, selected := m.closedSelection()
+		id, isSelected = entry.ID, selected
 	}
 	if !isSelected {
 		return ""
@@ -157,6 +161,8 @@ func (m model) markTabRead(msg tea.Msg) model {
 		return m.markRead(TabIssues, msg.isReload, msg.err)
 	case knowledgeMsg:
 		return m.markRead(TabKnowledge, msg.isReload, msg.err)
+	case closedMsg:
+		return m.markRead(TabClosed, msg.isReload, msg.err)
 	}
 	return m
 }

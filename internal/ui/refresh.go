@@ -132,6 +132,7 @@ func (m model) reloadTabs() tea.Cmd {
 		loadReady(m.session, m.reloadRead(TabReady)),
 		loadIssues(m.session, m.reloadRead(TabIssues)),
 		loadKnowledge(m.session, m.reloadRead(TabKnowledge)),
+		loadClosed(m.session, m.reloadRead(TabClosed)),
 	}
 	if m.deps.isOpen {
 		cmds = append(cmds, loadDeps(m.session, m.deps.id))
@@ -187,6 +188,10 @@ func (m model) withShownReloaded(tab Tab, isReload bool, cmd tea.Cmd) (model, te
 	case TabKnowledge:
 		if note, isSelected := m.knowledgeSelection(); isSelected && note.ID == m.issue.id {
 			return m, loadNoteDetail(m.session, note)
+		}
+	case TabClosed:
+		if entry, isSelected := m.closedSelection(); isSelected && entry.ID == m.issue.id {
+			return m, loadDetail(m.session, entry)
 		}
 	}
 	return m, nil

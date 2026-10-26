@@ -20,16 +20,27 @@ const (
 	TabReady Tab = iota
 	TabIssues
 	TabKnowledge
+	TabClosed
 )
 
 // tabOrder is the order of the tabs on the tab bar.
-var tabOrder = []Tab{TabIssues, TabReady, TabKnowledge}
+var tabOrder = []Tab{TabIssues, TabReady, TabKnowledge, TabClosed}
 
 // tabNames are the names capcom ui takes on its command line, and tabLabels the tab bar labels,
 // both indexed by Tab.
 var (
-	tabNames  = [...]string{TabReady: "ready", TabIssues: "issues", TabKnowledge: "knowledge"}
-	tabLabels = [...]string{TabReady: "Ready", TabIssues: "Issues", TabKnowledge: "Knowledge"}
+	tabNames = [...]string{
+		TabReady:     "ready",
+		TabIssues:    "issues",
+		TabKnowledge: "knowledge",
+		TabClosed:    "closed",
+	}
+	tabLabels = [...]string{
+		TabReady:     "Ready",
+		TabIssues:    "Issues",
+		TabKnowledge: "Knowledge",
+		TabClosed:    "Closed",
+	}
 )
 
 // String returns the tab's command-line name.
@@ -37,8 +48,8 @@ func (t Tab) String() string {
 	return tabNames[t]
 }
 
-// ParseTab returns the tab a command-line name names: issues, ready or knowledge. Any other name
-// is an error that lists the valid ones.
+// ParseTab returns the tab a command-line name names: issues, ready, knowledge or closed. Any
+// other name is an error that lists the valid ones.
 func ParseTab(name string) (Tab, error) {
 	names := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {

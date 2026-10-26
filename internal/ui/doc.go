@@ -14,6 +14,7 @@
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
 //   - `clipboard.go` — copyText: the copy over OSC 52, the native clipboard and tmux, and its notice
+//   - `closed.go` — the Closed tab: loading the closed issues and painting their dated rows
 //   - `depview.go` — the dependency view d opens over the detail pane: its rows, keys and painting
 //   - `detail.go` — the detail pane: reading an issue or Note, its header, rendering and links
 //   - `doc.go` — the package comment and this file map

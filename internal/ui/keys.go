@@ -140,7 +140,7 @@ func (m model) scrollForKey(key string) model {
 	return m
 }
 
-// tabForKey returns the tab a digit key opens: 1, 2 and 3 name the tabs in tabOrder.
+// tabForKey returns the tab a digit key opens: 1 to 4 name the tabs in tabOrder.
 func tabForKey(key string) (Tab, bool) {
 	for position, tab := range tabOrder {
 		if key == strconv.Itoa(position+1) {

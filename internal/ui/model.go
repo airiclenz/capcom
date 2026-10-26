@@ -161,11 +161,12 @@ type model struct {
 	sel detailSel
 
 	// ready is the Ready tab's queue and selection, issues the Issues tab's tree, knowledge the
-	// Knowledge tab's tree, issue the issue or Note the detail pane shows, and deps the dependency
-	// view that covers it while d has it open.
+	// Knowledge tab's tree, closed the Closed tab's list and selection, issue the issue or Note the
+	// detail pane shows, and deps the dependency view that covers it while d has it open.
 	ready     readyTab
 	issues    issuesTab
 	knowledge knowledgeTab
+	closed    closedTab
 	issue     issueDetail
 	deps      depView
 
@@ -217,6 +218,7 @@ func newModel(options Options) model {
 			TabReady:     worktreeState.Ready,
 			TabIssues:    worktreeState.Issues,
 			TabKnowledge: worktreeState.Knowledge,
+			TabClosed:    worktreeState.Closed,
 		},
 		version:             options.Version,
 		worktreePath:        displayPath(options.Store.WorktreeRoot, homeDirectory(options.Home)),
@@ -416,7 +418,7 @@ func (m model) applyStateSaved(msg stateSavedMsg) model {
 }
 
 // Init reads this worktree's Tree lock for the status bar, the Ready queue, the issues of the
-// Issues tree and the Notes of the Knowledge tree, and schedules the first poll of the index; each
+// Issues tree, the Notes of the Knowledge tree and the closed issues, and schedules the first poll of the index; each
 // tab selects the id initialIDFor returns for it. Under theme auto, with colours on, it
 // also asks the terminal for its background colour, which picks the preset once it answers.
 func (m model) Init() tea.Cmd {
@@ -425,6 +427,7 @@ func (m model) Init() tea.Cmd {
 		loadReady(m.session, m.initialRead(TabReady)),
 		loadIssues(m.session, m.initialRead(TabIssues)),
 		loadKnowledge(m.session, m.initialRead(TabKnowledge)),
+		loadClosed(m.session, m.initialRead(TabClosed)),
 		m.tick(),
 	}
 	if m.userConfig.UI.Theme == userconfig.ThemeAuto && !m.isNoColor {
@@ -452,7 +455,7 @@ func (m model) initialRead(tab Tab) tabRead {
 
 // Update records a new terminal size, abandoning a drag of the divider whose layout it takes off
 // screen, the Tree lock's state, the Ready queue, the issues, the
-// Notes, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
+// Notes, the closed issues, the shown issue or Note, the dependency view's read, a matched filter, a poll of the
 // index, a write's run, the status picker's statuses, an edit's steps, a save of the state file or
 // the worktree state file, a selection's debounced save, the clear of the copy notice, the
 // painter's width measure and the terminal's background colour, polls the index on a tick, and
@@ -490,6 +493,8 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		return m.applyIssues(msg)
 	case knowledgeMsg:
 		return m.applyKnowledge(msg)
+	case closedMsg:
+		return m.applyClosed(msg)
 	case detailMsg:
 		m = m.applyDetail(msg).paintDeps()
 	case depsMsg:
@@ -586,6 +591,8 @@ func (m model) showSelection() (model, tea.Cmd) {
 		return m.showIssuesSelection()
 	case TabKnowledge:
 		return m.showKnowledgeSelection()
+	case TabClosed:
+		return m.showClosedSelection()
 	}
 	return m, nil
 }
@@ -599,7 +606,7 @@ func (m model) relayout() model {
 
 // paintSidebar fills the sidebar with the open tab's rows.
 func (m model) paintSidebar() model {
-	return m.paintReadySidebar().paintIssuesSidebar().paintKnowledgeSidebar()
+	return m.paintReadySidebar().paintIssuesSidebar().paintKnowledgeSidebar().paintClosedSidebar()
 }
 
 // withSidebar fills the sidebar with rows, the list's rows on screen from its row top on among
@@ -624,6 +631,9 @@ func (m model) sidebarSelection() (string, bool) {
 	case TabKnowledge:
 		note, isSelected := m.knowledgeSelection()
 		return note.ID, isSelected
+	case TabClosed:
+		entry, isSelected := m.closedSelection()
+		return entry.ID, isSelected
 	}
 	return "", false
 }

@@ -46,6 +46,7 @@ var noMatchTexts = [...]string{
 	TabReady:     "No ready issue matches the filter.",
 	TabIssues:    "No issue matches the filter.",
 	TabKnowledge: "No Note matches the filter.",
+	TabClosed:    "No closed issue matches the filter.",
 }
 
 // filterTerms are the terms of one filter line: the statuses and labels it narrows by and the

@@ -21,8 +21,8 @@ const (
 	readyFailurePrefix = "ready: "
 	// notInReadyFormat is the notice for an id capcom ui ready names that the queue does not hold.
 	notInReadyFormat = "%s is not in the Ready queue"
-	// selectFailureFormat is the notice for an id capcom ui ready, issues or knowledge names that
-	// resolves to no issue or Note.
+	// selectFailureFormat is the notice for an id capcom ui ready, issues, knowledge or closed
+	// names that resolves to no issue or Note.
 	selectFailureFormat = "select %s: %v"
 	// readyColumnGap separates the columns of an issue's sidebar row: id, status, priority, title.
 	readyColumnGap = "  "

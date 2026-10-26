@@ -242,10 +242,10 @@ func TestIssuesTab_TabSwitch_KeepsTheExpandedNodesAndTheSelection(t *testing.T) 
 	m := newIssuesModel(t, newTestStore(t, treeFiles), "", 120, 30)
 	m = pressKeys(t, m, runeKey('l'), runeKey('j'), runeKey('l'), runeKey('j'))
 
-	m = pressKeys(t, m, runeKey('2'), specialKey(tea.KeyTab), specialKey(tea.KeyTab))
+	m = pressKeys(t, m, runeKey('2'), specialKey(tea.KeyTab), specialKey(tea.KeyTab), specialKey(tea.KeyTab))
 
 	if m.tab != TabIssues {
-		t.Fatalf("tab after 2, tab, tab = %v, want Issues", m.tab)
+		t.Fatalf("tab after 2, tab, tab, tab = %v, want Issues", m.tab)
 	}
 	if got, want := visibleIDs(m), []string{"epic", "alpha", "leaf", "solo", "wrapped"}; !slices.Equal(got, want) {
 		t.Errorf("visible rows after the round trip = %v, want %v", got, want)
