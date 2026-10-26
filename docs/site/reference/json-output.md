@@ -39,6 +39,15 @@ context either side, a `"…"` line between parts of the body kept apart, at mos
 at 120 characters. The member is left out without `--excerpt`, and on a hit whose body holds no
 word searched for, as when only its title matched.
 
+`capcom list --tree --json` gives one Issue per line of the outline, each with `depth`, its
+indentation level. A parent also carries `children`, `{"total": <n>, "closed": <n>}` over all its
+direct children as the text's `(<closed>/<total> closed)` counts them, and an Issue whose children
+`--depth` cut carries `more`, the count of the text's `... <n> more` line. `capcom dep list --json`
+gives one item per Issue line of each section, each with `depth` and `via` (the Issue it hangs
+under, `""` at depth 1). An Issue the section already printed, which the text shows as
+`(see above)`, carries `"repeat": true`, and one whose branch `--depth` cut carries `more`, as in
+`list --tree`. `children`, `more` and `repeat` are left out when the text prints none of them.
+
 `capcom context` gives kind `context` with `data` an object: `issue` (the Issue as `show` gives it),
 `deps` and `dependents` (its direct ones, as `dep list` gives them), `plan` (`null` without a plan,
 else `name` and `path`, the path empty when no plans directory holds the file) and `notes` (the Notes

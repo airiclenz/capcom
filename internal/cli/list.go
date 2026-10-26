@@ -226,10 +226,14 @@ func (a *app) checkListValues(options *listOptions) error {
 	return nil
 }
 
-// issueTreeItem is one line of list --tree in --json: the issue and its indentation depth.
+// issueTreeItem is one line of list --tree in --json: the issue, its indentation depth, the count of
+// its direct children the text's `(<closed>/<total> closed)` gives (left out without children) and
+// the count of the `... <n> more` line --depth cut under it (left out when nothing was cut).
 type issueTreeItem struct {
 	issueData
-	Depth int `json:"depth"`
+	Depth    int           `json:"depth"`
+	Children *childrenData `json:"children,omitempty"`
+	More     int           `json:"more,omitempty"`
 }
 
 // issueTree is the issue hierarchy list --tree walks: every usable issue grouped under its parent,
@@ -268,9 +272,15 @@ func (a *app) issueTreeResult(options *listOptions) (output.Result, error) {
 // add appends the line of row's issue, cutting the children --depth cut.
 func (t *issueTree) add(row outline.Row[index.Entry]) {
 	text := strings.TrimSuffix(issueLines([]index.Entry{row.Entry}, ""), "\n")
-	if progress := progressOf(t.tree.Children(row.ID)); progress != nil {
+	progress := progressOf(t.tree.Children(row.ID))
+	if progress != nil {
 		text += "  (" + childrenText(progress) + ")"
 	}
 	t.rows = append(t.rows, outlineRow{depth: row.Depth, text: text, more: row.More, moreDepth: row.MoreDepth})
-	t.items = append(t.items, issueTreeItem{issueData: newIssueData(row.Entry), Depth: row.Depth})
+	t.items = append(t.items, issueTreeItem{
+		issueData: newIssueData(row.Entry),
+		Depth:     row.Depth,
+		Children:  progress,
+		More:      row.More,
+	})
 }

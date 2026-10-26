@@ -301,7 +301,7 @@ state, and `data.worktree.advice` equals the text line.
 **Closes:** prime-json-lock-state
 **Commit:** `feat(prime): carry this worktree's lock state in --json`
 
-## 8. Tree JSON carries counts, cuts and repeats
+## 8. Tree JSON carries counts, cuts and repeats — ✅ DONE (2026-10-26)
 
 **What:**
 **Goal:** `list --tree --json` items carry `children: {total, closed}` for a parent and `more: <n>`

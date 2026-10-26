@@ -34,11 +34,14 @@ type depListData struct {
 
 // depListItem is one issue line of a dep list section in --json: the issue, how many edges it lies
 // from the listed issue (depth) and the id of the issue it hangs under (via, "" at depth 1). An
-// issue printed again as (see above) is an item again.
+// issue printed again as (see above) is an item again, marked repeat; the count of the `... <n>
+// more` line --depth cut under an issue is its more. Both are left out when the text prints neither.
 type depListItem struct {
 	issueData
-	Depth int    `json:"depth"`
-	Via   string `json:"via"`
+	Depth  int    `json:"depth"`
+	Via    string `json:"via"`
+	Repeat bool   `json:"repeat,omitempty"`
+	More   int    `json:"more,omitempty"`
 }
 
 // The help text of capcom dep list.
@@ -167,14 +170,17 @@ func (s *depSection) add(step issue.WalkStep) {
 	if step.Depth == 1 {
 		via = ""
 	}
-	s.items = append(s.items, depListItem{issueData: newIssueData(entry), Depth: step.Depth, Via: via})
+	item := depListItem{issueData: newIssueData(entry), Depth: step.Depth, Via: via}
 
 	row := outlineRow{depth: step.Depth, text: strings.TrimSuffix(issueLines([]index.Entry{entry}, ""), "\n")}
 	if step.IsRepeat && step.ID != s.start {
 		row.text = step.ID + "  " + depSeeAboveLabel
+		item.Repeat = true
 	}
 	if s.isCutShown && step.Cut > 0 {
 		row.more, row.moreDepth = step.Cut, step.Depth+1
+		item.More = step.Cut
 	}
 	s.rows = append(s.rows, row)
+	s.items = append(s.items, item)
 }

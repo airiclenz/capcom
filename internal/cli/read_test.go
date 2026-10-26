@@ -450,6 +450,35 @@ func TestListTree_JSON_ItemsCarryDepth(t *testing.T) {
 	}
 }
 
+func TestListTree_JSONCutTree_CarriesTheTextsCounts(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow/token-expiry.md": readIssue("Token expiry", "open", "", ""),
+	})
+
+	text := mustRun(t, root, "list", "--tree", "--depth", "1")
+	jsonOut := mustRun(t, root, "list", "--tree", "--depth", "1", "--json")
+
+	wantText := "login-flow  open  P2  Login flow  (0/2 closed)\n" +
+		"  ... 2 more (--depth 2)\n" +
+		"release-checklist  open  P0  Release checklist\n"
+	if text != wantText {
+		t.Errorf("list --tree --depth 1 = %q\nwant %q", text, wantText)
+	}
+	var got []string
+	for _, item := range decodeEnvelope(t, jsonOut)["data"].([]any) {
+		issue := item.(map[string]any)
+		got = append(got, fmt.Sprintf("%v children=%v more=%v", issue["id"], issue["children"], issue["more"]))
+	}
+	want := []string{
+		"login-flow children=map[closed:0 total:2] more=2",
+		"release-checklist children=<nil> more=<nil>",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("list --tree --depth 1 --json items = %v\nwant %v", got, want)
+	}
+}
+
 func TestListTree_BadFlags_UsageErrorNamesTheFlag(t *testing.T) {
 	root := newReadStore(t)
 	cases := []struct {

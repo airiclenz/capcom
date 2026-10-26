@@ -197,6 +197,72 @@ func TestDepList_Diamond_PrintsTheSharedIssueOnceThenSeeAbove(t *testing.T) {
 	}
 }
 
+func TestDepList_JSONDiamond_MarksTheSeeAboveItemRepeat(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"top.md":   readIssue("Top", "open", "deps: [left, right]\n", ""),
+		"left.md":  readIssue("Left", "open", "deps: [base]\n", ""),
+		"right.md": readIssue("Right", "open", "deps: [base]\n", ""),
+		"base.md":  readIssue("Base", "open", "", ""),
+	})
+
+	jsonOut := mustRun(t, root, "dep", "list", "--json", "top", "--depth", "0")
+
+	data, _ := decodeEnvelope(t, jsonOut)["data"].(map[string]any)
+	deps, _ := data["deps"].([]any)
+	var got []string
+	for _, item := range deps {
+		fields := item.(map[string]any)
+		got = append(got, fmt.Sprintf("%v<%v repeat=%v more=%v", fields["id"], fields["via"], fields["repeat"], fields["more"]))
+	}
+	want := []string{
+		"left< repeat=<nil> more=<nil>",
+		"base<left repeat=<nil> more=<nil>",
+		"right< repeat=<nil> more=<nil>",
+		"base<right repeat=true more=<nil>",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("deps items = %v\nwant %v", got, want)
+	}
+}
+
+func TestDepList_JSONDepthCut_CarriesTheTextsMoreCount(t *testing.T) {
+	root := newDepChainStore(t)
+	cases := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "depth 1 cut",
+			args: []string{"chain-b", "--depth", "1"},
+			want: []string{"deps chain-c more=1", "dependents chain-a more=<nil>"},
+		},
+		{
+			name: "default shows no cut",
+			args: []string{"chain-b"},
+			want: []string{"deps chain-c more=<nil>", "dependents chain-a more=<nil>"},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			jsonOut := mustRun(t, root, append([]string{"dep", "list", "--json"}, testCase.args...)...)
+
+			data, _ := decodeEnvelope(t, jsonOut)["data"].(map[string]any)
+			var got []string
+			for _, section := range []string{"deps", "dependents"} {
+				items, _ := data[section].([]any)
+				for _, item := range items {
+					fields := item.(map[string]any)
+					got = append(got, fmt.Sprintf("%s %v more=%v", section, fields["id"], fields["more"]))
+				}
+			}
+			if !slices.Equal(got, testCase.want) {
+				t.Errorf("items = %v\nwant %v", got, testCase.want)
+			}
+		})
+	}
+}
+
 func TestDepList_NegativeDepth_FailsUsage(t *testing.T) {
 	root := newDepChainStore(t)
 
