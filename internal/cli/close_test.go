@@ -412,10 +412,14 @@ func TestClose_StandingIssue_IsRefusedNamingTheMark(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "close", "feature-requests", "--reason", "done")
 
-	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests") + "hint: capcom close --help\n"
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
 	if exitCode != ExitError || stdout != "" || stderr != want ||
 		readStoreFile(t, root, "feature-requests.md") != before {
 		t.Errorf("exit = %d stdout = %q\nstderr = %q\nwant     %q", exitCode, stdout, stderr, want)
+	}
+	wantHint := fmt.Sprintf(standingHint, "feature-requests")
+	if hint := jsonErrorHint(t, root, "close", "feature-requests", "--reason", "done"); hint != wantHint {
+		t.Errorf("--json hint = %q, want %q", hint, wantHint)
 	}
 }
 
@@ -425,8 +429,8 @@ func TestClose_StandingAndPlainIssueTogether_ClosesThePlainOneAndRefusesTheStand
 
 	stdout, stderr, exitCode := runCLI(t, root, "close", "feature-requests", "login-flow", "--reason", "done")
 
-	// The refusal goes with a partial result, rendered before Run sees it, and still names close.
-	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests") + "hint: capcom close --help\n"
+	// The refusal goes with a partial result, rendered before Run sees it, and keeps its own hint.
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
 	if exitCode != ExitError || stdout != "login-flow  closed\n" || stderr != want {
 		t.Errorf("exit = %d stdout = %q\nstderr = %q\nwant     %q", exitCode, stdout, stderr, want)
 	}

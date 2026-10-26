@@ -180,7 +180,12 @@ internal/cli/output/output_test.go — TestRenderError_SuggestionsAndValid_Repor
 `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`; `go vet ./internal/cli/...`
 **Commit:** `feat(cli): end every error with a hint naming the next command`
 
-## 6. Issue write commands set specific hints
+## 6. Issue write commands set specific hints — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): consequential edit — internal/cli/close_test.go: made necessary by the standing refusal's message and hint moving (standingRefusalText now ends with its specific hint, so the close tests that appended `hint: capcom close --help` were updated and gained a JSON hint check).
+NOTES (2026-10-26): reopen.go and finish.go needed no change: reopen's only refusal names no command, and finish's "run capcom lock status" texts are lock-line notes in its result, which the plan keeps.
+NOTES (2026-10-26): create's hint keeps `--title <title>` a placeholder rather than quoting the given title, which may hold spaces or quotes; the id is filled in.
+NOTES (2026-10-26): TestClose_StandingAndPlainIssueTogether_ClosesThePlainOneAndRefusesTheStanding now pins the specific `capcom update feature-requests --no-standing` hint, so no CLI test any longer shows a partial result's default hint filled with its command (`capcom close --help`); TestError_WithCommand_FillsCommandInHint still covers the fill at unit level.
 
 Depends on item 5.
 

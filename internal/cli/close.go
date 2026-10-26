@@ -138,9 +138,11 @@ func (a *app) closeResult(args []string, status string, reason string) (output.R
 	}
 	if result.Failure != nil {
 		// The joined failure keeps the first failure's closest ids, so an unknown id is still
-		// answered with a "did you mean".
+		// answered with a "did you mean", and its hint, so a standing issue still names the
+		// update that clears its mark.
 		joined := output.Errorf(result.Failure.Code, "%s", strings.Join(messages, failureSeparator))
 		joined.Suggestions = result.Failure.Suggestions
+		joined.Hint = result.Failure.Hint
 		result.Failure = joined
 	}
 	result.Data = data

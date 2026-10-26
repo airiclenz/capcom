@@ -151,8 +151,8 @@ An issue with `standing: true` is a **Standing Parent**
 ([Issues](../concepts/issues.md#standing-parent)): it is never Ready, and while it carries the
 mark a close and a move into the `doing` category are refused: `capcom close` and
 `capcom update --status` fail with `the issue is standing: it only groups its children and is
-never claimed or closed; run capcom update <id> --no-standing first`, and `capcom ui` shows the
-same refusal as a notice. `capcom create --standing` and `capcom update --standing` write the key
+never claimed or closed` and the hint `capcom update <id> --no-standing`, and `capcom ui` shows the
+refusal with that command as a notice. `capcom create --standing` and `capcom update --standing` write the key
 and refuse an issue that is Closed or in the `doing` category; `capcom update --no-standing`
 removes it, before any `--status` of the same call. In a store below format 5, a write that leaves
 a `standing` line in the issue file raises `config.yaml` to `format: 5` (see Config). `capcom check` reports a standing issue whose status is in the

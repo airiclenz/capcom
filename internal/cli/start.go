@@ -116,30 +116,29 @@ func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 
 // refuseUnstartable refuses an Issue that is not in doing and cannot be claimed: Closed, standing,
 // outside the todo category, not Ready, or in a store whose config.yaml declares no doing status.
-// Each refusal names the command that resolves it.
+// Each refusal's hint names the command that resolves it.
 func (a *app) refuseUnstartable(entry index.Entry) error {
 	id := entry.ID
 	todoStatus, _ := a.store.Config.DefaultStatus(config.CategoryTodo) // config.yaml always declares one
 	switch {
 	case entry.Category.IsClosed():
-		return output.Errorf(
-			output.CodeInvalid,
-			"%s is closed (%s); run capcom reopen %s --reason <text> first",
-			id, entry.Status, id,
-		)
+		return &output.Error{
+			Code:    output.CodeInvalid,
+			Message: fmt.Sprintf("%s is closed (%s)", id, entry.Status),
+			Hint:    fmt.Sprintf("capcom reopen %s --%s <text>", id, flagReason),
+		}
 	case entry.IsStanding:
-		return output.Errorf(
-			output.CodeInvalid,
-			"%s is standing: it only groups its children and is never claimed; "+
-				"run capcom list --tree %s to pick one of them",
-			id, id,
-		)
+		return &output.Error{
+			Code:    output.CodeInvalid,
+			Message: fmt.Sprintf("%s is standing: it only groups its children and is never claimed; pick one of them", id),
+			Hint:    fmt.Sprintf("capcom list --%s %s", flagTree, id),
+		}
 	case entry.Category != config.CategoryTodo:
-		return output.Errorf(
-			output.CodeConflict,
-			"%s is not Ready: status %q is not in the todo category; run capcom update %s --status %s first",
-			id, entry.Status, id, todoStatus,
-		)
+		return &output.Error{
+			Code:    output.CodeConflict,
+			Message: fmt.Sprintf("%s is not Ready: status %q is not in the todo category", id, entry.Status),
+			Hint:    fmt.Sprintf("capcom update %s --%s %s", id, flagStatus, todoStatus),
+		}
 	}
 
 	verdict, err := a.readiness(id)
@@ -147,11 +146,11 @@ func (a *app) refuseUnstartable(entry index.Entry) error {
 		return err
 	}
 	if !verdict.IsReady {
-		return output.Errorf(
-			output.CodeConflict,
-			"%s is not Ready: %s; run %s",
-			id, notReadyReasons(verdict), strings.Join(readinessResolvers(verdict), ", then "),
-		)
+		return &output.Error{
+			Code:    output.CodeConflict,
+			Message: fmt.Sprintf("%s is not Ready: %s", id, notReadyReasons(verdict)),
+			Hint:    strings.Join(readinessResolvers(verdict), ", then "),
+		}
 	}
 	if _, isDeclared := a.store.Config.DefaultStatus(config.CategoryDoing); !isDeclared {
 		return output.Errorf(output.CodeInvalid, "%s; add one to statuses", ops.ErrNoDoingStatus.Error())
@@ -171,7 +170,11 @@ func (a *app) readiness(id string) (issue.Readiness, error) {
 			return verdict, nil
 		}
 	}
-	return issue.Readiness{}, output.Errorf(output.CodeConflict, "%s has no readiness verdict; run capcom show %s", id, id)
+	return issue.Readiness{}, &output.Error{
+		Code:    output.CodeConflict,
+		Message: fmt.Sprintf("%s has no readiness verdict", id),
+		Hint:    "capcom show " + id,
+	}
 }
 
 // readinessResolvers names the command that resolves each reason verdict is not Ready, in the
@@ -212,25 +215,32 @@ func (a *app) refuseLock(entry index.Entry, isDoing bool, checked lock.Status, c
 			Code: output.CodeConflict,
 			Message: fmt.Sprintf(
 				"%s is already in doing (%s) and the Tree lock is held without your token; "+
-					"if the lock is yours, run capcom start %s --token <token>",
-				id, entry.Status, id,
+					"if the lock is yours, start it again with its token",
+				id, entry.Status,
 			),
 			Path: held.Path,
+			Hint: fmt.Sprintf("capcom start %s --%s <token>", id, flagToken),
 		}
 	case !checked.IsHeld:
 		todoStatus, _ := a.store.Config.DefaultStatus(config.CategoryTodo) // config.yaml always declares one
-		return output.Errorf(
-			output.CodeConflict,
-			"%s is already in doing (%s) and the Tree lock is free; run capcom lock acquire --purpose %s "+
-				"to hold it, or capcom update %s --status %s to start it again",
-			id, entry.Status, id, id, todoStatus,
-		)
+		return &output.Error{
+			Code: output.CodeConflict,
+			Message: fmt.Sprintf(
+				"%s is already in doing (%s) and the Tree lock is free; hold the lock, "+
+					"or move the issue back to todo to start it again",
+				id, entry.Status,
+			),
+			Hint: fmt.Sprintf(
+				"capcom lock acquire --%s %s, or capcom update %s --%s %s",
+				flagPurpose, id, id, flagStatus, todoStatus,
+			),
+		}
 	}
 	return nil
 }
 
-// startLockFailure types a lock another session holds as locked, naming capcom lock status; any
-// other failure passes through.
+// startLockFailure types a lock another session holds as locked, its hint naming capcom lock
+// status; any other failure passes through.
 func startLockFailure(err error) error {
 	var held *lock.HeldError
 	if !errors.As(err, &held) {
@@ -238,8 +248,9 @@ func startLockFailure(err error) error {
 	}
 	return &output.Error{
 		Code:    output.CodeLocked,
-		Message: held.Message() + "; run capcom lock status",
+		Message: held.Message(),
 		Path:    held.Path,
+		Hint:    "capcom lock status",
 	}
 }
 

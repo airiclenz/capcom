@@ -83,7 +83,7 @@ A refusal of a status rule is `invalid`; closing or claiming a Standing Parent, 
 
 ```console
 $ capcom update feature-requests --status active --json
-{"schema":1,"kind":"error","error":{"code":"invalid","message":"the issue is standing: it only groups its children and is never claimed or closed; run capcom update feature-requests --no-standing first","path":".capcom/issues/feature-requests.md","hint":"capcom update --help"},"elsewhere":[],"warnings":[]}
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"the issue is standing: it only groups its children and is never claimed or closed","path":".capcom/issues/feature-requests.md","hint":"capcom update feature-requests --no-standing"},"elsewhere":[],"warnings":[]}
 ```
 
 A mistyped command or subcommand also sets `suggestion`, the path below `capcom` of the closest

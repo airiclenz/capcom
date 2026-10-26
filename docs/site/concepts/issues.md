@@ -67,8 +67,8 @@ a status in the `doing` category and `capcom close` are refused, naming the way 
 
 ```console
 $ capcom update feature-requests --status active
-capcom: .capcom/issues/feature-requests.md: the issue is standing: it only groups its children and is never claimed or closed; run capcom update feature-requests --no-standing first
-hint: capcom update --help
+capcom: .capcom/issues/feature-requests.md: the issue is standing: it only groups its children and is never claimed or closed
+hint: capcom update feature-requests --no-standing
 ```
 
 `capcom update <id> --no-standing` clears the mark, and is applied before `--status`, so

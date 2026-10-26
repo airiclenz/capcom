@@ -183,7 +183,14 @@ func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string
 		status, _ = cfg.DefaultStatus(config.CategoryTodo) // config guarantees a todo status
 	}
 	if category, _ := cfg.CategoryOf(status); category.IsClosed() {
-		return issue.Issue{}, output.Errorf(output.CodeInvalid, "status %q is in the %s category; create the issue open, then close it", status, category)
+		return issue.Issue{}, &output.Error{
+			Code:    output.CodeInvalid,
+			Message: fmt.Sprintf("status %q is in the %s category; an issue is created open and closed after", status, category),
+			Hint: fmt.Sprintf(
+				"capcom create --%s %s --%s <title>, then capcom close %s --%s <text>",
+				flagID, options.id, flagTitle, options.id, flagReason,
+			),
+		}
 	}
 	issueType := options.issueType
 	if issueType == "" {

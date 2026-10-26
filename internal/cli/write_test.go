@@ -129,11 +129,26 @@ func TestCreate_MissingIDOrClosedStatus_IsRefused(t *testing.T) {
 	_, _, missingExit := runCLI(t, root, "create", "--title", "No id")
 	_, stderr, closedExit := runCLI(t, root, "create", "--id", "born-done", "--title", "Done", "--status", "done")
 
-	wantStderr := "capcom: status \"done\" is in the done category; create the issue open, then close it\nhint: capcom create --help\n"
+	const wantHint = "capcom create --id born-done --title <title>, then capcom close born-done --reason <text>"
+	wantStderr := "capcom: status \"done\" is in the done category; an issue is created open and closed after\n" +
+		"hint: " + wantHint + "\n"
 	if missingExit != ExitUsage || closedExit != ExitError || stderr != wantStderr {
 		t.Errorf("missing id exit = %d, closed status exit = %d\nstderr = %q\nwant     %q",
 			missingExit, closedExit, stderr, wantStderr)
 	}
+	if hint := jsonErrorHint(t, root, "create", "--id", "born-done", "--title", "Done", "--status", "done"); hint != wantHint {
+		t.Errorf("--json hint = %q, want %q", hint, wantHint)
+	}
+}
+
+// jsonErrorHint runs capcom with args and --json in root and returns the hint of the error its
+// envelope carries, empty when there is none.
+func jsonErrorHint(t *testing.T, root string, args ...string) string {
+	t.Helper()
+	stdout, _, _ := runCLI(t, root, slices.Concat(args, []string{"--json"})...)
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	hint, _ := failure["hint"].(string)
+	return hint
 }
 
 func TestCreate_BodyFromStdin_WritesBody(t *testing.T) {
@@ -436,24 +451,40 @@ func TestUpdate_RepeatedBodyEdits_AreRefusedWhole(t *testing.T) {
 func TestUpdate_StatusIntoOrOutOfClosed_IsRefused(t *testing.T) {
 	root := newWriteStore(t)
 
+	const reopenHint = "capcom reopen shipped-fix --reason <text>"
 	const leavesClosed = "capcom: .capcom/issues/shipped-fix.md: " +
-		"status \"done\" is closed; use reopen to move the issue out of it\nhint: capcom update --help\n"
+		"status \"done\" is closed; only a reopen moves the issue out of it\nhint: " + reopenHint + "\n"
+	const closeHint = "capcom close login-flow --reason <text>"
 	cases := map[string]struct {
 		args       []string
 		wantStderr string
+		wantHint   string
 	}{
 		"into done": {
-			args:       []string{"update", "login-flow", "--status", "done"},
-			wantStderr: "capcom: .capcom/issues/login-flow.md: status \"done\" is in the done category; use close\nhint: capcom update --help\n",
+			args: []string{"update", "login-flow", "--status", "done"},
+			wantStderr: "capcom: .capcom/issues/login-flow.md: status \"done\" is in the done category; " +
+				"only a close moves the issue into it\nhint: " + closeHint + "\n",
+			wantHint: closeHint,
 		},
-		"out of done":  {args: []string{"update", "shipped-fix", "--status", "open"}, wantStderr: leavesClosed},
-		"done to drop": {args: []string{"update", "shipped-fix", "--status", "dropped"}, wantStderr: leavesClosed},
+		"out of done": {
+			args:       []string{"update", "shipped-fix", "--status", "open"},
+			wantStderr: leavesClosed,
+			wantHint:   reopenHint,
+		},
+		"done to drop": {
+			args:       []string{"update", "shipped-fix", "--status", "dropped"},
+			wantStderr: leavesClosed,
+			wantHint:   reopenHint,
+		},
 	}
 	for name, tc := range cases {
 		_, stderr, exitCode := runCLI(t, root, tc.args...)
 
 		if exitCode != ExitError || stderr != tc.wantStderr {
 			t.Errorf("%s: exit = %d\nstderr = %q\nwant     %q", name, exitCode, stderr, tc.wantStderr)
+		}
+		if hint := jsonErrorHint(t, root, tc.args...); hint != tc.wantHint {
+			t.Errorf("%s: --json hint = %q, want %q", name, hint, tc.wantHint)
 		}
 	}
 }
@@ -962,9 +993,14 @@ const standingNotOpenText = "status %q is in the %s category; " +
 	"only an issue that is neither closed nor in the doing category can be marked standing\n"
 
 // standingRefusalText is the refusal of claiming or closing a standing issue, as close and update
-// word it on stderr; its arguments are the issue's id, for its file and for the update to run.
+// word it on stderr, ending with standingHint; its arguments are the issue's id, for its file and
+// for the hint.
 const standingRefusalText = "capcom: .capcom/issues/%s.md: the issue is standing: it only groups its children " +
-	"and is never claimed or closed; run capcom update %s --no-standing first\n"
+	"and is never claimed or closed\nhint: " + standingHint + "\n"
+
+// standingHint is the hint of standingRefusalText, the update that clears the mark of the issue
+// whose id is its argument.
+const standingHint = "capcom update %s --no-standing"
 
 // newStandingStore is newWriteStore with feature-requests, an open issue marked standing, and
 // busy-work, an issue in the doing category.
@@ -1113,9 +1149,13 @@ func TestUpdate_StatusActiveOnAStandingIssue_IsRefusedNamingTheMark(t *testing.T
 
 	_, stderr, exitCode := runCLI(t, root, "update", "feature-requests", "--status", "active")
 
-	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests") + "hint: capcom update --help\n"
+	want := fmt.Sprintf(standingRefusalText, "feature-requests", "feature-requests")
 	if exitCode != ExitError || stderr != want || readStoreFile(t, root, "feature-requests.md") != before {
 		t.Errorf("exit = %d\nstderr = %q\nwant     %q", exitCode, stderr, want)
+	}
+	wantHint := fmt.Sprintf(standingHint, "feature-requests")
+	if hint := jsonErrorHint(t, root, "update", "feature-requests", "--status", "active"); hint != wantHint {
+		t.Errorf("--json hint = %q, want %q", hint, wantHint)
 	}
 }
 

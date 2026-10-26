@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 
@@ -17,6 +18,9 @@ import (
 
 // flagNoStanding clears the standing mark of the issue capcom update changes.
 const flagNoStanding = "no-standing"
+
+// idPlaceholder stands in a hint for an issue id the failure does not know.
+const idPlaceholder = "<id>"
 
 // updateOptions holds the flags of one capcom update.
 type updateOptions struct {
@@ -222,29 +226,35 @@ func standingChange(cmd *cobra.Command, options *updateOptions) (isStanding bool
 }
 
 // statusChangeFailure types a refusal from issue.SetStatus, issue.SetStanding, issue.Close or
-// issue.Reopen as invalid, worded for the commands: the wording stays here because it names the
-// update, close and reopen verbs. id names the issue in the refusal of a standing issue, which says
-// to clear the mark with update first. Any other error, such as a failure to name the Log entry's
-// author, is invalid with its own message.
+// issue.Reopen as invalid, worded for the commands: the wording stays here because the hints name
+// the update, close and reopen verbs. id names the issue in the hint, such as the update that
+// clears a standing issue's mark; an empty id stays the <id> placeholder. Any other error, such as
+// a failure to name the Log entry's author, is invalid with its own message.
 func statusChangeFailure(id string, err error) error {
 	var refusal *issue.StatusError
 	if !errors.As(err, &refusal) {
 		return output.Errorf(output.CodeInvalid, "%s", err.Error())
 	}
+	if id == "" {
+		id = idPlaceholder
+	}
 	switch {
 	case errors.Is(refusal, issue.ErrLeavesClosed):
-		return output.Errorf(
-			output.CodeInvalid,
-			"status %q is closed; use reopen to move the issue out of it",
-			refusal.Status,
-		)
+		return &output.Error{
+			Code:    output.CodeInvalid,
+			Message: fmt.Sprintf("status %q is closed; only a reopen moves the issue out of it", refusal.Status),
+			Hint:    fmt.Sprintf("capcom reopen %s --%s <text>", id, flagReason),
+		}
 	case errors.Is(refusal, issue.ErrEntersClosed):
-		return output.Errorf(
-			output.CodeInvalid,
-			"status %q is in the %s category; use close",
-			refusal.Status,
-			refusal.Category,
-		)
+		return &output.Error{
+			Code: output.CodeInvalid,
+			Message: fmt.Sprintf(
+				"status %q is in the %s category; only a close moves the issue into it",
+				refusal.Status,
+				refusal.Category,
+			),
+			Hint: fmt.Sprintf("capcom close %s --%s <text>", id, flagReason),
+		}
 	case errors.Is(refusal, issue.ErrNotClosed):
 		return output.Errorf(
 			output.CodeInvalid,
@@ -253,13 +263,11 @@ func statusChangeFailure(id string, err error) error {
 			refusal.Category,
 		)
 	case errors.Is(refusal, issue.ErrStanding):
-		return output.Errorf(
-			output.CodeInvalid,
-			"the issue is standing: it only groups its children and is never claimed or closed; "+
-				"run capcom update %s --%s first",
-			id,
-			flagNoStanding,
-		)
+		return &output.Error{
+			Code:    output.CodeInvalid,
+			Message: "the issue is standing: it only groups its children and is never claimed or closed",
+			Hint:    fmt.Sprintf("capcom update %s --%s", id, flagNoStanding),
+		}
 	case errors.Is(refusal, issue.ErrStandingNotOpen):
 		return output.Errorf(
 			output.CodeInvalid,

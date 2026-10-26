@@ -178,7 +178,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			arg:      "busy",
 			wantExit: ExitError,
 			wantCode: output.CodeConflict,
-			want:     "capcom lock acquire --purpose busy",
+			want:     "capcom lock acquire --purpose busy, or capcom update busy --status open",
 		},
 		{
 			name:     "doing with the lock held",
@@ -215,14 +215,17 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 
 			stdout, stderr, exitCode := runCLI(t, root, "start", test.arg)
 
-			if exitCode != test.wantExit || !strings.Contains(stderr, test.want) {
-				t.Errorf("exit = %d, want %d; stderr = %q, want it to name %q\n%s",
+			if exitCode != test.wantExit || lastLine(stderr) != "hint: "+test.want {
+				t.Errorf("exit = %d, want %d; stderr = %q, want it to end with the hint %q\n%s",
 					exitCode, test.wantExit, stderr, test.want, stdout)
 			}
 			jsonOut, _, _ := runCLI(t, root, "start", test.arg, "--json")
 			failure, _ := decodeEnvelope(t, jsonOut)["error"].(map[string]any)
-			if failure["code"] != string(test.wantCode) {
-				t.Errorf("--json error = %v, want code %s", failure, test.wantCode)
+			message, _ := failure["message"].(string)
+			if failure["code"] != string(test.wantCode) || failure["hint"] != test.want ||
+				strings.Contains(message, "capcom ") {
+				t.Errorf("--json error = %v, want code %s, hint %q and a message naming no command",
+					failure, test.wantCode, test.want)
 			}
 			if after := readOptionalFile(t, entry); after != before {
 				t.Errorf("issue file changed:\n%s\nwant\n%s", after, before)
