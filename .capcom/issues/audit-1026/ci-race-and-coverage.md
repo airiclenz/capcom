@@ -1,10 +1,12 @@
 ---
 title: CI runs no race detector and no coverage check
-status: open
+status: done
 type: chore
 priority: 2
 plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
+closed: 2026-10-26T21:45:33Z
+reason: Resolved by plan 2026-10-26 - 03 - audit-p1-p2-fixes-plan (archived in 575c3b9)
 ---
 
 CI never runs the race detector or a coverage check, and the Makefile test target lacks

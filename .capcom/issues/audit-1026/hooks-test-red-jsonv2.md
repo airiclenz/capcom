@@ -1,10 +1,12 @@
 ---
 title: internal/hooks asserts the JSON decoder's wording and fails under encoding/json v2
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
+closed: 2026-10-26T21:45:33Z
+reason: Resolved by plan 2026-10-26 - 03 - audit-p1-p2-fixes-plan (archived in 575c3b9)
 ---
 
 `internal/hooks` fails wherever the v2 JSON decoder is active, because a test asserts the exact

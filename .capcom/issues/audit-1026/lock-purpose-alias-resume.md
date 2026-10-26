@@ -1,10 +1,12 @@
 ---
 title: Resuming a token under a new purpose lets the old purpose take the lock
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
+closed: 2026-10-26T21:45:33Z
+reason: Resolved by plan 2026-10-26 - 03 - audit-p1-p2-fixes-plan (archived in 575c3b9)
 ---
 
 Resuming a token under a second purpose leaves the first purpose's token file behind, so a

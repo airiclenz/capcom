@@ -1,10 +1,12 @@
 ---
 title: A lock heartbeat in the future is not stale until the clock catches up
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:45Z
+closed: 2026-10-26T21:45:33Z
+reason: Resolved by plan 2026-10-26 - 03 - audit-p1-p2-fixes-plan (archived in 575c3b9)
 ---
 
 A Tree lock whose heartbeat is dated in the future does not count as stale until the clock passes

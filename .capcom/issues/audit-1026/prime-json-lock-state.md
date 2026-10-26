@@ -1,10 +1,12 @@
 ---
 title: prime --json drops whether this worktree is free to edit
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-26 - 03 - audit-p1-p2-fixes-plan
 created: 2026-10-26T20:06:49Z
+closed: 2026-10-26T21:45:33Z
+reason: Resolved by plan 2026-10-26 - 03 - audit-p1-p2-fixes-plan (archived in 575c3b9)
 ---
 
 `capcom prime --json` drops the sentence that tells an agent whether it may edit this worktree.
