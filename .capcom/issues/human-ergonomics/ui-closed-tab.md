@@ -1,11 +1,13 @@
 ---
 title: The UI has no way to browse Closed issues
-status: open
+status: done
 type: task
 priority: 2
 deps: [ui-tab-counts]
 plan: 2026-10-26 - 02 - p2-hint-closed-tab-plan
 created: 2026-10-26T08:02:56Z
+closed: 2026-10-26T14:38:05Z
+reason: "resolved by plan 2026-10-26 - 02 - p2-hint-closed-tab-plan (archived 2035de6): Closed tab, keys, reopen, filter, capcom ui closed"
 ---
 
 `capcom ui` gives no way to browse Closed issues. The Issues tree hides them; they show only

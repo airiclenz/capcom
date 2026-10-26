@@ -1,10 +1,12 @@
 ---
 title: A missing --body-file hints capcom search
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-10-26 - 02 - p2-hint-closed-tab-plan
 created: 2026-10-26T13:29:42Z
+closed: 2026-10-26T14:38:05Z
+reason: "resolved by plan 2026-10-26 - 02 - p2-hint-closed-tab-plan (archived 2035de6), item 1: missing body input file hints capcom <cmd> --<flag> -"
 ---
 
 A `--body-file` (or `--body-append-file`) naming a file that does not exist fails with

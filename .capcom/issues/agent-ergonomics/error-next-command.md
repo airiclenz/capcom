@@ -1,11 +1,13 @@
 ---
 title: Not every error names the command that fixes it
-status: open
+status: done
 type: feature
 priority: 2
 deps: [suggest-ids-values]
 plan: 2026-10-26 - 02 - p2-hint-closed-tab-plan
 created: 2026-10-19T14:54:45Z
+closed: 2026-10-26T14:38:05Z
+reason: "resolved by plan 2026-10-26 - 02 - p2-hint-closed-tab-plan (archived 2035de6), item 1: the last hint gap (missing --body-file) fixed"
 ---
 
 Some errors already name the command that resolves them (`status "done" is closed; use
