@@ -304,6 +304,51 @@ func TestRead_CorruptRecord_FailsNamingTheFile(t *testing.T) {
 	}
 }
 
+func TestReadCheckOverview_FreshDir_CreateNothing(t *testing.T) {
+	t.Parallel()
+	locks, commonDir := openTest(t)
+
+	_, readErr := locks.Read(MainWorktreeKey)
+	_, checkErr := locks.Check(MainWorktreeKey, "")
+	_, overviewErr := locks.Overview(MainWorktreeKey)
+
+	if err := errors.Join(readErr, checkErr, overviewErr); err != nil {
+		t.Fatalf("reads on a fresh dir: %v", err)
+	}
+	entries, err := os.ReadDir(commonDir)
+	if err != nil || len(entries) != 0 {
+		t.Errorf("git common dir holds %v (err %v), want nothing created", entries, err)
+	}
+}
+
+func TestReadCheck_RecordWithNoGuardInReadOnlyDir_Succeed(t *testing.T) {
+	skipUnlessPermissionsBind(t)
+	t.Parallel()
+	locks, _ := openTest(t)
+	writeRecord(t, locks, MainWorktreeKey, validRecord)
+	if err := os.Chmod(locks.dir, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locks.dir, 0o755) })
+	const token = "0123456789abcdef0123456789abcdef"
+
+	status, readErr := locks.Read(MainWorktreeKey)
+	_, ownErr := locks.Check(MainWorktreeKey, token)
+	_, otherErr := locks.Check(MainWorktreeKey, "")
+
+	if readErr != nil || !status.IsHeld || status.Record.Token != token {
+		t.Errorf("Read = %+v, err %v; want the held record", status, readErr)
+	}
+	if ownErr != nil {
+		t.Errorf("Check with the holder's token: %v", ownErr)
+	}
+	asHeldError(t, otherErr)
+	guardPath := filepath.Join(locks.dir, MainWorktreeKey+guardExtension)
+	if _, err := os.Lstat(guardPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("Lstat(%s) = %v, want no guard file", guardPath, err)
+	}
+}
+
 // writeRecord replaces key's record file with data and fails the test on error.
 func writeRecord(t *testing.T, locks *Locks, key string, data string) {
 	t.Helper()

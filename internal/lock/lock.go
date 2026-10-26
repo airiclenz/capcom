@@ -299,33 +299,25 @@ func (l *Locks) Break(key string) (Status, error) {
 	return broken, err
 }
 
-// Read returns the state of key's lock.
+// Read returns the state of key's lock. It reads without the guard, as a record is replaced
+// atomically, and creates nothing.
 func (l *Locks) Read(key string) (Status, error) {
-	var status Status
-	err := l.withGuard(key, func(now time.Time) error {
-		current, err := l.read(key, now)
-		status = current
-		return err
-	})
-	return status, err
+	return l.read(key, time.Now().UTC())
 }
 
 // Check returns key's lock when it is free or held by token, and fails with a *HeldError when
-// another session holds it, stale or not; an empty token holds nothing.
+// another session holds it, stale or not; an empty token holds nothing. It reads without the guard,
+// as a record is replaced atomically, and creates nothing.
 func (l *Locks) Check(key, token string) (Status, error) {
-	var checked Status
-	err := l.withGuard(key, func(now time.Time) error {
-		current, err := l.read(key, now)
-		if err != nil {
-			return err
-		}
-		if current.IsHeld && (token == "" || current.Record.Token != token) {
-			return l.heldError(current, now)
-		}
-		checked = current
-		return nil
-	})
-	return checked, err
+	now := time.Now().UTC()
+	current, err := l.read(key, now)
+	if err != nil {
+		return Status{}, err
+	}
+	if current.IsHeld && (token == "" || current.Record.Token != token) {
+		return Status{}, l.heldError(current, now)
+	}
+	return current, nil
 }
 
 // recordKeys returns the key of every record file in the lock directory, ordered. It skips hidden
@@ -387,7 +379,8 @@ func (l *Locks) withGuard(key string, body func(now time.Time) error) error {
 }
 
 // read loads key's record, if any, and judges its staleness at now. A record that does not parse or
-// carries no token fails wrapping errCorruptRecord. The caller holds the guard.
+// carries no token fails wrapping errCorruptRecord. Writers call it holding the guard; readers
+// call it without, as write replaces a record by an atomic rename, so they see a whole record.
 func (l *Locks) read(key string, now time.Time) (Status, error) {
 	path := l.RecordPath(key)
 	data, err := os.ReadFile(path)

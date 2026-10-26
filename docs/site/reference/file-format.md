@@ -855,7 +855,8 @@ capcom installs no git hooks, and `lock check` lets a repository opt in to a che
 A record that does not parse or carries no token holds no lock: `lock break` discards it with a
 warning, and `lock status --all` and `capcom prime` skip it with a warning naming the file.
 Every change to a record runs under an OS file lock on its `.lck` file, held only for that read and
-write, and the record is replaced atomically.
+write, and the record is replaced atomically. Reading the lock (`lock check`, `lock status`,
+`capcom prime`) takes no file lock and creates nothing.
 
 ## The Managed block in AGENTS.md
 

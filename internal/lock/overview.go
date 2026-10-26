@@ -16,7 +16,7 @@ const (
 	// StateInvalid is a worktree whose lock record was read but holds no valid lock, so acquiring
 	// it fails.
 	StateInvalid State = "invalid"
-	// StateUnreadable is a worktree whose lock record or guard cannot be read at all.
+	// StateUnreadable is a worktree whose lock record cannot be read at all.
 	StateUnreadable State = "unreadable"
 )
 
@@ -26,8 +26,8 @@ type RecordProblem struct {
 	Key string
 	// Path is the record's file.
 	Path string
-	// State is StateInvalid for a record that holds no valid lock, StateUnreadable for one whose
-	// record or guard cannot be read.
+	// State is StateInvalid for a record that holds no valid lock, StateUnreadable for one that
+	// cannot be read.
 	State State
 	// Err is the read's error, unchanged; it names the file that failed.
 	Err error

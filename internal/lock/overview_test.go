@@ -199,7 +199,7 @@ func TestOverview_ForeignUnreadableRecordBesideAHeldLock_IsOneProblem(t *testing
 	}
 }
 
-func TestOverview_DirectoryAtAForeignGuardBesideAHeldLock_IsOneUnreadableProblem(t *testing.T) {
+func TestOverview_DirectoryAtAForeignGuardBesideAHeldLock_ListsBothLocks(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)
 	mustAcquire(t, locks, MainWorktreeKey)
@@ -211,15 +211,12 @@ func TestOverview_DirectoryAtAForeignGuardBesideAHeldLock_IsOneUnreadableProblem
 
 	overview := mustOverview(t, locks, MainWorktreeKey)
 
-	if overview.State != StateHeld || len(overview.Locks) != 1 || overview.Locks[0].Key != MainWorktreeKey {
-		t.Fatalf("overview = %+v; want this worktree held and its lock alone", overview)
+	keys := lockKeys(overview.Locks)
+	if overview.State != StateHeld || len(keys) != 2 || keys[0] != MainWorktreeKey || keys[1] != foreignKey {
+		t.Fatalf("overview = %+v; want this worktree held beside %s", overview, foreignKey)
 	}
-	if len(overview.Problems) != 1 {
-		t.Fatalf("problems = %v, want exactly one", overview.Problems)
-	}
-	problem := overview.Problems[0]
-	if problem.Key != foreignKey || problem.State != StateUnreadable || !strings.HasPrefix(problem.Error(), guardPath+": ") {
-		t.Errorf("problem = %+v (%q), want key %q unreadable, naming %s", problem, problem.Error(), foreignKey, guardPath)
+	if len(overview.Problems) != 0 {
+		t.Errorf("problems = %v, want none: reading takes no guard", overview.Problems)
 	}
 }
 

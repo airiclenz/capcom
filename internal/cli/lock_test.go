@@ -265,6 +265,65 @@ func TestLockCheck_CorruptRecord_FailsWithExitOne(t *testing.T) {
 	}
 }
 
+func TestLockReads_FreshRepo_CreateNoLockDirectory(t *testing.T) {
+	root := newLockStore(t)
+	locksDir := filepath.Join(root, ".git", "capcom", "locks")
+
+	for _, args := range [][]string{{"lock", "check"}, {"lock", "status"}, {"lock", "status", "--all"}, {"prime"}} {
+		stdout, stderr, exitCode := runCLI(t, root, args...)
+
+		if exitCode != ExitOK {
+			t.Errorf("%v: exit = %d, want 0\nstdout = %s\nstderr = %s", args, exitCode, stdout, stderr)
+		}
+		if _, err := os.Lstat(locksDir); !os.IsNotExist(err) {
+			t.Fatalf("after %v: Lstat(%s) = %v, want no lock directory", args, locksDir, err)
+		}
+	}
+}
+
+func TestLockCheck_ReadOnlyLockDirectory_ExitsByTheRecord(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory test does not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("a read-only directory test does not run as root")
+	}
+	cases := []struct {
+		name     string
+		record   string
+		wantExit int
+	}{
+		{"missing record", "", ExitOK},
+		{"held record", `{"token": "0123456789abcdef0123456789abcdef", "holder": "agent-b"}`, ExitNotFound},
+		{"record that does not parse", "{", ExitError},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newLockStore(t)
+			locksDir := filepath.Join(root, ".git", "capcom", "locks")
+			if err := os.MkdirAll(locksDir, 0o755); err != nil {
+				t.Fatalf("MkdirAll: %v", err)
+			}
+			if testCase.record != "" {
+				writeLockRecord(t, root, "_main", testCase.record)
+			}
+			if err := os.Chmod(locksDir, 0o555); err != nil {
+				t.Fatalf("Chmod: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Chmod(locksDir, 0o755) })
+
+			stdout, stderr, exitCode := runCLI(t, root, "lock", "check")
+
+			if exitCode != testCase.wantExit {
+				t.Errorf("exit = %d, want %d\nstdout = %s\nstderr = %s", exitCode, testCase.wantExit, stdout, stderr)
+			}
+			if strings.Contains(stdout+stderr, ".lck") {
+				t.Errorf("stdout = %q stderr = %q, want no word of a guard file", stdout, stderr)
+			}
+		})
+	}
+}
+
 func TestLockStatus_CorruptOwnRecord_ReportsInvalidWithAWarning(t *testing.T) {
 	root := newLockStore(t)
 	writeLockRecord(t, root, "_main", "{")

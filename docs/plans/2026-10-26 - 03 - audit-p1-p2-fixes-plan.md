@@ -136,7 +136,10 @@ green with their extra second.
 **Closes:** index-stale-size-mtime
 **Commit:** `fix(index): detect a same-size edit that keeps the mtime`
 
-## 3. Lock reads create nothing
+## 3. Lock reads create nothing — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): docs/site/reference/file-format.md (not in **Files:**) gains one sentence saying reading the lock takes no file lock and creates nothing, as the user-facing reference for the lock directory (rule 6: user-observable behaviour changed).
+NOTES (2026-10-26): TestOverview_DirectoryAtAForeignGuardBesideAHeldLock_IsOneUnreadableProblem recast as TestOverview_DirectoryAtAForeignGuardBesideAHeldLock_ListsBothLocks: a directory at a foreign guard now leaves both locks listed and no problem, as the plan's regression guard directs.
 
 **What:**
 **Goal:** `lock check`, `lock status`, `prime` and the UI's lock reads create no file or directory
