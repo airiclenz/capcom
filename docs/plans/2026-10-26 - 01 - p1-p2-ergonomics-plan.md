@@ -347,7 +347,9 @@ internal/cli/prime_test.go — newPrimeStore, TestPrime_FixtureStore_PrintsTheBr
 `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Prime`; `go vet ./internal/briefing/`
 **Commit:** `fix(prime): name unshared Note refs`
 
-## 12. Resolve a plan's path and list every Note ref
+## 12. Resolve a plan's path and list every Note ref — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): Config.PlanPath accepts only regular files (info.Mode().IsRegular(), per the Goal) where isPlanFound accepted any non-directory; check's behaviour differs only for a plan named by a FIFO, socket or device file.
 
 **What:**
 **Goal:** `config` offers a resolver returning a plan basename's file path (`<dir>/<plan>.md` or

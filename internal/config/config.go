@@ -6,6 +6,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -141,6 +143,9 @@ elsewhere:
 #   guides: [CLAUDE.md, GEMINI.md]
 `
 
+// planExtension is the extension a plan basename is looked up with, besides the bare name.
+const planExtension = ".md"
+
 // Status is one configured issue status and the category it belongs to.
 type Status struct {
 	Name     string
@@ -243,6 +248,26 @@ func (c Config) DefaultStatus(category Category) (string, bool) {
 	for _, configured := range c.Statuses {
 		if configured.Category == category {
 			return configured.Name, true
+		}
+	}
+	return "", false
+}
+
+// PlanPath returns the path of the file plan names, and whether one was found: plan is a basename,
+// looked up as <dir>/<plan>.md and then <dir>/<plan> in each of the plans directories in turn,
+// each relative to root, the repository's worktree root. Only a regular file counts: a directory
+// is passed over. A plan that is not a bare basename is never found.
+func (c Config) PlanPath(root, plan string) (path string, isFound bool) {
+	if filepath.Base(filepath.FromSlash(plan)) != plan {
+		return "", false
+	}
+	for _, dir := range c.Plans {
+		base := filepath.Join(root, filepath.FromSlash(dir), plan)
+		for _, candidate := range []string{base + planExtension, base} {
+			info, err := os.Stat(candidate)
+			if err == nil && info.Mode().IsRegular() {
+				return candidate, true
+			}
 		}
 	}
 	return "", false

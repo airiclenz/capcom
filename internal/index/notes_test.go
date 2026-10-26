@@ -476,3 +476,38 @@ func TestNotes_SearchNotesAnyWord_OperatorWords_MatchLiterally(t *testing.T) {
 		t.Errorf("SearchNotesAnyWord(OR NEAR \") = %v, %v; want [or-note]", noteIDs(got), err)
 	}
 }
+
+func TestNoteRefs_RetiredSubtree_LeftOut(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "old-rules.md", "---\ntitle: Old rules\nretired: true\nrefs: [old/rules.go]\n---\n")
+	writeNote(t, s, "old-rules/kept-rule.md", "---\ntitle: Kept rule\nrefs: [old/kept.go#Kept]\n---\n")
+	writeNote(t, s, "current.md", "---\ntitle: Current\nrefs: [internal/a.go#A, docs/b.md]\n---\n")
+	writeNote(t, s, "no-refs.md", "---\ntitle: No refs\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	refs, err := x.NoteRefs()
+
+	want := []NoteRef{{NoteID: "current", Ref: "internal/a.go#A"}, {NoteID: "current", Ref: "docs/b.md"}}
+	if err != nil || !slices.Equal(refs, want) {
+		t.Errorf("NoteRefs() = %v, %v; want %v", refs, err, want)
+	}
+}
+
+func TestNoteRefs_DuplicateIDNote_RefsLeftOut(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "a.md", "---\ntitle: A\nrefs: [a.go]\n---\n")
+	writeNote(t, s, "a/x.md", "---\ntitle: X one\nrefs: [x-one.go]\n---\n")
+	writeNote(t, s, "b.md", "---\ntitle: B\n---\n")
+	writeNote(t, s, "b/x.md", "---\ntitle: X two\nrefs: [x-two.go]\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	refs, err := x.NoteRefs()
+
+	if want := []NoteRef{{NoteID: "a", Ref: "a.go"}}; err != nil || !slices.Equal(refs, want) {
+		t.Errorf("NoteRefs() = %v, %v; want only %v", refs, err, want)
+	}
+}

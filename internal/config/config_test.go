@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -487,5 +489,66 @@ func TestError_Error_PrefixesPathAndLine(t *testing.T) {
 
 	if withLine != "c.yaml:3: bad" || withoutLine != "c.yaml: bad" {
 		t.Errorf("Error() = %q / %q", withLine, withoutLine)
+	}
+}
+
+// writePlanFile creates the file at the slash path name below root, with its directories.
+func writePlanFile(t *testing.T, root, name string) string {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("# Plan\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	return path
+}
+
+func TestPlanPath_MarkdownAndBareFile_ResolveInEachPlansDirectory(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	markdown := writePlanFile(t, root, "docs/plans/login-plan.md")
+	bare := writePlanFile(t, root, "docs/plans/bare-plan")
+	archived := writePlanFile(t, root, "docs/plans/archived/old-plan.md")
+	cfg := Default()
+
+	for plan, want := range map[string]string{"login-plan": markdown, "bare-plan": bare, "old-plan": archived} {
+		path, found := cfg.PlanPath(root, plan)
+
+		if !found || path != want {
+			t.Errorf("PlanPath(%q) = %q, %v; want %q, true", plan, path, found, want)
+		}
+	}
+}
+
+func TestPlanPath_DirectoryOrMissingFile_IsNotFound(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePlanFile(t, root, "docs/plans/folder-plan/inside.md")
+	cfg := Default()
+
+	for _, plan := range []string{"folder-plan", "absent-plan", ""} {
+		path, found := cfg.PlanPath(root, plan)
+
+		if found || path != "" {
+			t.Errorf("PlanPath(%q) = %q, %v; want not found", plan, path, found)
+		}
+	}
+}
+
+func TestPlanPath_PathInsteadOfBasename_IsRefused(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePlanFile(t, root, "docs/plans/archived/old-plan.md")
+	writePlanFile(t, root, "docs/plans/sub/nested-plan.md")
+	cfg := Default()
+
+	for _, plan := range []string{"archived/old-plan", "sub/nested-plan", "../plans/archived/old-plan"} {
+		path, found := cfg.PlanPath(root, plan)
+
+		if found || path != "" {
+			t.Errorf("PlanPath(%q) = %q, %v; want a path refused", plan, path, found)
+		}
 	}
 }

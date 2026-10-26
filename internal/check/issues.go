@@ -2,8 +2,6 @@ package check
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -13,9 +11,6 @@ import (
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
 )
-
-// planExtension is the extension a plan basename is looked up with, besides the bare name.
-const planExtension = ".md"
 
 // parsedIssue is one issue file of the tree with what parsing it gave.
 type parsedIssue struct {
@@ -102,12 +97,14 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	for _, finding := range entry.fields {
 		c.add(path, finding.Line, kindCode(finding.Code), finding.Message)
 	}
-	if plan := entry.issue.Plan; plan != "" && !c.isPlanFound(plan) {
-		c.add(path, entry.issue.PlanLine(), diagnose.MissingPlan, fmt.Sprintf(
-			"plan %q is in none of the plans directories %v",
-			plan,
-			c.store.Config.Plans,
-		))
+	if plan := entry.issue.Plan; plan != "" {
+		if _, isFound := c.store.Config.PlanPath(c.store.WorktreeRoot, plan); !isFound {
+			c.add(path, entry.issue.PlanLine(), diagnose.MissingPlan, fmt.Sprintf(
+				"plan %q is in none of the plans directories %v",
+				plan,
+				c.store.Config.Plans,
+			))
+		}
 	}
 	c.checkStanding(entry)
 	for _, dep := range entry.issue.Deps {
@@ -164,24 +161,6 @@ func (c *checker) checkRelated(entry parsedIssue, graph issue.DepGraph) {
 			))
 		}
 	}
-}
-
-// isPlanFound reports whether plan, a basename, names a file in one of the configured plans
-// directories, as written or with the .md extension.
-func (c *checker) isPlanFound(plan string) bool {
-	if filepath.Base(filepath.FromSlash(plan)) != plan {
-		return false
-	}
-	for _, dir := range c.store.Config.Plans {
-		base := filepath.Join(c.store.WorktreeRoot, filepath.FromSlash(dir), plan)
-		for _, candidate := range []string{base + planExtension, base} {
-			info, err := os.Stat(candidate)
-			if err == nil && !info.IsDir() {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // checkCycles records each dependency cycle once, at the deps line of the issue it starts with:

@@ -208,6 +208,41 @@ func (x *Index) searchNotes(
 	return entries, err
 }
 
+// NoteRef is one Ref of one indexed Note.
+type NoteRef struct {
+	// NoteID is the id of the Note that carries Ref.
+	NoteID string
+	// Ref is the Ref as the Note writes it: a slash path, with an optional #symbol.
+	Ref string
+}
+
+// NoteRefs returns every Ref of every usable Note that is neither retired nor under a retired
+// ancestor, by the Note's path and then in file order. Every row comes from one read snapshot.
+func (x *Index) NoteRefs() (refs []NoteRef, err error) {
+	with, condition := retiredFilter(false)
+	query := with + `SELECT notes.id, refs.ref FROM refs JOIN notes ON notes.path = refs.path
+		WHERE notes.excluded = 0` + condition + ` ORDER BY notes.path, refs.rowid`
+	err = x.snapshot(func(q querier) error {
+		rows, err := q.QueryContext(context.Background(), query)
+		if err != nil {
+			return fmt.Errorf("%s: query: %w", Path(x.store), err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var ref NoteRef
+			if err := rows.Scan(&ref.NoteID, &ref.Ref); err != nil {
+				return fmt.Errorf("%s: query: %w", Path(x.store), err)
+			}
+			refs = append(refs, ref)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("%s: query: %w", Path(x.store), err)
+		}
+		return nil
+	})
+	return refs, err
+}
+
 // noteList reads the indexed Note of each id through q, in order.
 func (x *Index) noteList(q querier, ids []string) ([]NoteEntry, error) {
 	entries := make([]NoteEntry, 0, len(ids))
