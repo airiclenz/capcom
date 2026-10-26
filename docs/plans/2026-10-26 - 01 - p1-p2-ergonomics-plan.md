@@ -424,7 +424,9 @@ internal/cli/agents.go — newAgentsCommand (--check); internal/cli/know_add.go 
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/agents/`; `go run ./cmd/capcom agents --check` exits 0; `grep -q 'capcom context <id>' docs/site/agents/managed-block.md plugins/capcom/skills/capcom/SKILL.md`.
 **Commit:** `feat(agents): tell agents to run capcom context before an issue`
 
-## 15. gitx reads the store at a past commit
+## 15. gitx reads the store at a past commit — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): the unborn-HEAD guard in TreeFiles covers any revision that names no commit (checked with HasCommit), not HEAD alone: it returns no files and no error; submodule entries (type commit) are left out of the listing.
 
 **What:**
 **Goal:** `gitx` offers read-only helpers: the last commit on HEAD before a time (none → empty), and
