@@ -12,13 +12,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite" // registers the "sqlite" database/sql driver
+	"modernc.org/sqlite" // also registers the "sqlite" database/sql driver
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
@@ -34,6 +36,25 @@ const (
 
 // driverName is the database/sql driver modernc.org/sqlite registers.
 const driverName = "sqlite"
+
+// sidecarSuffixes name the files SQLite keeps beside index.db in WAL mode; a corrupt index is
+// discarded together with them.
+var sidecarSuffixes = []string{"-wal", "-shm"}
+
+// ErrCorrupt marks a failure to open an index SQLite reports as not a database or corrupt. Open in
+// ModeRebuild discards such an index and builds it again; any other mode returns the failure, and
+// capcom reindex is the way past it.
+var ErrCorrupt = errors.New("the index is corrupt")
+
+// corruptError is a failure to open a corrupt index: it reads as the SQLite failure it wraps and
+// matches ErrCorrupt.
+type corruptError struct {
+	err error
+}
+
+func (e corruptError) Error() string { return e.err.Error() }
+
+func (e corruptError) Unwrap() []error { return []error{e.err, ErrCorrupt} }
 
 // dsnOptions wait up to five seconds for a concurrent command's write, keep readers off the
 // writer's back with WAL, and begin every transaction IMMEDIATE so two refreshes never deadlock
@@ -135,12 +156,34 @@ func Path(s *store.Store) string {
 // Open opens the index of s, creating its directory and database file when missing, and refreshes
 // or rebuilds it as mode asks, so the index it returns is up to date with the trees on disk and
 // Report holds what that first pass did. When the refresh or rebuild fails, Open closes the
-// database and returns the failure.
+// database and returns the failure. An index SQLite reports as not a database or corrupt fails
+// with ErrCorrupt, except in ModeRebuild, which deletes it with its WAL files and builds it again;
+// an index failing for any other reason, busy or unreadable, is never deleted.
 func Open(s *store.Store, mode Mode, options ...Option) (*Index, error) {
 	path := Path(s)
 	if err := os.MkdirAll(filepath.Dir(path), dirPermissions); err != nil {
 		return nil, fmt.Errorf("%s: %w", filepath.Dir(path), err)
 	}
+	index, err := openFile(s, path, mode, options)
+	if !isCorruptIndex(err) {
+		return index, err
+	}
+	if mode != ModeRebuild {
+		return nil, corruptError{err: err}
+	}
+	if err := removeIndexFiles(path); err != nil {
+		return nil, err
+	}
+	index, err = openFile(s, path, mode, options)
+	if isCorruptIndex(err) {
+		return nil, corruptError{err: err}
+	}
+	return index, err
+}
+
+// openFile opens the database at path and runs Open's first refresh or rebuild on it, closing the
+// database again when either fails.
+func openFile(s *store.Store, path string, mode Mode, options []Option) (*Index, error) {
 	db, err := sql.Open(driverName, path+dsnOptions)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
@@ -160,6 +203,38 @@ func Open(s *store.Store, mode Mode, options ...Option) (*Index, error) {
 		return nil, errors.Join(err, db.Close())
 	}
 	return index, nil
+}
+
+// isCorruptIndex reports whether err carries a SQLite failure whose primary result code says the
+// file is not a database or is corrupt; a busy, locked or unreadable index is not corrupt.
+func isCorruptIndex(err error) bool {
+	var failure *sqlite.Error
+	if !errors.As(err, &failure) {
+		return false
+	}
+	primary := failure.Code() & 0xff
+	return primary == sqlite3.SQLITE_NOTADB || primary == sqlite3.SQLITE_CORRUPT
+}
+
+// removeIndexFiles deletes the index at path and its WAL files; a file already missing is not a
+// failure.
+func removeIndexFiles(path string) error {
+	paths := []string{path}
+	for _, suffix := range sidecarSuffixes {
+		paths = append(paths, path+suffix)
+	}
+	for _, file := range paths {
+		err := os.Remove(file)
+		if err == nil || errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		var pathFailure *fs.PathError
+		if errors.As(err, &pathFailure) {
+			err = pathFailure.Err
+		}
+		return fmt.Errorf("%s: discard the corrupt index: %w", file, err)
+	}
+	return nil
 }
 
 // Report returns what the latest refresh or rebuild did: Open's own, until refresh runs again.

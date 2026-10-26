@@ -76,3 +76,30 @@ func TestReindex_NoStore_FailsNotInitialized(t *testing.T) {
 		t.Errorf("exit = %d stdout = %s, want a not_initialized failure", exitCode, stdout)
 	}
 }
+
+func TestReindex_CorruptIndex_ListFailsWithReindexHintAndReindexRepairsIt(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue, "other-issue.md": validIssue})
+	mustRun(t, root, "reindex")
+	indexPath := filepath.Join(root, ".git", "capcom", "index.db")
+	if err := os.WriteFile(indexPath, []byte(strings.Repeat("not a database ", 512)), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	assertFailureHint(t, root, "capcom reindex", "list")
+	listJSON, _, listExit := runCLI(t, root, "list", "--json")
+	_, stderr, reindexExit := runCLI(t, root, "reindex")
+	listed := mustRun(t, root, "list")
+
+	errorBody, isObject := decodeEnvelope(t, listJSON)["error"].(map[string]any)
+	if listExit != ExitError || !isObject || errorBody["code"] != string(CodeInvalid) {
+		t.Errorf("list --json = %d %s, want an invalid failure", listExit, listJSON)
+	}
+	if reindexExit != ExitOK {
+		t.Fatalf("reindex = %d, stderr %q, want the corrupt index rebuilt", reindexExit, stderr)
+	}
+	for _, id := range []string{"valid-issue", "other-issue"} {
+		if !strings.Contains(listed, id) {
+			t.Errorf("list after reindex:\n%s\nwant %s", listed, id)
+		}
+	}
+}

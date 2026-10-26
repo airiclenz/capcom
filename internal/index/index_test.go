@@ -15,6 +15,9 @@ import (
 	"testing"
 	"time"
 
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
+
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/store"
@@ -1412,5 +1415,99 @@ func TestRefresh_ConcurrentIndexesAndAnEdit_NeitherFailsAndBothSeeTheSameRows(t 
 	if firstReport.Indexed != len(want) || secondReport.Indexed != len(want) {
 		t.Errorf("final refreshes indexed %d and %d issues, want %d each",
 			firstReport.Indexed, secondReport.Indexed, len(want))
+	}
+}
+
+// buildIndex opens the index of s once and closes it again, leaving index.db on disk.
+func buildIndex(t *testing.T, s *store.Store) {
+	t.Helper()
+	opened, err := Open(s, ModeRefresh)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if err := opened.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+}
+
+// closeIndex closes x when the test ends, failing t when it cannot.
+func closeIndex(t *testing.T, x *Index) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := x.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+}
+
+// writeGarbageIndex overwrites the index of s with bytes SQLite does not read as a database.
+func writeGarbageIndex(t *testing.T, s *store.Store) {
+	t.Helper()
+	if err := os.WriteFile(Path(s), []byte(strings.Repeat("not a database ", 512)), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+func TestOpen_GarbageIndex_RefreshFailsCorruptAndRebuildRepairsIt(t *testing.T) {
+	s := newStore(t)
+	writeIssue(t, s, "first-issue.md", issueText("First", "open", ""))
+	writeIssue(t, s, "second-issue.md", issueText("Second", "open", ""))
+	buildIndex(t, s)
+	writeGarbageIndex(t, s)
+
+	_, refreshErr := Open(s, ModeRefresh)
+	rebuilt, rebuildErr := Open(s, ModeRebuild)
+
+	if !errors.Is(refreshErr, ErrCorrupt) || !strings.HasPrefix(refreshErr.Error(), Path(s)+": ") {
+		t.Errorf("ModeRefresh err = %v, want ErrCorrupt naming %s", refreshErr, Path(s))
+	}
+	if rebuildErr != nil {
+		t.Fatalf("ModeRebuild err = %v, want the index rebuilt", rebuildErr)
+	}
+	closeIndex(t, rebuilt)
+	if report := rebuilt.Report(); report.Indexed != 2 {
+		t.Errorf("rebuilt Indexed = %d, want 2", report.Indexed)
+	}
+	for _, id := range []string{"first-issue", "second-issue"} {
+		if !isIndexed(t, rebuilt, id) {
+			t.Errorf("%s not indexed after the rebuild", id)
+		}
+	}
+}
+
+func TestOpen_BusyIndex_IsNotCorruptAndIsNeverDeleted(t *testing.T) {
+	s := newStore(t)
+	writeIssue(t, s, "kept-issue.md", issueText("Kept", "open", ""))
+	buildIndex(t, s)
+	holder, err := sql.Open(driverName, Path(s)+"?_txlock=exclusive")
+	if err != nil {
+		t.Fatalf("sql.Open holder: %v", err)
+	}
+	defer holder.Close()
+	held, err := holder.Begin()
+	if err != nil {
+		t.Fatalf("BEGIN EXCLUSIVE: %v", err)
+	}
+	contender, err := sql.Open(driverName, Path(s)+"?_pragma=busy_timeout(0)&_txlock=immediate")
+	if err != nil {
+		t.Fatalf("sql.Open contender: %v", err)
+	}
+	defer contender.Close()
+
+	_, busyErr := contender.Begin()
+	_, rebuildErr := Open(s, ModeRebuild)
+
+	var busy *sqlite.Error
+	if !errors.As(busyErr, &busy) || busy.Code()&0xff != sqlite3.SQLITE_BUSY || isCorruptIndex(busyErr) {
+		t.Errorf("contender err = %v, want SQLITE_BUSY, not corrupt", busyErr)
+	}
+	if rebuildErr == nil || errors.Is(rebuildErr, ErrCorrupt) {
+		t.Errorf("ModeRebuild under the held lock err = %v, want a failure that is not ErrCorrupt", rebuildErr)
+	}
+	if err := held.Rollback(); err != nil {
+		t.Fatalf("Rollback: %v", err)
+	}
+	if !isIndexed(t, openIndex(t, s), "kept-issue") {
+		t.Error("kept-issue is gone: the busy index was deleted")
 	}
 }

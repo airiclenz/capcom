@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -302,6 +303,10 @@ func (a *app) prepare(cmd *cobra.Command, args []string) error {
 	return a.prepareIndex(cmd)
 }
 
+// reindexHint is the hint of an index SQLite reports as corrupt: capcom reindex discards it and
+// builds it again.
+const reindexHint = "capcom reindex"
+
 // prepareIndex opens the store and its index, refreshed or rebuilt as the command's
 // annotationIndex asks, once per command; storeOnly opens the store alone. A storeOnly command
 // checks its required flags itself, ahead of cobra's own check (which runs only after this
@@ -334,6 +339,9 @@ func (a *app) prepareIndex(cmd *cobra.Command) error {
 		indexMode = index.ModeRebuild
 	}
 	issueIndex, err := index.Open(opened, indexMode)
+	if errors.Is(err, index.ErrCorrupt) {
+		return &output.Error{Code: output.CodeInvalid, Message: err.Error(), Hint: reindexHint}
+	}
 	if err != nil {
 		return output.AsError(err)
 	}

@@ -49,7 +49,11 @@ three `--json` gaps, a toolchain-proof hooks test, and CI that runs `-race` and 
 - 11: guard folded (writer decision on the release gate)
 - 5: decision applied (user ratified call, second round): supersedes ADR 0005's decision (`adr-0005-decision.md`) by amendment Note `adr-0005-amend-1026`; replaces the "yields to ADR 0005" call above
 
-## 1. reindex repairs a corrupt index
+## 1. reindex repairs a corrupt index — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): `ErrCorrupt` is matched through a wrapper type (`corruptError`, `Unwrap() []error`) so the message stays the SQLite failure naming the index path, rather than prefixing the sentinel's text; `Open`'s connect-and-refresh body moved into `openFile` so the rebuild path can run it a second time.
+NOTES (2026-10-26): the `reindexHint` constant lives in `internal/cli/root.go` beside `prepareIndex`, the item's listed file, not beside `checkHint` in `internal/cli/errors.go`.
+NOTES (2026-10-26): the busy-index test runs `Open(ModeRebuild)` under a held `BEGIN EXCLUSIVE` to prove the file survives, so it waits out `Open`'s 5 s busy_timeout.
 
 **What:**
 **Goal:** `capcom reindex` succeeds on an index SQLite reports as not a database or corrupt, by
