@@ -87,7 +87,8 @@ token 6071ae76aab99defb4d17a08f832bf3d
 
 A lock is **Stale** when its holder has not renewed it within the TTL: `lock.ttl` in
 `.capcom/config.yaml`, two hours by default (see [Config](../reference/file-format.md#config)).
-A stale lock is still held. It stays held until one of three things happens:
+A heartbeat dated more than one TTL in the future, from a clock that ran fast, is stale too; one
+less than a TTL ahead stays live. A stale lock is still held. It stays held until one of three things happens:
 
 - its holder resumes it by running the same `lock acquire --purpose` again or renews it with
   `lock touch`;
