@@ -44,11 +44,12 @@ type depListItem struct {
 // The help text of capcom dep list.
 const (
 	depListLong = "List the Issues the given Issue depends on and the Issues that depend on it, under a deps: " +
-		"and a dependents: heading. Without --depth only the direct ones print; --depth n walks n " +
-		"levels, each indented one step further, and --depth 0 walks every level. A dep that names no " +
-		"Issue is marked missing, and an Issue already printed in its section prints again as " +
-		"(see above) without its branch. With --depth given, a branch it cut ends in a " +
-		"\"... <n> more\" line."
+		"and a dependents: heading.\n\n" +
+		"Without --depth only the direct ones print; --depth n walks n levels, each indented one " +
+		"step further, and --depth 0 walks every level.\n\n" +
+		"A dep that names no Issue is marked missing, and an Issue already printed in its section " +
+		"prints again as (see above) without its branch.\n\n" +
+		"With --depth given, a branch it cut ends in a \"... <n> more\" line."
 	depListExample = "  capcom dep list login-timeout-race              # its direct deps and dependents\n" +
 		"  capcom dep list --depth 2 login-timeout-race    # two levels deep\n" +
 		"  capcom dep list --depth 0 login-timeout-race    # every level"

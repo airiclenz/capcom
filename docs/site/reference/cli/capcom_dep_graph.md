@@ -11,7 +11,15 @@ Print the dependencies as a Mermaid flowchart
 
 ### Synopsis
 
-Print the Dependency graph as a Mermaid flowchart: one node per Issue, labelled with its id and status, and one arrow per Dependency, from the Issue depended on to the Issue that waits for it. Without an argument it shows every Issue that is not closed; with one, that Issue and every Issue its deps and dependents reach, transitively. --all adds the closed Issues. A dep that names no Issue draws no arrow. Paste the output into a mermaid code block to render it.
+Print the Dependency graph as a Mermaid flowchart: one node per Issue, labelled with its id and status, and one arrow per Dependency, from the Issue depended on to the Issue that waits for it.
+
+Without an argument it shows every Issue that is not closed; with one, that Issue and every Issue its deps and dependents reach, transitively.
+
+--all adds the closed Issues.
+
+A dep that names no Issue draws no arrow.
+
+Paste the output into a mermaid code block to render it.
 
 ```
 capcom dep graph [id|alias|prefix] [flags]

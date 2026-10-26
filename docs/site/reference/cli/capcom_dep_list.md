@@ -11,7 +11,13 @@ List an issue's dependencies and dependents
 
 ### Synopsis
 
-List the Issues the given Issue depends on and the Issues that depend on it, under a deps: and a dependents: heading. Without --depth only the direct ones print; --depth n walks n levels, each indented one step further, and --depth 0 walks every level. A dep that names no Issue is marked missing, and an Issue already printed in its section prints again as (see above) without its branch. With --depth given, a branch it cut ends in a "... <n> more" line.
+List the Issues the given Issue depends on and the Issues that depend on it, under a deps: and a dependents: heading.
+
+Without --depth only the direct ones print; --depth n walks n levels, each indented one step further, and --depth 0 walks every level.
+
+A dep that names no Issue is marked missing, and an Issue already printed in its section prints again as (see above) without its branch.
+
+With --depth given, a branch it cut ends in a "... <n> more" line.
 
 ```
 capcom dep list <id|alias|prefix> [flags]

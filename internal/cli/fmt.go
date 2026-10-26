@@ -31,9 +31,11 @@ type formatRun struct {
 // Help text of capcom fmt.
 const (
 	fmtLong = "Rewrite every Issue and Note file whose bytes differ from its canonical form, listing each " +
-		"one, then the count. A file that does not parse or validate is left alone with a warning; " +
-		"capcom check is the validator. --check writes nothing, lists the files that would change and " +
-		"fails, exit code 1, when any would."
+		"one, then the count.\n\n" +
+		"A file that does not parse or validate is left alone with a warning; capcom check is the " +
+		"validator.\n\n" +
+		"--check writes nothing, lists the files that would change and fails, exit code 1, when any " +
+		"would."
 	fmtExample = "  capcom fmt           # rewrite Issue and Note files in canonical form\n" +
 		"  capcom fmt --check   # list what would change; exit 1 when anything would"
 )

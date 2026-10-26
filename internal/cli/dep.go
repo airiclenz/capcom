@@ -22,23 +22,30 @@ const (
 
 // The help text of capcom dep, dep add and dep rm.
 const (
-	depLong = "Manage the Dependencies between Issues. A Dependency is a directed edge: the dependent Issue " +
-		"is not Ready until every Issue it depends on is closed. Each edge is stored in the dependent's " +
-		"file, under the canonical id of the Issue it depends on. dep add and dep rm change an existing " +
-		"Issue's deps, create --dep sets a new Issue's, and dep list and dep graph show them."
+	depLong = "Manage the Dependencies between Issues.\n\n" +
+		"A Dependency is a directed edge: the dependent Issue is not Ready until every Issue it " +
+		"depends on is closed.\n\n" +
+		"Each edge is stored in the dependent's file, under the canonical id of the Issue it depends " +
+		"on.\n\n" +
+		"dep add and dep rm change an existing Issue's deps, create --dep sets a new Issue's, and dep " +
+		"list and dep graph show them."
 	depExample = "  capcom dep add login-timeout-race token-store-rework   # login-timeout-race waits for token-store-rework\n" +
 		"  capcom dep list login-timeout-race                     # its deps and dependents\n" +
 		"  capcom dep graph                                       # the open Issues' dependencies as a Mermaid flowchart"
 	depAddLong = "Make the first Issue depend on the second: the first is not Ready until the second is " +
-		"closed. Either argument may be an id, an Alias or a unique id prefix. A dependency of an Issue " +
-		"on itself is refused, and so is one that would close a cycle, with the cycle named; an edge " +
-		"that is already there is left as it is. It prints the id, path and etag of the dependent Issue."
+		"closed.\n\n" +
+		"Either argument may be an id, an Alias or a unique id prefix.\n\n" +
+		"A dependency of an Issue on itself is refused, and so is one that would close a cycle, with " +
+		"the cycle named; an edge that is already there is left as it is.\n\n" +
+		"It prints the id, path and etag of the dependent Issue."
 	depAddExample = "  capcom dep add login-timeout-race token-store-rework   # login-timeout-race waits for token-store-rework\n" +
 		"  capcom dep add refresh-retry login-timeout-race --kv    # KEY=VALUE lines ending in STATUS="
 	depRmLong = "Remove the dependency of the first Issue on the second, whether the file names the second by " +
-		"its id or by an Alias. A dep that names no Issue, such as one a hand edit or a merge left behind, " +
-		"is removed by its text as the file writes it. It prints the id, path and etag of the dependent " +
-		"Issue, and fails not_found, exit code 3, when the first Issue does not depend on the second."
+		"its id or by an Alias.\n\n" +
+		"A dep that names no Issue, such as one a hand edit or a merge left behind, is removed by its " +
+		"text as the file writes it.\n\n" +
+		"It prints the id, path and etag of the dependent Issue, and fails not_found, exit code 3, " +
+		"when the first Issue does not depend on the second."
 	depRmExample = "  capcom dep rm login-timeout-race token-store-rework   # login-timeout-race no longer waits for it\n" +
 		"  capcom dep rm refresh-retry old-cache-issue           # drop a dep that names no Issue any more"
 )

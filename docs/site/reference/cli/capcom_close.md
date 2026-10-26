@@ -11,7 +11,15 @@ Close issues, recording why
 
 ### Synopsis
 
-Close one or more Issues, recording the reason on each; --reason is required. Each Issue moves to the first done status, or to the done or dropped status --status names. It prints one line per Issue with what happened to it, then a "now ready:" line naming the Issues the close made Ready. An argument that names no Issue, or names a standing Issue, is reported and fails the command; the other Issues are still closed. A standing Issue only groups its children: clear its mark with update --no-standing before closing it.
+Close one or more Issues, recording the reason on each; --reason is required.
+
+Each Issue moves to the first done status, or to the done or dropped status --status names.
+
+It prints one line per Issue with what happened to it, then a "now ready:" line naming the Issues the close made Ready.
+
+An argument that names no Issue, or names a standing Issue, is reported and fails the command; the other Issues are still closed.
+
+A standing Issue only groups its children: clear its mark with update --no-standing before closing it.
 
 ```
 capcom close <id|alias|prefix>... --reason <text> [flags]

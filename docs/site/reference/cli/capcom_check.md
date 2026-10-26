@@ -11,7 +11,13 @@ Validate every config, issue and Note file of the store
 
 ### Synopsis
 
-Validate the whole store from its files, never the index: the config, every Issue and Note file, and the trees they form. Each problem is listed as path:line: message, and any problem fails the command, exit code 1, after the list. Run it after a hand edit and after every merge. The --json data is the list of problems as {path, line, code, message} objects.
+Validate the whole store from its files, never the index: the config, every Issue and Note file, and the trees they form.
+
+Each problem is listed as path:line: message, and any problem fails the command, exit code 1, after the list.
+
+Run it after a hand edit and after every merge.
+
+The --json data is the list of problems as {path, line, code, message} objects.
 
 ```
 capcom check [flags]

@@ -14,9 +14,11 @@ import (
 // Help text of capcom check.
 const (
 	checkLong = "Validate the whole store from its files, never the index: the config, every Issue and " +
-		"Note file, and the trees they form. Each problem is listed as path:line: message, and any " +
-		"problem fails the command, exit code 1, after the list. Run it after a hand edit and after " +
-		"every merge. The --json data is the list of problems as {path, line, code, message} objects."
+		"Note file, and the trees they form.\n\n" +
+		"Each problem is listed as path:line: message, and any problem fails the command, exit code " +
+		"1, after the list.\n\n" +
+		"Run it after a hand edit and after every merge.\n\n" +
+		"The --json data is the list of problems as {path, line, code, message} objects."
 	checkExample = "  capcom check          # validate the whole store\n" +
 		"  capcom check --json   # the problems as a JSON envelope"
 )

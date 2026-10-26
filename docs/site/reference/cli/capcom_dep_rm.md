@@ -11,7 +11,11 @@ Remove a dependency of an issue
 
 ### Synopsis
 
-Remove the dependency of the first Issue on the second, whether the file names the second by its id or by an Alias. A dep that names no Issue, such as one a hand edit or a merge left behind, is removed by its text as the file writes it. It prints the id, path and etag of the dependent Issue, and fails not_found, exit code 3, when the first Issue does not depend on the second.
+Remove the dependency of the first Issue on the second, whether the file names the second by its id or by an Alias.
+
+A dep that names no Issue, such as one a hand edit or a merge left behind, is removed by its text as the file writes it.
+
+It prints the id, path and etag of the dependent Issue, and fails not_found, exit code 3, when the first Issue does not depend on the second.
 
 ```
 capcom dep rm <id|alias|prefix> <dep-id|alias|prefix> [flags]

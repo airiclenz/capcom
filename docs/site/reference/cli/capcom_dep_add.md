@@ -11,7 +11,13 @@ Make an issue depend on another
 
 ### Synopsis
 
-Make the first Issue depend on the second: the first is not Ready until the second is closed. Either argument may be an id, an Alias or a unique id prefix. A dependency of an Issue on itself is refused, and so is one that would close a cycle, with the cycle named; an edge that is already there is left as it is. It prints the id, path and etag of the dependent Issue.
+Make the first Issue depend on the second: the first is not Ready until the second is closed.
+
+Either argument may be an id, an Alias or a unique id prefix.
+
+A dependency of an Issue on itself is refused, and so is one that would close a cycle, with the cycle named; an edge that is already there is left as it is.
+
+It prints the id, path and etag of the dependent Issue.
 
 ```
 capcom dep add <id|alias|prefix> <dep-id|alias|prefix> [flags]

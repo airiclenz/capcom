@@ -11,7 +11,11 @@ Rewrite every issue and Note file in canonical form
 
 ### Synopsis
 
-Rewrite every Issue and Note file whose bytes differ from its canonical form, listing each one, then the count. A file that does not parse or validate is left alone with a warning; capcom check is the validator. --check writes nothing, lists the files that would change and fails, exit code 1, when any would.
+Rewrite every Issue and Note file whose bytes differ from its canonical form, listing each one, then the count.
+
+A file that does not parse or validate is left alone with a warning; capcom check is the validator.
+
+--check writes nothing, lists the files that would change and fails, exit code 1, when any would.
 
 ```
 capcom fmt [--check] [flags]

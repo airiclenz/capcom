@@ -46,14 +46,16 @@ type createOptions struct {
 // The help text of capcom create.
 const (
 	createLong = "Create an Issue under the id you choose: a kebab-case slug of 1 to 4 words that names the " +
-		"work. --parent files it below another Issue, and --dep makes it wait for the Issues named; a " +
-		"--dep that names no Issue fails the create before anything is written. The body comes from " +
-		"--body-file (- reads stdin) and states what is wrong or wanted, why, and a \"## Acceptance\" " +
-		"section; an Issue created without a body draws a warning. --standing marks it a standing " +
-		"Parent that only groups its children: it is never Ready, and it is not claimed or closed while " +
-		"marked, so it cannot be created in the doing category. The first standing Issue in a store " +
-		"below format 5 raises the store format to 5, with a warning that older capcom releases can no " +
-		"longer read the store. It prints the new Issue's id, path and etag."
+		"work.\n\n" +
+		"--parent files it below another Issue, and --dep makes it wait for the Issues named; a " +
+		"--dep that names no Issue fails the create before anything is written.\n\n" +
+		"The body comes from --body-file (- reads stdin) and states what is wrong or wanted, why, and " +
+		"a \"## Acceptance\" section; an Issue created without a body draws a warning.\n\n" +
+		"--standing marks it a standing Parent that only groups its children: it is never Ready, and " +
+		"it is not claimed or closed while marked, so it cannot be created in the doing category.\n\n" +
+		"The first standing Issue in a store below format 5 raises the store format to 5, with a " +
+		"warning that older capcom releases can no longer read the store.\n\n" +
+		"It prints the new Issue's id, path and etag."
 	createExample = "  capcom create --id login-timeout-race --title \"Session refresh races the login timeout\" --type bug\n" +
 		"  capcom create --id refresh-retry --title \"Retry a failed token refresh\" --dep login-timeout-race   # waits for it\n" +
 		"  capcom create --id login-copy --title \"Reword the login errors\" --parent login-flow --priority 1\n" +

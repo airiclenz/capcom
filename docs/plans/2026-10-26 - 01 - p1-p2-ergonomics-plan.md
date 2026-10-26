@@ -56,7 +56,10 @@ suggestions, inline body flags, diacritic-folding excerpts, unshared refs in pri
 - `--why`/`--acceptance` on `update`; hints for warnings; examples-first in the site reference.
 - `batch-apply`, `tree-status-filter`, `html-export`, `shared-ref-repository` (P3).
 
-## 1. Long help split into short rules: root to init
+## 1. Long help split into short rules: root to init — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): all Longs split into blank-line-separated paragraphs (no bullets): every rule is a sentence or flag clause, and `- --flag` bullets would read oddly; the word diff of the regenerated docs and golden is whitespace-only.
+NOTES (2026-10-26): the four-line test is TestHelpText_ShortRuleCommands_LongRulesFitFourLines over the shortRuleCommands list (items 2–3 widen it, item 4 replaces it with every available command); its helpers helpRules and wrappedLineCount have their own tests. Only testdata/help/create.txt among the goldens was affected.
 
 **What:**
 **Goal:** In `root.go`, `agents.go`, `check.go`, `close.go`, `create.go`, `dep.go`, `dep_list.go`,

@@ -11,7 +11,9 @@ Print the capcom version
 
 ### Synopsis
 
-Print the version of this capcom binary as capcom <version>. --kv prints it as a VERSION line followed by STATUS, and --json inside a versioned JSON envelope.
+Print the version of this capcom binary as capcom <version>.
+
+--kv prints it as a VERSION line followed by STATUS, and --json inside a versioned JSON envelope.
 
 ```
 capcom version [flags]

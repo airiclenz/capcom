@@ -1,4 +1,14 @@
-Create an Issue under the id you choose: a kebab-case slug of 1 to 4 words that names the work. --parent files it below another Issue, and --dep makes it wait for the Issues named; a --dep that names no Issue fails the create before anything is written. The body comes from --body-file (- reads stdin) and states what is wrong or wanted, why, and a "## Acceptance" section; an Issue created without a body draws a warning. --standing marks it a standing Parent that only groups its children: it is never Ready, and it is not claimed or closed while marked, so it cannot be created in the doing category. The first standing Issue in a store below format 5 raises the store format to 5, with a warning that older capcom releases can no longer read the store. It prints the new Issue's id, path and etag.
+Create an Issue under the id you choose: a kebab-case slug of 1 to 4 words that names the work.
+
+--parent files it below another Issue, and --dep makes it wait for the Issues named; a --dep that names no Issue fails the create before anything is written.
+
+The body comes from --body-file (- reads stdin) and states what is wrong or wanted, why, and a "## Acceptance" section; an Issue created without a body draws a warning.
+
+--standing marks it a standing Parent that only groups its children: it is never Ready, and it is not claimed or closed while marked, so it cannot be created in the doing category.
+
+The first standing Issue in a store below format 5 raises the store format to 5, with a warning that older capcom releases can no longer read the store.
+
+It prints the new Issue's id, path and etag.
 
 Usage:
   capcom create --id <slug> --title <title> [flags]

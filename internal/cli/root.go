@@ -25,16 +25,17 @@ const (
 const (
 	rootLong = "capcom is a git-native issue tracker and knowledge store for coding agents. Issues and " +
 		"Knowledge Notes are markdown files under .capcom/, versioned with the code; a disposable " +
-		"SQLite index lives under the git directory and is never committed. Every command except " +
-		"capcom ui prints plain text, or with --json a versioned JSON envelope. Run " +
-		"capcom <command> --help for a command's flags and examples."
+		"SQLite index lives under the git directory and is never committed.\n\n" +
+		"Every command except capcom ui prints plain text, or with --json a versioned JSON envelope.\n\n" +
+		"Run capcom <command> --help for a command's flags and examples."
 	rootExample = "  capcom init                  # create .capcom/ in this git repository\n" +
 		"  capcom prime                 # the session-start briefing\n" +
 		"  capcom ready                 # the Issues ready to work on, most urgent first\n" +
 		"  capcom know tree --depth 2   # the top two levels of the Knowledge tree\n" +
 		"  capcom ready --json          # the same list as a JSON envelope"
-	versionLong = "Print the version of this capcom binary as capcom <version>. --kv prints it as a " +
-		"VERSION line followed by STATUS, and --json inside a versioned JSON envelope."
+	versionLong = "Print the version of this capcom binary as capcom <version>.\n\n" +
+		"--kv prints it as a VERSION line followed by STATUS, and --json inside a versioned JSON " +
+		"envelope."
 	versionExample = "  capcom version          # capcom <version>\n" +
 		"  capcom version --kv     # VERSION=<version>, then STATUS=ok\n" +
 		"  capcom version --json   # {version} in a JSON envelope"

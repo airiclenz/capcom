@@ -24,16 +24,20 @@ const kvKeyNext = "NEXT"
 // The help text of capcom finish.
 const (
 	finishLong = "Close an Issue and free this worktree's Tree lock in one step, then name the Ready Issue to " +
-		"work on next. --reason is required; the Issue moves to the first done status, and the output " +
-		"gives close's line and its \"now ready:\" line, a lock line, and a last line naming the top " +
-		"Ready Issue as capcom next chooses it, or \"" + nothingReadyMessage + "\". The lock is released " +
-		"through the Lock token capcom kept for the Issue when start took the lock, and that kept token " +
-		"is deleted; --token is optional and, when given, is used in place of the kept token. When " +
-		"neither holds the lock, the lock is left alone and the lock line names capcom lock status. " +
-		"--keep-lock leaves the lock held and needs no token. An Issue already Closed is reported " +
-		"already_closed and the lock is still released. An Issue that does not exist or is standing " +
-		"fails the command and the lock is not touched. --kv gives one record with ID=, LOCK= and NEXT=, " +
-		"and --json gives the close, the lock and the next Issue."
+		"work on next.\n\n" +
+		"--reason is required; the Issue moves to the first done status, and the output gives " +
+		"close's line and its \"now ready:\" line, a lock line, and a last line naming the top Ready " +
+		"Issue as capcom next chooses it, or \"" + nothingReadyMessage + "\".\n\n" +
+		"The lock is released through the Lock token capcom kept for the Issue when start took the " +
+		"lock, and that kept token is deleted; --token is optional and, when given, is used in place " +
+		"of the kept token.\n\n" +
+		"When neither holds the lock, the lock is left alone and the lock line names capcom lock " +
+		"status.\n\n" +
+		"--keep-lock leaves the lock held and needs no token.\n\n" +
+		"An Issue already Closed is reported already_closed and the lock is still released.\n\n" +
+		"An Issue that does not exist or is standing fails the command and the lock is not touched.\n\n" +
+		"--kv gives one record with ID=, LOCK= and NEXT=, and --json gives the close, the lock and " +
+		"the next Issue."
 	finishExample = "  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\"\n" +
 		"  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\" --keep-lock   # more work under this lock\n" +
 		"  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\" --token <token> --kv"
