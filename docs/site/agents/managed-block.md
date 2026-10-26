@@ -7,8 +7,9 @@ sidebar: { order: 3 }
 `AGENTS.md` at the root of a repository is the instructions file most coding agents read when a
 session starts. capcom owns one marked section of it, the **Managed block**: a pointer to capcom,
 the work loop as commands in the order an agent runs them (take the most urgent issue in full, or
-find one and read it, claim it and take the Tree lock with `capcom start`, log progress, close it,
-or close it and free the lock with `capcom finish`, reopen it), a few more core commands, a
+find one and read it, read what it needs with `capcom context`, claim it and take the Tree lock with
+`capcom start`, log progress, close it, or close it and free the lock with `capcom finish`, reopen
+it), a few more core commands, a
 pointer to each command's `--help`, a map of the store, a warning never to claim or close a [Standing Parent](../concepts/issues.md#standing-parent), a
 recommendation to take the [Tree lock](../concepts/tree-locks.md) before an extensive change, and
 the top level of the [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is
@@ -48,6 +49,7 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 - `capcom next`: the most urgent ready issue, in full
 - `capcom ready`: the issues ready to work on, most urgent first
 - `capcom show <id>`: one issue in full, with what blocks it
+- `capcom context <id>`: the issue with its deps, plan and the Notes that apply; run it before you start
 - `capcom start <id>`: claim it and take the Tree lock before you start
 - `capcom log <id> <text>`: note progress as work lands
 - `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready

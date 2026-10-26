@@ -400,7 +400,11 @@ the named command; `--brief`; `--json`.
 **Acceptance:** `go run ./cmd/gendocs`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Context|HelpText|DocFileMap'`; `GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`; `go vet ./internal/cli/`
 **Commit:** `feat(context): print an issue with its deps, plan and applying Notes`
 
-## 14. The Managed block names capcom context
+## 14. The Managed block names capcom context — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): TestRender_WorkLoop_ClaimsWithStartAndClosesWithFinish and TestRender_NoDoingStatus_LeavesOutTheClaimLine anchored the claim/log line on the show line; their anchors now start at the new context line ("run it before you start"), the order they assert otherwise unchanged.
+NOTES (2026-10-26): the base render is kept as the literal const preContextBlock (as keepTheTokenBlock is) and TestInspect_States gains a "before context" stale case; the managed-block.md overview sentence also names `capcom context` in the work-loop order.
+NOTES (2026-10-26): no CLOSES — the context-command issue's Managed-block acceptance line is delivered here, but item 13 already closes that issue.
 
 Depends on item 13.
 

@@ -56,10 +56,12 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 
 `
 
-// loopOpening is the command list up to the claim line: finding work and reading it.
+// loopOpening is the command list up to the claim line: finding work, reading it and reading what it
+// needs.
 const loopOpening = "- `capcom next`: the most urgent ready issue, in full\n" +
 	"- `capcom ready`: the issues ready to work on, most urgent first\n" +
-	"- `capcom show <id>`: one issue in full, with what blocks it\n"
+	"- `capcom show <id>`: one issue in full, with what blocks it\n" +
+	"- `capcom context <id>`: the issue with its deps, plan and the Notes that apply; run it before you start\n"
 
 // claimLine is the claim line: capcom start claims the Issue and takes the Tree lock in one step.
 const claimLine = "- `capcom start <id>`: claim it and take the Tree lock before you start\n"

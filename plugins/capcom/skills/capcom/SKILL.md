@@ -40,6 +40,9 @@ This plugin runs `capcom prime` at session start and before compaction in any re
 
 - `capcom next`: the most urgent Ready Issue in full. `capcom ready` lists all of them.
 - `capcom show <id>`: one Issue in full, with what blocks it.
+- `capcom context <id>`: the Issue with its deps, plan and the Notes that apply. Run it before
+  starting; when `capcom context --help` fails, the binary predates it: run `capcom show <id>` plus
+  `capcom dep list <id>` instead.
 - `capcom start <id>`: claim the Issue and take the Tree lock before starting. capcom keeps the
   Lock token for the session, so running `capcom start <id>` again resumes the lock after a restart.
 - `capcom log <id> <text>`: note progress as work lands.
