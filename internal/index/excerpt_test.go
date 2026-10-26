@@ -48,6 +48,13 @@ func TestExcerpt_BodyAndQuery_ReturnsTheExcerptShape(t *testing.T) {
 		{"punctuated query word needs its tokens in order", "login race timeout\n", "login-timeout-race", nil},
 		{"punctuation in the line does not hide a word", "see (parser), then\n", "parser", []string{"see (parser), then"}},
 		{"case folds", "Login Fails\n", "LOGIN", []string{"Login Fails"}},
+		{"plain query matches a composed diacritic", "a\nthe café opens\nb\n", "cafe", []string{
+			"a", "the café opens", "b",
+		}},
+		{"composed query matches a plain word", "the cafe opens\n", "café", []string{"the cafe opens"}},
+		{"plain query matches a decomposed diacritic", "the cafe\u0301 opens\n", "cafe", []string{"the cafe\u0301 opens"}},
+		{"decomposed query matches a composed diacritic", "the café opens\n", "cafe\u0301", []string{"the café opens"}},
+		{"diacritics fold with case", "Café Crème\n", "CAFE CREME", []string{"Café Crème"}},
 		{"words match as whole tokens", "login fails\n", "log", nil},
 		{"title-only match gives no lines", "nothing relevant here\n", "login", nil},
 		{"blank query gives no lines", "login\n", "  ", nil},

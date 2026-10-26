@@ -872,6 +872,20 @@ func TestKnowSearch_Excerpt_PrintsTheMatchingBodyLinesUnderEachHit(t *testing.T)
 	}
 }
 
+func TestKnowSearch_ExcerptOfAWordWithDiacritics_PrintsTheLineHoldingIt(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"menu-rules.md": "---\ntitle: Menu rules\n---\n\nThe café menu loads first.\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "search", "cafe", "--excerpt")
+
+	if want := "menu-rules  Menu rules\n    \n    The café menu loads first.\n"; exitCode != ExitOK ||
+		stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+}
+
 func TestKnowSearch_ExcerptOnTheAnyWordFallback_ShowsTheLinesOfTheWordsHeld(t *testing.T) {
 	root := newKnowStore(t)
 

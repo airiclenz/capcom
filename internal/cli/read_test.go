@@ -1026,6 +1026,20 @@ func TestSearch_Excerpt_PrintsTheMatchingBodyLinesUnderEachHit(t *testing.T) {
 	}
 }
 
+func TestSearch_ExcerptOfAWordWithDiacritics_PrintsTheLineHoldingIt(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"menu-cafe.md": readIssue("Menu screen", "open", "", "\nOpen the café menu.\n"),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "search", "cafe", "--excerpt")
+
+	want := "menu-cafe  open  P2  Menu screen\n    \n    Open the café menu.\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+}
+
 func TestSearch_NoExcerptFlag_LeavesTheExcerptOut(t *testing.T) {
 	root := newReadStore(t)
 

@@ -301,7 +301,9 @@ file written; `--acceptance` alone gives a body and no warning; warning text pin
 `GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`; `go vet ./internal/cli/`
 **Commit:** `feat(create): take the body, why and acceptance as flags`
 
-## 10. Excerpts fold diacritics like the search index
+## 10. Excerpts fold diacritics like the search index — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): pinned golang.org/x/text v0.41.0 as the plan's guard says; `go get` also raised the indirect golang.org/x/sync from v0.21.0 to v0.22.0; go.mod keeps `go 1.25.0`.
 
 **What:**
 **Goal:** `index.Excerpt` matches a query word and a body word that differ only by diacritics, in

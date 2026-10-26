@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 // The excerpt shape: how many matching lines an excerpt shows, the context lines either side of
@@ -26,8 +28,9 @@ const excerptGap = "…"
 // ends on a gap; a line longer than 120 runes is cut to its first 119 and ends with "…".
 //
 // A line holds a word when the word's letter and digit tokens occur, in order and side by side,
-// among the line's, case-insensitively, so "login-timeout-race" matches as the full-text search
-// matches it. A body that holds no word of text, as when only the title matched, and blank text
+// among the line's, ignoring case and diacritics, so "login-timeout-race" matches as the full-text
+// search matches it and "cafe" matches "café", composed or decomposed, either way round. The
+// lines returned keep their original text. A body that holds no word of text, as when only the title matched, and blank text
 // both give no lines.
 func Excerpt(body, text string) []string {
 	words := queryTokens(text)
@@ -61,12 +64,26 @@ func queryTokens(text string) [][]string {
 	return words
 }
 
-// textTokens splits text into lower-cased runs of letters, digits and marks, the tokens the
-// full-text index reads.
+// textTokens splits text into folded runs of letters, digits and marks, the tokens the
+// full-text index reads: lower-cased and with their diacritics dropped, as the index drops them.
 func textTokens(text string) []string {
-	return strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+	return strings.FieldsFunc(foldText(text), func(r rune) bool {
 		return !unicode.IsLetter(r) && !unicode.IsNumber(r) && !unicode.IsMark(r)
 	})
+}
+
+// foldText returns text lower-cased and without diacritics: decomposed to NFD, its nonspacing
+// marks dropped, so a composed "é", a decomposed one and a plain "e" all fold to "e".
+func foldText(text string) string {
+	return strings.ToLower(strings.Map(dropNonspacingMark, norm.NFD.String(text)))
+}
+
+// dropNonspacingMark returns r, or -1, which strings.Map drops, when r is a nonspacing mark.
+func dropNonspacingMark(r rune) rune {
+	if unicode.Is(unicode.Mn, r) {
+		return -1
+	}
+	return r
 }
 
 // bodyLines splits body into lines without their line endings, dropping the empty line a final
