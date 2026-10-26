@@ -26,6 +26,12 @@ const (
 	kvKeyWarning = "WARNING"
 	// kvKeySuggestion carries an Error's Suggestion in --kv, just before its STATUS line.
 	kvKeySuggestion = "SUGGESTION"
+	// kvKeySuggestions carries an Error's Suggestions in --kv, comma-separated, after SUGGESTION.
+	kvKeySuggestions = "SUGGESTIONS"
+	// kvKeyValid carries an Error's Valid values in --kv, comma-separated, just before STATUS.
+	kvKeyValid = "VALID"
+	// kvListSeparator joins the items of a list value on one --kv line.
+	kvListSeparator = ","
 	KVKeyMessage    = "MESSAGE"
 	kvStatusOK      = "ok"
 	textWarnLabel   = "warning: "
@@ -33,6 +39,12 @@ const (
 	textElsewhereLabel = "elsewhere: "
 	// textSuggestionFormat ends a text failure line that carries a Suggestion.
 	textSuggestionFormat = "; did you mean %s?"
+	// textValidFormat ends a text failure line that carries Valid values.
+	textValidFormat = "; use one of: %s"
+	// textListSeparator joins the items of a list in a text failure line.
+	textListSeparator = ", "
+	// textLastAlternative joins the last two Suggestions in a text failure line.
+	textLastAlternative = " or "
 )
 
 // Result is what a successful command hands to the output layer. Text is written in text mode
@@ -90,6 +102,10 @@ type ErrorBody struct {
 	Path       string `json:"path,omitempty"`
 	Line       int    `json:"line,omitempty"`
 	Suggestion string `json:"suggestion,omitempty"`
+	// Suggestions are the closest known ids or aliases to one the caller named, closest first.
+	Suggestions []string `json:"suggestions,omitempty"`
+	// Valid are the declared values the flag accepts.
+	Valid []string `json:"valid,omitempty"`
 }
 
 // Renderer writes a command's outcome in one output format.
@@ -147,14 +163,31 @@ func (r textRenderer) Render(result Result) error {
 }
 
 // RenderError writes the failure as one capcom: line, ending in "; did you mean <suggestion>?"
-// when the failure carries a Suggestion.
+// when the failure carries a Suggestion, "; did you mean a, b or c?" when it carries Suggestions
+// and "; use one of: x, y, z" when it carries Valid values, in that order.
 func (r textRenderer) RenderError(failure *Error) error {
 	line := failure.Error()
 	if failure.Suggestion != "" {
 		line += fmt.Sprintf(textSuggestionFormat, failure.Suggestion)
 	}
+	if len(failure.Suggestions) > 0 {
+		line += fmt.Sprintf(textSuggestionFormat, joinAlternatives(failure.Suggestions))
+	}
+	if len(failure.Valid) > 0 {
+		line += fmt.Sprintf(textValidFormat, strings.Join(failure.Valid, textListSeparator))
+	}
 	_, err := fmt.Fprintf(r.stderr, "capcom: %s\n", sanitizeTerminal(line))
 	return err
+}
+
+// joinAlternatives lists items as "a", "a or b" or "a, b or c": comma-separated, the last two
+// joined by "or".
+func joinAlternatives(items []string) string {
+	if len(items) == 1 {
+		return items[0]
+	}
+	last := len(items) - 1
+	return strings.Join(items[:last], textListSeparator) + textLastAlternative + items[last]
 }
 
 // C0 and C1 control ranges escaped by sanitizeTerminal.
@@ -224,11 +257,13 @@ func (r jsonRenderer) RenderError(failure *Error) error {
 // errorBody is the envelope's error member for failure.
 func errorBody(failure *Error) *ErrorBody {
 	return &ErrorBody{
-		Code:       failure.Code,
-		Message:    failure.Message,
-		Path:       failure.Path,
-		Line:       failure.Line,
-		Suggestion: failure.Suggestion,
+		Code:        failure.Code,
+		Message:     failure.Message,
+		Path:        failure.Path,
+		Line:        failure.Line,
+		Suggestion:  failure.Suggestion,
+		Suggestions: failure.Suggestions,
+		Valid:       failure.Valid,
 	}
 }
 
@@ -273,12 +308,33 @@ func (r kvRenderer) Render(result Result) error {
 func (r kvRenderer) RenderError(failure *Error) error {
 	var out strings.Builder
 	writeKVLine(&out, KVKeyMessage, failure.Error())
-	if failure.Suggestion != "" {
-		writeKVLine(&out, kvKeySuggestion, failure.Suggestion)
+	for _, pair := range ErrorHintPairs(failure) {
+		writeKVLine(&out, pair.Key, pair.Value)
 	}
 	writeKVLine(&out, kvKeyStatus, string(failure.Code))
 	_, err := io.WriteString(r.stdout, out.String())
 	return err
+}
+
+// ErrorHintPairs are the --kv lines that carry failure's hints, in order: SUGGESTION= when it
+// has a Suggestion, SUGGESTIONS= and VALID= (each comma-separated) when it has Suggestions or
+// Valid values. A failure without hints has none. They belong just before the failure's STATUS=
+// line.
+func ErrorHintPairs(failure *Error) []KVPair {
+	var pairs []KVPair
+	if failure.Suggestion != "" {
+		pairs = append(pairs, KVPair{Key: kvKeySuggestion, Value: failure.Suggestion})
+	}
+	if len(failure.Suggestions) > 0 {
+		pairs = append(pairs, KVPair{
+			Key:   kvKeySuggestions,
+			Value: strings.Join(failure.Suggestions, kvListSeparator),
+		})
+	}
+	if len(failure.Valid) > 0 {
+		pairs = append(pairs, KVPair{Key: kvKeyValid, Value: strings.Join(failure.Valid, kvListSeparator)})
+	}
+	return pairs
 }
 
 // KVLineBreaks flattens a value onto one line; a KEY=VALUE consumer reads line by line.

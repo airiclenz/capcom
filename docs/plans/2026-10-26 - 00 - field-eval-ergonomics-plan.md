@@ -127,7 +127,9 @@ fallback; a body longer than the cap gives at most 8 lines.
 **Acceptance:** `GOMEMLIMIT=2GiB go test ./internal/cli/ -run 'Search'`; `GOMEMLIMIT=2GiB go test ./internal/clidoc/`
 **Commit:** `feat(search): print matching body lines with --excerpt`
 
-## 5. Suggestions and valid values on the error envelope
+## 5. Suggestions and valid values on the error envelope — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): the kv hint lines live in one exported helper, `output.ErrorHintPairs`, shared by the kv renderer and `show`'s per-id failure record, so both write SUGGESTION=, SUGGESTIONS= and VALID= in the same order; no command sets the new lists yet (items 6 and 7 do), so `show`'s record is covered only once item 6 lands.
 
 **What:**
 **Goal:** `output.Error` can carry a list of suggestions and a list of valid values. JSON error bodies

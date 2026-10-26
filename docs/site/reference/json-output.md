@@ -102,6 +102,11 @@ $ capcom update x --statsu active --json
 {"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown flag: --statsu","suggestion":"--status"},"elsewhere":[],"warnings":[]}
 ```
 
+An unknown id or a value a flag does not accept can set two lists, each left out when empty:
+`suggestions`, the closest known ids or aliases (at most three, closest first), and `valid`, the
+values the flag accepts (a status as `name (category)`). Text output ends the message with
+`; did you mean a, b or c?` and `; use one of: x, y, z`.
+
 `code` is one of a closed set:
 
 | Code | Meaning | Exit code |
@@ -169,6 +174,10 @@ MESSAGE=unknown command "shwo" for "capcom"
 SUGGESTION=show
 STATUS=invalid
 ```
+
+Its `suggestions` and `valid` lists follow as `SUGGESTIONS=` and `VALID=` lines, in that order,
+each comma-separated, also before `STATUS=`; a failure record of a multi-id command such as `show`
+carries them too.
 
 Unlike `--json`, `--kv` is offered only by some commands, it goes after the command name, and it
 leaves out the Elsewhere report. Which commands take it is on each command's page in

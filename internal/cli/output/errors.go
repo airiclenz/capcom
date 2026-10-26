@@ -35,14 +35,18 @@ const (
 // Error is a typed command failure. Path and Line, when set, locate the file (and line within it)
 // the failure is about; Line is meaningful only together with Path. Suggestion, when set, is the
 // closest valid form of what the caller mistyped, such as the command path "know show" below
-// capcom; every format reports it apart from Message.
+// capcom; every format reports it apart from Message. Suggestions, when set, are the closest
+// known ids or aliases to one the caller named, closest first, and Valid the declared values a
+// flag accepts; every format reports each apart from Message and leaves it out when empty.
 type Error struct {
-	Code       Code
-	Message    string
-	Path       string
-	Line       int
-	Suggestion string
-	isUsage    bool
+	Code        Code
+	Message     string
+	Path        string
+	Line        int
+	Suggestion  string
+	Suggestions []string
+	Valid       []string
+	isUsage     bool
 	// isNothingReady marks the failure of finding no Ready Issue, which exits with
 	// ExitNothingReady. NothingReadyErrorf is the one way to set it.
 	isNothingReady bool

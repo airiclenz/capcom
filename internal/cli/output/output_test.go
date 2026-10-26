@@ -149,6 +149,158 @@ func TestRenderError_NoSuggestion_OmitsIt(t *testing.T) {
 	}
 }
 
+func TestRenderError_SuggestionsAndValid_ReportedInEveryFormat(t *testing.T) {
+	cases := []struct {
+		name    string
+		failure *Error
+		format  OutputFormat
+		want    string
+	}{
+		{
+			"text one suggestion",
+			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login"}},
+			FormatText,
+			"capcom: id \"logn\" not found; did you mean login?\n",
+		},
+		{
+			"text two suggestions",
+			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login", "logout"}},
+			FormatText,
+			"capcom: id \"logn\" not found; did you mean login or logout?\n",
+		},
+		{
+			"text three suggestions",
+			&Error{
+				Code:        CodeNotFound,
+				Message:     `id "logn" not found`,
+				Suggestions: []string{"login", "logout", "log"},
+			},
+			FormatText,
+			"capcom: id \"logn\" not found; did you mean login, logout or log?\n",
+		},
+		{
+			"text valid",
+			&Error{Code: CodeInvalid, Message: `unknown type "bgu"`, Valid: []string{"bug", "feature", "task"}},
+			FormatText,
+			"capcom: unknown type \"bgu\"; use one of: bug, feature, task\n",
+		},
+		{
+			"kv one suggestion",
+			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login"}},
+			FormatKV,
+			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login\nSTATUS=not_found\n",
+		},
+		{
+			"kv two suggestions",
+			&Error{Code: CodeNotFound, Message: `id "logn" not found`, Suggestions: []string{"login", "logout"}},
+			FormatKV,
+			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login,logout\nSTATUS=not_found\n",
+		},
+		{
+			"kv three suggestions",
+			&Error{
+				Code:        CodeNotFound,
+				Message:     `id "logn" not found`,
+				Suggestions: []string{"login", "logout", "log"},
+			},
+			FormatKV,
+			"MESSAGE=id \"logn\" not found\nSUGGESTIONS=login,logout,log\nSTATUS=not_found\n",
+		},
+		{
+			"kv valid",
+			&Error{Code: CodeInvalid, Message: `unknown status "opne"`, Valid: []string{"open (open)", "done (closed)"}},
+			FormatKV,
+			"MESSAGE=unknown status \"opne\"\nVALID=open (open),done (closed)\nSTATUS=invalid\n",
+		},
+		{
+			"kv every hint",
+			&Error{
+				Code:        CodeInvalid,
+				Message:     "x",
+				Suggestion:  "--status",
+				Suggestions: []string{"login"},
+				Valid:       []string{"bug"},
+			},
+			FormatKV,
+			"MESSAGE=x\nSUGGESTION=--status\nSUGGESTIONS=login\nVALID=bug\nSTATUS=invalid\n",
+		},
+		{
+			"json one suggestion",
+			&Error{Code: CodeNotFound, Message: "x", Suggestions: []string{"login"}},
+			FormatJSON,
+			`"error":{"code":"not_found","message":"x","suggestions":["login"]}`,
+		},
+		{
+			"json two suggestions",
+			&Error{Code: CodeNotFound, Message: "x", Suggestions: []string{"login", "logout"}},
+			FormatJSON,
+			`"error":{"code":"not_found","message":"x","suggestions":["login","logout"]}`,
+		},
+		{
+			"json three suggestions",
+			&Error{Code: CodeNotFound, Message: "x", Suggestions: []string{"login", "logout", "log"}},
+			FormatJSON,
+			`"error":{"code":"not_found","message":"x","suggestions":["login","logout","log"]}`,
+		},
+		{
+			"json valid",
+			&Error{Code: CodeInvalid, Message: "x", Valid: []string{"bug", "task"}},
+			FormatJSON,
+			`"error":{"code":"invalid","message":"x","valid":["bug","task"]}`,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var written bytes.Buffer
+
+			err := NewRenderer(testCase.format, &written, &written).RenderError(testCase.failure)
+
+			if err != nil {
+				t.Fatalf("RenderError: %v", err)
+			}
+			got := written.String()
+			isMatch := got == testCase.want
+			if testCase.format == FormatJSON {
+				isMatch = bytes.Contains(written.Bytes(), []byte(testCase.want))
+			}
+			if !isMatch {
+				t.Errorf("output = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestRenderError_EmptyHintLists_RenderAsWithout(t *testing.T) {
+	cases := []struct {
+		name   string
+		format OutputFormat
+		want   string
+	}{
+		{"text", FormatText, "capcom: bad\n"},
+		{"kv", FormatKV, "MESSAGE=bad\nSTATUS=invalid\n"},
+		{
+			"json",
+			FormatJSON,
+			`{"schema":1,"kind":"error","error":{"code":"invalid","message":"bad"},"elsewhere":[],"warnings":[]}` + "\n",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			failure := &Error{Code: CodeInvalid, Message: "bad", Suggestions: []string{}, Valid: []string{}}
+			var written bytes.Buffer
+
+			err := NewRenderer(testCase.format, &written, &written).RenderError(failure)
+
+			if err != nil {
+				t.Fatalf("RenderError: %v", err)
+			}
+			if written.String() != testCase.want {
+				t.Errorf("output = %q, want %q", written.String(), testCase.want)
+			}
+		})
+	}
+}
+
 func TestSanitizeTerminal_EscapesControlsOnly(t *testing.T) {
 	cases := []struct {
 		name  string
