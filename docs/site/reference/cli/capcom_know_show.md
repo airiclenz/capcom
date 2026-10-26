@@ -11,7 +11,13 @@ Show a Note in full
 
 ### Synopsis
 
-Print one Note in full: its id, path, etag, parent, title, Labels, Refs, retirement, superseded-by entries, Aliases and body. The argument may be an id, an Alias or a unique id prefix, and a retired Note still resolves. --with-children also prints the Notes directly below it, their retired ones only with --retired. The etag is what --if-match takes on know update, know mv and know rm.
+Print one Note in full: its id, path, etag, parent, title, Labels, Refs, retirement, superseded-by entries, Aliases and body.
+
+The argument may be an id, an Alias or a unique id prefix, and a retired Note still resolves.
+
+--with-children also prints the Notes directly below it, their retired ones only with --retired.
+
+The etag is what --if-match takes on know update, know mv and know rm.
 
 ```
 capcom know show <id|alias|prefix> [flags]

@@ -11,7 +11,13 @@ List issues; without flags, every issue that is not closed
 
 ### Synopsis
 
-List Issues one per line with id, status, priority and title, each child indented below its Parent. Without flags it lists every Issue that is not closed; --all includes closed ones, and the filters (--status, --category, --label, --type, --priority, --parent, --plan and more) narrow the list. --tree prints the Issue outline instead: each Parent with its closed/total children, --depth levels deep. Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
+List Issues one per line with id, status, priority and title, each child indented below its Parent.
+
+Without flags it lists every Issue that is not closed; --all includes closed ones, and the filters (--status, --category, --label, --type, --priority, --parent, --plan and more) narrow the list.
+
+--tree prints the Issue outline instead: each Parent with its closed/total children, --depth levels deep.
+
+Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
 
 ```
 capcom list [flags]

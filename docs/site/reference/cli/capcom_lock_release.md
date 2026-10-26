@@ -11,7 +11,15 @@ Release the lock you hold; releasing a free lock succeeds
 
 ### Synopsis
 
-Free the Tree lock you hold; --token, the Lock token acquire printed, is required. It also deletes the kept token files holding that token. Releasing a lock that is already free succeeds and only deletes those token files, so it is safe on every exit path. It prints the worktree and released, or free when there was nothing to release. A lock another session holds fails locked, exit code 3, and deletes nothing; break frees a lock whose holder is gone.
+Free the Tree lock you hold; --token, the Lock token acquire printed, is required.
+
+It also deletes the kept token files holding that token.
+
+Releasing a lock that is already free succeeds and only deletes those token files, so it is safe on every exit path.
+
+It prints the worktree and released, or free when there was nothing to release.
+
+A lock another session holds fails locked, exit code 3, and deletes nothing; break frees a lock whose holder is gone.
 
 ```
 capcom lock release [flags]

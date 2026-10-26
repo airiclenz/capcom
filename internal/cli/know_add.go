@@ -22,12 +22,13 @@ const (
 // Help text of capcom know add.
 const (
 	knowAddLong = "Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never " +
-		"generates, and the title given by --title; both are required. --parent files it below another " +
-		"Note, --label and --ref set its Labels and Refs, and --body-file reads its markdown body from a " +
-		"file, - for stdin. A --ref inside the git directory is refused, since a clone never has it; one " +
-		"that does not resolve here, or that git ignores, is written with a warning, as capcom check " +
-		"fails on it. It prints the new Note's id, path and etag, and a refreshed line when the " +
-		"capcom block of AGENTS.md was rewritten."
+		"generates, and the title given by --title; both are required.\n\n" +
+		"--parent files it below another Note, --label and --ref set its Labels and Refs, and " +
+		"--body-file reads its markdown body from a file, - for stdin.\n\n" +
+		"A --ref inside the git directory is refused, since a clone never has it; one that does not " +
+		"resolve here, or that git ignores, is written with a warning, as capcom check fails on it.\n\n" +
+		"It prints the new Note's id, path and etag, and a refreshed line when the capcom block of " +
+		"AGENTS.md was rewritten."
 	knowAddExample = "  capcom know add --id release-steps --title \"How a release is cut\" --ref docs/release.md   # a Note that depends on a file\n" +
 		"  capcom know add --id release-tags --parent release-steps --title \"Tagging a release\" --label release   # below release-steps\n" +
 		"  capcom know add --id adr-0031 --title \"ADR 0031: one index per worktree\" --body-file -   # body from stdin"

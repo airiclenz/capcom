@@ -45,17 +45,19 @@ type knowUpdateOptions struct {
 
 // Help text of capcom know update.
 const (
-	knowUpdateLong = "Change one Note; only the flags given change anything, and at least one is required. " +
-		"--title, --add-label, --remove-label, --add-ref and --remove-ref edit its frontmatter; an --add-ref " +
-		"inside the git directory is refused, since a clone never has it, and one that does not resolve " +
-		"here, or that git ignores, is written with a warning, as capcom check fails on it. --retire " +
-		"marks it retired, so it and its subtree leave browsing, --unretire clears that, and " +
-		"--add-superseded-by names the Notes that replace it. --body-file replaces the whole body, " +
-		"--body-append and --body-append-file add to it, and --body-replace-old with --body-replace-new " +
-		"replaces text that occurs exactly once. --body-append and the --body-replace-old/--body-replace-new " +
-		"pair repeat: every pair applies in order, each against the body the pairs before it left, then " +
-		"every append in order, and when one pair fails nothing is written. It prints the Note's id, path " +
-		"and new etag."
+	knowUpdateLong = "Change one Note; only the flags given change anything, and at least one is required.\n\n" +
+		"--title, --add-label, --remove-label, --add-ref and --remove-ref edit its frontmatter; an " +
+		"--add-ref inside the git directory is refused, since a clone never has it, and one that does " +
+		"not resolve here, or that git ignores, is written with a warning, as capcom check fails on " +
+		"it.\n\n" +
+		"--retire marks it retired, so it and its subtree leave browsing, --unretire clears that, and " +
+		"--add-superseded-by names the Notes that replace it.\n\n" +
+		"--body-file replaces the whole body, --body-append and --body-append-file add to it, and " +
+		"--body-replace-old with --body-replace-new replaces text that occurs exactly once.\n\n" +
+		"--body-append and the --body-replace-old/--body-replace-new pair repeat: every pair applies " +
+		"in order, each against the body the pairs before it left, then every append in order, and " +
+		"when one pair fails nothing is written.\n\n" +
+		"It prints the Note's id, path and new etag."
 	knowUpdateExample = "  capcom know update release-steps --add-label release --if-match <etag>   # etag from know show\n" +
 		"  capcom know update adr-0012 --retire --add-superseded-by adr-0031   # replaced in whole\n" +
 		"  capcom know update release-steps --body-append \"Run the gate first.\"   # add to the body\n" +

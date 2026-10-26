@@ -11,7 +11,13 @@ Print the outline of Note ids and titles
 
 ### Synopsis
 
-Print the outline of the Knowledge tree, or of the subtree of the Note named: one line per Note with its id and title, indented two spaces per level. --depth limits the levels printed below the top, or below the named Note, and a "... <n> more" line marks each Note whose children it cut. Retired subtrees are left out unless --retired is given, and Background subtrees, labelled background, unless --background is given. A Note named as the start is printed even when retired or background.
+Print the outline of the Knowledge tree, or of the subtree of the Note named: one line per Note with its id and title, indented two spaces per level.
+
+--depth limits the levels printed below the top, or below the named Note, and a "... <n> more" line marks each Note whose children it cut.
+
+Retired subtrees are left out unless --retired is given, and Background subtrees, labelled background, unless --background is given.
+
+A Note named as the start is printed even when retired or background.
 
 ```
 capcom know tree [id|alias|prefix] [flags]

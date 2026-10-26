@@ -11,7 +11,13 @@ Append an entry to an issue's Log
 
 ### Synopsis
 
-Append an entry to an Issue's Log, dated today and attributed to the author git would record for a commit. The Log is append-only: it carries progress, findings and remarks, while the body stays the statement of the work. The text is one argument, so quote it. It prints the Issue's id, path and new etag.
+Append an entry to an Issue's Log, dated today and attributed to the author git would record for a commit.
+
+The Log is append-only: it carries progress, findings and remarks, while the body stays the statement of the work.
+
+The text is one argument, so quote it.
+
+It prints the Issue's id, path and new etag.
 
 ```
 capcom log <id|alias|prefix> <text> [flags]

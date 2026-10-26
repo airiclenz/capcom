@@ -9,11 +9,12 @@ import (
 // Help text of capcom know.
 const (
 	knowLong = "Read and change the Knowledge tree: Notes are markdown files under .capcom/knowledge/, each " +
-		"with a title, Labels, Refs and a body, nested by Parent like Issues. A Ref names a path or " +
-		"path#symbol the Note depends on, and know verify lists the Refs that no longer resolve. A Note " +
-		"that no longer holds is retired rather than removed, optionally naming the Notes that " +
-		"supersede it, and leaves browsing with its subtree. A write that leaves the capcom block of " +
-		"AGENTS.md stale refreshes it."
+		"with a title, Labels, Refs and a body, nested by Parent like Issues.\n\n" +
+		"A Ref names a path or path#symbol the Note depends on, and know verify lists the Refs that no " +
+		"longer resolve.\n\n" +
+		"A Note that no longer holds is retired rather than removed, optionally naming the Notes that " +
+		"supersede it, and leaves browsing with its subtree.\n\n" +
+		"A write that leaves the capcom block of AGENTS.md stale refreshes it."
 	knowExample = "  capcom know tree --depth 2       # the top two levels of the Knowledge tree\n" +
 		"  capcom know show release-steps   # one Note in full\n" +
 		"  capcom know search release       # Notes that mention release\n" +

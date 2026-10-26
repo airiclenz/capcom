@@ -12,9 +12,11 @@ import (
 // The help text of capcom log.
 const (
 	logLong = "Append an entry to an Issue's Log, dated today and attributed to the author git would record " +
-		"for a commit. The Log is append-only: it carries progress, findings and remarks, while the " +
-		"body stays the statement of the work. The text is one argument, so quote it. It prints the " +
-		"Issue's id, path and new etag."
+		"for a commit.\n\n" +
+		"The Log is append-only: it carries progress, findings and remarks, while the body stays the " +
+		"statement of the work.\n\n" +
+		"The text is one argument, so quote it.\n\n" +
+		"It prints the Issue's id, path and new etag."
 	logExample = "  capcom log login-timeout-race \"reproduced with two tabs\"\n" +
 		"  capcom log login-timeout-race \"root cause: the refresh timer survives logout\""
 )

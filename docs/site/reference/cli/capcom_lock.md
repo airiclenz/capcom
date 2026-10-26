@@ -11,7 +11,13 @@ Acquire, refresh, release and inspect this worktree's Tree lock
 
 ### Synopsis
 
-Manage this worktree's Tree lock: the advisory claim one agent session holds on one working tree while it edits. acquire claims it, prints a Lock token and keeps that token for the session in a token file under the git directory; touch renews its heartbeat with that token, and release frees it. A lock whose heartbeat is older than the TTL (lock.ttl in config.yaml, two hours by default) is stale: it stays held until its holder resumes it, another session takes it over with acquire --take-stale, or someone breaks it. Each git worktree has a lock of its own, and capcom installs no git hooks: the lock binds only the sessions that check it.
+Manage this worktree's Tree lock: the advisory claim one agent session holds on one working tree while it edits.
+
+acquire claims it, prints a Lock token and keeps that token for the session in a token file under the git directory; touch renews its heartbeat with that token, and release frees it.
+
+A lock whose heartbeat is older than the TTL (lock.ttl in config.yaml, two hours by default) is stale: it stays held until its holder resumes it, another session takes it over with acquire --take-stale, or someone breaks it.
+
+Each git worktree has a lock of its own, and capcom installs no git hooks: the lock binds only the sessions that check it.
 
 ```
 capcom lock [flags]

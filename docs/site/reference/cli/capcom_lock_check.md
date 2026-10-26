@@ -11,7 +11,13 @@ Exit 0 when this worktree's lock is free or yours, 3 when another holds it
 
 ### Synopsis
 
-Exit 0 when this worktree's Tree lock is free or held by your --token, and fail locked, exit code 3, when another session holds it, stale or not. Without --token any held lock counts as another's. It prints the lock's state, free, held or stale, with the holder, purpose, since time and heartbeat of a held lock. A script or hook runs it before it edits the working tree.
+Exit 0 when this worktree's Tree lock is free or held by your --token, and fail locked, exit code 3, when another session holds it, stale or not.
+
+Without --token any held lock counts as another's.
+
+It prints the lock's state, free, held or stale, with the holder, purpose, since time and heartbeat of a held lock.
+
+A script or hook runs it before it edits the working tree.
 
 ```
 capcom lock check [flags]

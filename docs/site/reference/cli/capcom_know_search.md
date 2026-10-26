@@ -11,7 +11,17 @@ Find Notes whose title or body contains every word, else some of them
 
 ### Synopsis
 
-Find the Notes whose title or body contains every word given, each as a whole word, and list them best match first, one line each with the id and title. When no Note holds every word, it lists the Notes holding some of them under the line "No item holds every word; these hold some of them:", and --json sets "match" to "any" instead of "all". --excerpt prints under each Note the body lines holding a word searched for, indented four spaces, and --json gives them as "excerpt". --label keeps only the Notes carrying every label given. Retired Notes and everything below them are left out unless --retired is given. A Note holding no word fails with not_found, exit code 3.
+Find the Notes whose title or body contains every word given, each as a whole word, and list them best match first, one line each with the id and title.
+
+When no Note holds every word, it lists the Notes holding some of them under the line "No item holds every word; these hold some of them:", and --json sets "match" to "any" instead of "all".
+
+--excerpt prints under each Note the body lines holding a word searched for, indented four spaces, and --json gives them as "excerpt".
+
+--label keeps only the Notes carrying every label given.
+
+Retired Notes and everything below them are left out unless --retired is given.
+
+A Note holding no word fails with not_found, exit code 3.
 
 ```
 capcom know search <word>... [flags]

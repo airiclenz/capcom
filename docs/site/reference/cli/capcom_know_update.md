@@ -11,7 +11,17 @@ Change a Note's title, labels, refs, retirement or body
 
 ### Synopsis
 
-Change one Note; only the flags given change anything, and at least one is required. --title, --add-label, --remove-label, --add-ref and --remove-ref edit its frontmatter; an --add-ref inside the git directory is refused, since a clone never has it, and one that does not resolve here, or that git ignores, is written with a warning, as capcom check fails on it. --retire marks it retired, so it and its subtree leave browsing, --unretire clears that, and --add-superseded-by names the Notes that replace it. --body-file replaces the whole body, --body-append and --body-append-file add to it, and --body-replace-old with --body-replace-new replaces text that occurs exactly once. --body-append and the --body-replace-old/--body-replace-new pair repeat: every pair applies in order, each against the body the pairs before it left, then every append in order, and when one pair fails nothing is written. It prints the Note's id, path and new etag.
+Change one Note; only the flags given change anything, and at least one is required.
+
+--title, --add-label, --remove-label, --add-ref and --remove-ref edit its frontmatter; an --add-ref inside the git directory is refused, since a clone never has it, and one that does not resolve here, or that git ignores, is written with a warning, as capcom check fails on it.
+
+--retire marks it retired, so it and its subtree leave browsing, --unretire clears that, and --add-superseded-by names the Notes that replace it.
+
+--body-file replaces the whole body, --body-append and --body-append-file add to it, and --body-replace-old with --body-replace-new replaces text that occurs exactly once.
+
+--body-append and the --body-replace-old/--body-replace-new pair repeat: every pair applies in order, each against the body the pairs before it left, then every append in order, and when one pair fails nothing is written.
+
+It prints the Note's id, path and new etag.
 
 ```
 capcom know update <id|alias|prefix> [flags]

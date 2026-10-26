@@ -11,7 +11,11 @@ Merge three versions of an issue file, its Log by entry (a git merge driver)
 
 ### Synopsis
 
-Merge three versions of an issue file as a git merge driver: `capcom merge-driver %O %A %B %P %S %X %Y`. The Log merges by entry; the rest of the file merges with git merge-file. The result replaces <ours>; the exit code is 1 when conflict markers remain.
+Merge three versions of an issue file as a git merge driver: `capcom merge-driver %O %A %B %P %S %X %Y`.
+
+The Log merges by entry; the rest of the file merges with git merge-file.
+
+The result replaces <ours>; the exit code is 1 when conflict markers remain.
 
 ```
 capcom merge-driver <base> <ours> <theirs> <path> [<base-label> <ours-label> <theirs-label>] [flags]

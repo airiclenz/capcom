@@ -80,7 +80,9 @@ internal/clidoc/reference_test.go — TestReferenceUpToDate
 `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'HelpText|DocFileMap|TestHelp_NodeVerbs_MatchGolden'`; `go vet ./internal/cli/`
 **Commit:** `docs(cli): split the Long help of root to init into short rules`
 
-## 2. Long help split into short rules: know, list, lock, log, merge-driver
+## 2. Long help split into short rules: know, list, lock, log, merge-driver — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): all Longs split into blank-line-separated paragraphs (no bullets), as in item 1; the word diff of the regenerated docs and golden is whitespace-only. shortRuleCommands widened by the 17 command paths of this item's files (31 subtests now). Only testdata/help/know-add.txt among the goldens was affected.
 
 **What:**
 **Goal:** Same rule as item 1 for `know.go`, `know_add.go`, `know_update.go`, `know_verify.go`,

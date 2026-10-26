@@ -72,61 +72,70 @@ type lockTarget struct {
 // The help text of capcom lock and its subcommands.
 const (
 	lockLong = "Manage this worktree's Tree lock: the advisory claim one agent session holds on one working " +
-		"tree while it edits. acquire claims it, prints a Lock token and keeps that token for the " +
-		"session in a token file under the git directory; touch renews its heartbeat with that token, " +
-		"and release frees it. A lock whose heartbeat is older than the TTL (lock.ttl in " +
-		"config.yaml, two hours by default) is stale: it stays held until its holder resumes it, " +
-		"another session takes it over with acquire --take-stale, or someone breaks it. Each git " +
-		"worktree has a lock of its own, and capcom installs no git hooks: the lock binds only the " +
-		"sessions that check it."
+		"tree while it edits.\n\n" +
+		"acquire claims it, prints a Lock token and keeps that token for the session in a token file " +
+		"under the git directory; touch renews its heartbeat with that token, and release frees it.\n\n" +
+		"A lock whose heartbeat is older than the TTL (lock.ttl in config.yaml, two hours by default) " +
+		"is stale: it stays held until its holder resumes it, another session takes it over with " +
+		"acquire --take-stale, or someone breaks it.\n\n" +
+		"Each git worktree has a lock of its own, and capcom installs no git hooks: the lock binds " +
+		"only the sessions that check it."
 	lockExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints and keeps the token\n" +
 		"  capcom lock touch --token <token>     # renew the heartbeat\n" +
 		"  capcom lock status --all              # every worktree's lock\n" +
 		"  capcom lock release --token <token>   # free it when the work is done"
-	lockAcquireLong = "Claim this worktree's Tree lock for --purpose, which is required. A free lock gets a new " +
-		"Lock token, printed on a token line; touch and release need it. capcom keeps the Lock token " +
-		"for the session in a token file under the git directory: acquiring again with the same " +
-		"--purpose and no --token resumes your lock, even a stale one, refreshes its heartbeat and " +
-		"prints the token again. A --token from an earlier acquire is used in place of the kept one. A " +
-		"lock another session holds fails locked, exit code 3, unless it is stale and --take-stale is " +
-		"given, which takes it over with a new token. --holder names the holder, user@host by default."
+	lockAcquireLong = "Claim this worktree's Tree lock for --purpose, which is required.\n\n" +
+		"A free lock gets a new Lock token, printed on a token line; touch and release need it.\n\n" +
+		"capcom keeps the Lock token for the session in a token file under the git directory: " +
+		"acquiring again with the same --purpose and no --token resumes your lock, even a stale one, " +
+		"refreshes its heartbeat and prints the token again.\n\n" +
+		"A --token from an earlier acquire is used in place of the kept one.\n\n" +
+		"A lock another session holds fails locked, exit code 3, unless it is stale and --take-stale " +
+		"is given, which takes it over with a new token.\n\n" +
+		"--holder names the holder, user@host by default."
 	lockAcquireExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints and keeps the token\n" +
 		"  capcom lock acquire --purpose \"implementing the release plan\"   # again: resume after a restart\n" +
 		"  capcom lock acquire --purpose \"finishing the release\" --take-stale   # take over a stale lock"
 	lockTouchLong = "Refresh the heartbeat of the Tree lock you hold, so that it does not go stale; --token, the " +
-		"Lock token acquire printed, is required. Touch it more often than the lock TTL while the work " +
-		"goes on. It prints the lock as it now stands. It fails not_found when nobody holds the lock " +
-		"and locked when another session holds it, both with exit code 3."
+		"Lock token acquire printed, is required.\n\n" +
+		"Touch it more often than the lock TTL while the work goes on.\n\n" +
+		"It prints the lock as it now stands.\n\n" +
+		"It fails not_found when nobody holds the lock and locked when another session holds it, both " +
+		"with exit code 3."
 	lockTouchExample = "  capcom lock touch --token <token>\n" +
 		"  capcom lock touch --token <token> --kv   # KEY=VALUE lines ending in STATUS="
-	lockReleaseLong = "Free the Tree lock you hold; --token, the Lock token acquire printed, is required. " +
-		"It also deletes the kept token files holding that token. Releasing a lock that is already " +
-		"free succeeds and only deletes those token files, so it is safe on every exit path. It prints " +
-		"the worktree and released, or free when there was nothing to release. A lock another session " +
-		"holds fails locked, exit code 3, and deletes nothing; break frees a lock whose holder is gone."
+	lockReleaseLong = "Free the Tree lock you hold; --token, the Lock token acquire printed, is required.\n\n" +
+		"It also deletes the kept token files holding that token.\n\n" +
+		"Releasing a lock that is already free succeeds and only deletes those token files, so it is " +
+		"safe on every exit path.\n\n" +
+		"It prints the worktree and released, or free when there was nothing to release.\n\n" +
+		"A lock another session holds fails locked, exit code 3, and deletes nothing; break frees a " +
+		"lock whose holder is gone."
 	lockReleaseExample = "  capcom lock release --token <token>\n" +
 		"  capcom lock release --token <token> --kv   # KEY=VALUE lines ending in STATUS="
 	lockBreakLong = "Free this worktree's Tree lock whoever holds it, without its Lock token, and delete this " +
-		"worktree's kept token files, so no session resumes the lock from one. Use it when the " +
-		"holder is gone, for a stale lock nobody will resume, or when the lock record itself is " +
-		"invalid: such a record is discarded, with a warning. The session that held the lock is not " +
-		"told; its next touch fails not_found. It prints the worktree and released, or free when " +
-		"nobody held the lock."
+		"worktree's kept token files, so no session resumes the lock from one.\n\n" +
+		"Use it when the holder is gone, for a stale lock nobody will resume, or when the lock record " +
+		"itself is invalid: such a record is discarded, with a warning.\n\n" +
+		"The session that held the lock is not told; its next touch fails not_found.\n\n" +
+		"It prints the worktree and released, or free when nobody held the lock."
 	lockBreakExample = "  capcom lock break        # free the lock whoever holds it\n" +
 		"  capcom lock break --kv   # KEY=VALUE lines ending in STATUS="
 	lockCheckLong = "Exit 0 when this worktree's Tree lock is free or held by your --token, and fail locked, " +
-		"exit code 3, when another session holds it, stale or not. Without --token any held lock " +
-		"counts as another's. It prints the lock's state, free, held or stale, with the holder, " +
-		"purpose, since time and heartbeat of a held lock. A script or hook runs it before it edits " +
-		"the working tree."
+		"exit code 3, when another session holds it, stale or not.\n\n" +
+		"Without --token any held lock counts as another's.\n\n" +
+		"It prints the lock's state, free, held or stale, with the holder, purpose, since time and " +
+		"heartbeat of a held lock.\n\n" +
+		"A script or hook runs it before it edits the working tree."
 	lockCheckExample = "  capcom lock check                   # exit 3 when any session holds the lock\n" +
 		"  capcom lock check --token <token>   # exit 0 when the lock is free or yours"
 	lockStatusLong = "Show this worktree's Tree lock: free, or held or stale with its holder, purpose, since " +
-		"time and heartbeat. A lock record that does not parse shows as invalid, and one that cannot " +
-		"be read as unreadable, each with a warning naming the file; the command still exits 0. " +
+		"time and heartbeat.\n\n" +
+		"A lock record that does not parse shows as invalid, and one that cannot be read as " +
+		"unreadable, each with a warning naming the file; the command still exits 0.\n\n" +
 		"--all shows every held lock in the repository, one per worktree, or \"no locks held\", with " +
-		"one warning per invalid or unreadable record. It only reads the lock, and it never prints a " +
-		"Lock token."
+		"one warning per invalid or unreadable record.\n\n" +
+		"It only reads the lock, and it never prints a Lock token."
 	lockStatusExample = "  capcom lock status         # this worktree's lock\n" +
 		"  capcom lock status --all   # every worktree's lock"
 )

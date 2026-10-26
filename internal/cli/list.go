@@ -52,11 +52,13 @@ type listOptions struct {
 // The help text of capcom list.
 const (
 	listLong = "List Issues one per line with id, status, priority and title, each child indented below its " +
-		"Parent. Without flags it lists every Issue that is not closed; --all includes closed ones, and " +
-		"the filters (--status, --category, --label, --type, --priority, --parent, --plan and more) " +
-		"narrow the list. --tree prints the Issue outline instead: each Parent with its closed/total " +
-		"children, --depth levels deep. Changes to Issues on other branches are reported as Elsewhere " +
-		"unless --no-elsewhere is given."
+		"Parent.\n\n" +
+		"Without flags it lists every Issue that is not closed; --all includes closed ones, and the " +
+		"filters (--status, --category, --label, --type, --priority, --parent, --plan and more) narrow " +
+		"the list.\n\n" +
+		"--tree prints the Issue outline instead: each Parent with its closed/total children, --depth " +
+		"levels deep.\n\n" +
+		"Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given."
 	listExample = "  capcom list                     # every issue that is not closed\n" +
 		"  capcom list --label owner-run   # open issues carrying a label\n" +
 		"  capcom list --all --type bug    # every bug, closed ones included\n" +

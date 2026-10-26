@@ -55,6 +55,10 @@ var shortRuleCommands = []string{
 	"capcom", "capcom version", "capcom agents", "capcom check", "capcom close", "capcom create",
 	"capcom dep", "capcom dep add", "capcom dep rm", "capcom dep list", "capcom dep graph",
 	"capcom finish", "capcom fmt", "capcom init",
+	"capcom know", "capcom know add", "capcom know update", "capcom know verify", "capcom know tree",
+	"capcom know show", "capcom know search", "capcom list", "capcom lock", "capcom lock acquire",
+	"capcom lock touch", "capcom lock release", "capcom lock break", "capcom lock check",
+	"capcom lock status", "capcom log", "capcom merge-driver",
 }
 
 // TestHelpText_ShortRuleCommands_LongRulesFitFourLines checks that every paragraph or bullet of the

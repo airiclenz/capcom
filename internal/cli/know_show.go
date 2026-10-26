@@ -20,10 +20,12 @@ const (
 // Help text of capcom know show.
 const (
 	knowShowLong = "Print one Note in full: its id, path, etag, parent, title, Labels, Refs, retirement, " +
-		"superseded-by entries, Aliases and body. The argument may be an id, an Alias or a unique id " +
-		"prefix, and a retired Note still resolves. --with-children also prints the Notes directly below " +
-		"it, their retired ones only with --retired. The etag is what --if-match takes on know update, " +
-		"know mv and know rm."
+		"superseded-by entries, Aliases and body.\n\n" +
+		"The argument may be an id, an Alias or a unique id prefix, and a retired Note still " +
+		"resolves.\n\n" +
+		"--with-children also prints the Notes directly below it, their retired ones only with " +
+		"--retired.\n\n" +
+		"The etag is what --if-match takes on know update, know mv and know rm."
 	knowShowExample = "  capcom know show release-steps                   # one Note in full\n" +
 		"  capcom know show release-steps --with-children   # and the Notes directly below it\n" +
 		"  capcom know show release-steps --json            # as a JSON envelope"

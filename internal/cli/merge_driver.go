@@ -68,9 +68,9 @@ func (a *app) newMergeDriverCommand() *cobra.Command {
 		Use:   "merge-driver <base> <ours> <theirs> <path> [<base-label> <ours-label> <theirs-label>]",
 		Short: "Merge three versions of an issue file, its Log by entry (a git merge driver)",
 		Long: "Merge three versions of an issue file as a git merge driver: " +
-			"`capcom merge-driver %O %A %B %P %S %X %Y`. The Log merges by entry; the rest of the file " +
-			"merges with git merge-file. The result replaces <ours>; the exit code is 1 when conflict " +
-			"markers remain.",
+			"`capcom merge-driver %O %A %B %P %S %X %Y`.\n\n" +
+			"The Log merges by entry; the rest of the file merges with git merge-file.\n\n" +
+			"The result replaces <ours>; the exit code is 1 when conflict markers remain.",
 		Example: mergeDriverExample,
 		Args:    cobra.RangeArgs(mergeDriverMinArgs, mergeDriverMaxArgs),
 		RunE: runE(func(cmd *cobra.Command, args []string) error {

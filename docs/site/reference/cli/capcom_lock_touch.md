@@ -11,7 +11,13 @@ Refresh the heartbeat of the lock you hold
 
 ### Synopsis
 
-Refresh the heartbeat of the Tree lock you hold, so that it does not go stale; --token, the Lock token acquire printed, is required. Touch it more often than the lock TTL while the work goes on. It prints the lock as it now stands. It fails not_found when nobody holds the lock and locked when another session holds it, both with exit code 3.
+Refresh the heartbeat of the Tree lock you hold, so that it does not go stale; --token, the Lock token acquire printed, is required.
+
+Touch it more often than the lock TTL while the work goes on.
+
+It prints the lock as it now stands.
+
+It fails not_found when nobody holds the lock and locked when another session holds it, both with exit code 3.
 
 ```
 capcom lock touch [flags]

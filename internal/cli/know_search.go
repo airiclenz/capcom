@@ -12,13 +12,14 @@ import (
 // Help text of capcom know search.
 const (
 	knowSearchLong = "Find the Notes whose title or body contains every word given, each as a whole word, and " +
-		"list them best match first, one line each with the id and title. When no Note holds every word, " +
-		"it lists the Notes holding some of them under the line \"" + anyWordHeadingLine + "\", and " +
-		"--json sets \"match\" to \"any\" instead of \"all\". --excerpt prints under each Note the " +
-		"body lines holding a word searched for, indented four spaces, and --json gives them as " +
-		"\"excerpt\". --label keeps only the Notes " +
-		"carrying every label given. Retired Notes and everything below them are left out unless " +
-		"--retired is given. A Note holding no word fails with not_found, exit code 3."
+		"list them best match first, one line each with the id and title.\n\n" +
+		"When no Note holds every word, it lists the Notes holding some of them under the line \"" +
+		anyWordHeadingLine + "\", and --json sets \"match\" to \"any\" instead of \"all\".\n\n" +
+		"--excerpt prints under each Note the body lines holding a word searched for, indented four " +
+		"spaces, and --json gives them as \"excerpt\".\n\n" +
+		"--label keeps only the Notes carrying every label given.\n\n" +
+		"Retired Notes and everything below them are left out unless --retired is given.\n\n" +
+		"A Note holding no word fails with not_found, exit code 3."
 	knowSearchExample = "  capcom know search release                   # Notes that mention release\n" +
 		"  capcom know search release tag --label release   # both words, labelled release\n" +
 		"  capcom know search index --retired           # retired Notes too\n" +

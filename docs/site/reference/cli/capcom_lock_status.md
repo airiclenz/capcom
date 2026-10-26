@@ -11,7 +11,13 @@ Show this worktree's lock, or with --all every worktree's
 
 ### Synopsis
 
-Show this worktree's Tree lock: free, or held or stale with its holder, purpose, since time and heartbeat. A lock record that does not parse shows as invalid, and one that cannot be read as unreadable, each with a warning naming the file; the command still exits 0. --all shows every held lock in the repository, one per worktree, or "no locks held", with one warning per invalid or unreadable record. It only reads the lock, and it never prints a Lock token.
+Show this worktree's Tree lock: free, or held or stale with its holder, purpose, since time and heartbeat.
+
+A lock record that does not parse shows as invalid, and one that cannot be read as unreadable, each with a warning naming the file; the command still exits 0.
+
+--all shows every held lock in the repository, one per worktree, or "no locks held", with one warning per invalid or unreadable record.
+
+It only reads the lock, and it never prints a Lock token.
 
 ```
 capcom lock status [flags]

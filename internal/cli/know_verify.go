@@ -27,10 +27,12 @@ type findingData struct {
 // Help text of capcom know verify.
 const (
 	knowVerifyLong = "List every Ref of every Note that no longer resolves: a missing path, a path#symbol whose " +
-		"file lacks the symbol text, or a path outside the working tree. It also lists a Ref a clone would " +
-		"lack although it resolves here: one inside the git directory, or one git ignores. Each line cites " +
-		"the Ref's line in its Note as path:line. Retired subtrees are exempt. It takes no arguments, and " +
-		"any finding fails the command, exit code 1, after the list."
+		"file lacks the symbol text, or a path outside the working tree.\n\n" +
+		"It also lists a Ref a clone would lack although it resolves here: one inside the git " +
+		"directory, or one git ignores.\n\n" +
+		"Each line cites the Ref's line in its Note as path:line.\n\n" +
+		"Retired subtrees are exempt.\n\n" +
+		"It takes no arguments, and any finding fails the command, exit code 1, after the list."
 	knowVerifyExample = "  capcom know verify          # Note refs that no longer resolve\n" +
 		"  capcom know verify --json   # the findings as a JSON envelope"
 )
