@@ -297,7 +297,7 @@ func TestModel_TabRule_JoinsTheDividerOnlyInTheSplitLayout(t *testing.T) {
 }
 
 func TestModel_TabBar_EndsInTheWidestLabelThatFits(t *testing.T) {
-	tabs := strippedTabs()
+	tabs := strippedTabs(newTestModel(t, newTestStore(t, readyFiles), wideWidth, wideHeight))
 	versionLabel := versionLabelPrefix + testVersion + versionLabelSuffix
 	pathLabel := homeLabel + pathLabelSeparator + versionLabel
 	pathFitWidth := ansi.StringWidth(tabs) + versionLabelMinGap + ansi.StringWidth(pathLabel)
@@ -364,11 +364,82 @@ func TestDisplayPath_ShortensOnlyAPathUnderHome(t *testing.T) {
 	}
 }
 
-// strippedTabs returns the tab bar's tabs as they read without styling, before any version label.
-func strippedTabs() string {
+// tabBarRow returns the view's top row, its styling stripped: the tab bar.
+func tabBarRow(m model) string {
+	return strings.Split(ansi.Strip(m.View().Content), "\n")[0]
+}
+
+func TestModel_TabBar_CountsWhatEachTabLists(t *testing.T) {
+	// filterFiles lists six open issues (shipped and one are done), three Ready ones and four
+	// Notes outside the background zeta.
+	m := newTestModel(t, newTestStore(t, filterFiles), wideWidth, wideHeight)
+
+	got := tabBarRow(m)
+
+	want := " Issues [6]  │  Ready [3]  │  Knowledge [4] "
+	if !strings.HasPrefix(got, want) {
+		t.Errorf("row 0 = %q, want it to start %q", got, want)
+	}
+}
+
+func TestModel_TabBar_NoCountWithoutAGoodRead(t *testing.T) {
+	cases := []struct {
+		name string
+		read func(m model) model
+	}{
+		{name: "before the first read", read: func(m model) model { return m }},
+		{
+			name: "after a failed read",
+			read: func(m model) model {
+				failure := errors.New("index unreadable")
+				m = send(t, m, readyMsg{err: failure})
+				m = send(t, m, issuesMsg{err: failure})
+				return send(t, m, knowledgeMsg{err: failure})
+			},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newModel(newTestOptions(t, newTestStore(t, filterFiles)))
+			m = send(t, m, tea.WindowSizeMsg{Width: wideWidth, Height: wideHeight})
+
+			m = testCase.read(m)
+
+			want := " Issues  │  Ready  │  Knowledge "
+			if got := tabBarRow(m); !strings.HasPrefix(got, want) {
+				t.Errorf("row 0 = %q, want it to start %q", got, want)
+			}
+		})
+	}
+}
+
+func TestModel_TabBar_CountsFollowCloseAndCreate(t *testing.T) {
+	ts := newTestStore(t, readyFiles)
+	m := newTestModel(t, ts, wideWidth, wideHeight)
+	if got, want := strippedTabs(m), " Issues [5]  │  Ready [3]  │  Knowledge [0] "; got != want {
+		t.Fatalf("tabs at start = %q, want %q", got, want)
+	}
+
+	m = submitPrompt(t, m, 'c', "fixed in 3f2a1c9")
+
+	if got, want := strippedTabs(m), " Issues [4]  │  Ready [2]  │  Knowledge [0] "; got != want {
+		t.Errorf("tabs after closing alpha = %q, want %q", got, want)
+	}
+
+	writeStoreFile(t, ts, "issues/fresh.md", issueFile("title: Fresh task\nstatus: open\npriority: 2\n", ""))
+	m = tick(t, m)
+
+	if got, want := strippedTabs(m), " Issues [5]  │  Ready [3]  │  Knowledge [0] "; got != want {
+		t.Errorf("tabs after creating fresh = %q, want %q", got, want)
+	}
+}
+
+// strippedTabs returns m's tab bar tabs as they read without styling, their counts included,
+// before any version label.
+func strippedTabs(m model) string {
 	labels := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {
-		labels = append(labels, tabBarLabel(tab))
+		labels = append(labels, m.tabBarLabel(tab))
 	}
 	return strings.Join(labels, tabSeparator)
 }

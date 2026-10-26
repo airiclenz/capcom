@@ -554,7 +554,14 @@ internal/index/notes.go — Index.Notes, NoteEntry; internal/config/config.go �
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Complete'`; `go vet ./internal/cli/`
 **Commit:** `feat(cli): complete Note ids, statuses and types`
 
-## 20. UI tab labels carry their counts
+## 20. UI tab labels carry their counts — ✅ DONE (2026-10-26)
+
+NOTES (2026-10-26): each tab state (readyTab, issuesTab, knowledgeTab) gained an `isRead` flag set by its apply function, so a tab shows no count before its first read; a read that failed also shows no count rather than `[0]` (the Goal does not cover a failed read).
+NOTES (2026-10-26): consequential edit — internal/ui/ready.go: made necessary by the readyTab.isRead flag the label count needs
+NOTES (2026-10-26): consequential edit — internal/ui/issues.go: made necessary by the issuesTab.isRead flag the label count needs
+NOTES (2026-10-26): consequential edit — internal/ui/knowledge.go: made necessary by the knowledgeTab.isRead flag the label count needs
+NOTES (2026-10-26): consequential edit — docs/site/getting-started/terminal-ui.md: made necessary by the counted tab labels (Tab bar bullet and the screen sketch's top row)
+NOTES (2026-10-26): with a filter whose problem or error stops it, the Issues total ignores isClosedShown (a `status:done status:nope` line counts open Issues only), since the tab then shows nothing closed.
 
 **What:**
 **Goal:** Each loaded tab label reads `Issues [n]`, `Ready [n]`, `Knowledge [n]`: n is the rows the tab

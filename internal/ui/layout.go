@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"fmt"
 	"math"
 	"path/filepath"
 	"strings"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/airiclenz/capcom/internal/outline"
 )
 
 // The layout's dimensions. Below narrowWidth columns the panes stop sitting side by side: a body
@@ -63,6 +66,13 @@ const (
 	versionLabelMinGap = 2
 	pathLabelSeparator = " · "
 	homeLabel          = "~"
+)
+
+// The count a tab's label ends in once its read is in: the rows the tab lists with no filter, and
+// with a filter in effect the matched rows it shows over them.
+const (
+	tabCountFormat         = " [%d]"
+	tabFilteredCountFormat = " [%d/%d]"
 )
 
 // frame lays out the tab bar, the rule under it, the panes or the help screen, the rule under
@@ -378,16 +388,16 @@ func (m model) dividerStyle() lipgloss.Style {
 	return m.theme.border
 }
 
-// tabBar lists the tabs in tabOrder, the open one marked by the theme's active tab style, the
-// separators in its border style, and ends in the version label in the theme's hints style, its
-// last character in the frame's last column: `<path> · v<version> · capcom`, the worktree path as
+// tabBar lists the tabs in tabOrder, each labelled as tabBarLabel draws it with its count, the
+// open one marked by the theme's active tab style, the separators in its border style, and ends
+// in the version label in the theme's hints style, its last character in the frame's last column: `<path> · v<version> · capcom`, the worktree path as
 // displayPath names it, or `v<version> · capcom` when the path does not fit. The label is left
 // out when the model has no version or when even the shorter one would leave fewer than
 // versionLabelMinGap columns after the last tab, so the tabs are never cut for it.
 func (m model) tabBar() string {
 	labels := make([]string, 0, len(tabOrder))
 	for _, tab := range tabOrder {
-		label := tabBarLabel(tab)
+		label := m.tabBarLabel(tab)
 		if tab == m.tab {
 			label = m.theme.activeTab.Render(label)
 		}
@@ -425,18 +435,80 @@ func displayPath(root, home string) string {
 	return homeLabel + string(filepath.Separator) + relative
 }
 
-// tabBarLabel returns tab's label as the tab bar draws it, unstyled: its name padded by a space
-// on either side.
-func tabBarLabel(tab Tab) string {
-	return " " + tabLabels[tab] + " "
+// tabBarLabel returns tab's label as the tab bar draws it, unstyled, padded by a space on either
+// side: its name, then `[n]` once tabCount counts it, or `[m/n]` while a filter is in effect.
+func (m model) tabBarLabel(tab Tab) string {
+	label := tabLabels[tab]
+	matched, total, isCounted := m.tabCount(tab)
+	switch {
+	case !isCounted:
+	case m.filters[tab].isActive():
+		label += fmt.Sprintf(tabFilteredCountFormat, matched, total)
+	default:
+		label += fmt.Sprintf(tabCountFormat, total)
+	}
+	return " " + label + " "
+}
+
+// tabCount returns the counts of tab's label: total, the rows the tab lists with no filter, and
+// matched, the issues or Notes the filter in effect matches that the tab shows, 0 when the filter
+// has a problem or an error. Ready counts its queue; Issues the issues outside a closed category,
+// or every issue while a status term names a closed status, since the tab then shows them; and
+// Knowledge the Notes its tree shows, outside retired subtrees and not background. It reports
+// false for a tab whose first read is not in or whose last read failed.
+func (m model) tabCount(tab Tab) (matched int, total int, isCounted bool) {
+	filter := m.filters[tab]
+	switch tab {
+	case TabReady:
+		if !m.ready.isRead || m.ready.err != nil {
+			return 0, 0, false
+		}
+		return len(m.ready.entries), len(m.ready.all), true
+	case TabIssues:
+		if !m.issues.isRead || m.issues.err != nil {
+			return 0, 0, false
+		}
+		if !filter.isActive() {
+			return 0, len(m.issues.tree.isShown), true
+		}
+		isClosedShown := filter.isClosedShown && filter.problem == "" && filter.err == nil
+		visible := outline.Issues(m.issues.entries, isClosedShown)
+		return countMatched(m.issues.tree.isShown, filter.matched), shownCount(visible), true
+	case TabKnowledge:
+		if !m.knowledge.isRead || m.knowledge.err != nil {
+			return 0, 0, false
+		}
+		if !filter.isActive() {
+			return 0, len(m.knowledge.tree.isShown), true
+		}
+		visible := noteOutline(m.knowledge.notes)
+		return countMatched(m.knowledge.tree.isShown, filter.matched), shownCount(visible), true
+	}
+	return 0, 0, false
+}
+
+// shownCount returns the rows tree prints fully expanded.
+func shownCount[E any](tree *outline.Tree[E]) int {
+	return len(tree.Rows(nil, outline.UnlimitedDepth))
+}
+
+// countMatched returns how many of the ids isShown holds matched holds too.
+func countMatched(isShown map[string]bool, matched map[string]bool) int {
+	count := 0
+	for id := range isShown {
+		if matched[id] {
+			count++
+		}
+	}
+	return count
 }
 
 // tabAt returns the tab whose label covers column col of the tab bar, and false for a column on a
 // separator or past the last label.
-func tabAt(col int) (Tab, bool) {
+func (m model) tabAt(col int) (Tab, bool) {
 	start := 0
 	for _, tab := range tabOrder {
-		end := start + ansi.StringWidth(tabBarLabel(tab))
+		end := start + ansi.StringWidth(m.tabBarLabel(tab))
 		if col >= start && col < end {
 			return tab, true
 		}

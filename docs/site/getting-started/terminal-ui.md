@@ -45,7 +45,7 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
 ## The screen
 
 ```text
- Issues  │  Ready  │  Knowledge  ~/repos/capcom · v0.7.0 · capcom
+ Issues [12]  │  Ready [4]  │  Knowledge [9]      v0.7.0 · capcom
 ─────────────────────┬───────────────────────────────────────────
 ▼ capcom-ui        ┃ │ Ready queue view                         ┃
 ┝ ▶ ready-view     ┃ │                                          ┃
@@ -59,7 +59,11 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
 
 - **Tab bar**: Issues, Ready and Knowledge. `Tab` moves to the next one, and `1`, `2` and `3`
   open Issues, Ready and Knowledge directly. Each tab keeps its own selection, expanded nodes and
-  filter. A rule under it sets it off from the panes. Its right end names the worktree and
+  filter. Each label counts what its tab lists with no filter, as `Ready [4]`: the Issues outside a
+  closed category, the Ready queue, and the Notes the Knowledge tree shows. With a filter in effect
+  it counts the matches the tab shows over that total, as `Ready [1/4]`; a `status:` filter naming
+  a closed Status counts the Closed Issues in the total too. A rule under it sets it off from the
+  panes. Its right end names the worktree and
   capcom's version, as `~/repos/capcom · v0.7.0 · capcom`: the worktree's top directory, your
   home directory shown as `~`. A terminal too narrow for that shows the version alone, as
   `v0.7.0 · capcom`, and a narrower one neither.

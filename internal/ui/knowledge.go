@@ -42,11 +42,13 @@ type knowledgeMsg struct {
 }
 
 // knowledgeTab is the Knowledge tab's state: the Notes of the last read, the tree over them, the
-// error of a read that failed, and, while a filter is in effect, the nodes expanded before it.
+// error of a read that failed, whether a read was taken in, and, while a filter is in effect, the
+// nodes expanded before it.
 type knowledgeTab struct {
 	notes              []index.NoteEntry
 	tree               treeWidget[index.NoteEntry]
 	err                error
+	isRead             bool
 	unfilteredExpanded map[string]bool
 }
 
@@ -107,6 +109,7 @@ func noteOutline(notes []index.NoteEntry) *outline.Tree[index.NoteEntry] {
 func (m model) applyKnowledge(msg knowledgeMsg) (model, tea.Cmd) {
 	m = m.takeRematched(TabKnowledge, msg.filter)
 	m.knowledge.err = msg.err
+	m.knowledge.isRead = true
 	m.knowledge.notes = msg.notes
 	m.knowledge.tree = m.knowledge.tree.carryInto(m.knowledgeTree(m.knowledge.tree.expanded))
 	if msg.notice != "" {

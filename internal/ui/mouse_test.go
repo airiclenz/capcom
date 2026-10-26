@@ -128,11 +128,14 @@ func TestMouse_ClickOnTabBar_OpensTheTabUnderThePointer(t *testing.T) {
 		x       int
 		wantTab Tab
 	}{
+		// The counted labels ` Issues [5] `, ` Ready [3] ` and ` Knowledge [0] ` cover columns 0-11,
+		// 15-25 and 29-43.
 		{name: "Issues at 120x30", width: wideWidth, height: wideHeight, x: 2, wantTab: TabIssues},
-		{name: "Knowledge at 120x30", width: wideWidth, height: wideHeight, x: 25, wantTab: TabKnowledge},
-		{name: "separator at 120x30", width: wideWidth, height: wideHeight, x: 9, wantTab: TabReady},
-		{name: "Knowledge at 80x24", width: smallWidth, height: smallHeight, x: 31, wantTab: TabKnowledge},
-		{name: "past the labels at 80x24", width: smallWidth, height: smallHeight, x: 32, wantTab: TabReady},
+		{name: "Issues count at 120x30", width: wideWidth, height: wideHeight, x: 10, wantTab: TabIssues},
+		{name: "Knowledge at 120x30", width: wideWidth, height: wideHeight, x: 31, wantTab: TabKnowledge},
+		{name: "separator at 120x30", width: wideWidth, height: wideHeight, x: 13, wantTab: TabReady},
+		{name: "Knowledge count at 80x24", width: smallWidth, height: smallHeight, x: 43, wantTab: TabKnowledge},
+		{name: "past the labels at 80x24", width: smallWidth, height: smallHeight, x: 44, wantTab: TabReady},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -940,11 +943,11 @@ func textCell(t *testing.T, m model, text string, delta int) (int, int) {
 	return 0, 0
 }
 
-// tabColumn returns the first column of the tab bar that tab's label covers.
-func tabColumn(t *testing.T, tab Tab) int {
+// tabColumn returns the first column of m's tab bar that tab's label covers.
+func tabColumn(t *testing.T, m model, tab Tab) int {
 	t.Helper()
 	for col := range wideWidth {
-		if covered, isOnTab := tabAt(col); isOnTab && covered == tab {
+		if covered, isOnTab := m.tabAt(col); isOnTab && covered == tab {
 			return col
 		}
 	}
@@ -1004,7 +1007,7 @@ func TestMouse_DragOverDetailText_ShadesExactlyTheDraggedCells(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newSelectModel(t, newTestStore(t, selectFiles))
 			if tc.tab != TabReady {
-				m = press(t, m, click(tabColumn(t, tc.tab), 0))
+				m = press(t, m, click(tabColumn(t, m, tc.tab), 0))
 			}
 
 			m = dragSelect(t, m, tc.from, 0, tc.to, 3)
@@ -1112,8 +1115,8 @@ func TestMouse_Selection_IsClearedByEachTrigger(t *testing.T) {
 			return press(t, m, specialKey(tea.KeyEscape))
 		}},
 		{name: "a tab switch", trigger: func(t *testing.T, m model, _ *testStore) model {
-			m = press(t, m, click(tabColumn(t, TabIssues), 0))
-			return press(t, m, click(tabColumn(t, TabReady), 0))
+			m = press(t, m, click(tabColumn(t, m, TabIssues), 0))
+			return press(t, m, click(tabColumn(t, m, TabReady), 0))
 		}},
 		{name: "a refresh rewriting a spanned line", trigger: func(t *testing.T, m model, ts *testStore) model {
 			writeStoreFile(t, ts, "issues/alpha.md", alphaPointsEdited)

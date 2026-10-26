@@ -39,11 +39,13 @@ type issuesMsg struct {
 }
 
 // issuesTab is the Issues tab's state: the issues of the last read, the tree over them, the error
-// of a read that failed, and, while a filter is in effect, the nodes expanded before it.
+// of a read that failed, whether a read was taken in, and, while a filter is in effect, the nodes
+// expanded before it.
 type issuesTab struct {
 	entries            []index.Entry
 	tree               treeWidget[index.Entry]
 	err                error
+	isRead             bool
 	unfilteredExpanded map[string]bool
 }
 
@@ -88,6 +90,7 @@ func loadIssues(s *session, read tabRead) tea.Cmd {
 func (m model) applyIssues(msg issuesMsg) (model, tea.Cmd) {
 	m = m.takeRematched(TabIssues, msg.filter)
 	m.issues.err = msg.err
+	m.issues.isRead = true
 	m.issues.entries = msg.entries
 	m.issues.tree = m.issues.tree.carryInto(m.issuesTree(m.issues.tree.expanded))
 	if msg.notice != "" {

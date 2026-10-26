@@ -62,7 +62,7 @@ func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
 	point := m.pointAt(msg.X, msg.Y)
 	switch point.pane {
 	case paneTabBar:
-		tab, isOnTab := tabAt(point.col)
+		tab, isOnTab := m.tabAt(point.col)
 		if !isOnTab {
 			return m, nil
 		}

@@ -362,3 +362,48 @@ func TestFilter_KeptFilter_MatchesGolden(t *testing.T) {
 
 	golden(t, "filter-kept-120x30", m.View())
 }
+
+func TestFilter_TabLabel_CountsMatchedOverTotal(t *testing.T) {
+	tests := []struct {
+		name string
+		tab  Tab
+		text string
+		want string
+	}{
+		{name: "issues text", tab: TabIssues, text: "parser", want: " Issues [2/6] "},
+		// status:done shows the closed issues, so the total counts them too and m stays <= n.
+		{name: "closed status", tab: TabIssues, text: "status:done", want: " Issues [2/8] "},
+		{name: "no match", tab: TabIssues, text: "zebra", want: " Issues [0/6] "},
+		{name: "problem", tab: TabIssues, text: "status:nope", want: " Issues [0/6] "},
+		{name: "ready label", tab: TabReady, text: "label:ui", want: " Ready [1/3] "},
+		{name: "knowledge text", tab: TabKnowledge, text: "parser", want: " Knowledge [2/4] "},
+		{name: "knowledge problem", tab: TabKnowledge, text: "status:open", want: " Knowledge [0/4] "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, filterFiles))
+			options.Tab = tt.tab
+			m := startModel(t, options, 120, 30)
+
+			m = applyFilterText(t, m, tt.text)
+
+			if got := m.tabBarLabel(tt.tab); got != tt.want {
+				t.Errorf("label = %q, want %q", got, tt.want)
+			}
+			if got := tabBarRow(m); !strings.Contains(got, tt.want) {
+				t.Errorf("row 0 = %q, want it to hold %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFilter_TabLabel_ClearedFilterRestoresTheTotal(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, filterFiles), "", 120, 30)
+	m = applyFilterText(t, m, "parser")
+
+	m = press(t, m, specialKey(tea.KeyEscape))
+
+	if got, want := m.tabBarLabel(TabIssues), " Issues [6] "; got != want {
+		t.Errorf("label = %q, want %q", got, want)
+	}
+}

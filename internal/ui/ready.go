@@ -50,11 +50,12 @@ type readyMsg struct {
 }
 
 // readyTab is the Ready tab's state: the queue from the last read, its issues the Ready filter
-// keeps, the cursor over those and the first of them on screen.
+// keeps, the cursor over those and the first of them on screen. isRead reports a read taken in.
 type readyTab struct {
 	all     []index.Entry
 	entries []index.Entry
 	err     error
+	isRead  bool
 	cursor  listCursor
 	top     int
 }
@@ -109,6 +110,7 @@ func (m model) applyReady(msg readyMsg) (model, tea.Cmd) {
 	m.ready.all = msg.entries
 	m.ready.entries = keepMatched(msg.entries, entryID, m.filters[TabReady])
 	m.ready.err = msg.err
+	m.ready.isRead = true
 	count := len(m.ready.entries)
 	m.ready.cursor.clampSelection(count)
 	if wasSelected {
