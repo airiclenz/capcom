@@ -3,6 +3,7 @@ title: A missing --body-file hints capcom search
 status: open
 type: bug
 priority: 2
+plan: 2026-10-26 - 02 - p2-hint-closed-tab-plan
 created: 2026-10-26T13:29:42Z
 ---
 

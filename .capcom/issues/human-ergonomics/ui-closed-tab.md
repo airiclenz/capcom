@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 2
 deps: [ui-tab-counts]
+plan: 2026-10-26 - 02 - p2-hint-closed-tab-plan
 created: 2026-10-26T08:02:56Z
 ---
 
