@@ -1,6 +1,7 @@
 package index
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -731,5 +732,97 @@ func TestSearchIssuesAnyWord_BlankText_FindsNothing(t *testing.T) {
 
 	if err != nil || len(got) != 0 {
 		t.Errorf("SearchIssuesAnyWord(blank) = %v, %v; want none", ids(got), err)
+	}
+}
+
+// countingQuerier passes every statement to q and counts them.
+type countingQuerier struct {
+	q          querier
+	statements int
+}
+
+func (c *countingQuerier) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	c.statements++
+	return c.q.QueryContext(ctx, query, args...)
+}
+
+func (c *countingQuerier) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	c.statements++
+	return c.q.QueryRowContext(ctx, query, args...)
+}
+
+// batchFixture indexes issues whose list fields are all set, some in a different order than
+// their ids sort in.
+func batchFixture(t *testing.T) *Index {
+	t.Helper()
+	s := newStore(t)
+	writeIssue(t, s, "login-flow.md", issueWith("Login flow", "open",
+		"labels: [epic, auth]\ndeps: [token-store, db-schema]\nrelated: [release-notes]\naliases: [apogee-kk0.4, old-login]\n"))
+	writeIssue(t, s, "login-flow/token-store.md", issueWith("Token store", "open", "labels: [auth]\ndeps: [db-schema]\n"))
+	writeIssue(t, s, "db-schema.md", issueWith("Schema", "open", "related: [login-flow, token-store]\n"))
+	writeIssue(t, s, "release-notes.md", issueWith("Release notes", "open", "aliases: [notes]\n"))
+	return openIndex(t, s)
+}
+
+func TestIssues_ManyIDs_SameStatementCountAsOne(t *testing.T) {
+	t.Parallel()
+	x := batchFixture(t)
+	one := &countingQuerier{q: x.db}
+	many := &countingQuerier{q: x.db}
+
+	if _, err := x.issues(one, []string{"login-flow"}); err != nil {
+		t.Fatalf("issues of one id: %v", err)
+	}
+	if _, err := x.issues(many, []string{"login-flow", "token-store", "db-schema", "release-notes"}); err != nil {
+		t.Fatalf("issues of many ids: %v", err)
+	}
+
+	// One row query plus one per list field: labels, deps, related and aliases.
+	const want = 5
+	if one.statements != want || many.statements != want {
+		t.Errorf("statements = %d for one id and %d for many, want %d for both", one.statements, many.statements, want)
+	}
+}
+
+func TestIssues_BatchRead_MatchesSingleReadsInTheGivenOrder(t *testing.T) {
+	t.Parallel()
+	x := batchFixture(t)
+	order := []string{"release-notes", "login-flow", "db-schema", "token-store"}
+
+	entries, err := x.issues(x.db, order)
+
+	if err != nil {
+		t.Fatalf("issues: %v", err)
+	}
+	if got := ids(entries); !slices.Equal(got, order) {
+		t.Fatalf("ids = %v, want %v", got, order)
+	}
+	for _, entry := range entries {
+		if single := mustIssue(t, x, entry.ID); !reflect.DeepEqual(entry, single) {
+			t.Errorf("batch read of %q = %+v, single read = %+v", entry.ID, entry, single)
+		}
+	}
+	login := entries[1]
+	lists := map[string][2][]string{
+		"Labels":  {login.Labels, {"epic", "auth"}},
+		"Deps":    {login.Deps, {"token-store", "db-schema"}},
+		"Related": {login.Related, {"release-notes"}},
+		"Aliases": {login.Aliases, {"apogee-kk0.4", "old-login"}},
+	}
+	for name, list := range lists {
+		if !slices.Equal(list[0], list[1]) {
+			t.Errorf("login-flow %s = %v, want %v", name, list[0], list[1])
+		}
+	}
+}
+
+func TestIssues_MissingID_FailsNotFound(t *testing.T) {
+	t.Parallel()
+	x := batchFixture(t)
+
+	_, err := x.issues(x.db, []string{"login-flow", "gone-issue"})
+
+	if !errors.Is(err, tree.ErrNotFound) || !strings.Contains(err.Error(), `"gone-issue"`) {
+		t.Errorf("issues = %v, want a tree.ErrNotFound naming gone-issue", err)
 	}
 }

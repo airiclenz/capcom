@@ -26,7 +26,7 @@ import (
 
 // newStore returns a store in a temp dir with the default config and an empty issue tree. The
 // index needs no git, so GitDir is a plain directory.
-func newStore(t *testing.T) *store.Store {
+func newStore(t testing.TB) *store.Store {
 	t.Helper()
 	root := t.TempDir()
 	opened := &store.Store{
@@ -51,7 +51,7 @@ func issueText(title, status, body string) string {
 }
 
 // writeIssue writes content to the issue file at name, a slash path below the issue tree.
-func writeIssue(t *testing.T, s *store.Store, name, content string) string {
+func writeIssue(t testing.TB, s *store.Store, name, content string) string {
 	t.Helper()
 	path := filepath.Join(s.IssuesDir(), filepath.FromSlash(name))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -68,7 +68,7 @@ func laterClock() Option {
 	return withClock(func() time.Time { return time.Now().Add(time.Hour) })
 }
 
-func openIndex(t *testing.T, s *store.Store, options ...Option) *Index {
+func openIndex(t testing.TB, s *store.Store, options ...Option) *Index {
 	t.Helper()
 	opened, err := Open(s, ModeRefresh, options...)
 	if err != nil {

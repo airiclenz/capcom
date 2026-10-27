@@ -319,18 +319,28 @@ func (x *Index) searchIssues(text string, expression func(words []string) string
 	return entries, err
 }
 
-// beforeEntryRead runs before issues and noteList read each entry; tests swap it to change the
-// index between the read of the ids and the read of an entry.
+// beforeEntryRead runs once before issues reads its entries, with the first id, and before noteList
+// reads each entry; tests swap it to change the index between the read of the ids and the read of
+// the entries.
 var beforeEntryRead = func(id string) {}
 
-// issues reads the indexed issue of each id through q, in order.
+// issues reads the indexed issue of each id through q, in order, in a fixed number of queries
+// however many ids there are. An id no usable issue has, gone only if the index changed
+// underneath, fails with an error matching tree.ErrNotFound.
 func (x *Index) issues(q querier, ids []string) ([]Entry, error) {
 	entries := make([]Entry, 0, len(ids))
+	if len(ids) == 0 {
+		return entries, nil
+	}
+	beforeEntryRead(ids[0])
+	byID, err := x.loadIssues(q, ids)
+	if err != nil {
+		return nil, err
+	}
 	for _, id := range ids {
-		beforeEntryRead(id)
-		entry, err := x.resolved(q, id, id)
-		if err != nil {
-			return nil, err
+		entry, found := byID[id]
+		if !found {
+			return nil, fmt.Errorf("id %q %w", id, tree.ErrNotFound)
 		}
 		entries = append(entries, entry)
 	}

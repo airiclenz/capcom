@@ -368,7 +368,9 @@ CLI: hold the lock on the index, `runCLI list --json` → code `invalid`, messag
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/` then `./internal/cli/ -run 'Reindex|Busy'`
 **Commit:** `fix(index): name the rebuild when a command meets a busy index`
 
-## 11. list reads its rows in a fixed number of queries
+## 11. list reads its rows in a fixed number of queries — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): readIssue (Issue, and so Resolve) now goes through the same batch loader with one id, so single and batch reads share one scan path; Resolve was already a fixed count.
 
 **What:**
 **Goal:** `index.List`, the issue search funcs and `Resolve` load N entries in a constant number of
