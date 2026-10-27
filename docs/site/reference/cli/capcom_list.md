@@ -15,7 +15,7 @@ List Issues one per line with id, status, priority and title, each child indente
 
 Without flags it lists every Issue that is not closed; --all includes closed ones, and the filters (--status, --category, --label, --type, --priority, --parent, --plan and more) narrow the list.
 
---tree prints the Issue outline instead: each Parent with its closed/total children, --depth levels deep.
+--tree prints the Issue outline instead: each Parent with its closed/total children, --depth levels deep. With --tree the filters but --limit and --parent (which starts the outline) keep the matching Issues and their ancestors, an ancestor that does not match ending in [context]; --status and --category decide by themselves whether closed Issues match, the other filters follow --all.
 
 Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
 
@@ -30,6 +30,7 @@ capcom list [flags]
   capcom list --label owner-run   # open issues carrying a label
   capcom list --all --type bug    # every bug, closed ones included
   capcom list --tree --depth 2    # the outline, two levels deep
+  capcom list --tree --status open  # open issues, ancestors marked [context]
 ```
 
 ### Options
@@ -48,7 +49,7 @@ capcom list [flags]
       --planned            only issues whose plan field is set
       --priority ints      only issues with one of these priorities
       --status strings     only issues with one of these statuses (includes closed ones)
-      --tree               print the issue outline: each parent with its closed/total children, closed issues left out unless --all
+      --tree               print the issue outline: each parent with its closed/total children, closed issues left out unless --all; with row filters, the matches and their ancestors
       --type strings       only issues of one of these types
       --unplanned          only issues whose plan field is not set
 ```

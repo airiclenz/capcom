@@ -78,7 +78,10 @@ walkOutline, Row; internal/ui/knowledge.go — noteOutline
 
 **Commit:** `refactor(outline): narrow a Tree to its matches and mark context rows`
 
-## 2. list --tree combines with the row filters
+## 2. list --tree combines with the row filters — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): treeRowFilters was removed rather than shrunk and renamed: with --limit the only refused flag, checkTreeFlags checks it directly instead of looping over a one-entry slice.
+NOTES (2026-10-27): the row-filter half of listFilter moved into a new rowFilter (no --parent, no --limit), which listFilter and the new issueOutline share; issueOutline asks index.ListIDs (the same query as index.List, ids only) for the matched ids.
 
 Depends on item 1.
 

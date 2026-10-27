@@ -483,18 +483,9 @@ func TestListTree_BadFlags_UsageErrorNamesTheFlag(t *testing.T) {
 	root := newReadStore(t)
 	cases := []struct {
 		args []string
-		flag string
+		want string
 	}{
-		{[]string{"--tree", "--label", "x"}, "--label"},
-		{[]string{"--tree", "--status", "open"}, "--status"},
-		{[]string{"--tree", "--category", "todo"}, "--category"},
-		{[]string{"--tree", "--no-label", "auth"}, "--no-label"},
-		{[]string{"--tree", "--type", "task"}, "--type"},
-		{[]string{"--tree", "--priority", "2"}, "--priority"},
-		{[]string{"--tree", "--plan", "login"}, "--plan"},
-		{[]string{"--tree", "--planned"}, "--planned"},
-		{[]string{"--tree", "--unplanned"}, "--unplanned"},
-		{[]string{"--tree", "--limit", "1"}, "--limit"},
+		{[]string{"--tree", "--limit", "2"}, "--limit cannot be combined with --tree"},
 		{[]string{"--tree", "--depth", "-1"}, "--depth"},
 		{[]string{"--depth", "1"}, "--depth"},
 	}
@@ -502,10 +493,164 @@ func TestListTree_BadFlags_UsageErrorNamesTheFlag(t *testing.T) {
 	for _, current := range cases {
 		stdout, stderr, exitCode := runCLI(t, root, append([]string{"list"}, current.args...)...)
 
-		if exitCode != ExitUsage || stdout != "" || !strings.Contains(stderr, current.flag) {
-			t.Errorf("list %v exit = %d stdout = %q stderr = %q, want a usage failure naming %s",
-				current.args, exitCode, stdout, stderr, current.flag)
+		if exitCode != ExitUsage || stdout != "" || !strings.Contains(stderr, current.want) {
+			t.Errorf("list %v exit = %d stdout = %q stderr = %q, want a usage failure saying %q",
+				current.args, exitCode, stdout, stderr, current.want)
 		}
+	}
+}
+
+func TestListTree_BadFilterValue_ListsTheDeclaredValues(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "list", "--tree", "--status", "bogus")
+
+	want := "use one of: " + strings.Join(declaredStatuses, ", ")
+	if exitCode != ExitUsage || stdout != "" || !strings.Contains(stderr, want) {
+		t.Errorf("list --tree --status bogus exit = %d stdout = %q stderr = %q, want a usage failure with %q",
+			exitCode, stdout, stderr, want)
+	}
+}
+
+func TestListTree_RowFilter_PrintsMatchesWithTheirAncestors(t *testing.T) {
+	root := newReadStore(t)
+	loginFlow := "login-flow  open  P2  Login flow  (0/1 closed)\n"
+	sessionRefresh := "  session-refresh  parked  P2  " + longTitle + "\n"
+	releaseChecklist := "release-checklist  open  P0  Release checklist\n"
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--label", "auth"}, loginFlow + sessionRefresh},
+		{[]string{"--status", "open"}, loginFlow + releaseChecklist},
+		{[]string{"--category", "todo"}, loginFlow + releaseChecklist},
+		{[]string{"--no-label", "auth"}, releaseChecklist},
+		{[]string{"--type", "task"}, loginFlow + sessionRefresh},
+		{[]string{"--priority", "2"}, loginFlow + sessionRefresh},
+		{[]string{"--plan", "login"}, loginFlow},
+		{[]string{"--planned"}, loginFlow},
+		{[]string{"--unplanned"}, strings.TrimSuffix(loginFlow, "\n") + "  [context]\n" + sessionRefresh + releaseChecklist},
+	}
+
+	for _, current := range cases {
+		stdout, stderr, exitCode := runCLI(t, root, append([]string{"list", "--tree"}, current.args...)...)
+
+		if exitCode != ExitOK || stderr != "" || stdout != current.want {
+			t.Errorf("list --tree %v exit = %d stderr = %q\nstdout = %q\nwant     %q",
+				current.args, exitCode, stderr, stdout, current.want)
+		}
+	}
+}
+
+// writeDeepLoginFlow adds to newReadStore's login-flow open Issues at every depth below it, each
+// under an ancestor that is not open: a dropped child, the parked session-refresh, and an open child
+// whose own child is parked.
+func writeDeepLoginFlow(t *testing.T, root string) {
+	t.Helper()
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow/old-attempt.md":                   readIssue("Old attempt", "dropped", "", ""),
+		"login-flow/old-attempt/revived-step.md":      readIssue("Revived step", "open", "", ""),
+		"login-flow/session-refresh/retry-backoff.md": readIssue("Retry backoff", "open", "", ""),
+		"login-flow/token-expiry.md":                  readIssue("Token expiry", "open", "", ""),
+		"login-flow/token-expiry/cache-warmup.md":     readIssue("Cache warmup", "parked", "", ""),
+	})
+}
+
+func TestListTree_StatusUnderParent_MarksTheAncestorsAsContext(t *testing.T) {
+	root := newReadStore(t)
+	writeDeepLoginFlow(t, root)
+
+	stdout, stderr, exitCode := runCLI(t, root, "list", "--tree", "--parent", "login-flow", "--status", "open")
+
+	want := "login-flow  open  P2  Login flow  (1/3 closed)\n" +
+		"  old-attempt  dropped  P2  Old attempt  (0/1 closed)  [context]\n" +
+		"    revived-step  open  P2  Revived step\n" +
+		"  session-refresh  parked  P2  " + longTitle + "  (0/1 closed)  [context]\n" +
+		"    retry-backoff  open  P2  Retry backoff\n" +
+		"  token-expiry  open  P2  Token expiry  (0/1 closed)\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("list --tree --parent login-flow --status open exit = %d stderr = %q\nstdout = %q\nwant     %q",
+			exitCode, stderr, stdout, want)
+	}
+}
+
+func TestListTree_StatusUnderParentJSON_CarriesContext(t *testing.T) {
+	root := newReadStore(t)
+	writeDeepLoginFlow(t, root)
+
+	stdout := mustRun(t, root, "list", "--tree", "--parent", "login-flow", "--status", "open", "--json")
+
+	var got []string
+	for _, item := range decodeEnvelope(t, stdout)["data"].([]any) {
+		issue := item.(map[string]any)
+		got = append(got, fmt.Sprintf("%v context=%v children=%v", issue["id"], issue["context"], issue["children"]))
+	}
+	want := []string{
+		"login-flow context=<nil> children=map[closed:1 total:3]",
+		"old-attempt context=true children=map[closed:0 total:1]",
+		"revived-step context=<nil> children=<nil>",
+		"session-refresh context=true children=map[closed:0 total:1]",
+		"retry-backoff context=<nil> children=<nil>",
+		"token-expiry context=<nil> children=map[closed:0 total:1]",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("list --tree --parent login-flow --status open --json items = %v\nwant %v", got, want)
+	}
+}
+
+func TestListTree_LabelWithoutAll_LeavesOutClosedMatches(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow/old-auth.md": readIssue("Old auth", "dropped", "labels: [auth]\n", ""),
+	})
+
+	open := listTreeIDs(t, root, "--label", "auth")
+	all := listTreeIDs(t, root, "--label", "auth", "--all")
+
+	if want := []string{"login-flow", "session-refresh"}; !slices.Equal(open, want) {
+		t.Errorf("list --tree --label auth ids = %v, want %v", open, want)
+	}
+	if want := []string{"login-flow", "old-auth", "session-refresh"}; !slices.Equal(all, want) {
+		t.Errorf("list --tree --label auth --all ids = %v, want %v", all, want)
+	}
+}
+
+// listTreeIDs runs capcom list --tree --json with args and returns the ids of the printed rows.
+func listTreeIDs(t *testing.T, root string, args ...string) []string {
+	t.Helper()
+	return envelopeIDs(t, mustRun(t, root, append([]string{"list", "--tree", "--json"}, args...)...))
+}
+
+func TestListTree_FilterWithDepth_CountsKeptRowsOnly(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow/token-expiry.md": readIssue("Token expiry", "open", "", ""),
+	})
+
+	stdout := mustRun(t, root, "list", "--tree", "--depth", "1", "--status", "open")
+
+	want := "login-flow  open  P2  Login flow  (0/2 closed)\n" +
+		"  ... 1 more (--depth 2)\n" +
+		"release-checklist  open  P0  Release checklist\n"
+	if stdout != want {
+		t.Errorf("list --tree --depth 1 --status open = %q\nwant %q", stdout, want)
+	}
+}
+
+func TestListTree_TypeUnderClosedParent_PrintsTheParentAsContext(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"old-idea/old-step.md": readIssue("Old step", "open", "", ""),
+	})
+
+	stdout := mustRun(t, root, "list", "--tree", "--type", "task")
+
+	want := "login-flow  open  P2  Login flow  (0/1 closed)\n" +
+		"  session-refresh  parked  P2  " + longTitle + "\n" +
+		"old-idea  dropped  P2  Old idea  (0/1 closed)  [context]\n" +
+		"  old-step  open  P2  Old step\n"
+	if stdout != want {
+		t.Errorf("list --tree --type task = %q\nwant %q", stdout, want)
 	}
 }
 
