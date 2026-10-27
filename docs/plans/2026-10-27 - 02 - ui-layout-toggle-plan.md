@@ -42,7 +42,9 @@
 - 7: guard folded
 - 8: guard folded (writer decision: tui.md notice quote and help copy; reviewer guards: Mouse sections, state-file prose)
 
-## 1. `ui.layout` in the state file
+## 1. `ui.layout` in the state file — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the ui.layout reader is a plain function `layout(node, target)` rather than a `parser` method, since it never errors and needs no parser state; a stored value must be a string scalar (quoted or plain) equal to split or stacked, so a wrong-case `Stacked` also loads as no choice.
 
 **What:**
 **Goal:** `userconfig.UIState` carries `Layout string`, one of `userconfig.LayoutSplit` (`"split"`), `userconfig.LayoutStacked` (`"stacked"`) or `""` for none; `LoadState` reads `ui.layout`, loading any other value or node kind as `""` with no error; `SaveState` writes `ui.layout` when non-empty, after both ratios, and refuses any value but those three.

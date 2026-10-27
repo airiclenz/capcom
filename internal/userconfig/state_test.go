@@ -77,6 +77,16 @@ func TestSaveState_LoadState_RoundTrips(t *testing.T) {
 			userconfig.UIState{SidebarRatio: 0.3, StackedRatio: 0.45},
 			stateHeader + "ui:\n  sidebar_ratio: 0.3\n  stacked_ratio: 0.45\n",
 		},
+		{
+			"only a layout choice",
+			userconfig.UIState{Layout: userconfig.LayoutStacked},
+			stateHeader + "ui:\n  layout: stacked\n",
+		},
+		{
+			"both ratios and a layout choice, layout last",
+			userconfig.UIState{SidebarRatio: 0.3, StackedRatio: 0.45, Layout: userconfig.LayoutSplit},
+			stateHeader + "ui:\n  sidebar_ratio: 0.3\n  stacked_ratio: 0.45\n  layout: split\n",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -176,6 +186,64 @@ func TestSaveState_RatioOutOfRange_ErrorsAndLeavesTheFile(t *testing.T) {
 				t.Errorf("state file = %q, want it left as %q", got, existing)
 			}
 		})
+	}
+}
+
+func TestSaveState_UnknownLayout_ErrorsAndLeavesTheFile(t *testing.T) {
+	const existing = "ui:\n  sidebar_ratio: 0.25\n  layout: split\n"
+	path := writeState(t, existing)
+
+	err := userconfig.SaveState(
+		path,
+		userconfig.State{UI: userconfig.UIState{SidebarRatio: 0.3, Layout: "auto"}},
+	)
+
+	const want = `save the state file: layout "auto" is not split or stacked`
+	if err == nil || err.Error() != want {
+		t.Errorf("SaveState() error = %v, want %q", err, want)
+	}
+	if got := readFile(t, path); got != existing {
+		t.Errorf("state file = %q, want it left as %q", got, existing)
+	}
+}
+
+func TestLoadState_UnknownLayout_LoadsNoChoiceAndKeepsTheRatios(t *testing.T) {
+	tests := []struct {
+		name   string
+		layout string
+	}{
+		{"an unknown name", "auto"},
+		{"a number", "3"},
+		{"a list", "[a]"},
+		{"a mapping", "{split: true}"},
+		{"null", "~"},
+		{"a known name in the wrong case", "Stacked"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := writeState(
+				t,
+				stateHeader+"ui:\n  sidebar_ratio: 0.3\n  stacked_ratio: 0.45\n  layout: "+test.layout+"\n",
+			)
+
+			state, err := userconfig.LoadState(path)
+
+			want := userconfig.State{UI: userconfig.UIState{SidebarRatio: 0.3, StackedRatio: 0.45}}
+			if err != nil || state != want {
+				t.Errorf("LoadState() = %#v, %v; want %#v and no error", state, err, want)
+			}
+		})
+	}
+}
+
+func TestLoadState_QuotedLayout_LoadsTheChoice(t *testing.T) {
+	path := writeState(t, stateHeader+"ui:\n  layout: \"stacked\"\n")
+
+	state, err := userconfig.LoadState(path)
+
+	want := userconfig.State{UI: userconfig.UIState{Layout: userconfig.LayoutStacked}}
+	if err != nil || state != want {
+		t.Errorf("LoadState() = %#v, %v; want %#v and no error", state, err, want)
 	}
 }
 
