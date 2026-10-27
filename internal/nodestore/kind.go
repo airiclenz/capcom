@@ -22,6 +22,9 @@ type Kind[T any] struct {
 	reader Reader[T]
 	// dir is the directory that holds the kind's tree.
 	dir string
+	// knowledgeDir is the directory that holds the store's Knowledge tree, whose Notes' Refs a move
+	// rewrites when they name the moved node file or its children directory.
+	knowledgeDir string
 	// worktreeRoot is the top directory of the git working tree.
 	worktreeRoot string
 	// relative names a path relative to the working tree root with forward slashes, as
@@ -93,6 +96,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		codec:        issueCodec(s.Config),
 		reader:       IssueReader(s.Config),
 		dir:          s.IssuesDir(),
+		knowledgeDir: s.KnowledgeDir(),
 		worktreeRoot: s.WorktreeRoot,
 		relative:     s.Relative,
 		resolver:     resolver,
@@ -110,6 +114,7 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		codec:        noteCodec(),
 		reader:       NoteReader(),
 		dir:          s.KnowledgeDir(),
+		knowledgeDir: s.KnowledgeDir(),
 		worktreeRoot: s.WorktreeRoot,
 		relative:     s.Relative,
 		resolver:     resolver,

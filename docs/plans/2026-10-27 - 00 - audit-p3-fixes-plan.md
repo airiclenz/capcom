@@ -210,7 +210,12 @@ returns the root).
 - `go run ./cmd/capcom check`
 **Commit:** `fix(prime): count an issue as planned only when its plan resolves`
 
-## 6. A move rewrites the Note Refs that point at what it moved
+## 6. A move rewrites the Note Refs that point at what it moved — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): Moved gains UnreadNotes (Notes whose Refs could not be checked, or the Knowledge dir when it cannot be walked) and RefsRewritten (Notes whose Refs were rewritten), both at post-move paths; the CLI does not render them yet (item 7).
+NOTES (2026-10-27): the Note list comes from tree.Walk(knowledgeDir) in refs.go (planNoteRefs), not a loader in load.go; a walk failure joins UnreadNotes as the Knowledge directory's path.
+NOTES (2026-10-27): the path pass treats every Note read failure as an UnreadNotes warning for a Note move too (not only an issue move); a Note rename's existing superseded-by pass keeps its fatal read failures, and a Note it already lists in Unread is not repeated in UnreadNotes.
+NOTES (2026-10-27): Moved.Unread is now also relocated to post-move paths (files inside the moved children directory), per the item's regression guard; Kind.movedPaths reuses knowledge.RewriteRefs for the mapping.
 
 **What:**
 **Goal:** `Kind.Move` of an issue or a Note (rename or re-parent) rewrites, in every Note file, each

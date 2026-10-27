@@ -3,7 +3,9 @@ package nodestore
 import (
 	"errors"
 	"maps"
+	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -11,6 +13,7 @@ import (
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 // refIssue is the content of an issue file with the frontmatter lines front, each ending in a
@@ -51,6 +54,27 @@ func newRefNotes(t *testing.T, files map[string]string) (*Kind[knowledge.Note], 
 	s := newStore(t)
 	writeRefTree(t, s.KnowledgeDir(), files)
 	return Notes(s, nil), s.KnowledgeDir()
+}
+
+// newRefStore writes issues and notes (slash paths to content) into the issue tree and the
+// Knowledge tree of a fresh store and returns the store.
+func newRefStore(t *testing.T, issues map[string]string, notes map[string]string) *store.Store {
+	t.Helper()
+	s := newStore(t)
+	writeRefTree(t, s.IssuesDir(), issues)
+	writeRefTree(t, s.KnowledgeDir(), notes)
+	return s
+}
+
+// parseNoteAt parses the Note file at the slash path name below dir.
+func parseNoteAt(t *testing.T, dir string, name string) knowledge.Note {
+	t.Helper()
+	path := filepath.Join(dir, filepath.FromSlash(name))
+	parsed, err := knowledge.Parse(path, []byte(readFile(t, path)))
+	if err != nil {
+		t.Fatalf("Parse(%s): %v", name, err)
+	}
+	return parsed
 }
 
 // parseIssueAt parses the issue file at the slash path name below dir.
@@ -182,22 +206,116 @@ func TestMove_RenameIssueBackToItsOwnAlias_SwapsIt(t *testing.T) {
 	}
 }
 
-func TestMove_ReparentIssue_RewritesNoOtherFile(t *testing.T) {
+func TestMove_ReparentIssue_RewritesNoOtherIssueButTheNoteRefs(t *testing.T) {
 	t.Parallel()
-	issues, dir := newRefIssues(t, map[string]string{
+	s := newRefStore(t, map[string]string{
 		"login-flow.md":   refIssue("aliases: [old-login]\n", ""),
 		"other-issue.md":  refIssue("", ""),
 		"session-work.md": refIssue("deps: [login-flow]\nrelated: [old-login]\n", ""),
+	}, map[string]string{
+		"login-notes.md": refNote("Login", "refs: [.capcom/issues/login-flow.md#Acceptance]\n", ""),
 	})
+	dir := s.IssuesDir()
 	before := treeContent(t, dir)
 	delete(before, "login-flow.md")
 
-	mustMove(t, issues, "login-flow", Destination{Parent: "other-issue", IsReparented: true})
+	moved := mustMove(t, Issues(s, nil), "login-flow", Destination{Parent: "other-issue", IsReparented: true})
 
 	after := treeContent(t, dir)
 	delete(after, filepath.Join("other-issue", "login-flow.md"))
 	if !maps.Equal(after, before) {
-		t.Errorf("other files =\n%v\nwant them byte for byte as before:\n%v", after, before)
+		t.Errorf("other issues =\n%v\nwant them byte for byte as before:\n%v", after, before)
+	}
+	want := []string{".capcom/issues/other-issue/login-flow.md#Acceptance"}
+	if got := parseNoteAt(t, s.KnowledgeDir(), "login-notes.md").Refs; !slices.Equal(got, want) {
+		t.Errorf("login-notes refs = %v, want %v", got, want)
+	}
+	if want := []string{".capcom/knowledge/login-notes.md"}; !slices.Equal(moved.RefsRewritten, want) {
+		t.Errorf("RefsRewritten = %v, want %v", moved.RefsRewritten, want)
+	}
+}
+
+func TestMove_RenameIssue_RewritesNoteRefsToItsFileAndDirectory(t *testing.T) {
+	t.Parallel()
+	untouched := refNote("Untouched", "refs: [.capcom/issues/other.md]\n", "")
+	s := newRefStore(t, map[string]string{
+		"beta-new.md":       refIssue("", "\n## Acceptance\n"),
+		"beta-new/child.md": refIssue("", ""),
+		"other.md":          refIssue("", ""),
+	}, map[string]string{
+		"nref.md": refNote("Refs", "refs: [.capcom/issues/beta-new.md, .capcom/issues/beta-new.md#Acceptance, "+
+			".capcom/issues/beta-new/child.md, .capcom/issues/beta-new, .capcom/issues/other.md]\n", "\nSee beta-new.\n"),
+		"untouched.md": untouched,
+	})
+
+	moved := mustMove(t, Issues(s, nil), "beta-new", Destination{ID: "beta-final"})
+
+	note := parseNoteAt(t, s.KnowledgeDir(), "nref.md")
+	want := []string{
+		".capcom/issues/beta-final.md",
+		".capcom/issues/beta-final.md#Acceptance",
+		".capcom/issues/beta-final/child.md",
+		".capcom/issues/beta-final",
+		".capcom/issues/other.md",
+	}
+	if !slices.Equal(note.Refs, want) || note.Body != "\nSee beta-new.\n" {
+		t.Errorf("nref refs = %v body = %q, want refs %v and the body unchanged", note.Refs, note.Body, want)
+	}
+	if got := readFile(t, filepath.Join(s.KnowledgeDir(), "untouched.md")); got != untouched {
+		t.Errorf("untouched.md =\n%s\nwant it byte for byte as before", got)
+	}
+	if want := []string{".capcom/knowledge/nref.md"}; !slices.Equal(moved.RefsRewritten, want) || moved.UnreadNotes != nil {
+		t.Errorf("RefsRewritten = %v UnreadNotes = %v, want %v and none unread", moved.RefsRewritten, moved.UnreadNotes, want)
+	}
+	notes := []knowledge.NoteFile{{ID: "nref", Path: ".capcom/knowledge/nref.md", Note: note}}
+	findings, err := knowledge.Verify(knowledge.Repository{WorktreeRoot: s.WorktreeRoot}, notes)
+	if err != nil || len(findings) != 0 {
+		t.Errorf("Verify = %v, %v; want every Ref to resolve after the move", findings, err)
+	}
+}
+
+func TestMove_Issue_NoteThatCannotBeCheckedWarnsAndTheMoveLands(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		isPermission bool
+		lock         string
+		want         string
+	}{
+		{name: "unparseable note", want: ".capcom/knowledge/locked.md"},
+		{name: "unreadable note", isPermission: true, lock: "locked.md", want: ".capcom/knowledge/locked.md"},
+		{name: "unwalkable knowledge tree", isPermission: true, lock: ".", want: ".capcom/knowledge"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if test.isPermission && (runtime.GOOS == "windows" || os.Geteuid() == 0) {
+				t.Skip("file permission tests do not run on Windows or as root")
+			}
+			lockedNote := refNote("Locked", "refs: [.capcom/issues/alpha.md]\n", "")
+			if !test.isPermission {
+				lockedNote = unparseable(lockedNote)
+			}
+			s := newRefStore(t, map[string]string{"alpha.md": refIssue("", "")}, map[string]string{"locked.md": lockedNote})
+			if test.isPermission {
+				locked := filepath.Join(s.KnowledgeDir(), test.lock)
+				if err := os.Chmod(locked, 0o000); err != nil {
+					t.Fatalf("Chmod: %v", err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+			}
+
+			moved, _, err := Issues(s, nil).Move("alpha", Destination{ID: "beta"}, "")
+
+			if err != nil || moved.Path != ".capcom/issues/beta.md" {
+				t.Fatalf("Move = %+v, %v; want the move to land at beta.md", moved, err)
+			}
+			if want := []string{test.want}; !slices.Equal(moved.UnreadNotes, want) || moved.RefsRewritten != nil {
+				t.Errorf("UnreadNotes = %v RefsRewritten = %v, want %v and nothing rewritten",
+					moved.UnreadNotes, moved.RefsRewritten, want)
+			}
+		})
 	}
 }
 
@@ -336,7 +454,7 @@ func TestMove_ReparentNote_LeavesTheFileBytes(t *testing.T) {
 	}
 }
 
-func TestMove_ReparentNote_RewritesNoOtherNote(t *testing.T) {
+func TestMove_ReparentNote_RewritesNoSuccessorEntry(t *testing.T) {
 	t.Parallel()
 	successor := refNote("Superseded", "superseded-by: [old-rule]\n", "")
 	notes, dir := newRefNotes(t, map[string]string{
@@ -349,6 +467,57 @@ func TestMove_ReparentNote_RewritesNoOtherNote(t *testing.T) {
 
 	if got := readFile(t, filepath.Join(dir, "superseded.md")); got != successor {
 		t.Errorf("superseded.md =\n%s\nwant it byte for byte as before", got)
+	}
+}
+
+func TestMove_RenameNote_RewritesAnotherNotesRefsAndSuccessorsInOneWrite(t *testing.T) {
+	t.Parallel()
+	notes, dir := newRefNotes(t, map[string]string{
+		"old-rule.md":        refNote("Old rule", "", ""),
+		"old-rule/detail.md": refNote("Detail", "", ""),
+		"superseded.md": refNote("Superseded", "refs: [.capcom/knowledge/old-rule.md#Steps, "+
+			".capcom/knowledge/old-rule/detail.md]\nsuperseded-by: [old-rule]\n", ""),
+	})
+
+	moved := mustMove(t, notes, "old-rule", Destination{ID: "new-rule"})
+
+	note := parseNoteAt(t, dir, "superseded.md")
+	wantRefs := []string{".capcom/knowledge/new-rule.md#Steps", ".capcom/knowledge/new-rule/detail.md"}
+	if !slices.Equal(note.Refs, wantRefs) || !slices.Equal(note.SupersededBy, []string{"new-rule"}) {
+		t.Errorf("superseded refs = %v superseded-by = %v, want %v and [new-rule]", note.Refs, note.SupersededBy, wantRefs)
+	}
+	if want := []string{".capcom/knowledge/superseded.md"}; !slices.Equal(moved.RefsRewritten, want) {
+		t.Errorf("RefsRewritten = %v, want %v", moved.RefsRewritten, want)
+	}
+}
+
+func TestMove_ReparentNote_RewritesRefsInsideItsSubtreeAndReportsTheirNewPaths(t *testing.T) {
+	t.Parallel()
+	notes, dir := newRefNotes(t, map[string]string{
+		"guide.md":        refNote("Guide", "refs: [.capcom/knowledge/guide/step.md]\n", ""),
+		"guide/step.md":   refNote("Step", "refs: [.capcom/knowledge/guide.md#Intro]\n", ""),
+		"guide/broken.md": unparseable(refNote("Broken", "refs: [.capcom/knowledge/guide.md]\n", "")),
+		"parent.md":       refNote("Parent", "", ""),
+	})
+
+	moved := mustMove(t, notes, "guide", Destination{Parent: "parent", IsReparented: true})
+
+	guide := parseNoteAt(t, dir, "parent/guide.md")
+	if want := []string{".capcom/knowledge/parent/guide/step.md"}; !slices.Equal(guide.Refs, want) {
+		t.Errorf("guide refs = %v, want %v", guide.Refs, want)
+	}
+	if want := nodefile.ETag([]byte(readFile(t, filepath.Join(dir, "parent", "guide.md")))); moved.ETag != want {
+		t.Errorf("Moved.ETag = %s, want %s, the etag of the rewritten guide", moved.ETag, want)
+	}
+	step := parseNoteAt(t, dir, "parent/guide/step.md")
+	if want := []string{".capcom/knowledge/parent/guide.md#Intro"}; !slices.Equal(step.Refs, want) {
+		t.Errorf("step refs = %v, want %v", step.Refs, want)
+	}
+	wantRewritten := []string{".capcom/knowledge/parent/guide.md", ".capcom/knowledge/parent/guide/step.md"}
+	wantUnread := []string{".capcom/knowledge/parent/guide/broken.md"}
+	if !slices.Equal(moved.RefsRewritten, wantRewritten) || !slices.Equal(moved.UnreadNotes, wantUnread) {
+		t.Errorf("RefsRewritten = %v UnreadNotes = %v, want %v and %v",
+			moved.RefsRewritten, moved.UnreadNotes, wantRewritten, wantUnread)
 	}
 }
 

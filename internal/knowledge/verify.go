@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 
@@ -78,6 +80,56 @@ func ValidateRef(ref string) error {
 		return fmt.Errorf("ref %q %w", ref, err)
 	}
 	return nil
+}
+
+// RewriteRefs returns refs with every Ref that names a moved node file or its children directory
+// rewritten to where it lives after the move, and reports whether any Ref was. oldFile and newFile
+// are the node file before and after the move, oldDir and newDir its children directory, all
+// relative to the working tree root with forward slashes. A Ref whose path, cleaned, equals oldFile
+// becomes newFile, one equal to oldDir becomes newDir, and one below oldDir keeps the rest of its
+// path below newDir; its `#symbol` is kept. Every other Ref, a malformed one included, is kept as it
+// is. refs is returned unchanged, not copied, when no Ref is rewritten.
+func RewriteRefs(refs []string, oldFile string, newFile string, oldDir string, newDir string) ([]string, bool) {
+	var rewritten []string
+	for i, ref := range refs {
+		moved, isMoved := movedRef(ref, oldFile, newFile, oldDir, newDir)
+		if !isMoved {
+			continue
+		}
+		if rewritten == nil {
+			rewritten = slices.Clone(refs)
+		}
+		rewritten[i] = moved
+	}
+	if rewritten == nil {
+		return refs, false
+	}
+	return rewritten, true
+}
+
+// movedRef returns ref rewritten as RewriteRefs rewrites it, and whether it names the moved file or
+// directory at all.
+func movedRef(ref string, oldFile string, newFile string, oldDir string, newDir string) (string, bool) {
+	refPath, symbol, err := splitRef(ref)
+	if err != nil {
+		return ref, false
+	}
+	cleaned := path.Clean(refPath)
+	var moved string
+	switch {
+	case cleaned == oldFile:
+		moved = newFile
+	case cleaned == oldDir:
+		moved = newDir
+	case strings.HasPrefix(cleaned, oldDir+"/"):
+		moved = newDir + strings.TrimPrefix(cleaned, oldDir)
+	default:
+		return ref, false
+	}
+	if symbol != "" {
+		moved += symbolSeparator + symbol
+	}
+	return moved, true
 }
 
 // IgnoreFunc returns the subset of paths, relative to the working tree root dir with forward

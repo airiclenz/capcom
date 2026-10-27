@@ -3,6 +3,7 @@ package nodestore
 import (
 	"errors"
 
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -19,7 +20,8 @@ type Destination struct {
 }
 
 // Moved is the outcome of a Move: the node written at its new id and file, with its new etag, and
-// where it was before. Every path is relative to the working tree root with forward slashes.
+// where it was before. Every path is relative to the working tree root with forward slashes, and a
+// file the move carried along inside the node's children directory is named at its new path.
 type Moved struct {
 	Written
 	// OldID is the node's id before the move.
@@ -29,6 +31,14 @@ type Moved struct {
 	// Unread are the files of other nodes that do not parse, so the references in them to the
 	// moved node could not be checked and were left as they are.
 	Unread []string
+	// UnreadNotes are the Note files that do not parse or cannot be read, so their Refs to the
+	// moved node file or its children directory could not be checked and were left as they are, and
+	// the Knowledge directory itself when it could not be walked. A Note file Unread names is left
+	// out.
+	UnreadNotes []string
+	// RefsRewritten are the Note files whose Refs the move rewrote to the new path of the node file
+	// or its children directory, in walk order.
+	RefsRewritten []string
 	// LeftInPlace are the emptied old parent directories the move's cleanup could not remove, each
 	// a *FileError at the directory saying why. The move itself has landed.
 	LeftInPlace []*FileError
@@ -38,7 +48,10 @@ type Moved struct {
 // below another, or both, as to says, carrying its subtree along. A rename keeps the old id as an
 // Alias and renames, in every node file, the node's own among them, the entries of the kind's
 // reference fields that name the old id or an Alias, keeping one entry per new id; the node's own
-// self-refused fields (a Note's superseded-by) drop an entry naming the new id. It returns the node
+// self-refused fields (a Note's superseded-by) drop an entry naming the new id. A rename and a
+// re-parent alike rewrite, in every Note file of the store, each Ref naming the node file, its
+// children directory or a path below it to its new path, keeping its `#symbol`; a Note that cannot
+// be checked is reported in Moved.UnreadNotes and never fails the move. It returns the node
 // moved and the tree problems that do not concern it, their paths relative to the working tree
 // root with forward slashes, for the caller to report as warnings once it has renamed the paths
 // inside the moved children directory.
@@ -125,14 +138,31 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 		OldID:   node.ID,
 		OldPath: k.relative(node.Path),
 	}
-	for _, unread := range move.unread {
-		moved.Unread = append(moved.Unread, k.relative(unread))
-	}
+	moved.Unread = k.movedPaths(move, move.unread)
+	moved.UnreadNotes = k.movedPaths(move, move.unreadNotes)
+	moved.RefsRewritten = k.movedPaths(move, move.refsRewritten)
 	for _, failure := range leftInPlace {
 		moved.LeftInPlace = append(moved.LeftInPlace, k.cleanupFailure(failure, node))
 	}
 	k.runSync(&moved.Effects)
 	return moved, warnings, nil
+}
+
+// movedPaths returns paths, files the plan of move read, relative to the working tree root with
+// forward slashes and at where each lives after the move: a file inside the moved node's children
+// directory is named below its new one. It returns nil for no paths.
+func (k *Kind[T]) movedPaths(move *nodeMove, paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	oldFile, newFile := k.relative(move.Node.Path), k.relative(move.NewPath)
+	relative := make([]string, 0, len(paths))
+	for _, path := range paths {
+		relative = append(relative, k.relative(path))
+	}
+	// A path is moved exactly as a Ref naming it is rewritten.
+	moved, _ := knowledge.RewriteRefs(relative, oldFile, newFile, tree.ChildrenDir(oldFile), tree.ChildrenDir(newFile))
+	return moved
 }
 
 // resolveParent returns the node parent resolves to in nodes, or the zero node, the top of the

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -51,24 +52,38 @@ type nodeMove struct {
 	// refuses unread, so the references in them to the moved node could not be checked and were
 	// left as they are.
 	unread []string
+	// unreadNotes are the Note files that do not parse or cannot be read, so their Refs to the moved
+	// node file or its children directory could not be checked and were left as they are, and the
+	// Knowledge directory itself when it could not be walked. A Note file unread already lists is
+	// left out.
+	unreadNotes []string
+	// refsRewritten are the Note files whose Refs the move rewrites, in walk order.
+	refsRewritten []string
 }
 
 // planNodeMove works out the move of node, a node of nodes, to the destination to, reading the
 // node files but changing nothing. The node's children directory, with its whole subtree, moves
 // along with it. Every rewrite keeps the bytes it read as its Original, so the move's Apply refuses
-// a file changed since.
+// a file changed since, and a file both a rename and a changed path rewrite is rewritten once with
+// both changes.
 //
 // A rename adds the old id to the node's Aliases (or, when the new id is one of its own Aliases,
 // swaps the two) and, in every node file of the tree, the node's own among them, replaces each
 // entry of the kind's reference fields that names the old id or one of its Aliases by the new id,
 // keeping only the first entry equal to it; a file none of whose entries names them keeps its
 // entries as they are. On the node's own self-refused fields, an entry naming the new id is
-// dropped. Body text is never rewritten, and a re-parent alone rewrites no file.
+// dropped. Body text is never rewritten.
+//
+// A move that changes the node file's path, a rename or a re-parent, rewrites, in every Note file
+// of the store's Knowledge tree, the moved Note's own and those inside its subtree among them, each
+// Ref naming the node file, its children directory or a path below it to its path after the move,
+// as knowledge.RewriteRefs does; a Note none of whose Refs names them is left as it is.
 //
 // It checks the destination before it reads any file, failing as tree.PlanMove does, then fails
 // with the error of the node's own file when nodefile.ReadRegularFile refuses it or it does not
-// parse, and with the error of another node file it cannot read; another node file that does not
-// parse, or that nodefile.ReadRegularFile refuses unread, joins unread instead.
+// parse, and, on a rename, with the error of another node file it cannot read; another node file
+// that does not parse, or that nodefile.ReadRegularFile refuses unread, joins unread instead. A
+// Note whose Refs cannot be checked never fails the move: it joins unreadNotes.
 func (k *Kind[T]) planNodeMove(nodes *tree.Tree, node tree.Node, to tree.Destination) (*nodeMove, error) {
 	planned, err := nodes.PlanMove(node.ID, to, k.codec.nounPhrase)
 	if err != nil {
@@ -84,31 +99,135 @@ func (k *Kind[T]) planNodeMove(nodes *tree.Tree, node tree.Node, to tree.Destina
 	}
 
 	move := &nodeMove{Move: planned, original: data, content: data}
-	if planned.NewID == node.ID {
-		return move, nil
+	rewrites := &rewriteSet{}
+	if planned.NewID != node.ID {
+		if err := k.planRename(nodes, own, move, rewrites); err != nil {
+			return nil, err
+		}
 	}
+	if planned.NewPath != node.Path {
+		k.planNoteRefs(move, rewrites)
+	}
+	for _, rewrite := range rewrites.rewrites {
+		planned.AddRewrite(rewrite)
+	}
+	return move, nil
+}
+
+// planRename adds to rewrites the rewrites of a rename of move's node, own its parsed file: the
+// node file with its Aliases and reference fields renamed, setting move.content, and every other
+// node file of nodes whose entries name the node. A node file that cannot be checked joins
+// move.unread; one that cannot be read otherwise fails the rename.
+func (k *Kind[T]) planRename(nodes *tree.Tree, own T, move *nodeMove, rewrites *rewriteSet) error {
+	node := move.Node
 	names := slices.Concat([]string{node.ID}, node.Aliases)
-	own = k.codec.setAliases(own, tree.RenameAliases(k.codec.Aliases(own), node.ID, planned.NewID))
-	own = k.renameOwnRefs(own, names, planned.NewID)
+	own = k.codec.setAliases(own, tree.RenameAliases(k.codec.Aliases(own), node.ID, move.NewID))
+	own = k.renameOwnRefs(own, names, move.NewID)
 	move.content = k.codec.Serialize(own)
-	planned.AddRewrite(tree.Rewrite{Path: node.Path, Original: data, Content: move.content})
+	rewrites.put(tree.Rewrite{Path: node.Path, Original: move.original, Content: move.content})
 
 	for _, other := range nodes.Nodes() {
 		if other.ID == node.ID {
 			continue
 		}
-		rewrite, isUnread, err := k.planRefRewrite(other.Path, names, planned.NewID)
+		rewrite, isUnread, err := k.planRefRewrite(other.Path, names, move.NewID)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if isUnread {
 			move.unread = append(move.unread, other.Path)
 		}
 		if rewrite != nil {
-			planned.AddRewrite(*rewrite)
+			rewrites.put(*rewrite)
 		}
 	}
-	return move, nil
+	return nil
+}
+
+// planNoteRefs adds to rewrites the rewrite of every Note file of the store's Knowledge tree whose
+// Refs name move's node file, its children directory or a path below it, recording it in
+// move.refsRewritten. A Note already among rewrites is rewritten from the content planned for it,
+// the moved Note's own file from move.content, which follows the rewrite. A Note that does not
+// parse or cannot be read, and the Knowledge directory when it cannot be walked, join
+// move.unreadNotes; a Note move.unread already lists is skipped.
+func (k *Kind[T]) planNoteRefs(move *nodeMove, rewrites *rewriteSet) {
+	oldFile, newFile := k.relative(move.Node.Path), k.relative(move.NewPath)
+	oldDir, newDir := tree.ChildrenDir(oldFile), tree.ChildrenDir(newFile)
+	// The walk's problems are files it leaves out of the tree, no Notes; the index warns about them.
+	notes, _, err := tree.Walk(k.knowledgeDir)
+	if err != nil {
+		move.unreadNotes = append(move.unreadNotes, k.knowledgeDir)
+		return
+	}
+	for _, note := range notes {
+		if slices.Contains(move.unread, note.Path) {
+			continue
+		}
+		original, current, err := move.noteContent(note.Path, rewrites)
+		if err != nil {
+			move.unreadNotes = append(move.unreadNotes, note.Path)
+			continue
+		}
+		parsed, err := knowledge.Parse(note.Path, current)
+		if err != nil {
+			move.unreadNotes = append(move.unreadNotes, note.Path)
+			continue
+		}
+		refs, isRewritten := knowledge.RewriteRefs(parsed.Refs, oldFile, newFile, oldDir, newDir)
+		if !isRewritten {
+			continue
+		}
+		parsed.Refs = refs
+		content := parsed.Serialize()
+		rewrites.put(tree.Rewrite{Path: note.Path, Original: original, Content: content})
+		if note.Path == move.Node.Path {
+			move.content = content
+		}
+		move.refsRewritten = append(move.refsRewritten, note.Path)
+	}
+}
+
+// noteContent returns the Note file at path as read from disk and as the move has planned it so
+// far: from rewrites when they hold it, from the move itself for the moved node's own file, and
+// read from disk otherwise, failing with the read's error.
+func (m *nodeMove) noteContent(path string, rewrites *rewriteSet) ([]byte, []byte, error) {
+	if planned, isPlanned := rewrites.find(path); isPlanned {
+		return planned.Original, planned.Content, nil
+	}
+	if path == m.Node.Path {
+		return m.original, m.content, nil
+	}
+	data, err := nodefile.ReadRegularFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	return data, data, nil
+}
+
+// rewriteSet collects the rewrites of one move, one per file in the order each file was first put,
+// so a file two passes change is written once with both changes.
+type rewriteSet struct {
+	rewrites []tree.Rewrite
+}
+
+// find returns the rewrite of the file at path, and whether the set holds one.
+func (s *rewriteSet) find(path string) (tree.Rewrite, bool) {
+	index := slices.IndexFunc(s.rewrites, func(rewrite tree.Rewrite) bool { return rewrite.Path == path })
+	if index < 0 {
+		return tree.Rewrite{}, false
+	}
+	return s.rewrites[index], true
+}
+
+// put adds rewrite to the set, or, when the set already holds a rewrite of its file, replaces that
+// rewrite's Content with rewrite's, keeping the Original it was first read with.
+func (s *rewriteSet) put(rewrite tree.Rewrite) {
+	index := slices.IndexFunc(s.rewrites, func(held tree.Rewrite) bool { return held.Path == rewrite.Path })
+	if index < 0 {
+		s.rewrites = append(s.rewrites, rewrite)
+		return
+	}
+	s.rewrites[index].Content = rewrite.Content
 }
 
 // renameOwnRefs returns own, the renamed node, with its reference fields renamed from names to
