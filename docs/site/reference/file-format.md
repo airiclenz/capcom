@@ -892,12 +892,14 @@ Both times are RFC3339 in UTC. A lock whose heartbeat is older than `lock.ttl` i
 (2 h by default), or dated more than one `lock.ttl` ahead by a clock that ran fast, is **stale**:
 it is still held, but another session may take it over with `lock acquire --take-stale`, and
 `lock break` frees it whoever holds it. The lock is advisory; capcom installs no git hooks, and
-`lock check` lets a repository opt in to a check of its own.
+`lock check` lets a repository opt in to a check of its own. A capcom command that writes is never
+refused while the lock is held: it reads the record and adds a warning naming the holder, unless
+it writes only the Issue whose id is the lock's `purpose` (ADR 0017).
 A record that does not parse or carries no token holds no lock: `lock break` discards it with a
 warning, and `lock status --all` and `capcom prime` skip it with a warning naming the file.
 Every change to a record runs under an OS file lock on its `.lck` file, held only for that read and
 write, and the record is replaced atomically. Reading the lock (`lock check`, `lock status`,
-`capcom prime`) takes no file lock and creates nothing.
+`capcom prime`, and the check a writing command makes) takes no file lock and creates nothing.
 
 ## The Managed block in AGENTS.md
 
@@ -918,8 +920,9 @@ commands, and run `capcom check` after a hand edit), a paragraph recommending th
 a change that spans several files or commits (`capcom lock acquire --purpose <text>`, or
 `capcom start <id>` for an issue; capcom keeps the Lock token for the session, so running the same
 acquire or start again resumes the lock after a restart or compaction and prints the token for
-`touch` and `release`; and asking the user when `capcom lock check` reports another session's
-lock), and the top level of the Knowledge tree, one
+`touch` and `release`; asking the user when `capcom lock check` reports another session's
+lock; and saying the lock is signalled, not enforced: a capcom write is never refused, but warns
+while the lock is held for a purpose other than the issue it writes), and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
 `background` left out, and so is one whose file a load problem names (a duplicate id or alias, an
 invalid or repeated alias). The claim line names `capcom start`, and it and the Tree lock

@@ -16,6 +16,13 @@ resumes the lock after a restart or compaction and prints the token again.
 `prime` lists the doing issues, so the next session sees who works on what. There is no assignee
 key.
 
+**The lock is signalled, not enforced.** A capcom write while the Tree lock is held is never
+refused: it still runs and adds a warning naming the holder, the purpose and the heartbeat age
+(ADR 0017). A write to the issue whose id is the lock's purpose stays silent, so `log`, `update`
+and `close` of the started issue warn nothing; any other write warns, even the holder's, and the
+warning ends "if it is yours, carry on". To stay out of another session's way, run
+`capcom lock check` before a change and ask the user when it exits 3.
+
 **Finishing work.** `capcom finish <id> --reason <text>` closes the issue, frees the Tree lock
 through the token kept for the issue, deletes that kept token and names the Ready issue to work on
 next; `--keep-lock` keeps the lock for more work under it, prints the token, and its next line

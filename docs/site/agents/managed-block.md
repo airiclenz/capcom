@@ -11,7 +11,8 @@ find one and read it, read what it needs with `capcom context`, claim it and tak
 `capcom start`, log progress, close it, or close it and free the lock with `capcom finish`, reopen
 it), a few more core commands, a
 pointer to each command's `--help`, a map of the store, a warning never to claim or close a [Standing Parent](../concepts/issues.md#standing-parent), a
-recommendation to take the [Tree lock](../concepts/tree-locks.md) before an extensive change, and
+recommendation to take the [Tree lock](../concepts/tree-locks.md) before an extensive change, with
+the word that a capcom write under another session's lock warns and is never refused, and
 the top level of the [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is
 your own hand-written guide, and capcom never touches it.
 
@@ -79,7 +80,9 @@ again (or pass `--token <token>`).
 `capcom lock touch --token <token>` renews it during long work,
 `capcom lock release --token <token>` frees it when done. When `capcom lock check --token <token>` exits 3, or
 `capcom lock check` does while you hold no token, another session holds this worktree: ask the user
-before editing it.
+before editing it. The lock is signalled, not enforced: a capcom write is never refused, but it
+warns, naming the holder, while the lock is held for a purpose other than the issue it writes; if
+the lock is yours, carry on.
 
 Knowledge tree, top level: no Notes yet.
 <!-- END CAPCOM -->
@@ -92,6 +95,11 @@ block never asks an agent to keep it: running the same `capcom lock acquire` or 
 again resumes the lock after a restart or compaction, and `capcom finish` frees it. A config that
 declares no doing status leaves the claim line and the Tree lock paragraph's `capcom start`
 sentence out; what the doing status is called does not change the block.
+
+The Tree lock paragraph ends on what an agent meets when it writes anyway: the lock is signalled,
+not enforced, so a capcom write while the lock is held for another purpose still runs and adds a
+warning naming the holder, and a write to the issue `capcom start` took the lock for stays silent
+(see [Tree locks](../concepts/tree-locks.md#tree-lock)).
 
 Write anything you want agents to know outside the markers: edits inside them are overwritten on
 the next refresh.

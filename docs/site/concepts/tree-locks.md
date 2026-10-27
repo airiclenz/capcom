@@ -20,6 +20,22 @@ The lock is **advisory**: capcom installs no git hooks and stops no edits. It bi
 sessions that check it, which is why the [Managed block](../agents/managed-block.md) and the
 session [briefing](../agents/briefing.md) show it to every agent.
 
+The lock is signalled, not enforced. A capcom command that writes (`create`, `update`, `mv`,
+`know add` and the rest) is never refused while the lock is held, but it adds a warning naming the
+holder, the purpose and the heartbeat age, and says when the lock is stale:
+
+```text
+warning: /home/you/your-repo/.git/capcom/locks/_main.json: locked by claude@devbox (implementing the login rework) for 12m0s, heartbeat 1m0s ago; if it is yours, carry on
+```
+
+The warning comes with the command's other warnings, in its text output and in the `warnings` of
+`--json` and `--kv`, and the command still exits 0. A write to the Issue whose id is the lock's
+purpose stays silent, so the holder's own `capcom log <id>`, `update <id>` and `close <id>` after
+`capcom start <id>` warn nothing; a write of anything else warns, even the holder's, which is why
+the warning ends "if it is yours, carry on". `start`, `finish`, the `lock` commands and the
+commands that only read never warn. A lock record that cannot be read warns too, naming
+`capcom lock status`, and never fails the write.
+
 The lock record is a small JSON file under the git directory, shared by every worktree of the
 clone and never committed. Its fields are listed under
 [The lock record](../reference/file-format.md#the-lock-record).

@@ -68,6 +68,9 @@ several files or commits outside an Issue, claim the worktree with
 prints its token again. Renew it with `capcom lock touch --token <token>` and free it with
 `capcom lock release --token <token>`, passing the token acquire printed. When
 `capcom lock check` exits 3, another session holds this worktree: ask the user before editing.
+The lock is signalled, not enforced: a capcom write is never refused, but while the lock is held
+for a purpose other than the Issue it writes it adds a warning naming the holder; if the lock is
+yours, carry on.
 
 The capcom block in `AGENTS.md` is the repository's own word on these commands; when it differs
 from this skill, follow `AGENTS.md`.

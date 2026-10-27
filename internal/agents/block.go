@@ -106,11 +106,14 @@ again (or pass ` + "`--token <token>`" + `).
 const lockStartSentence = "`capcom start <id>` takes the lock for an issue, and running the same start again resumes it too.\n"
 
 // lockClosing is the Tree lock paragraph after its capcom start sentence: renewing, releasing and
-// checking the lock.
+// checking the lock, and that a capcom write is warned, never refused, while the lock is held for
+// another purpose (ADR 0017).
 const lockClosing = "`capcom lock touch --token <token>`" + ` renews it during long work,
 ` + "`capcom lock release --token <token>`" + ` frees it when done. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
 ` + "`capcom lock check`" + ` does while you hold no token, another session holds this worktree: ask the user
-before editing it.
+before editing it. The lock is signalled, not enforced: a capcom write is never refused, but it
+warns, naming the holder, while the lock is held for a purpose other than the issue it writes; if
+the lock is yours, carry on.
 
 `
 

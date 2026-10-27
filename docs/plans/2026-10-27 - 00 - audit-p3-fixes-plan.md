@@ -586,7 +586,7 @@ record warns; no lock dir created on a fresh repo.
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'LockWarn|Lock'`
 **Commit:** `feat(lock): warn when a CLI write meets another session's lock`
 
-## 18. The managed block and docs say the lock is signalled, not enforced
+## 18. The managed block and docs say the lock is signalled, not enforced — ✅ DONE (2026-10-27)
 
 **What:**
 **Goal:** the agents managed block, the repo's `AGENTS.md`, `docs/site/agents/managed-block.md`,
