@@ -235,6 +235,7 @@ func TestRelease_DeletesOnlyTheReleasedTokensFiles(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)
 	acquired := mustAcquire(t, locks, MainWorktreeKey)
+	makeLinkedGitDir(t, locks, foreignKey)
 	mustAcquire(t, locks, foreignKey)
 
 	if _, err := locks.Release(MainWorktreeKey, acquired.Token); err != nil {

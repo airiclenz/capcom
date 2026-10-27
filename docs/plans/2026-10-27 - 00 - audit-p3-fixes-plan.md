@@ -481,7 +481,12 @@ resumes and is rewritten; a wrong token is refused.
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/` then `./internal/cli/ -run 'Lock|Start|Finish'`
 **Commit:** `fix(lock): keep only a digest of the token in the record`
 
-## 15. A lock record from a removed or re-created worktree is orphaned
+## 15. A lock record from a removed or re-created worktree is orphaned — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the orphan judgement and the worktree-id helpers (linkedGitDir, isOrphaned, ensureWorktreeID, readWorktreeID) live in internal/lock/worktree.go; Locks gains a commonDir field so read() derives `<common>/worktrees/<name>` from the key; Acquire was split into issueToken and keepToken to stay small, and newToken now draws its bits from a shared randomHex.
+NOTES (2026-10-27): an orphaned Status keeps the orphaned Record (IsHeld false, IsOrphaned true) so item 16 can report it; every CLI consumer already gates Record on IsHeld. Release and Touch treat an orphan as free (Touch fails not-held; Release leaves the record); Break removes it as before.
+NOTES (2026-10-27): internal/lock/lock_test.go needed no change; the docs for the `worktree` record key and `worktree-id` file are left to item 16, whose Files name docs/site/reference/file-format.md and .capcom/knowledge/store-layout.md.
+NOTES (2026-10-27): gofmt re-aligned the `name`/`ttl` fields of the "free beside a held lock" case in internal/lock/overview_test.go after its arrange became multi-line.
 
 **What:**
 **Goal:** a `wt-` record whose admin dir `<common>/worktrees/<name>` is gone, or whose `worktree`

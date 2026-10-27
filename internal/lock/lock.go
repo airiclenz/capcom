@@ -5,6 +5,8 @@
 // held only for that moment; the record itself is replaced atomically. Beside them, each
 // `<key>.<sha256 of purpose>.token` token file keeps the Lock token a session acquired with that
 // purpose (ADR 0016), so a later command resumes or releases the lock without being handed it.
+// A linked worktree keeps a random id in `<git-dir>/capcom/worktree-id`, copied into its record,
+// so a record left by a removed or re-created worktree reads as orphaned, and free.
 package lock
 
 import (
@@ -75,6 +77,9 @@ type Record struct {
 	// Since is when the lock was acquired; Heartbeat when it was last acquired, resumed or touched.
 	Since     time.Time `json:"since"`
 	Heartbeat time.Time `json:"heartbeat"`
+	// Worktree is the id a linked worktree keeps in `<git-dir>/capcom/worktree-id` when the lock
+	// was acquired; empty for the primary worktree and in a record an older capcom wrote.
+	Worktree string `json:"worktree,omitempty"`
 }
 
 // Claim describes a session asking for a lock.
@@ -90,7 +95,7 @@ type Claim struct {
 type Status struct {
 	// Key names the worktree: MainWorktreeKey or `wt-<linked worktree name>`.
 	Key string
-	// Record is the lock record; zero when IsHeld is false.
+	// Record is the lock record; zero when IsHeld is false, unless IsOrphaned.
 	Record Record
 	// Token is the Lock token in the clear, which the record keeps only as a digest. Only Acquire
 	// sets it; every other Status leaves it empty.
@@ -103,6 +108,10 @@ type Status struct {
 	// IsCorrupt reports a record that held no valid lock and was discarded; only Break sets it,
 	// and IsHeld is then false.
 	IsCorrupt bool
+	// IsOrphaned reports a valid record of a linked worktree that no longer exists as it was: its
+	// git dir is gone, or the id it keeps is not the record's Worktree. The lock reads as free,
+	// IsHeld is false and Record is the orphaned record; a primary worktree's is never orphaned.
+	IsOrphaned bool
 }
 
 // NotHeldError reports a touch of a free lock; it matches ErrNotHeld under errors.Is.
@@ -157,15 +166,20 @@ func (e *HeldError) Message() string {
 
 // Locks is the lock directory of one repository.
 type Locks struct {
-	dir string
-	ttl time.Duration
+	commonDir string
+	dir       string
+	ttl       time.Duration
 }
 
 // Open returns the locks kept under gitCommonDir; a lock whose heartbeat is older than ttl, or
 // dated more than ttl ahead of now, is stale. Nothing is touched on disk until a lock is read or
 // written.
 func Open(gitCommonDir string, ttl time.Duration) *Locks {
-	return &Locks{dir: filepath.Join(gitCommonDir, capcomDir, locksDir), ttl: ttl}
+	return &Locks{
+		commonDir: gitCommonDir,
+		dir:       filepath.Join(gitCommonDir, capcomDir, locksDir),
+		ttl:       ttl,
+	}
 }
 
 // WorktreeKey returns the lock key of the worktree whose git dir is gitDir: MainWorktreeKey for
@@ -183,7 +197,8 @@ func (l *Locks) RecordPath(key string) string {
 	return filepath.Join(l.dir, key+recordExtension)
 }
 
-// Acquire takes key's lock for claim. A free lock gets a new token. When token matches the
+// Acquire takes key's lock for claim. A free lock gets a new token; an orphaned one is taken over
+// with a new token, and every token file of key is deleted first. When token matches the
 // holder's, the lock is resumed, even a stale one: its heartbeat is refreshed, its purpose and
 // holder replaced by claim's, a record holding the token in the clear is rewritten to hold its
 // digest, and isResumed is true. A lock another session holds fails with a
@@ -191,7 +206,9 @@ func (l *Locks) RecordPath(key string) string {
 // with a new token. The lock's token is kept in the token file for claim's purpose, written before
 // the record, so a failed write takes no lock; an empty purpose keeps no token. A resume moves the
 // token file: every other token file of key keeping the token is deleted, so one token has one
-// token file and a session naming the purpose it was kept for before fails like any other.
+// token file and a session naming the purpose it was kept for before fails like any other. A
+// linked worktree's record carries the worktree's id, written to its git dir when missing; a
+// linked worktree whose git dir is missing cannot be acquired, and none is created.
 func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool) (Status, bool, error) {
 	var acquired Status
 	isResumed := false
@@ -200,8 +217,17 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 		if err != nil {
 			return err
 		}
+		cleartext, isResume, err := l.issueToken(current, token, isTakeStale, now)
+		if err != nil {
+			return err
+		}
+		worktreeID, err := l.ensureWorktreeID(key)
+		if err != nil {
+			return err
+		}
 
 		record := Record{
+			Token:     digestToken(cleartext),
 			Purpose:   claim.Purpose,
 			Holder:    claim.Holder,
 			Host:      claim.Host,
@@ -209,36 +235,59 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 			Branch:    claim.Branch,
 			Since:     now,
 			Heartbeat: now,
+			Worktree:  worktreeID,
 		}
-		cleartext := token
-		switch {
-		case current.IsHeld && tokenMatches(current.Record.Token, token):
-			isResumed = true
+		if isResume {
 			record.Since = current.Record.Since
-		case current.IsHeld && !(isTakeStale && current.IsStale):
-			return l.heldError(current, now)
-		default:
-			cleartext, err = newToken()
-			if err != nil {
-				return err
-			}
 		}
-		record.Token = digestToken(cleartext)
-		if err := l.writeTokenFile(key, cleartext, claim.Purpose); err != nil {
+		if err := l.keepToken(key, current, cleartext, claim.Purpose, isResume); err != nil {
 			return err
-		}
-		if isResumed {
-			if err := l.removeTokenFiles(key, token, l.keptTokenPath(key, claim.Purpose)); err != nil {
-				return err
-			}
 		}
 		if err := l.write(key, record); err != nil {
 			return err
 		}
+		isResumed = isResume
 		acquired = Status{Key: key, Record: record, IsHeld: true, Token: cleartext}
 		return nil
 	})
 	return acquired, isResumed, err
+}
+
+// issueToken returns the Lock token Acquire holds current with: token itself when it matches the
+// holder's, with isResume true, else a new token. A lock another session holds fails with a
+// *HeldError, unless isTakeStale is set and that lock is stale.
+func (l *Locks) issueToken(
+	current Status,
+	token string,
+	isTakeStale bool,
+	now time.Time,
+) (string, bool, error) {
+	switch {
+	case current.IsHeld && tokenMatches(current.Record.Token, token):
+		return token, true, nil
+	case current.IsHeld && !(isTakeStale && current.IsStale):
+		return "", false, l.heldError(current, now)
+	}
+	cleartext, err := newToken()
+	return cleartext, false, err
+}
+
+// keepToken keeps cleartext in key's token file for purpose. It first deletes every token file of
+// key when current is orphaned, and on a resume then deletes every other token file keeping
+// cleartext. The caller holds the guard.
+func (l *Locks) keepToken(key string, current Status, cleartext, purpose string, isResume bool) error {
+	if current.IsOrphaned {
+		if err := l.removeAllTokenFiles(key); err != nil {
+			return err
+		}
+	}
+	if err := l.writeTokenFile(key, cleartext, purpose); err != nil {
+		return err
+	}
+	if !isResume {
+		return nil
+	}
+	return l.removeTokenFiles(key, cleartext, l.keptTokenPath(key, purpose))
 }
 
 // Touch refreshes the heartbeat of key's lock for the holder of token, and rewrites a record
@@ -326,8 +375,8 @@ func (l *Locks) Read(key string) (Status, error) {
 	return l.read(key, time.Now().UTC())
 }
 
-// Check returns key's lock when it is free or held by token, and fails with a *HeldError when
-// another session holds it, stale or not; an empty token holds nothing. It reads without the guard,
+// Check returns key's lock when it is free, orphaned or held by token, and fails with a *HeldError
+// when another session holds it, stale or not; an empty token holds nothing. It reads without the guard,
 // as a record is replaced atomically, and creates nothing.
 func (l *Locks) Check(key, token string) (Status, error) {
 	now := time.Now().UTC()
@@ -400,7 +449,8 @@ func (l *Locks) withGuard(key string, body func(now time.Time) error) error {
 }
 
 // read loads key's record, if any, and judges its staleness at now. A record that does not parse or
-// carries no token fails wrapping ErrCorruptRecord. Writers call it holding the guard; readers
+// carries no token fails wrapping ErrCorruptRecord; only a valid record is judged orphaned, which
+// reads as free with IsOrphaned set. Writers call it holding the guard; readers
 // call it without, as write replaces a record by an atomic rename, so they see a whole record.
 func (l *Locks) read(key string, now time.Time) (Status, error) {
 	path := l.RecordPath(key)
@@ -418,6 +468,13 @@ func (l *Locks) read(key string, now time.Time) (Status, error) {
 	}
 	if record.Token == "" {
 		return Status{}, fmt.Errorf("%s: %w: no token", path, ErrCorruptRecord)
+	}
+	isOrphaned, err := l.isOrphaned(key, record)
+	if err != nil {
+		return Status{}, err
+	}
+	if isOrphaned {
+		return Status{Key: key, Record: record, IsOrphaned: true}, nil
 	}
 	return Status{
 		Key:     key,
@@ -482,9 +539,18 @@ func tokenMatches(stored, presented string) bool {
 
 // newToken returns a fresh 128-bit random token in hex.
 func newToken() (string, error) {
+	token, err := randomHex()
+	if err != nil {
+		return "", fmt.Errorf("generating lock token: %w", err)
+	}
+	return token, nil
+}
+
+// randomHex returns 128 fresh random bits in hex.
+func randomHex() (string, error) {
 	buffer := make([]byte, tokenBytes)
 	if _, err := rand.Read(buffer); err != nil {
-		return "", fmt.Errorf("generating lock token: %w", err)
+		return "", err
 	}
 	return hex.EncodeToString(buffer), nil
 }

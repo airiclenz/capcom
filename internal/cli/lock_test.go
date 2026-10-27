@@ -526,6 +526,24 @@ func TestLock_LinkedWorktreeNamedMain_GetsItsOwnRecord(t *testing.T) {
 	}
 }
 
+func TestLockAcquire_ReCreatedWorktree_TakesOverTheOrphanedRecord(t *testing.T) {
+	root := newLockStore(t)
+	worktree := addWorktree(t, root, "feature")
+	oldToken := acquireToken(t, worktree, "agent-a")
+	runGit(t, root, "worktree", "remove", "--force", worktree)
+	runGit(t, root, "worktree", "add", "-q", worktree, "branch-feature")
+	mustRun(t, worktree, "init")
+
+	stdout, stderr, exitCode := runCLI(t, worktree, "lock", "acquire", "--purpose", "item 15", "--holder", "agent-b", "--kv")
+
+	if exitCode != ExitOK || kvValue(t, stdout, "LOCK") != "acquired" || kvValue(t, stdout, "HOLDER") != "agent-b" {
+		t.Fatalf("exit = %d stdout = %q stderr = %q, want the orphaned lock taken over", exitCode, stdout, stderr)
+	}
+	if kvValue(t, stdout, "TOKEN") == oldToken {
+		t.Errorf("token = %q, want a new token, not the removed worktree's", oldToken)
+	}
+}
+
 func TestLockStatusAll_NoLocks_EndsWithStatus(t *testing.T) {
 	root := newLockStore(t)
 

@@ -25,6 +25,20 @@ func mustOverview(t *testing.T, locks *Locks, key string) Overview {
 	return overview
 }
 
+// makeLinkedGitDir creates the git dir of the linked worktree key names under locks' git common
+// dir, as `git worktree add` does, so key's lock can be acquired and its record is not orphaned.
+func makeLinkedGitDir(t *testing.T, locks *Locks, key string) string {
+	t.Helper()
+	gitDir, isLinked := locks.linkedGitDir(key)
+	if !isLinked {
+		t.Fatalf("%s names no linked worktree", key)
+	}
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	return gitDir
+}
+
 // lockKeys returns the keys of statuses, in order.
 func lockKeys(statuses []Status) []string {
 	keys := make([]string, 0, len(statuses))
@@ -57,9 +71,12 @@ func TestOverview_OwnState_NamesEachState(t *testing.T) {
 		wantProblems int
 	}{
 		{
-			name:      "free beside a held lock",
-			ttl:       testTTL,
-			arrange:   func(t *testing.T, locks *Locks) { mustAcquire(t, locks, foreignKey) },
+			name: "free beside a held lock",
+			ttl:  testTTL,
+			arrange: func(t *testing.T, locks *Locks) {
+				makeLinkedGitDir(t, locks, foreignKey)
+				mustAcquire(t, locks, foreignKey)
+			},
 			wantState: StateFree,
 			wantLocks: []string{foreignKey},
 		},
@@ -131,6 +148,7 @@ func TestOverview_OwnState_NamesEachState(t *testing.T) {
 func TestOverview_TwoWorktrees_HoldIndependentLocks(t *testing.T) {
 	t.Parallel()
 	locks, _ := openTest(t)
+	makeLinkedGitDir(t, locks, foreignKey)
 	mustAcquire(t, locks, foreignKey)
 	mustAcquire(t, locks, MainWorktreeKey)
 
@@ -203,6 +221,7 @@ func TestOverview_DirectoryAtAForeignGuardBesideAHeldLock_ListsBothLocks(t *test
 	t.Parallel()
 	locks, _ := openTest(t)
 	mustAcquire(t, locks, MainWorktreeKey)
+	makeLinkedGitDir(t, locks, foreignKey)
 	writeRecord(t, locks, foreignKey, validRecord)
 	guardPath := filepath.Join(locks.dir, foreignKey+guardExtension)
 	if err := os.Mkdir(guardPath, 0o755); err != nil {
