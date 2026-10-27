@@ -37,8 +37,8 @@ var closedInertKeys = []string{keyClaim, keyClose, keyStatus, keyLog}
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
 // the one-pane layout's detail view, open the filter line, open the help screen, and scroll the
 // detail pane: the page keys from anywhere, the arrows and j k only where the detail pane fills a
-// narrow, short screen; on a narrow screen tall enough to stack the panes, Enter keeps both, as in
-// the split layout. Esc from the sidebar clears the open tab's filter. On the Ready and Issues
+// narrow, short screen; in the stacked layout Enter keeps both panes, as in the split layout. Esc
+// from the sidebar clears the open tab's filter. On the Ready and Issues
 // tabs a claims the shown issue, s opens the status picker over it, c and R ask for a reason and
 // close or reopen it, and L asks for a line and appends it to its Log; on the Closed tab R does
 // the same and a, s, c and L do nothing. On every tab e opens the

@@ -93,7 +93,9 @@ NOTES (2026-10-27): the role lists in docs/site/reference/file-format.md (templa
 
 **Commit:** `feat(ui): add the layout-button colour role`
 
-## 3. The layout choice picks the layout when both fit
+## 3. The layout choice picks the layout when both fit — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): all new tests live in internal/ui/layout_test.go beside the existing state-file and layout tests (TestModel_StoredLayoutChoice_PicksTheLayoutOnlyWhenBothFit, TestModel_TerminalResize_KeepsTheStoredLayoutChoiceUnsaved, TestModel_DividerSave_WritesTheLayoutChoiceHeld); internal/ui/model_test.go needed no change. The prose guard also rewrote the comments on body, pointAt, isSinglePane, isSplit and the layout constants in layout.go, and the stateSaver/save/write comments in model.go, to name the layout choice.
 
 Depends on item 1.
 

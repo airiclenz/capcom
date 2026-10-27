@@ -439,9 +439,9 @@ func (m model) sidebarHeight() int {
 	return m.sidebarPaneRows()
 }
 
-// sidebarPaneWidth returns the columns of the sidebar pane's text: the whole screen on a narrow
-// terminal, one pane or stacked, its share of it otherwise, either less the scrollbar's gutter
-// and bar.
+// sidebarPaneWidth returns the columns of the sidebar pane's text: the whole screen where the panes
+// are as wide as the screen, one pane or stacked, its share of it in the split layout, either less
+// the scrollbar's gutter and bar.
 func (m model) sidebarPaneWidth() int {
 	if m.hasFullWidthPanes() {
 		return max(m.width-scrollbarColumns, 0)

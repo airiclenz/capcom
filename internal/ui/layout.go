@@ -10,12 +10,14 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/outline"
+	"github.com/airiclenz/capcom/internal/userconfig"
 )
 
 // The layout's dimensions. Below narrowWidth columns the panes stop sitting side by side: a body
 // of stackBodyMinRows rows or more stacks them, the sidebar above the detail pane, and a shorter
 // one shows one pane at a time, the sidebar filling the screen until Enter swaps in the detail
-// pane.
+// pane. A terminal of narrowWidth columns or more with such a body fits both the split and the
+// stacked layout, and there the layout choice picks between them.
 const (
 	narrowWidth     = 90
 	sidebarShare    = 3
@@ -89,32 +91,43 @@ func (m model) frame() string {
 	return strings.Join(rows[:min(len(rows), m.height)], "\n")
 }
 
-// hasFullWidthPanes reports panes as wide as the screen: a terminal too narrow for the sidebar and
-// the detail pane side by side, whether it shows one pane at a time or stacks them.
-func (m model) hasFullWidthPanes() bool {
-	return m.width < narrowWidth
+// canChooseLayout reports a terminal that fits both the split and the stacked layout: at least
+// narrowWidth columns, with a body of stackBodyMinRows rows or more. There the layout choice picks
+// the layout; anywhere else the terminal's size alone does.
+func (m model) canChooseLayout() bool {
+	return m.width >= narrowWidth && m.bodyHeight() >= stackBodyMinRows
 }
 
-// canStack reports a terminal sized for the stacked layout: too narrow for the panes side by side
-// and with a body of stackBodyMinRows rows or more. The help screen covering the panes leaves
-// their sizes as they are, so it does not count here.
+// hasFullWidthPanes reports panes as wide as the screen: a terminal too narrow for the sidebar and
+// the detail pane side by side, whether it shows one pane at a time or stacks them, or one that
+// fits both layouts while the layout choice is the stacked one.
+func (m model) hasFullWidthPanes() bool {
+	isStackedChosen := m.canChooseLayout() && m.layoutChoice == userconfig.LayoutStacked
+	return m.width < narrowWidth || isStackedChosen
+}
+
+// canStack reports a terminal sized for the stacked layout: panes as wide as the screen, by its
+// width or by the layout choice, and a body of stackBodyMinRows rows or more. The help screen
+// covering the panes leaves their sizes as they are, so it does not count here.
 func (m model) canStack() bool {
 	return m.hasFullWidthPanes() && m.bodyHeight() >= stackBodyMinRows
 }
 
 // isSinglePane reports the one-pane layout: a terminal too narrow for the panes side by side and
 // too short to stack them, the sidebar filling the screen until Enter swaps in the detail pane.
+// The layout choice never picks it: a terminal that fits both layouts is tall enough to stack.
 func (m model) isSinglePane() bool {
 	return m.hasFullWidthPanes() && !m.canStack()
 }
 
 // isStacked reports the sidebar above the detail pane: a narrow terminal tall enough to stack
-// them, help closed.
+// them, or one that fits both layouts while the layout choice is the stacked one, help closed.
 func (m model) isStacked() bool {
 	return m.canStack() && !m.isHelpOpen
 }
 
-// isSplit reports the sidebar and the detail pane side by side: a wide terminal, help closed.
+// isSplit reports the sidebar and the detail pane side by side: a wide terminal, unless it fits
+// both layouts and the layout choice is the stacked one, help closed.
 func (m model) isSplit() bool {
 	return !m.hasFullWidthPanes() && !m.isHelpOpen
 }
@@ -255,9 +268,9 @@ func (m model) ratioOf(columns int) float64 {
 }
 
 // body draws the bodyHeight rows under the tab bar's rule: the help screen when it is open, the two
-// panes side by side on a wide terminal, on a narrow one tall enough the sidebar above the
-// detail pane, and on a narrow, short one the sidebar or, once Enter opened it or while the
-// status picker is open, the detail pane. Each pane ends in its scrollbar.
+// panes side by side in the split layout, the sidebar above the detail pane in the stacked one,
+// and in the one-pane layout of a narrow, short terminal the sidebar or, once Enter opened it or
+// while the status picker is open, the detail pane. Each pane ends in its scrollbar.
 func (m model) body() []string {
 	height := m.bodyHeight()
 	switch {
@@ -306,9 +319,9 @@ func (m model) dividerColumn() int {
 	return m.sidebarWidth() + dividerMargin
 }
 
-// detailLeft returns the screen column the detail pane starts at: the first on a narrow terminal,
-// one pane or stacked, past the sidebar, the separator and the margins either side of it on a
-// wide one.
+// detailLeft returns the screen column the detail pane starts at: the first where the panes are as
+// wide as the screen, one pane or stacked, past the sidebar, the separator and the margins either
+// side of it in the split layout.
 func (m model) detailLeft() int {
 	if m.hasFullWidthPanes() {
 		return 0
@@ -545,10 +558,10 @@ type panePoint struct {
 }
 
 // pointAt locates the screen cell at column x and row y in the layout body draws: the tab bar on
-// the top row, no pane on the rule under it, then on a wide terminal the sidebar left of the
-// separator's margin and the detail pane right of it, on a narrow one tall enough the sidebar
-// above the divider and the detail pane below it, and on a narrow, short one whichever of the two
-// fills the screen. With the help screen open no pane is on screen.
+// the top row, no pane on the rule under it, then in the split layout the sidebar left of the
+// separator's margin and the detail pane right of it, in the stacked one the sidebar above the
+// divider and the detail pane below it, and in the one-pane layout of a narrow, short terminal
+// whichever of the two fills the screen. With the help screen open no pane is on screen.
 func (m model) pointAt(x, y int) panePoint {
 	if x < 0 || y < 0 || x >= m.width {
 		return panePoint{}

@@ -358,9 +358,9 @@ func (m model) renderDetail() model {
 	return m.scrollDetail(0)
 }
 
-// detailWidth returns the columns of the detail pane's text: the whole width on a narrow
-// terminal, what the sidebar, the separator and its margins leave on a wide one, either less the
-// scrollbar's gutter and bar at the pane's right edge.
+// detailWidth returns the columns of the detail pane's text: the whole width where the panes are as
+// wide as the screen, one pane or stacked, what the sidebar, the separator and its margins leave in
+// the split layout, either less the scrollbar's gutter and bar at the pane's right edge.
 func (m model) detailWidth() int {
 	return max(m.width-m.detailLeft()-scrollbarColumns, 0)
 }

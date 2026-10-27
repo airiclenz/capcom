@@ -236,6 +236,122 @@ func TestModel_TerminalResize_SwitchesBetweenOnePaneAndStacked(t *testing.T) {
 	}
 }
 
+func TestModel_StoredLayoutChoice_PicksTheLayoutOnlyWhenBothFit(t *testing.T) {
+	cases := []struct {
+		name        string
+		choice      string
+		width       int
+		height      int
+		wantStacked bool
+		wantSplit   bool
+	}{
+		{name: "120x30 stacked", choice: userconfig.LayoutStacked, width: 120, height: 30, wantStacked: true},
+		{name: "120x24 stacked, body too short", choice: userconfig.LayoutStacked, width: 120, height: 24, wantSplit: true},
+		{name: "120x30 split", choice: userconfig.LayoutSplit, width: 120, height: 30, wantSplit: true},
+		{name: "80x40 split, too narrow", choice: userconfig.LayoutSplit, width: 80, height: 40, wantStacked: true},
+		{name: "80x24 stacked, one pane", choice: userconfig.LayoutStacked, width: 80, height: 24},
+		{name: "80x24 split, one pane", choice: userconfig.LayoutSplit, width: 80, height: 24},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			writeTestFile(t, options.UserStatePath, layoutState(testCase.choice))
+
+			m := startModel(t, options, testCase.width, testCase.height)
+
+			if got := hasStackedDivider(m); got != testCase.wantStacked {
+				t.Errorf("stacked divider on screen = %v, want %v", got, testCase.wantStacked)
+			}
+			if got := hasSplitSeparator(m); got != testCase.wantSplit {
+				t.Errorf("split separator on screen = %v, want %v", got, testCase.wantSplit)
+			}
+			isFullWidth := m.detailWidth() == testCase.width-scrollbarColumns
+			if isFullWidth == testCase.wantSplit {
+				t.Errorf("detailWidth() = %d at %d columns: full width %v, want %v",
+					m.detailWidth(), testCase.width, isFullWidth, !testCase.wantSplit)
+			}
+		})
+	}
+}
+
+func TestModel_TerminalResize_KeepsTheStoredLayoutChoiceUnsaved(t *testing.T) {
+	options := newTestOptions(t, newTestStore(t, readyFiles))
+	writeTestFile(t, options.UserStatePath, layoutState(userconfig.LayoutStacked))
+	m := startModel(t, options, 120, 30)
+	stacked := m.View().Content
+	if err := os.Remove(options.UserStatePath); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	m = press(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	isOnePane := m.isSinglePane()
+	m = press(t, m, tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	if !isOnePane {
+		t.Errorf("resized to 80x24: want the one-pane layout")
+	}
+	if got := m.View().Content; got != stacked {
+		t.Errorf("resized back to 120x30:\n%s\nwant the stacked layout\n%s", got, stacked)
+	}
+	if _, err := os.Stat(options.UserStatePath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("state file after the resizes: Stat error %v, want it not written", err)
+	}
+}
+
+func TestModel_DividerSave_WritesTheLayoutChoiceHeld(t *testing.T) {
+	cases := []struct {
+		name   string
+		choice string
+	}{
+		{name: "stacked", choice: userconfig.LayoutStacked},
+		{name: "none", choice: ""},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			if testCase.choice != "" {
+				writeTestFile(t, options.UserStatePath, layoutState(testCase.choice))
+			}
+			m := startModel(t, options, 120, 30)
+
+			press(t, m, runeKey('>'))
+
+			content, err := os.ReadFile(options.UserStatePath)
+			if err != nil {
+				t.Fatalf("ReadFile: %v", err)
+			}
+			wantLine := "layout: " + testCase.choice
+			hasLayoutKey := strings.Contains(string(content), "layout:")
+			if testCase.choice == "" && hasLayoutKey {
+				t.Errorf("state file = %q, want no layout key", content)
+			}
+			if testCase.choice != "" && !strings.Contains(string(content), wantLine) {
+				t.Errorf("state file = %q, want %q", content, wantLine)
+			}
+		})
+	}
+}
+
+// layoutState returns a state file holding only the layout choice.
+func layoutState(choice string) string {
+	return "ui:\n  layout: " + choice + "\n"
+}
+
+// hasStackedDivider reports the stacked layout's divider on the model's screen: a rule across the
+// whole row under the stacked sidebar.
+func hasStackedDivider(m model) bool {
+	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+	return rows[bodyTop+m.stackedSidebarRows()] == strings.Repeat(ruleGlyph, m.width)
+}
+
+// hasSplitSeparator reports the split layout's separator, with its margins, on the model's first
+// body row.
+func hasSplitSeparator(m model) bool {
+	rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+	column := m.sidebarWidth()
+	return ansi.Cut(rows[bodyTop], column, column+3) == " │ "
+}
+
 func TestModel_StackedLayout_EnterKeepsBothPanes(t *testing.T) {
 	m := newTestModel(t, newTestStore(t, readyFiles), 80, 40)
 	before := m.View().Content
