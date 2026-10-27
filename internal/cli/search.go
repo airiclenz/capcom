@@ -13,6 +13,8 @@ import (
 const (
 	searchLong = "Find the Issues whose title or body contains every word given, matched as whole words and " +
 		"case-insensitively, best match first; closed Issues are searched too.\n\n" +
+		"A run of CJK characters with no spaces counts as one word, so 登录超时问题 is found by " +
+		"登录超时问题, not by 登录.\n\n" +
 		"It prints one line per Issue with its id, status, priority and title.\n\n" +
 		"When no Issue holds every word, it lists the Issues holding some of them under the line \"" +
 		anyWordHeadingLine + "\", and --json sets \"match\" to \"any\" instead of \"all\".\n\n" +

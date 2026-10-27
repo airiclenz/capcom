@@ -13,6 +13,8 @@ import (
 const (
 	knowSearchLong = "Find the Notes whose title or body contains every word given, each as a whole word, and " +
 		"list them best match first, one line each with the id and title.\n\n" +
+		"A run of CJK characters with no spaces counts as one word, so 登录超时问题 is found by " +
+		"登录超时问题, not by 登录.\n\n" +
 		"When no Note holds every word, it lists the Notes holding some of them under the line \"" +
 		anyWordHeadingLine + "\", and --json sets \"match\" to \"any\" instead of \"all\".\n\n" +
 		"--excerpt prints under each Note the body lines holding a word searched for, indented four " +

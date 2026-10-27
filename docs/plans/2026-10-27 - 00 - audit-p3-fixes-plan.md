@@ -82,7 +82,7 @@ internal/gitx/ignore.go — IgnoredPaths
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/` then `./internal/check/` then `./internal/knowledge/` then `./internal/cli/`
 **Commit:** `refactor(knowledge): build a store's Ref repository in one place`
 
-## 2. Search help says a CJK run is one word
+## 2. Search help says a CJK run is one word — ✅ DONE (2026-10-27)
 
 **What:**
 **Goal:** `capcom search --help` and `capcom know search --help` each say that a run of CJK
