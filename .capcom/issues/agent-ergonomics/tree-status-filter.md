@@ -3,6 +3,7 @@ title: No call lists a Parent's descendants by status
 status: open
 type: feature
 priority: 3
+plan: 2026-10-27 - 01 - tree-status-filter-plan
 created: 2026-10-26T07:51:30Z
 ---
 
