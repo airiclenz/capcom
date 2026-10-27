@@ -108,7 +108,11 @@ func (a *app) newUpdateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, writeResult(written.ID, written.Path, written.ETag))
+			result := writeResult(written.ID, written.Path, written.ETag)
+			if cmd.Flags().Changed(flagPlan) {
+				result.Warnings = a.missingPlanWarnings(options.plan, written.Path)
+			}
+			return a.emit(cmd, result)
 		}),
 	}
 	flags := cmd.Flags()
@@ -137,11 +141,16 @@ func (a *app) newUpdateCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// checkUpdateValues refuses an undeclared --status or --type and a --priority out of range, listing
-// the values the flag accepts, before the issue is read or written. A declared status is judged by
-// the status rules in applyUpdate.
+// checkUpdateValues refuses an undeclared --status or --type, a --priority out of range, listing
+// the values the flag accepts, and a --plan that is not a bare basename, before the issue is read
+// or written. A declared status is judged by the status rules in applyUpdate.
 func (a *app) checkUpdateValues(cmd *cobra.Command, options *updateOptions) error {
 	flags := cmd.Flags()
+	if flags.Changed(flagPlan) {
+		if err := a.checkPlanValue(options.plan); err != nil {
+			return err
+		}
+	}
 	values := invalidValues(a.store.Config)
 	if flags.Changed(flagStatus) {
 		if err := values.status(options.status); err != nil {

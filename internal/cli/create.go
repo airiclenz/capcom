@@ -152,13 +152,18 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result,
 	if strings.TrimSpace(body) == "" {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, options.id, options.id))
 	}
+	written, _ := result.Data.(map[string]string) // writeResult's data
+	result.Warnings = append(result.Warnings, a.missingPlanWarnings(options.plan, written["path"])...)
 	return result, nil
 }
 
-// checkCreateValues refuses an undeclared --status or --type and a --priority out of range, listing
-// the values the flag accepts, before anything is resolved or written. An empty --status or --type
-// takes the default, so it is not checked.
+// checkCreateValues refuses an undeclared --status or --type, a --priority out of range, listing
+// the values the flag accepts, and a --plan that is not a bare basename, before anything is
+// resolved or written. An empty --status or --type takes the default, so it is not checked.
 func (a *app) checkCreateValues(options *createOptions) error {
+	if err := a.checkPlanValue(options.plan); err != nil {
+		return err
+	}
 	values := invalidValues(a.store.Config)
 	if options.status != "" {
 		if err := values.status(options.status); err != nil {
@@ -171,6 +176,31 @@ func (a *app) checkCreateValues(options *createOptions) error {
 		}
 	}
 	return values.priority(options.priority)
+}
+
+// checkPlanValue refuses, as invalid, a --plan that is not a bare basename, naming the plans
+// directories. An empty --plan sets no plan, or clears one, so it is not checked.
+func (a *app) checkPlanValue(plan string) error {
+	if plan == "" {
+		return nil
+	}
+	if err := a.store.Config.ValidatePlanName(plan); err != nil {
+		return output.Errorf(output.CodeInvalid, "--%s %q: %v", flagPlan, plan, err)
+	}
+	return nil
+}
+
+// missingPlanWarnings returns the warning of a write that set plan on the issue file at issuePath
+// while the plan is in none of the plans directories, "<issuePath>: <message>" with the message
+// capcom check reports for it; none when plan is empty or resolves to a file.
+func (a *app) missingPlanWarnings(plan string, issuePath string) []string {
+	if plan == "" {
+		return nil
+	}
+	if _, isFound := a.store.Config.PlanPath(a.store.WorktreeRoot, plan); isFound {
+		return nil
+	}
+	return []string{issuePath + ": " + a.store.Config.MissingPlanMessage(plan)}
 }
 
 // resolveDeps returns the canonical ids of the issues args name, in the order given and once each;

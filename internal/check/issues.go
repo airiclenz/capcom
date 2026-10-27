@@ -99,11 +99,7 @@ func (c *checker) checkIssue(entry parsedIssue, graph issue.DepGraph) {
 	}
 	if plan := entry.issue.Plan; plan != "" {
 		if _, isFound := c.store.Config.PlanPath(c.store.WorktreeRoot, plan); !isFound {
-			c.add(path, entry.issue.PlanLine(), diagnose.MissingPlan, fmt.Sprintf(
-				"plan %q is in none of the plans directories %v",
-				plan,
-				c.store.Config.Plans,
-			))
+			c.add(path, entry.issue.PlanLine(), diagnose.MissingPlan, c.store.Config.MissingPlanMessage(plan))
 		}
 	}
 	c.checkStanding(entry)

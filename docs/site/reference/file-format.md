@@ -630,7 +630,12 @@ elsewhere:
   `done`. When capcom moves an issue into a category (create, close, reopen) it uses the first
   status listed in that category.
 - **types** — the issue types; at least one, no duplicates.
-- **plans** — the directories a `plan:` basename is looked up in, in order.
+- **plans** — the directories a `plan:` basename is looked up in, in order. A plan is named by its
+  basename alone: `create --plan` and `update --plan` refuse (`invalid`, exit 1) a value that is
+  absolute, holds `/` or `\`, or is `.` or `..`, naming these directories; `--plan ""` clears the
+  plan. A basename found in none of them is written with the warning
+  `<issue path>: plan "<name>" is in none of the plans directories [<dirs>]`, the `missing-plan`
+  problem `capcom check` reports.
 - **ready.hide** — labels whose issues `ready` leaves out by default.
 - **lock.ttl** — a positive duration (`2h`, `90m`).
 - **elsewhere.days** — a whole number of days, 0 to 36500. The Elsewhere scan reads local and

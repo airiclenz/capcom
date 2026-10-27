@@ -552,3 +552,50 @@ func TestPlanPath_PathInsteadOfBasename_IsRefused(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePlanName_PathOrDotName_IsRefusedNamingThePlansDirectories(t *testing.T) {
+	t.Parallel()
+	cfg := Default()
+
+	for _, plan := range []string{"", ".", "..", "../../etc/passwd", "/etc/passwd", "a/b", `a\b`, `\plan`} {
+		err := cfg.ValidatePlanName(plan)
+
+		if err == nil || !strings.Contains(err.Error(), "[docs/plans docs/plans/archived]") {
+			t.Errorf("ValidatePlanName(%q) = %v, want a refusal naming the plans directories", plan, err)
+		}
+	}
+}
+
+func TestValidatePlanName_Basename_IsAccepted(t *testing.T) {
+	t.Parallel()
+	cfg := Default()
+
+	for _, plan := range []string{"login-plan", "2026-10-11 - 00 - login-plan", "login-plan.md", "..plan"} {
+		if err := cfg.ValidatePlanName(plan); err != nil {
+			t.Errorf("ValidatePlanName(%q) = %v, want nil", plan, err)
+		}
+	}
+}
+
+func TestPlanPath_BackslashPath_IsRefused(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writePlanFile(t, root, `docs/plans/a\b.md`)
+	cfg := Default()
+
+	path, found := cfg.PlanPath(root, `a\b`)
+
+	if found || path != "" {
+		t.Errorf(`PlanPath("a\\b") = %q, %v; want a path refused`, path, found)
+	}
+}
+
+func TestMissingPlanMessage_NamesPlanAndDirectories(t *testing.T) {
+	t.Parallel()
+
+	got := Default().MissingPlanMessage("no-such-plan")
+
+	if want := `plan "no-such-plan" is in none of the plans directories [docs/plans docs/plans/archived]`; got != want {
+		t.Errorf("MissingPlanMessage = %q, want %q", got, want)
+	}
+}

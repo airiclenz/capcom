@@ -71,6 +71,7 @@ func today() string {
 
 func TestCreate_UnderParent_CreatesParentDirectory(t *testing.T) {
 	root := newWriteStore(t)
+	writeLoginPlan(t, root)
 
 	stdout := mustRun(t, root, "create", "--kv", "--id", "session-refresh", "--title", "Refresh session",
 		"--parent", "login", "--type", "bug", "--priority", "1", "--label", "auth,ui", "--plan", "login-plan")
@@ -1342,5 +1343,105 @@ func TestCreateCloseReopen_DeclaredFlagValues_WriteAsBefore(t *testing.T) {
 	content := readStoreFile(t, root, "new-one.md")
 	if !strings.Contains(content, "status: parked\ntype: bug\npriority: 4\n") {
 		t.Errorf("new-one.md = %q, want status parked, type bug, priority 4", content)
+	}
+}
+
+// writeLoginPlan creates docs/plans/login-plan.md in the repository at root, so --plan login-plan
+// resolves.
+func writeLoginPlan(t *testing.T, root string) {
+	t.Helper()
+	plans := filepath.Join(root, "docs", "plans")
+	if err := os.MkdirAll(plans, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(plans, "login-plan.md"), []byte("# Plan\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+func TestCreateAndUpdate_PlanThatIsAPath_IsRefusedInvalid(t *testing.T) {
+	for _, plan := range []string{"../../etc/passwd", "/etc/passwd", "a/b", ".."} {
+		commands := map[string][]string{
+			"create": {"create", "--id", "new-one", "--title", "New one", "--plan", plan},
+			"update": {"update", "login-flow", "--plan", plan},
+		}
+		for name, args := range commands {
+			t.Run(name+" "+plan, func(t *testing.T) {
+				root := newWriteStore(t)
+				loginBefore := readStoreFile(t, root, "login-flow.md")
+
+				_, stderr, exitCode := runCLI(t, root, args...)
+				jsonOut, _, jsonExitCode := runCLI(t, root, append(args, "--json")...)
+
+				wantMessage := fmt.Sprintf("capcom: --plan %q: not a plan basename: name a file in one of the "+
+					"plans directories [docs/plans docs/plans/archived]", plan)
+				if exitCode != ExitError || !strings.HasPrefix(stderr, wantMessage) {
+					t.Errorf("exit = %d stderr = %q, want exit %d and stderr starting %q",
+						exitCode, stderr, ExitError, wantMessage)
+				}
+				if jsonExitCode != ExitError || !strings.Contains(jsonOut, `"code":"invalid"`) {
+					t.Errorf("--json exit = %d stdout = %s, want exit %d and code invalid", jsonExitCode, jsonOut, ExitError)
+				}
+				if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "new-one.md")); !os.IsNotExist(err) {
+					t.Errorf("new-one.md exists (err = %v), want nothing created", err)
+				}
+				if readStoreFile(t, root, "login-flow.md") != loginBefore {
+					t.Error("login-flow.md changed, want nothing written")
+				}
+			})
+		}
+	}
+}
+
+func TestCreateAndUpdate_MissingPlan_WritesAndWarnsLikeCheck(t *testing.T) {
+	commands := map[string]struct {
+		args []string
+		path string
+	}{
+		"create": {
+			[]string{"create", "--id", "new-one", "--title", "New one", "--body", "Body.", "--plan", "no-such-plan"},
+			".capcom/issues/new-one.md",
+		},
+		"update": {[]string{"update", "login-flow", "--plan", "no-such-plan"}, ".capcom/issues/login-flow.md"},
+	}
+	for name, command := range commands {
+		t.Run(name, func(t *testing.T) {
+			root := newWriteStore(t)
+			want := command.path + `: plan "no-such-plan" is in none of the plans directories ` +
+				"[docs/plans docs/plans/archived]"
+
+			stdout, stderr, exitCode := runCLI(t, root, append(command.args, "--json")...)
+			checkOut, _, _ := runCLI(t, root, "check")
+
+			warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+			if exitCode != ExitOK || len(warnings) != 1 || warnings[0] != want {
+				t.Errorf("exit = %d stderr = %q warnings = %v, want [%q]", exitCode, stderr, warnings, want)
+			}
+			wantCheck := strings.TrimPrefix(want, command.path+": ")
+			if !strings.Contains(checkOut, wantCheck) {
+				t.Errorf("check = %q, want it to report %q", checkOut, wantCheck)
+			}
+		})
+	}
+}
+
+func TestCreateAndUpdate_PlanThatResolvesOrIsCleared_DoesNotWarn(t *testing.T) {
+	commands := map[string][]string{
+		"create":       {"create", "--id", "new-one", "--title", "New one", "--body", "Body.", "--plan", "login-plan"},
+		"update":       {"update", "login-flow", "--plan", "login-plan"},
+		"update clear": {"update", "login-flow", "--plan", ""},
+	}
+	for name, args := range commands {
+		t.Run(name, func(t *testing.T) {
+			root := newWriteStore(t)
+			writeLoginPlan(t, root)
+
+			stdout, stderr, exitCode := runCLI(t, root, append(args, "--json")...)
+
+			warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+			if exitCode != ExitOK || len(warnings) != 0 {
+				t.Errorf("exit = %d stderr = %q warnings = %v, want none", exitCode, stderr, warnings)
+			}
+		})
 	}
 }

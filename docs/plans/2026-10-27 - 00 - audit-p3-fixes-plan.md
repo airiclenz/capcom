@@ -135,7 +135,11 @@ prose `--ref`/`--add-ref` mentions in `knowAddLong`/`knowUpdateLong`.
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Help|Ref'` and `./internal/clidoc/`
 **Commit:** `fix(docs): unpin the UI page's version and point the --ref example at a real file`
 
-## 4. --plan refuses a path and warns on a missing plan
+## 4. --plan refuses a path and warns on a missing plan — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the name rule is `Config.ValidatePlanName` (a method, as the Approach allowed) and the shared message `Config.MissingPlanMessage`; `create.go` gains `checkPlanValue` and `missingPlanWarnings`, which update reuses; `flags.go`'s valueChecker is untouched, the refusal goes through `output.Errorf(output.CodeInvalid, ...)` as invalidValues does.
+NOTES (2026-10-27): the existing `--plan login-plan` test (`TestCreate_UnderParent_CreatesParentDirectory`) now writes `docs/plans/login-plan.md` so its plan resolves, rather than asserting the warning; the warning itself is asserted by the new `TestCreateAndUpdate_MissingPlan_WritesAndWarnsLikeCheck`.
+NOTES (2026-10-27): file-format.md gains the refusal and warning wording under the config `plans` key, not in the issue table's `plan` row, which item 5 owns.
 
 **What:**
 **Goal:** `create --plan` and `update --plan` refuse, exit 1 (`invalid`), a value that is absolute or

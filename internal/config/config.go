@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -253,12 +254,34 @@ func (c Config) DefaultStatus(category Category) (string, bool) {
 	return "", false
 }
 
+// ValidatePlanName returns an error when plan is not a bare basename, the only form a plan: value
+// takes: it is refused when empty, absolute, holding a volume name, a / or a \, and when it is "."
+// or "..". The error's text names the plans directories and leaves the plan itself out, for the
+// caller to name it as it was given (a flag, a file).
+func (c Config) ValidatePlanName(plan string) error {
+	isPath := filepath.IsAbs(plan) || filepath.VolumeName(plan) != "" || strings.ContainsAny(plan, `/\`)
+	if plan == "" || plan == "." || plan == ".." || isPath {
+		return fmt.Errorf(
+			"not a plan basename: name a file in one of the plans directories %v by its name alone, "+
+				"with or without .md",
+			c.Plans,
+		)
+	}
+	return nil
+}
+
+// MissingPlanMessage returns the message of a plan that is in none of the plans directories, the
+// text capcom check reports for it and a write that sets it warns with.
+func (c Config) MissingPlanMessage(plan string) string {
+	return fmt.Sprintf("plan %q is in none of the plans directories %v", plan, c.Plans)
+}
+
 // PlanPath returns the path of the file plan names, and whether one was found: plan is a basename,
 // looked up as <dir>/<plan>.md and then <dir>/<plan> in each of the plans directories in turn,
 // each relative to root, the repository's worktree root. Only a regular file counts: a directory
-// is passed over. A plan that is not a bare basename is never found.
+// is passed over. A plan ValidatePlanName refuses is never found.
 func (c Config) PlanPath(root, plan string) (path string, isFound bool) {
-	if filepath.Base(filepath.FromSlash(plan)) != plan {
+	if c.ValidatePlanName(plan) != nil {
 		return "", false
 	}
 	for _, dir := range c.Plans {
