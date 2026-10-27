@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -451,6 +452,132 @@ func TestMouse_ClickWithHelpOpen_DoesNothing(t *testing.T) {
 
 	if m.tab != TabReady || !m.isHelpOpen {
 		t.Errorf("tab %v, help open %v; want the Ready tab under the open help screen", m.tab, m.isHelpOpen)
+	}
+}
+
+func TestMouse_ClickOnTheLayoutButton_TogglesTheLayoutAndSavesIt(t *testing.T) {
+	for _, x := range []int{wideWidth - 3, wideWidth - 1} {
+		t.Run(fmt.Sprintf("column %d", x), func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			m := startModel(t, options, wideWidth, wideHeight)
+			split := m.View().Content
+
+			m = clickAndRelease(t, m, x, wideHeight-1)
+			isStackedAfterFirst := hasStackedDivider(m)
+			storedAfterFirst := readStoredLayout(t, options.UserStatePath)
+			m = clickAndRelease(t, m, x, wideHeight-1)
+
+			if !isStackedAfterFirst {
+				t.Errorf("after one click: want the stacked layout's divider on screen")
+			}
+			if storedAfterFirst != userconfig.LayoutStacked {
+				t.Errorf("stored layout after one click = %q, want %q", storedAfterFirst, userconfig.LayoutStacked)
+			}
+			if got := m.View().Content; got != split {
+				t.Errorf("after two clicks:\n%s\nwant the split layout\n%s", got, split)
+			}
+			if got := readStoredLayout(t, options.UserStatePath); got != userconfig.LayoutSplit {
+				t.Errorf("stored layout after two clicks = %q, want %q", got, userconfig.LayoutSplit)
+			}
+		})
+	}
+}
+
+func TestMouse_ClickOnTheLayoutButton_WithTheFilterLineOrThePickerOpen_TogglesAndKeepsItOpen(t *testing.T) {
+	cases := []struct {
+		name   string
+		key    rune
+		isOpen func(m model) bool
+	}{
+		{name: "filter line", key: '/', isOpen: func(m model) bool { return m.isFilterOpen }},
+		{name: "status picker", key: 's', isOpen: func(m model) bool { return m.picker.isOpen }},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			m := press(t, startModel(t, options, wideWidth, wideHeight), runeKey(testCase.key))
+
+			m = clickAndRelease(t, m, wideWidth-1, wideHeight-1)
+
+			if !hasStackedDivider(m) {
+				t.Errorf("after the click: want the stacked layout's divider on screen")
+			}
+			if got := readStoredLayout(t, options.UserStatePath); got != userconfig.LayoutStacked {
+				t.Errorf("stored layout after the click = %q, want %q", got, userconfig.LayoutStacked)
+			}
+			if !testCase.isOpen(m) {
+				t.Errorf("the %s closed by the click, want it open", testCase.name)
+			}
+		})
+	}
+}
+
+func TestMouse_ClickWhereTheLayoutButtonIsNot_LeavesTheLayout(t *testing.T) {
+	cases := []struct {
+		name   string
+		width  int
+		height int
+		open   func(t *testing.T, m model) model
+		msg    tea.MouseClickMsg
+	}{
+		{
+			name:  "right click",
+			width: wideWidth, height: wideHeight,
+			msg: tea.MouseClickMsg{X: wideWidth - 1, Y: wideHeight - 1, Button: tea.MouseRight},
+		},
+		{
+			name:  "one column left of the button",
+			width: wideWidth, height: wideHeight,
+			msg: click(wideWidth-4, wideHeight-1),
+		},
+		{
+			name:  "89x30 draws no button",
+			width: 89, height: wideHeight,
+			msg: click(88, wideHeight-1),
+		},
+		{
+			name:  "help screen",
+			width: wideWidth, height: wideHeight,
+			open: func(t *testing.T, m model) model { return press(t, m, runeKey('?')) },
+			msg:  click(wideWidth-1, wideHeight-1),
+		},
+		{
+			name:  "confirm prompt",
+			width: wideWidth, height: wideHeight,
+			open: func(t *testing.T, m model) model {
+				m.prompt = newConfirmPrompt("go on?", nil)
+				return m
+			},
+			msg: click(wideWidth-1, wideHeight-1),
+		},
+		{
+			name:  "reason prompt",
+			width: wideWidth, height: wideHeight,
+			open: func(t *testing.T, m model) model { return press(t, m, runeKey('c')) },
+			msg:  click(wideWidth-1, wideHeight-1),
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			options := newTestOptions(t, newTestStore(t, readyFiles))
+			m := startModel(t, options, testCase.width, testCase.height)
+			if testCase.open != nil {
+				m = testCase.open(t, m)
+			}
+			before := m.View().Content
+
+			m = press(t, m, testCase.msg)
+
+			if m.layoutChoice != "" {
+				t.Errorf("layoutChoice = %q, want none", m.layoutChoice)
+			}
+			if got := m.View().Content; got != before {
+				t.Errorf("after the click:\n%s\nwant the screen unchanged\n%s", got, before)
+			}
+			if _, err := os.Stat(options.UserStatePath); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("state file after the click: Stat error %v, want it not written", err)
+			}
+		})
 	}
 }
 

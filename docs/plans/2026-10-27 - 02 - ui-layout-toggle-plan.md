@@ -179,7 +179,7 @@ Depends on items 2 and 4.
 
 **Commit:** `feat(ui): show a layout button at the end of the status bar`
 
-## 6. A click on the layout button toggles the layout
+## 6. A click on the layout button toggles the layout — ✅ DONE (2026-10-27)
 
 Depends on item 5.
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/index"
 )
@@ -19,9 +20,22 @@ const detailWheelRows = 3
 const doubleClickWindow = 500 * time.Millisecond
 
 // isMouseIgnored reports an open help screen, filter line, status picker or prompt: each takes
-// every key while it is open, so a click or a wheel notch cannot move what it acts on.
+// every key while it is open, so a click or a wheel notch cannot move what it acts on. A left click
+// on the layout button is the exception: mouseClick takes it before this check, so it toggles the
+// layout with the filter line or the status picker open.
 func (m model) isMouseIgnored() bool {
 	return m.isHelpOpen || m.isFilterOpen || m.picker.isOpen || m.prompt.isOpen || m.textPrompt.isOpen
+}
+
+// isOnLayoutButton reports column x, row y on the status bar's layout button while it is drawn: on
+// the status bar's row, in the row's last columns the button fills. The button is not drawn with
+// the help screen or a prompt open, so a click there then is not on it.
+func (m model) isOnLayoutButton(x, y int) bool {
+	button := m.layoutButton()
+	if button == "" || y != m.height-1 {
+		return false
+	}
+	return x >= m.width-ansi.StringWidth(button) && x < m.width
 }
 
 // dividerDrag is a drag of the divider between the panes, from a left press on its hit area to the
@@ -45,9 +59,16 @@ type dividerDrag struct {
 // resets the sidebar's width, or its height in the stacked layout, when the click completes a
 // double-click there, on a tab's label it opens that tab, on a sidebar row it selects that row, expanding or collapsing a
 // tree node when the click lands on its arrow, and in the detail pane it selects a row of the
-// dependency view or anchors the detail selection. Every press that is not ignored first clears
-// the detail selection. Every other click, and every click while isMouseIgnored, does nothing.
+// dependency view or anchors the detail selection. On the status bar's layout button it toggles
+// the layout as the layout key does, even while the filter line or the status picker is open,
+// which both stay open. Every press that is not ignored first clears the detail selection. Every
+// other click, and every other click while isMouseIgnored, does nothing.
 func (m model) mouseClick(msg tea.MouseClickMsg) (model, tea.Cmd) {
+	if msg.Button == tea.MouseLeft && m.isOnLayoutButton(msg.X, msg.Y) {
+		m.sel = detailSel{}
+		m.lastDividerPress = time.Time{}
+		return m.toggleLayout()
+	}
 	if m.isMouseIgnored() {
 		return m, nil
 	}
