@@ -46,6 +46,17 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
+// recreateWorktree removes the linked worktree at worktree and adds it again on its branch, with
+// a fresh capcom store. It leaves the working directory first: Windows cannot delete the
+// directory a process runs in.
+func recreateWorktree(t *testing.T, root, worktree string) {
+	t.Helper()
+	t.Chdir(root)
+	runGit(t, root, "worktree", "remove", "--force", worktree)
+	runGit(t, root, "worktree", "add", "-q", worktree, "branch-"+filepath.Base(worktree))
+	mustRun(t, worktree, "init")
+}
+
 // acquireToken acquires root's lock for holder and returns the token.
 func acquireToken(t *testing.T, root, holder string) string {
 	t.Helper()
@@ -530,9 +541,7 @@ func TestLockAcquire_ReCreatedWorktree_TakesOverTheOrphanedRecord(t *testing.T) 
 	root := newLockStore(t)
 	worktree := addWorktree(t, root, "feature")
 	oldToken := acquireToken(t, worktree, "agent-a")
-	runGit(t, root, "worktree", "remove", "--force", worktree)
-	runGit(t, root, "worktree", "add", "-q", worktree, "branch-feature")
-	mustRun(t, worktree, "init")
+	recreateWorktree(t, root, worktree)
 
 	stdout, stderr, exitCode := runCLI(t, worktree, "lock", "acquire", "--purpose", "item 15", "--holder", "agent-b", "--kv")
 
@@ -826,9 +835,7 @@ func orphanFeatureLock(t *testing.T, root string) string {
 	worktree := addWorktree(t, root, "feature")
 	acquireToken(t, worktree, "agent-b")
 	acquireToken(t, root, "agent-a")
-	runGit(t, root, "worktree", "remove", "--force", worktree)
-	runGit(t, root, "worktree", "add", "-q", worktree, "branch-feature")
-	mustRun(t, worktree, "init")
+	recreateWorktree(t, root, worktree)
 	return worktree
 }
 
