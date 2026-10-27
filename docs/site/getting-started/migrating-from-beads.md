@@ -120,8 +120,9 @@ config's `plans` list, the archive included. When `capcom check` reports `missin
 plan's current name, or drop the field and record the old value in a Log entry.
 
 A `spec_id` that points at a document that is not a plan (a review, a design note) gets no `plan:`
-at all, since `plan:` makes the issue Planned: record the path in a Log entry instead, dated by
-`created_at`, with the author `beads`: `- <created_at date> beads: spec: <path>`.
+at all, since `plan:` names only a plan, and an issue is Planned when its `plan:` resolves to a plan
+file: record the path in a Log entry instead, dated by `created_at`, with the author `beads`:
+`- <created_at date> beads: spec: <path>`.
 
 ### Dependencies
 
