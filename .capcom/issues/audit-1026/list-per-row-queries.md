@@ -1,10 +1,12 @@
 ---
 title: list and search --excerpt run one query per row, so they slow down with the store
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:27:17Z
+closed: 2026-10-27T08:53:53Z
+reason: Resolved by plan '2026-10-27 - 00 - audit-p3-fixes-plan' (items 11-12), archived in 0e1c89b
 ---
 
 `capcom list` and `capcom search --excerpt` issue one or more SQL queries per row, so their cost

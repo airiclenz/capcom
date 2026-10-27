@@ -1,11 +1,13 @@
 ---
 title: finish --keep-lock then start on its own next issue is refused
-status: open
+status: done
 type: bug
 priority: 2
 deps: [lock-purpose-alias-resume]
 plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:49Z
+closed: 2026-10-27T08:53:53Z
+reason: Resolved by plan '2026-10-27 - 00 - audit-p3-fixes-plan' (items 13), archived in 0e1c89b
 ---
 
 `capcom finish <id> --keep-lock` leaves the lock's purpose as the issue just closed, and the very

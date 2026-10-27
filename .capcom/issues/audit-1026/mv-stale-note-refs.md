@@ -1,10 +1,12 @@
 ---
 title: A rename leaves path-shaped Note refs stale and check failing
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:50Z
+closed: 2026-10-27T08:53:53Z
+reason: Resolved by plan '2026-10-27 - 00 - audit-p3-fixes-plan' (items 6-7), archived in 0e1c89b
 ---
 
 Renaming an issue rewrites deps and related links but not a Note's `refs:` entry that points at the

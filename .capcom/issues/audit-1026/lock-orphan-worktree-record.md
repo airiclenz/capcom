@@ -1,10 +1,12 @@
 ---
 title: A removed worktree's lock record is never pruned and haunts its successor
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:45Z
+closed: 2026-10-27T08:53:53Z
+reason: Resolved by plan '2026-10-27 - 00 - audit-p3-fixes-plan' (items 15-16), archived in 0e1c89b
 ---
 
 A lock record left by a removed worktree is never pruned, and a new worktree that git gives the

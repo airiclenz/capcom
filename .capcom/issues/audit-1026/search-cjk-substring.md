@@ -1,10 +1,12 @@
 ---
 title: Search help does not say a run of CJK characters counts as one word
-status: open
+status: done
 type: chore
 priority: 3
 plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:46Z
+closed: 2026-10-27T08:53:52Z
+reason: Resolved by plan '2026-10-27 - 00 - audit-p3-fixes-plan' (items 2), archived in 0e1c89b
 ---
 
 Search matches whole words, and a run of CJK characters counts as one word, so a word inside such a

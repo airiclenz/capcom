@@ -1,11 +1,13 @@
 ---
 title: A CLI write while another session holds the lock is silent
-status: open
+status: done
 type: feature
 priority: 2
 deps: [lock-check-writes-file]
 plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:13:21Z
+closed: 2026-10-27T08:53:53Z
+reason: Resolved by plan '2026-10-27 - 00 - audit-p3-fixes-plan' (items 17-18), archived in 0e1c89b
 ---
 
 A mutating command writes to the worktree even when another session holds the Tree lock, and says

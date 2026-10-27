@@ -1,10 +1,12 @@
 ---
 title: A rebuild outlasts the busy timeout and concurrent commands fail with SQLITE_BUSY
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:45Z
+closed: 2026-10-27T08:53:53Z
+reason: Resolved by plan '2026-10-27 - 00 - audit-p3-fixes-plan' (items 10), archived in 0e1c89b
 ---
 
 At a plausible store size, a rebuild outlasts the busy timeout and concurrent commands fail.
