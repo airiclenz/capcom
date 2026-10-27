@@ -18,7 +18,10 @@ const UnlimitedDepth = 0
 // Row is one line of an outline: the entry, its id, the id of its parent in the outline ("" at the
 // top level), its depth below the start of the outline, whether it has shown children and, when
 // maxDepth cut those children, how many it cut (More) and the depth that would show them
-// (MoreDepth). More and MoreDepth are 0 on a row that cut nothing.
+// (MoreDepth). More and MoreDepth are 0 on a row that cut nothing. IsContext is true on a row of
+// a Tree that Matching narrowed when the row's id is not among the matched ids: the row prints only
+// as an ancestor of a match, or as the start of the outline. A Tree NewTree built has no context
+// rows.
 type Row[E any] struct {
 	Entry       E
 	ID          string
@@ -27,16 +30,19 @@ type Row[E any] struct {
 	HasChildren bool
 	More        int
 	MoreDepth   int
+	IsContext   bool
 }
 
 // Tree is a hierarchy of entries grouped under their parents, with the visibility rule of the
 // outline that prints it. Grouping covers every entry, hidden ones included, so a hidden entry's
-// children stay in its group and are hidden with it, never promoted to the top level.
+// children stay in its group and are hidden with it, never promoted to the top level. matched is
+// the set of ids a Tree that Matching narrowed was narrowed to, nil on a Tree NewTree built.
 type Tree[E any] struct {
 	children map[string][]E
 	parentOf map[string]string
 	idOf     func(E) string
 	isShown  func(E) bool
+	matched  map[string]bool
 }
 
 // NewTree groups entries by the id parentOf gives, under "" for the top level. An entry whose
@@ -100,6 +106,43 @@ func Notes(notes []index.NoteEntry, isBackgroundIncluded bool) *Tree[index.NoteE
 	)
 }
 
+// Matching returns the outline t narrowed to matched: every entry t shows whose id is in matched,
+// and that entry's ancestors, grouped and ordered as in t. Only an entry t shows can match; a
+// matched id t hides, by itself or through an ancestor, keeps nothing. The narrowed Tree marks a
+// row IsContext when its id is not in matched. Children still returns every child, hidden ones
+// included, so a row's progress counts all its children; a depth cut counts the kept ones only.
+func (t *Tree[E]) Matching(matched map[string]bool) *Tree[E] {
+	rows := t.Rows(nil, UnlimitedDepth)
+	kept := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if !matched[row.ID] {
+			continue
+		}
+		for id := row.ID; id != "" && !kept[id]; id = t.parentOf[id] {
+			kept[id] = true
+		}
+	}
+	return &Tree[E]{
+		children: t.children,
+		parentOf: t.parentOf,
+		idOf:     t.idOf,
+		isShown:  func(entry E) bool { return kept[t.idOf(entry)] },
+		matched:  matchedSet(matched),
+	}
+}
+
+// matchedSet returns a copy of matched that is never nil, so a Tree narrowed to no ids still marks
+// its start row as context.
+func matchedSet(matched map[string]bool) map[string]bool {
+	set := make(map[string]bool, len(matched))
+	for id, isMatched := range matched {
+		if isMatched {
+			set[id] = true
+		}
+	}
+	return set
+}
+
 // Children returns every direct child of parentID, hidden ones included, in group order.
 func (t *Tree[E]) Children(parentID string) []E {
 	return t.children[parentID]
@@ -135,6 +178,7 @@ func (t *Tree[E]) Rows(start *E, maxDepth int) []Row[E] {
 			HasChildren: len(t.Shown(id)) > 0,
 			More:        more,
 			MoreDepth:   moreDepth,
+			IsContext:   t.matched != nil && !t.matched[id],
 		})
 	}
 	if start == nil {

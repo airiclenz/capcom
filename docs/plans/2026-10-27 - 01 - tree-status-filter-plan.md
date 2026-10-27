@@ -35,7 +35,9 @@ Parent's descendants by status at every depth, in text and in `--json`.
 - Filters on `capcom know tree`.
 - `--limit` with `--tree`.
 
-## 1. outline: a filtered Tree that marks context rows
+## 1. outline: a filtered Tree that marks context rows — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): Matching copies the matched set (true entries only) and records an empty, non-nil set for a nil argument, so a Tree narrowed to nothing still marks its start row as context; added two tests beyond the plan's list (TestOutline_Matching_ChildrenStillIncludeEveryChild, TestOutline_NewTree_RowsAreNeverContext); the now-unused "cmp" import left internal/ui/filter.go.
 
 **What:**
 **Goal:** `internal/outline` offers one method that narrows a Tree to a set of matched ids plus

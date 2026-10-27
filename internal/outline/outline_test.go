@@ -378,3 +378,130 @@ func TestNotes_RowsSortByIDAndHideBackgroundSubtrees(t *testing.T) {
 		})
 	}
 }
+
+// contextRow is the position of one Row of a narrowed Tree: its id, depth and whether it is
+// context.
+type contextRow struct {
+	id        string
+	depth     int
+	isContext bool
+}
+
+// contextRowsOf returns the id, depth and context mark of each row, in order.
+func contextRowsOf[E any](rows []Row[E]) []contextRow {
+	got := []contextRow{}
+	for _, row := range rows {
+		got = append(got, contextRow{row.ID, row.Depth, row.IsContext})
+	}
+	return got
+}
+
+// matchingTestEntries is a three-level tree: a has a1 and a2, a1 has a11 and a12; b is a leaf.
+func matchingTestEntries() []treeEntry {
+	return []treeEntry{
+		{id: "a"},
+		{id: "a1", parentID: "a"},
+		{id: "a11", parentID: "a1"},
+		{id: "a12", parentID: "a1"},
+		{id: "a2", parentID: "a"},
+		{id: "b"},
+	}
+}
+
+func TestOutline_Matching_KeepsMatchesAndAncestors(t *testing.T) {
+	tree := newTestTree(matchingTestEntries(), nil)
+
+	rows := tree.Matching(map[string]bool{"a11": true}).Rows(nil, UnlimitedDepth)
+
+	want := []contextRow{{"a", 0, true}, {"a1", 1, true}, {"a11", 2, false}}
+	if got := contextRowsOf(rows); !reflect.DeepEqual(got, want) {
+		t.Errorf("rows = %v, want %v", got, want)
+	}
+}
+
+func TestOutline_Matching_StartRowIsContextUnlessMatched(t *testing.T) {
+	entries := matchingTestEntries()
+	start := entries[1]
+	cases := []struct {
+		name    string
+		matched map[string]bool
+		want    []contextRow
+	}{
+		{"start not matched", map[string]bool{"a12": true}, []contextRow{{"a1", 0, true}, {"a12", 1, false}}},
+		{"start matched", map[string]bool{"a1": true}, []contextRow{{"a1", 0, false}}},
+		{"nothing matched", nil, []contextRow{{"a1", 0, true}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tree := newTestTree(entries, nil)
+
+			rows := tree.Matching(tc.matched).Rows(&start, UnlimitedDepth)
+
+			if got := contextRowsOf(rows); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("rows = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestOutline_Matching_DepthCutCountsKeptChildren(t *testing.T) {
+	tree := newTestTree(matchingTestEntries(), nil)
+
+	rows := tree.Matching(map[string]bool{"a11": true, "b": true}).Rows(nil, 1)
+
+	want := []rowSummary{{"a", "", 0, true, 1, 2}, {"b", "", 0, false, 0, 2}}
+	if got := summariesOf(rows); !reflect.DeepEqual(got, want) {
+		t.Errorf("rows = %v, want %v", got, want)
+	}
+}
+
+func TestOutline_Matching_IgnoresMatchesTheTreeHides(t *testing.T) {
+	// h is hidden with a child h1; a2 is hidden below shown a.
+	entries := []treeEntry{
+		{id: "a"},
+		{id: "a1", parentID: "a"},
+		{id: "a2", parentID: "a", isHidden: true},
+		{id: "h", isHidden: true},
+		{id: "h1", parentID: "h"},
+	}
+	cases := []struct {
+		name    string
+		matched map[string]bool
+		want    []contextRow
+	}{
+		{"hidden match", map[string]bool{"a2": true}, []contextRow{}},
+		{"match below a hidden ancestor", map[string]bool{"h1": true}, []contextRow{}},
+		{"hidden and shown matches", map[string]bool{"a1": true, "a2": true}, []contextRow{{"a", 0, true}, {"a1", 1, false}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tree := newTestTree(entries, nil)
+
+			rows := tree.Matching(tc.matched).Rows(nil, UnlimitedDepth)
+
+			if got := contextRowsOf(rows); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("rows = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestOutline_Matching_ChildrenStillIncludeEveryChild(t *testing.T) {
+	tree := newTestTree(matchingTestEntries(), nil)
+
+	narrowed := tree.Matching(map[string]bool{"a11": true})
+
+	if got, want := idsOf(narrowed.Children("a1")), []string{"a11", "a12"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("children = %v, want %v", got, want)
+	}
+}
+
+func TestOutline_NewTree_RowsAreNeverContext(t *testing.T) {
+	tree := newTestTree(matchingTestEntries(), nil)
+
+	for _, row := range tree.Rows(nil, UnlimitedDepth) {
+		if row.IsContext {
+			t.Errorf("row %s is context on an unnarrowed Tree", row.ID)
+		}
+	}
+}

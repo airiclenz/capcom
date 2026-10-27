@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -270,35 +269,6 @@ func keepMatched[E any](entries []E, idOf func(E) string, filter sidebarFilter) 
 	return kept
 }
 
-// filteredOutline returns the outline a filter leaves of visible's entries: every matched entry
-// visible prints with all its nodes expanded, and that entry's ancestors, grouped and ordered as
-// parentOf and compare give. Every entry stays in it, so a row's progress still counts all its
-// children.
-func filteredOutline[E any](
-	visible *outline.Tree[E],
-	entries []E,
-	idOf func(E) string,
-	parentOf func(E) string,
-	compare func(left E, right E) int,
-	matched map[string]bool,
-) *outline.Tree[E] {
-	rows := visible.Rows(nil, outline.UnlimitedDepth)
-	parents := make(map[string]string, len(rows))
-	for _, row := range rows {
-		parents[row.ID] = row.ParentID
-	}
-	kept := map[string]bool{}
-	for _, row := range rows {
-		if !matched[row.ID] {
-			continue
-		}
-		for id := row.ID; id != "" && !kept[id]; id = parents[id] {
-			kept[id] = true
-		}
-	}
-	return outline.NewTree(entries, idOf, parentOf, compare, func(entry E) bool { return kept[idOf(entry)] })
-}
-
 // expandAll expands every node the outline shows, keeping the selection on the same node.
 func (w *treeWidget[E]) expandAll() {
 	selected, _ := w.selection()
@@ -426,7 +396,7 @@ func (m model) issuesTree(expanded map[string]bool) treeWidget[index.Entry] {
 	filter := m.filters[TabIssues]
 	tree := outline.Issues(entries, false)
 	if filter.isActive() {
-		tree = filteredOutline(outline.Issues(entries, filter.isClosedShown), entries, entryID, entryParentID, nil, filter.matched)
+		tree = outline.Issues(entries, filter.isClosedShown).Matching(filter.matched)
 	}
 	return newTreeWidget(tree, entryID, expanded)
 }
@@ -439,7 +409,7 @@ func (m model) knowledgeTree(expanded map[string]bool) treeWidget[index.NoteEntr
 	filter := m.filters[TabKnowledge]
 	tree := noteOutline(notes)
 	if filter.isActive() {
-		tree = filteredOutline(tree, notes, noteID, noteParentID, compareNoteIDs, filter.matched)
+		tree = tree.Matching(filter.matched)
 	}
 	return newTreeWidget(tree, noteID, expanded)
 }
@@ -503,22 +473,7 @@ func entryID(entry index.Entry) string {
 	return entry.ID
 }
 
-// entryParentID returns the id of an issue's parent, "" at the top level.
-func entryParentID(entry index.Entry) string {
-	return entry.ParentID
-}
-
 // noteID returns the id of a Note.
 func noteID(note index.NoteEntry) string {
 	return note.ID
-}
-
-// noteParentID returns the id of a Note's parent, "" at the top level.
-func noteParentID(note index.NoteEntry) string {
-	return note.ParentID
-}
-
-// compareNoteIDs orders Notes by id, as capcom know tree does.
-func compareNoteIDs(left, right index.NoteEntry) int {
-	return cmp.Compare(left.ID, right.ID)
 }
