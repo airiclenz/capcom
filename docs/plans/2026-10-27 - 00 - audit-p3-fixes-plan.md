@@ -455,7 +455,7 @@ updated to `capcom start login-flow --token <token>, or capcom lock status`; kee
 - `go run ./cmd/capcom check`
 **Commit:** `fix(finish): name the start that resumes a kept lock`
 
-## 14. The lock record holds a token digest, not the token
+## 14. The lock record holds a token digest, not the token — ✅ DONE (2026-10-27)
 
 **What:**
 **Goal:** a lock record written by capcom holds `"token": "sha256:<hex>"`, never the cleartext;

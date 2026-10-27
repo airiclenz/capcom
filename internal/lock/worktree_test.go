@@ -66,7 +66,7 @@ func TestWorktree_AcquireThenTouch_WritesTheRecordAtRecordPath(t *testing.T) {
 		t.Fatalf("Acquire: %v", err)
 	}
 
-	touched, err := worktree.Touch(acquired.Record.Token)
+	touched, err := worktree.Touch(acquired.Token)
 
 	if err != nil {
 		t.Fatalf("Touch: %v", err)
@@ -79,8 +79,8 @@ func TestWorktree_AcquireThenTouch_WritesTheRecordAtRecordPath(t *testing.T) {
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatalf("parsing the record: %v", err)
 	}
-	if record.Token != acquired.Record.Token || !record.Heartbeat.Equal(touched.Record.Heartbeat) {
-		t.Errorf("record = %+v, want token %q and heartbeat %v", record, acquired.Record.Token, touched.Record.Heartbeat)
+	if record.Token != digestToken(acquired.Token) || !record.Heartbeat.Equal(touched.Record.Heartbeat) {
+		t.Errorf("record = %+v, want token %q and heartbeat %v", record, digestToken(acquired.Token), touched.Record.Heartbeat)
 	}
 	if touched.Key != MainWorktreeKey {
 		t.Errorf("touched key = %q, want %q", touched.Key, MainWorktreeKey)

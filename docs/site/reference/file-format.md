@@ -847,7 +847,7 @@ replaces it. A token file is never read as a record: only `*.json` files are.
 
 ```json
 {
-  "token": "ff6d642521c9bff460590d1469040ae1",
+  "token": "sha256:3f2b9c0d6a41e8d57b1c4a90e2f6d83b5c7a1e04d9b28f6c3a5e7d1b0c9f4a26",
   "purpose": "implementing the release plan",
   "holder": "airic@devbox",
   "host": "devbox",
@@ -858,10 +858,16 @@ replaces it. A token file is never read as a record: only `*.json` files are.
 }
 ```
 
-- **token** — the Lock token `lock acquire` hands the holder: 128 random bits in hex. The holder
-  presents it to `lock touch` and `lock release`, and capcom keeps it in a token file so that the
-  same acquire or start resumes the lock. It is a public signal between agents, not a secret: it
-  tells different work apart, and the lock stays advisory.
+- **token** — `sha256:` and the lowercase hex SHA-256 of the Lock token, never the token itself.
+  The token `lock acquire` hands the holder is 128 random bits in hex; the holder presents it to
+  `lock touch`, `lock release` and `lock check`, capcom compares its digest with this one, and
+  capcom keeps the token itself in a token file so that the same acquire or start resumes the lock.
+  A reader of the record learns who holds the lock, not the token that acts as the holder; the
+  token tells different work apart, and the lock stays advisory. A record an older capcom wrote
+  holds the token in the clear: it still matches, and the next `lock touch`, or the next acquire
+  or start that resumes it, rewrites it as a digest. An older capcom in the same clone compares
+  the token itself, so it sees a record this one wrote as held by another session; `capcom lock
+  break` clears it.
 - **purpose** — what the holder is doing, from `--purpose`.
 - **holder** — who holds the lock, from `--holder`; `user@host` by default.
 - **host**, **user**, **branch** — where the lock was acquired: the machine, the user and the

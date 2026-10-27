@@ -10,6 +10,8 @@ package lock
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -41,9 +43,10 @@ const (
 )
 
 const (
-	tokenBytes       = 16
-	dirPermissions   = 0o755
-	guardPermissions = 0o644
+	tokenBytes        = 16
+	tokenDigestPrefix = "sha256:"
+	dirPermissions    = 0o755
+	guardPermissions  = 0o644
 )
 
 // ErrNotHeld reports a touch of a worktree whose lock nobody holds.
@@ -56,8 +59,10 @@ var ErrCorruptRecord = errors.New("invalid lock record")
 
 // Record is one worktree's lock as stored on disk.
 type Record struct {
-	// Token is the Lock token the holder presents to touch, release and re-acquire. It tells
-	// sessions apart, and a token file beside the record keeps it in the open (ADR 0016).
+	// Token is the digest of the Lock token the holder presents to touch, release and re-acquire,
+	// `sha256:<hex>`, so a reader of the record cannot act as the holder; a token file beside the
+	// record keeps the token itself (ADR 0016). A record an older capcom wrote holds the token in
+	// the clear: it still matches, and becomes a digest on the next touch or resume.
 	Token string `json:"token"`
 	// Purpose says what the holder is doing.
 	Purpose string `json:"purpose"`
@@ -87,6 +92,9 @@ type Status struct {
 	Key string
 	// Record is the lock record; zero when IsHeld is false.
 	Record Record
+	// Token is the Lock token in the clear, which the record keeps only as a digest. Only Acquire
+	// sets it; every other Status leaves it empty.
+	Token string
 	// IsHeld reports whether a record exists, stale or not.
 	IsHeld bool
 	// IsStale reports a held lock whose heartbeat is older than the TTL, or dated more than one TTL
@@ -177,7 +185,8 @@ func (l *Locks) RecordPath(key string) string {
 
 // Acquire takes key's lock for claim. A free lock gets a new token. When token matches the
 // holder's, the lock is resumed, even a stale one: its heartbeat is refreshed, its purpose and
-// holder replaced by claim's, and isResumed is true. A lock another session holds fails with a
+// holder replaced by claim's, a record holding the token in the clear is rewritten to hold its
+// digest, and isResumed is true. A lock another session holds fails with a
 // *HeldError, unless isTakeStale is set and that lock is stale, in which case it is taken over
 // with a new token. The lock's token is kept in the token file for claim's purpose, written before
 // the record, so a failed write takes no lock; an empty purpose keeps no token. A resume moves the
@@ -201,20 +210,21 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 			Since:     now,
 			Heartbeat: now,
 		}
+		cleartext := token
 		switch {
-		case current.IsHeld && token != "" && current.Record.Token == token:
+		case current.IsHeld && tokenMatches(current.Record.Token, token):
 			isResumed = true
-			record.Token = token
 			record.Since = current.Record.Since
 		case current.IsHeld && !(isTakeStale && current.IsStale):
 			return l.heldError(current, now)
 		default:
-			record.Token, err = newToken()
+			cleartext, err = newToken()
 			if err != nil {
 				return err
 			}
 		}
-		if err := l.writeTokenFile(key, record.Token, claim.Purpose); err != nil {
+		record.Token = digestToken(cleartext)
+		if err := l.writeTokenFile(key, cleartext, claim.Purpose); err != nil {
 			return err
 		}
 		if isResumed {
@@ -225,13 +235,14 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 		if err := l.write(key, record); err != nil {
 			return err
 		}
-		acquired = Status{Key: key, Record: record, IsHeld: true}
+		acquired = Status{Key: key, Record: record, IsHeld: true, Token: cleartext}
 		return nil
 	})
 	return acquired, isResumed, err
 }
 
-// Touch refreshes the heartbeat of key's lock for the holder of token. It fails with a
+// Touch refreshes the heartbeat of key's lock for the holder of token, and rewrites a record
+// holding the token in the clear to hold its digest. It fails with a
 // *NotHeldError, returning the free lock, when nobody holds it, and with a *HeldError when another
 // session holds it.
 func (l *Locks) Touch(key, token string) (Status, error) {
@@ -245,10 +256,11 @@ func (l *Locks) Touch(key, token string) (Status, error) {
 			touched = current
 			return &NotHeldError{Path: l.RecordPath(key)}
 		}
-		if current.Record.Token != token {
+		if !tokenMatches(current.Record.Token, token) {
 			return l.heldError(current, now)
 		}
 
+		current.Record.Token = digestToken(token)
 		current.Record.Heartbeat = now
 		if err := l.write(key, current.Record); err != nil {
 			return err
@@ -270,7 +282,7 @@ func (l *Locks) Release(key, token string) (Status, error) {
 			released = current
 			return err
 		}
-		if current.IsHeld && current.Record.Token != token {
+		if current.IsHeld && !tokenMatches(current.Record.Token, token) {
 			return l.heldError(current, now)
 		}
 		released = current
@@ -323,7 +335,7 @@ func (l *Locks) Check(key, token string) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	if current.IsHeld && (token == "" || current.Record.Token != token) {
+	if current.IsHeld && !tokenMatches(current.Record.Token, token) {
 		return Status{}, l.heldError(current, now)
 	}
 	return current, nil
@@ -446,6 +458,26 @@ func (l *Locks) heldError(current Status, now time.Time) *HeldError {
 		Age:          max(now.Sub(current.Record.Since), 0),
 		HeartbeatAge: max(now.Sub(current.Record.Heartbeat), 0),
 	}
+}
+
+// digestToken returns the digest a record keeps of token: `sha256:` and the hex SHA-256 of token.
+func digestToken(token string) string {
+	digest := sha256.Sum256([]byte(token))
+	return tokenDigestPrefix + hex.EncodeToString(digest[:])
+}
+
+// tokenMatches reports whether presented is the Lock token whose record keeps stored: a digest is
+// compared with presented's digest, and a token an older capcom kept in the clear with presented
+// itself, both in constant time. An empty presented token matches nothing.
+func tokenMatches(stored, presented string) bool {
+	if presented == "" {
+		return false
+	}
+	want := presented
+	if strings.HasPrefix(stored, tokenDigestPrefix) {
+		want = digestToken(presented)
+	}
+	return subtle.ConstantTimeCompare([]byte(stored), []byte(want)) == 1
 }
 
 // newToken returns a fresh 128-bit random token in hex.

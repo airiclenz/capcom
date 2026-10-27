@@ -50,7 +50,7 @@ func TestAcquire_WithPurpose_WritesTheTokenFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	if want := acquired.Record.Token + "\n" + testClaim.Purpose + "\n"; string(data) != want {
+	if want := acquired.Token + "\n" + testClaim.Purpose + "\n"; string(data) != want {
 		t.Errorf("token file = %q, want %q", data, want)
 	}
 	if runtime.GOOS == "windows" {
@@ -109,7 +109,7 @@ func TestSessionToken_Cases(t *testing.T) {
 			acquired := mustAcquire(t, locks, MainWorktreeKey)
 			want := tc.want
 			if tc.isKeptOwn {
-				want = acquired.Record.Token
+				want = acquired.Token
 			}
 
 			kept := mustSessionToken(t, locks, MainWorktreeKey, tc.token, tc.purpose)
@@ -158,8 +158,8 @@ func TestSessionToken_PurposeOverLines_RoundTrips(t *testing.T) {
 		t.Fatalf("Acquire: %v", err)
 	}
 
-	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", claim.Purpose); kept != acquired.Record.Token {
-		t.Errorf("SessionToken = %q, want %q", kept, acquired.Record.Token)
+	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", claim.Purpose); kept != acquired.Token {
+		t.Errorf("SessionToken = %q, want %q", kept, acquired.Token)
 	}
 }
 
@@ -187,13 +187,13 @@ func TestAcquire_Resume_RewritesTheTokenFile(t *testing.T) {
 		t.Fatalf("Remove: %v", err)
 	}
 
-	_, isResumed, err := locks.Acquire(MainWorktreeKey, testClaim, acquired.Record.Token, false)
+	_, isResumed, err := locks.Acquire(MainWorktreeKey, testClaim, acquired.Token, false)
 
 	if err != nil || !isResumed {
 		t.Fatalf("Acquire = resumed %v, %v; want a resume", isResumed, err)
 	}
-	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", testClaim.Purpose); kept != acquired.Record.Token {
-		t.Errorf("SessionToken after resume = %q, want %q", kept, acquired.Record.Token)
+	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", testClaim.Purpose); kept != acquired.Token {
+		t.Errorf("SessionToken after resume = %q, want %q", kept, acquired.Token)
 	}
 }
 
@@ -209,7 +209,7 @@ func TestAcquire_ResumeUnderNewPurpose_MovesTheTokenFile(t *testing.T) {
 		t.Fatalf("Acquire(alpha): %v", err)
 	}
 
-	_, isResumed, err := locks.Acquire(MainWorktreeKey, beta, acquired.Record.Token, false)
+	_, isResumed, err := locks.Acquire(MainWorktreeKey, beta, acquired.Token, false)
 
 	if err != nil || !isResumed {
 		t.Fatalf("Acquire(beta) = resumed %v, %v; want a resume", isResumed, err)
@@ -219,8 +219,8 @@ func TestAcquire_ResumeUnderNewPurpose_MovesTheTokenFile(t *testing.T) {
 	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", alpha.Purpose); kept != "" {
 		t.Errorf("SessionToken(alpha) = %q, want none", kept)
 	}
-	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", beta.Purpose); kept != acquired.Record.Token {
-		t.Errorf("SessionToken(beta) = %q, want %q", kept, acquired.Record.Token)
+	if kept := mustSessionToken(t, locks, MainWorktreeKey, "", beta.Purpose); kept != acquired.Token {
+		t.Errorf("SessionToken(beta) = %q, want %q", kept, acquired.Token)
 	}
 	paths, err := locks.tokenFilePaths(MainWorktreeKey)
 	if err != nil {
@@ -237,7 +237,7 @@ func TestRelease_DeletesOnlyTheReleasedTokensFiles(t *testing.T) {
 	acquired := mustAcquire(t, locks, MainWorktreeKey)
 	mustAcquire(t, locks, foreignKey)
 
-	if _, err := locks.Release(MainWorktreeKey, acquired.Record.Token); err != nil {
+	if _, err := locks.Release(MainWorktreeKey, acquired.Token); err != nil {
 		t.Fatalf("Release: %v", err)
 	}
 

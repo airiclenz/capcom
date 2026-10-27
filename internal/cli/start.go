@@ -110,11 +110,11 @@ func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 	}
 
 	if !isDoing {
-		if err := a.claimForStart(target.lock, entry, acquired.Record.Token, isResumed); err != nil {
+		if err := a.claimForStart(target.lock, entry, acquired.Token, isResumed); err != nil {
 			return err
 		}
 	}
-	return a.emitStarted(cmd, entry.ID, newLockData(state, acquired, acquired.Record.Token))
+	return a.emitStarted(cmd, entry.ID, newLockData(state, acquired, acquired.Token))
 }
 
 // refuseUnstartable refuses an Issue that is not in doing and cannot be claimed: Closed, standing,

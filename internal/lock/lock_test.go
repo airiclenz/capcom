@@ -62,8 +62,11 @@ func TestAcquire_FreeLock_IssuesNewTokenAndWritesRecord(t *testing.T) {
 	if err != nil || isResumed {
 		t.Fatalf("Acquire = resumed %v, err %v", isResumed, err)
 	}
-	if !tokenPattern.MatchString(status.Record.Token) {
-		t.Errorf("token = %q, want 32 hex digits", status.Record.Token)
+	if !tokenPattern.MatchString(status.Token) {
+		t.Errorf("token = %q, want 32 hex digits", status.Token)
+	}
+	if status.Record.Token != digestToken(status.Token) {
+		t.Errorf("record token = %q, want the digest of %q", status.Record.Token, status.Token)
 	}
 	if status.Record.Holder != "agent-a" || status.Record.Branch != "main" || status.IsStale {
 		t.Errorf("status = %+v", status)
@@ -78,11 +81,11 @@ func TestLocks_AcquireTouchRelease_CycleFreesTheLock(t *testing.T) {
 	locks, _ := openTest(t)
 	acquired := mustAcquire(t, locks, MainWorktreeKey)
 
-	touched, err := locks.Touch(MainWorktreeKey, acquired.Record.Token)
+	touched, err := locks.Touch(MainWorktreeKey, acquired.Token)
 	if err != nil {
 		t.Fatalf("Touch: %v", err)
 	}
-	released, err := locks.Release(MainWorktreeKey, acquired.Record.Token)
+	released, err := locks.Release(MainWorktreeKey, acquired.Token)
 	if err != nil {
 		t.Fatalf("Release: %v", err)
 	}
@@ -124,14 +127,14 @@ func TestAcquire_OwnTokenOnStaleLock_Resumes(t *testing.T) {
 	resumed, isResumed, err := staleLocks.Acquire(
 		MainWorktreeKey,
 		Claim{Purpose: "item 13", Holder: "agent-a"},
-		acquired.Record.Token,
+		acquired.Token,
 		false,
 	)
 
 	if err != nil || !isResumed {
 		t.Fatalf("Acquire = resumed %v, err %v", isResumed, err)
 	}
-	if resumed.Record.Token != acquired.Record.Token || resumed.Record.Purpose != "item 13" {
+	if resumed.Token != acquired.Token || resumed.Record.Purpose != "item 13" {
 		t.Errorf("resumed = %+v", resumed.Record)
 	}
 	if !resumed.Record.Since.Equal(acquired.Record.Since) {
@@ -164,7 +167,7 @@ func TestAcquire_TakeStaleOnStaleLock_TakesItWithANewToken(t *testing.T) {
 	if err != nil || isResumed {
 		t.Fatalf("Acquire = resumed %v, err %v", isResumed, err)
 	}
-	if taken.Record.Token == acquired.Record.Token || taken.Record.Holder != "agent-b" {
+	if taken.Token == acquired.Token || taken.Record.Holder != "agent-b" {
 		t.Errorf("taken = %+v", taken.Record)
 	}
 }
@@ -287,7 +290,7 @@ func TestTouch_TokenOfDisplacedHolder_FailsHeldAndKeepsTheNewRecord(t *testing.T
 		t.Fatalf("ReadFile: %v", err)
 	}
 
-	_, err = locks.Touch(MainWorktreeKey, displaced.Record.Token)
+	_, err = locks.Touch(MainWorktreeKey, displaced.Token)
 
 	if held := asHeldError(t, err); held.Status.Record.Holder != "agent-b" {
 		t.Errorf("held by %q, want agent-b", held.Status.Record.Holder)
@@ -321,7 +324,7 @@ func TestTouch_BackdatedHeartbeat_AdvancesIt(t *testing.T) {
 	}
 	writeRecord(t, locks, MainWorktreeKey, string(data))
 
-	touched, err := locks.Touch(MainWorktreeKey, acquired.Record.Token)
+	touched, err := locks.Touch(MainWorktreeKey, acquired.Token)
 	if err != nil {
 		t.Fatalf("Touch: %v", err)
 	}
@@ -343,7 +346,7 @@ func TestCheck_FreeOwnAndOtherHolder(t *testing.T) {
 	}
 	acquired := mustAcquire(t, locks, MainWorktreeKey)
 
-	_, ownErr := locks.Check(MainWorktreeKey, acquired.Record.Token)
+	_, ownErr := locks.Check(MainWorktreeKey, acquired.Token)
 	_, otherErr := locks.Check(MainWorktreeKey, "someone-else")
 	_, noTokenErr := locks.Check(MainWorktreeKey, "")
 
@@ -352,6 +355,124 @@ func TestCheck_FreeOwnAndOtherHolder(t *testing.T) {
 	}
 	asHeldError(t, otherErr)
 	asHeldError(t, noTokenErr)
+}
+
+// legacyToken is the token a legacyRecord, written by a capcom that kept it in the clear, holds.
+const legacyToken = "0123456789abcdef0123456789abcdef"
+
+// writeLegacyRecord writes key's record as an older capcom did, the token in the clear, with a
+// heartbeat of now.
+func writeLegacyRecord(t *testing.T, locks *Locks, key string) {
+	t.Helper()
+	data, err := json.Marshal(Record{
+		Token:     legacyToken,
+		Purpose:   "legacy",
+		Holder:    "agent-a",
+		Since:     time.Now().UTC(),
+		Heartbeat: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	writeRecord(t, locks, key, string(data))
+}
+
+// readRecordFile returns key's record file and the record it holds, failing the test on error.
+func readRecordFile(t *testing.T, locks *Locks, key string) ([]byte, Record) {
+	t.Helper()
+	data, err := os.ReadFile(locks.RecordPath(key))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var record Record
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	return data, record
+}
+
+func TestAcquire_Record_HoldsTheTokenDigestNotTheToken(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+
+	acquired := mustAcquire(t, locks, MainWorktreeKey)
+
+	data, record := readRecordFile(t, locks, MainWorktreeKey)
+	if bytes.Contains(data, []byte(acquired.Token)) {
+		t.Errorf("record holds the token %q:\n%s", acquired.Token, data)
+	}
+	if !strings.HasPrefix(record.Token, "sha256:") || record.Token != digestToken(acquired.Token) {
+		t.Errorf("record token = %q, want sha256: and the digest of the token", record.Token)
+	}
+	// A reader of the record holds only the digest, and the digest is no token.
+	_, err := locks.Check(MainWorktreeKey, record.Token)
+	asHeldError(t, err)
+}
+
+func TestAcquire_LegacyCleartextRecord_ResumesAndRewritesItAsADigest(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	writeLegacyRecord(t, locks, MainWorktreeKey)
+
+	resumed, isResumed, err := locks.Acquire(MainWorktreeKey, testClaim, legacyToken, false)
+
+	if err != nil || !isResumed || resumed.Token != legacyToken {
+		t.Fatalf("Acquire = %+v, resumed %v, err %v; want the legacy lock resumed", resumed, isResumed, err)
+	}
+	data, record := readRecordFile(t, locks, MainWorktreeKey)
+	if bytes.Contains(data, []byte(legacyToken)) || record.Token != digestToken(legacyToken) {
+		t.Errorf("record after resume:\n%s\nwant the token's digest only", data)
+	}
+}
+
+func TestTouch_LegacyCleartextRecord_RewritesItAsADigest(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	writeLegacyRecord(t, locks, MainWorktreeKey)
+
+	if _, err := locks.Touch(MainWorktreeKey, legacyToken); err != nil {
+		t.Fatalf("Touch: %v", err)
+	}
+
+	data, record := readRecordFile(t, locks, MainWorktreeKey)
+	if bytes.Contains(data, []byte(legacyToken)) || record.Token != digestToken(legacyToken) {
+		t.Errorf("record after touch:\n%s\nwant the token's digest only", data)
+	}
+	if _, err := locks.Check(MainWorktreeKey, legacyToken); err != nil {
+		t.Errorf("Check with the token after the rewrite: %v", err)
+	}
+}
+
+func TestLocks_WrongToken_IsRefusedAndLeavesTheRecord(t *testing.T) {
+	t.Parallel()
+	const wrongToken = "fedcba9876543210fedcba9876543210"
+	records := []struct {
+		name  string
+		write func(t *testing.T, locks *Locks)
+	}{
+		{"digest", func(t *testing.T, locks *Locks) { mustAcquire(t, locks, MainWorktreeKey) }},
+		{"legacy cleartext", func(t *testing.T, locks *Locks) { writeLegacyRecord(t, locks, MainWorktreeKey) }},
+	}
+	for _, tc := range records {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			locks, _ := openTest(t)
+			tc.write(t, locks)
+			before, _ := readRecordFile(t, locks, MainWorktreeKey)
+
+			_, _, acquireErr := locks.Acquire(MainWorktreeKey, testClaim, wrongToken, false)
+			_, touchErr := locks.Touch(MainWorktreeKey, wrongToken)
+			_, releaseErr := locks.Release(MainWorktreeKey, wrongToken)
+			_, checkErr := locks.Check(MainWorktreeKey, wrongToken)
+
+			for _, err := range []error{acquireErr, touchErr, releaseErr, checkErr} {
+				asHeldError(t, err)
+			}
+			if after, _ := readRecordFile(t, locks, MainWorktreeKey); !bytes.Equal(after, before) {
+				t.Errorf("record changed:\n%s\nwant:\n%s", after, before)
+			}
+		})
+	}
 }
 
 func TestRead_CorruptRecord_FailsNamingTheFile(t *testing.T) {

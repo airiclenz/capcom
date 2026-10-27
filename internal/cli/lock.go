@@ -182,7 +182,7 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 			if isResumed {
 				state = lockResumed
 			}
-			return a.emitLock(cmd, state, status, status.Record.Token, err)
+			return a.emitLock(cmd, state, status, status.Token, err)
 		}),
 	}
 	cmd.Flags().StringVar(&purpose, flagPurpose, "", "what the lock is held for")

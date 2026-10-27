@@ -742,3 +742,57 @@ func TestLockReleaseHelp_DoesNotSayChangesNothing(t *testing.T) {
 		t.Errorf("release --help = %q, want the token files and no \"changes nothing\"", stdout)
 	}
 }
+
+// assertRecordHoldsNoToken fails the test unless root's lock record keeps token only as its
+// `sha256:` digest.
+func assertRecordHoldsNoToken(t *testing.T, root, token string) {
+	t.Helper()
+	data, err := os.ReadFile(lockRecordPath(root))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if token == "" || strings.Contains(string(data), token) || !strings.Contains(string(data), `"token": "sha256:`) {
+		t.Errorf("record holds %q or no digest:\n%s", token, data)
+	}
+}
+
+func TestLockAcquire_Record_HoldsTheTokenDigestAndStatusNamesTheHolder(t *testing.T) {
+	root := newLockStore(t)
+
+	token := acquireToken(t, root, "agent-a")
+	status := mustRun(t, root, "lock", "status", "--kv")
+
+	assertRecordHoldsNoToken(t, root, token)
+	if kvValue(t, status, "HOLDER") != "agent-a" || kvValue(t, status, "TOKEN") != "" {
+		t.Errorf("status = %q, want the holder named and no token", status)
+	}
+	mustRun(t, root, "lock", "touch", "--token", token)
+	mustRun(t, root, "lock", "check", "--token", token)
+}
+
+func TestStart_Record_HoldsTheTokenDigest(t *testing.T) {
+	root := newStartStore(t, nil)
+
+	stdout := mustRun(t, root, "start", startIssue, "--kv")
+
+	assertRecordHoldsNoToken(t, root, kvValue(t, stdout, "TOKEN"))
+}
+
+func TestLockTouch_LegacyCleartextRecord_MatchesAndIsRewrittenAsADigest(t *testing.T) {
+	root := newLockStore(t)
+	const legacyToken = "0123456789abcdef0123456789abcdef"
+	heartbeat := time.Now().UTC().Format(time.RFC3339)
+	writeLockRecord(t, root, "_main", `{"token": "`+legacyToken+`", "purpose": "item 12", "holder": "agent-a", `+
+		`"since": "`+heartbeat+`", "heartbeat": "`+heartbeat+`"}`)
+
+	_, _, wrongExit := runCLI(t, root, "lock", "touch", "--token", "fedcba9876543210fedcba9876543210")
+	touched := mustRun(t, root, "lock", "touch", "--token", legacyToken, "--kv")
+
+	if wrongExit != ExitNotFound {
+		t.Errorf("touch with a wrong token: exit = %d, want %d", wrongExit, ExitNotFound)
+	}
+	if kvValue(t, touched, "LOCK") != lockHeld || kvValue(t, touched, "HOLDER") != "agent-a" {
+		t.Errorf("touch = %q", touched)
+	}
+	assertRecordHoldsNoToken(t, root, legacyToken)
+}
