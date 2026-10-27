@@ -130,6 +130,11 @@ func (b *Briefing) readWork(s *store.Store) {
 	// too, so readHealth already counts each of them in ProblemCount. Repeating them would flood
 	// the session start with one line per broken file.
 	opened, err := index.Open(s, index.ModeRefresh)
+	if errors.Is(err, index.ErrBusy) {
+		// A busy index needs a retry, not a rebuild: its message already says so.
+		b.fail(SectionIndex, err)
+		return
+	}
 	if err != nil {
 		b.fail(SectionIndex, fmt.Errorf("%w; run capcom reindex", err))
 		return

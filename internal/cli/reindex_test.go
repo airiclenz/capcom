@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,5 +102,53 @@ func TestReindex_CorruptIndex_ListFailsWithReindexHintAndReindexRepairsIt(t *tes
 		if !strings.Contains(listed, id) {
 			t.Errorf("list after reindex:\n%s\nwant %s", listed, id)
 		}
+	}
+}
+
+// holdIndexLock holds an EXCLUSIVE transaction on the index at indexPath through a second
+// connection until the test ends, the way a capcom reindex rebuilding it does.
+func holdIndexLock(t *testing.T, indexPath string) {
+	t.Helper()
+	holder, err := sql.Open("sqlite", indexPath+"?_txlock=exclusive")
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	held, err := holder.Begin()
+	if err != nil {
+		t.Fatalf("BEGIN EXCLUSIVE: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := held.Rollback(); err != nil {
+			t.Errorf("Rollback: %v", err)
+		}
+		if err := holder.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+}
+
+// TestReindex_BusyIndex_ListFailsInvalidNamingReindexWithoutReindexHint pays the index's
+// five-second busy timeout on each of its two runs: the CLI has no seam to shorten it.
+func TestReindex_BusyIndex_ListFailsInvalidNamingReindexWithoutReindexHint(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
+	mustRun(t, root, "reindex")
+	indexPath := filepath.Join(root, ".git", "capcom", "index.db")
+	holdIndexLock(t, indexPath)
+	wantMessage := indexPath + ": the index is busy: another capcom command, " +
+		"such as capcom reindex, is rebuilding or writing it; retry when it finishes"
+
+	listJSON, _, jsonExit := runCLI(t, root, "list", "--json")
+	_, stderr, textExit := runCLI(t, root, "list")
+
+	errorBody, isObject := decodeEnvelope(t, listJSON)["error"].(map[string]any)
+	if jsonExit != ExitError || !isObject || errorBody["code"] != string(CodeInvalid) {
+		t.Errorf("list --json = %d %s, want an invalid failure", jsonExit, listJSON)
+	}
+	if isObject && (errorBody["message"] != wantMessage || errorBody["hint"] == reindexHint) {
+		t.Errorf("list --json error = %v, want message %q and no reindex hint", errorBody, wantMessage)
+	}
+	isReindexHinted := lastLine(stderr) == "hint: "+reindexHint
+	if textExit != ExitError || !strings.Contains(stderr, wantMessage) || isReindexHinted {
+		t.Errorf("list = %d, stderr %q; want %q and no reindex hint line", textExit, stderr, wantMessage)
 	}
 }

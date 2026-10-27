@@ -1475,7 +1475,20 @@ func TestOpen_GarbageIndex_RefreshFailsCorruptAndRebuildRepairsIt(t *testing.T) 
 	}
 }
 
+// shortBusyTimeout is the busy timeout shortenBusyTimeout gives the index's connections.
+const shortBusyTimeout = 100 * time.Millisecond
+
+// shortenBusyTimeout swaps the package's dsnOptions seam for one waiting shortBusyTimeout on a
+// locked index, restoring it when the test ends. Its callers never run in parallel.
+func shortenBusyTimeout(t *testing.T) {
+	t.Helper()
+	original := dsnOptions
+	t.Cleanup(func() { dsnOptions = original })
+	dsnOptions = connectionOptions(shortBusyTimeout)
+}
+
 func TestOpen_BusyIndex_IsNotCorruptAndIsNeverDeleted(t *testing.T) {
+	shortenBusyTimeout(t)
 	s := newStore(t)
 	writeIssue(t, s, "kept-issue.md", issueText("Kept", "open", ""))
 	buildIndex(t, s)
@@ -1501,13 +1514,45 @@ func TestOpen_BusyIndex_IsNotCorruptAndIsNeverDeleted(t *testing.T) {
 	if !errors.As(busyErr, &busy) || busy.Code()&0xff != sqlite3.SQLITE_BUSY || isCorruptIndex(busyErr) {
 		t.Errorf("contender err = %v, want SQLITE_BUSY, not corrupt", busyErr)
 	}
-	if rebuildErr == nil || errors.Is(rebuildErr, ErrCorrupt) {
-		t.Errorf("ModeRebuild under the held lock err = %v, want a failure that is not ErrCorrupt", rebuildErr)
+	if !errors.Is(rebuildErr, ErrBusy) || errors.Is(rebuildErr, ErrCorrupt) {
+		t.Errorf("ModeRebuild under the held lock err = %v, want ErrBusy, not ErrCorrupt", rebuildErr)
+	}
+	wantMessage := Path(s) + ": the index is busy: another capcom command, such as capcom reindex, " +
+		"is rebuilding or writing it; retry when it finishes"
+	if rebuildErr != nil && rebuildErr.Error() != wantMessage {
+		t.Errorf("ModeRebuild message = %q, want %q", rebuildErr.Error(), wantMessage)
 	}
 	if err := held.Rollback(); err != nil {
 		t.Fatalf("Rollback: %v", err)
 	}
 	if !isIndexed(t, openIndex(t, s), "kept-issue") {
 		t.Error("kept-issue is gone: the busy index was deleted")
+	}
+}
+
+func TestRefresh_IndexLockedByAnotherCommand_FailsBusy(t *testing.T) {
+	shortenBusyTimeout(t)
+	s := newStore(t)
+	writeIssue(t, s, "kept-issue.md", issueText("Kept", "open", ""))
+	x := openIndex(t, s)
+	holder, err := sql.Open(driverName, Path(s)+"?_txlock=exclusive")
+	if err != nil {
+		t.Fatalf("sql.Open holder: %v", err)
+	}
+	defer holder.Close()
+	held, err := holder.Begin()
+	if err != nil {
+		t.Fatalf("BEGIN EXCLUSIVE: %v", err)
+	}
+	defer func() {
+		if err := held.Rollback(); err != nil {
+			t.Errorf("Rollback: %v", err)
+		}
+	}()
+
+	_, refreshErr := x.Refresh()
+
+	if !errors.Is(refreshErr, ErrBusy) || !strings.HasPrefix(refreshErr.Error(), Path(s)+": ") {
+		t.Errorf("Refresh under the held lock err = %v, want ErrBusy naming %s", refreshErr, Path(s))
 	}
 }

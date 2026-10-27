@@ -351,6 +351,10 @@ func (a *app) prepareIndex(cmd *cobra.Command) error {
 	if errors.Is(err, index.ErrCorrupt) {
 		return &output.Error{Code: output.CodeInvalid, Message: err.Error(), Hint: reindexHint}
 	}
+	if errors.Is(err, index.ErrBusy) {
+		// No reindexHint: the busy index is fine and wants a retry, which its message says.
+		return &output.Error{Code: output.CodeInvalid, Message: err.Error()}
+	}
 	if err != nil {
 		return output.AsError(err)
 	}

@@ -41,7 +41,8 @@ var readNodeFile = nodefile.ReadRegularFile
 // walk leaves out (oversize, not regular, below an orphan directory) claim other names than
 // before. With no file changed since a refresh that recorded it clean, it re-parses nothing and
 // reports false; a racily clean file is read once more and counts as changed. On failure it
-// returns false with the error, and Report keeps the previous refresh's report.
+// returns false with the error, and Report keeps the previous refresh's report; the error matches
+// ErrBusy when another command kept the index locked past the busy timeout.
 func (x *Index) Refresh() (bool, error) {
 	report, err := x.refresh(false)
 	if err != nil {
@@ -57,10 +58,13 @@ func (x *Index) Refresh() (bool, error) {
 // statuses and types changed; isForced drops every table and indexes both trees again. It then stores the membership
 // verdicts tree.DecideMembership gives on the rows it recorded. Files that cannot be used are
 // reported in the Report's Warnings and left out; refresh itself fails only when the index or
-// the tree cannot be read.
+// the tree cannot be read, with ErrBusy when another command held the index locked.
 func (x *Index) refresh(isForced bool) (report Report, err error) {
 	ctx := context.Background()
 	start := x.now().Truncate(racyGranularity)
+	// Deferred first so it runs last, over the rollback's failure too: any failure of the
+	// transaction reads as ErrBusy when another command held the index locked.
+	defer func() { err = asBusyError(Path(x.store), err) }()
 	tx, err := x.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Report{}, fmt.Errorf("%s: begin refresh: %w", Path(x.store), err)

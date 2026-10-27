@@ -335,7 +335,10 @@ commented issue warns naming its new path.
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/` then `./internal/cli/ -run 'Mv|Rm|Comment'`
 **Commit:** `fix(mv): warn when a rewrite drops another file's frontmatter comments`
 
-## 10. A busy index fails with a clear message
+## 10. A busy index fails with a clear message — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the busy failure carries no hint of its own, so the `invalid` code's default hint (`capcom <command> --help`) still follows it in text and `--json`; the CLI test asserts only that the hint is not `capcom reindex`.
+NOTES (2026-10-27): the busy classification wraps every failure of `refresh` (its deferred wrapper is registered before `BeginTx`, so the begin failure is covered) and the `Ping` in `openFile`, so `Index.Refresh` callers (start, finish, the UI) get `ErrBusy` too; `dsnOptions` became a variable built by `connectionOptions`, the busy-timeout seam the index tests shorten to 100 ms.
 
 **What:**
 **Goal:** a command whose index open or refresh meets SQLite BUSY or LOCKED past the busy timeout

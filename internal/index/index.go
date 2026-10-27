@@ -56,10 +56,53 @@ func (e corruptError) Error() string { return e.err.Error() }
 
 func (e corruptError) Unwrap() []error { return []error{e.err, ErrCorrupt} }
 
-// dsnOptions wait up to five seconds for a concurrent command's write, keep readers off the
+// ErrBusy marks a failure to open or refresh an index another connection kept locked past the
+// busy timeout, as capcom reindex rebuilding it does. It is never ErrCorrupt: the index is left
+// as it is, and the command can simply be retried.
+var ErrBusy = errors.New("the index is busy")
+
+// busyAdvice follows ErrBusy in a busyError's message: what holds the index and what to do.
+const busyAdvice = "another capcom command, such as capcom reindex, is rebuilding or writing it; " +
+	"retry when it finishes"
+
+// busyError is a failure to open or refresh a busy index: it reads as the index path, ErrBusy and
+// busyAdvice in place of the bare SQLite failure, and matches both that failure and ErrBusy.
+type busyError struct {
+	path string
+	err  error
+}
+
+func (e busyError) Error() string { return fmt.Sprintf("%s: %v: %s", e.path, ErrBusy, busyAdvice) }
+
+func (e busyError) Unwrap() []error { return []error{e.err, ErrBusy} }
+
+// asBusyError returns err as a busyError naming the index at path when it carries a SQLite
+// failure whose primary result code is BUSY or LOCKED and is not one already, and err unchanged
+// otherwise.
+func asBusyError(path string, err error) error {
+	if errors.Is(err, ErrBusy) || !hasPrimaryCode(err, sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED) {
+		return err
+	}
+	return busyError{path: path, err: err}
+}
+
+// defaultBusyTimeout is how long a connection waits for a concurrent command's lock on the index
+// before its statement fails busy.
+const defaultBusyTimeout = 5 * time.Second
+
+// dsnOptions wait defaultBusyTimeout for a concurrent command's write, keep readers off the
 // writer's back with WAL, and begin every transaction IMMEDIATE so two refreshes never deadlock
-// upgrading a read lock.
-const dsnOptions = "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate"
+// upgrading a read lock. It is a variable only so a test can shorten the busy timeout.
+var dsnOptions = connectionOptions(defaultBusyTimeout)
+
+// connectionOptions builds the DSN query string of dsnOptions with busyTimeout as SQLite's busy
+// timeout. The busy timeout comes first, so it already applies to the journal_mode pragma.
+func connectionOptions(busyTimeout time.Duration) string {
+	return fmt.Sprintf(
+		"?_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)&_txlock=immediate",
+		busyTimeout.Milliseconds(),
+	)
+}
 
 // Index is an open index of one store. It is not safe for concurrent use: open one per command,
 // or serialise every call, Refresh included, on the one Index a long-lived caller keeps.
@@ -157,8 +200,9 @@ func Path(s *store.Store) string {
 // or rebuilds it as mode asks, so the index it returns is up to date with the trees on disk and
 // Report holds what that first pass did. When the refresh or rebuild fails, Open closes the
 // database and returns the failure. An index SQLite reports as not a database or corrupt fails
-// with ErrCorrupt, except in ModeRebuild, which deletes it with its WAL files and builds it again;
-// an index failing for any other reason, busy or unreadable, is never deleted.
+// with ErrCorrupt, except in ModeRebuild, which deletes it with its WAL files and builds it again.
+// An index another command keeps locked past the busy timeout fails with ErrBusy; an index failing
+// for any other reason, busy or unreadable, is never deleted.
 func Open(s *store.Store, mode Mode, options ...Option) (*Index, error) {
 	path := Path(s)
 	if err := os.MkdirAll(filepath.Dir(path), dirPermissions); err != nil {
@@ -192,7 +236,7 @@ func openFile(s *store.Store, path string, mode Mode, options []Option) (*Index,
 	// SQLite handle.
 	db.SetMaxOpenConns(1)
 	if err := db.Ping(); err != nil {
-		return nil, errors.Join(fmt.Errorf("%s: %w", path, err), db.Close())
+		return nil, errors.Join(asBusyError(path, fmt.Errorf("%s: %w", path, err)), db.Close())
 	}
 
 	index := &Index{db: db, store: s, now: time.Now}
@@ -208,12 +252,20 @@ func openFile(s *store.Store, path string, mode Mode, options []Option) (*Index,
 // isCorruptIndex reports whether err carries a SQLite failure whose primary result code says the
 // file is not a database or is corrupt; a busy, locked or unreadable index is not corrupt.
 func isCorruptIndex(err error) bool {
+	return hasPrimaryCode(err, sqlite3.SQLITE_NOTADB, sqlite3.SQLITE_CORRUPT)
+}
+
+// primaryCodeMask selects the primary result code from a SQLite extended result code.
+const primaryCodeMask = 0xff
+
+// hasPrimaryCode reports whether err carries a SQLite failure whose primary result code is one of
+// codes.
+func hasPrimaryCode(err error, codes ...int) bool {
 	var failure *sqlite.Error
 	if !errors.As(err, &failure) {
 		return false
 	}
-	primary := failure.Code() & 0xff
-	return primary == sqlite3.SQLITE_NOTADB || primary == sqlite3.SQLITE_CORRUPT
+	return slices.Contains(codes, failure.Code()&primaryCodeMask)
 }
 
 // removeIndexFiles deletes the index at path and its WAL files; a file already missing is not a
