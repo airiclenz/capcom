@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -130,6 +131,23 @@ func (m model) isStacked() bool {
 // both layouts and the layout choice is the stacked one, help closed.
 func (m model) isSplit() bool {
 	return !m.hasFullWidthPanes() && !m.isHelpOpen
+}
+
+// toggleLayout sets the layout choice to the layout not on screen, the split layout's or the
+// stacked layout's, repaints the panes in it and returns the command that saves the choice, with
+// both divider ratios, to the state file. A drag of the divider the switch takes off screen is
+// abandoned. On a terminal that does not fit both layouts it changes nothing and saves nothing.
+func (m model) toggleLayout() (model, tea.Cmd) {
+	if !m.canChooseLayout() {
+		return m, nil
+	}
+	choice := userconfig.LayoutStacked
+	if m.isStacked() {
+		choice = userconfig.LayoutSplit
+	}
+	m.layoutChoice = choice
+	m = m.abandonDragOffLayout().relayout()
+	return m, m.saveState()
 }
 
 // bodyHeight returns the rows between the rule under the tab bar and the rule under the panes.

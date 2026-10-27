@@ -27,6 +27,8 @@ const (
 	// and down in the stacked layout.
 	keyShrinkSidebar = "<"
 	keyGrowSidebar   = ">"
+	// keyLayout switches between the split and the stacked layout where the terminal fits both.
+	keyLayout = "v"
 )
 
 // closedInertKeys are the write keys that do nothing on the Closed tab: a closed issue takes no
@@ -44,7 +46,8 @@ var closedInertKeys = []string{keyClaim, keyClose, keyStatus, keyLog}
 // the same and a, s, c and L do nothing. On every tab e opens the
 // selected issue or Note file in the editor, and < and > move the divider on screen: in the split
 // layout they narrow and widen the sidebar, in the stacked layout they shorten and lengthen it,
-// and either saves the new position to the state file.
+// and either saves the new position to the state file. On a terminal that fits both the split and
+// the stacked layout v switches to the one not on screen and saves the layout choice.
 // Everywhere else the up and down arrows and j k move the sidebar's selection, and on a tree the
 // left and right arrows and h l collapse and expand it.
 func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
@@ -96,6 +99,8 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 		return m.resizeSidebarKey(-1)
 	case keyGrowSidebar:
 		return m.resizeSidebarKey(1)
+	case keyLayout:
+		return m.toggleLayout()
 	default:
 		return m.sidebarOrScrollKey(msg)
 	}

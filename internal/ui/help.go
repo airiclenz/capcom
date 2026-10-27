@@ -11,7 +11,7 @@ var helpLines = []string{
 	"  open     Enter    back     Esc",
 	"  scroll   PgUp PgDn  ctrl+u ctrl+d",
 	"  resize   < >      drag the divider, double-click resets",
-	"  copy     drag over the detail text",
+	"  layout   v        copy     drag over the detail text",
 	"  filter   /        deps     d",
 	"  status   s        claim    a",
 	"  close    c        reopen   R",

@@ -23,11 +23,11 @@ const userConfigNoticePrefix = "user config: "
 const defaultsNotice = " (running on defaults)"
 
 // stateNoticePrefix opens a status-bar notice about a state file that could not be loaded, and
-// stateSaveNoticePrefix one about a divider position, the split layout's or the stacked
-// layout's, that could not be saved there.
+// stateSaveNoticePrefix one about a save there that failed: the layout choice and both divider
+// positions, the split layout's and the stacked layout's, which every save writes together.
 const (
 	stateNoticePrefix     = "ui state: "
-	stateSaveNoticePrefix = "cannot save the divider position: "
+	stateSaveNoticePrefix = "cannot save the layout: "
 )
 
 // worktreeStateFileName is the worktree state file's name in the index's directory, and

@@ -1259,7 +1259,7 @@ func TestModel_UnwritableStateFile_InTheStackedLayout_ShowsTheDividerSaveNotice(
 	if got := m.stackedSidebarRows(); got != before+stackedStep {
 		t.Errorf("stackedSidebarRows() = %d, want %d: the height changes though it cannot be saved", got, before+stackedStep)
 	}
-	if !strings.HasPrefix(m.stateNotice, "cannot save the divider position: ") {
-		t.Errorf("state notice = %q, want it to open with %q", m.stateNotice, "cannot save the divider position: ")
+	if !strings.HasPrefix(m.stateNotice, "cannot save the layout: ") {
+		t.Errorf("state notice = %q, want it to open with %q", m.stateNotice, "cannot save the layout: ")
 	}
 }

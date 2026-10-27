@@ -120,7 +120,11 @@ Depends on item 1.
 
 **Commit:** `feat(ui): apply the stored layout choice when both layouts fit`
 
-## 4. `v` toggles the layout
+## 4. `v` toggles the layout — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the help screen gets no new row: `layout   v` is merged into the copy row (`  layout   v        copy     drag over the detail text`), so helpLines stays at 20 rows; the plan's suggested row text "split or stacked, when both fit" is not shown.
+NOTES (2026-10-27): internal/ui/keys_test.go did not exist; it is created for the v tests (toggle and save, no-op where only one layout fits, help/confirm prompt/text prompt/filter line/status picker open, failed save notice).
+NOTES (2026-10-27): docs/design/tui.md:75 still quotes `cannot save the divider position: `; left for item 8, whose text owns the tui.md notice quote and the help copy.
 
 Depends on item 3.
 
