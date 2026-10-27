@@ -228,7 +228,9 @@ Depends on item 1.
 
 **Commit:** `docs(adr): record the layout choice in ADR 0014`
 
-## 8. User docs for the layout toggle
+## 8. User docs for the layout toggle — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): terminal-ui.md gains a "Choosing the layout" subsection (anchor `#choosing-the-layout`), linked from the status bar bullet, the Keys list, the Mouse list and file-format.md's state file section; tui.md gains a "Layout choice" bullet under Layout, and its "Narrow terminals" bullet now scopes "chosen from the terminal's size alone" to below 90 columns.
 
 Depends on items 4, 5 and 6.
 

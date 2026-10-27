@@ -72,15 +72,15 @@ capcom ui [issues|ready|knowledge|closed] [id]
   resize nor the clamp changes the ratio. The ratio persists across runs as `ui.sidebar_ratio` in
   `<os.UserConfigDir>/capcom/state.yaml` (ADR 0014), beside the user config, which stays
   hand-owned: it is written once per finished drag that changed it, per resize key and per reset,
-  which clears it; a failed write is a status-bar notice (`cannot save the divider position: `) and
-  the width still applies. In the stacked layout (see Narrow terminals) the divider is the full-width
+  which clears it, and once per layout toggle; a failed write is a status-bar notice
+  (`cannot save the layout: `) and the width or the layout still applies. In the stacked layout (see Narrow terminals) the divider is the full-width
   `─` rule row between the panes, drawn in the border style and in `dividerActive` while dragged;
   that row alone is its hit area. A drag on it or `<`/`>` (2 rows a press, `<` up, shrinking the
   sidebar) set the sidebar's height in rows, at least 8 for the sidebar and 12 for the detail pane,
   and a double-click resets the default. The height set is kept as `stackedRatio`, the sidebar's
   rows over the body's, and persists as `ui.stacked_ratio` in the same file, apart from
-  `ui.sidebar_ratio`: every save writes both ratios the model holds, so moving one divider never
-  drops the other, and a divider change that ends unsaved (a release with no net move, a layout
+  `ui.sidebar_ratio`: every save writes both ratios and the layout choice the model holds, so
+  moving one divider never drops the other, and a divider change that ends unsaved (a release with no net move, a layout
   change mid-drag) restores the ratio held at the press. The one-pane layout has no divider to
   move.
 - **Scrollbars**: each pane ends in a blank gutter column and a bar, apogee's: a heavy `┃` thumb
@@ -101,15 +101,30 @@ capcom ui [issues|ready|knowledge|closed] [id]
   the lock is held or stale, with `lock-free` while it is free, its text black or white, whichever
   reads on the fill, and the space and state after it unstyled; invalid, unreadable and the first
   read's `reading` leave it plain. Under `NO_COLOR` a held or stale badge is drawn in reverse and
-  a free one plain.
+  a free one plain. Where the terminal fits both the split and the stacked layout (see Layout
+  choice) and neither the help screen nor a prompt is open, the layout button fills the row's last
+  3 columns, blanks padding the row between the hints and it: ` ─ ` while the split layout is on
+  screen and ` │ ` while the stacked one is, the divider of the layout a toggle brings. It is
+  filled with the `layout-button` colour, its glyph in the `muted` colour; under `NO_COLOR` it is
+  drawn in reverse. Without the button the row is unpadded.
 - **Narrow terminals** (below 90 columns): with a body of 21 rows or more (a terminal of 25 or
   more; the sidebar's 8, the rule's 1 and the detail pane's 12) the panes stack: the sidebar on
   top, a full-width `─` rule, the detail pane below, each full width with its own scrollbar, and
   every key and click but the divider's acting as side by side. The sidebar takes `stackedRatio`
   of the body's rows, rounded, or a third of them rounded down when unset, clamped to the
   minimums. A shorter body collapses to drill-down: the sidebar fills the screen, Enter opens the
-  detail full width, Esc goes back. The layout is chosen from the terminal's size alone, live on
-  every resize, and a resize changes neither stored ratio.
+  detail full width, Esc goes back. Below 90 columns the layout is chosen from the terminal's size
+  alone, live on every resize, and a resize changes neither stored ratio.
+- **Layout choice**: a terminal of at least 90 columns and 25 rows (`narrowWidth` and a body of
+  `stackBodyMinRows`) fits both the split and the stacked layout, and there the layout choice
+  picks one: `v`, or a left click on the status bar's layout button, switches to the layout not on
+  screen, abandons a drag of the divider the switch takes off screen, and saves the choice as
+  `ui.layout: split | stacked` in `state.yaml` (ADR 0014), with both ratios. With no choice stored
+  the split layout shows. A chosen stacked layout is the narrow terminal's stacked layout, its
+  divider and `stackedRatio` included. Elsewhere `v` does nothing, the button is not drawn and the
+  terminal's size alone picks the layout; the choice stays stored, and applies again whenever both
+  fit. A stored value other than `split` or `stacked`, or a non-string, loads as no choice,
+  silently, the ratios still loading, and the next save drops it.
 
 ## Views
 
@@ -194,20 +209,20 @@ multi-file changes the lock exists for (ADR 0013).
 
 ```
 move     ↑↓←→  j k h l
-expand   → / l   collapse ← / h
+expand   → / l    collapse ← / h
 tabs     Tab  1 Issues  2 Ready  3 Knowledge  4 Closed
-open     Enter    back Esc
+open     Enter    back     Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
 resize   < >      drag the divider, double-click resets
-copy     drag over the detail text
-filter   /        deps    d
-status   s        claim   a
-close    c        reopen  R
-log      L        editor  e
-help     ?        quit    q
+layout   v        copy     drag over the detail text
+filter   /        deps     d
+status   s        claim    a
+close    c        reopen   R
+log      L        editor   e
+help     ?        quit     q
 ```
 
-`?` shows the full map. Prompts (reason, log text, confirmations) take Enter to submit and Esc
+`?` shows the full map. `v` toggles the layout where the terminal fits both (see Layout). Prompts (reason, log text, confirmations) take Enter to submit and Esc
 to cancel; a confirmation also takes y and n.
 
 **Detail scroll**: PgUp/PgDn scroll the detail pane a page and ctrl+u/ctrl+d half a page, from
@@ -217,8 +232,10 @@ scroll.
 **Mouse**: a click selects a tab, a sidebar row, a dependency-view row or follows a link;
 clicking a tree arrow expands or collapses. A drag on the divider resizes the sidebar and a
 double-click on it resets it, the width side by side or the height when stacked (see Layout). The wheel over the sidebar moves the selection a
-row, over the detail pane it scrolls three rows (or moves the dependency view's cursor). The mouse
-does nothing while the help screen, the filter line, the status picker or a prompt is open.
+row, over the detail pane it scrolls three rows (or moves the dependency view's cursor). A left
+click on the status bar's layout button toggles the layout as `v` does. The mouse does nothing
+while the help screen or a prompt is open, and nothing but a click on the layout button while the
+filter line or the status picker is open: that click toggles the layout and leaves either open.
 
 **Selecting and copying**: on every tab a left press in the detail pane
 anchors a selection and a drag extends it, across lines; the selected cells are painted in the
@@ -278,8 +295,8 @@ ui:
   binary: one quoted `"#rrggbb"` per role.
 - Overrides name roles, not elements: `accent`, `border`, `muted`, `link`, `selection`, `heading`,
   `code`, one per status category: `status-todo`, `status-doing`, `status-waiting`,
-  `status-done`, `status-dropped`, and the status bar's lock badge: `lock-held`, `lock-free`. A
-  value is a quoted `"#rgb"`/`"#rrggbb"` or a number 0-255.
+  `status-done`, `status-dropped`, the status bar's lock badge: `lock-held`, `lock-free`, and
+  the status bar's layout button: `layout-button`. A value is a quoted `"#rgb"`/`"#rrggbb"` or a number 0-255.
 - The selected row of a list is filled with the `selection` colour, its text in its usual colours
   (a status keeps its category's); under `NO_COLOR` it is drawn in reverse instead.
 - `NO_COLOR` turns colour off, whatever the config says.

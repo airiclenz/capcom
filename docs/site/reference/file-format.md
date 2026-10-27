@@ -697,7 +697,8 @@ it never rewrites an existing file.
 #   # is a quoted "#rgb" or "#rrggbb" colour (an unquoted # starts a comment) or a number 0-255.
 #   # Roles: accent, border, muted, link, selection, heading, code, and one per status category:
 #   # status-todo, status-doing, status-waiting, status-done, status-dropped. The status bar's lock
-#   # badge: lock-held while another session holds the Tree lock, lock-free while it is free.
+#   # badge: lock-held while another session holds the Tree lock, lock-free while it is free. The
+#   # status bar's layout button: layout-button.
 #   colors:
 #     accent: "#7aa2f7"
 #     status-doing: 214
@@ -712,7 +713,8 @@ it never rewrites an existing file.
   `heading`, `code`, and one per Status category: `status-todo`, `status-doing`,
   `status-waiting`, `status-done` and `status-dropped`, each covering every Status of its
   category. `lock-held` and `lock-free` fill the status bar's lock badge: `lock-held` while another
-  session holds the Tree lock, `lock-free` while it is free. A colour is a quoted `"#rgb"` or
+  session holds the Tree lock, `lock-free` while it is free. `layout-button` fills the status
+  bar's layout button, its glyph in the `muted` colour. A colour is a quoted `"#rgb"` or
   `"#rrggbb"` (unquoted, `#` starts a YAML comment) or a 256-colour number from 0 to 255.
 
 A non-empty `NO_COLOR` environment variable turns colour off, whatever the file says.
@@ -735,18 +737,21 @@ user config (ADR 0014):
 | macOS | `~/Library/Application Support/capcom/state.yaml` |
 | Windows | `%AppData%\capcom\state.yaml` |
 
-Unlike the user config, it is written by `capcom ui`, not by you: the divider positions live
-here so that `config.yaml`, once created, is never rewritten. Every repository you open shares
-it, and no other command reads or writes it. It holds the sidebar width you set by dragging the
-divider or with `<` and `>` when the panes sit side by side, and the sidebar height you set the
-same ways when they are stacked on a narrow terminal (see
-[Resizing the sidebar](../getting-started/terminal-ui.md#resizing-the-sidebar)):
+Unlike the user config, it is written by `capcom ui`, not by you: the divider positions and the
+layout choice live here so that `config.yaml`, once created, is never rewritten. Every repository
+you open shares it, and no other command reads or writes it. It holds the sidebar width you set by
+dragging the divider or with `<` and `>` when the panes sit side by side, the sidebar height you
+set the same ways when they are stacked (see
+[Resizing the sidebar](../getting-started/terminal-ui.md#resizing-the-sidebar)), and the layout
+you last switched to with `v` or the status bar's layout button (see
+[Choosing the layout](../getting-started/terminal-ui.md#choosing-the-layout)):
 
 ```yaml
 # capcom ui state: written by capcom ui, not meant for editing (ADR 0014).
 ui:
   sidebar_ratio: 0.3
   stacked_ratio: 0.4
+  layout: stacked
 ```
 
 - **ui.sidebar_ratio** — the sidebar's width as a ratio of the terminal's width, a decimal more
@@ -755,24 +760,31 @@ ui:
   columns, when absent. On every terminal size the sidebar takes the ratio of its width, rounded
   to a column and clamped to the limits, at least 20 columns for the sidebar and 40 for the detail
   pane; neither a resize nor the clamp changes the stored ratio. A `sidebar_width` key is ignored.
-- **ui.stacked_ratio** — the sidebar's height in the stacked layout, below 90 columns, as a ratio of
-  the rows between the rules under the tab bar and above the status bar, a decimal more than 0 and
-  less than 1; the default height, a third of those rows rounded down, when absent. On every
+- **ui.stacked_ratio** — the sidebar's height in the stacked layout, below 90 columns or by the
+  layout choice, as a ratio of the rows between the rules under the tab bar and above the status
+  bar, a decimal more than 0 and less than 1; the default height, a third of those rows rounded down, when absent. On every
   terminal size the sidebar takes the ratio of those rows, rounded to a row and clamped to the
   limits, at least 8 rows for the sidebar and 12 for the detail pane; neither a resize nor the clamp
   changes the stored ratio. It is kept apart from `sidebar_ratio`, so moving one divider leaves the
   other's position as stored.
+- **ui.layout** — the layout choice: `split`, the panes side by side, or `stacked`, the sidebar
+  above the detail pane. It picks the layout only on a terminal that fits both, at least 90
+  columns wide and 25 rows tall; elsewhere the terminal's size alone does, and the choice stays
+  stored. When absent the panes sit side by side.
 
 `capcom ui` reads the file once, when it starts, and does not create it then. It writes the file,
 creating its directory when missing, after a drag that changed a divider's position, on each `<`
-or `>` that changed it, and on a double-click reset, which drops that divider's key and leaves the
-other as stored; with neither key left, only the first comment line remains. Every write holds
-both ratios `capcom ui` has, whichever divider moved. Each write replaces the whole file through a temp file renamed into place, so a key it does not know is not kept. When reading,
-an unknown key is ignored silently, so a newer capcom's file loads in an older one. Malformed YAML,
+or `>` that changed it, on a double-click reset, which drops that divider's key and leaves the
+other as stored, and on every switch of the layout; with no key left, only the first comment line
+remains. Every write holds both ratios and the layout choice `capcom ui` has, whatever changed. Each write replaces the whole file through a temp file renamed into place, so a key it does not know is not kept. When reading,
+an unknown key is ignored silently, so a newer capcom's file loads in an older one, and so is a
+`ui.layout` other than `split` or `stacked`, or one that is not a string: it loads as no layout
+choice, the ratios still load, and the next write leaves it out. Malformed YAML,
 a ratio that is not a decimal more than 0 and less than 1, or a file that cannot be read is reported in the
 status bar, and `capcom ui` starts on the default width and height; a failed write is reported
-there too, and the new position still applies. Deleting the file is safe: it only forgets the
-divider positions. The tab and the
+there too, as `cannot save the layout: ` and the error, and the new position or layout still
+applies. Deleting the file is safe: it only forgets the divider positions and the layout choice.
+The tab and the
 selections belong to one worktree and live in the worktree state file instead.
 
 ## The worktree state file

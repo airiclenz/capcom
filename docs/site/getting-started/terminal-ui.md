@@ -83,6 +83,11 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
   report of the last write, then the key hints. The word `lock`, with a space either side, is a
   badge: filled with the `lock-held` colour while another session holds the lock, live or stale,
   and with `lock-free` while it is free. Under `NO_COLOR` a held lock's badge is drawn in reverse.
+  On a terminal that fits both the split and the stacked layout, the layout button fills the
+  bar's last three columns: ` ─ ` while the panes sit side by side and ` │ ` while they are
+  stacked, the divider of the layout a click switches to (see
+  [Choosing the layout](#choosing-the-layout)). It is filled with the `layout-button` colour, its
+  glyph in the `muted` colour, and drawn in reverse under `NO_COLOR`.
 - **Scrollbars**: each pane has one at its right edge. The heavy `┃` thumb shows where the visible
   rows sit among all of them; the bar stays blank while everything fits.
 
@@ -92,7 +97,25 @@ width with its own scrollbar. The sidebar takes a third of the rows between the 
 bar and above the status bar, and keeps at least 8 of them while the detail pane keeps at least 12.
 Every key and click acts as it does side by side. A shorter terminal shows one pane at a time: the
 sidebar fills the screen, Enter opens the selected Issue or Note full width, and Esc goes back to
-the sidebar. The layout follows the terminal's size as you resize it.
+the sidebar. The layout follows the terminal's size as you resize it, and where the terminal fits
+both the split layout, the panes side by side, and the stacked one, you choose between them.
+
+### Choosing the layout
+
+A terminal at least 90 columns wide and 25 rows tall fits both the split and the stacked layout.
+There `v`, or a click on the layout button at the right end of the status bar, switches to the
+layout not on screen; the button shows `─` while the panes sit side by side and `│` while they are
+stacked. A click on the button works while the filter line or the status picker is open, and
+either stays open; `v` does not, since the filter line takes it as text and the picker takes every
+key. While the help screen or a prompt is open the button is not drawn.
+
+`capcom ui` remembers the layout choice in `capcom/state.yaml`, beside the divider positions (see
+[Resizing the sidebar](#resizing-the-sidebar)), and applies it whenever the terminal fits both
+layouts, in every repository; without a choice the panes sit side by side. Elsewhere the size
+alone picks the layout: below 90 columns as above, and below 25 rows the split layout. There `v`
+does nothing and the button is not drawn, and the choice stays stored for a terminal that fits
+both again. A choice that cannot be saved is reported in the status bar, as
+`cannot save the layout: ` and the error, and the switch still applies.
 
 ### Resizing the sidebar
 
@@ -114,11 +137,11 @@ the terminal: a sidebar a third of the way across stays a third of the way acros
 layout's height is kept apart from it, as a ratio of the rows the panes share, so moving one
 divider never moves the other, and resizing the terminal changes neither. `capcom ui` remembers
 both ratios in `capcom/state.yaml`, beside your [user config](#theme), and starts on them the next
-time, in every repository; the tab and the selections are kept per worktree instead (see
-[Start it](#start-it)). Where the ratio would break a limit the sidebar takes what fits, and the
-ratio stays for a terminal where it fits again; a double-click reset forgets that divider's
-ratio. A position that cannot be saved is reported in the status bar, and the new one still
-applies. The file is
+time, in every repository, with the layout choice; the tab and the selections are kept per
+worktree instead (see [Start it](#start-it)). Where the ratio would break a limit the sidebar
+takes what fits, and the ratio stays for a terminal where it fits again; a double-click reset
+forgets that divider's ratio. A position that cannot be saved is reported in the status bar, as
+`cannot save the layout: ` and the error, and the new one still applies. The file is
 described under [The state file](../reference/file-format.md#the-state-file).
 
 ## The tabs
@@ -151,7 +174,7 @@ tabs     Tab  1 Issues  2 Ready  3 Knowledge  4 Closed
 open     Enter    back     Esc
 scroll   PgUp PgDn  ctrl+u ctrl+d
 resize   < >      drag the divider, double-click resets
-copy     drag over the detail text
+layout   v        copy     drag over the detail text
 filter   /        deps     d
 status   s        claim    a
 close    c        reopen   R
@@ -166,6 +189,8 @@ help     ?        quit     q
   `j` `k` scroll it too.
 - `<` and `>` narrow and widen the sidebar, or shorten and lengthen it in the stacked layout; see
   [Resizing the sidebar](#resizing-the-sidebar).
+- `v` switches between the split and the stacked layout on a terminal that fits both; see
+  [Choosing the layout](#choosing-the-layout).
 - `?` shows the full key map; `?` or Esc closes it.
 - Prompts (a reason, a Log entry, a confirmation) take Enter to submit and Esc to cancel; a
   confirmation also takes `y` and `n`.
@@ -278,8 +303,11 @@ version: restart capcom ui`.
   [Resizing the sidebar](#resizing-the-sidebar).
 - A drag in the detail pane selects its text, on every tab, and
   releasing the button copies it; there is no copy key. See [Copying text](#copying-text).
-- While the help screen, the filter line, the status picker or a prompt is open, the mouse does
-  nothing.
+- A click on the layout button at the right end of the status bar switches between the split and
+  the stacked layout. See [Choosing the layout](#choosing-the-layout).
+- While the help screen or a prompt is open, the mouse does nothing. While the filter line or the
+  status picker is open, it does nothing but a click on the layout button, which switches the
+  layout and leaves the line or the picker open.
 
 ### Copying text
 
@@ -323,7 +351,8 @@ ui:
 - `colors` overrides the preset by role: `accent`, `border`, `muted`, `link`, `selection`,
   `heading`, `code`, and one per Status category, `status-todo`, `status-doing`,
   `status-waiting`, `status-done` and `status-dropped`, each covering every Status of its
-  category, and `lock-held` and `lock-free`, the status bar's lock badge. A value is a quoted
+  category, `lock-held` and `lock-free`, the status bar's lock badge, and `layout-button`, the fill
+  of the status bar's layout button. A value is a quoted
   `"#rgb"` or `"#rrggbb"` colour or a 256-colour number from 0 to 255.
 - `NO_COLOR` in the environment turns colour off, whatever the file says.
 
