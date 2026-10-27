@@ -9,7 +9,6 @@ import (
 	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/edit"
-	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
@@ -117,12 +116,7 @@ func (a *app) checkNewRefs(refs []string) ([]knowledge.Finding, error) {
 	if len(refs) == 0 {
 		return nil, nil
 	}
-	findings, err := knowledge.Verify(knowledge.Repository{
-		WorktreeRoot: a.store.WorktreeRoot,
-		GitDir:       a.store.GitDir,
-		GitCommonDir: a.store.GitCommonDir,
-		IgnoredPaths: gitx.IgnoredPaths,
-	}, []knowledge.NoteFile{{Note: knowledge.Note{Refs: refs}}})
+	findings, err := knowledge.Verify(nodestore.RefRepository(a.store), []knowledge.NoteFile{{Note: knowledge.Note{Refs: refs}}})
 	if err != nil {
 		return nil, output.AsError(err)
 	}

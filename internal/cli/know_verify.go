@@ -8,7 +8,6 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/diagnose"
-	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
@@ -88,12 +87,7 @@ func (a *app) verifyNotes() ([]knowledge.Finding, error) {
 		}
 		files = append(files, knowledge.NoteFile{ID: entry.ID, Path: entry.Path, Note: reading.Node})
 	}
-	findings, err := knowledge.Verify(knowledge.Repository{
-		WorktreeRoot: a.store.WorktreeRoot,
-		GitDir:       a.store.GitDir,
-		GitCommonDir: a.store.GitCommonDir,
-		IgnoredPaths: gitx.IgnoredPaths,
-	}, files)
+	findings, err := knowledge.Verify(nodestore.RefRepository(a.store), files)
 	if err != nil {
 		return nil, output.AsError(err)
 	}

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/diagnose"
-	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -130,12 +129,7 @@ func (c *checker) checkFields(node tree.Node, fieldFindings []diagnose.Finding) 
 // checkRefs checks the Refs of notes, the parsed Notes outside a retired subtree, in one pass:
 // whether each resolves, and whether a clone of the repository would have it.
 func (c *checker) checkRefs(notes []knowledge.NoteFile) error {
-	findings, err := knowledge.Verify(knowledge.Repository{
-		WorktreeRoot: c.store.WorktreeRoot,
-		GitDir:       c.store.GitDir,
-		GitCommonDir: c.store.GitCommonDir,
-		IgnoredPaths: gitx.IgnoredPaths,
-	}, notes)
+	findings, err := knowledge.Verify(nodestore.RefRepository(c.store), notes)
 	if err != nil {
 		return err
 	}

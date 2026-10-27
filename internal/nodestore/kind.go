@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -116,6 +117,17 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		applyRemoval: (*tree.Removal).Apply,
 		raiseFormat:  s.RaiseFormat,
 		configPath:   s.ConfigPath(),
+	}
+}
+
+// RefRepository returns the git working tree of s that knowledge.Verify checks Refs against, with
+// git deciding which paths are ignored.
+func RefRepository(s *store.Store) knowledge.Repository {
+	return knowledge.Repository{
+		WorktreeRoot: s.WorktreeRoot,
+		GitDir:       s.GitDir,
+		GitCommonDir: s.GitCommonDir,
+		IgnoredPaths: gitx.IgnoredPaths,
 	}
 }
 

@@ -59,7 +59,7 @@ error, batched list and excerpt reads, and six write, Ref and docs fixes.
 - UI notices for dropped comments; a prune verb for orphaned lock records.
 - CHANGELOG release headings, VERSION, tags.
 
-## 1. One constructor for a store's knowledge.Repository
+## 1. One constructor for a store's knowledge.Repository — ✅ DONE (2026-10-27)
 
 **What:**
 **Goal:** `nodestore.RefRepository(s *store.Store) knowledge.Repository` is the only place a
