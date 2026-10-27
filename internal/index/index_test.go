@@ -1556,3 +1556,44 @@ func TestRefresh_IndexLockedByAnotherCommand_FailsBusy(t *testing.T) {
 		t.Errorf("Refresh under the held lock err = %v, want ErrBusy naming %s", refreshErr, Path(s))
 	}
 }
+
+// bodiesFixture indexes one Issue and one Note, each with a body, and returns the index with the
+// path of each and the body it holds.
+func bodiesFixture(t *testing.T) (*Index, map[string]string) {
+	t.Helper()
+	s := newStore(t)
+	writeIssue(t, s, "login-bug.md", issueText("Login fails", "open", "The callback drops the session.\n"))
+	writeNote(t, s, "testing-rules.md", "---\ntitle: Testing rules\n---\nTests use real temp dirs.\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+	return x, map[string]string{
+		mustIssue(t, x, "login-bug").Path:    "The callback drops the session.\n",
+		".capcom/knowledge/testing-rules.md": "Tests use real temp dirs.\n",
+	}
+}
+
+func TestBodies_IndexedAndUnknownPaths_ReturnsEachBodyAndOmitsUnknown(t *testing.T) {
+	t.Parallel()
+	x, want := bodiesFixture(t)
+	paths := append(slices.Sorted(maps.Keys(want)), ".capcom/knowledge/not-indexed.md")
+
+	got, err := x.Bodies(paths)
+
+	if err != nil || !maps.Equal(got, want) {
+		t.Errorf("Bodies(%q) = %q, %v; want %q, nil", paths, got, err, want)
+	}
+}
+
+func TestBodies_ManyPaths_OneStatement(t *testing.T) {
+	t.Parallel()
+	x, want := bodiesFixture(t)
+	counting := &countingQuerier{q: x.db}
+
+	if _, err := x.bodies(counting, slices.Collect(maps.Keys(want))); err != nil {
+		t.Fatalf("bodies: %v", err)
+	}
+
+	if counting.statements != 1 {
+		t.Errorf("statements = %d, want 1", counting.statements)
+	}
+}

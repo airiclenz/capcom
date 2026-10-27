@@ -518,6 +518,32 @@ func (x *Index) Body(path string) (string, error) {
 	return body, nil
 }
 
+// Bodies returns the indexed body of each Issue or Note file at paths, keyed by path, read in one
+// statement whatever the number of paths. A path the index holds no file at has no key, so the
+// map reads the empty body for it, as Body does.
+func (x *Index) Bodies(paths []string) (map[string]string, error) {
+	return x.bodies(x.db, paths)
+}
+
+// bodies reads the bodies Bodies returns through q, in one statement.
+func (x *Index) bodies(q querier, paths []string) (map[string]string, error) {
+	pathsJSON, err := json.Marshal(paths)
+	if err != nil {
+		return nil, fmt.Errorf("%s: read bodies: %w", Path(x.store), err)
+	}
+	values, err := x.pathValues(context.Background(), q,
+		`SELECT path, body FROM fts WHERE path IN (SELECT value FROM json_each(?))`, string(pathsJSON))
+	if err != nil {
+		return nil, err
+	}
+
+	bodies := make(map[string]string, len(values))
+	for path, pathBodies := range values {
+		bodies[path] = pathBodies[0]
+	}
+	return bodies, nil
+}
+
 // querier is the part of *sql.DB and *sql.Conn the readers use, so one reader serves both a lone
 // statement on the pool and a statement inside a snapshot.
 type querier interface {

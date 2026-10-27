@@ -397,7 +397,10 @@ list-field equality between batch and single reads; the counting-`querier` state
 - `GOMEMLIMIT=2GiB go test -run '^$' -bench BenchmarkList -benchtime 3x ./internal/index/`
 **Commit:** `perf(index): load list rows in a fixed number of queries`
 
-## 12. search --excerpt reads its bodies in one query
+## 12. search --excerpt reads its bodies in one query — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): item 11 left no generated-store helper (its store was built inline in BenchmarkList), so that setup moved into `benchIndex` in internal/index/bench_test.go, which BenchmarkList and BenchmarkSearchExcerpt both call before b.ResetTimer.
+NOTES (2026-10-27): `bodies` reuses `pathValues` for its one query; `Index.Body` now has no production caller (only tests), kept as the plan says.
 
 **What:**
 **Goal:** `index.Bodies(paths []string) (map[string]string, error)` reads every hit's body in one

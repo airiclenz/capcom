@@ -109,15 +109,16 @@ func searchText(match string, lines string) string {
 }
 
 // searchExcerpts returns, in the order of paths, the excerpt index.Excerpt builds from the indexed
-// body of each hit's file for text; a hit whose body holds no word of text has none.
+// body of each hit's file for text, every body read in one query; a hit whose body holds no word
+// of text has none.
 func (a *app) searchExcerpts(paths []string, text string) ([][]string, error) {
+	bodies, err := a.issueIndex.Bodies(paths)
+	if err != nil {
+		return nil, err
+	}
 	excerpts := make([][]string, 0, len(paths))
 	for _, path := range paths {
-		body, err := a.issueIndex.Body(path)
-		if err != nil {
-			return nil, err
-		}
-		excerpts = append(excerpts, index.Excerpt(body, text))
+		excerpts = append(excerpts, index.Excerpt(bodies[path], text))
 	}
 	return excerpts, nil
 }
