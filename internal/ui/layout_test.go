@@ -835,7 +835,7 @@ func TestModel_StatusBar_ShowsTheTreeLock(t *testing.T) {
 		{
 			name:    "free",
 			arrange: func(*testing.T, *testStore) {},
-			want:    regexp.MustCompile(`^ lock  free · \? help · q quit$`),
+			want:    regexp.MustCompile("^" + regexp.QuoteMeta(withLayoutButton(" lock  free · ? help · q quit", layoutButtonToStacked, 120)) + "$"),
 		},
 		{
 			name:    "held",
@@ -937,7 +937,7 @@ func TestModel_FirstStart_CreatesTheUserConfig(t *testing.T) {
 	if _, err := os.Stat(options.UserConfigPath); err != nil {
 		t.Errorf("user config after the first start: %v, want the file created", err)
 	}
-	if got := statusRow(m); got != " lock  free · ? help · q quit" {
+	if got := statusRow(m); got != withLayoutButton(" lock  free · ? help · q quit", layoutButtonToStacked, 120) {
 		t.Errorf("status bar = %q, want no config notice", got)
 	}
 }

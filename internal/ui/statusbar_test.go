@@ -7,6 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/airiclenz/capcom/internal/userconfig"
 )
 
 // The lock badge's text colours as SGR parameters: black on a light fill, white on a dark one.
@@ -202,4 +204,140 @@ func TestStatusBar_LockBadge_NarrowRowCutsBeforeTheHints(t *testing.T) {
 		t.Errorf("status bar = %q, want the lock cut before intact hints %q", plain, hintsPanes)
 	}
 	assertBadge(t, row, "48;2;240;136;62", blackText)
+}
+
+// withLayoutButton returns the status row row with the layout button label at its right edge,
+// blanks between them, width columns in all.
+func withLayoutButton(row, label string, width int) string {
+	padding := width - ansi.StringWidth(row) - ansi.StringWidth(label)
+	return row + strings.Repeat(" ", padding) + label
+}
+
+// arrangeLayoutChoice stores choice as the layout choice in the user state file.
+func arrangeLayoutChoice(t *testing.T, choice string) func(*Options) {
+	return func(options *Options) {
+		writeTestFile(t, options.UserStatePath, layoutState(choice))
+	}
+}
+
+func TestStatusBar_LayoutButton_FillsTheLastThreeColumns(t *testing.T) {
+	cases := []struct {
+		name   string
+		choice string
+		want   string
+	}{
+		{name: "split", choice: userconfig.LayoutSplit, want: layoutButtonToStacked},
+		{name: "stacked", choice: userconfig.LayoutStacked, want: layoutButtonToSplit},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newThemeModel(t, nil, darkThemeConfig, false, arrangeLayoutChoice(t, testCase.choice))
+
+			got := statusRow(m)
+
+			want := withLayoutButton(" lock  free"+statusSeparator+hintsPanes, testCase.want, 120)
+			if got != want {
+				t.Errorf("status bar = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestStatusBar_LayoutButton_HiddenWhereBothLayoutsDoNotFit(t *testing.T) {
+	cases := []struct {
+		name   string
+		width  int
+		height int
+	}{
+		{name: "89x30", width: 89, height: 30},
+		{name: "120x24", width: 120, height: 24},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, newTestStore(t, readyFiles), testCase.width, testCase.height)
+
+			if got, want := statusRow(m), " lock  free"+statusSeparator+hintsPanes; got != want {
+				t.Errorf("status bar = %q, want %q unpadded, no layout button", got, want)
+			}
+		})
+	}
+}
+
+func TestStatusBar_LayoutButton_FollowsTheOverlays(t *testing.T) {
+	cases := []struct {
+		name       string
+		open       func(t *testing.T, m model) model
+		wantButton bool
+	}{
+		{name: "help screen", open: func(t *testing.T, m model) model { return press(t, m, runeKey('?')) }},
+		{
+			name: "confirm prompt",
+			open: func(t *testing.T, m model) model {
+				m.prompt = newConfirmPrompt("go on?", nil)
+				return m
+			},
+		},
+		{name: "text prompt", open: func(t *testing.T, m model) model { return press(t, m, runeKey('L')) }},
+		{
+			name:       "filter line",
+			open:       func(t *testing.T, m model) model { return press(t, m, runeKey('/')) },
+			wantButton: true,
+		},
+		{
+			name:       "status picker",
+			open:       func(t *testing.T, m model) model { return press(t, m, runeKey('s')) },
+			wantButton: true,
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := testCase.open(t, newTestModel(t, newTestStore(t, readyFiles), 120, 30))
+
+			got := statusRow(m)
+
+			hasButton := strings.HasSuffix(got, layoutButtonToStacked) && ansi.StringWidth(got) == 120
+			if hasButton != testCase.wantButton {
+				t.Errorf("status bar = %q: layout button drawn %v, want %v", got, hasButton, testCase.wantButton)
+			}
+		})
+	}
+}
+
+func TestStatusBar_LayoutButton_LongNoticeIsCutBeforeTheHints(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 120, 30)
+	m.notice = strings.Repeat("a long notice ", 20)
+
+	got := statusRow(m)
+
+	if width := ansi.StringWidth(got); width != 120 {
+		t.Errorf("status bar %q is %d columns wide, want 120", got, width)
+	}
+	if want := statusSeparator + hintsPanes + layoutButtonToStacked; !strings.HasSuffix(got, want) {
+		t.Errorf("status bar = %q, want the notice cut before intact %q", got, want)
+	}
+}
+
+func TestStatusBar_LayoutButton_PaintedInTheLayoutButtonRole(t *testing.T) {
+	cases := []struct {
+		name       string
+		configText string
+		isNoColor  bool
+		want       string
+	}{
+		{name: "dark", configText: darkThemeConfig, want: "48;2;74;74;74"},
+		{name: "light", configText: "ui:\n  theme: light\n", want: "48;2;208;215;222"},
+		{name: "NO_COLOR", configText: darkThemeConfig, isNoColor: true, want: "7"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newThemeModel(t, nil, testCase.configText, testCase.isNoColor, nil)
+
+			row := paintedStatusRow(m)
+
+			got := sgrBefore(t, row, layoutButtonToStacked)
+			if !strings.Contains(got, testCase.want) {
+				t.Errorf("layout button in row %q is drawn in %q, want it to carry %s", row, got, testCase.want)
+			}
+		})
+	}
 }

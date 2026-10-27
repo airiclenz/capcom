@@ -150,7 +150,10 @@ Depends on item 3.
 
 **Commit:** `feat(ui): toggle between the split and stacked layout with v`
 
-## 5. The status-bar layout button
+## 5. The status-bar layout button — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the stacked-or-split label is picked by `isStacked()` (the label is ` │ ` when it reports true, ` ─ ` otherwise); `layoutButton()` returns "" while a confirm or text prompt is open as well, though statusBar's prompt paths already return before it.
+NOTES (2026-10-27): every regenerated golden differs from the working tree only in its last row (line 30); the new tests sit in statusbar_test.go beside a `withLayoutButton` helper that the two layout_test.go pins use.
 
 Depends on items 2 and 4.
 

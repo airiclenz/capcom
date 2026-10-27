@@ -25,6 +25,11 @@ const (
 	hintsPanes      = "? help · q quit"
 	hintsDetail     = "esc back · ? help · q quit"
 	hintsHelp       = "esc close · q quit"
+	// layoutButtonToStacked is the layout button's label while the split layout is on screen, and
+	// layoutButtonToSplit its label while the stacked one is: the divider of the layout a toggle
+	// brings, padded with a space each side.
+	layoutButtonToStacked = " ─ "
+	layoutButtonToSplit   = " │ "
 )
 
 // lockMsg carries the status bar's account of this worktree's Tree lock from a read, and the
@@ -107,8 +112,9 @@ func oneLine(text string) string {
 // tab's filter, the copy notice, the user config notice, the state file notice, the worktree state
 // file notice, the notices of a config.yaml that could not be reloaded and of a poll that failed
 // or stopped, the notice of an id that could not be selected and the report of the last write
-// when there are any, and the key hints, muted. A row too long for the terminal is cut before the
-// hints, so they stay visible while there is room for them.
+// when there are any, the key hints, muted, and the layout button when it is drawn, at the row's
+// right edge with blanks between it and the hints. A row too long for the terminal is cut before
+// the hints and the button, so they stay visible while there is room for them.
 func (m model) statusBar() string {
 	if m.prompt.isOpen {
 		return fit(m.prompt.text, m.width)
@@ -126,12 +132,35 @@ func (m model) statusBar() string {
 		}
 	}
 	hints := statusSeparator + m.keyHints()
-	room := m.width - ansi.StringWidth(hints)
+	button := m.layoutButton()
+	room := m.width - ansi.StringWidth(hints) - ansi.StringWidth(button)
 	painted := m.theme.hints.Render(hints)
-	if room <= 0 {
-		return fit(text+painted, m.width)
+	paintedButton := ""
+	if button != "" {
+		paintedButton = m.theme.layoutButton.Render(button)
 	}
-	return fit(text, room) + painted
+	if room <= 0 {
+		return fit(text+painted+paintedButton, m.width)
+	}
+	cut := fit(text, room)
+	if button == "" {
+		return cut + painted
+	}
+	padding := strings.Repeat(" ", room-ansi.StringWidth(cut))
+	return cut + painted + padding + paintedButton
+}
+
+// layoutButton returns the status bar's layout button, unstyled: the divider of the layout a
+// toggle brings, on a terminal that fits both layouts while help is closed and no prompt or text
+// prompt is open, and "" anywhere else.
+func (m model) layoutButton() string {
+	if !m.canChooseLayout() || m.isHelpOpen || m.prompt.isOpen || m.textPrompt.isOpen {
+		return ""
+	}
+	if m.isStacked() {
+		return layoutButtonToSplit
+	}
+	return layoutButtonToStacked
 }
 
 // paintedLock returns the status bar's account of the Tree lock with its leading padded word painted
