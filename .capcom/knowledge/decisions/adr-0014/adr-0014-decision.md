@@ -2,8 +2,9 @@
 title: "ADR 0014 decision: <os.UserConfigDir>/capcom/state.yaml holds what capcom ui remembers for every worktree (the per-worktree tab and selections are ADR 0015); only capcom ui writes it, and config.yaml is never rewritten"
 ---
 
-The sidebar width, and the sidebar's height in the stacked layout, are set by dragging the
-divider or pressing a key, not by typing them into a file, and they have to survive a restart. ADR 0011 makes `config.yaml` the user's own file: `capcom ui`
+The sidebar width and the sidebar's height in the stacked layout are set by dragging the
+divider or pressing a key, and the layout choice by pressing `v` or clicking the status-bar layout
+button, not by typing them into a file, and they have to survive a restart. ADR 0011 makes `config.yaml` the user's own file: `capcom ui`
 writes it once, as a commented template, and never again. Saving them there would mean
 rewriting a file the user edits by hand on every drag. A value the program sets belongs in a file
 the program owns.
@@ -15,7 +16,8 @@ Windows. Like the user config it is never inside a repository and never part of 
 capcom ui remembers per worktree, the tab and each tab's selection, lives under the repository's
 git dir in `ui-state.yaml` (ADR 0015). Its first line says it is written by capcom ui and names
 this record; it holds `ui.sidebar_ratio`, the sidebar's width as a ratio of the terminal's width,
-and `ui.stacked_ratio`, the stacked layout's sidebar height as a ratio of the body's height.
+`ui.stacked_ratio`, the stacked layout's sidebar height as a ratio of the body's height, and
+`ui.layout`, the layout choice.
 
 **Amended 2026-10-16: the width is a ratio.** `ui.sidebar_ratio` is a decimal more than 0 and less
 than 1, the sidebar's columns over the terminal's when the user set it; the drag and the keys
@@ -38,20 +40,36 @@ width a third of the way across says nothing about a good height, and one shared
 move on a narrow terminal shift the split on a wide one. Every save writes both ratios the running
 capcom ui holds, so moving one divider never drops the other.
 
+**Amended 2026-10-27: the layout choice is `ui.layout`.** A terminal of at least 90 columns whose
+body has room for the stacked layout's minimums (21 rows, so 25 rows in all) fits both the split
+and the stacked layout. There `v`, or a left click on the layout button at the end of the status
+bar, switches to the layout not on screen, and `ui.layout` keeps that choice: `split` or `stacked`.
+It applies only where both layouts fit, whenever they do: at startup and after every resize back
+into such a terminal. Where only one fits, the terminal's size picks the layout as before, `v` and
+the button change nothing, and that forced fallback never rewrites the stored choice, so the next
+terminal that fits both shows the chosen layout again. Without the key, a terminal that fits both
+shows the split layout. The choice is written only on a toggle, never by a resize or at startup,
+and every save, a divider's included, carries the choice the running capcom ui holds alongside both
+ratios, so moving a divider never drops it. A value other than `split` or `stacked`, or one that is
+not a string, loads as no choice silently: no notice, and the ratios in the same file still load,
+the same tolerance as an unknown key, since a newer release may store a layout this one does not
+know. The next save writes no `ui.layout` then, until a toggle sets one.
+
 **Only `capcom ui` reads and writes it.** It reads the file once, when it starts, and does not
 create it then. It writes it once per finished drag (on the release, when the divider's position changed), on
-each `<` or `>` that changed it, and on a double-click reset of a divider, which clears that
-divider's ratio and keeps the other. A drag abandoned by a resize that changes the layout is not
+each `<` or `>` that changed it, on a double-click reset of a divider, which clears that
+divider's ratio and keeps the other, and on each toggle of the layout choice. A drag abandoned by a resize or a toggle that changes the layout is not
 saved and restores the ratio held at the press. Each write creates the directory when missing and replaces the whole file
 through a temp file renamed into place, so a reader never sees a half-written file. Every other
 command neither reads nor writes it.
 
 **Missing means the defaults.** No file, or no `sidebar_ratio` key, is the default width: a third
 of the terminal, between 28 and 48 columns; no `stacked_ratio` key is the default stacked height,
-a third of the body's rows. The width a stored ratio gives is clamped to the limits
+a third of the body's rows; no `layout` key is no layout choice, the split layout wherever both
+fit. The width a stored ratio gives is clamped to the limits
 (20 columns for the sidebar, 40 for the detail pane) on every terminal size, and neither the clamp
 nor a resize changes the ratio, so a narrow window does not overwrite the split set on a wide one. Deleting the file is safe: it only
-forgets the divider positions.
+forgets the divider positions and the layout choice.
 
 **Unknown keys are ignored on read and dropped on save.** Every capcom binary on the machine
 shares the one file, so a key a newer release wrote is ignored silently, never an error. A save
@@ -61,5 +79,7 @@ would need a writer that round-trips YAML it does not understand.
 
 **An unusable file is a notice.** Malformed YAML, a ratio that is not a decimal more than 0
 and less than 1, or a file that cannot be read is a status-bar notice naming the file, and `capcom ui` starts
-on the default width and height. A failed write is a notice too, and the new position still
-applies for the session.
+on the default width and height with no layout choice: the whole file is set aside, the
+`ui.layout` it may hold too. A `ui.layout` value of its own is never a notice (see the 2026-10-27
+amendment). A failed write is a notice too, and the new position or layout still applies for the
+session.

@@ -203,7 +203,9 @@ Depends on item 5.
 
 **Commit:** `feat(ui): toggle the layout with a click on the status-bar button`
 
-## 7. ADR 0014 records the layout choice
+## 7. ADR 0014 records the layout choice — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): beyond the guard's grep list, the "Only capcom ui reads and writes it" sentence on an abandoned drag now names a toggle as well as a resize, since toggleLayout abandons a drag the switch takes off screen (internal/ui/layout.go).
 
 Depends on item 1.
 
