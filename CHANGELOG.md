@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-27
+
 - `capcom reindex` now repairs an index SQLite reports as not a database or corrupt: it deletes `index.db`, `index.db-wal` and `index.db-shm` and builds the index again, where it used to fail on the bad file. An index failing for any other reason, such as one busy under another command, is never deleted. Any other command that opens such an index fails `invalid` with the hint `capcom reindex`, in text and in `--json`; `capcom prime` keeps its one `run capcom reindex` warning line.
 - The index now sees an edit to an issue file or Note that keeps the file's size and restores its modification time: besides size and modification time it compares the file's change time (and, on Linux and macOS, its device and inode), so `list`, `show` and `search` agree on the new content after the next command. A clean refresh still reads no file bodies; on Windows it opens each file for its attributes only. The index's schema version moves on, so the first command after upgrading rebuilds it once.
 - `capcom lock check`, `capcom lock status`, `capcom prime` and the UI's lock reads no longer create `.git/capcom/locks/` or a `<key>.lck` guard file: they read the lock record without taking the file lock, as the record is replaced atomically. On a read-only lock directory, `lock check` now exits 0 or 3 by the record instead of failing with exit 1 on the guard file; a record that does not parse or carries no token still exits 1.
