@@ -187,13 +187,14 @@ func addCappedList(text *strings.Builder, heading string, entries []index.Entry)
 }
 
 // addLocks writes the Tree lock of every worktree that has one, with its age and stale flag, then
-// the advice on the lock of the overview's own worktree, naming capcom start when hasDoingStatus.
-// It returns the data of every lock and that worktree's state with the same advice.
+// every orphaned record as free, uncounted, then the advice on the lock of the overview's own
+// worktree, naming capcom start when hasDoingStatus. It returns the data of every lock and orphaned
+// record and that worktree's state with the same advice.
 func addLocks(
 	text *strings.Builder, overview lock.Overview, hasDoingStatus bool, now time.Time,
 ) ([]lockData, *primeWorktree) {
 	held := overview.Locks
-	data := make([]lockData, 0, len(held))
+	data := make([]lockData, 0, len(held)+len(overview.Orphans))
 	fmt.Fprintf(text, "locks: %d\n", len(held))
 	for _, status := range held {
 		data = append(data, newLockData(lockStateName(status.State()), status, ""))
@@ -209,6 +210,11 @@ func addLocks(
 			text.WriteString(" (stale)")
 		}
 		text.WriteString("\n")
+	}
+	for _, status := range overview.Orphans {
+		entry := newLockData(lockStateName(status.State()), status, "")
+		data = append(data, entry)
+		text.WriteString("  " + lockText(entry))
 	}
 	advice := worktreeLockAdvice(overview.State, hasDoingStatus)
 	text.WriteString(advice + "\n")

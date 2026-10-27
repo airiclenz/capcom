@@ -46,9 +46,13 @@ const (
 
 const kindLock = "lock"
 
+// orphanedLockNote follows the state of a free lock whose record is orphaned: a linked worktree
+// left it behind and was removed, or removed and created again.
+const orphanedLockNote = " (orphaned record of a removed worktree)"
+
 // lockData is one lock in the --json data of the lock commands. The lock fields describe the
 // record as it was found or written and are empty for a free lock; Token is set only for the
-// caller's own lock.
+// caller's own lock, and Orphaned only for a free lock whose record is orphaned.
 type lockData struct {
 	Lock      string `json:"lock"`
 	Worktree  string `json:"worktree"`
@@ -61,6 +65,7 @@ type lockData struct {
 	Heartbeat string `json:"heartbeat,omitempty"`
 	Stale     bool   `json:"stale"`
 	Token     string `json:"token,omitempty"`
+	Orphaned  bool   `json:"orphaned,omitempty"`
 }
 
 // lockTarget is the store of the current worktree and that worktree's lock.
@@ -135,6 +140,10 @@ const (
 		"unreadable, each with a warning naming the file; the command still exits 0.\n\n" +
 		"--all shows every held lock in the repository, one per worktree, or \"no locks held\", with " +
 		"one warning per invalid or unreadable record.\n\n" +
+		"A record left by a linked worktree that was removed, or removed and created again, holds no " +
+		"lock: it shows as free (orphaned record of a removed worktree), with \"orphaned\": true in " +
+		"--json, and --all lists it after the held locks. The next acquire in that worktree takes it " +
+		"over.\n\n" +
 		"It only reads the lock, and it never prints a Lock token."
 	lockStatusExample = "  capcom lock status         # this worktree's lock\n" +
 		"  capcom lock status --all   # every worktree's lock"
@@ -401,24 +410,28 @@ func ownLockResult(overview lock.Overview) output.Result {
 	return result
 }
 
-// allLocksResult lists every held lock of overview, one --kv record per lock led by its WORKTREE
-// line, with one warning per record that is invalid or unreadable. With none held, --kv writes a
-// lone STATUS line.
+// allLocksResult lists every held lock of overview, then every orphaned record as free, one --kv
+// record per entry led by its WORKTREE line, with one warning per record that is invalid or
+// unreadable. With none held the text says so before the orphaned records, and with no entry at
+// all --kv writes a lone STATUS line.
 func allLocksResult(overview lock.Overview) output.Result {
 	held := overview.Locks
-	data := make([]lockData, 0, len(held))
-	records := make([]output.KVRecord, 0, len(held))
+	entries := append(append([]lock.Status{}, held...), overview.Orphans...)
+	data := make([]lockData, 0, len(entries))
+	records := make([]output.KVRecord, 0, len(entries))
 	var text strings.Builder
-	for _, status := range held {
+	if len(held) == 0 {
+		text.WriteString("no locks held\n")
+	}
+	for _, status := range entries {
 		entry := newLockData(lockStateName(status.State()), status, "")
 		data = append(data, entry)
 		pairs := append([]output.KVPair{{Key: kvKeyWorktree, Value: entry.Worktree}}, lockPairs(entry)...)
 		records = append(records, output.KVRecord{Pairs: pairs})
 		text.WriteString(lockText(entry))
 	}
-	if len(held) == 0 {
+	if len(entries) == 0 {
 		records = append(records, output.KVRecord{})
-		text.WriteString("no locks held\n")
 	}
 	return output.Result{
 		Kind:     kindLock,
@@ -454,9 +467,10 @@ func endedState(status lock.Status) string {
 	return lockFree
 }
 
-// newLockData describes status, reached in state; token is shown only when it is the caller's.
+// newLockData describes status, reached in state; token is shown only when it is the caller's. An
+// orphaned record is marked, and its holder left out, as it holds no lock.
 func newLockData(state string, status lock.Status, token string) lockData {
-	data := lockData{Lock: state, Worktree: status.Key, Stale: status.IsStale}
+	data := lockData{Lock: state, Worktree: status.Key, Stale: status.IsStale, Orphaned: status.IsOrphaned}
 	if !status.IsHeld {
 		return data
 	}
@@ -485,9 +499,13 @@ func lockPairs(data lockData) []output.KVPair {
 }
 
 // lockText is the text line of data, plus a token line when the token is the caller's. Holder
-// details follow only a lock that is in force; a released or free one is named alone.
+// details follow only a lock that is in force; a released or free one is named alone, and an
+// orphaned record's free state says it is orphaned.
 func lockText(data lockData) string {
 	line := data.Worktree + ": " + data.Lock
+	if data.Orphaned {
+		line += orphanedLockNote
+	}
 	if data.Holder != "" && data.Lock != lockReleased {
 		line += fmt.Sprintf(
 			" by %s since %s (heartbeat %s): %s",

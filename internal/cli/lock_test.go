@@ -814,3 +814,96 @@ func TestLockTouch_LegacyCleartextRecord_MatchesAndIsRewrittenAsADigest(t *testi
 	}
 	assertRecordHoldsNoToken(t, root, legacyToken)
 }
+
+// orphanedRecordLine is the text line of the feature worktree's orphaned lock record.
+const orphanedRecordLine = "wt-feature: free (orphaned record of a removed worktree)\n"
+
+// orphanFeatureLock adds the linked worktree feature to root, acquires its lock, removes the
+// worktree and adds it again at the same path, leaving its record orphaned; root's own lock is
+// held by agent-a. It returns the re-created worktree's root.
+func orphanFeatureLock(t *testing.T, root string) string {
+	t.Helper()
+	worktree := addWorktree(t, root, "feature")
+	acquireToken(t, worktree, "agent-b")
+	acquireToken(t, root, "agent-a")
+	runGit(t, root, "worktree", "remove", "--force", worktree)
+	runGit(t, root, "worktree", "add", "-q", worktree, "branch-feature")
+	mustRun(t, worktree, "init")
+	return worktree
+}
+
+// lockEntries returns list, the --json objects of a list of locks, keyed by worktree.
+func lockEntries(list any) map[string]map[string]any {
+	items, _ := list.([]any)
+	entries := map[string]map[string]any{}
+	for _, item := range items {
+		entry, _ := item.(map[string]any)
+		worktree, _ := entry["worktree"].(string)
+		entries[worktree] = entry
+	}
+	return entries
+}
+
+func TestLockStatusAll_ReCreatedWorktree_ListsTheOrphanedRecordAsFree(t *testing.T) {
+	root := newLockStore(t)
+	orphanFeatureLock(t, root)
+
+	text := mustRun(t, root, "lock", "status", "--all")
+	entries := lockEntries(decodeEnvelope(t, mustRun(t, root, "lock", "status", "--all", "--json"))["data"])
+
+	if !strings.HasPrefix(text, "_main: held by agent-a") || !strings.HasSuffix(text, "\n"+orphanedRecordLine) {
+		t.Errorf("status --all = %q, want the held lock, then %q", text, orphanedRecordLine)
+	}
+	orphan := entries["wt-feature"]
+	if orphan["lock"] != "free" || orphan["orphaned"] != true || orphan["holder"] != nil {
+		t.Errorf("wt-feature = %v, want free and orphaned with no holder", orphan)
+	}
+	if _, isMarked := entries["_main"]["orphaned"]; isMarked || entries["_main"]["lock"] != "held" {
+		t.Errorf("_main = %v, want held and not marked orphaned", entries["_main"])
+	}
+}
+
+func TestLockStatusAll_OnlyAnOrphanedRecord_SaysNoLocksHeld(t *testing.T) {
+	root := newLockStore(t)
+	orphanFeatureLock(t, root)
+	mustRun(t, root, "lock", "break")
+
+	stdout := mustRun(t, root, "lock", "status", "--all")
+
+	if stdout != "no locks held\n"+orphanedRecordLine {
+		t.Errorf("status --all = %q", stdout)
+	}
+}
+
+func TestLockStatus_ReCreatedWorktree_ShowsItsOwnRecordOrphaned(t *testing.T) {
+	root := newLockStore(t)
+	worktree := orphanFeatureLock(t, root)
+
+	text := mustRun(t, worktree, "lock", "status")
+	data, _ := decodeEnvelope(t, mustRun(t, worktree, "lock", "status", "--json"))["data"].(map[string]any)
+
+	if text != orphanedRecordLine {
+		t.Errorf("status = %q, want %q", text, orphanedRecordLine)
+	}
+	if data["lock"] != "free" || data["orphaned"] != true {
+		t.Errorf("data = %v, want free and orphaned", data)
+	}
+}
+
+func TestPrime_OrphanedLockRecord_IsListedButNotCounted(t *testing.T) {
+	root := newLockStore(t)
+	orphanFeatureLock(t, root)
+
+	stdout := mustRun(t, root, "prime")
+	data, _ := decodeEnvelope(t, mustRun(t, root, "prime", "--json"))["data"].(map[string]any)
+	entries := lockEntries(data["locks"])
+
+	pattern := regexp.MustCompile(`(?m)^locks: 1\n  _main: held by agent-a [^\n]*\n  ` +
+		regexp.QuoteMeta(orphanedRecordLine))
+	if !pattern.MatchString(stdout) {
+		t.Errorf("prime stdout:\n%s\nwant one lock counted and the orphaned record listed after it", stdout)
+	}
+	if entries["wt-feature"]["orphaned"] != true || entries["wt-feature"]["lock"] != "free" {
+		t.Errorf("prime locks = %v, want wt-feature free and orphaned", entries)
+	}
+}

@@ -139,6 +139,15 @@ $ capcom lock status --all
 _main: held by claude@devbox since 2026-10-13T18:56:56Z (heartbeat 2026-10-13T18:56:56Z): implementing the login rework
 ```
 
+A linked worktree keeps an id of its own in `<git-dir>/capcom/worktree-id`, and its lock record
+names that id. When the worktree is removed, or removed and added again at the same path, the
+record it left behind is **orphaned**: it holds no lock, `lock check` passes, and the next
+`lock acquire` there takes it over with a new token. `lock status` and `lock status --all` show it
+as `free (orphaned record of a removed worktree)`, with `"orphaned": true` in `--json`, and
+`capcom prime` lists it the same way after the held locks without counting it under `locks:`.
+Deleting `<git-dir>/capcom` deletes the id with it, so it orphans a live lock in that worktree
+too.
+
 `capcom lock check` is for scripts and hooks that want to refuse to edit a tree someone else
 holds. It exits 0 when the lock is free or held by your `--token`, and 3 when another session holds
 it, stale or not:

@@ -56,6 +56,9 @@ Section by section:
     `capcom lock break` frees it.
   - `unreadable`: its lock record cannot be read; ask the user before editing the worktree.
 
+  A record a removed linked worktree left behind is orphaned: it holds no lock, and it is listed
+  after the held locks as `<key>: free (orphaned record of a removed worktree)`, not counted.
+
   A lock record that is invalid or cannot be read, this worktree's or another's, is one
   `warning: locks: <record path>: …` line, and the other locks are still listed. The section and
   its `this worktree:` line are left out only when the locks directory cannot be listed; the
@@ -99,7 +102,7 @@ with kind `prime`. Its `data` holds:
 | --- | --- |
 | `ready_planned`, `ready_unplanned` | `{"count": N, "issues": [...]}`, the issues as `capcom show --json` describes them, capped at 15 |
 | `doing` | the Issues in the `doing` category |
-| `locks` | one object per held lock: `lock`, `worktree`, `holder`, `purpose`, `host`, `user`, `branch`, `since`, `heartbeat`, `stale` |
+| `locks` | one object per held lock: `lock`, `worktree`, `holder`, `purpose`, `host`, `user`, `branch`, `since`, `heartbeat`, `stale`; then one per orphaned record, `lock` `free` with `"orphaned": true` |
 | `worktree` | this worktree's Tree lock: `{"key": ..., "state": ..., "advice": ...}`, its key, its state (`free`, `held`, `stale`, `invalid` or `unreadable`) and `advice`, the `this worktree:` line of the text; left out when the lock section failed |
 | `broken_refs` | the Note Refs that do not resolve |
 | `unshared_refs` | the Note Refs a clone lacks, in the shape of `broken_refs`; left out when there are none |

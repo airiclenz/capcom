@@ -305,3 +305,37 @@ func TestOverview_TokenFileBesideTheRecord_ListsOneWorktree(t *testing.T) {
 		t.Errorf("problems = %v, want none", overview.Problems)
 	}
 }
+
+func TestOverview_OrphanedRecord_IsListedApartFromTheLocks(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	mustAcquire(t, locks, MainWorktreeKey)
+	writeRecordOfWorktree(t, locks, foreignKey, recordedWorktreeID)
+
+	overview := mustOverview(t, locks, MainWorktreeKey)
+
+	if got := strings.Join(lockKeys(overview.Locks), ","); got != MainWorktreeKey {
+		t.Errorf("locks = %s, want only %s", got, MainWorktreeKey)
+	}
+	if got := strings.Join(lockKeys(overview.Orphans), ","); got != foreignKey {
+		t.Errorf("orphans = %s, want %s", got, foreignKey)
+	}
+	if len(overview.Problems) != 0 {
+		t.Errorf("problems = %v, want none", overview.Problems)
+	}
+}
+
+func TestOverview_OwnOrphanedRecord_IsFreeWithTheRecord(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	writeRecordOfWorktree(t, locks, foreignKey, recordedWorktreeID)
+
+	overview := mustOverview(t, locks, foreignKey)
+
+	if overview.State != StateFree || !overview.Own.IsOrphaned || overview.Own.Record.Holder != "agent-b" {
+		t.Errorf("overview = %+v; want this worktree free with its orphaned record", overview)
+	}
+	if len(overview.Locks) != 0 || len(overview.Orphans) != 1 {
+		t.Errorf("locks = %v, orphans = %v; want no lock and one orphan", overview.Locks, overview.Orphans)
+	}
+}

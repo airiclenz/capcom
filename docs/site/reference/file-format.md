@@ -6,7 +6,9 @@ sidebar: { order: 2 }
 
 Everything capcom keeps for a repository lives in plain files under `.capcom/` at the root of the
 working tree, versioned with the code (ADR 0004). The SQLite index and the lock records live under
-the git directory instead; they are never committed, and deleting them loses nothing.
+the git directory instead; they are never committed, and deleting the index loses nothing. A
+linked worktree also keeps its id in `<git-dir>/capcom/worktree-id` (see The lock record):
+deleting it, or the whole `<git-dir>/capcom` directory, orphans a lock held in that worktree.
 `ui-state.yaml` lives there too: in it `capcom ui` keeps the tab and the selections of one worktree
 (see The worktree state file), and deleting it only forgets them. Two files live outside the
 repository altogether, both in your user config directory: the per-user config of `capcom ui`,
@@ -832,6 +834,14 @@ A worktree's key is `_main` for the primary worktree and `wt-` plus the linked w
 otherwise (the last element of its git dir, `<git-common-dir>/worktrees/<name>`). A free lock has
 no record file.
 
+A linked worktree's first `lock acquire` writes a random id to `<git-dir>/capcom/worktree-id`, in
+its own git dir, which git deletes with the worktree; the record copies it as `worktree`. A record
+whose worktree's git dir is gone, or whose `worktree` is not the id kept there (a missing id
+included), is **orphaned**: it holds no lock, `lock status` and `capcom prime` show it as
+`free (orphaned record of a removed worktree)`, and the next acquire there takes it over. A record
+an older capcom wrote names no id and is orphaned only when the git dir is gone; the primary
+worktree's record is never orphaned.
+
 Beside the records, capcom keeps each session's Lock token in a **token file**
 `<key>.<hash>.token`, one per token (ADR 0016 and its amendment of 2026-10-26), never committed.
 `<hash>` is the lowercase hex SHA-256 of the purpose the token is kept for. The file holds the
@@ -854,7 +864,8 @@ replaces it. A token file is never read as a record: only `*.json` files are.
   "user": "airic",
   "branch": "main",
   "since": "2026-10-11T14:08:52.330264702Z",
-  "heartbeat": "2026-10-11T15:02:10.118520331Z"
+  "heartbeat": "2026-10-11T15:02:10.118520331Z",
+  "worktree": "9c41d0e7b25a4f3e8d6c1b0a7e2f5d34"
 }
 ```
 
@@ -874,6 +885,8 @@ replaces it. A token file is never read as a record: only `*.json` files are.
   branch checked out.
 - **since** — when the lock was acquired; resuming it with the token keeps this time.
 - **heartbeat** — when the lock was last acquired, resumed or touched.
+- **worktree** — the id a linked worktree keeps in `<git-dir>/capcom/worktree-id`, when the lock
+  was acquired; left out for the primary worktree and in a record an older capcom wrote.
 
 Both times are RFC3339 in UTC. A lock whose heartbeat is older than `lock.ttl` in `config.yaml`
 (2 h by default), or dated more than one `lock.ttl` ahead by a clock that ran fast, is **stale**:

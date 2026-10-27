@@ -17,6 +17,8 @@ A lock record that does not parse shows as invalid, and one that cannot be read 
 
 --all shows every held lock in the repository, one per worktree, or "no locks held", with one warning per invalid or unreadable record.
 
+A record left by a linked worktree that was removed, or removed and created again, holds no lock: it shows as free (orphaned record of a removed worktree), with "orphaned": true in --json, and --all lists it after the held locks. The next acquire in that worktree takes it over.
+
 It only reads the lock, and it never prints a Lock token.
 
 ```

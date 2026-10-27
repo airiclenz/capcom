@@ -43,16 +43,20 @@ func (p RecordProblem) Unwrap() error {
 	return p.Err
 }
 
-// Overview is the Lock overview: every held lock of the repository, one worktree's state, and one
-// problem per record that could not be read as a lock.
+// Overview is the Lock overview: every held lock of the repository, every orphaned record, one
+// worktree's state, and one problem per record that could not be read as a lock.
 type Overview struct {
 	// Locks is every held lock, stale or not, ordered by key; the worktree's own is among them.
 	Locks []Status
+	// Orphans is every orphaned record (Status.IsOrphaned), ordered by key; none is held, so none
+	// is among Locks.
+	Orphans []Status
 	// Key names the worktree whose state the overview gives.
 	Key string
 	// State is that worktree's lock state.
 	State State
-	// Own is that worktree's lock; only Key is set unless State is StateHeld or StateStale.
+	// Own is that worktree's lock; only Key is set unless State is StateHeld or StateStale, or
+	// its record is orphaned, when State is StateFree and Own is that orphaned Status.
 	Own Status
 	// Problems holds one entry per record that is invalid or unreadable, ordered by key, the
 	// worktree's own included.
@@ -60,9 +64,9 @@ type Overview struct {
 }
 
 // Overview returns the Lock overview of the repository, with key's state. A record that is
-// invalid or cannot be read becomes one problem beside the other locks; only a lock directory that
-// cannot be listed fails. A missing lock directory gives an empty overview with key free, and
-// nothing is created.
+// invalid or cannot be read becomes one problem beside the other locks, and an orphaned one is
+// listed in Orphans, apart from them; only a lock directory that cannot be listed fails. A missing
+// lock directory gives an empty overview with key free, and nothing is created.
 func (l *Locks) Overview(key string) (Overview, error) {
 	keys, err := l.recordKeys(key)
 	if err != nil {
@@ -85,6 +89,13 @@ func (l *Locks) Overview(key string) (Overview, error) {
 			overview.Problems = append(overview.Problems, problem)
 			if recordKey == key {
 				overview.State = problem.State
+			}
+			continue
+		}
+		if status.IsOrphaned {
+			overview.Orphans = append(overview.Orphans, status)
+			if recordKey == key {
+				overview.Own = status
 			}
 			continue
 		}

@@ -516,7 +516,12 @@ again at the same path, `lock acquire` there exits 0. Lock: marker mismatch and 
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/` then `./internal/cli/ -run 'Lock'`
 **Commit:** `fix(lock): treat a removed or re-created worktree's record as orphaned`
 
-## 16. status and prime report orphaned lock records
+## 16. status and prime report orphaned lock records — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): consequential edit — docs/site/agents/briefing.md: made necessary by prime listing orphaned records (its `locks` JSON row said "one object per held lock" and its locks bullet did not name orphans).
+NOTES (2026-10-27): Overview gains `Orphans []Status` (ordered by key, apart from Locks); an orphaned own record leaves State free and sets Own to the orphaned Status. lockData gains `orphaned` (omitempty); --kv carries no orphan marker, an orphan's record is LOCK=free.
+NOTES (2026-10-27): `lock status --all` lists orphans after the held locks; with none held it still prints "no locks held" first, and --kv writes the lone STATUS line only when there is neither a lock nor an orphan. prime's JSON `locks` array carries the orphan objects after the held ones (orphaned: true), mirroring the text, while the text count stays the held count.
+NOTES (2026-10-27): file-format.md also gains the `worktree` record key and the `worktree-id` file, which item 15 left to this item.
 
 **What:**
 **Goal:** `lock status`, `lock status --all` and `prime` show an orphaned record as

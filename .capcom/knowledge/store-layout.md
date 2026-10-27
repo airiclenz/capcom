@@ -8,8 +8,10 @@ Committed, versioned with the code: `.capcom/config.yaml`, `.capcom/issues/` and
 `.capcom/knowledge/` (ADR 0004). Never committed, under the git directory: the SQLite index at
 `<git-dir>/capcom/index.db` (per worktree, disposable, rebuilt by `capcom reindex`), beside it
 capcom ui's worktree state `<git-dir>/capcom/ui-state.yaml` (per worktree: the tab and each tab's
-selection, ADR 0015) and the Tree lock records at `<git-common-dir>/capcom/locks/<key>.json` (shared
-by every worktree of a clone, ADR 0005), each beside its kept Lock tokens, one token file
+selection, ADR 0015), a linked worktree's id `<git-dir>/capcom/worktree-id` (not disposable:
+deleting it, or all of `<git-dir>/capcom`, orphans that worktree's live lock) and the Tree lock
+records at `<git-common-dir>/capcom/locks/<key>.json` (shared by every worktree of a clone,
+ADR 0005), each beside its kept Lock tokens, one token file
 `<key>.<purpose-hash>.token` per purpose (ADR 0016). The store root is resolved from the working
 directory, never hard-coded, and capcom never runs a writing git command.
 `docs/site/reference/file-format.md` is the full reference.
