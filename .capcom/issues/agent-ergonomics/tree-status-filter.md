@@ -1,10 +1,12 @@
 ---
 title: No call lists a Parent's descendants by status
-status: open
+status: done
 type: feature
 priority: 3
 plan: 2026-10-27 - 01 - tree-status-filter-plan
 created: 2026-10-26T07:51:30Z
+closed: 2026-10-27T10:11:16Z
+reason: "Resolved by plan 2026-10-27 - 01 - tree-status-filter-plan (archived eb1df67): list --tree combines with the row filters, marking context rows in text and --json; --help documents it."
 ---
 
 There is no single call that lists the descendants of a Parent filtered by status.
