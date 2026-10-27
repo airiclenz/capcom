@@ -44,7 +44,8 @@ const (
 // lists each one, then the count. A file that does not parse or validate, and every tree problem,
 // is a warning and the file is left alone; capcom check is the validator. Each kind is formatted
 // by its node store, nodestore.Kind.Format, issues first. With --check it writes nothing, lists
-// the files that would change and exits 1 when any would. The --json data is {paths}.
+// the files that would change and exits 1 when any would. The --json data is {paths}. Without
+// --check the run is noted as a write of no Issue for the Tree lock warning (app.noteWrite).
 func (a *app) newFmtCommand() *cobra.Command {
 	var isCheck bool
 	cmd := &cobra.Command{
@@ -62,6 +63,9 @@ func (a *app) newFmtCommand() *cobra.Command {
 			notes, err := nodestore.Notes(a.store, nil).Format(isCheck)
 			if err != nil {
 				return a.kindFailure(err, noteIDs)
+			}
+			if !isCheck {
+				a.noteWrite()
 			}
 			run := formatRun{
 				app:      a,

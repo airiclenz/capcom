@@ -165,7 +165,8 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 // new path nor the new parent, for every node file whose references or Refs could not be checked
 // (movedUnreadWarnings), for an emptied old parent directory it could not remove and for every
 // file it rewrote whose frontmatter comments it dropped (app.warnDroppedComments); verbs.afterWrite
-// then renders the write's Effects.
+// then renders the write's Effects. The move is noted for the Tree lock warning under its old id
+// and its new (app.noteKindWrite).
 func move[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -180,6 +181,7 @@ func move[T any](
 	if err != nil {
 		return output.Result{}, a.kindFailure(err, verbs.idKind)
 	}
+	a.noteKindWrite(verbs.idKind, moved.OldID, moved.ID)
 	result := moveResult(verbs, moved)
 	indexWarnings, warnings := a.movedWarnings(moved, problems)
 	a.indexWarnings = indexWarnings
@@ -250,7 +252,8 @@ func newRmCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 // were dropped, with a warning for every tree problem that concerns neither the node nor its
 // parent, for every node file whose references could not be checked, for an emptied parent
 // directory left in place and for every file it rewrote whose frontmatter comments it dropped
-// (app.warnDroppedComments); verbs.afterWrite then renders the write's Effects.
+// (app.warnDroppedComments); verbs.afterWrite then renders the write's Effects. The removal is
+// noted for the Tree lock warning (app.noteKindWrite).
 func remove[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -261,6 +264,7 @@ func remove[T any](
 	if err != nil {
 		return output.Result{}, verbs.removeFailure(a, err)
 	}
+	a.noteKindWrite(verbs.idKind, removed.ID)
 	result := verbs.removeResult(removed)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	unread := unreadWarnings(removed.Unread, verbs.descriptor.RefKeys(), removed.ID)
@@ -331,7 +335,8 @@ func joinKeys(keys []string) string {
 // nodestore.Kind.Create. The result names the new node's id, path and etag, with a warning for
 // every tree problem that concerns neither the node's path nor its parent, unless the index
 // refresh already warned about it, and the warning of a write that raised the store format
-// (app.warnRaisedFormat); verbs.afterWrite then renders the write's Effects.
+// (app.warnRaisedFormat); verbs.afterWrite then renders the write's Effects. The write is noted for
+// the Tree lock warning (app.noteKindWrite).
 func createNode[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -343,6 +348,7 @@ func createNode[T any](
 	if err != nil {
 		return output.Result{}, a.kindFailure(err, verbs.idKind)
 	}
+	a.noteKindWrite(verbs.idKind, written.ID)
 	result := verbs.writeResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	a.warnRaisedFormat(written.Effects)

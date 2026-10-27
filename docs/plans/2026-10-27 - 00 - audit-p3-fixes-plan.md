@@ -547,7 +547,10 @@ internal/briefing/briefing.go — readLocks; internal/ui/statusbar.go — lockBa
 - `go run ./cmd/capcom check`
 **Commit:** `feat(lock): report orphaned lock records`
 
-## 17. A CLI write warns while another session holds the lock
+## 17. A CLI write warns while another session holds the lock — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): re-derived from the assumption that related writes bypass `written`: `related add`/`rm` already write through `app.editIssue` -> `app.written`, so `internal/cli/related.go` needed no change and is not in FILES.
+NOTES (2026-10-27): the check uses `lock.ForWorktree(a.store).Check("")` (no guard, creates nothing) in `app.lockWarning`, called from `app.emit`; writes are noted by `app.noteWrite`/`app.noteKindWrite` (Note kind notes no Issue id); a command writing several Issues (close a b) warns unless every noted write names the purpose. `start` is silent by construction (its acquire sets the purpose to the started id before the claim's write is noted), so `start.go` carries no exemption flag; only finish sets `app.isLockExempt`.
 
 **What:**
 **Goal:** per ADR 0017, a CLI write while this worktree's lock is held under a purpose other than

@@ -62,15 +62,28 @@ func editNode[T any](
 // format, because the file it wrote carries a key line config.yaml's format lacks, adds
 // formatRaisedWarning to the warnings the command's result renders, so every edit verb warns of
 // the raise once, and an edit of a file whose frontmatter held a comment adds
-// droppedCommentsWarning (app.warnDroppedComments). A failure is typed by writeFailure for kind, the kind of node written, with the
-// id the Written still names when the node resolved.
+// droppedCommentsWarning (app.warnDroppedComments). The write is noted for the Tree lock warning
+// (app.noteKindWrite), naming the Issue it wrote, or no Issue for a Note's. A failure is typed by
+// writeFailure for kind, the kind of node written, with the id the Written still names when the
+// node resolved, and is not noted.
 func (a *app) written(kind idKind, written nodestore.Written, err error) (nodestore.Written, error) {
 	if err != nil {
 		return nodestore.Written{}, a.writeFailure(kind, written.ID, err)
 	}
+	a.noteKindWrite(kind, written.ID)
 	a.warnRaisedFormat(written.Effects)
 	a.warnDroppedComments(written.Effects)
 	return written, nil
+}
+
+// noteKindWrite notes a write of a node of kind (app.noteWrite): an Issue's names ids, the Issue's
+// id, or a move's old id and new, and a Note's names no Issue.
+func (a *app) noteKindWrite(kind idKind, ids ...string) {
+	if kind != issueIDs {
+		a.noteWrite()
+		return
+	}
+	a.noteWrite(ids...)
 }
 
 // warnDroppedComments adds droppedCommentsWarning to the command's write warnings for each file

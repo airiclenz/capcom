@@ -98,8 +98,10 @@ func (a *app) newFinishCommand() *cobra.Command {
 }
 
 // finish closes arg's Issue as close does, then frees or keeps the lock, then renders the close,
-// the lock and the Issue to work on next.
+// the lock and the Issue to work on next. It acts on the lock itself, so it never warns of another
+// session's lock as a write does (app.isLockExempt).
 func (a *app) finish(cmd *cobra.Command, arg string, reason string, token string, isKeepLock bool) error {
+	a.isLockExempt = true
 	status, _ := a.store.Config.DefaultStatus(config.CategoryDone) // config.yaml always declares one
 	closed, err := a.closeResult([]string{arg}, status, reason)
 	if err != nil {

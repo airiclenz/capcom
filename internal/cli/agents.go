@@ -82,7 +82,8 @@ const (
 // newAgentsCommand writes or refreshes the capcom Managed block of AGENTS.md and imports it into
 // the agent guides, or with --check reports whether the block is current and the guides reach it.
 // --check fails on a stale block or an unreached guide only: an AGENTS.md without the block, or no
-// AGENTS.md, is fine.
+// AGENTS.md, is fine. Without --check the run is noted as a write of no Issue for the Tree lock
+// warning (app.noteWrite).
 func (a *app) newAgentsCommand() *cobra.Command {
 	isCheck := false
 	cmd := &cobra.Command{
@@ -96,6 +97,7 @@ func (a *app) newAgentsCommand() *cobra.Command {
 			if isCheck {
 				return a.checkAgentsBlock(cmd, a.store)
 			}
+			a.noteWrite()
 			return a.writeAgentsBlock(cmd, a.store)
 		}),
 	}

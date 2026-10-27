@@ -2,8 +2,10 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,6 +14,7 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/lock"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -110,6 +113,11 @@ type app struct {
 	// writeWarnings are the warnings of the writes the command made, such as the store format an
 	// edit raised (app.written); emit renders them after the index warnings and before the result's.
 	writeWarnings []string
+	// writes are the writes the command made, each as the ids of the Issues it targets (noteWrite),
+	// and isLockExempt is set by a command that acts on the Tree lock itself, finish, so emit warns
+	// of another session's lock (app.lockWarning) after the writes of every other command only.
+	writes       [][]string
+	isLockExempt bool
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and
@@ -409,10 +417,11 @@ func runE(body func(cmd *cobra.Command, args []string) error) func(*cobra.Comman
 }
 
 // emit renders a successful result in the selected format, the index's warnings ahead of the
-// command's own. A command offers --kv only through withKV; a result without KV records under
-// --kv is therefore a command's own defect, still rejected as a usage error, not output. A result
-// carrying a Failure is rendered with it, named as cmd's failure, and emit then returns that
-// failure, marked rendered, so the command still exits with its code.
+// command's own, with the warning of a write made while another session holds the Tree lock
+// (app.lockWarning) after the write warnings. A command offers --kv only through withKV; a result
+// without KV records under --kv is therefore a command's own defect, still rejected as a usage
+// error, not output. A result carrying a Failure is rendered with it, named as cmd's failure, and
+// emit then returns that failure, marked rendered, so the command still exits with its code.
 func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 	if a.isKV && result.KV == nil {
 		return output.UsageErrorf("%s does not support --kv", cmd.CommandPath())
@@ -425,6 +434,9 @@ func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 		warnings = append(warnings, warning.String())
 	}
 	warnings = append(warnings, a.writeWarnings...)
+	if warning := a.lockWarning(); warning != "" {
+		warnings = append(warnings, warning)
+	}
 	result.Warnings = append(warnings, result.Warnings...)
 	if err := a.renderer.Render(result); err != nil {
 		return err
@@ -433,6 +445,59 @@ func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 		return nil
 	}
 	return output.Rendered(result.Failure)
+}
+
+// foreignLockAdvice follows the warning of a write made while the Tree lock is held for another
+// purpose: the holder may be the writer itself, which ADR 0017 tells by the purpose alone.
+const foreignLockAdvice = "; if it is yours, carry on"
+
+// unreadableLockWarning is the warning of a write made while this worktree's lock record cannot be
+// read: the record file, then why, and capcom lock status, which shows the record.
+const unreadableLockWarning = "%s: the lock record cannot be read: %s; see " + lockStatusHint
+
+// noteWrite records a write the command made, for the warning emit adds when another session holds
+// the Tree lock (app.lockWarning). ids are the Issues the write targets, any one of which may be
+// the lock's purpose: a move passes the old id and the new. A write of no Issue, a Note's, fmt's or
+// agents', passes none and so meets every held lock as another session's.
+func (a *app) noteWrite(ids ...string) {
+	a.writes = append(a.writes, ids)
+}
+
+// lockWarning returns the warning of the writes the command noted (noteWrite) when this worktree's
+// Tree lock is held, live or stale, and a write targets no Issue whose id is the lock's purpose:
+// the holder, purpose and heartbeat age as lock.HeldError words them, then foreignLockAdvice. A
+// record that cannot be read gives unreadableLockWarning. It returns "" when the command noted no
+// write or is exempt (isLockExempt), and when the lock is free or orphaned. The record is read
+// without the guard, so the check creates nothing under the lock directory and never fails the
+// write.
+func (a *app) lockWarning() string {
+	if len(a.writes) == 0 || a.isLockExempt || a.store == nil {
+		return ""
+	}
+	worktree := lock.ForWorktree(a.store)
+	_, err := worktree.Check("")
+	if err == nil {
+		return ""
+	}
+	var held *lock.HeldError
+	if !errors.As(err, &held) {
+		recordPath := worktree.RecordPath()
+		return fmt.Sprintf(unreadableLockWarning, recordPath, strings.TrimPrefix(err.Error(), recordPath+": "))
+	}
+	if a.writesOnly(held.Status.Record.Purpose) {
+		return ""
+	}
+	return held.Error() + foreignLockAdvice
+}
+
+// writesOnly reports whether every write the command noted targets the Issue whose id is purpose.
+func (a *app) writesOnly(purpose string) bool {
+	for _, ids := range a.writes {
+		if !slices.Contains(ids, purpose) {
+			return false
+		}
+	}
+	return true
 }
 
 // newVersionCommand reports the embedded release version.
