@@ -1,10 +1,12 @@
 ---
 title: No way to choose the stacked layout on a terminal that fits both
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-10-27 - 02 - ui-layout-toggle-plan
 created: 2026-10-27T16:49:18Z
+closed: 2026-10-27T17:32:19Z
+reason: Resolved by plan 2026-10-27 - 02 - ui-layout-toggle-plan (all 8 items done; archived in e02c59e)
 ---
 
 `capcom ui` picks its layout from the terminal's size alone: side by side (the split layout, a
