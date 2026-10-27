@@ -246,7 +246,12 @@ Note succeeds and warns; a rewrite inside the moved subtree is reported at its p
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/knowledge/` then `./internal/nodestore/`
 **Commit:** `fix(mv): rewrite Note Refs that point at a moved file or directory`
 
-## 7. mv reports the Ref rewrites and its help says so
+## 7. mv reports the Ref rewrites and its help says so — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): consequential edit — internal/cli/testdata/help/mv.txt: made necessary by the new issueMvHelp text (TestHelp_NodeVerbs_MatchGolden pins the help byte for byte; regenerated from `capcom mv --help`)
+NOTES (2026-10-27): consequential edit — internal/cli/testdata/help/know-mv.txt: made necessary by the new noteMvHelp text (regenerated from `capcom know mv --help`)
+NOTES (2026-10-27): nodeVerbs gains hasRefs (true for Notes), so an unparseable bystander of a Note move warns "superseded-by and refs" while an issue bystander keeps "deps and related"; moveResult builds on verbs.writeResult (kind, text, KV) and swaps in a moveData payload, leaving writeResult/noteWriteResult untouched.
+NOTES (2026-10-27): an UnreadNotes entry that is the Knowledge directory (item 6's walk failure) warns "<dir>: refs not checked for <id>: the directory cannot be read" instead of "the file does not parse"; a Note read failure keeps the "does not parse" wording, as moved.Unread already does.
 
 **What:**
 **Goal:** `capcom mv` and `capcom know mv` name rewritten Notes in their output like deps today;

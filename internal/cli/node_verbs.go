@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -51,6 +52,9 @@ type nodeVerbs[T any] struct {
 	// hasDropDeps reports whether the kind's rm takes --drop-deps, which removes the deps entries
 	// of the nodes that depend on the removed one instead of refusing the removal.
 	hasDropDeps bool
+	// hasRefs reports whether the kind's node files carry Refs, so a move that could not check
+	// one of them for the moved node's references left its Refs unchecked too.
+	hasRefs bool
 	// mvHelp and rmHelp are the Long and Example help text of the kind's mv and rm.
 	mvHelp commandHelp
 	rmHelp commandHelp
@@ -77,6 +81,7 @@ var issueVerbs = nodeVerbs[issue.Issue]{
 	removeFailure: (*app).issueRemovalFailure,
 	hasKV:         true,
 	hasDropDeps:   true,
+	hasRefs:       false,
 	mvHelp:        issueMvHelp,
 	rmHelp:        issueRmHelp,
 }
@@ -100,6 +105,7 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 	afterWrite:  addSyncEffects,
 	hasKV:       false,
 	hasDropDeps: false,
+	hasRefs:     true,
 	mvHelp:      noteMvHelp,
 	rmHelp:      noteRmHelp,
 }
@@ -154,9 +160,10 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 // move moves the node args[0] names to the new id args[1], when given, and below options.parent,
 // when reparented. It refuses with conflict, before anything moves, when --if-match is set and is
 // not the node file's etag, and, taking the move back, when a node file it rewrites changed while
-// it ran. The result names the node's new id, path and etag, with a warning for every tree problem
-// that concerns neither the node, its new path nor the new parent, for every node file whose
-// references could not be checked, and for an emptied old parent directory it could not remove;
+// it ran. The result names the node's new id, path and etag and the Notes whose Refs the move
+// rewrote (moveResult), with a warning for every tree problem that concerns neither the node, its
+// new path nor the new parent, for every node file whose references or Refs could not be checked
+// (movedUnreadWarnings), and for an emptied old parent directory it could not remove;
 // verbs.afterWrite then renders the write's Effects.
 func move[T any](
 	a *app,
@@ -172,12 +179,12 @@ func move[T any](
 	if err != nil {
 		return output.Result{}, a.kindFailure(err, verbs.idKind)
 	}
-	result := verbs.writeResult(moved.ID, moved.Path, moved.ETag)
+	result := moveResult(verbs, moved)
 	indexWarnings, warnings := a.movedWarnings(moved, problems)
 	a.indexWarnings = indexWarnings
 	result.Warnings = append(result.Warnings, warnings...)
-	unread := unreadWarnings(moved.Unread, verbs.descriptor.RefKeys(), moved.OldID)
-	result.Warnings = append(result.Warnings, unread...)
+	knowledgeDir := a.store.Relative(a.store.KnowledgeDir())
+	result.Warnings = append(result.Warnings, movedUnreadWarnings(verbs, moved, knowledgeDir)...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(moved.LeftInPlace)...)
 	if verbs.afterWrite != nil {
 		verbs.afterWrite(&result, moved.Effects)
@@ -262,20 +269,49 @@ func remove[T any](
 	return result, nil
 }
 
+const (
+	// unreadFileReason is why a node file's references were not checked: it does not parse.
+	unreadFileReason = "the file does not parse"
+	// unwalkedDirReason is why no Note's Refs were checked: the Knowledge directory cannot be read.
+	unwalkedDirReason = "the directory cannot be read"
+)
+
 // unreadWarnings renders one warning per node file in paths, which does not parse, so its entries
 // naming the node id under every one of refKeys were not checked.
 func unreadWarnings(paths []string, refKeys []string, id string) []string {
-	keys := joinKeys(refKeys)
 	warnings := make([]string, 0, len(paths))
 	for _, path := range paths {
-		warnings = append(warnings, fmt.Sprintf(
-			"%s: %s not checked for %s: the file does not parse",
-			path,
-			keys,
-			id,
-		))
+		warnings = append(warnings, unreadWarning(path, refKeys, id, unreadFileReason))
 	}
 	return warnings
+}
+
+// movedUnreadWarnings renders one warning per file moved could not check, naming only the keys
+// left unchecked in it: a node file of the kind that does not parse (moved.Unread) left its
+// reference fields unchecked, and its Refs too when the kind carries them (verbs.hasRefs); a Note
+// moved.UnreadNotes names left only its Refs. moved.UnreadNotes may name knowledgeDir, the
+// Knowledge directory relative to the working tree root, when it could not be walked: its warning
+// says so instead of naming a file that does not parse.
+func movedUnreadWarnings[T any](verbs nodeVerbs[T], moved nodestore.Moved, knowledgeDir string) []string {
+	keys := verbs.descriptor.RefKeys()
+	if verbs.hasRefs {
+		keys = append(slices.Clone(keys), refsKey)
+	}
+	warnings := unreadWarnings(moved.Unread, keys, moved.OldID)
+	for _, path := range moved.UnreadNotes {
+		reason := unreadFileReason
+		if path == knowledgeDir {
+			reason = unwalkedDirReason
+		}
+		warnings = append(warnings, unreadWarning(path, []string{refsKey}, moved.OldID, reason))
+	}
+	return warnings
+}
+
+// unreadWarning is the warning for path, whose entries naming the node id under every one of
+// refKeys were not checked, for reason.
+func unreadWarning(path string, refKeys []string, id string, reason string) string {
+	return fmt.Sprintf("%s: %s not checked for %s: %s", path, joinKeys(refKeys), id, reason)
 }
 
 // joinKeys joins keys as a message lists them: "a", "a and b", "a, b and c".

@@ -21,8 +21,8 @@ Rename an Issue, move it below another Issue, or both; --parent . moves it to th
 
 A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every deps entry that named the Issue.
 
-Its children move with it.
+Its children move with it. A rename or a move rewrites every Note Ref naming the Issue's file, its children directory or a path below it to the new path, keeping any #symbol.
 
 capcom renames the files itself and never runs git.
 
-It prints the Issue's new id, path and etag.
+It prints the Issue's new id, path and etag, and refs_rewritten: the Notes whose Refs it rewrote.

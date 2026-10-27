@@ -136,6 +136,10 @@ capcom know update token-refresh \
   --add-ref "internal/auth/refresh.go#func RenewToken"
 ```
 
+Moving a file with capcom keeps the Refs to it: `capcom mv` and `capcom know mv` rewrite every Ref
+naming the moved issue or Note file, or its children directory, to the new path and list the Notes
+they rewrote as `refs_rewritten`. A file moved with git or by hand still breaks the Refs to it.
+
 The exact rules, including what makes a Ref invalid, are under
 [Refs](../reference/file-format.md#refs).
 

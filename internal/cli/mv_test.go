@@ -452,3 +452,84 @@ func TestMv_NameOnlyAnUnusableFileClaims_IsRefusedNamingIt(t *testing.T) {
 		})
 	}
 }
+
+// newRefMoveStore creates newMoveStore's store with the Note session-notes, whose Refs name
+// session-work's file, with a symbol, and the children directory of login-flow.
+func newRefMoveStore(t *testing.T) string {
+	t.Helper()
+	root := newMoveStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"session-notes.md": "---\ntitle: Session notes\n" +
+			"refs: [.capcom/issues/session-work.md#Session, .capcom/issues/login-flow]\n---\n",
+	})
+	return root
+}
+
+func TestMv_RenameRefedIssueTwice_RewritesTheRefsAndCheckPasses(t *testing.T) {
+	root := newRefMoveStore(t)
+
+	mustRun(t, root, "mv", "session-work", "session-new")
+	mustRun(t, root, "mv", "session-new", "session-final")
+
+	want := "refs: [.capcom/issues/session-final.md#Session, .capcom/issues/login-flow]\n"
+	if note := readNoteFile(t, root, "session-notes.md"); !strings.Contains(note, want) {
+		t.Errorf("session-notes.md = %q; want it to contain %q", note, want)
+	}
+	if stdout, stderr, exitCode := runCLI(t, root, "check"); exitCode != ExitOK {
+		t.Errorf("check = %d\nstdout = %q\nstderr = %q", exitCode, stdout, stderr)
+	}
+}
+
+func TestMv_Parent_RewritesRefsBelowTheMovedDirectoryAndNamesTheNote(t *testing.T) {
+	root := newRefMoveStore(t)
+
+	stdout := mustRun(t, root, "mv", "login-flow", "--parent", "renamed-issue")
+
+	if !strings.Contains(stdout, "\nrefs_rewritten: [session-notes]\n") {
+		t.Errorf("stdout = %q; want a refs_rewritten line naming session-notes", stdout)
+	}
+	want := "refs: [.capcom/issues/session-work.md#Session, .capcom/issues/renamed-issue/login-flow]\n"
+	if note := readNoteFile(t, root, "session-notes.md"); !strings.Contains(note, want) {
+		t.Errorf("session-notes.md = %q; want it to contain %q", note, want)
+	}
+}
+
+func TestMv_RefsRewritten_InJSONAndKV(t *testing.T) {
+	root := newRefMoveStore(t)
+
+	data, _ := decodeEnvelope(t, mustRun(t, root, "mv", "--json", "session-work", "session-new"))["data"].(map[string]any)
+	kv := mustRun(t, root, "mv", "--kv", "session-new", "session-final")
+
+	if rewritten, _ := data["refs_rewritten"].([]any); len(rewritten) != 1 || rewritten[0] != "session-notes" {
+		t.Errorf("--json data = %v; want refs_rewritten [session-notes]", data)
+	}
+	if !strings.HasSuffix(kv, "\nREFS_REWRITTEN=[session-notes]\nSTATUS=ok\n") {
+		t.Errorf("--kv = %q; want REFS_REWRITTEN=[session-notes] right before STATUS=", kv)
+	}
+}
+
+func TestMv_NoRefRewritten_PrintsNoLineAndAnEmptyList(t *testing.T) {
+	root := newMoveStore(t)
+
+	text := mustRun(t, root, "mv", "session-work", "session-new")
+	data, _ := decodeEnvelope(t, mustRun(t, root, "mv", "--json", "session-new", "session-final"))["data"].(map[string]any)
+
+	if strings.Contains(text, "refs_rewritten") {
+		t.Errorf("stdout = %q; want no refs_rewritten line", text)
+	}
+	if rewritten, isList := data["refs_rewritten"].([]any); !isList || len(rewritten) != 0 {
+		t.Errorf("--json data = %v; want refs_rewritten []", data)
+	}
+}
+
+func TestMv_UnparseableNote_WarnsRefsNotCheckedOnceAndMoves(t *testing.T) {
+	root := newRefMoveStore(t)
+	writeNoteFiles(t, root, map[string]string{"broken-note.md": "no frontmatter\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "mv", "session-work", "--parent", "login-flow")
+
+	warning := "warning: .capcom/knowledge/broken-note.md: refs not checked for session-work: the file does not parse"
+	if count := strings.Count(stdout, warning+"\n"); exitCode != ExitOK || count != 1 {
+		t.Errorf("mv = %d\nstdout = %q\nstderr = %q\nwant success with the line %q once", exitCode, stdout, stderr, warning)
+	}
+}

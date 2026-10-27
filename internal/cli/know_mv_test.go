@@ -336,13 +336,47 @@ func TestKnowMv_UnparseableBystander_WarnsAndMoves(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "know", "mv", "release-flow", "release-steps")
 
-	warning := ".capcom/knowledge/testing-rules/broken-note.md: superseded-by not checked for release-flow: " +
-		"the file does not parse"
-	if exitCode != ExitOK || !strings.Contains(stdout+stderr, warning) {
-		t.Errorf("know mv = %d\n%s%s; want success warning %q", exitCode, stdout, stderr, warning)
+	warning := ".capcom/knowledge/testing-rules/broken-note.md: superseded-by and refs not checked for " +
+		"release-flow: the file does not parse"
+	if exitCode != ExitOK || strings.Count(stdout+stderr, warning) != 1 {
+		t.Errorf("know mv = %d\n%s%s; want success warning %q once", exitCode, stdout, stderr, warning)
 	}
 	if !noteFileExists(t, root, "release-steps.md") {
 		t.Errorf("release-steps.md was not written")
+	}
+}
+
+func TestKnowMv_ReparentUnparseableBystander_WarnsOnlyRefsNotChecked(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"testing-rules/broken-note.md": "no frontmatter\n"})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "mv", "release-flow", "--parent", "testing-rules")
+
+	warning := ".capcom/knowledge/testing-rules/broken-note.md: refs not checked for release-flow: " +
+		"the file does not parse"
+	if exitCode != ExitOK || strings.Count(stdout+stderr, warning) != 1 || strings.Contains(stdout+stderr, "superseded-by") {
+		t.Errorf("know mv = %d\n%s%s; want success warning %q once", exitCode, stdout, stderr, warning)
+	}
+}
+
+func TestKnowMv_Rename_RewritesRefsAndNamesTheNotes(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\nrefs: [.capcom/knowledge/release-flow.md#Tag]\n---\n",
+	})
+
+	stdout := mustRun(t, root, "know", "mv", "release-flow", "release-steps")
+	data, _ := decodeEnvelope(t, mustRun(t, root, "know", "mv", "--json", "release-steps", "release-final"))["data"].(map[string]any)
+
+	if !strings.Contains(stdout, "\nrefs_rewritten: [git-fixtures]\n") {
+		t.Errorf("stdout = %q; want a refs_rewritten line naming git-fixtures", stdout)
+	}
+	if rewritten, _ := data["refs_rewritten"].([]any); len(rewritten) != 1 || rewritten[0] != "git-fixtures" {
+		t.Errorf("--json data = %v; want refs_rewritten [git-fixtures]", data)
+	}
+	want := "refs: [.capcom/knowledge/release-final.md#Tag]\n"
+	if got := readNoteFile(t, root, "testing-rules/git-fixtures.md"); !strings.Contains(got, want) {
+		t.Errorf("git-fixtures.md = %q; want it to contain %q", got, want)
 	}
 }
 

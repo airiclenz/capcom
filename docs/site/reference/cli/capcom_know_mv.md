@@ -15,11 +15,11 @@ Rename a Note, move it below another Note, or both; --parent . moves it to the t
 
 A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every superseded-by entry that named the Note.
 
-Its children move with it.
+Its children move with it. A rename or a move rewrites every Note Ref naming the Note's file, its children directory or a path below it to the new path, keeping any #symbol.
 
 capcom renames the files itself and never runs git.
 
-It prints the Note's new id, path and etag.
+It prints the Note's new id, path and etag, and refs_rewritten: the Notes whose Refs it rewrote.
 
 ```
 capcom know mv <id|alias|prefix> [<new-id>] [--parent <id|alias|prefix|.>] [--if-match <etag>] [flags]

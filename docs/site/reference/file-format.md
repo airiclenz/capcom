@@ -471,7 +471,8 @@ write verbs are the scripted path:
   `capcom update` for an issue, plus `--body-file` to replace the whole body.
 - `capcom know mv` renames a Note, moves it below another (`--parent`, or `.` for the top of the
   tree), or both. A rename keeps the old id as an alias, and the Note's children move with it.
-  It rewrites every other Note's `superseded-by` entry naming the old id or one of its aliases.
+  It rewrites every other Note's `superseded-by` entry naming the old id or one of its aliases,
+  and every Ref naming the moved file, as below (see Refs).
 - `capcom know rm` deletes a Note file together with its aliases, and drops every other Note's
   `superseded-by` entries naming it; those Notes are reported as `superseded_by_dropped`. A Note
   with children is refused; move or remove them first.
@@ -554,6 +555,15 @@ A Ref that no longer resolves leaves the Note usable. `capcom know verify` lists
 one; `capcom check` reports them too (`broken-ref`), and `capcom prime` counts them in its
 briefing. `capcom know verify`, `capcom check` and `capcom prime` list an `unshared-ref` Ref the
 same way. All three leave out the Refs of a retired Note and of every Note below it.
+
+`capcom mv` and `capcom know mv`, a rename or a move below another node alike, rewrite every Ref
+whose path is the moved node file, its children directory or a path below that directory to the
+path it has after the move, keeping its `#symbol`, in every Note, the moved Note and those below it
+included. They print the ids of the Notes they rewrote as `refs_rewritten: [...]` in text (a line
+only when there are any), `"refs_rewritten"` in `--json`, always present, and `REFS_REWRITTEN=` in
+`--kv`. A Note file that does not parse is left as it is, with one warning naming it and the keys
+left unchecked, such as `<path>: superseded-by and refs not checked for release-flow: the file does
+not parse`; the move itself goes ahead.
 
 ## Config
 

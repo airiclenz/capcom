@@ -9,8 +9,13 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// rootParentArg is the --parent value of mv and know mv that moves a node to the top of its tree.
-const rootParentArg = "."
+const (
+	// rootParentArg is the --parent value of mv and know mv that moves a node to the top of its
+	// tree.
+	rootParentArg = "."
+	// refsKey is a Note's Refs field as a warning names it.
+	refsKey = "refs"
+)
 
 // issueMvHelp is the help text of capcom mv.
 var issueMvHelp = commandHelp{
@@ -18,9 +23,11 @@ var issueMvHelp = commandHelp{
 		"tree.\n\n" +
 		"A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every deps " +
 		"entry that named the Issue.\n\n" +
-		"Its children move with it.\n\n" +
+		"Its children move with it. A rename or a move rewrites every Note Ref naming the Issue's " +
+		"file, its children directory or a path below it to the new path, keeping any #symbol.\n\n" +
 		"capcom renames the files itself and never runs git.\n\n" +
-		"It prints the Issue's new id, path and etag.",
+		"It prints the Issue's new id, path and etag, and refs_rewritten: the Notes whose Refs it " +
+		"rewrote.",
 	example: "  capcom mv refresh-retry token-refresh-retry          # the old id stays an alias\n" +
 		"  capcom mv login-timeout-race --parent login-flow     # file it below login-flow\n" +
 		"  capcom mv login-timeout-race --parent .              # back to the top of the tree",
@@ -32,9 +39,11 @@ var noteMvHelp = commandHelp{
 		"Knowledge tree.\n\n" +
 		"A rename keeps the old id as an Alias, so old citations still resolve, and rewrites every " +
 		"superseded-by entry that named the Note.\n\n" +
-		"Its children move with it.\n\n" +
+		"Its children move with it. A rename or a move rewrites every Note Ref naming the Note's " +
+		"file, its children directory or a path below it to the new path, keeping any #symbol.\n\n" +
 		"capcom renames the files itself and never runs git.\n\n" +
-		"It prints the Note's new id, path and etag.",
+		"It prints the Note's new id, path and etag, and refs_rewritten: the Notes whose Refs it " +
+		"rewrote.",
 	example: "  capcom know mv release-steps cutting-a-release        # the old id stays an alias\n" +
 		"  capcom know mv release-tags --parent .                # to the top of the tree\n" +
 		"  capcom know mv release-tags --parent cutting-a-release --if-match <etag>   # etag from know show",
@@ -101,4 +110,35 @@ func movedPath(path string, oldDir string, newDir string) string {
 		return newDir + rest
 	}
 	return path
+}
+
+// moveData is the --json data of mv and know mv: the moved node's new id, path and etag, and the
+// ids of the Notes whose Refs the move rewrote, always present. Its keys are in the order a write
+// of either kind prints them.
+type moveData struct {
+	ETag          string   `json:"etag"`
+	ID            string   `json:"id"`
+	Path          string   `json:"path"`
+	RefsRewritten []string `json:"refs_rewritten"`
+}
+
+// moveResult is the result of mv or know mv: the moved node's new id, path and etag as a write of
+// its kind (verbs.writeResult) reports them, and the ids of the Notes whose Refs the move rewrote,
+// in walk order: a refs_rewritten line in text when there are any, refs_rewritten in --json and
+// REFS_REWRITTEN in --kv, always.
+func moveResult[T any](verbs nodeVerbs[T], moved nodestore.Moved) output.Result {
+	rewritten := make([]string, 0, len(moved.RefsRewritten))
+	for _, path := range moved.RefsRewritten {
+		rewritten = append(rewritten, tree.IDOf(path))
+	}
+	result := verbs.writeResult(moved.ID, moved.Path, moved.ETag)
+	result.Data = moveData{ETag: moved.ETag, ID: moved.ID, Path: moved.Path, RefsRewritten: rewritten}
+	if len(rewritten) > 0 {
+		result.Text += "refs_rewritten: " + flowList(rewritten) + "\n"
+	}
+	for position := range result.KV {
+		pair := output.KVPair{Key: "REFS_REWRITTEN", Value: flowList(rewritten)}
+		result.KV[position].Pairs = append(result.KV[position].Pairs, pair)
+	}
+	return result
 }
