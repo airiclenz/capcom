@@ -466,3 +466,34 @@ func TestError_Error(t *testing.T) {
 		})
 	}
 }
+
+func TestHasComments(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{name: "comment-free", content: "---\ntitle: T\nlabels: [a, b]\n---\nbody # not frontmatter\n"},
+		{name: "comment line above a key", content: "---\ntitle: T\n# why: customer outage\nstatus: open\n---\n", want: true},
+		{name: "comment line at the top", content: "---\n# why\n\ntitle: T\n---\n", want: true},
+		{name: "comment after a value", content: "---\ntitle: T # short\n---\n", want: true},
+		{name: "comment line at the end", content: "---\ntitle: T\n# trailing\n---\n", want: true},
+		{name: "comment inside a block list", content: "---\nlabels:\n  - a\n  # gone\n  - b\n---\n", want: true},
+		{name: "CRLF comment line", content: "---\r\n# why\r\ntitle: T\r\n---\r\n", want: true},
+		{name: "hash inside a double-quoted value", content: "---\ntitle: \"Fix # sign\"\n---\n"},
+		{name: "hash inside a single-quoted value", content: "---\ntitle: '# heading'\n---\n"},
+		{name: "hash inside a plain value", content: "---\ntitle: C#\n---\n"},
+		{name: "no frontmatter", content: "# Heading\n"},
+		{name: "invalid YAML", content: "---\ntitle: [a\n# c\n---\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := frontmatter.HasComments([]byte(tc.content)); got != tc.want {
+				t.Errorf("HasComments(%q) = %v, want %v", tc.content, got, tc.want)
+			}
+		})
+	}
+}

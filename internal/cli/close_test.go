@@ -441,3 +441,64 @@ func TestClose_StandingAndPlainIssueTogether_ClosesThePlainOneAndRefusesTheStand
 		t.Errorf("login-flow.md = %q, want it closed", login)
 	}
 }
+
+// commentedIssue is an open issue whose frontmatter holds a comment line above its status.
+func commentedIssue(title string) string {
+	return strings.Replace(readIssue(title, "open", "", ""), "status: open\n", "# why: customer outage\nstatus: open\n", 1)
+}
+
+func TestClose_FrontmatterComment_WarnsItIsDroppedInEveryFormat(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"text-issue.md": commentedIssue("Text"),
+		"json-issue.md": commentedIssue("JSON"),
+		"kv-issue.md":   commentedIssue("KV"),
+	})
+	const dropped = ": frontmatter comments are not kept; capcom writes frontmatter in canonical form"
+
+	stdout, stderr, exitCode := runCLI(t, root, "close", "text-issue", "--reason", "fixed")
+	jsonOut, _, jsonExit := runCLI(t, root, "close", "json-issue", "--reason", "fixed", "--json")
+	kvOut, _, kvExit := runCLI(t, root, "close", "kv-issue", "--reason", "fixed", "--kv")
+
+	wantText := "warning: .capcom/issues/text-issue.md" + dropped + "\n"
+	if exitCode != ExitOK || stderr != "" || strings.Count(stdout, wantText) != 1 {
+		t.Errorf("close = %d stderr = %q\nstdout = %q; want the warning %q once", exitCode, stderr, stdout, wantText)
+	}
+	warnings, _ := decodeEnvelope(t, jsonOut)["warnings"].([]any)
+	if wantJSON := ".capcom/issues/json-issue.md" + dropped; jsonExit != ExitOK || len(warnings) != 1 ||
+		warnings[0] != wantJSON {
+		t.Errorf("close --json = %d, warnings %v; want [%s]", jsonExit, warnings, wantJSON)
+	}
+	if wantKV := "WARNING=.capcom/issues/kv-issue.md" + dropped + "\n"; kvExit != ExitOK ||
+		!strings.Contains(kvOut, wantKV) {
+		t.Errorf("close --kv = %d\n%s\nwant the line %q", kvExit, kvOut, wantKV)
+	}
+	if text := readStoreFile(t, root, "text-issue.md"); strings.Contains(text, "#") ||
+		!strings.Contains(text, "reason: fixed\n") {
+		t.Errorf("text-issue.md = %q; want it closed in canonical form", text)
+	}
+}
+
+func TestClose_NoFrontmatterComment_WarnsNothing(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"plain-issue.md":  readIssue("Plain", "open", "", ""),
+		"quoted-issue.md": readIssue(`"Fix # sign"`, "open", "", ""),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "close", "plain-issue", "quoted-issue", "--reason", "fixed")
+
+	if exitCode != ExitOK || stderr != "" || strings.Contains(stdout, "warning:") {
+		t.Errorf("close = %d stderr = %q\nstdout = %q; want no warning", exitCode, stderr, stdout)
+	}
+}
+
+func TestUpdate_FrontmatterComment_WarnsItIsDropped(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"login-flow.md": commentedIssue("Login flow")})
+
+	stdout, stderr, exitCode := runCLI(t, root, "update", "login-flow", "--priority", "1")
+
+	want := "warning: .capcom/issues/login-flow.md: frontmatter comments are not kept; " +
+		"capcom writes frontmatter in canonical form\n"
+	if exitCode != ExitOK || stderr != "" || !strings.Contains(stdout, want) {
+		t.Errorf("update = %d stderr = %q\nstdout = %q; want the warning %q", exitCode, stderr, stdout, want)
+	}
+}

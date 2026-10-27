@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -418,5 +419,54 @@ func TestEdit_RaiseFails_FailsAtTheConfigAndWritesNothing(t *testing.T) {
 	}
 	if content := readFile(t, path); content != canonicalIssue {
 		t.Errorf("issue file =\n%s\nwant it unchanged", content)
+	}
+}
+
+func TestEdit_FrontmatterComment_NamesTheFileOnDroppedComments(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	commented := strings.Replace(canonicalIssue, "status: open\n", "# why: customer outage\nstatus: open\n", 1)
+	path := writeNodeFile(t, s.IssuesDir(), editedIssueID+".md", commented)
+	issues := Issues(s, fakeResolver{editedIssueID: {ID: editedIssueID, Path: editedIssuePath}})
+	calls := 0
+
+	written, err := issues.Edit(editedIssueID, "", retitle("Fix the lexer", &calls))
+
+	if err != nil {
+		t.Fatalf("Edit: %v", err)
+	}
+	if got := written.DroppedComments.Paths(); len(got) != 1 || got[0] != editedIssuePath {
+		t.Errorf("DroppedComments = %q, want [%s]", got, editedIssuePath)
+	}
+	if content := readFile(t, path); strings.Contains(content, "#") {
+		t.Errorf("issue file =\n%s\nwant the frontmatter in canonical form", content)
+	}
+}
+
+func TestEdit_CommentFreeFrontmatter_DropsNoComments(t *testing.T) {
+	t.Parallel()
+	issues, _ := newEditedIssue(t)
+	calls := 0
+
+	written, err := issues.Edit(editedIssueID, "", retitle("Fix the lexer", &calls))
+
+	if err != nil || written.DroppedComments != "" {
+		t.Errorf("Edit = DroppedComments %q, %v; want none dropped", written.DroppedComments, err)
+	}
+}
+
+func TestCommentDrops_Paths_ListsEachAddedPathInOrder(t *testing.T) {
+	t.Parallel()
+	var drops CommentDrops
+	if got := drops.Paths(); got != nil {
+		t.Errorf("empty Paths = %q, want nil", got)
+	}
+
+	drops.add(".capcom/issues/a.md")
+	drops.add(".capcom/knowledge/b.md")
+
+	want := []string{".capcom/issues/a.md", ".capcom/knowledge/b.md"}
+	if got := drops.Paths(); !slices.Equal(got, want) {
+		t.Errorf("Paths = %q, want %q", got, want)
 	}
 }

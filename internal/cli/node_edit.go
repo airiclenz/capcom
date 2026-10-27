@@ -20,6 +20,9 @@ const (
 	stdinPath = "-"
 	// kindIssueWrite is the --json kind of every command that writes an issue.
 	kindIssueWrite = "issue-write"
+	// droppedCommentsWarning is the warning of a write that rewrote a file whose frontmatter held a
+	// YAML comment (app.warnDroppedComments): the file, relative to the working tree root.
+	droppedCommentsWarning = "%s: frontmatter comments are not kept; capcom writes frontmatter in canonical form"
 )
 
 // ops returns the shared writes (internal/ops) on the issues of the store, resolving references
@@ -58,14 +61,24 @@ func editNode[T any](
 // written types the outcome of an ops write for the command. An edit that raised the store
 // format, because the file it wrote carries a key line config.yaml's format lacks, adds
 // formatRaisedWarning to the warnings the command's result renders, so every edit verb warns of
-// the raise once. A failure is typed by writeFailure for kind, the kind of node written, with the
+// the raise once, and an edit of a file whose frontmatter held a comment adds
+// droppedCommentsWarning (app.warnDroppedComments). A failure is typed by writeFailure for kind, the kind of node written, with the
 // id the Written still names when the node resolved.
 func (a *app) written(kind idKind, written nodestore.Written, err error) (nodestore.Written, error) {
 	if err != nil {
 		return nodestore.Written{}, a.writeFailure(kind, written.ID, err)
 	}
 	a.warnRaisedFormat(written.Effects)
+	a.warnDroppedComments(written.Effects)
 	return written, nil
+}
+
+// warnDroppedComments adds droppedCommentsWarning to the command's write warnings for each file
+// whose frontmatter comments the write dropped, and nothing when it dropped none.
+func (a *app) warnDroppedComments(effects nodestore.Effects) {
+	for _, path := range effects.DroppedComments.Paths() {
+		a.writeWarnings = append(a.writeWarnings, fmt.Sprintf(droppedCommentsWarning, path))
+	}
 }
 
 // writeFailure types the failure of an ops write on the node of kind id names. A refusal of the

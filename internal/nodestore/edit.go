@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 
+	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
@@ -41,8 +42,9 @@ var beforeRecheck = func(path string) {}
 //     it and is not recreated; any other failure is returned as it is. An edit landing between the
 //     re-check and this write is still overwritten: the store takes no lock.
 //
-// Once the write has landed, the Kind's sync hook runs (WithSync), its outcome on the Written's
-// Effects.
+// Once the write has landed, a node file whose frontmatter held a YAML comment, which the
+// canonical form written does not keep, is named on Effects.DroppedComments, and the Kind's sync
+// hook runs (WithSync), its outcome on the Written's Effects.
 func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (Written, error) {
 	if k.resolver == nil {
 		return Written{}, errNoResolver
@@ -66,6 +68,7 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err != nil {
 		return located, k.fileError(path, err)
 	}
+	hasComments := frontmatter.HasComments(data)
 	edited, err := change(node)
 	if err != nil {
 		return located, err
@@ -86,6 +89,9 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 		return located, err
 	}
 	written.RaisedFormat = raised
+	if hasComments {
+		written.DroppedComments.add(target.Path)
+	}
 	k.runSync(&written.Effects)
 	return written, nil
 }

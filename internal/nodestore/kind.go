@@ -87,6 +87,30 @@ type Effects struct {
 	// SyncFailure is the failure of the Kind's sync hook; the write itself has landed. It is nil
 	// when the hook succeeded or did not run.
 	SyncFailure error
+	// DroppedComments lists the files the write rewrote whose frontmatter held a YAML comment,
+	// which the canonical form it writes does not keep; empty when it dropped none.
+	DroppedComments CommentDrops
+}
+
+// CommentDrops lists the files, relative to the working tree root with forward slashes, whose
+// frontmatter comments a write dropped, in the order it rewrote them. It is a string, the paths
+// separated by newlines, so that Effects stays comparable with ==; Paths lists them.
+type CommentDrops string
+
+// Paths returns the files d lists, in order; nil when it lists none.
+func (d CommentDrops) Paths() []string {
+	if d == "" {
+		return nil
+	}
+	return strings.Split(string(d), "\n")
+}
+
+// add appends path to the files d lists.
+func (d *CommentDrops) add(path string) {
+	if *d != "" {
+		*d += "\n"
+	}
+	*d += CommentDrops(path)
 }
 
 // Issues returns the node store of the issue tree of s, whose config validates every issue;

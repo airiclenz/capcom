@@ -29,6 +29,8 @@ The first standing Issue in a store below format 5 raises the store format to 5,
 
 --if-match refuses the write when the file no longer has the etag show printed.
 
+capcom writes the frontmatter in canonical form, so comments in it are not kept; a write that drops one warns, naming the file.
+
 It prints the Issue's id, path and new etag.
 
 ```

@@ -254,3 +254,27 @@ func errorAt(path string, node *yaml.Node, format string, args ...any) *Error {
 func isNull(node *yaml.Node) bool {
 	return node.Kind == yaml.ScalarNode && node.Tag == tagNull
 }
+
+// HasComments reports whether the frontmatter of the file content data holds a YAML comment, a
+// `#` line or a `# ...` after a value, which the canonical form Encode writes does not keep. A `#`
+// inside a quoted value is no comment. It reports false when data has no frontmatter Split accepts
+// or the frontmatter is not valid YAML, which Decode refuses in any case.
+func HasComments(data []byte) bool {
+	front, _, err := Split("", data, "")
+	if err != nil {
+		return false
+	}
+	var document yaml.Node
+	if err := yaml.Unmarshal([]byte(front), &document); err != nil {
+		return false
+	}
+	return hasComment(&document)
+}
+
+// hasComment reports whether node or any node below it carries a head, line or foot comment.
+func hasComment(node *yaml.Node) bool {
+	if node.HeadComment != "" || node.LineComment != "" || node.FootComment != "" {
+		return true
+	}
+	return slices.ContainsFunc(node.Content, hasComment)
+}

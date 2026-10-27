@@ -280,7 +280,9 @@ per file; `TestKnowMv_UnparseableBystander_WarnsAndMoves` updated.
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Mv|Move'` then `./internal/clidoc/`
 **Commit:** `feat(mv): report rewritten Note Refs`
 
-## 8. An edit warns when it drops frontmatter comments
+## 8. An edit warns when it drops frontmatter comments — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): carrier for item 9 — nodestore.Effects.DroppedComments of type nodestore.CommentDrops, a newline-separated string of worktree-relative paths (Paths() lists them, the unexported add appends one), so Effects stays comparable with ==; app.warnDroppedComments in internal/cli/node_edit.go renders one warning per path.
 
 **What:**
 **Goal:** every write through `Kind.Edit` (update, close, log, reopen, dep, related, start's claim,
