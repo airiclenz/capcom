@@ -195,7 +195,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			isLocked: true,
 			wantExit: ExitNotFound,
 			wantCode: output.CodeLocked,
-			want:     "capcom lock status",
+			want:     "capcom start login-flow --token <token>, or capcom lock status",
 		},
 	}
 	for _, test := range tests {

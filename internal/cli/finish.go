@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -33,18 +34,21 @@ const (
 		"of the kept token.\n\n" +
 		"When neither holds the lock, the lock is left alone and the lock line names capcom lock " +
 		"status.\n\n" +
-		"--keep-lock leaves the lock held and needs no token.\n\n" +
+		"--keep-lock leaves the lock held and needs no token; when the token kept for the Issue, or " +
+		"--token, holds the lock, the output gives that token and the next line names the capcom start " +
+		"--token that resumes the lock for the next Issue.\n\n" +
 		"An Issue already Closed is reported already_closed and the lock is still released.\n\n" +
 		"An Issue that does not exist or is standing fails the command and the lock is not touched.\n\n" +
-		"--kv gives one record with ID=, LOCK= and NEXT=, and --json gives the close, the lock and " +
-		"the next Issue."
+		"--kv gives one record with ID=, LOCK= and NEXT=, plus TOKEN= when --keep-lock gives the token, " +
+		"and --json gives the close, the lock and the next Issue."
 	finishExample = "  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\"\n" +
 		"  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\" --keep-lock   # more work under this lock\n" +
 		"  capcom finish login-timeout-race --reason \"Fixed in 3f2a1c9\" --token <token> --kv"
 )
 
 // finishData is the --json data of capcom finish: the close as close reports it, the lock as finish
-// left it (never with a token), and the Issue to work on next, null when nothing is Ready.
+// left it (with a token only under --keep-lock, when the session's token holds it), and the Issue to
+// work on next, null when nothing is Ready.
 type finishData struct {
 	Close closeData       `json:"close"`
 	Lock  lockData        `json:"lock"`
@@ -116,15 +120,12 @@ func (a *app) finish(cmd *cobra.Command, arg string, reason string, token string
 }
 
 // finishLock releases worktree's lock for token, or for the Lock token kept for the Issue id when
-// token is empty, or with isKeepLock only reads it. A lock neither token holds is left alone, and a
-// record or kept token that cannot be read is reported; none of them is a failure.
+// token is empty, or with isKeepLock leaves it held as keepFinishLock does. A lock neither token
+// holds is left alone, and a record or kept token that cannot be read is reported; none of them is
+// a failure.
 func finishLock(worktree lock.Worktree, id string, token string, isKeepLock bool) finishLockOutcome {
 	if isKeepLock {
-		status, err := worktree.Read()
-		if err != nil {
-			return unreadableFinishLock(worktree, err)
-		}
-		return finishLockOutcome{data: newLockData(lockStateName(status.State()), status, ""), note: "kept (--keep-lock)"}
+		return keepFinishLock(worktree, id, token)
 	}
 
 	sessionToken, err := worktree.SessionToken(token, id)
@@ -143,6 +144,26 @@ func finishLock(worktree lock.Worktree, id string, token string, isKeepLock bool
 		return unreadableFinishLock(worktree, err)
 	}
 	return finishLockOutcome{data: newLockData(endedState(status), status, "")}
+}
+
+// keepFinishLock leaves worktree's lock held and reports it with the session's token: token, or
+// the Lock token kept for the Issue id when token is empty, when that token holds the lock. A
+// session token that is missing, cannot be read or does not hold the lock reports the lock as Read
+// finds it, without a token and without a warning.
+func keepFinishLock(worktree lock.Worktree, id string, token string) finishLockOutcome {
+	const keptNote = "kept (--keep-lock)"
+	sessionToken, err := worktree.SessionToken(token, id)
+	if err == nil && sessionToken != "" {
+		checked, checkErr := worktree.Check(sessionToken)
+		if checkErr == nil && checked.IsHeld {
+			return finishLockOutcome{data: newLockData(lockStateName(checked.State()), checked, sessionToken), note: keptNote}
+		}
+	}
+	status, err := worktree.Read()
+	if err != nil {
+		return unreadableFinishLock(worktree, err)
+	}
+	return finishLockOutcome{data: newLockData(lockStateName(status.State()), status, ""), note: keptNote}
 }
 
 // notHoldingReason says why finish did not release the lock for the Issue id: the --token given
@@ -202,21 +223,33 @@ func (a *app) nextAfterFinish() (*finishNextData, error) {
 	return &finishNextData{ID: listed[0].Entry.ID, Title: listed[0].Entry.Title}, nil
 }
 
-// finishResult renders finish: closeText as close prints it, the lock line, and the next line.
+// finishResult renders finish: closeText as close prints it, the lock line with its note, the token
+// line when held carries the session's token, and the next line, which then names the capcom start
+// that resumes the lock for the next Issue.
 func finishResult(closeText string, outcome closeData, held finishLockOutcome, next *finishNextData) output.Result {
 	var text strings.Builder
 	text.WriteString(closeText)
-	line := strings.TrimSuffix(lockText(held.data), "\n")
+	token := held.data.Token
+	untokened := held.data
+	untokened.Token = ""
+	line := strings.TrimSuffix(lockText(untokened), "\n")
 	if held.note != "" {
 		line += "; " + held.note
 	}
 	text.WriteString(line + "\n")
+	if token != "" {
+		text.WriteString("token " + token + "\n")
+	}
 	nextID := ""
 	if next == nil {
 		text.WriteString(nothingReadyMessage + "\n")
 	} else {
 		nextID = next.ID
-		text.WriteString("next: " + next.ID + "  " + next.Title + "\n")
+		nextLine := "next: " + next.ID + "  " + next.Title
+		if token != "" {
+			nextLine += fmt.Sprintf("; capcom start %s --%s %s", next.ID, flagToken, token)
+		}
+		text.WriteString(nextLine + "\n")
 	}
 
 	result := output.Result{
@@ -231,6 +264,9 @@ func finishResult(closeText string, outcome closeData, held finishLockOutcome, n
 			},
 			Status: outcome.Outcome,
 		}},
+	}
+	if token != "" {
+		result.KV[0].Pairs = append(result.KV[0].Pairs, output.KVPair{Key: kvKeyToken, Value: token})
 	}
 	if held.warning != "" {
 		result.Warnings = []string{held.warning}

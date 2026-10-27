@@ -18,7 +18,8 @@ key.
 
 **Finishing work.** `capcom finish <id> --reason <text>` closes the issue, frees the Tree lock
 through the token kept for the issue, deletes that kept token and names the Ready issue to work on
-next; `--keep-lock` keeps the lock for more work under it.
+next; `--keep-lock` keeps the lock for more work under it, prints the token, and its next line
+names `capcom start <next> --token <token>`, the start that resumes the lock for the next issue.
 
 **Dependencies.**
 - Record them with `capcom create --dep <id>` or `capcom dep add <id> <dep-id>`.

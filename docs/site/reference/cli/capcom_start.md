@@ -21,6 +21,8 @@ Starting an Issue already in doing under your own lock changes nothing in its fi
 
 It refuses, writing nothing, an Issue that is Closed, standing, not Ready or already in doing without your lock, and a lock another session holds (locked, exit code 3); each refusal names the command that resolves it.
 
+A lock this session holds under another purpose, as finish --keep-lock leaves it, is resumed for the Issue with --token, and the kept token moves to the Issue.
+
 --kv adds LOCK= and TOKEN= to show's record, and --json adds a lock object to show's data.
 
 ```

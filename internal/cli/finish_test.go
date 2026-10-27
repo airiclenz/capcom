@@ -52,11 +52,67 @@ func TestFinish_KeepLock_LeavesTheLockHeld(t *testing.T) {
 	if exitCode != ExitOK || stderr != "" {
 		t.Fatalf("exit = %d stderr = %q\n%s", exitCode, stderr, stdout)
 	}
-	if !strings.Contains(stdout, "_main: held by ") || !strings.Contains(stdout, "kept (--keep-lock)") {
-		t.Errorf("stdout lacks the kept lock line:\n%s", stdout)
+	if !strings.Contains(stdout, "_main: held by ") || !strings.Contains(stdout, "kept (--keep-lock)\ntoken ") {
+		t.Errorf("stdout lacks the kept lock line followed by its token:\n%s", stdout)
 	}
 	if after := readOptionalFile(t, lockRecordPath(root)); after != lockBefore {
 		t.Errorf("lock record changed:\n%s\nwant\n%s", after, lockBefore)
+	}
+}
+
+func TestFinish_KeepLock_NextLineNamesTheStartThatResumesTheLock(t *testing.T) {
+	root := newFinishStore(t)
+	token := startToken(t, root)
+
+	stdout := mustRun(t, root, "finish", startIssue, "--reason", "shipped", "--keep-lock")
+	wantNext := "next: " + finishFollowUp + "  Follow up; capcom start " + finishFollowUp + " --token " + token
+	if lastLine(stdout) != wantNext || !strings.Contains(stdout, "\ntoken "+token+"\n") {
+		t.Fatalf("stdout = %q, want the token line and the next line %q", stdout, wantNext)
+	}
+	_, command, _ := strings.Cut(lastLine(stdout), "; capcom ")
+	started, stderr, exitCode := runCLI(t, root, append(strings.Fields(command), "--kv")...)
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("capcom %s: exit = %d stderr = %q\n%s", command, exitCode, stderr, started)
+	}
+	if kvValue(t, started, "LOCK") != lockResumed || kvValue(t, started, "TOKEN") != token {
+		t.Errorf("start = %q, want LOCK=resumed with the kept token", started)
+	}
+	if paths := keptTokenFiles(t, root); len(paths) != 1 {
+		t.Errorf("token files after the start = %v, want one", paths)
+	}
+	if resumed, _, exitCode := runCLI(t, root, "start", finishFollowUp, "--kv"); exitCode != ExitOK ||
+		kvValue(t, resumed, "TOKEN") != token {
+		t.Errorf("start again without --token: exit = %d stdout = %q, want the kept token for %s", exitCode, resumed, finishFollowUp)
+	}
+}
+
+func TestFinish_KeepLock_BareStartOfAnotherIssueIsLockedAndNamesToken(t *testing.T) {
+	root := newFinishStore(t)
+	startToken(t, root)
+	mustRun(t, root, "finish", startIssue, "--reason", "shipped", "--keep-lock")
+
+	stdout, stderr, exitCode := runCLI(t, root, "start", finishFollowUp)
+
+	want := "hint: capcom start " + finishFollowUp + " --token <token>, or capcom lock status"
+	if exitCode != ExitNotFound || lastLine(stderr) != want {
+		t.Errorf("exit = %d stderr = %q, want %d ending with %q\n%s", exitCode, stderr, ExitNotFound, want, stdout)
+	}
+}
+
+func TestFinish_KeepLock_WithoutTheSessionTokenKeepsThePlainNextLine(t *testing.T) {
+	root := newFinishStore(t)
+	token := startToken(t, root)
+	mustRun(t, root, "lock", "acquire", "--purpose", "other", "--token", token)
+
+	stdout := mustRun(t, root, "finish", startIssue, "--reason", "shipped", "--keep-lock")
+	kv := mustRun(t, root, "finish", startIssue, "--reason", "shipped", "--keep-lock", "--kv")
+
+	if lastLine(stdout) != "next: "+finishFollowUp+"  Follow up" || strings.Contains(stdout, token) {
+		t.Errorf("stdout = %q, want the plain next line and no token", stdout)
+	}
+	if strings.Contains(kv, "TOKEN=") {
+		t.Errorf("--kv = %q, want no TOKEN=", kv)
 	}
 }
 
@@ -282,6 +338,23 @@ func TestFinish_KV_GivesOneRecord(t *testing.T) {
 	want := "ID=login-flow\nLOCK=released\nNEXT=follow-up\nSTATUS=closed\n"
 	if stdout != want {
 		t.Errorf("stdout = %q, want %q", stdout, want)
+	}
+}
+
+func TestFinish_KeepLock_KVAndJSONGiveTheToken(t *testing.T) {
+	root := newFinishStore(t)
+	token := startToken(t, root)
+
+	kv := mustRun(t, root, "finish", startIssue, "--reason", "shipped", "--keep-lock", "--kv")
+	envelope := decodeEnvelope(t, mustRun(t, root, "finish", startIssue, "--reason", "shipped", "--keep-lock", "--json"))
+
+	want := "ID=login-flow\nLOCK=held\nNEXT=follow-up\nTOKEN=" + token + "\nSTATUS=closed\n"
+	if kv != want {
+		t.Errorf("--kv = %q, want %q", kv, want)
+	}
+	held := envelope["data"].(map[string]any)["lock"].(map[string]any)
+	if held["lock"] != "held" || held["token"] != token {
+		t.Errorf("lock = %v, want held with the token", held)
 	}
 }
 

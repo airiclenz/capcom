@@ -424,7 +424,7 @@ internal/index/excerpt_test.go — TestBody_IndexedIssueAndNote_ReturnsTheirBodi
 - `GOMEMLIMIT=2GiB go test -run '^$' -bench BenchmarkSearchExcerpt -benchtime 3x ./internal/index/`
 **Commit:** `perf(search): read excerpt bodies in one query`
 
-## 13. finish --keep-lock names the start that resumes the lock
+## 13. finish --keep-lock names the start that resumes the lock — ✅ DONE (2026-10-27)
 
 **What:**
 **Goal:** `finish <id> --keep-lock` prints the session's token when it holds the lock, and its next

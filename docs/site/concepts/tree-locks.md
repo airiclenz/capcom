@@ -186,7 +186,21 @@ next: session-refresh  Refresh the session token
 
 `--token` on `start` and `finish` is optional and, when given, is used in place of the kept token.
 When neither holds the lock, `finish` still closes the Issue and leaves the lock alone, naming
-`capcom lock status`; `--keep-lock` keeps it for more work under it.
+`capcom lock status`; `--keep-lock` keeps it for more work under it. When the token kept for the
+Issue holds the lock, `--keep-lock` prints that token and its next line names the start that
+resumes the lock for the next Issue, which moves the kept token to it:
+
+```console
+$ capcom finish db-schema --reason "Added in the sessions migration." --keep-lock
+db-schema  closed
+now ready: session-refresh
+_main: held by claude@devbox since 2026-10-13T18:57:00Z (heartbeat 2026-10-13T19:20:41Z): db-schema; kept (--keep-lock)
+token 6071ae76aab99defb4d17a08f832bf3d
+next: session-refresh  Refresh the session token; capcom start session-refresh --token 6071ae76aab99defb4d17a08f832bf3d
+```
+
+A bare `capcom start session-refresh` is refused `locked` there, its hint naming
+`capcom start session-refresh --token <token>`.
 `acquire` and `release` remain the way to hold the lock for a change outside an Issue.
 
 ## A session's lock, end to end

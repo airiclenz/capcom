@@ -19,13 +19,13 @@ The lock is released through the Lock token capcom kept for the Issue when start
 
 When neither holds the lock, the lock is left alone and the lock line names capcom lock status.
 
---keep-lock leaves the lock held and needs no token.
+--keep-lock leaves the lock held and needs no token; when the token kept for the Issue, or --token, holds the lock, the output gives that token and the next line names the capcom start --token that resumes the lock for the next Issue.
 
 An Issue already Closed is reported already_closed and the lock is still released.
 
 An Issue that does not exist or is standing fails the command and the lock is not touched.
 
---kv gives one record with ID=, LOCK= and NEXT=, and --json gives the close, the lock and the next Issue.
+--kv gives one record with ID=, LOCK= and NEXT=, plus TOKEN= when --keep-lock gives the token, and --json gives the close, the lock and the next Issue.
 
 ```
 capcom finish <id|alias|prefix> --reason <text> [flags]

@@ -32,6 +32,8 @@ const (
 		"It refuses, writing nothing, an Issue that is Closed, standing, not Ready or already in doing " +
 		"without your lock, and a lock another session holds (locked, exit code 3); each refusal names " +
 		"the command that resolves it.\n\n" +
+		"A lock this session holds under another purpose, as finish --keep-lock leaves it, is " +
+		"resumed for the Issue with --token, and the kept token moves to the Issue.\n\n" +
 		"--kv adds LOCK= and TOKEN= to show's record, and --json adds a lock object to show's data."
 	startExample = "  capcom start login-timeout-race                   # prints the Issue, then the Lock token\n" +
 		"  capcom start login-timeout-race                   # again after a restart: resumes the lock\n" +
@@ -100,7 +102,7 @@ func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 	}
 	acquired, isResumed, err := target.lock.Acquire(claim, token, false)
 	if err != nil {
-		return startLockFailure(target.lock.RecordPath(), err)
+		return startLockFailure(target.lock.RecordPath(), entry.ID, err)
 	}
 	state := lockAcquired
 	if isResumed {
@@ -202,11 +204,11 @@ func (a *app) refuseLock(recordPath string, entry index.Entry, isDoing bool, che
 	var held *lock.HeldError
 	isHeldByOther := errors.As(checkErr, &held)
 	if checkErr != nil && !isHeldByOther {
-		return startLockFailure(recordPath, checkErr)
+		return startLockFailure(recordPath, id, checkErr)
 	}
 	if !isDoing {
 		if isHeldByOther {
-			return startLockFailure(recordPath, checkErr)
+			return startLockFailure(recordPath, id, checkErr)
 		}
 		return nil
 	}
@@ -240,10 +242,11 @@ func (a *app) refuseLock(recordPath string, entry index.Entry, isDoing bool, che
 	return nil
 }
 
-// startLockFailure types a lock another session holds as locked, its hint naming capcom lock
-// status, and a record at recordPath that holds no valid lock as corruptLockFailure does; any other
-// failure passes through.
-func startLockFailure(recordPath string, err error) error {
+// startLockFailure types a lock another session holds as locked, its hint naming the start of the
+// Issue id with --token, for a session that holds the lock under another purpose, and capcom lock
+// status; a record at recordPath that holds no valid lock is typed as corruptLockFailure does, and
+// any other failure passes through.
+func startLockFailure(recordPath string, id string, err error) error {
 	if errors.Is(err, lock.ErrCorruptRecord) {
 		return corruptLockFailure(recordPath, err)
 	}
@@ -255,7 +258,7 @@ func startLockFailure(recordPath string, err error) error {
 		Code:    output.CodeLocked,
 		Message: held.Message(),
 		Path:    held.Path,
-		Hint:    "capcom lock status",
+		Hint:    fmt.Sprintf("capcom start %s --%s <token>, or capcom lock status", id, flagToken),
 	}
 }
 
