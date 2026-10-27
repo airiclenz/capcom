@@ -84,7 +84,7 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
   badge: filled with the `lock-held` colour while another session holds the lock, live or stale,
   and with `lock-free` while it is free. Under `NO_COLOR` a held lock's badge is drawn in reverse.
   On a terminal that fits both the split and the stacked layout, the layout button fills the
-  bar's last three columns: ` ─ ` while the panes sit side by side and ` │ ` while they are
+  bar's last three columns: `───` while the panes sit side by side and ` │ ` while they are
   stacked, the divider of the layout a click switches to (see
   [Choosing the layout](#choosing-the-layout)). It is filled with the `layout-button` colour, its
   glyph in the `muted` colour, and drawn in reverse under `NO_COLOR`.

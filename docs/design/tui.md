@@ -103,7 +103,7 @@ capcom ui [issues|ready|knowledge|closed] [id]
   read's `reading` leave it plain. Under `NO_COLOR` a held or stale badge is drawn in reverse and
   a free one plain. Where the terminal fits both the split and the stacked layout (see Layout
   choice) and neither the help screen nor a prompt is open, the layout button fills the row's last
-  3 columns, blanks padding the row between the hints and it: ` ─ ` while the split layout is on
+  3 columns, blanks padding the row between the hints and it: `───` while the split layout is on
   screen and ` │ ` while the stacked one is, the divider of the layout a toggle brings. It is
   filled with the `layout-button` colour, its glyph in the `muted` colour; under `NO_COLOR` it is
   drawn in reverse. Without the button the row is unpadded.

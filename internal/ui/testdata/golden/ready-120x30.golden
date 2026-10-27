@@ -27,4 +27,4 @@ delta  open  P2  Delta task              │ status: open · P1 · task
                                          │                                                                              
                                          │                                                                              
 ─────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────
- lock  free · ? help · q quit                                                                                         ─ 
+ lock  free · ? help · q quit                                                                                        ───

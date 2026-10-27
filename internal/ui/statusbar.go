@@ -27,8 +27,8 @@ const (
 	hintsHelp       = "esc close · q quit"
 	// layoutButtonToStacked is the layout button's label while the split layout is on screen, and
 	// layoutButtonToSplit its label while the stacked one is: the divider of the layout a toggle
-	// brings, padded with a space each side.
-	layoutButtonToStacked = " ─ "
+	// brings: a rule across all 3 columns, or a bar centred between two spaces.
+	layoutButtonToStacked = "───"
 	layoutButtonToSplit   = " │ "
 )
 

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `capcom ui` has a new colour role, `layout-button`, the fill of the status bar's layout button (dark `#4a4a4a`, light `#d0d7de`), overridable under `ui.colors` in the user config; the button's glyph is drawn in the `muted` colour, and under `NO_COLOR` the button is drawn in reverse.
 - `capcom ui`: on a terminal of at least 90 columns and 25 rows, `v` switches between the split and the stacked layout and stores the choice as `ui.layout` in `state.yaml`, so it applies again whenever both layouts fit; the help screen lists `v`. A failed save of the state file now reads `cannot save the layout: <err>` in place of `cannot save the divider position: <err>`.
-- `capcom ui`: on a terminal that fits both the split and the stacked layout, the status bar ends in a layout button at its right edge: ` ─ ` while the split layout is on screen, ` │ ` while the stacked one is, filled in the `layout-button` colour (reverse under `NO_COLOR`). It is hidden while help or a prompt is open.
+- `capcom ui`: on a terminal that fits both the split and the stacked layout, the status bar ends in a layout button at its right edge: `───` while the split layout is on screen, ` │ ` while the stacked one is, filled in the `layout-button` colour (reverse under `NO_COLOR`). It is hidden while help or a prompt is open.
 - `capcom ui`: a left click on the status bar's layout button switches between the split and the stacked layout as `v` does, also while the filter line or the status picker is open, both of which stay open.
 
 ## [0.12.0] - 2026-10-27
