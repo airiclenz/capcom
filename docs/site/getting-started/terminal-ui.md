@@ -46,7 +46,7 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
 ## The screen
 
 ```text
- Issues [12]  │  Ready [4]  │  Knowledge [9]  │  Closed [31]  v0.7.0 · capcom
+ Issues [12]  │  Ready [4]  │  Knowledge [9]  │  Closed [31]  vX.Y.Z · capcom
 ─────────────────────┬───────────────────────────────────────────────────────
 ▼ capcom-ui        ┃ │ Ready queue view                                     ┃
 ┝ ▶ ready-view     ┃ │                                                      ┃
@@ -67,9 +67,9 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
   a closed Status counts the Closed Issues in the total too. The counts of the tabs not open are
   drawn in a dim grey. A rule under it sets it off from the
   panes. Its right end names the worktree and
-  capcom's version, as `~/repos/capcom · v0.7.0 · capcom`: the worktree's top directory, your
+  capcom's version, as `~/repos/capcom · vX.Y.Z · capcom`: the worktree's top directory, your
   home directory shown as `~`. A terminal too narrow for that shows the version alone, as
-  `v0.7.0 · capcom`, and a narrower one neither.
+  `vX.Y.Z · capcom`, and a narrower one neither.
 - **Sidebar**: the tab's list or tree. The selected row drives the detail pane. In a tree, `▼`
   marks a node whose children are shown, `▶` one whose children are hidden and `·` a node with no
   children; the gray `┝`, `┕` and `│` connectors before a row show where it sits under its Parent.

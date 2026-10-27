@@ -101,7 +101,11 @@ internal/cli/help_text_test.go — TestHelpText_EveryCommand_PrintsExamplesBefor
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Help'` and `./internal/clidoc/`
 **Commit:** `docs(search): say a run of CJK characters counts as one word`
 
-## 3. No pinned version in docs, and a --ref example that resolves
+## 3. No pinned version in docs, and a --ref example that resolves — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): terminal-ui.md writes the version as `vX.Y.Z`, not `v<version>`: it is as wide as `v0.7.0`, so the sample screen's tab bar keeps its 77-column alignment with the rule below it.
+NOTES (2026-10-27): consequential edit — internal/cli/testdata/help/know-add.txt: made necessary by the knowAddExample change (golden help file of TestHelp_NodeVerbs_MatchGolden).
+NOTES (2026-10-27): the --ref scan also trims trailing sentence punctuation (`.,;:)` and backtick) from a value before the path check, and a table test (TestRefPaths_ProseAndExamples_KeepsOnlyPaths) pins that prose values are skipped.
 
 **What:**
 **Goal:** no hand-written page under `docs/site/` pins a capcom version; the `--ref` example in

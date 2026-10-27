@@ -2,6 +2,9 @@ package cli
 
 import (
 	"io"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -228,4 +231,69 @@ func availableCommands() []*cobra.Command {
 		}
 	}
 	return commands
+}
+
+// refFlagValue matches a --ref or --add-ref flag with its value, quoted or bare.
+var refFlagValue = regexp.MustCompile(`--(?:add-)?ref[ =]("[^"]*"|\S+)`)
+
+// refPaths returns the repository paths that --ref and --add-ref values in text name, each
+// without its #symbol. A value holding neither a / nor a . is prose ("--ref set"), not a path.
+func refPaths(text string) []string {
+	var paths []string
+	for _, match := range refFlagValue.FindAllStringSubmatch(text, -1) {
+		value := strings.TrimRight(strings.Trim(match[1], `"`), ".,;:)`")
+		if !strings.ContainsAny(value, "/.") {
+			continue
+		}
+		path, _, _ := strings.Cut(value, "#")
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+// TestRefPaths_ProseAndExamples_KeepsOnlyPaths pins which --ref values count as paths, so the
+// prose in know add's and know update's Long text is never stat'ed.
+func TestRefPaths_ProseAndExamples_KeepsOnlyPaths(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want []string
+	}{
+		{"prose", "--label and --ref set its Labels; A --ref inside the git directory; --add-ref and --remove-ref", nil},
+		{"bare path", `capcom know add --id x --title "X" --ref docs/release.md   # a Note`, []string{"docs/release.md"}},
+		{"symbol and quotes", `--add-ref "internal/cli/root.go#Run" --ref=README.md`, []string{"internal/cli/root.go", "README.md"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := refPaths(tc.text)
+
+			if strings.Join(got, "|") != strings.Join(tc.want, "|") {
+				t.Errorf("refPaths(%q) = %q, want %q", tc.text, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestHelpText_RefExamples_ResolveInRepo fails when README.md or a command's Long or Example text
+// shows a --ref or --add-ref naming a path missing from this repository, since following such an
+// example writes a Note that capcom check fails on.
+func TestHelpText_RefExamples_ResolveInRepo(t *testing.T) {
+	repoRoot := filepath.Join("..", "..")
+	readme, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	sources := map[string]string{"README.md": string(readme)}
+	for _, cmd := range availableCommands() {
+		sources[cmd.CommandPath()+" Long"] = cmd.Long
+		sources[cmd.CommandPath()+" Example"] = cmd.Example
+	}
+
+	for source, text := range sources {
+		for _, path := range refPaths(text) {
+			if _, err := os.Stat(filepath.Join(repoRoot, filepath.FromSlash(path))); err != nil {
+				t.Errorf("%s: --ref %s does not resolve in this repository: %v", source, path, err)
+			}
+		}
+	}
 }

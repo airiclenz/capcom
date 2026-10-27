@@ -4,7 +4,7 @@ Usage:
   capcom know add --id <slug> --title <title> [flags]
 
 Examples:
-  capcom know add --id release-steps --title "How a release is cut" --ref docs/release.md   # a Note that depends on a file
+  capcom know add --id release-steps --title "How a release is cut" --ref docs/releasing.md   # a Note that depends on a file
   capcom know add --id release-tags --parent release-steps --title "Tagging a release" --label release   # below release-steps
   capcom know add --id adr-0031 --title "ADR 0031: one index per worktree" --body-file -   # body from stdin
 

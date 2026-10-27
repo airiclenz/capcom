@@ -152,7 +152,7 @@ capcom lock release --token <token>
 capcom lock status --all
 
 # Knowledge
-capcom know add --id release-steps --title "How a release is cut" --ref docs/release.md
+capcom know add --id release-steps --title "How a release is cut" --ref docs/releasing.md
 capcom know tree
 capcom know show release-steps
 capcom know search release

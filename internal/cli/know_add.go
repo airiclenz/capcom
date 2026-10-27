@@ -28,7 +28,7 @@ const (
 		"resolve here, or that git ignores, is written with a warning, as capcom check fails on it.\n\n" +
 		"It prints the new Note's id, path and etag, and a refreshed line when the capcom block of " +
 		"AGENTS.md was rewritten."
-	knowAddExample = "  capcom know add --id release-steps --title \"How a release is cut\" --ref docs/release.md   # a Note that depends on a file\n" +
+	knowAddExample = "  capcom know add --id release-steps --title \"How a release is cut\" --ref docs/releasing.md   # a Note that depends on a file\n" +
 		"  capcom know add --id release-tags --parent release-steps --title \"Tagging a release\" --label release   # below release-steps\n" +
 		"  capcom know add --id adr-0031 --title \"ADR 0031: one index per worktree\" --body-file -   # body from stdin"
 )
