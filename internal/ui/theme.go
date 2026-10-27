@@ -31,6 +31,7 @@ const (
 	roleCode         = "code"
 	roleLockHeld     = "lock-held"
 	roleLockFree     = "lock-free"
+	roleLayoutButton = "layout-button"
 	statusRolePrefix = "status-"
 )
 
@@ -168,6 +169,9 @@ type theme struct {
 	// reads on it.
 	lockHeld lipgloss.Style
 	lockFree lipgloss.Style
+	// layoutButton paints the status bar's layout button: a layout-button fill with the glyph in
+	// the muted colour, or Reverse without a fill.
+	layoutButton lipgloss.Style
 	// selectedRow marks the selected row of a list: a background fill in the selection colour, or
 	// Reverse when the palette has none. mutedRow marks a tree row shown only to place another,
 	// muted and faint, and mutedSelectedRow one that is both: the fill with faint text, or Reverse.
@@ -202,6 +206,7 @@ func newTheme(settings userconfig.UI, isLightBackground, isNoColor bool) theme {
 		hints:            colors.foreground(roleMuted),
 		lockHeld:         badgeStyle(colors, roleLockHeld, lipgloss.NewStyle().Reverse(true)),
 		lockFree:         badgeStyle(colors, roleLockFree, lipgloss.NewStyle()),
+		layoutButton:     layoutButtonStyle(colors),
 		selectedRow:      selectedRow,
 		mutedRow:         colors.foreground(roleMuted).Faint(true),
 		mutedSelectedRow: mutedSelectedRow,
@@ -234,6 +239,17 @@ func badgeStyle(colors palette, role string, fallback lipgloss.Style) lipgloss.S
 		return fallback
 	}
 	return lipgloss.NewStyle().Background(fill).Foreground(readableTextOn(fill))
+}
+
+// layoutButtonStyle returns the style of the status bar's layout button: filled in colors'
+// layout-button colour with its glyph in the muted colour, or Reverse when colors has no fill.
+// Unlike a badge, its text colour does not follow the fill's luminance.
+func layoutButtonStyle(colors palette) lipgloss.Style {
+	fill, hasFill := colors[roleLayoutButton]
+	if !hasFill {
+		return lipgloss.NewStyle().Reverse(true)
+	}
+	return lipgloss.NewStyle().Background(fill).Foreground(colors.of(roleMuted))
 }
 
 // readableTextOn returns the text colour that reads on fill: black when fill is light, white when

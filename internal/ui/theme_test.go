@@ -183,12 +183,14 @@ func TestTheme_Presets_DrawInApogeesColours(t *testing.T) {
 		{theme: userconfig.ThemeDark, role: "status-done", want: "#43d389"},
 		{theme: userconfig.ThemeDark, role: "lock-held", want: "#f0883e"},
 		{theme: userconfig.ThemeDark, role: "lock-free", want: "#43d389"},
+		{theme: userconfig.ThemeDark, role: "layout-button", want: "#4a4a4a"},
 		{theme: userconfig.ThemeLight, role: roleAccent, want: "#8250df"},
 		{theme: userconfig.ThemeLight, role: roleSelection, want: "#b3d1ff"},
 		{theme: userconfig.ThemeLight, role: "status-doing", want: "#0969da"},
 		{theme: userconfig.ThemeLight, role: "status-done", want: "#115e59"},
 		{theme: userconfig.ThemeLight, role: "lock-held", want: "#bc4c00"},
 		{theme: userconfig.ThemeLight, role: "lock-free", want: "#115e59"},
+		{theme: userconfig.ThemeLight, role: "layout-button", want: "#d0d7de"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.theme+"/"+testCase.role, func(t *testing.T) {
@@ -201,6 +203,50 @@ func TestTheme_Presets_DrawInApogeesColours(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTheme_Presets_LayoutButton_FillsWithItsRoleAndMutedGlyph(t *testing.T) {
+	testCases := []struct {
+		theme     string
+		wantFill  string
+		wantGlyph string
+	}{
+		{theme: userconfig.ThemeDark, wantFill: "#4a4a4a", wantGlyph: "#8a8a8a"},
+		{theme: userconfig.ThemeLight, wantFill: "#d0d7de", wantGlyph: "#656d76"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.theme, func(t *testing.T) {
+			button := newTheme(userconfig.UI{Theme: testCase.theme}, false, false).layoutButton
+
+			if !isSameColour(button.GetBackground(), lipgloss.Color(testCase.wantFill)) {
+				t.Errorf("theme %s layout button background = %v, want %s", testCase.theme, button.GetBackground(), testCase.wantFill)
+			}
+			if !isSameColour(button.GetForeground(), lipgloss.Color(testCase.wantGlyph)) {
+				t.Errorf("theme %s layout button foreground = %v, want %s", testCase.theme, button.GetForeground(), testCase.wantGlyph)
+			}
+			if button.GetReverse() {
+				t.Errorf("theme %s layout button is reverse, want the fill", testCase.theme)
+			}
+		})
+	}
+}
+
+func TestTheme_NoColor_LayoutButtonIsReverse(t *testing.T) {
+	button := newTheme(userconfig.UI{Theme: userconfig.ThemeDark}, false, true).layoutButton
+
+	if !button.GetReverse() {
+		t.Errorf("layout button under NO_COLOR is not reverse")
+	}
+	if found := colourSequences(button.Render("v")); len(found) > 0 {
+		t.Errorf("layout button under NO_COLOR has colour sequences %q", found)
+	}
+}
+
+// isSameColour reports whether got and want are the same colour.
+func isSameColour(got, want color.Color) bool {
+	gotR, gotG, gotB, gotA := got.RGBA()
+	wantR, wantG, wantB, wantA := want.RGBA()
+	return gotR == wantR && gotG == wantG && gotB == wantB && gotA == wantA
 }
 
 func TestTheme_LoadSchemes_UndecodableFile_PanicsNamingIt(t *testing.T) {

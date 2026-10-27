@@ -2,7 +2,8 @@
 #
 # A colour scheme gives a colour to every role capcom ui paints with; the UI leaves the terminal's
 # background alone everywhere but the selected row, which it fills with selection, and the status
-# bar's lock badge, which it fills with lock-held or lock-free. This file is
+# bar's lock badge, which it fills with lock-held or lock-free, and its layout button, which it
+# fills with layout-button. This file is
 # compiled into the binary and read once, at start: theme light picks it, and theme auto picks it
 # over a light background. To change a colour, override its role under ui.colors in the user
 # config file rather than editing this file.
@@ -28,3 +29,4 @@ status-done: "#115e59"    # apogee success: every status of the done category
 status-dropped: "#d0d7de" # apogee chrome: every status of the dropped category
 lock-held: "#bc4c00"      # apogee mode-auto: the status bar's lock badge while another session holds the Tree lock
 lock-free: "#115e59"      # apogee success: the status bar's lock badge while the Tree lock is free
+layout-button: "#d0d7de" # apogee chrome: the status bar's layout button

@@ -59,6 +59,7 @@ var Roles = []string{
 	"status-dropped",
 	"lock-held",
 	"lock-free",
+	"layout-button",
 }
 
 // The directory and file names under os.UserConfigDir, and the keys Load knows.

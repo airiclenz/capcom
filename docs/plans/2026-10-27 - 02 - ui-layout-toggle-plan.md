@@ -66,7 +66,10 @@ NOTES (2026-10-27): the ui.layout reader is a plain function `layout(node, targe
 
 **Commit:** `feat(userconfig): store the layout choice as ui.layout`
 
-## 2. The `layout-button` colour role and theme style
+## 2. The `layout-button` colour role and theme style — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the theme builds `layoutButton` through a new helper `layoutButtonStyle` in internal/ui/theme.go (beside `badgeStyle`, which it does not use since its text is muted, not black/white by luminance); tests add `TestTheme_Presets_LayoutButton_FillsWithItsRoleAndMutedGlyph`, `TestTheme_NoColor_LayoutButtonIsReverse` and the test helper `isSameColour`.
+NOTES (2026-10-27): the role lists in docs/site/reference/file-format.md (template quote and roles prose), docs/site/getting-started/terminal-ui.md and docs/design/tui.md do not yet name `layout-button`; item 8 owns them (its text greps `lock-free` in docs/design and docs/site).
 
 **What:**
 **Goal:** `layout-button` is a colour role of `userconfig.Roles` (after `lock-free`), has a colour in every scheme file (dark `#4a4a4a`, light `#d0d7de`), and the theme has a `layoutButton` style: background the `layout-button` colour, foreground the `muted` colour; with no colour for the role, `lipgloss.NewStyle().Reverse(true)`.

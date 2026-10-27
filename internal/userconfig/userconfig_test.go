@@ -173,6 +173,11 @@ func TestLoad_ValidFile_ReturnsSettings(t *testing.T) {
 				"accent": "#7aa2f7", "border": "#AbC", "muted": "0", "link": "255", "code": "12",
 			}},
 		},
+		{
+			"layout-button override",
+			"ui:\n  colors:\n    layout-button: \"#336699\"\n",
+			userconfig.UI{Theme: "auto", Colors: map[string]string{"layout-button": "#336699"}},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
