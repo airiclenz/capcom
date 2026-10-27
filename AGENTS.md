@@ -70,9 +70,7 @@ again (or pass `--token <token>`).
 `capcom lock touch --token <token>` renews it during long work,
 `capcom lock release --token <token>` frees it when done. When `capcom lock check --token <token>` exits 3, or
 `capcom lock check` does while you hold no token, another session holds this worktree: ask the user
-before editing it. The lock is signalled, not enforced: a capcom write is never refused, but it
-warns, naming the holder, while the lock is held for a purpose other than the issue it writes; if
-the lock is yours, carry on.
+before editing it.
 
 Knowledge tree, top level:
 
