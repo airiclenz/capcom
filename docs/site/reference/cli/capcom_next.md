@@ -42,9 +42,9 @@ capcom next [flags]
       --label strings      only issues carrying every one of these labels
       --no-elsewhere       skip the report of issue changes on other branches
       --no-label strings   only issues carrying none of these labels
-      --planned            only issues with a plan
+      --planned            only issues whose plan resolves to a file
       --show-hidden        include issues carrying a ready.hide label
-      --unplanned          only issues without a plan
+      --unplanned          only issues without a plan that resolves to a file
 ```
 
 ### Options inherited from parent commands

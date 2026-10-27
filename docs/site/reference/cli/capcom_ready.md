@@ -19,6 +19,8 @@ Each line gives the id, status, priority and title, and how many Issues closing 
 
 Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden is given.
 
+--planned keeps the Issues with a plan that resolves to a file in one of the config's plans directories; --unplanned keeps the rest, a plan that names no file included.
+
 Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
 
 ```
@@ -43,9 +45,9 @@ capcom ready [flags]
       --limit int          list at most this many issues (0: all)
       --no-elsewhere       skip the report of issue changes on other branches
       --no-label strings   only issues carrying none of these labels
-      --planned            only issues with a plan
+      --planned            only issues whose plan resolves to a file
       --show-hidden        include issues carrying a ready.hide label
-      --unplanned          only issues without a plan
+      --unplanned          only issues without a plan that resolves to a file
 ```
 
 ### Options inherited from parent commands

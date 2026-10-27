@@ -19,8 +19,13 @@ type ReadyOptions struct {
 	Labels []string
 	// NoLabels must all be absent from the issue.
 	NoLabels []string
-	// Plan keeps only issues with a plan, only issues without one, or both.
+	// Plan keeps only Planned issues (index.PlanSet), only issues that are not Planned
+	// (index.PlanUnset), or both (index.PlanAny). An issue is Planned when its plan resolves to a
+	// file under Root, so a plan that names no file counts as unplanned.
 	Plan index.PlanState
+	// Root is the worktree root the plans directories resolve under; only a Plan other than
+	// index.PlanAny reads it.
+	Root string
 	// IsNotReadyIncluded also keeps the todo issues the ready rules hold back (capcom ready --all).
 	IsNotReadyIncluded bool
 	// IsHiddenIncluded also keeps the issues carrying a label the config's ready.hide lists.
@@ -42,8 +47,8 @@ type ReadyItem struct {
 // select, most urgent first, then the item that unblocks more issues first, then in tree order,
 // at most options.Limit of them; an item that is not Ready unblocks none. The rules judge every
 // issue, Closed ones and those the filter leaves out included, so a filter never changes a
-// verdict; the label and plan filter is the index's own. It fails only when the index cannot be
-// read.
+// verdict; the label filter is the index's own, and the plan filter resolves each plan against
+// cfg's plans directories under options.Root. It fails only when the index cannot be read.
 func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, error) {
 	entries, err := x.List(index.Filter{IsClosedIncluded: true})
 	if err != nil {
@@ -67,10 +72,11 @@ func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]Ready
 	unblocks := unblocksByCloser(verdicts, issue.NewDepGraph(nodes))
 	var listed []ReadyItem
 	for _, verdict := range verdicts {
-		if !selected[verdict.ID] || !options.keeps(verdict) {
+		entry := byID[verdict.ID]
+		if !selected[verdict.ID] || !options.keeps(verdict) || !options.keepsPlan(cfg, entry) {
 			continue
 		}
-		item := ReadyItem{Entry: byID[verdict.ID], Readiness: verdict}
+		item := ReadyItem{Entry: entry, Readiness: verdict}
 		if verdict.IsReady {
 			item.Unblocks = unblocks[verdict.ID]
 		}
@@ -134,15 +140,35 @@ func soleCloser(verdict issue.Readiness, graph issue.DepGraph) (string, bool) {
 	return closer, closer != ""
 }
 
-// filter is the index filter for the label and plan options. It includes Closed issues so that
-// only the ready rules decide which categories a list holds.
+// filter is the index filter for the label options. It includes Closed issues so that only the
+// ready rules decide which categories a list holds. The plan option is not the index's: whether a
+// plan resolves to a file is known only on disk (keepsPlan).
 func (o ReadyOptions) filter() index.Filter {
 	return index.Filter{
 		Labels:           o.Labels,
 		NoLabels:         o.NoLabels,
-		Plan:             o.Plan,
 		IsClosedIncluded: true,
 	}
+}
+
+// keepsPlan reports whether the plan option keeps entry: index.PlanSet keeps it when it is
+// Planned, index.PlanUnset when it is not, and index.PlanAny always.
+func (o ReadyOptions) keepsPlan(cfg config.Config, entry index.Entry) bool {
+	if o.Plan == index.PlanAny {
+		return true
+	}
+	return isPlanned(cfg, o.Root, entry.Plan) == (o.Plan == index.PlanSet)
+}
+
+// isPlanned reports whether an issue with plan is Planned: its plan resolves to a file in one of
+// cfg's plans directories under the worktree root. An empty plan, a plan that is not a bare name
+// and a plan that names no file are all unplanned.
+func isPlanned(cfg config.Config, root, plan string) bool {
+	if plan == "" {
+		return false
+	}
+	_, isFound := cfg.PlanPath(root, plan)
+	return isFound
 }
 
 // keeps reports whether the readiness and hidden options keep the issue verdict judges.

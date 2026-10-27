@@ -16,6 +16,9 @@ import (
 // hiddenLabel is the ready.hide label of the fixture's config.
 const hiddenLabel = "someday"
 
+// alphaPlan is the plan indexIssueFiles writes a file for, so an issue naming it is Planned.
+const alphaPlan = "2026-10-12 - 00 - alpha-plan"
+
 // readyIssue is the content of a valid issue file with the given status, priority and extra
 // frontmatter lines.
 func readyIssue(status string, priority int, extra string) string {
@@ -33,10 +36,10 @@ func readyIssue(status string, priority int, extra string) string {
 // ending in -task: alpha (Ready, priority 2, auth, planned, its dep on schema done), beta (Ready,
 // priority 1, ui), delta (todo, priority 1, blocked by beta), gamma (Ready, priority 2, auth and
 // ui), later (Ready, priority 0, hidden) and schema (done, priority 1).
-func readyFixture(t *testing.T) (*index.Index, config.Config) {
+func readyFixture(t *testing.T) (*index.Index, config.Config, string) {
 	t.Helper()
 	return indexIssueFiles(t, map[string]string{
-		"alpha-task.md":  readyIssue("open", 2, "labels: [auth]\ndeps: [schema-task]\nplan: 2026-10-12 - 00 - alpha-plan\n"),
+		"alpha-task.md":  readyIssue("open", 2, "labels: [auth]\ndeps: [schema-task]\nplan: "+alphaPlan+"\n"),
 		"beta-task.md":   readyIssue("open", 1, "labels: [ui]\n"),
 		"delta-task.md":  readyIssue("open", 1, "deps: [beta-task]\n"),
 		"gamma-task.md":  readyIssue("open", 2, "labels: [auth, ui]\n"),
@@ -52,7 +55,7 @@ func readyFixture(t *testing.T) (*index.Index, config.Config) {
 // delta), india (todo, P2) with its open child juliet (Ready, P2, unblocks india), kilo (todo, P2,
 // hidden, blocked by alpha), lima (todo, P2, blocked by mike through mike's alias) and mike (Ready,
 // P2, unblocks lima).
-func unblockFixture(t *testing.T) (*index.Index, config.Config) {
+func unblockFixture(t *testing.T) (*index.Index, config.Config, string) {
 	t.Helper()
 	return indexIssueFiles(t, map[string]string{
 		"alpha-task.md":             readyIssue("open", 2, ""),
@@ -72,8 +75,9 @@ func unblockFixture(t *testing.T) (*index.Index, config.Config) {
 }
 
 // indexIssueFiles writes files, issue file paths relative to the issues directory, into a temp dir
-// whose config hides hiddenLabel, and indexes them.
-func indexIssueFiles(t *testing.T, files map[string]string) (*index.Index, config.Config) {
+// whose config hides hiddenLabel, writes the alphaPlan file into its first plans directory, and
+// indexes the issues. It returns the index, the config and the temp dir, the worktree root.
+func indexIssueFiles(t *testing.T, files map[string]string) (*index.Index, config.Config, string) {
 	t.Helper()
 	root := t.TempDir()
 	cfg := config.Default()
@@ -94,6 +98,13 @@ func indexIssueFiles(t *testing.T, files map[string]string) (*index.Index, confi
 			t.Fatalf("WriteFile: %v", err)
 		}
 	}
+	planDir := filepath.Join(root, filepath.FromSlash(cfg.Plans[0]))
+	if err := os.MkdirAll(planDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(planDir, alphaPlan+".md"), []byte("# Plan\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
 	opened, err := index.Open(s, index.ModeRefresh)
 	if err != nil {
@@ -104,7 +115,7 @@ func indexIssueFiles(t *testing.T, files map[string]string) (*index.Index, confi
 			t.Errorf("Close: %v", err)
 		}
 	})
-	return opened, cfg
+	return opened, cfg, root
 }
 
 // itemIDs returns the id of every item, in order.
@@ -118,7 +129,7 @@ func itemIDs(items []ReadyItem) []string {
 
 func TestReadyList_Options_SelectAndSortStablyByPriority(t *testing.T) {
 	t.Parallel()
-	x, cfg := readyFixture(t)
+	x, cfg, root := readyFixture(t)
 	cases := []struct {
 		name    string
 		options ReadyOptions
@@ -136,7 +147,36 @@ func TestReadyList_Options_SelectAndSortStablyByPriority(t *testing.T) {
 	}
 
 	for _, current := range cases {
-		got, err := ReadyList(x, cfg, current.options)
+		options := current.options
+		options.Root = root
+
+		got, err := ReadyList(x, cfg, options)
+
+		if err != nil || !slices.Equal(itemIDs(got), current.want) {
+			t.Errorf("%s: ReadyList = %v, %v; want %v", current.name, itemIDs(got), err, current.want)
+		}
+	}
+}
+
+func TestReadyList_PlanThatResolvesToNoFile_IsUnplanned(t *testing.T) {
+	t.Parallel()
+	x, cfg, root := indexIssueFiles(t, map[string]string{
+		"alpha-task.md": readyIssue("open", 1, "plan: "+alphaPlan+"\n"),
+		"lost-task.md":  readyIssue("open", 2, "plan: no-such-plan\n"),
+		"plain-task.md": readyIssue("open", 3, ""),
+	})
+	cases := []struct {
+		name string
+		plan index.PlanState
+		want []string
+	}{
+		{"planned keeps only the plan that resolves", index.PlanSet, []string{"alpha-task"}},
+		{"unplanned keeps the plan that resolves to no file", index.PlanUnset, []string{"lost-task", "plain-task"}},
+		{"any keeps every plan", index.PlanAny, []string{"alpha-task", "lost-task", "plain-task"}},
+	}
+
+	for _, current := range cases {
+		got, err := ReadyList(x, cfg, ReadyOptions{Plan: current.plan, Root: root})
 
 		if err != nil || !slices.Equal(itemIDs(got), current.want) {
 			t.Errorf("%s: ReadyList = %v, %v; want %v", current.name, itemIDs(got), err, current.want)
@@ -146,7 +186,7 @@ func TestReadyList_Options_SelectAndSortStablyByPriority(t *testing.T) {
 
 func TestReadyList_NotReadyIncluded_CarriesTheVerdictBesideTheEntry(t *testing.T) {
 	t.Parallel()
-	x, cfg := readyFixture(t)
+	x, cfg, _ := readyFixture(t)
 
 	got, err := ReadyList(x, cfg, ReadyOptions{IsNotReadyIncluded: true, Limit: 2})
 
@@ -159,7 +199,7 @@ func TestReadyList_NotReadyIncluded_CarriesTheVerdictBesideTheEntry(t *testing.T
 
 func TestReadyList_IndexClosed_Fails(t *testing.T) {
 	t.Parallel()
-	x, cfg := readyFixture(t)
+	x, cfg, _ := readyFixture(t)
 	if err := x.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
@@ -173,7 +213,7 @@ func TestReadyList_IndexClosed_Fails(t *testing.T) {
 
 func TestReadyList_PriorityTie_UnblockerFirst(t *testing.T) {
 	t.Parallel()
-	x, cfg := unblockFixture(t)
+	x, cfg, _ := unblockFixture(t)
 	cases := []struct {
 		name    string
 		options ReadyOptions
@@ -199,7 +239,7 @@ func TestReadyList_PriorityTie_UnblockerFirst(t *testing.T) {
 
 func TestReadyList_ReadyItem_CarriesWhatItUnblocks(t *testing.T) {
 	t.Parallel()
-	x, cfg := unblockFixture(t)
+	x, cfg, _ := unblockFixture(t)
 
 	got, err := ReadyList(x, cfg, ReadyOptions{IsNotReadyIncluded: true, IsHiddenIncluded: true})
 
@@ -221,11 +261,11 @@ func TestReadyList_ReadyItem_CarriesWhatItUnblocks(t *testing.T) {
 
 func TestReadyList_Unblocks_MatchNewlyReady(t *testing.T) {
 	t.Parallel()
-	for name, fixture := range map[string]func(*testing.T) (*index.Index, config.Config){
+	for name, fixture := range map[string]func(*testing.T) (*index.Index, config.Config, string){
 		"ready fixture":   readyFixture,
 		"unblock fixture": unblockFixture,
 	} {
-		x, cfg := fixture(t)
+		x, cfg, _ := fixture(t)
 		entries, err := x.List(index.Filter{IsClosedIncluded: true})
 		if err != nil {
 			t.Fatalf("%s: List: %v", name, err)
@@ -251,7 +291,7 @@ func TestReadyList_Unblocks_MatchNewlyReady(t *testing.T) {
 
 func TestReadyList_Standing_NeverReadyNorUnblocked(t *testing.T) {
 	t.Parallel()
-	x, cfg := indexIssueFiles(t, map[string]string{
+	x, cfg, _ := indexIssueFiles(t, map[string]string{
 		"bare-task.md":            readyIssue("open", 2, "standing: true\n"),
 		"epic-task.md":            readyIssue("open", 2, "standing: true\n"),
 		"epic-task/child-task.md": readyIssue("open", 2, ""),

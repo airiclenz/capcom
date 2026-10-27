@@ -59,6 +59,8 @@ const (
 		"\"standing: holds children\".\n\n" +
 		"Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden " +
 		"is given.\n\n" +
+		"--planned keeps the Issues with a plan that resolves to a file in one of the config's plans " +
+		"directories; --unplanned keeps the rest, a plan that names no file included.\n\n" +
 		"Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given."
 	readyExample = "  capcom ready                               # what to work on next\n" +
 		"  capcom ready --limit 1                     # only the most urgent\n" +
@@ -84,7 +86,7 @@ func (a *app) newReadyCommand() *cobra.Command {
 			if options.limit < 0 {
 				return output.UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
 			}
-			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions())
+			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions(a.store.WorktreeRoot))
 			if err != nil {
 				return err
 			}
@@ -100,8 +102,8 @@ func (a *app) newReadyCommand() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "only issues carrying every one of these labels")
 	flags.StringSliceVar(&options.noLabels, flagNoLabel, nil, "only issues carrying none of these labels")
-	flags.BoolVar(&options.isPlanned, flagPlanned, false, "only issues with a plan")
-	flags.BoolVar(&options.isUnplanned, flagUnplanned, false, "only issues without a plan")
+	flags.BoolVar(&options.isPlanned, flagPlanned, false, "only issues whose plan resolves to a file")
+	flags.BoolVar(&options.isUnplanned, flagUnplanned, false, "only issues without a plan that resolves to a file")
 	flags.BoolVar(&options.isAll, flagAll, false, "also list todo issues that are not ready, with what blocks them")
 	flags.BoolVar(&options.isShowHidden, flagShowHidden, false, "include issues carrying a ready.hide label")
 	flags.IntVar(&options.limit, flagLimit, 0, "list at most this many issues (0: all)")
@@ -110,8 +112,9 @@ func (a *app) newReadyCommand() *cobra.Command {
 	return cmd
 }
 
-// listOptions converts the flags to the options of the Ready-list.
-func (o *readyOptions) listOptions() briefing.ReadyOptions {
+// listOptions converts the flags to the options of the Ready-list, whose plans resolve under the
+// worktree root.
+func (o *readyOptions) listOptions(root string) briefing.ReadyOptions {
 	plan := index.PlanAny
 	switch {
 	case o.isPlanned:
@@ -123,6 +126,7 @@ func (o *readyOptions) listOptions() briefing.ReadyOptions {
 		Labels:             o.labels,
 		NoLabels:           o.noLabels,
 		Plan:               plan,
+		Root:               root,
 		IsNotReadyIncluded: o.isAll,
 		IsHiddenIncluded:   o.isShowHidden,
 		Limit:              o.limit,

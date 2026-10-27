@@ -106,6 +106,32 @@ func TestPrime_JSON_CarriesEverySection(t *testing.T) {
 	}
 }
 
+func TestPrime_PlanThatResolvesToNoFile_IsReadyUnplanned(t *testing.T) {
+	root := newPrimeStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lost-plan.md": readyIssue("Lost plan", "open", 3, "plan: no-such-plan\n"),
+	})
+
+	text, _, textExit := runCLI(t, root, "prime")
+	stdout, _, jsonExit := runCLI(t, root, "prime", "--json")
+
+	wantText := "ready, planned: 1\n" +
+		"  plan-work  open  P1  Planned work\n" +
+		"ready, unplanned: 3\n" +
+		"  quick-fix  open  P0  Quick fix\n" +
+		"  lost-plan  open  P3  Lost plan\n" +
+		"  side-quest  open  P3  Side quest\n"
+	if textExit != ExitOK || !strings.HasPrefix(text, wantText) {
+		t.Errorf("prime = %d, stdout:\n%s\nwant it to start:\n%s", textExit, text, wantText)
+	}
+	data, _ := decodeEnvelope(t, stdout)["data"].(map[string]any)
+	planned, _ := data["ready_planned"].(map[string]any)
+	unplanned, _ := data["ready_unplanned"].(map[string]any)
+	if jsonExit != ExitOK || planned["count"] != 1.0 || unplanned["count"] != 3.0 {
+		t.Errorf("prime --json = %d, planned %v, unplanned %v; want counts 1 and 3", jsonExit, planned, unplanned)
+	}
+}
+
 // A broken_refs element is a check problem: exactly path, line, code and message, and the line of
 // the broken ref, never 0, since every ref of a Note sits on its own line.
 func TestPrime_JSONBrokenRef_IsACheckProblemAtItsLine(t *testing.T) {

@@ -40,7 +40,7 @@ func (a *app) newNextCommand() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions())
+			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions(a.store.WorktreeRoot))
 			if err != nil {
 				return err
 			}
@@ -53,8 +53,8 @@ func (a *app) newNextCommand() *cobra.Command {
 	flags := cmd.Flags()
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "only issues carrying every one of these labels")
 	flags.StringSliceVar(&options.noLabels, flagNoLabel, nil, "only issues carrying none of these labels")
-	flags.BoolVar(&options.isPlanned, flagPlanned, false, "only issues with a plan")
-	flags.BoolVar(&options.isUnplanned, flagUnplanned, false, "only issues without a plan")
+	flags.BoolVar(&options.isPlanned, flagPlanned, false, "only issues whose plan resolves to a file")
+	flags.BoolVar(&options.isUnplanned, flagUnplanned, false, "only issues without a plan that resolves to a file")
 	flags.BoolVar(&options.isShowHidden, flagShowHidden, false, "include issues carrying a ready.hide label")
 	flags.BoolVar(&options.isElsewhereSkipped, flagNoElsewhere, false, "skip the report of issue changes on other branches")
 	cmd.MarkFlagsMutuallyExclusive(flagPlanned, flagUnplanned)

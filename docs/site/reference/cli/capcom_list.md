@@ -45,12 +45,12 @@ capcom list [flags]
       --no-label strings   only issues carrying none of these labels
       --parent string      only the direct children of this issue (id, alias or prefix); with --tree, this issue first, then its subtree
       --plan string        only issues whose plan contains this text
-      --planned            only issues with a plan
+      --planned            only issues whose plan field is set
       --priority ints      only issues with one of these priorities
       --status strings     only issues with one of these statuses (includes closed ones)
       --tree               print the issue outline: each parent with its closed/total children, closed issues left out unless --all
       --type strings       only issues of one of these types
-      --unplanned          only issues without a plan
+      --unplanned          only issues whose plan field is not set
 ```
 
 ### Options inherited from parent commands

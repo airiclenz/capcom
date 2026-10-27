@@ -56,9 +56,26 @@ func newReadyStore(t *testing.T) string {
 		"db-schema.md":                              readyIssue("Schema", "done", 2, "aliases: [apogee-kk0.4]\n"),
 		"triage-me.md":                              readyIssue("Triage me", "triage", 2, ""),
 		"uses-alias.md": readyIssue("Uses alias", "open", 2,
-			"deps: [apogee-kk0.4]\nplan: 2026-10-11 - 00 - alias-plan\n"),
+			"deps: [apogee-kk0.4]\nplan: "+aliasPlan+"\n"),
 	})
+	writePlanFile(t, root, aliasPlan)
 	return root
+}
+
+// aliasPlan is the plan the uses-alias fixture issue links; newReadyStore writes its file.
+const aliasPlan = "2026-10-11 - 00 - alias-plan"
+
+// writePlanFile writes the file of plan into root's default plans directory, so an issue naming
+// plan is Planned.
+func writePlanFile(t *testing.T, root, plan string) {
+	t.Helper()
+	dir := filepath.Join(root, "docs", "plans")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, plan+".md"), []byte("# Plan\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 }
 
 // newStandingParentStore creates a store, declaring the format that allows the standing key, with two
@@ -109,6 +126,29 @@ func TestReady_Flags_SelectReadyIssuesMostUrgentFirst(t *testing.T) {
 
 		if !slices.Equal(got, current.want) {
 			t.Errorf("ready %v = %v, want %v", current.args, got, current.want)
+		}
+	}
+}
+
+func TestReady_PlanThatResolvesToNoFile_IsUnplanned(t *testing.T) {
+	root := newReadyStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lost-plan.md": readyIssue("Lost plan", "open", 3, "plan: no-such-plan\n"),
+	})
+	cases := []struct {
+		args       []string
+		isIncluded bool
+	}{
+		{[]string{"--planned"}, false},
+		{[]string{"--unplanned"}, true},
+	}
+
+	for _, current := range cases {
+		got := readyIDs(t, readyEnvelope(t, root, current.args...))
+
+		if slices.Contains(got, "lost-plan") != current.isIncluded {
+			t.Errorf("ready %v = %v; lost-plan listed %v, want %v",
+				current.args, got, !current.isIncluded, current.isIncluded)
 		}
 	}
 }

@@ -106,9 +106,9 @@ dependencies either way.
   A closed issue keeps its closed status and just loses the label. This lowers the ready count:
   `bd ready` listed an open issue that carried only the `parked` label, but `parked` is in the
   waiting category, and a waiting issue is not ready, nor is any issue below it in the tree.
-- `planned` is dropped: an issue is Planned when its `plan:` field is set. An issue whose `spec_id`
-  names a plan gets `plan:` (see Plans), so it is Planned with or without the `planned` label,
-  closed issues included.
+- `planned` is dropped: an issue is Planned when its `plan:` field resolves to a plan file. An
+  issue whose `spec_id` names a plan gets `plan:` (see Plans), so it is Planned with or without the
+  `planned` label, closed issues included, as long as that plan's file is found.
 - Every other label carries over unchanged.
 
 ### Plans

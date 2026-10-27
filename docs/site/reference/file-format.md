@@ -136,7 +136,7 @@ The refresh path and the timeout path both clear the session.
 | `labels`   | A list of Labels: cross-cutting markers such as `owner-run`.                | no                          |
 | `deps`     | A list of the ids of the issues this one depends on.                        | no                          |
 | `related`  | A list of the ids of the issues this one is related to, without depending on them (format 2). | no      |
-| `plan`     | The basename of a Plan document, resolved against the config's `plans` directories. An issue with a plan is Planned. | no |
+| `plan`     | The basename of a Plan document, resolved against the config's `plans` directories. An issue is Planned when its plan resolves to a file; a plan that names no file leaves it unplanned. | no |
 | `standing` | `true` or `false`: whether the issue is a Standing Parent that only groups its children (format 5). | no |
 | `aliases`  | A list of the issue's former ids.                                           | no                          |
 | `created`  | When the issue was created: an RFC3339 timestamp.                           | yes                         |

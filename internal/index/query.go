@@ -12,16 +12,18 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// PlanState selects issues by whether they are Planned (have a plan).
+// PlanState selects issues by whether their plan field is set. The index never reads the plans
+// directories, so a set field that resolves to no file still counts as set; whether an issue is
+// Planned is briefing's to decide.
 type PlanState int
 
 // The plan states a Filter can ask for.
 const (
 	// PlanAny keeps issues with and without a plan.
 	PlanAny PlanState = iota
-	// PlanSet keeps only Planned issues.
+	// PlanSet keeps only issues whose plan field is set.
 	PlanSet
-	// PlanUnset keeps only issues without a plan.
+	// PlanUnset keeps only issues whose plan field is not set.
 	PlanUnset
 )
 

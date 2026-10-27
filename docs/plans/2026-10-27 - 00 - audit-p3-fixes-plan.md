@@ -169,7 +169,12 @@ no warning for a plan whose file exists; existing `--plan login-plan` tests upda
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/config/` then `./internal/check/` then `./internal/cli/ -run 'Create|Update|Plan'`
 **Commit:** `fix(plan): refuse a plan that is not a bare name and warn on a missing one`
 
-## 5. Planned means the plan resolves, in prime, ready and next
+## 5. Planned means the plan resolves, in prime, ready and next — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): consequential edit — internal/cli/finish.go: made necessary by readyOptions.listOptions now taking the worktree root (nextAfterFinish calls it; it passes a.store.WorktreeRoot, its plan option stays PlanAny)
+NOTES (2026-10-27): consequential edit — internal/index/query.go: made necessary by the new Planned definition; the PlanState/PlanSet/PlanUnset doc comments said "Planned" and now say "plan field set", which is what the index (and capcom list) still selects on
+NOTES (2026-10-27): the planned check lives in one unexported helper, briefing.isPlanned (config.PlanPath under the worktree root), used by readWork and ReadyOptions.keepsPlan; ready's long help gained one sentence on --planned/--unplanned besides the flag text
+NOTES (2026-10-27): ready_test.go's indexIssueFiles, readyFixture and unblockFixture now also return the temp root (and indexIssueFiles writes the alpha-plan file), so the planned cases can set ReadyOptions.Root
 
 **What:**
 **Goal:** an issue counts as planned only when `config.PlanPath` resolves its plan to a file:

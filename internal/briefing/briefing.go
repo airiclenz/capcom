@@ -121,8 +121,9 @@ func (b *Briefing) fail(section Section, err error) {
 	b.Failures = append(b.Failures, Failure{Section: section, Err: err})
 }
 
-// readWork sets Work from the refreshed index: the Ready-list split planned and unplanned, and the
-// issues in a doing status.
+// readWork sets Work from the refreshed index: the Ready-list split planned and unplanned, an issue
+// being planned only when its plan resolves to a file (isPlanned), and the issues in a doing
+// status.
 func (b *Briefing) readWork(s *store.Store) {
 	// The refresh report Open leaves on Report is never read on purpose: its warnings are the
 	// findings of the per-file verdicts that left files out of the index, which check reports
@@ -151,7 +152,7 @@ func (b *Briefing) readWork(s *store.Store) {
 	}
 	work := &Work{Doing: doing}
 	for _, item := range ready {
-		if item.Entry.Plan != "" {
+		if isPlanned(s.Config, s.WorktreeRoot, item.Entry.Plan) {
 			work.ReadyPlanned = append(work.ReadyPlanned, item.Entry)
 		} else {
 			work.ReadyUnplanned = append(work.ReadyUnplanned, item.Entry)

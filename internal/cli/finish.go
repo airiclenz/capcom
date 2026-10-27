@@ -192,7 +192,7 @@ func (a *app) nextAfterFinish() (*finishNextData, error) {
 		return nil, err
 	}
 	options := &readyOptions{limit: nextLimit}
-	listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions())
+	listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions(a.store.WorktreeRoot))
 	if err != nil {
 		return nil, err
 	}

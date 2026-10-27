@@ -140,6 +140,24 @@ func TestCompose_FixtureStore_ReturnsEverySection(t *testing.T) {
 	}
 }
 
+func TestCompose_PlanThatResolvesToNoFile_IsReadyUnplanned(t *testing.T) {
+	files := briefingStore()
+	files[".capcom/issues/lost-plan.md"] = readyIssue("open", 0, "plan: no-such-plan\n")
+	root := newBriefingRepo(t, files)
+
+	got := Compose(root, time.Now())
+
+	if got.Work == nil {
+		t.Fatalf("Compose = %+v; want the work section", got)
+	}
+	if planned := entryIDs(got.Work.ReadyPlanned); !slices.Equal(planned, []string{"plan-work"}) {
+		t.Errorf("ReadyPlanned = %v, want [plan-work]", planned)
+	}
+	if unplanned := entryIDs(got.Work.ReadyUnplanned); !slices.Contains(unplanned, "lost-plan") {
+		t.Errorf("ReadyUnplanned = %v, want it to hold lost-plan", unplanned)
+	}
+}
+
 func TestCompose_RefToIgnoredFile_IsAnUnsharedRefNotABrokenOne(t *testing.T) {
 	files := briefingStore()
 	files["logs/.gitignore"] = "*.log\n"

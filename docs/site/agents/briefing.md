@@ -29,8 +29,9 @@ elsewhere: rate-limit: active on rate-limit-work (unmerged)
 Section by section:
 
 - **`ready, planned` and `ready, unplanned`**: the [Ready](../concepts/issues.md#ready) Issues,
-  split into those linked to a plan document (their `plan:` field is set) and those without one,
-  each in the order `capcom ready` uses and capped at 15. A planned Issue usually has its how and
+  split into the planned ones, whose `plan:` field resolves to a file in one of the config's
+  `plans` directories, and the unplanned rest, a `plan:` that names no file included; each in the
+  order `capcom ready` uses and capped at 15. A planned Issue usually has its how and
   its order written down already, so it is often the better place to start. A
   [Standing Parent](../concepts/issues.md#standing-parent) is never listed: it only groups its
   children, so never claim or close it; its open children are listed when they are Ready.
