@@ -533,3 +533,49 @@ func TestMv_UnparseableNote_WarnsRefsNotCheckedOnceAndMoves(t *testing.T) {
 		t.Errorf("mv = %d\nstdout = %q\nstderr = %q\nwant success with the line %q once", exitCode, stdout, stderr, warning)
 	}
 }
+
+func TestMv_Rename_WarnsForEveryRewrittenFileWhoseCommentsItDrops(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"login-flow.md":   readIssue("Login flow", "open", "# why: customer outage\n", ""),
+		"session-work.md": readIssue("Session work", "open", "# waits for login\ndeps: [login-flow]\n", ""),
+		"plain-work.md":   readIssue("Plain work", "open", "deps: [login-flow]\n", ""),
+	})
+	childDir := filepath.Join(root, ".capcom", "issues", "login-flow")
+	if err := os.Mkdir(childDir, 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+	child := readIssue("Child", "open", "related: [login-flow] # parent\n", "")
+	if err := os.WriteFile(filepath.Join(childDir, "child-issue.md"), []byte(child), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	const dropped = ": frontmatter comments are not kept; capcom writes frontmatter in canonical form"
+
+	stdout, stderr, exitCode := runCLI(t, root, "mv", "login-flow", "auth-flow")
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("mv = %d stderr = %q\nstdout = %q", exitCode, stderr, stdout)
+	}
+	for _, path := range []string{"auth-flow.md", "auth-flow/child-issue.md", "session-work.md"} {
+		if want := "warning: .capcom/issues/" + path + dropped + "\n"; strings.Count(stdout, want) != 1 {
+			t.Errorf("stdout = %q; want the warning %q once", stdout, want)
+		}
+	}
+	if strings.Count(stdout, dropped) != 3 {
+		t.Errorf("stdout = %q; want three dropped-comment warnings, none for plain-work.md", stdout)
+	}
+}
+
+func TestMv_Parent_WarnsInJSONForACommentedNoteWhoseRefsItRewrites(t *testing.T) {
+	root := newMoveStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"session-notes.md": "---\ntitle: Session notes\n# keep\nrefs: [.capcom/issues/login-flow.md]\n---\n",
+	})
+
+	stdout := mustRun(t, root, "mv", "--json", "login-flow", "--parent", "renamed-issue")
+
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	want := ".capcom/knowledge/session-notes.md: frontmatter comments are not kept; capcom writes frontmatter in canonical form"
+	if !slices.Contains(warnings, any(want)) {
+		t.Errorf("warnings = %v; want %q among them", warnings, want)
+	}
+}

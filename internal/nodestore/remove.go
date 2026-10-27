@@ -50,9 +50,10 @@ func (e *DependentsError) Error() string {
 // directory when the removal emptied it. The node's file is never parsed, so a node whose file
 // does not parse is removed like any other. Every other node's entries of the kind's reference
 // fields naming the node are dropped, those of a field that blocks a removal (an issue's deps)
-// only when shouldDropDeps. It returns the node removed and the tree problems that concern neither
-// the node nor its parent, their paths relative to the working tree root with forward slashes, for
-// the caller to report as warnings.
+// only when shouldDropDeps; every file so rewritten whose frontmatter held a YAML comment is named
+// on Effects.DroppedComments. It returns the node removed and the tree problems that concern
+// neither the node nor its parent, their paths relative to the working tree root with forward
+// slashes, for the caller to report as warnings.
 //
 // It resolves ref against the Tree it loads, never through the Resolver, and runs, in this order,
 // stopping at the first failure:
@@ -111,6 +112,9 @@ func (k *Kind[T]) Remove(ref string, ifMatch string, shouldDropDeps bool) (Remov
 	removed := Removed{ID: node.ID, Path: k.relative(node.Path), Dropped: removal.dropped}
 	for _, unread := range removal.unread {
 		removed.Unread = append(removed.Unread, k.relative(unread))
+	}
+	for _, path := range removal.commented {
+		removed.DroppedComments.add(k.relative(path))
 	}
 	for _, failure := range leftInPlace {
 		removed.LeftInPlace = append(removed.LeftInPlace, k.cleanupFailure(failure, node))

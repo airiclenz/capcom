@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/tree"
@@ -59,6 +60,9 @@ type nodeMove struct {
 	unreadNotes []string
 	// refsRewritten are the Note files whose Refs the move rewrites, in walk order.
 	refsRewritten []string
+	// commented are the files the move rewrites whose frontmatter held a YAML comment, which the
+	// canonical form written does not keep, at their paths before the move, in rewrite order.
+	commented []string
 }
 
 // planNodeMove works out the move of node, a node of nodes, to the destination to, reading the
@@ -83,7 +87,9 @@ type nodeMove struct {
 // with the error of the node's own file when nodefile.ReadRegularFile refuses it or it does not
 // parse, and, on a rename, with the error of another node file it cannot read; another node file
 // that does not parse, or that nodefile.ReadRegularFile refuses unread, joins unread instead. A
-// Note whose Refs cannot be checked never fails the move: it joins unreadNotes.
+// Note whose Refs cannot be checked never fails the move: it joins unreadNotes. Every file it
+// rewrites whose content as read held a frontmatter comment, the node's own file among them, joins
+// commented.
 func (k *Kind[T]) planNodeMove(nodes *tree.Tree, node tree.Node, to tree.Destination) (*nodeMove, error) {
 	planned, err := nodes.PlanMove(node.ID, to, k.codec.nounPhrase)
 	if err != nil {
@@ -111,7 +117,21 @@ func (k *Kind[T]) planNodeMove(nodes *tree.Tree, node tree.Node, to tree.Destina
 	for _, rewrite := range rewrites.rewrites {
 		planned.AddRewrite(rewrite)
 	}
+	move.commented = commentedPaths(rewrites.rewrites)
 	return move, nil
+}
+
+// commentedPaths returns the files of rewrites whose Original held a frontmatter comment
+// (frontmatter.HasComments), which their rewritten Content does not keep, in the order of
+// rewrites; nil when none did.
+func commentedPaths(rewrites []tree.Rewrite) []string {
+	var commented []string
+	for _, rewrite := range rewrites {
+		if frontmatter.HasComments(rewrite.Original) {
+			commented = append(commented, rewrite.Path)
+		}
+	}
+	return commented
 }
 
 // planRename adds to rewrites the rewrites of a rename of move's node, own its parsed file: the
@@ -308,6 +328,9 @@ type nodeRemoval struct {
 	// refuses unread, so their entries could not be checked for the removed node and were left as
 	// they are.
 	unread []string
+	// commented are the files of rewritten whose frontmatter held a YAML comment, which the
+	// canonical form written does not keep, in tree order.
+	commented []string
 }
 
 // planNodeRemoval works out the removal of node, a node of nodes, reading the node files but
@@ -323,7 +346,8 @@ type nodeRemoval struct {
 // etag, with the error of another node file it cannot read, and, unless shouldDropDeps, with a
 // *DependentsError naming the holders of a blocksRemoval field's entries, in the order of their
 // files' paths. Another node file that does not parse, or that nodefile.ReadRegularFile refuses
-// unread, joins unread instead. A node's entry naming itself is no dependent.
+// unread, joins unread instead. A node's entry naming itself is no dependent. Every file it
+// rewrites whose content as read held a frontmatter comment joins commented.
 func (k *Kind[T]) planNodeRemoval(nodes *tree.Tree, node tree.Node, ifMatch string, shouldDropDeps bool) (*nodeRemoval, error) {
 	planned, err := nodes.PlanRemove(node.ID, k.codec.nounPhrase)
 	if err != nil {
@@ -375,6 +399,7 @@ func (k *Kind[T]) planNodeRemoval(nodes *tree.Tree, node tree.Node, ifMatch stri
 	for _, rewrite := range rewrites {
 		planned.AddRewrite(rewrite)
 	}
+	removal.commented = commentedPaths(rewrites)
 	return removal, nil
 }
 

@@ -306,7 +306,11 @@ warning present and exit 0; no warning for a comment-free file; a `#` inside a q
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/frontmatter/` then `./internal/nodestore/` then `./internal/cli/ -run 'Close|Update|Comment'` then `./internal/clidoc/`
 **Commit:** `fix(write): warn when a write drops frontmatter comments`
 
-## 9. mv and rm warn for the comments their rewrites drop
+## 9. mv and rm warn for the comments their rewrites drop — ✅ DONE (2026-10-27)
+
+NOTES (2026-10-27): the comment check runs once over each plan's finished rewrite set (refs.go commentedPaths, called from planNodeMove and planNodeRemoval) rather than separately in planRefRewrite, planRefDrop and the path-refs pass, so a file two passes rewrite is checked once against the bytes first read; the paths travel in item 8's Effects.DroppedComments carrier, moved paths mapped through movedPaths.
+NOTES (2026-10-27): the CLI rm test lives in internal/cli/rm_test.go, beside the other rm tests, a file the plan's Files line did not name.
+NOTES (2026-10-27): consequential edit — docs/site/reference/file-format.md: made necessary by mv/know mv/rm/know rm now dropping comments with the warning, which the paragraph's command list named only for edits.
 
 **What:**
 **Goal:** the deps, related, superseded-by and Ref rewrites `mv`, `know mv`, `rm` and `know rm`

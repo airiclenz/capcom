@@ -163,8 +163,9 @@ func newMvCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 // it ran. The result names the node's new id, path and etag and the Notes whose Refs the move
 // rewrote (moveResult), with a warning for every tree problem that concerns neither the node, its
 // new path nor the new parent, for every node file whose references or Refs could not be checked
-// (movedUnreadWarnings), and for an emptied old parent directory it could not remove;
-// verbs.afterWrite then renders the write's Effects.
+// (movedUnreadWarnings), for an emptied old parent directory it could not remove and for every
+// file it rewrote whose frontmatter comments it dropped (app.warnDroppedComments); verbs.afterWrite
+// then renders the write's Effects.
 func move[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -186,6 +187,7 @@ func move[T any](
 	knowledgeDir := a.store.Relative(a.store.KnowledgeDir())
 	result.Warnings = append(result.Warnings, movedUnreadWarnings(verbs, moved, knowledgeDir)...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(moved.LeftInPlace)...)
+	a.warnDroppedComments(moved.Effects)
 	if verbs.afterWrite != nil {
 		verbs.afterWrite(&result, moved.Effects)
 	}
@@ -246,8 +248,9 @@ func newRmCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 // before anything changes, see nodestore.Kind.Remove, and, taking the removal back, when a file it
 // rewrites changed while it ran. The result names the removed file and the nodes whose references
 // were dropped, with a warning for every tree problem that concerns neither the node nor its
-// parent, for every node file whose references could not be checked and for an emptied parent
-// directory left in place; verbs.afterWrite then renders the write's Effects.
+// parent, for every node file whose references could not be checked, for an emptied parent
+// directory left in place and for every file it rewrote whose frontmatter comments it dropped
+// (app.warnDroppedComments); verbs.afterWrite then renders the write's Effects.
 func remove[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -263,6 +266,7 @@ func remove[T any](
 	unread := unreadWarnings(removed.Unread, verbs.descriptor.RefKeys(), removed.ID)
 	result.Warnings = append(result.Warnings, unread...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
+	a.warnDroppedComments(removed.Effects)
 	if verbs.afterWrite != nil {
 		verbs.afterWrite(&result, removed.Effects)
 	}

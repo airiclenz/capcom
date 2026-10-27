@@ -483,3 +483,18 @@ func TestRm_NameOnlyAnUnusableFileClaims_IsRefusedNamingIt(t *testing.T) {
 		})
 	}
 }
+
+func TestRm_DropDeps_WarnsForTheDependentWhoseCommentsItDrops(t *testing.T) {
+	root := newIssueStore(t, map[string]string{
+		"login-flow.md":   readIssue("Login flow", "open", "", ""),
+		"session-work.md": readIssue("Session work", "open", "# waits for login\ndeps: [login-flow]\n", ""),
+	})
+
+	stdout := mustRun(t, root, "rm", "--kv", "login-flow", "--drop-deps")
+
+	want := "WARNING=.capcom/issues/session-work.md: frontmatter comments are not kept; " +
+		"capcom writes frontmatter in canonical form\n"
+	if !strings.Contains(stdout, want) {
+		t.Errorf("stdout = %q; want the line %q", stdout, want)
+	}
+}

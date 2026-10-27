@@ -606,3 +606,76 @@ func assertMoveRefFileError(hasLine bool, text string) func(t *testing.T, err er
 		}
 	}
 }
+
+func TestMove_RenameIssue_NamesEveryCommentedFileItRewritesAtItsPathAfterTheMove(t *testing.T) {
+	t.Parallel()
+	issues, _ := newRefIssues(t, map[string]string{
+		"login-flow.md":             refIssue("# why: customer outage\n", ""),
+		"login-flow/child-issue.md": refIssue("# pinned by the parent\nrelated: [login-flow]\n", ""),
+		"session-work.md":           refIssue("deps: [login-flow] # first\n", ""),
+		"plain-work.md":             refIssue("deps: [login-flow]\n", ""),
+		"quiet-work.md":             refIssue("# never rewritten\n", ""),
+	})
+
+	moved := mustMove(t, issues, "login-flow", Destination{ID: "auth-flow"})
+
+	got := slices.Sorted(slices.Values(moved.DroppedComments.Paths()))
+	want := []string{
+		".capcom/issues/auth-flow.md",
+		".capcom/issues/auth-flow/child-issue.md",
+		".capcom/issues/session-work.md",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("DroppedComments = %v, want %v", got, want)
+	}
+}
+
+func TestMove_ReparentIssue_NamesACommentedNoteWhoseRefsItRewrites(t *testing.T) {
+	t.Parallel()
+	s := newRefStore(t, map[string]string{
+		"login-flow.md": refIssue("# why: customer outage\n", ""),
+		"parent.md":     refIssue("", ""),
+	}, map[string]string{
+		"auth-notes.md":  refNote("Auth notes", "# keep this\nrefs: [.capcom/issues/login-flow.md]\n", ""),
+		"other-notes.md": refNote("Other notes", "# unrelated\n", ""),
+	})
+
+	moved := mustMove(t, Issues(s, nil), "login-flow", Destination{Parent: "parent", IsReparented: true})
+
+	if got, want := moved.DroppedComments.Paths(), []string{".capcom/knowledge/auth-notes.md"}; !slices.Equal(got, want) {
+		t.Errorf("DroppedComments = %v, want %v: the moved file itself is renamed, not rewritten", got, want)
+	}
+}
+
+func TestMove_RenameIssueWithoutComments_NamesNoFile(t *testing.T) {
+	t.Parallel()
+	issues, _ := newRefIssues(t, map[string]string{
+		"login-flow.md":   refIssue("", ""),
+		"session-work.md": refIssue("deps: [login-flow]\n", ""),
+	})
+
+	moved := mustMove(t, issues, "login-flow", Destination{ID: "auth-flow"})
+
+	if moved.DroppedComments != "" {
+		t.Errorf("DroppedComments = %q, want none", moved.DroppedComments)
+	}
+}
+
+func TestRemove_DropDeps_NamesTheCommentedFilesItRewrites(t *testing.T) {
+	t.Parallel()
+	issues, _ := newRefIssues(t, map[string]string{
+		"login-flow.md":   refIssue("", ""),
+		"session-work.md": refIssue("# waits for login\ndeps: [login-flow]\n", ""),
+		"plain-work.md":   refIssue("related: [login-flow]\n", ""),
+		"quiet-work.md":   refIssue("# never rewritten\n", ""),
+	})
+
+	removed, _, err := issues.Remove("login-flow", "", true)
+	if err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	if got, want := removed.DroppedComments.Paths(), []string{".capcom/issues/session-work.md"}; !slices.Equal(got, want) {
+		t.Errorf("DroppedComments = %v, want %v", got, want)
+	}
+}

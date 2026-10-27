@@ -51,10 +51,12 @@ type Moved struct {
 // self-refused fields (a Note's superseded-by) drop an entry naming the new id. A rename and a
 // re-parent alike rewrite, in every Note file of the store, each Ref naming the node file, its
 // children directory or a path below it to its new path, keeping its `#symbol`; a Note that cannot
-// be checked is reported in Moved.UnreadNotes and never fails the move. It returns the node
-// moved and the tree problems that do not concern it, their paths relative to the working tree
-// root with forward slashes, for the caller to report as warnings once it has renamed the paths
-// inside the moved children directory.
+// be checked is reported in Moved.UnreadNotes and never fails the move. Every file the move
+// rewrites whose frontmatter held a YAML comment, the node's own file among them, is named on
+// Effects.DroppedComments at its path after the move. It returns the node moved and the tree
+// problems that do not concern it, their paths relative to the working tree root with forward
+// slashes, for the caller to report as warnings once it has renamed the paths inside the moved
+// children directory.
 //
 // It resolves ref and to.Parent against the Tree it loads, never through the Resolver, and runs,
 // in this order, stopping at the first failure:
@@ -141,6 +143,9 @@ func (k *Kind[T]) Move(ref string, to Destination, ifMatch string) (Moved, tree.
 	moved.Unread = k.movedPaths(move, move.unread)
 	moved.UnreadNotes = k.movedPaths(move, move.unreadNotes)
 	moved.RefsRewritten = k.movedPaths(move, move.refsRewritten)
+	for _, path := range k.movedPaths(move, move.commented) {
+		moved.DroppedComments.add(path)
+	}
 	for _, failure := range leftInPlace {
 		moved.LeftInPlace = append(moved.LeftInPlace, k.cleanupFailure(failure, node))
 	}

@@ -298,7 +298,8 @@ back yields the same bytes, so a write only changes what it means to change:
 Hand-written files may use any valid YAML for these keys (block-style lists, quoted text, comments,
 another time zone); capcom reads them and writes them back in the canonical form. The canonical
 form keeps no comments: a command that edits a file whose frontmatter holds one (update, close,
-log, reopen, dep, related, start, know update) drops it and warns
+log, reopen, dep, related, start, know update), and a move or removal that rewrites one's
+references (mv, know mv, rm, know rm), drops it and warns
 `<path>: frontmatter comments are not kept; capcom writes frontmatter in canonical form`.
 
 `capcom fmt` rewrites every issue file and every Note file whose bytes differ from its canonical
