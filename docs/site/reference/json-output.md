@@ -45,9 +45,11 @@ word searched for, as when only its title matched.
 `capcom list --tree --json` gives one Issue per line of the outline, each with `depth`, its
 indentation level. A parent also carries `children`, `{"total": <n>, "closed": <n>}` over all its
 direct children as the text's `(<closed>/<total> closed)` counts them, and an Issue whose children
-`--depth` cut carries `more`, the count of the text's `... <n> more` line. `capcom dep list --json`
-gives one item per Issue line of each section, each with `depth` and `via` (the Issue it hangs
-under, `""` at depth 1). An Issue the section already printed, which the text shows as
+`--depth` cut carries `more`, the count of the text's `... <n> more` line. Under a row filter an
+ancestor kept only to place a match, which the text ends `[context]`, carries `"context": true`;
+`context` is left out on a matching Issue and on every row of an unfiltered outline.
+`capcom dep list --json` gives one item per Issue line of each section, each with `depth` and
+`via` (the Issue it hangs under, `""` at depth 1). An Issue the section already printed, which the text shows as
 `(see above)`, carries `"repeat": true`, and one whose branch `--depth` cut carries `more`, as in
 `list --tree`. `children`, `more` and `repeat` are left out when the text prints none of them.
 

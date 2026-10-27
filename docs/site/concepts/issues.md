@@ -50,6 +50,16 @@ login-flow  open  P2  Rework the login flow  (0/2 closed)
 write-docs  open  P2  Document the login flow
 ```
 
+A row filter such as `--status`, `--priority` or `--label` narrows the outline to the Issues it
+matches, keeping each match's ancestors so it still shows where it sits; an ancestor that does not
+match itself ends `[context]`:
+
+```console
+$ capcom list --tree --priority 1
+login-flow  open  P2  Rework the login flow  (0/2 closed)  [context]
+  login-copy  open  P1  Reword the login errors
+```
+
 ## Parent
 
 The **Parent** of an Issue is the node directly above it in the Tree. Any Issue with children is a

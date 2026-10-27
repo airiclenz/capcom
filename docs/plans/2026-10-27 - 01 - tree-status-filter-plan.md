@@ -131,7 +131,7 @@ internal/cli/read_test.go — TestListTree_BadFlags_UsageErrorNamesTheFlag, Test
 
 **Commit:** `feat(list): combine --tree with the row filters, marking context rows`
 
-## 3. Document the filtered outline
+## 3. Document the filtered outline — ✅ DONE (2026-10-27)
 
 Depends on item 2.
 
