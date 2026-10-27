@@ -46,15 +46,20 @@ func runGit(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// recreateWorktree removes the linked worktree at worktree and adds it again on its branch, with
-// a fresh capcom store. It leaves the working directory first: Windows cannot delete the
-// directory a process runs in.
-func recreateWorktree(t *testing.T, root, worktree string) {
+// recreateWorktree drops the git dir of the linked worktree at worktree and adds a worktree of the
+// same name on its branch at a fresh path, with a capcom store, returning that path. It leaves the
+// old directory in place: t.Chdir keeps it open until the test ends, and Windows cannot delete an
+// open directory.
+func recreateWorktree(t *testing.T, root, worktree string) string {
 	t.Helper()
-	t.Chdir(root)
-	runGit(t, root, "worktree", "remove", "--force", worktree)
-	runGit(t, root, "worktree", "add", "-q", worktree, "branch-"+filepath.Base(worktree))
-	mustRun(t, worktree, "init")
+	name := filepath.Base(worktree)
+	if err := os.RemoveAll(filepath.Join(root, ".git", "worktrees", name)); err != nil {
+		t.Fatalf("RemoveAll: %v", err)
+	}
+	recreated := filepath.Join(filepath.Dir(root), "recreated", name)
+	runGit(t, root, "worktree", "add", "-q", recreated, "branch-"+name)
+	mustRun(t, recreated, "init")
+	return recreated
 }
 
 // acquireToken acquires root's lock for holder and returns the token.
@@ -541,7 +546,7 @@ func TestLockAcquire_ReCreatedWorktree_TakesOverTheOrphanedRecord(t *testing.T) 
 	root := newLockStore(t)
 	worktree := addWorktree(t, root, "feature")
 	oldToken := acquireToken(t, worktree, "agent-a")
-	recreateWorktree(t, root, worktree)
+	worktree = recreateWorktree(t, root, worktree)
 
 	stdout, stderr, exitCode := runCLI(t, worktree, "lock", "acquire", "--purpose", "item 15", "--holder", "agent-b", "--kv")
 
@@ -828,15 +833,14 @@ func TestLockTouch_LegacyCleartextRecord_MatchesAndIsRewrittenAsADigest(t *testi
 const orphanedRecordLine = "wt-feature: free (orphaned record of a removed worktree)\n"
 
 // orphanFeatureLock adds the linked worktree feature to root, acquires its lock, removes the
-// worktree and adds it again at the same path, leaving its record orphaned; root's own lock is
+// worktree and adds it again under the same name, leaving its record orphaned; root's own lock is
 // held by agent-a. It returns the re-created worktree's root.
 func orphanFeatureLock(t *testing.T, root string) string {
 	t.Helper()
 	worktree := addWorktree(t, root, "feature")
 	acquireToken(t, worktree, "agent-b")
 	acquireToken(t, root, "agent-a")
-	recreateWorktree(t, root, worktree)
-	return worktree
+	return recreateWorktree(t, root, worktree)
 }
 
 // lockEntries returns list, the --json objects of a list of locks, keyed by worktree.
