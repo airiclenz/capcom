@@ -3,6 +3,7 @@ title: Search help does not say a run of CJK characters counts as one word
 status: open
 type: chore
 priority: 3
+plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:46Z
 ---
 

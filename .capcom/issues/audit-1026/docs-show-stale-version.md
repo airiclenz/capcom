@@ -3,6 +3,7 @@ title: The UI page pins v0.7.0 and the README refs a missing file
 status: open
 type: chore
 priority: 3
+plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 

@@ -3,6 +3,7 @@ title: --plan stores any string and prime counts an unresolvable plan as planned
 status: open
 type: bug
 priority: 3
+plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 

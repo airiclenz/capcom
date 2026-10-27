@@ -4,6 +4,7 @@ status: open
 type: bug
 priority: 2
 deps: [lock-purpose-alias-resume]
+plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:49Z
 ---
 

@@ -3,6 +3,7 @@ title: Three call sites build the same knowledge.Repository by hand
 status: open
 type: chore
 priority: 3
+plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T10:49:10Z
 ---
 

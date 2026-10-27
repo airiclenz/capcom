@@ -3,6 +3,7 @@ title: The lock record is world-readable and holds the token in cleartext
 status: open
 type: bug
 priority: 3
+plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 

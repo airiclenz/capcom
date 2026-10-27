@@ -3,6 +3,7 @@ title: A write drops YAML comments from frontmatter without a warning
 status: open
 type: bug
 priority: 3
+plan: 2026-10-27 - 00 - audit-p3-fixes-plan
 created: 2026-10-26T20:06:45Z
 ---
 
