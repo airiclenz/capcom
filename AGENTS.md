@@ -4,8 +4,8 @@ capcom is a git-native issue tracker and knowledge store for coding agents, writ
 and knowledge notes are markdown files under `.capcom/`, versioned with the code; a disposable
 SQLite index lives under the git directory and is never committed. The binary is built from
 `cmd/capcom`; everything else is in `internal/`, and `cli.Run` drives every command in process.
-`cmd/release` (the release tool) and `cmd/gendocs` (generates the CLI reference) are dev tools,
-never shipped.
+`cmd/release` (the release tool), `cmd/gendocs` (generates the CLI reference) and `cmd/agenteval`
+(the agent eval harness) are dev tools, never shipped.
 
 Project knowledge lives in capcom's Knowledge tree (listed at the end of this file). Before
 starting work, run `capcom know tree --depth 2`, then `capcom know tree <id>` to open a branch,
@@ -76,6 +76,7 @@ the lock is yours, carry on.
 
 Knowledge tree, top level:
 
+- `agent-eval`: Before changing or running the agent eval harness: cmd/agenteval and docs/agent-eval.md
 - `cli-test-harness`: CLI tests run through runCLI, hermetic and never parallel
 - `coding-conventions`: Before writing code: house conventions, gofmt and capcom-specific rules
 - `decisions`: Decision records: why capcom works the way it does, one Note per record with its sections as children

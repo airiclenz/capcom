@@ -185,7 +185,7 @@ NOTES (2026-10-29): when the last of --max-turns replies still calls tools, thos
 **Commit:** `feat(agenteval): add a minimal agent loop for OpenAI-compatible endpoints`
 Depends on item 1.
 
-## 8. Documenting the harness
+## 8. Documenting the harness — ✅ DONE (2026-10-29)
 
 **What:**
 **Goal:** `docs/agent-eval.md` explains running the harness (with `claude -p`, with `agenteval agent` against a local endpoint), the 12 scenarios by id, how success and the counts are judged, and where the report and transcripts land; a top-level Knowledge Note `agent-eval` points at it and at `cmd/agenteval`; `AGENTS.md`'s opening paragraph names `cmd/agenteval` among the dev tools; the managed block is refreshed with `capcom agents`.
