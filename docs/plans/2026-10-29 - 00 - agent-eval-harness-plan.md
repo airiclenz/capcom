@@ -49,7 +49,10 @@ writes a markdown report. A first report for a local 25–30B model is committed
 - 1 (re-check): guard folded — `{prev:` placeholder ends at its last `}`; `cmd/agenteval/doc_test.go` pins the `# Files` map
 - 4 (re-check): guard folded — `resume-lost-token` script runs `log`, then the token-printing call, then `lock release --token {prev:<regex>}` directly after it
 
-## 1. The agenteval skeleton and the capcom shim
+## 1. The agenteval skeleton and the capcom shim — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): the shim also exits 1 when the build cannot be started or is killed by a signal (that call is still logged, with exit 1) and when the call log cannot be written (stderr names the log file); the plan's Goal only fixed the missing-variable case.
+NOTES (2026-10-29): runE is carried over from cmd/release for the verbs item 3 adds and is exercised only by tests until then; with no verbs yet, `agenteval <anything>` prints help and exits 0. The fake agent and its {prev:<regex>} tests live in main_test.go beside TestMain; the placeholder needs a capturing group, and a regex without one is an error naming the placeholder, as a no-match is.
 
 **What:** Recast at the regression check (2026-10-29).
 **Goal:** `cmd/agenteval` builds; started under the basename `capcom` (or `capcom.exe`) it runs the binary named by `AGENTEVAL_CAPCOM` with its own args and stdio, exits with that binary's exit code, and appends `{"args":[…],"exit":n,"ms":n}` as one line to the file named by `AGENTEVAL_CALL_LOG`; a missing variable is an error naming it, exit 1.
