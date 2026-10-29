@@ -173,3 +173,205 @@ func TestLockState_ReadsALockTheAgentTook(t *testing.T) {
 		t.Errorf("lock state = %+v, want held for eval", state)
 	}
 }
+
+// assertVerdict fails t unless verdict passes when wantWhy is empty, or fails with a why holding
+// wantWhy otherwise.
+func assertVerdict(t *testing.T, verdict outcome, wantWhy string) {
+	t.Helper()
+	if wantWhy == "" && !verdict.Passed {
+		t.Errorf("verdict = fail (%s), want pass", verdict.Why)
+	}
+	if wantWhy != "" && (verdict.Passed || !strings.Contains(verdict.Why, wantWhy)) {
+		t.Errorf("verdict = %+v, want a fail naming %q", verdict, wantWhy)
+	}
+}
+
+// scenarioCase is one fake agent script a scenario test runs, with the why its verdict must name;
+// an empty wantWhy means the verdict must pass.
+type scenarioCase struct {
+	name    string
+	script  [][]string
+	wantWhy string
+}
+
+// runScenarioCases runs each of cases against the scenario with id as its own subtest.
+func runScenarioCases(t *testing.T, id string, cases []scenarioCase) {
+	t.Helper()
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			assertVerdict(t, runScenario(t, id, test.script), test.wantWhy)
+		})
+	}
+}
+
+func TestFileWithDepScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "file-with-dep", []scenarioCase{
+		{
+			name: "files the issue with its dep and Acceptance",
+			script: [][]string{{
+				"create", "--id", "rate-limit-login", "--title", "Rate limit the login endpoint",
+				"--dep", "auth-tokens", "--why", "Repeated failed logins go unchecked",
+				"--acceptance", "A sixth failed login within a minute is answered 429",
+			}},
+		},
+		{name: "files nothing", wantWhy: "0 issues were added"},
+		{
+			name: "files it without the dep",
+			script: [][]string{{
+				"create", "--id", "rate-limit-login", "--title", "Rate limit the login endpoint",
+				"--acceptance", "A sixth failed login within a minute is answered 429",
+			}},
+			wantWhy: "does not depend on auth-tokens",
+		},
+		{
+			name: "files it without an Acceptance section",
+			script: [][]string{{
+				"create", "--id", "rate-limit-login", "--title", "Rate limit the login endpoint",
+				"--dep", "auth-tokens", "--body", "Limit the failed logins per client",
+			}},
+			wantWhy: "no \"## Acceptance\" section",
+		},
+	})
+}
+
+func TestFindLockNoteScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "find-lock-note", []scenarioCase{
+		{
+			name: "records the Note's id",
+			script: [][]string{
+				{"know", "search", "session"},
+				{"log", "onboarding", "Read tree-lock before the first change"},
+			},
+		},
+		{name: "records nothing", wantWhy: "no Log entry of onboarding names tree-lock"},
+		{
+			name:    "records another Note's id",
+			script:  [][]string{{"log", "onboarding", "Read working-practices first"}},
+			wantWhy: "names tree-lock",
+		},
+	})
+}
+
+func TestFindLockNoteScenario_AgentsBlockDoesNotNameTheNote(t *testing.T) {
+	_, seeded, _ := seedScenario(t, t.TempDir(), "find-lock-note")
+
+	data, err := os.ReadFile(filepath.Join(seeded.repo, "AGENTS.md"))
+
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	if strings.Contains(string(data), findLockNoteTarget) {
+		t.Errorf("AGENTS.md names %s, want it found only by searching:\n%s", findLockNoteTarget, data)
+	}
+	if !strings.Contains(string(data), "working-practices") {
+		t.Errorf("AGENTS.md does not list the seeded top-level Note working-practices:\n%s", data)
+	}
+}
+
+// resumeLostTokenScript does resume-lost-token the way it is asked: log progress, resume the lock
+// by starting the issue again, then release it with the token that start printed.
+var resumeLostTokenScript = [][]string{
+	{"log", "cache-layer", "Cached the catalogue queries for a minute"},
+	{"start", "cache-layer"},
+	{"lock", "release", "--token", "{prev:token ([0-9a-f]{32})}"},
+}
+
+func TestResumeLostTokenScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "resume-lost-token", []scenarioCase{
+		{name: "resumes, logs and releases", script: resumeLostTokenScript},
+		{name: "does nothing", wantWhy: "the Tree lock is still held"},
+		{
+			name: "breaks the lock instead",
+			script: [][]string{
+				{"--json", "lock", "break"},
+				{"log", "cache-layer", "Cached the catalogue queries for a minute"},
+			},
+			wantWhy: "the lock was broken",
+		},
+		{
+			name:    "releases without logging",
+			script:  resumeLostTokenScript[1:],
+			wantWhy: "cache-layer has no Log entry",
+		},
+	})
+}
+
+func TestIsLockBreak_FindsTheVerbPastFlags(t *testing.T) {
+	tests := []struct {
+		args []string
+		want bool
+	}{
+		{args: []string{"lock", "break"}, want: true},
+		{args: []string{"--json", "lock", "break", "--kv"}, want: true},
+		{args: []string{"lock", "release", "--token", "break"}, want: false},
+		{args: []string{"lock"}, want: false},
+		{args: nil, want: false},
+	}
+	for _, test := range tests {
+		if got := isLockBreak(shimCall{Args: test.args}); got != test.want {
+			t.Errorf("isLockBreak(%q) = %t, want %t", test.args, got, test.want)
+		}
+	}
+}
+
+func TestFindByContentScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "find-by-content", []scenarioCase{
+		{
+			name: "raises the issue the prompt describes",
+			script: [][]string{
+				{"search", "flaky upload retries"},
+				{"update", "storage-client-jitter", "--priority", "1", "--add-label", "urgent"},
+			},
+		},
+		{name: "changes nothing", wantWhy: "storage-client-jitter has priority 3"},
+		{
+			name:    "raises it without the label",
+			script:  [][]string{{"update", "storage-client-jitter", "--priority", "1"}},
+			wantWhy: "not labelled urgent",
+		},
+		{
+			name: "raises another issue too",
+			script: [][]string{
+				{"update", "storage-client-jitter", "--priority", "1", "--add-label", "urgent"},
+				{"update", "avatar-size-limit", "--priority", "1", "--add-label", "urgent"},
+			},
+			wantWhy: "avatar-size-limit changed priority",
+		},
+	})
+}
+
+func TestHasHeading_MatchesOnlyTheWholeLine(t *testing.T) {
+	tests := []struct {
+		body string
+		want bool
+	}{
+		{body: "intro\n\n## Acceptance\n\n- done\n", want: true},
+		{body: "## Acceptance  \r\n", want: true},
+		{body: "### Acceptance\n", want: false},
+		{body: "See ## Acceptance below\n", want: false},
+		{body: "", want: false},
+	}
+	for _, test := range tests {
+		if got := hasHeading(test.body, acceptanceHeading); got != test.want {
+			t.Errorf("hasHeading(%q) = %t, want %t", test.body, got, test.want)
+		}
+	}
+}
+
+func TestScenarioChecks_AnUnreadableStoreFails(t *testing.T) {
+	tests := []struct {
+		name    string
+		check   func(repo string, calls []shimCall) outcome
+		wantWhy string
+	}{
+		{name: "file-with-dep", check: checkFileWithDep, wantWhy: "cannot read the issues"},
+		{name: "find-lock-note", check: checkFindLockNote, wantWhy: "cannot read the issues"},
+		{name: "resume-lost-token", check: checkResumeLostToken, wantWhy: "cannot read the Tree lock"},
+		{name: "find-by-content", check: checkFindByContent, wantWhy: "cannot read the issues"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assertVerdict(t, test.check(t.TempDir(), nil), test.wantWhy)
+		})
+	}
+}

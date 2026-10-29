@@ -106,7 +106,11 @@ NOTES (2026-10-29): tests added beyond the item's list: a `--timeout 1ns` run fa
 **Commit:** `feat(agenteval): run seeded scenarios against an agent command`
 Depends on item 2.
 
-## 4. Scenarios: filing, finding a Note, resuming a lock, finding by content
+## 4. Scenarios: filing, finding a Note, resuming a lock, finding by content — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): re-derived from the regression guard's `{prev:token: ([0-9a-f]{32})}` example: `capcom start` prints the Lock token as `token <hex>` with no colon, so the `resume-lost-token` script releases with `{prev:token ([0-9a-f]{32})}`.
+NOTES (2026-10-29): `know add` takes a body only from a file, so the seed's `createNotes` adds each Note and then writes its body with `know update --body-append`; `know add` refreshes the AGENTS.md block, which is why `tree-lock` must sit below a top-level Note. `find-by-content` "others unchanged" is judged on priority, labels and closed state; `file-with-dep` checks deps and the `## Acceptance` heading (a whole line) as the Goal states, not the `## Why` the prompt asks for. A `lock break` is recognised by the call's first two non-flag arguments, so `--json lock break` counts.
+NOTES (2026-10-29): tests added beyond the item's list: a wrong-dep, no-Acceptance, wrong-Note, broken-lock, release-without-log, missing-label and extra-issue fail case per scenario; `isLockBreak` and `hasHeading` tables; each new check on a directory with no store fails. All new test names hold `Scenario` (or are pure-function tables) so the Acceptance `-run Scenario` selects them. scenario.go is now 534 lines, past the ~400-line guide; items 5 and 6 add seven more scenarios to it, so splitting it is a call for one of them or a follow-up.
 
 **What:**
 **Goal:** `scenarios()` adds four, each passing for a correct fake-agent script and failing for an empty one:
