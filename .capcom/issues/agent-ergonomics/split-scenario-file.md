@@ -3,6 +3,7 @@ title: cmd/agenteval/scenario.go is far past the file-size guide
 status: open
 type: task
 priority: 4
+plan: 2026-10-29 - 01 - agenteval-cleanup-plan
 created: 2026-10-29T18:08:41Z
 ---
 

@@ -3,6 +3,7 @@ title: A call log line over 64 KiB fails the agenteval read
 status: open
 type: bug
 priority: 3
+plan: 2026-10-29 - 01 - agenteval-cleanup-plan
 created: 2026-10-29T18:08:41Z
 ---
 
