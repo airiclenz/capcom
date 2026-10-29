@@ -201,7 +201,10 @@ Depends on item 1.
 **Commit:** `docs(agenteval): document the agent eval harness`
 Depends on item 7.
 
-## 9. The first report for a local model
+## 9. The first report for a local model — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): llama-launcher is not on PATH here; the server was reached through its MCP adapter at http://Apollo-II.local:7331/mcp (192.168.0.55) with plain JSON-RPC over curl. Status before the run: no backend running, no active profile. The user approved loading `Qwen3.8-27B-UD-Q4_K_M.gguf` (llamacpp); it served on 192.168.0.55:1111 and was unloaded after the run (both backends idle again), restoring the state before.
+NOTES (2026-10-29): the run used `--out` under docs/skill-runs/implement-plan/2026-10-29_-_00_-_agent-eval-harness-plan/ (gitignored, transcripts kept there) and the agent command `agenteval agent --base-url http://192.168.0.55:1111/v1 --model Qwen3.8-27B-UD-Q4_K_M`, with the built agenteval put on PATH so the report shows no temp path; only the report .md was copied into docs/reviews/. Result: 12/12 passed, 74 capcom calls, 3 failed calls, 0 repeated failures, 30m33s.
 
 **What:**
 **Goal:** `docs/reviews/agent-eval-<YYYY-MM-DD>-<model-slug>.md` exists, written by `agenteval run` over all 12 scenarios with `agenteval agent` against a local 25–30B model, and `agent-eval-harness` is closed by the closeout.
