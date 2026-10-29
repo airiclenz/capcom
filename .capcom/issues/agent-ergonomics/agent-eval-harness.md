@@ -1,10 +1,12 @@
 ---
 title: No repeatable measure of how well an agent drives capcom
-status: active
+status: done
 type: feature
 priority: 1
 plan: 2026-10-29 - 00 - agent-eval-harness-plan
 created: 2026-10-19T14:54:44Z
+closed: 2026-10-29T18:09:30Z
+reason: "Resolved by plan 2026-10-29 - 00 - agent-eval-harness-plan (archived in 5f23c28): cmd/agenteval runs 12 seeded scenarios, judges from store files, first local-model report in docs/reviews/"
 ---
 
 There is no way to measure how well an agent drives capcom. Ideas for agent ergonomics are
