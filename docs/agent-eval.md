@@ -78,7 +78,9 @@ block that `capcom agents` writes into every seeded repo. The run takes them in 
 | `reopen-with-reason` | reopen an issue closed by mistake, saying why | `login-bug` is open and has a Log entry |
 | `close-children` | close the remaining children of a standing Parent, but not the Parent | every child is closed with a reason, and `v2-migration` is open and still standing |
 
-The prompts, seeds and checks live in `cmd/agenteval/scenario.go`.
+The prompts, seeds and checks live in one file per scenario group: `cmd/agenteval/scenario_work.go`
+(claiming, locking and closing), `cmd/agenteval/scenario_shape.go` (filing and reshaping the issue
+tree) and `cmd/agenteval/scenario_find.go` (finding issues and Notes, and recording a Note).
 
 ## How a task is judged
 

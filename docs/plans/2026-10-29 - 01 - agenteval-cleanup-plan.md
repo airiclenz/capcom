@@ -63,7 +63,9 @@ The long-line test must fail against the base tree.
 
 **Commit:** `fix(agenteval): read call log lines longer than 64 KiB`
 
-## 2. Split the scenarios into one file per group
+## 2. Split the scenarios into one file per group — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): doc.go's `# Files` map entries for the group files also name each group's four scenario ids, wrapped onto a continuation line to keep the comment within about 100 columns; the scenario.go entry wraps the same way.
 
 **Closes:** split-scenario-file
 

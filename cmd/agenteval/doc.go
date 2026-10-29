@@ -44,7 +44,14 @@
 //   - `main.go` — main, the shim-or-command dispatch, the root command and the exit codes
 //   - `report.go` — renders a run's task results as the markdown report
 //   - `run.go` — the run verb: resolves the build and the agent, runs each task, writes the report
-//   - `scenario.go` — the scenario type, the scenarios a run runs, and each one's seed and check
+//   - `scenario.go` — the scenario type, the scenario list and the seed and check helpers they
+//     share
+//   - `scenario_find.go` — finding issues and Notes, and recording a Note: find-lock-note,
+//     find-by-content, context-before-start, add-note
+//   - `scenario_shape.go` — filing and reshaping the issue tree: file-with-dep,
+//     move-under-parent, rename-id, close-children
+//   - `scenario_work.go` — claiming, locking and closing: next-claim-close, blocked-start,
+//     resume-lost-token, reopen-with-reason
 //   - `score.go` — reads a task's call log and scores it to calls, failed and repeated failures
 //   - `shim.go` — the capcom call shim: runs the build under test and appends each call to the call log
 //   - `store.go` — reads what the agent left: issue and Note files, Log entries, the Tree lock
