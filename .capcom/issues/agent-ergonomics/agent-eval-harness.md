@@ -3,6 +3,7 @@ title: No repeatable measure of how well an agent drives capcom
 status: active
 type: feature
 priority: 1
+plan: 2026-10-29 - 00 - agent-eval-harness-plan
 created: 2026-10-19T14:54:44Z
 ---
 
