@@ -32,7 +32,7 @@ func main() {
 // reads the same whichever verb produced it; usage still prints for a bad command line, because
 // that is the one failure the usage text actually answers.
 func newRootCommand() *cobra.Command {
-	return &cobra.Command{
+	root := &cobra.Command{
 		Use:   "agenteval",
 		Short: "Evaluate how well an agent uses capcom",
 		Long: "agenteval runs seeded capcom tasks against an agent command, judges each from the\n" +
@@ -40,6 +40,8 @@ func newRootCommand() *cobra.Command {
 			"shim, and writes a markdown report.",
 		SilenceErrors: true,
 	}
+	root.AddCommand(newRunCommand())
+	return root
 }
 
 // runError marks a failure that happened after the command line was accepted, so exitCodeFor

@@ -219,3 +219,34 @@ func TestShim_AsSubprocessRunsCapcomAndLogsTheCall(t *testing.T) {
 		t.Errorf("call log = %+v, want one call of [version] with exit 0", logged)
 	}
 }
+
+func TestRunShim_RefusesABuildPathItMustNotRun(t *testing.T) {
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatalf("os.Executable: %v", err)
+	}
+	tests := []struct {
+		name       string
+		capcomPath string
+		wantStderr string
+	}{
+		{name: "relative", capcomPath: realCapcomName, wantStderr: "not an absolute path"},
+		{name: "the shim itself", capcomPath: executable, wantStderr: "the shim itself"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			callLog := filepath.Join(t.TempDir(), "calls.jsonl")
+			environment := shimEnvironment(map[string]string{capcomVariable: test.capcomPath, callLogVariable: callLog})
+			var stderr bytes.Buffer
+
+			exitCode := runShim([]string{"version"}, environment, strings.NewReader(""), &bytes.Buffer{}, &stderr)
+
+			if exitCode != exitRunFailed || !strings.Contains(stderr.String(), test.wantStderr) {
+				t.Errorf("exit = %d, stderr = %q; want %d saying %q", exitCode, stderr.String(), exitRunFailed, test.wantStderr)
+			}
+			if logged := mustReadCallLog(t, callLog); len(logged) != 0 {
+				t.Errorf("call log = %+v, want no call", logged)
+			}
+		})
+	}
+}

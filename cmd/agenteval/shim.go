@@ -42,8 +42,9 @@ func programName(program string) string {
 
 // runShim runs the capcom build named by AGENTEVAL_CAPCOM with args and the given streams, then
 // appends the call to the file named by AGENTEVAL_CALL_LOG, and returns the build's exit code. It
-// returns 1 without running anything when either variable is unset, and 1 when the build cannot
-// be started (the call is still logged, with that exit code) or the call log cannot be written.
+// returns 1 without running or logging anything when either variable is unset, or when
+// AGENTEVAL_CAPCOM is not absolute or names this executable, and 1 when the build cannot be
+// started (the call is still logged, with that exit code) or the call log cannot be written.
 func runShim(args []string, getenv func(string) string, stdin io.Reader, stdout, stderr io.Writer) int {
 	capcomPath, callLogPath := getenv(capcomVariable), getenv(callLogVariable)
 	for _, required := range []struct{ name, value string }{
@@ -56,6 +57,11 @@ func runShim(args []string, getenv func(string) string, stdin io.Reader, stdout,
 		}
 	}
 
+	if err := checkCapcomPath(capcomPath); err != nil {
+		fmt.Fprintf(stderr, "agenteval shim: %s: %v\n", capcomVariable, err)
+		return exitRunFailed
+	}
+
 	exitCode, elapsed := runCapcom(capcomPath, args, stdin, stdout, stderr)
 
 	call := shimCall{Args: append([]string{}, args...), Exit: exitCode, Milliseconds: elapsed.Milliseconds()}
@@ -64,6 +70,27 @@ func runShim(args []string, getenv func(string) string, stdin io.Reader, stdout,
 		return exitRunFailed
 	}
 	return exitCode
+}
+
+// checkCapcomPath refuses a capcom build path the shim must not run: a relative one, which would
+// resolve against whichever directory the agent called capcom from, and this executable itself,
+// which would call itself without end.
+func checkCapcomPath(capcomPath string) error {
+	if !filepath.IsAbs(capcomPath) {
+		return fmt.Errorf("%q is not an absolute path", capcomPath)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("find this executable: %w", err)
+	}
+	own, err := os.Stat(executable)
+	if err != nil {
+		return fmt.Errorf("find this executable: %w", err)
+	}
+	if named, err := os.Stat(capcomPath); err == nil && os.SameFile(own, named) {
+		return fmt.Errorf("%s is the shim itself, not a capcom build", capcomPath)
+	}
+	return nil
 }
 
 // runCapcom runs the build at capcomPath with args and the given streams and reports its exit

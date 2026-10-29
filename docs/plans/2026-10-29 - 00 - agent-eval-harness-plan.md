@@ -86,7 +86,12 @@ NOTES (2026-10-29): a call log that does not exist reads as no calls (the shim o
 **Commit:** `feat(agenteval): score call logs and render the markdown report`
 Depends on item 1.
 
-## 3. The run verb, the seeded workspace and the first scenario
+## 3. The run verb, the seeded workspace and the first scenario — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): re-derived from the assumed `call` type in `check func(repo string, calls []call) outcome`: the call log's line type is item 1's `shimCall`, so checks take `[]shimCall`; `loadIssues` returns the issues keyed by id as `storedIssue` (id, parsed file, whether its status is in a Closed category), and `logEntries` takes one.
+NOTES (2026-10-29): the agent's program (argv[0] after `--`) is resolved with `exec.LookPath` + `filepath.Abs` on the harness's own PATH as `--capcom` is, so a relative agent path still names the same program once the agent runs with the seeded repo as its working directory; the report's Agent line keeps the argv as given.
+NOTES (2026-10-29): the shim's two new refusals (relative `AGENTEVAL_CAPCOM`, or one that is the shim's own executable by `os.SameFile`) exit 1 without running or logging the call, as its unset-variable refusal already did; an agent that cannot be started fails the run (exit 1), an agent that exits non-zero only gets its exit status noted at the end of its transcript.
+NOTES (2026-10-29): tests added beyond the item's list: a `--timeout 1ns` run fails the task with why `timed out`; an unstartable agent fails the run with exit 1; `checkNextClaimClose` on a directory with no store fails; `loadNotes` and `lockState` read a Note and a Tree lock taken with the real capcom in a seeded workspace. Package coverage 82.8%, module total 91.8% (floor 90).
 
 **What:**
 **Goal:** `go run ./cmd/agenteval run --out <file.md> [--capcom <path>] [--only <id,…>] [--timeout 15m] -- <agent argv…>` runs every scenario (or the `--only` ones) and writes the report to `--out`, each agent's stdout and stderr to `<out stem>.transcripts/<id>.log` and its call log to `<id>.calls.jsonl` there; no argv after `--` or an unknown `--only` id is exit 2. Without `--capcom` it builds `./cmd/capcom` from the working directory into a temp dir.
