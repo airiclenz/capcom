@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
-	"strings"
 )
 
 // taskScore is what one task's call log adds up to: how many capcom calls the agent made, how
@@ -42,22 +43,26 @@ func readCallLog(path string) ([]shimCall, error) {
 	defer file.Close()
 
 	var calls []shimCall
-	scanner := bufio.NewScanner(file)
-	for lineNumber := 1; scanner.Scan(); lineNumber++ {
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" {
-			continue
+	reader := bufio.NewReader(file)
+	for lineNumber := 1; ; lineNumber++ {
+		// ReadBytes, not a Scanner: a call with a huge --body writes a line past the
+		// Scanner's 64 KiB token limit, and the log must still be scored.
+		line, readErr := reader.ReadBytes('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return nil, fmt.Errorf("%s: %w", path, readErr)
 		}
-		var call shimCall
-		if err := json.Unmarshal([]byte(line), &call); err != nil {
-			return nil, fmt.Errorf("%s:%d: not a call log line: %w", path, lineNumber, err)
+		line = bytes.TrimSuffix(bytes.TrimSuffix(line, []byte("\n")), []byte("\r"))
+		if len(bytes.TrimSpace(line)) > 0 {
+			var call shimCall
+			if err := json.Unmarshal(line, &call); err != nil {
+				return nil, fmt.Errorf("%s:%d: not a call log line: %w", path, lineNumber, err)
+			}
+			calls = append(calls, call)
 		}
-		calls = append(calls, call)
+		if readErr != nil {
+			return calls, nil
+		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
-	}
-	return calls, nil
 }
 
 // score adds up one task's calls. Every call with a non-zero exit code is failed, whatever the

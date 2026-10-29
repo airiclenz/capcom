@@ -28,7 +28,7 @@ scenarios live in one file per scenario group, each within about 400 lines.
 - Splitting `cmd/agenteval/scenarios_test.go`.
 - Changing any scenario's prompt, seed, check or id, or the call log format the shim writes.
 
-## 1. Read call log lines of any length
+## 1. Read call log lines of any length — ✅ DONE (2026-10-29)
 
 **Closes:** call-log-long-lines
 

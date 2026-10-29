@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -85,6 +86,39 @@ func TestReadCallLog_ReadsEachLineInOrder(t *testing.T) {
 	if len(calls) != 2 || !slices.Equal(calls[1].Args, []string{"show", "a"}) || calls[1].Exit != 3 ||
 		calls[0].Milliseconds != 12 {
 		t.Errorf("readCallLog() = %+v, want ready (12 ms) then show a (exit 3)", calls)
+	}
+}
+
+func TestReadCallLog_ReadsALineLongerThanTheScannerLimit(t *testing.T) {
+	const longBodyBytes = 100 << 10
+	longCall := shimCall{Args: []string{"create", "--id", "x", "--body", strings.Repeat("a", longBodyBytes)}}
+	longLine, err := json.Marshal(longCall)
+	if err != nil {
+		t.Fatalf("marshal the long call: %v", err)
+	}
+	path := writeCallLog(t, `{"args":["ready"],"exit":0,"ms":1}`+"\n"+string(longLine)+"\n"+
+		`{"args":["show","x"],"exit":0,"ms":2}`+"\n")
+
+	calls, err := readCallLog(path)
+
+	if err != nil {
+		t.Fatalf("readCallLog() error = %v", err)
+	}
+	if len(calls) != 3 || !slices.Equal(calls[1].Args, longCall.Args) {
+		t.Errorf("readCallLog() read %d calls, want 3 with the long call's arguments intact", len(calls))
+	}
+}
+
+func TestReadCallLog_ReadsALastLineWithoutANewline(t *testing.T) {
+	path := writeCallLog(t, `{"args":["ready"],"exit":0,"ms":1}`+"\n"+`{"args":["show","a"],"exit":3,"ms":2}`)
+
+	calls, err := readCallLog(path)
+
+	if err != nil {
+		t.Fatalf("readCallLog() error = %v", err)
+	}
+	if len(calls) != 2 || !slices.Equal(calls[1].Args, []string{"show", "a"}) {
+		t.Errorf("readCallLog() = %+v, want ready then show a", calls)
 	}
 }
 
