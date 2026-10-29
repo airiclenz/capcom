@@ -193,20 +193,13 @@ func setHermeticGitEnv(t *testing.T) {
 	}
 }
 
-// readCallLog returns the calls of the call log at path, one per line.
-func readCallLog(t *testing.T, path string) []shimCall {
+// mustReadCallLog returns the calls of the call log at path, failing the test when it cannot be
+// read.
+func mustReadCallLog(t *testing.T, path string) []shimCall {
 	t.Helper()
-	content, err := os.ReadFile(path)
+	calls, err := readCallLog(path)
 	if err != nil {
 		t.Fatalf("read the call log: %v", err)
-	}
-	var calls []shimCall
-	for _, line := range strings.Split(strings.TrimSuffix(string(content), "\n"), "\n") {
-		var call shimCall
-		if err := json.Unmarshal([]byte(line), &call); err != nil {
-			t.Fatalf("call log line %q: %v", line, err)
-		}
-		calls = append(calls, call)
 	}
 	return calls
 }
@@ -347,7 +340,7 @@ func TestFakeAgent_PassesAPreviousCallsOutputToTheNext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run the fake agent: %v\n%s", err, output)
 	}
-	logged := readCallLog(t, callLog)
+	logged := mustReadCallLog(t, callLog)
 	if len(logged) != 2 {
 		t.Fatalf("call log has %d lines, want 2: %+v", len(logged), logged)
 	}

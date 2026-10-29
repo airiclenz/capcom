@@ -68,7 +68,12 @@ The placeholder is a whole argv element starting `{prev:` and ending at its LAST
 - `GOMEMLIMIT=2GiB go test -count=1 ./cmd/agenteval/`
 **Commit:** `feat(agenteval): add the agent eval dev tool with its capcom call shim`
 
-## 2. Scoring the call log and rendering the report
+## 2. Scoring the call log and rendering the report — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): re-derived from the assumed `readCallLog(path) ([]call, error)`: the call type already exists as item 1's `shimCall`, so the reader returns `[]shimCall`, and the name collided with item 1's test helper `readCallLog(t, path)`.
+NOTES (2026-10-29): consequential edit — cmd/agenteval/main_test.go: made necessary by the production `readCallLog`; the test helper of the same name became `mustReadCallLog`, which wraps it instead of parsing the log a second time.
+NOTES (2026-10-29): consequential edit — cmd/agenteval/shim_test.go: made necessary by the production `readCallLog`; its three callers of the test helper now call `mustReadCallLog`.
+NOTES (2026-10-29): a call log that does not exist reads as no calls (the shim only creates it on the first call); blank lines are skipped. Besides escaping `|`, a Why cell collapses line breaks and runs of white space to one space so a row stays on one line; the totals row also sums Time; agent arguments that are empty or hold white space, a quote or a backslash are shown Go-quoted.
 
 **What:**
 **Goal:** a task's call log scores to calls, failed calls (non-zero exit) and repeated failures (a non-zero call whose args and exit equal an earlier non-zero call of the same task); a run renders to markdown with a header (date, `capcom version` output, the agent argv) and one table `Task | Result | Calls | Failed | Repeated failures | Time | Why`, with a totals row `n/m passed` and summed counts.

@@ -75,7 +75,7 @@ func TestRunShim_LogsOneLinePerCallWithItsArgs(t *testing.T) {
 		runShim(args, environment, strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{})
 	}
 
-	logged := readCallLog(t, callLog)
+	logged := mustReadCallLog(t, callLog)
 	if len(logged) != len(calls) {
 		t.Fatalf("call log has %d lines, want %d: %+v", len(logged), len(calls), logged)
 	}
@@ -146,7 +146,7 @@ func TestRunShim_UnstartableBuildExitsOneAndIsLogged(t *testing.T) {
 	if !strings.Contains(stderr.String(), missingBuild) {
 		t.Errorf("stderr = %q, want it to name %s", stderr.String(), missingBuild)
 	}
-	if logged := readCallLog(t, callLog); len(logged) != 1 || logged[0].Exit != exitRunFailed {
+	if logged := mustReadCallLog(t, callLog); len(logged) != 1 || logged[0].Exit != exitRunFailed {
 		t.Errorf("call log = %+v, want one call with exit %d", logged, exitRunFailed)
 	}
 }
@@ -214,7 +214,7 @@ func TestShim_AsSubprocessRunsCapcomAndLogsTheCall(t *testing.T) {
 	if want := "capcom " + capcom.Version() + "\n"; string(stdout) != want {
 		t.Errorf("stdout = %q, want %q", stdout, want)
 	}
-	logged := readCallLog(t, callLog)
+	logged := mustReadCallLog(t, callLog)
 	if len(logged) != 1 || !slices.Equal(logged[0].Args, []string{"version"}) || logged[0].Exit != 0 {
 		t.Errorf("call log = %+v, want one call of [version] with exit 0", logged)
 	}

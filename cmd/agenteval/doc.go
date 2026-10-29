@@ -23,5 +23,7 @@
 //
 //   - `doc.go` — the package comment and this file map
 //   - `main.go` — main, the shim-or-command dispatch, the root command and the exit codes
+//   - `report.go` — renders a run's task results as the markdown report
+//   - `score.go` — reads a task's call log and scores it to calls, failed and repeated failures
 //   - `shim.go` — the capcom call shim: runs the build under test and appends each call to the call log
 package main
