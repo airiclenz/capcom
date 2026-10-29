@@ -1,10 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 // scenario is one seeded capcom task: the prompt the agent reads on stdin, the seed that puts the
@@ -58,6 +65,10 @@ func scenarios() []scenario {
 		findLockNoteScenario(),
 		resumeLostTokenScenario(),
 		findByContentScenario(),
+		contextBeforeStartScenario(),
+		blockedStartScenario(),
+		moveUnderParentScenario(),
+		renameIDScenario(),
 	}
 }
 
@@ -71,22 +82,32 @@ func findScenario(id string) (scenario, bool) {
 	return scenario{}, false
 }
 
-// seededIssue is an issue a seed creates: its id, title, body and priority.
+// seededIssue is an issue a seed creates: its id, title, body and priority, the ids of the issues
+// it depends on, and the basename of its plan (empty for none).
 type seededIssue struct {
 	id       string
 	title    string
 	body     string
 	priority int
+	deps     []string
+	plan     string
 }
 
-// createIssues creates each of issues in env's repo, in order.
+// createIssues creates each of issues in env's repo, in order, so an issue must come after the
+// issues it depends on.
 func createIssues(env seedEnv, issues []seededIssue) error {
 	for _, seeded := range issues {
-		_, err := env.capcom(
+		args := []string{
 			"create", "--id", seeded.id, "--title", seeded.title, "--body", seeded.body,
 			"--priority", strconv.Itoa(seeded.priority),
-		)
-		if err != nil {
+		}
+		for _, dep := range seeded.deps {
+			args = append(args, "--dep", dep)
+		}
+		if seeded.plan != "" {
+			args = append(args, "--plan", seeded.plan)
+		}
+		if _, err := env.capcom(args...); err != nil {
 			return fmt.Errorf("create %s: %w", seeded.id, err)
 		}
 	}
@@ -528,6 +549,314 @@ func checkFindByContent(repo string, _ []shimCall) outcome {
 			return failed("%s was labelled %v", seeded.id, stored.Issue.Labels)
 		case stored.IsClosed:
 			return failed("%s was closed", seeded.id)
+		}
+	}
+	return passed()
+}
+
+// isActive reports whether stored is being worked on: its status falls in the doing category of
+// cfg.
+func isActive(cfg config.Config, stored storedIssue) bool {
+	category, _ := cfg.CategoryOf(stored.Issue.Status)
+	return category == config.CategoryDoing
+}
+
+// loadConfigAndIssues returns the config of repo's store and its issues, as loadIssues reads them.
+func loadConfigAndIssues(repo string) (config.Config, map[string]storedIssue, error) {
+	opened, err := store.Open(repo)
+	if err != nil {
+		return config.Config{}, nil, err
+	}
+	issues, err := loadIssues(repo)
+	if err != nil {
+		return config.Config{}, nil, err
+	}
+	return opened.Config, issues, nil
+}
+
+// The ids and the plan context-before-start works with: the issue the agent starts, and the
+// basename of the plan it is linked to, which only the issue's plan field names.
+const (
+	contextBeforeStartIssue = "export-csv"
+	contextBeforeStartPlan  = "orders-export-plan"
+)
+
+// plansDir is the plans directory of a seeded repo, relative to its root: the first of the plans
+// directories config.yaml names by default.
+const plansDir = "docs/plans"
+
+// contextBeforeStartPlanText is the plan file context-before-start seeds under plansDir.
+const contextBeforeStartPlanText = "# Plan: export the orders report as CSV\n\n" +
+	"## 1. Write the CSV encoder\n\nOne row per order, a header row first.\n"
+
+// contextBeforeStartIssues is context-before-start's one issue, linked to the seeded plan.
+var contextBeforeStartIssues = []seededIssue{
+	{
+		id:       contextBeforeStartIssue,
+		title:    "Export the orders report as CSV",
+		body:     "Finance copies the orders report into a spreadsheet by hand every month.",
+		priority: 2,
+		plan:     contextBeforeStartPlan,
+	},
+}
+
+// contextBeforeStartNotes is context-before-start's one Note, which applies to export-csv: a
+// search on the issue's title finds it.
+var contextBeforeStartNotes = []seededNote{
+	{
+		id:    "csv-conventions",
+		title: "How a CSV export is written",
+		body:  "A CSV export is UTF-8 with a byte order mark, comma-separated, with a header row first.",
+	},
+}
+
+// contextBeforeStartScenario seeds an issue linked to a plan, with a Note that applies, and asks the
+// agent to start it and log the name of its plan. It passes when export-csv is active and a Log
+// entry of it holds the plan's basename.
+func contextBeforeStartScenario() scenario {
+	return scenario{
+		id: "context-before-start",
+		prompt: "Start work on the issue export-csv. Before you change anything, find out what the " +
+			"issue needs, and record the name of the plan it belongs to in a Log entry on it.\n",
+		seed: func(env seedEnv) error {
+			planPath := filepath.Join(env.repo, filepath.FromSlash(plansDir), contextBeforeStartPlan+markdownExtension)
+			if err := os.MkdirAll(filepath.Dir(planPath), 0o755); err != nil {
+				return fmt.Errorf("create the plans directory: %w", err)
+			}
+			if err := os.WriteFile(planPath, []byte(contextBeforeStartPlanText), 0o644); err != nil {
+				return fmt.Errorf("write the plan: %w", err)
+			}
+			if err := createNotes(env, contextBeforeStartNotes); err != nil {
+				return err
+			}
+			return createIssues(env, contextBeforeStartIssues)
+		},
+		check: checkContextBeforeStart,
+	}
+}
+
+// checkContextBeforeStart judges context-before-start from export-csv's status and Log.
+func checkContextBeforeStart(repo string, _ []shimCall) outcome {
+	cfg, issues, err := loadConfigAndIssues(repo)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	stored, isFound := issues[contextBeforeStartIssue]
+	switch {
+	case !isFound:
+		return failed("%s is gone", contextBeforeStartIssue)
+	case !isActive(cfg, stored):
+		return failed("%s is not active (status %q)", contextBeforeStartIssue, stored.Issue.Status)
+	}
+	for _, entry := range logEntries(stored) {
+		if strings.Contains(entry, contextBeforeStartPlan) {
+			return passed()
+		}
+	}
+	return failed("no Log entry of %s names its plan %s", contextBeforeStartIssue, contextBeforeStartPlan)
+}
+
+// The ids blocked-start works with: the issue the prompt asks to start, and the open issue it
+// waits for, which the agent must start instead.
+const (
+	blockedStartIssue   = "deploy"
+	blockedStartBlocker = "ci-green"
+)
+
+// blockedStartIssues are blocked-start's two issues: deploy waits for the open ci-green.
+var blockedStartIssues = []seededIssue{
+	{
+		id:       blockedStartBlocker,
+		title:    "Make the CI pipeline green",
+		body:     "Two integration tests fail on every run since the database upgrade.",
+		priority: 2,
+	},
+	{
+		id:       blockedStartIssue,
+		title:    "Deploy the new release",
+		body:     "Roll the new release out to production.",
+		priority: 1,
+		deps:     []string{blockedStartBlocker},
+	},
+}
+
+// blockedStartScenario asks the agent to start an issue that waits for an open one, and to start
+// what blocks it when it cannot. It passes when ci-green is active and deploy is not.
+func blockedStartScenario() scenario {
+	return scenario{
+		id: "blocked-start",
+		prompt: "Start work on the issue deploy. If it cannot be started yet, start the work that " +
+			"blocks it instead.\n",
+		seed: func(env seedEnv) error {
+			return createIssues(env, blockedStartIssues)
+		},
+		check: checkBlockedStart,
+	}
+}
+
+// checkBlockedStart judges blocked-start from the two issues' statuses.
+func checkBlockedStart(repo string, _ []shimCall) outcome {
+	cfg, issues, err := loadConfigAndIssues(repo)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	blocked, isBlockedFound := issues[blockedStartIssue]
+	blocker, isBlockerFound := issues[blockedStartBlocker]
+	switch {
+	case !isBlockedFound:
+		return failed("%s is gone", blockedStartIssue)
+	case !isBlockerFound:
+		return failed("%s is gone", blockedStartBlocker)
+	case isActive(cfg, blocked):
+		return failed("%s is active, though it waits for %s", blockedStartIssue, blockedStartBlocker)
+	case !isActive(cfg, blocker):
+		return failed(
+			"%s, which blocks %s, is not active (status %q)",
+			blockedStartBlocker, blockedStartIssue, blocker.Issue.Status,
+		)
+	}
+	return passed()
+}
+
+// The ids move-under-parent works with: the Parent and the top-level issue the agent moves below
+// it.
+const (
+	moveUnderParentParent = "billing"
+	moveUnderParentChild  = "invoice-pdf"
+)
+
+// moveUnderParentIssues are move-under-parent's two top-level issues.
+var moveUnderParentIssues = []seededIssue{
+	{
+		id:       moveUnderParentParent,
+		title:    "Billing",
+		body:     "Everything about charging customers and the documents they receive.",
+		priority: 2,
+	},
+	{
+		id:       moveUnderParentChild,
+		title:    "Attach the invoice as a PDF",
+		body:     "The invoice mail links to a web page; customers want the PDF attached.",
+		priority: 3,
+	},
+}
+
+// moveUnderParentScenario asks the agent to move a top-level issue below another. It passes when
+// invoice-pdf's file sits in billing's children directory and no longer at the top level.
+func moveUnderParentScenario() scenario {
+	return scenario{
+		id: "move-under-parent",
+		prompt: "The issue invoice-pdf belongs under the issue billing. Put it there, keeping its " +
+			"id.\n",
+		seed: func(env seedEnv) error {
+			return createIssues(env, moveUnderParentIssues)
+		},
+		check: checkMoveUnderParent,
+	}
+}
+
+// checkMoveUnderParent judges move-under-parent from where invoice-pdf's file is.
+func checkMoveUnderParent(repo string, _ []shimCall) outcome {
+	opened, err := store.Open(repo)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	fileName := moveUnderParentChild + markdownExtension
+	movedPath := filepath.Join(opened.IssuesDir(), moveUnderParentParent, fileName)
+	oldPath := filepath.Join(opened.IssuesDir(), fileName)
+	isMoved, err := fileExists(movedPath)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	isLeft, err := fileExists(oldPath)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	switch {
+	case !isMoved:
+		return failed("%s does not exist", opened.Relative(movedPath))
+	case isLeft:
+		return failed("%s still exists", opened.Relative(oldPath))
+	}
+	return passed()
+}
+
+// fileExists reports whether path names a file or directory; an error other than its absence is
+// returned.
+func fileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// The ids rename-id works with: the issue's id before and after the rename.
+const (
+	renameIDOld = "fix-thing"
+	renameIDNew = "fix-upload-timeout"
+)
+
+// renameIDIssues are rename-id's seed: the issue to rename, then the two issues that depend on
+// it.
+var renameIDIssues = []seededIssue{
+	{
+		id:       renameIDOld,
+		title:    "Fix the upload timeout",
+		body:     "An upload over a hundred megabytes times out after thirty seconds.",
+		priority: 2,
+	},
+	{
+		id:       "upload-progress-bar",
+		title:    "Show a progress bar for uploads",
+		body:     "A long upload shows nothing until it is done.",
+		priority: 3,
+		deps:     []string{renameIDOld},
+	},
+	{
+		id:       "resumable-uploads",
+		title:    "Resume an interrupted upload",
+		body:     "A dropped connection restarts the upload from the first byte.",
+		priority: 3,
+		deps:     []string{renameIDOld},
+	},
+}
+
+// renameIDScenario asks the agent to rename an issue two others depend on, keeping references to
+// it working. It passes when fix-upload-timeout exists with the alias fix-thing and both
+// dependents' deps name fix-upload-timeout.
+func renameIDScenario() scenario {
+	return scenario{
+		id: "rename-id",
+		prompt: "The id of the issue fix-thing says nothing. Rename it to fix-upload-timeout, so that " +
+			"everything that refers to it keeps working.\n",
+		seed: func(env seedEnv) error {
+			return createIssues(env, renameIDIssues)
+		},
+		check: checkRenameID,
+	}
+}
+
+// checkRenameID judges rename-id from the renamed issue's file and its dependents' deps.
+func checkRenameID(repo string, _ []shimCall) outcome {
+	issues, err := loadIssues(repo)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	renamed, isFound := issues[renameIDNew]
+	switch {
+	case !isFound:
+		return failed("%s does not exist", renameIDNew)
+	case !slices.Contains(renamed.Issue.Aliases, renameIDOld):
+		return failed("%s has no alias %s (aliases: %v)", renameIDNew, renameIDOld, renamed.Issue.Aliases)
+	}
+	for _, seeded := range renameIDIssues[1:] {
+		dependent, isFound := issues[seeded.id]
+		switch {
+		case !isFound:
+			return failed("%s is gone", seeded.id)
+		case !slices.Contains(dependent.Issue.Deps, renameIDNew):
+			return failed("%s does not depend on %s (deps: %v)", seeded.id, renameIDNew, dependent.Issue.Deps)
 		}
 	}
 	return passed()

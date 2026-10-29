@@ -128,7 +128,10 @@ NOTES (2026-10-29): tests added beyond the item's list: a wrong-dep, no-Acceptan
 **Commit:** `feat(agenteval): add filing, Note, lock and search scenarios`
 Depends on item 3.
 
-## 5. Scenarios: context, blockers, moving and renaming
+## 5. Scenarios: context, blockers, moving and renaming — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): `seededIssue` gains optional `deps` and `plan` fields that `createIssues` passes as `--dep` and `--plan`; "active" means a status in the config's doing category, read through the new `isActive` and `loadConfigAndIssues` helpers kept in scenario.go (store.go is not in this item's files). The context-before-start Note applies through the title search, not a ref, so the seed writes no source file; a test confirms `capcom context export-csv` names both the plan path and the Note.
+NOTES (2026-10-29): tests added beyond the item's list: log-without-start, log-without-plan, stop-at-refusal, drop-dep-and-start, rename-instead-of-move, file-left-at-the-top (built by hand), new-issue-instead-of-rename and dropped-dependent-dep fail cases, plus each new check on a directory with no store. scenario.go is now 863 lines, double the ~400-line guide; item 6 adds three more scenarios, so splitting it (one file per scenario group, each listed in doc.go's `# Files` map) is due there or as a follow-up.
 
 **What:**
 **Goal:** `scenarios()` adds four, each passing for a correct script and failing for an empty one:

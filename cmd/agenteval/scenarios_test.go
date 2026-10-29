@@ -368,10 +368,133 @@ func TestScenarioChecks_AnUnreadableStoreFails(t *testing.T) {
 		{name: "find-lock-note", check: checkFindLockNote, wantWhy: "cannot read the issues"},
 		{name: "resume-lost-token", check: checkResumeLostToken, wantWhy: "cannot read the Tree lock"},
 		{name: "find-by-content", check: checkFindByContent, wantWhy: "cannot read the issues"},
+		{name: "context-before-start", check: checkContextBeforeStart, wantWhy: "cannot read the issues"},
+		{name: "blocked-start", check: checkBlockedStart, wantWhy: "cannot read the issues"},
+		{name: "move-under-parent", check: checkMoveUnderParent, wantWhy: "cannot read the issues"},
+		{name: "rename-id", check: checkRenameID, wantWhy: "cannot read the issues"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assertVerdict(t, test.check(t.TempDir(), nil), test.wantWhy)
 		})
 	}
+}
+
+func TestContextBeforeStartScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "context-before-start", []scenarioCase{
+		{
+			name: "starts it and logs its plan",
+			script: [][]string{
+				{"context", "export-csv"},
+				{"start", "export-csv"},
+				{"log", "export-csv", "Working to the plan orders-export-plan"},
+			},
+		},
+		{name: "does nothing", wantWhy: "export-csv is not active"},
+		{
+			name:    "logs the plan without starting",
+			script:  [][]string{{"log", "export-csv", "Working to the plan orders-export-plan"}},
+			wantWhy: "export-csv is not active",
+		},
+		{
+			name: "starts it and logs something else",
+			script: [][]string{
+				{"start", "export-csv"},
+				{"log", "export-csv", "Started on the CSV encoder"},
+			},
+			wantWhy: "no Log entry of export-csv names its plan orders-export-plan",
+		},
+	})
+}
+
+func TestContextBeforeStartScenario_ContextNamesThePlanAndTheNote(t *testing.T) {
+	_, seeded, capcomPath := seedScenario(t, t.TempDir(), "context-before-start")
+
+	printed, err := runIn(seeded.repo, capcomPath, "context", "export-csv")
+
+	if err != nil {
+		t.Fatalf("capcom context: %v", err)
+	}
+	for _, want := range []string{"docs/plans/orders-export-plan.md", "csv-conventions"} {
+		if !strings.Contains(printed, want) {
+			t.Errorf("capcom context does not name %s:\n%s", want, printed)
+		}
+	}
+}
+
+func TestBlockedStartScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "blocked-start", []scenarioCase{
+		{
+			name:   "starts what blocks it",
+			script: [][]string{{"start", "deploy"}, {"start", "ci-green"}},
+		},
+		{name: "does nothing", wantWhy: "ci-green, which blocks deploy, is not active"},
+		{
+			name:    "stops at the refusal",
+			script:  [][]string{{"start", "deploy"}},
+			wantWhy: "ci-green, which blocks deploy, is not active",
+		},
+		{
+			name:    "drops the dep and starts deploy",
+			script:  [][]string{{"dep", "rm", "deploy", "ci-green"}, {"start", "deploy"}},
+			wantWhy: "deploy is active",
+		},
+	})
+}
+
+func TestMoveUnderParentScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "move-under-parent", []scenarioCase{
+		{
+			name:   "moves it below billing",
+			script: [][]string{{"mv", "invoice-pdf", "--parent", "billing"}},
+		},
+		{name: "does nothing", wantWhy: "billing/invoice-pdf.md does not exist"},
+		{
+			name:    "renames it instead",
+			script:  [][]string{{"mv", "invoice-pdf", "billing-invoice-pdf"}},
+			wantWhy: "billing/invoice-pdf.md does not exist",
+		},
+	})
+}
+
+func TestMoveUnderParentScenario_AFileLeftAtTheTopFails(t *testing.T) {
+	_, seeded, _ := seedScenario(t, t.TempDir(), "move-under-parent")
+	issuesDir := filepath.Join(seeded.repo, ".capcom", "issues")
+	if err := os.MkdirAll(filepath.Join(issuesDir, "billing"), 0o755); err != nil {
+		t.Fatalf("create billing's children directory: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(issuesDir, "invoice-pdf.md"))
+	if err != nil {
+		t.Fatalf("read invoice-pdf: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(issuesDir, "billing", "invoice-pdf.md"), data, 0o600); err != nil {
+		t.Fatalf("copy invoice-pdf below billing: %v", err)
+	}
+
+	verdict := checkMoveUnderParent(seeded.repo, nil)
+
+	assertVerdict(t, verdict, "invoice-pdf.md still exists")
+}
+
+func TestRenameIDScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "rename-id", []scenarioCase{
+		{
+			name:   "renames it",
+			script: [][]string{{"mv", "fix-thing", "fix-upload-timeout"}},
+		},
+		{name: "does nothing", wantWhy: "fix-upload-timeout does not exist"},
+		{
+			name:    "files a new issue instead",
+			script:  [][]string{{"create", "--id", "fix-upload-timeout", "--title", "Fix the upload timeout"}},
+			wantWhy: "fix-upload-timeout has no alias fix-thing",
+		},
+		{
+			name: "drops a dependent's dep first",
+			script: [][]string{
+				{"dep", "rm", "resumable-uploads", "fix-thing"},
+				{"mv", "fix-thing", "fix-upload-timeout"},
+			},
+			wantWhy: "resumable-uploads does not depend on fix-upload-timeout",
+		},
+	})
 }
