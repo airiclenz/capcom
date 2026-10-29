@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -69,6 +70,9 @@ func scenarios() []scenario {
 		blockedStartScenario(),
 		moveUnderParentScenario(),
 		renameIDScenario(),
+		addNoteScenario(),
+		reopenWithReasonScenario(),
+		closeChildrenScenario(),
 	}
 }
 
@@ -83,18 +87,23 @@ func findScenario(id string) (scenario, bool) {
 }
 
 // seededIssue is an issue a seed creates: its id, title, body and priority, the ids of the issues
-// it depends on, and the basename of its plan (empty for none).
+// it depends on, the basename of its plan (empty for none), the id of its Parent (empty for the top
+// level), whether it is a standing Parent, and the reason it is closed with (empty to leave it
+// open).
 type seededIssue struct {
-	id       string
-	title    string
-	body     string
-	priority int
-	deps     []string
-	plan     string
+	id          string
+	title       string
+	body        string
+	priority    int
+	deps        []string
+	plan        string
+	parent      string
+	isStanding  bool
+	closeReason string
 }
 
 // createIssues creates each of issues in env's repo, in order, so an issue must come after the
-// issues it depends on.
+// issues it depends on and its Parent; one with a close reason is closed right after it is created.
 func createIssues(env seedEnv, issues []seededIssue) error {
 	for _, seeded := range issues {
 		args := []string{
@@ -107,8 +116,20 @@ func createIssues(env seedEnv, issues []seededIssue) error {
 		if seeded.plan != "" {
 			args = append(args, "--plan", seeded.plan)
 		}
+		if seeded.parent != "" {
+			args = append(args, "--parent", seeded.parent)
+		}
+		if seeded.isStanding {
+			args = append(args, "--standing")
+		}
 		if _, err := env.capcom(args...); err != nil {
 			return fmt.Errorf("create %s: %w", seeded.id, err)
+		}
+		if seeded.closeReason == "" {
+			continue
+		}
+		if _, err := env.capcom("close", seeded.id, "--reason", seeded.closeReason); err != nil {
+			return fmt.Errorf("close %s: %w", seeded.id, err)
 		}
 	}
 	return nil
@@ -857,6 +878,196 @@ func checkRenameID(repo string, _ []shimCall) outcome {
 			return failed("%s is gone", seeded.id)
 		case !slices.Contains(dependent.Issue.Deps, renameIDNew):
 			return failed("%s does not depend on %s (deps: %v)", seeded.id, renameIDNew, dependent.Issue.Deps)
+		}
+	}
+	return passed()
+}
+
+// The ids and the fact add-note works with: the Note the new one goes below, and the text its body
+// must hold.
+const (
+	addNoteParent = "testing"
+	addNoteFact   = "GOMEMLIMIT=2GiB"
+)
+
+// addNoteNotes is add-note's seed: the one Note the agent adds below.
+var addNoteNotes = []seededNote{
+	{
+		id:    addNoteParent,
+		title: "How the tests are run",
+		body:  "How the tests in this repository are run; the Notes below this one go into detail.",
+	},
+}
+
+// addNoteScenario asks the agent to record a fact as a new Note below a seeded one. It passes when
+// a Note below testing has a body that holds GOMEMLIMIT=2GiB.
+func addNoteScenario() scenario {
+	return scenario{
+		id: "add-note",
+		prompt: "Record in this repository's knowledge, as a new Note below the Note testing, that " +
+			"the tests here run with GOMEMLIMIT=2GiB.\n",
+		seed: func(env seedEnv) error {
+			return createNotes(env, addNoteNotes)
+		},
+		check: checkAddNote,
+	}
+}
+
+// checkAddNote judges add-note from the Note files below testing's children directory.
+func checkAddNote(repo string, _ []shimCall) outcome {
+	opened, err := store.Open(repo)
+	if err != nil {
+		return failed("cannot read the Notes: %v", err)
+	}
+	isRecorded := false
+	err = walkMarkdown(filepath.Join(opened.KnowledgeDir(), addNoteParent), func(_, path string, data []byte) error {
+		note, err := knowledge.Parse(path, data)
+		if err != nil {
+			return err
+		}
+		isRecorded = isRecorded || strings.Contains(note.Body, addNoteFact)
+		return nil
+	})
+	switch {
+	case err != nil:
+		return failed("cannot read the Notes: %v", err)
+	case !isRecorded:
+		return failed("no Note below %s holds %s in its body", addNoteParent, addNoteFact)
+	}
+	return passed()
+}
+
+// reopenWithReasonIssue is the id of the issue reopen-with-reason's seed closes by mistake.
+const reopenWithReasonIssue = "login-bug"
+
+// reopenWithReasonIssues is reopen-with-reason's one issue, closed with the reason "fixed". Closing
+// writes no Log entry, so any entry the check finds is the agent's.
+var reopenWithReasonIssues = []seededIssue{
+	{
+		id:          reopenWithReasonIssue,
+		title:       "Login fails after a password change",
+		body:        "A user who changed their password is sent back to the login page on every attempt.",
+		priority:    2,
+		closeReason: "fixed",
+	},
+}
+
+// reopenWithReasonScenario seeds an issue closed by mistake and asks the agent to reopen it, saying
+// why. It passes when login-bug is open and has a Log entry.
+func reopenWithReasonScenario() scenario {
+	return scenario{
+		id: "reopen-with-reason",
+		prompt: "The issue login-bug was closed by mistake: the bug still reproduces. Reopen it, " +
+			"saying why.\n",
+		seed: func(env seedEnv) error {
+			return createIssues(env, reopenWithReasonIssues)
+		},
+		check: checkReopenWithReason,
+	}
+}
+
+// checkReopenWithReason judges reopen-with-reason from login-bug's status and Log.
+func checkReopenWithReason(repo string, _ []shimCall) outcome {
+	issues, err := loadIssues(repo)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	stored, isFound := issues[reopenWithReasonIssue]
+	switch {
+	case !isFound:
+		return failed("%s is gone", reopenWithReasonIssue)
+	case stored.IsClosed:
+		return failed("%s is still closed (status %q)", reopenWithReasonIssue, stored.Issue.Status)
+	case len(logEntries(stored)) == 0:
+		return failed("%s has no Log entry", reopenWithReasonIssue)
+	}
+	return passed()
+}
+
+// closeChildrenParent is the id of close-children's standing Parent, the grouping issue the agent
+// must leave open.
+const closeChildrenParent = "v2-migration"
+
+// closeChildrenIssues are close-children's seed: the standing Parent, then its four children, the
+// last of them already closed.
+var closeChildrenIssues = []seededIssue{
+	{
+		id:         closeChildrenParent,
+		title:      "Migrate to the v2 API",
+		body:       "Groups the work of moving every client of the v1 API to v2.",
+		priority:   2,
+		isStanding: true,
+	},
+	{
+		id:       "v2-auth-endpoints",
+		title:    "Move the auth endpoints to v2",
+		body:     "Login and token refresh still call the v1 routes.",
+		priority: 2,
+		parent:   closeChildrenParent,
+	},
+	{
+		id:       "v2-orders-endpoints",
+		title:    "Move the orders endpoints to v2",
+		body:     "The order list and order detail pages still call the v1 routes.",
+		priority: 2,
+		parent:   closeChildrenParent,
+	},
+	{
+		id:       "v2-client-sdk",
+		title:    "Release the client SDK for v2",
+		body:     "The published SDK only speaks v1.",
+		priority: 3,
+		parent:   closeChildrenParent,
+	},
+	{
+		id:          "v2-docs",
+		title:       "Document the v2 API",
+		body:        "The reference pages describe only the v1 routes.",
+		priority:    3,
+		parent:      closeChildrenParent,
+		closeReason: "Published with the v2 beta",
+	},
+}
+
+// closeChildrenScenario asks the agent to close the remaining children of a standing Parent and
+// leave the Parent itself alone. It passes when every child is closed with a reason and
+// v2-migration is open and still standing.
+func closeChildrenScenario() scenario {
+	return scenario{
+		id: "close-children",
+		prompt: "The remaining work under the issue v2-migration is done. Close all of it, but not " +
+			"v2-migration itself: it only groups the work and stays open.\n",
+		seed: func(env seedEnv) error {
+			return createIssues(env, closeChildrenIssues)
+		},
+		check: checkCloseChildren,
+	}
+}
+
+// checkCloseChildren judges close-children from the Parent's and its children's issue files.
+func checkCloseChildren(repo string, _ []shimCall) outcome {
+	issues, err := loadIssues(repo)
+	if err != nil {
+		return failed("cannot read the issues: %v", err)
+	}
+	parent, isFound := issues[closeChildrenParent]
+	switch {
+	case !isFound:
+		return failed("%s is gone", closeChildrenParent)
+	case parent.IsClosed:
+		return failed("%s, the grouping issue, was closed", closeChildrenParent)
+	case !parent.Issue.IsStanding:
+		return failed("%s is no longer standing", closeChildrenParent)
+	}
+	for _, seeded := range closeChildrenIssues[1:] {
+		child, isFound := issues[seeded.id]
+		switch {
+		case !isFound:
+			return failed("%s is gone", seeded.id)
+		case !child.IsClosed:
+			return failed("%s is not closed", seeded.id)
+		case child.Issue.Reason == "":
+			return failed("%s was closed without a reason", seeded.id)
 		}
 	}
 	return passed()

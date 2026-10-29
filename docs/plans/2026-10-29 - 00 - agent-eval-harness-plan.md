@@ -148,7 +148,10 @@ NOTES (2026-10-29): tests added beyond the item's list: log-without-start, log-w
 **Commit:** `feat(agenteval): add context, blocker, move and rename scenarios`
 Depends on item 4.
 
-## 6. Scenarios: Knowledge, reopening and closing a Parent's children
+## 6. Scenarios: Knowledge, reopening and closing a Parent's children — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): `seededIssue` gains optional `parent`, `isStanding` and `closeReason` fields; `createIssues` passes them as `--parent` and `--standing`, and closes an issue right after creating it when it has a close reason. `checkAddNote` walks `.capcom/knowledge/testing/` at any depth with `knowledge.Parse`, since `loadNotes` keys by id and drops the path. The add-note pass script uses `know add --parent testing` then `know update --body-append` (both flags checked against `--help`).
+NOTES (2026-10-29): tests added beyond the item's list: add-note at the top level, appended to `testing` itself, and a child without the fact; reopen-with-reason log-without-reopen, plus an open issue with no Log entry built by hand (no CLI path reopens without logging); close-children leaving one child open, closing the grouping issue after `--no-standing`, and only clearing the standing mark; each new check on a directory with no store. scenario.go is now 1074 lines; splitting it into scenario-group files listed in doc.go's `# Files` map is still due as a follow-up.
 
 **What:**
 **Goal:** `scenarios()` holds 12 with unique ids; the three added here pass for a correct script and fail for an empty one:

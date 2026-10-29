@@ -372,6 +372,9 @@ func TestScenarioChecks_AnUnreadableStoreFails(t *testing.T) {
 		{name: "blocked-start", check: checkBlockedStart, wantWhy: "cannot read the issues"},
 		{name: "move-under-parent", check: checkMoveUnderParent, wantWhy: "cannot read the issues"},
 		{name: "rename-id", check: checkRenameID, wantWhy: "cannot read the issues"},
+		{name: "add-note", check: checkAddNote, wantWhy: "cannot read the Notes"},
+		{name: "reopen-with-reason", check: checkReopenWithReason, wantWhy: "cannot read the issues"},
+		{name: "close-children", check: checkCloseChildren, wantWhy: "cannot read the issues"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -495,6 +498,127 @@ func TestRenameIDScenario_JudgesWhatTheAgentLeft(t *testing.T) {
 				{"mv", "fix-thing", "fix-upload-timeout"},
 			},
 			wantWhy: "resumable-uploads does not depend on fix-upload-timeout",
+		},
+	})
+}
+
+// wantScenarioCount is how many scenarios a run runs.
+const wantScenarioCount = 12
+
+func TestScenarios_HaveTwelveUniqueIDs(t *testing.T) {
+	seen := map[string]bool{}
+	for _, task := range scenarios() {
+		if seen[task.id] {
+			t.Errorf("scenario id %q is used twice", task.id)
+		}
+		seen[task.id] = true
+	}
+
+	if len(seen) != wantScenarioCount {
+		t.Errorf("%d unique scenario ids, want %d", len(seen), wantScenarioCount)
+	}
+}
+
+func TestAddNoteScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "add-note", []scenarioCase{
+		{
+			name: "adds a Note below testing",
+			script: [][]string{
+				{"know", "add", "--id", "test-memory-limit", "--title", "Tests run with a memory limit", "--parent", "testing"},
+				{"know", "update", "test-memory-limit", "--body-append", "Run the tests with GOMEMLIMIT=2GiB."},
+			},
+		},
+		{name: "adds nothing", wantWhy: "no Note below testing holds GOMEMLIMIT=2GiB"},
+		{
+			name: "adds it at the top level",
+			script: [][]string{
+				{"know", "add", "--id", "test-memory-limit", "--title", "Tests run with a memory limit"},
+				{"know", "update", "test-memory-limit", "--body-append", "Run the tests with GOMEMLIMIT=2GiB."},
+			},
+			wantWhy: "no Note below testing",
+		},
+		{
+			name:    "appends it to testing itself",
+			script:  [][]string{{"know", "update", "testing", "--body-append", "Run the tests with GOMEMLIMIT=2GiB."}},
+			wantWhy: "no Note below testing",
+		},
+		{
+			name: "adds a Note below testing without the fact",
+			script: [][]string{
+				{"know", "add", "--id", "test-memory-limit", "--title", "Tests run with a memory limit", "--parent", "testing"},
+			},
+			wantWhy: "no Note below testing",
+		},
+	})
+}
+
+func TestReopenWithReasonScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	runScenarioCases(t, "reopen-with-reason", []scenarioCase{
+		{
+			name:   "reopens it with a reason",
+			script: [][]string{{"reopen", "login-bug", "--reason", "Closed by mistake: the bug still reproduces"}},
+		},
+		{name: "does nothing", wantWhy: "login-bug is still closed"},
+		{
+			name:    "logs why without reopening",
+			script:  [][]string{{"log", "login-bug", "The bug still reproduces"}},
+			wantWhy: "login-bug is still closed",
+		},
+	})
+}
+
+func TestReopenWithReasonScenario_AnOpenIssueWithoutALogEntryFails(t *testing.T) {
+	_, seeded, _ := seedScenario(t, t.TempDir(), "reopen-with-reason")
+	path := filepath.Join(seeded.repo, ".capcom", "issues", "login-bug.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read login-bug: %v", err)
+	}
+	var reopened strings.Builder
+	for line := range strings.Lines(string(data)) {
+		switch {
+		case strings.HasPrefix(line, "status:"):
+			reopened.WriteString("status: open\n")
+		case strings.HasPrefix(line, "closed:"), strings.HasPrefix(line, "reason:"):
+		default:
+			reopened.WriteString(line)
+		}
+	}
+	if err := os.WriteFile(path, []byte(reopened.String()), 0o600); err != nil {
+		t.Fatalf("write login-bug: %v", err)
+	}
+
+	verdict := checkReopenWithReason(seeded.repo, nil)
+
+	assertVerdict(t, verdict, "login-bug has no Log entry")
+}
+
+// closeChildrenOpenChildren are the children of v2-migration close-children's seed leaves open.
+var closeChildrenOpenChildren = []string{"v2-auth-endpoints", "v2-orders-endpoints", "v2-client-sdk"}
+
+func TestCloseChildrenScenario_JudgesWhatTheAgentLeft(t *testing.T) {
+	closeAll := append(append([]string{"close"}, closeChildrenOpenChildren...), "--reason", "Shipped with v2")
+	runScenarioCases(t, "close-children", []scenarioCase{
+		{name: "closes the open children", script: [][]string{{"list", "--tree"}, closeAll}},
+		{name: "does nothing", wantWhy: "v2-auth-endpoints is not closed"},
+		{
+			name:    "leaves one child open",
+			script:  [][]string{{"close", "v2-auth-endpoints", "v2-orders-endpoints", "--reason", "Shipped with v2"}},
+			wantWhy: "v2-client-sdk is not closed",
+		},
+		{
+			name: "closes the grouping issue too",
+			script: [][]string{
+				closeAll,
+				{"update", "v2-migration", "--no-standing"},
+				{"close", "v2-migration", "--reason", "All done"},
+			},
+			wantWhy: "v2-migration, the grouping issue, was closed",
+		},
+		{
+			name:    "clears the standing mark",
+			script:  [][]string{closeAll, {"update", "v2-migration", "--no-standing"}},
+			wantWhy: "v2-migration is no longer standing",
 		},
 	})
 }
