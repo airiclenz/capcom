@@ -41,6 +41,7 @@ func newRootCommand() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.AddCommand(newRunCommand())
+	root.AddCommand(newAgentCommand())
 	return root
 }
 

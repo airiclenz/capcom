@@ -168,7 +168,10 @@ NOTES (2026-10-29): tests added beyond the item's list: add-note at the top leve
 **Commit:** `feat(agenteval): add Knowledge, reopen and child-closing scenarios`
 Depends on item 5.
 
-## 7. The built-in agent loop for OpenAI-compatible endpoints
+## 7. The built-in agent loop for OpenAI-compatible endpoints — ✅ DONE (2026-10-29)
+
+NOTES (2026-10-29): the shell argv and the process-group kill live in two build-tagged files beside agent.go, agent_unix.go (`//go:build unix`: sh -c, Setpgid, Cancel kills the group) and agent_other.go (`//go:build !unix`: cmd /C, default kill), because syscall.SysProcAttr.Setpgid and syscall.Kill do not compile on Windows; both are listed in the doc.go file map.
+NOTES (2026-10-29): when the last of --max-turns replies still calls tools, those calls are run before the loop stops with exit 1; the output-cut line and the timeout line are appended to the tool result so the model sees both.
 
 **What:**
 **Goal:** `agenteval agent --base-url <url> --model <name> [--api-key-env OPENAI_API_KEY] [--max-turns 50]` reads the prompt on stdin, posts to `<base-url>/chat/completions` with one function tool `shell` (`{"command": string}`), runs each call in the working directory, returns its combined output (cut to 16 KiB, with the exit code) as the tool result, and stops on a reply with no tool calls or at `--max-turns` (exit 1, saying so). Every turn is printed to stdout, so it is the transcript. The system message is a fixed short brief plus `AGENTS.md` from the working directory when present.

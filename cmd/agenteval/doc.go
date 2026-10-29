@@ -19,6 +19,16 @@
 // Each call log line reads {"args":[…],"exit":n,"ms":n}: the arguments, the exit code and the
 // wall time in milliseconds.
 //
+//	agenteval agent --base-url <url> --model <name> [--api-key-env OPENAI_API_KEY] [--max-turns 50]
+//
+// agent is a minimal agent loop for a model served behind an OpenAI-compatible endpoint, meant
+// as the agent command of a run. It reads the prompt on stdin, posts to <base-url>/chat/completions
+// with one tool, shell, runs each command the model asks for in the working directory (killed at
+// 2 minutes; output cut to 16 KiB, with the exit code) and returns the output as the tool result.
+// It prints every turn to stdout, which makes that the transcript, and stops on a reply with no
+// tool call (exit 0) or after --max-turns replies (exit 1). The system message is a short brief
+// plus the working directory's AGENTS.md when there is one.
+//
 // It is a dev tool, never a release asset: dist does not ship it. Unlike cmd/release it may
 // import capcom's internal packages, so it reads store files with capcom's own parsers.
 //
@@ -27,6 +37,9 @@
 // Every non-test file of the package, with its responsibility. TestDocFileMap_MatchesDirectory
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
+//   - `agent.go` — the agent verb: a minimal chat completions loop with one shell tool
+//   - `agent_other.go` — the agent's shell and command kill outside Unix: cmd /C, the shell alone
+//   - `agent_unix.go` — the agent's shell and command kill on Unix: sh -c, the whole process group
 //   - `doc.go` — the package comment and this file map
 //   - `main.go` — main, the shim-or-command dispatch, the root command and the exit codes
 //   - `report.go` — renders a run's task results as the markdown report
