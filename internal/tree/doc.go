@@ -18,7 +18,8 @@
 //   - `ids.go` — ValidateID, ValidateAlias, CheckAliases and RenameAliases: what an id or alias may be
 //   - `membership.go` — DecideMembership: the pure membership function over per-file facts
 //   - `move.go` — PlanMove: renames a node or moves it below another, with its reference rewrites
-//   - `plan.go` — Plan: the steps, rewrites and cleanups of a move or removal, applied with undo
+//   - `plan.go` — Plan: the steps, rewrites, creates and cleanups of a move, a removal or a staged
+//     batch, applied with undo
 //   - `remove.go` — PlanRemove: removes a node that has no children
 //   - `resolve.go` — Lookup and Resolve: an argument to its node by id, alias or id prefix
 //   - `tree.go` — Tree, Node, Load, LoadContent, LoadContentFS and the accessors, and PathFor

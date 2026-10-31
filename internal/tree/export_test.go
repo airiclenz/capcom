@@ -1,6 +1,7 @@
 package tree
 
 import (
+	"io"
 	"io/fs"
 	"testing"
 
@@ -51,4 +52,10 @@ func SetReadDir(t *testing.T, fn func(dir string) ([]fs.DirEntry, error)) {
 	saved := readDir
 	readDir = fn
 	t.Cleanup(func() { readDir = saved })
+}
+
+// SetPlanCreate replaces the write a Plan creates its AddCreate files with, so a test can inject a
+// failure.
+func SetPlanCreate(plan *Plan, create func(path string, content io.Reader) error) {
+	plan.create = create
 }

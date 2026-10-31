@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -22,8 +24,9 @@ const (
 
 // Plan is a set of changes on disk worked out before any of them is made, then carried out by
 // Apply as one: every step either lands or is taken back. Apply runs the rewrites (AddRewrite)
-// first, then the other steps (AddStep) in the order added, and once all of them have landed the
-// cleanups (AddCleanup), which are best-effort. The zero Plan is empty and ready to use.
+// first, then the other steps (AddStep and AddCreate) in the order added, and once all of them
+// have landed the cleanups (AddCleanup), which are best-effort. The zero Plan is empty and ready to
+// use.
 type Plan struct {
 	rewrites []step
 	steps    []step
@@ -34,6 +37,9 @@ type Plan struct {
 	// remove removes a file or an empty directory, os.Remove when nil; tests swap it to inject a
 	// failure.
 	remove func(path string) error
+	// create creates a file that must not exist yet, nodefile.WriteFileExclusive when nil; tests
+	// swap it to inject a failure.
+	create func(path string, content io.Reader) error
 }
 
 // step is one change a Plan makes on disk and the change that takes it back.
@@ -98,6 +104,82 @@ func checkUnchanged(path string, expected []byte) error {
 		return &fs.PathError{Op: rewriteOp, Path: path, Err: ErrChanged}
 	}
 	return nil
+}
+
+// AddCreate adds a file the plan creates at path holding content, with the directories above it
+// that are missing. Apply creates it as one of the other steps, in the order added, through
+// nodefile.WriteFileExclusive: CRLF line endings become LF, the file gets mode 0644, and a file
+// already at path, however late it appeared, fails Apply with an error naming it that wraps
+// fs.ErrExist and is left as it is. Just before the write, Apply records with Lstat each
+// directory between path and its nearest existing ancestor; when the write fails it removes those
+// of them that exist by then, deepest first, so a write failing after its mkdir leaves no new
+// directory behind. Taking the create back removes the file, then the directories it made,
+// deepest first, and only over a file that still holds the bytes the create wrote; a file changed
+// since is left as it is, with its directories, and named as a failure to take the create back,
+// which does not wrap ErrChanged.
+func (p *Plan) AddCreate(path string, content []byte) {
+	written := bytes.ReplaceAll(content, []byte(crlf), []byte(lf))
+	var madeDirs []string
+	p.steps = append(p.steps, step{
+		apply: func() error {
+			missing, err := missingDirs(filepath.Dir(path))
+			if err != nil {
+				return err
+			}
+			if err := p.doCreate(path, content); err != nil {
+				return joinNonNil(err, p.removeMadeDirs(missing))
+			}
+			madeDirs = missing
+			return nil
+		},
+		undo: func() error {
+			if err := checkUnchanged(path, written); err != nil {
+				if errors.Is(err, ErrChanged) {
+					return fmt.Errorf("%s: changed since it was created; left as it is", path)
+				}
+				return err
+			}
+			if err := p.doRemove(path); err != nil {
+				return err
+			}
+			return p.removeMadeDirs(madeDirs)
+		},
+	})
+}
+
+// missingDirs returns dir and each of its ancestors that Lstat finds missing, up to the nearest
+// one that exists, deepest first. A Lstat failing for any other reason is returned as it is.
+func missingDirs(dir string) ([]string, error) {
+	var missing []string
+	for current := dir; ; current = filepath.Dir(current) {
+		_, err := os.Lstat(current)
+		if err == nil {
+			return missing, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+		missing = append(missing, current)
+		if filepath.Dir(current) == current {
+			return missing, nil
+		}
+	}
+}
+
+// removeMadeDirs removes, in the order given, each of dirs that exists, through the plan's remove,
+// and returns every failure joined. A directory already gone is skipped: a write that failed
+// before its mkdir made none of them.
+func (p *Plan) removeMadeDirs(dirs []string) error {
+	var failures []error
+	for _, dir := range dirs {
+		if _, err := os.Lstat(dir); errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err := p.doRemove(dir); err != nil {
+			failures = append(failures, err)
+		}
+	}
+	return errors.Join(failures...)
 }
 
 // AddCleanup adds a best-effort change Apply makes once every step has landed. A cleanup is never
@@ -190,6 +272,15 @@ func (p *Plan) doRename(oldPath string, newPath string) error {
 		return os.Rename(oldPath, newPath)
 	}
 	return p.rename(oldPath, newPath)
+}
+
+// doCreate creates the file path holding content with the plan's create, nodefile.WriteFileExclusive
+// unless a test swapped it.
+func (p *Plan) doCreate(path string, content []byte) error {
+	if p.create == nil {
+		return nodefile.WriteFileExclusive(path, bytes.NewReader(content))
+	}
+	return p.create(path, bytes.NewReader(content))
 }
 
 // doRemove removes path with the plan's remove, os.Remove unless a test swapped it.

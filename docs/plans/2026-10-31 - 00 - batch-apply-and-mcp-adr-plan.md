@@ -191,7 +191,13 @@ internal/index/index_test.go — newStore, writeIssue, openIndex, refresh; inter
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/ ./internal/ops/`
 **Commit:** `refactor(ops): resolve through a Catalog interface`
 
-## 7. The staging overlay and its commit plan
+## 7. The staging overlay and its commit plan — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): consequential edit — internal/tree/export_test.go: made necessary by the new Plan.create seam (SetPlanCreate), which the test of a write failing after its mkdir injects through
+NOTES (2026-10-31): consequential edit — internal/tree/doc.go: made necessary by adding AddCreate to plan.go (the file map names plan.go's contents)
+NOTES (2026-10-31): Overlay.Plan returns *tree.Plan with no error: RaiseFormat computes and keeps the raised config.yaml bytes when it stages the raise, so Plan has nothing left to fail on. The config.yaml raise is an AddStep (verbatim rewrite with its own unchanged check, or AddCreate when missing) placed first among the steps; tree.Plan still runs every AddRewrite before it, as Apply always orders rewrites first.
+NOTES (2026-10-31): stage.New takes *store.Store (config path and its worktree-relative name); OriginalETag returns (string, error), failing with fs.ErrNotExist for a file only a staged create made, so item 10 can refuse if-match on an issue created in the batch.
+NOTES (2026-10-31): RaiseFormat reports false for a version at or below one already staged, as store.RaiseFormat would after the first raise landed; a staged read over 1 MiB is refused with ErrTooLarge, as the disk read would refuse it.
 
 **What:**
 **Goal:** `internal/stage.Overlay` implements `nodefile.FS` over the disk with every write in memory; `Overlay.Plan()` returns one `tree.Plan` applying all staged writes or none; `tree.Plan.AddCreate` creates a file and its missing directories and undoes both.
