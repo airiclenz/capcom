@@ -67,12 +67,13 @@ const loopOpening = "- `capcom next`: the most urgent ready issue, in full\n" +
 const claimLine = "- `capcom start <id>`: claim it and take the Tree lock before you start\n"
 
 // loopClosing is the command list after the claim line: the rest of the work loop, then the other
-// commands, then where their flags are.
+// commands, capcom apply beside capcom create, then where their flags are.
 const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" +
 	"- `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready\n" +
 	"- `capcom finish <id> --reason <text>`: close it and free the Tree lock; it names the issue to work on next\n" +
 	"- `capcom reopen <id> --reason <text>`: undo a close\n" +
 	"- `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue\n" +
+	"- `capcom apply <file>`: file a linked set of issues in one call, all or none\n" +
 	"- `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides\n" +
 	"- `capcom list --tree --depth 2`: the outline of the issues\n" +
 	"- `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>` reads a Note\n" +

@@ -327,7 +327,10 @@ internal/clidoc/reference_test.go — TestReferenceUpToDate; docs/site/index.md 
 - `grep -q '^sidebar:' docs/site/reference/apply-file.md`
 **Commit:** `docs(reference): document apply files and the apply output kind`
 
-## 13. Advertise apply in the agent guide
+## 13. Advertise apply in the agent guide — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): block_test.go also keeps the previous rendering as `preApplyBlock` and asserts it is stale in TestInspect_States, as 3f3e68d did with `preContextBlock`.
+NOTES (2026-10-31): AGENTS.md refreshed with `go run ./cmd/capcom agents` (the installed 0.12.1 renders the old block); `go run ./cmd/capcom check` passes.
 
 **What:**
 **Goal:** The Managed block capcom writes into agent guides lists `capcom apply <file>: file a linked set of issues in one call, all or none`, and this repo's `AGENTS.md` carries the refreshed block.

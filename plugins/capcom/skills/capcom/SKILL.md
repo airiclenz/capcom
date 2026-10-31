@@ -50,6 +50,8 @@ This plugin runs `capcom prime` at session start and before compaction in any re
   names the Issues this made Ready and the one to work on next.
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file new work. The body says what is
   wrong or wanted, why, and how to tell it is done, under `## Acceptance`.
+- `capcom apply <file>`: file a linked set of Issues in one call, all or none; `--dry-run` shows
+  the outcome without writing it.
 - `capcom know tree`, then `capcom know show <id>`: read project Knowledge before starting.
 
 When `capcom start --help` fails, the binary predates these two commands: claim with

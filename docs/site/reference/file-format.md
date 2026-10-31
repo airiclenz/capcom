@@ -923,7 +923,7 @@ an install pointer for an agent without a `capcom` binary (capcom's source and t
 install instructions, https://github.com/airiclenz/capcom#install), the commands an agent needs,
 the work loop first in the order it runs (`next`, `ready`, `show`, `start` to claim an issue and
 take the Tree lock, `log`, `close`, `finish` to close it and free the lock, `reopen`), then
-`create` with `--dep`, `dep add` and `dep list`, `list --tree --depth 2` and `know tree`, followed by one line pointing to `capcom <cmd> --help` for
+`create` with `--dep`, `apply` to file a linked set of issues all or none, `dep add` and `dep list`, `list --tree --depth 2` and `know tree`, followed by one line pointing to `capcom <cmd> --help` for
 each command's flags, a paragraph on what an issue's body holds (what is wrong
 or wanted, why, and an `## Acceptance` section, readable on its own; the how and the order belong
 in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its children in the
