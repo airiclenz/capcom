@@ -53,6 +53,9 @@ var errNotDirectory = errors.New("not a directory")
 // stands in for store.Store.RaiseFormat and writes nothing either. Plan returns the tree.Plan that
 // makes every staged write on disk at once. An Overlay is not safe for concurrent use.
 type Overlay struct {
+	// store is the store whose files the Overlay stages: its Catalog reads the issue tree's
+	// directory, working tree root and config from it.
+	store *store.Store
 	// configPath is the store's config.yaml; configName names it relative to the working tree
 	// root, as store.Store names it in its errors.
 	configPath string
@@ -94,6 +97,7 @@ func New(s *store.Store) *Overlay {
 	configPath := s.ConfigPath()
 	configName, _ := store.RelativePath(s.WorktreeRoot, configPath)
 	return &Overlay{
+		store:      s,
 		configPath: configPath,
 		configName: configName,
 		files:      map[string]*stagedFile{},

@@ -213,7 +213,11 @@ internal/store/store.go — RaiseFormat; internal/config/format.go — RaiseForm
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/stage/ ./internal/tree/`
 **Commit:** `feat(stage): stage node writes in memory and commit them as one plan`
 
-## 8. Staged ops: a Catalog that sees staged issues
+## 8. Staged ops: a Catalog that sees staged issues — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): internal/stage/overlay.go gains a `store *store.Store` field, set in stage.New from the store it already takes: Overlay.Catalog(x) needs the issue tree's directory, the working tree root (RelativePath) and the config (IssueReader, EntryOf), and its Goal signature passes only the index.
+NOTES (2026-10-31): Catalog.Resolve also adds staged creates to the candidates of an index *tree.AmbiguousError (same error type, fuller candidate list); a staged file that does not decode as usable resolves as a *tree.UnusableError and is left out of List. List queries the index without Limit, applies the Filter to staged entries in Go (every Filter field, not only IsClosedIncluded), then caps at Limit.
+NOTES (2026-10-31): a name that only an alias a staged edit removed still resolves through the index to that issue; no op of the apply set removes aliases, so it is left as is.
 
 **What:** Recast at the regression check (2026-10-31).
 **Goal:** `ops.Staged(s, fsys, raise, c)`, `c` from `Overlay.Catalog(x)`, returns an `*Ops` writing into the overlay and resolving issues created or edited earlier in the stage, so ops behave as on disk with nothing written until `Plan().Apply()`.

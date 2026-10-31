@@ -81,6 +81,14 @@ func New(s *store.Store, x Catalog) *Ops {
 	return &Ops{store: s, catalog: x, fsys: nodefile.Disk{}, raise: s.RaiseFormat}
 }
 
+// Staged returns the writes on the issues of s that read and write the issue tree through fsys,
+// raise the store format through raise and resolve references through c: over a staging overlay
+// (stage.Overlay), with c its Catalog, every write lands in the overlay and nothing reaches the
+// disk until the overlay's plan is applied.
+func Staged(s *store.Store, fsys nodefile.FS, raise func(version int) (bool, error), c Catalog) *Ops {
+	return &Ops{store: s, catalog: c, fsys: fsys, raise: raise}
+}
+
 // issues returns the node store of the issue tree every write goes through: it resolves references
 // through the Ops's Catalog, reads and writes through its FS and raises the format through its
 // raise.
