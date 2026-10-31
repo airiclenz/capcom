@@ -234,7 +234,14 @@ internal/cli/create.go — resolveDeps
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/stage/ ./internal/ops/`
 **Commit:** `feat(ops): run writes against a staged overlay`
 
-## 9. The apply file format and its parser
+## 9. The apply file format and its parser — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): Op carries ops.NewIssue (create, Created left zero for the runner; Body set only for a non-empty body, as capcom create does) and ops.IssueUpdate (update), so item 10 hands them to ops unchanged; `no-standing: false` alone passes the changing-key check and leaves Update empty, as capcom update does.
+NOTES (2026-10-31): batch.Error mirrors frontmatter.Error (Name, Line, Position, Message; Error() renders `name:line: message`) so item 11 can word it as an output.Error with Path and Line; Parse itself maps the name `-` to `stdin`.
+NOTES (2026-10-31): a null scalar on a string key reads as "" (so `plan: ~` clears like `plan: ""`) rather than its literal text; every other scalar keeps its text whatever its tag, as specified.
+NOTES (2026-10-31): comma-split keys (label, dep, add-label, remove-label) split every list item too, each item standing for one flag repetition as pflag's StringSlice splits each, and trim white space around each value; an empty scalar gives no values, as pflag's empty value does.
+NOTES (2026-10-31): a missing or unknown op is worded `operation <n>: ...` without `(<op>)`, since there is no known op to name; file-level refusals (empty file, not a list, YAML syntax, a second document) carry Position 0; a missing required key, an update with no changing key and uneven body-replace pairs are refused at the operation's line.
+NOTES (2026-10-31): parse.go is ~610 lines, past the ~400-line guideline, kept in the one file the item's Files line names; its yamlError repeats the line-lifting helper userconfig and frontmatter each keep privately (pre-existing duplication, not folded here).
 
 **What:** Recast at the regression check (2026-10-31).
 **Goal:** `internal/batch.Parse(name string, data []byte) ([]Op, error)` turns an apply file into typed operations with their position and line, and refuses an invalid file naming the operation's position and line.
