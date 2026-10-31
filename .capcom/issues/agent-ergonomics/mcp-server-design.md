@@ -1,11 +1,13 @@
 ---
 title: Decide whether capcom serves its operations over MCP
-status: open
+status: done
 type: task
 priority: 3
 deps: [agent-eval-harness]
 plan: 2026-10-31 - 00 - batch-apply-and-mcp-adr-plan
 created: 2026-10-19T14:54:45Z
+closed: 2026-10-31T21:39:45Z
+reason: "Resolved by plan 2026-10-31 - 00 - batch-apply-and-mcp-adr-plan (archived in 5de8ca7), item 1: ADR 0018 (Proposed) recommends no capcom mcp now; Note tree under decisions"
 ---
 
 Agents drive capcom through shell commands and flags. A Model Context Protocol server

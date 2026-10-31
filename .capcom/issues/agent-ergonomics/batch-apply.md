@@ -1,10 +1,12 @@
 ---
 title: Filing a linked set of issues takes one call per issue and edge
-status: open
+status: done
 type: feature
 priority: 3
 plan: 2026-10-31 - 00 - batch-apply-and-mcp-adr-plan
 created: 2026-10-19T14:54:45Z
+closed: 2026-10-31T21:39:45Z
+reason: "Resolved by plan 2026-10-31 - 00 - batch-apply-and-mcp-adr-plan (archived in 5de8ca7): capcom apply with --dry-run, all-or-none, documented in docs/site/reference/apply-file.md"
 ---
 
 Turning a plan into Issues takes one `create` per Issue and one `dep add` per edge. A frontier
