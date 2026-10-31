@@ -14,6 +14,17 @@ import (
 // readDir lists a directory for the walk; a test swaps it to change the tree mid-walk.
 var readDir = os.ReadDir
 
+// diskFS is nodefile.Disk with its directory listing read through readDir: the FS of every entry
+// point that reads the disk, so a test that swaps readDir reaches them all.
+type diskFS struct {
+	nodefile.Disk
+}
+
+// ReadDir lists dir through readDir.
+func (diskFS) ReadDir(dir string) ([]fs.DirEntry, error) {
+	return readDir(dir)
+}
+
 // Walk lists the node files of the tree stored in dir: the one directory walk of ADR 0001, which
 // Load and the index both build on. A missing dir walks as an empty tree. Names starting with a dot
 // and files not ending in .md are skipped. Each Node's Path is joined onto dir and its Aliases are
@@ -29,18 +40,24 @@ var readDir = os.ReadDir
 // gone: its os error comes back unchanged, with no nodes and no problems. A child directory gone
 // since its parent was read walks as empty.
 func Walk(dir string) ([]Node, Errors, error) {
-	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+	return walkTree(diskFS{}, dir)
+}
+
+// walkTree is Walk reading dir through fsys.
+func walkTree(fsys nodefile.FS, dir string) ([]Node, Errors, error) {
+	if _, err := fsys.Stat(dir); errors.Is(err, fs.ErrNotExist) {
 		return nil, nil, nil
 	}
-	var walker treeWalker
+	walker := treeWalker{fsys: fsys}
 	if err := walker.walk(dir, rootParentID); err != nil {
 		return nil, nil, err
 	}
 	return walker.nodes, walker.problems, nil
 }
 
-// treeWalker collects the nodes and the problems of one Walk.
+// treeWalker collects the nodes and the problems of one Walk, reading through fsys.
 type treeWalker struct {
+	fsys     nodefile.FS
 	nodes    []Node
 	problems Errors
 }
@@ -51,7 +68,7 @@ type treeWalker struct {
 // directory gone since its parent was read walks as empty; any other failure to read dir is
 // returned unchanged.
 func (w *treeWalker) walk(dir string, parentID string) error {
-	entries, err := readDir(dir)
+	entries, err := w.fsys.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) && parentID != rootParentID {
 		return nil
 	}

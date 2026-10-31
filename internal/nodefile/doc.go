@@ -5,6 +5,7 @@
 // ReplaceFileVerbatim and WriteFileExclusive) stream into a temp file beside the target and rename
 // or hard-link it into place, so readers see either the old file or the whole new one. ETag hashes
 // a file's content into the entity tag a write compares to detect that the file changed since it
-// was read. The package imports nothing from internal/, so every package that reads or writes a
+// was read. FS is the file system the node tree is read and written through, and Disk is the real
+// one. The package imports nothing from internal/, so every package that reads or writes a
 // file in the working tree can import it.
 package nodefile

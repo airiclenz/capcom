@@ -125,7 +125,12 @@ internal/cli/know_update_test.go — TestKnowUpdate_RepeatedBodyEdits_AreRefused
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/`
 **Commit:** `refactor(ops): move issue update out of the CLI`
 
-## 4. A file-system seam in nodefile, threaded through tree
+## 4. A file-system seam in nodefile, threaded through tree — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): leftOutFileOf takes no fsys: it keeps reading the size from entry.Info(), the DirEntry the FS's own ReadDir returned, so the Disk path stays byte-for-byte unchanged on every platform (Windows serves Info from the directory read, not a fresh Lstat); an overlay FS supplies its sizes through the DirEntries it lists.
+NOTES (2026-10-31): Tree keeps the FS it was loaded with, so Claimant's orphan-directory listing (findOrphanFile) reads through the same FS as the load; Load and the exported Disk wrappers (Walk, ClaimOnlyFacts, ListOrphanFiles, RepeatedIDDirProblems) pass a tree-local diskFS whose ReadDir calls the readDir var, so SetReadDir still reaches them.
+NOTES (2026-10-31): consequential edit — internal/tree/doc.go: made necessary by adding LoadContentFS to tree.go and diskFS to walk.go (the file map names each file's contents)
+NOTES (2026-10-31): consequential edit — internal/nodefile/doc.go: made necessary by adding FS and Disk to the package (the package comment lists what it provides)
 
 **What:**
 **Goal:** `nodefile.FS` (Stat, Lstat, ReadDir, ReadRegularFile, ReplaceFile, CreateFile) with a `nodefile.Disk` implementation, and every `tree` load path reads through a given `FS`; behaviour unchanged.

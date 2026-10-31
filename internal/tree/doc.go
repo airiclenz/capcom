@@ -21,6 +21,7 @@
 //   - `plan.go` — Plan: the steps, rewrites and cleanups of a move or removal, applied with undo
 //   - `remove.go` — PlanRemove: removes a node that has no children
 //   - `resolve.go` — Lookup and Resolve: an argument to its node by id, alias or id prefix
-//   - `tree.go` — Tree, Node, Load, LoadContent and the accessors, and PathFor
-//   - `walk.go` — Walk: the one directory walk of ADR 0001 and the entries it leaves out
+//   - `tree.go` — Tree, Node, Load, LoadContent, LoadContentFS and the accessors, and PathFor
+//   - `walk.go` — Walk: the one directory walk of ADR 0001 and the entries it leaves out, and the
+//     Disk-backed FS the exported entry points read through
 package tree

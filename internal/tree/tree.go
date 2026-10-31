@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
 // nodeExtension is the file extension of every node file.
@@ -53,7 +55,9 @@ type Node struct {
 
 // Tree is one loaded store directory. It is a snapshot: later changes on disk are not seen.
 type Tree struct {
-	dir      string
+	dir string
+	// fsys is the FS Load read the tree through; Claimant lists the orphan directories through it.
+	fsys     nodefile.FS
 	nodes    []Node
 	byID     map[string]int
 	byAlias  map[string]int
@@ -115,7 +119,7 @@ func Load(dir string, noun string, aliases AliasFunc) (*Tree, error) {
 			return Content{Aliases: names, Parse: ParsedFile, IsUsable: true}, err
 		}
 	}
-	return load(dir, noun, content, aliases)
+	return load(diskFS{}, dir, noun, content, aliases)
 }
 
 // LoadContent reads the tree stored in dir as Load does, reading every node file with content
@@ -124,11 +128,18 @@ func Load(dir string, noun string, aliases AliasFunc) (*Tree, error) {
 // claims, its recovered aliases included, as an unusable claim, except the exact id of a node whose
 // file does not parse. Nodes, ChildrenOf and LeftOut are as Load gives them.
 func LoadContent(dir string, noun string, content ContentFunc) (*Tree, error) {
+	return LoadContentFS(diskFS{}, dir, noun, content)
+}
+
+// LoadContentFS is LoadContent reading the tree through fsys: every directory listing, Stat and
+// Lstat of the load goes through it, and so does Claimant's listing of the orphan directories
+// later. content reads the node files itself, so it should read through fsys too.
+func LoadContentFS(fsys nodefile.FS, dir string, noun string, content ContentFunc) (*Tree, error) {
 	var aliases AliasFunc
 	if content != nil {
 		aliases = parsedAliases(content)
 	}
-	return load(dir, noun, content, aliases)
+	return load(fsys, dir, noun, content, aliases)
 }
 
 // parsedAliases returns the AliasFunc of content: the Aliases of a file that parses, none for any
@@ -143,17 +154,24 @@ func parsedAliases(content ContentFunc) AliasFunc {
 	}
 }
 
-// load is Load and LoadContent: noun names one node of the kind in a message, content reads every
-// node file, nil reading none, and aliases is the AliasFunc the tree keeps for Claimant.
-func load(dir string, noun string, content ContentFunc, aliases AliasFunc) (*Tree, error) {
-	nodes, problems, err := Walk(dir)
+// load is Load and LoadContentFS, reading the tree through fsys: noun names one node of the kind in
+// a message, content reads every node file, nil reading none, and aliases is the AliasFunc the tree
+// keeps for Claimant.
+func load(
+	fsys nodefile.FS,
+	dir string,
+	noun string,
+	content ContentFunc,
+	aliases AliasFunc,
+) (*Tree, error) {
+	nodes, problems, err := walkTree(fsys, dir)
 	if err != nil {
 		return nil, err
 	}
 	facts, rejected, failures := readContentFacts(nodes, noun, content)
-	facts = append(facts, ClaimOnlyFacts(problems, noun, content)...)
+	facts = append(facts, claimOnlyFacts(fsys, problems, noun, content)...)
 	membership := DecideMembership(facts)
-	dirProblems, err := RepeatedIDDirProblems(membership.RepeatedIDDirs)
+	dirProblems, err := repeatedIDDirProblems(fsys, membership.RepeatedIDDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -162,6 +180,7 @@ func load(dir string, noun string, content ContentFunc, aliases AliasFunc) (*Tre
 	}
 
 	tree := newTree(dir, aliases, nodes, facts, membership)
+	tree.fsys = fsys
 	// Appended in this order, a file's repeated id comes before its rejected aliases, and those
 	// before its alias conflicts, once the problems are sorted by path.
 	problems = append(problems, conflictErrors(membership.IDConflicts)...)

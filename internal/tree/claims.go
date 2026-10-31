@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -94,6 +93,11 @@ func readContentFacts(
 // node of the kind, as CheckAliases takes it. Each fact's Key is the file's path as problems name
 // it, and its Origin is ClaimOnlyOrigin. tree.Load and the index refresh both build through it.
 func ClaimOnlyFacts(problems Errors, noun string, content ContentFunc) []FileFact {
+	return claimOnlyFacts(diskFS{}, problems, noun, content)
+}
+
+// claimOnlyFacts is ClaimOnlyFacts listing the orphan directories through fsys.
+func claimOnlyFacts(fsys nodefile.FS, problems Errors, noun string, content ContentFunc) []FileFact {
 	var facts []FileFact
 	for _, problem := range problems {
 		isUnread := errors.Is(problem, ErrNotRegular) || errors.Is(problem, ErrTooLarge)
@@ -102,7 +106,7 @@ func ClaimOnlyFacts(problems Errors, noun string, content ContentFunc) []FileFac
 		}
 	}
 	for _, dir := range outermostOrphanDirs(problems) {
-		files, _ := ListOrphanFiles(dir)
+		files, _ := listOrphanFiles(fsys, dir)
 		for _, file := range files {
 			fact, isNodeFile := claimOnlyFact(file.Path)
 			if !isNodeFile {
@@ -181,9 +185,14 @@ func DuplicateAliasError(path, other, alias string, isOtherAlias bool) *Error {
 // gone, or is no directory, is no problem; any other failed Lstat is returned unchanged, an
 // *fs.PathError naming the dir. Load and the index refresh both Lstat through it.
 func RepeatedIDDirProblems(dirs []RepeatedIDDir) (Errors, error) {
+	return repeatedIDDirProblems(diskFS{}, dirs)
+}
+
+// repeatedIDDirProblems is RepeatedIDDirProblems with every Lstat through fsys.
+func repeatedIDDirProblems(fsys nodefile.FS, dirs []RepeatedIDDir) (Errors, error) {
 	var problems Errors
 	for _, dir := range dirs {
-		info, err := os.Lstat(dir.Path)
+		info, err := fsys.Lstat(dir.Path)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -298,16 +307,16 @@ func (t *Tree) orphanClaim(name string, except string) (Claim, bool, error) {
 	return claim, true, nil
 }
 
-// findOrphanFile returns the first file ListOrphanFiles lists below one of the tree's orphan
-// directories, other than except, that matches, and the orphan directory it lies under, or "" for
-// both when none does. The first failure ListOrphanFiles reports for a directory is returned
+// findOrphanFile returns the first file ListOrphanFiles lists, through the FS the tree was loaded
+// with, below one of the tree's orphan directories, other than except, that matches, and the
+// orphan directory it lies under, or "" for both when none does. The first failure ListOrphanFiles reports for a directory is returned
 // unchanged.
 func (t *Tree) findOrphanFile(
 	except string,
 	matches func(file OrphanFile) (bool, error),
 ) (path string, dir string, err error) {
 	for _, dir := range t.orphanDirs {
-		files, failures := ListOrphanFiles(dir)
+		files, failures := listOrphanFiles(t.fsys, dir)
 		if len(failures) > 0 {
 			return "", "", failures[0]
 		}
@@ -465,13 +474,23 @@ type OrphanFile struct {
 // left out, its failure returned unchanged among failures, in listing order, and the listing goes
 // on: files holds every file listed beside it.
 func ListOrphanFiles(dir string) (files []OrphanFile, failures []error) {
-	return appendOrphanFiles(dir, nil, nil)
+	return listOrphanFiles(diskFS{}, dir)
 }
 
-// appendOrphanFiles appends the files ListOrphanFiles lists below dir to files, and the failures it
-// reports to failures, and returns both.
-func appendOrphanFiles(dir string, files []OrphanFile, failures []error) ([]OrphanFile, []error) {
-	entries, err := readDir(dir)
+// listOrphanFiles is ListOrphanFiles listing every directory through fsys.
+func listOrphanFiles(fsys nodefile.FS, dir string) (files []OrphanFile, failures []error) {
+	return appendOrphanFiles(fsys, dir, nil, nil)
+}
+
+// appendOrphanFiles appends the files ListOrphanFiles lists below dir, read through fsys, to files,
+// and the failures it reports to failures, and returns both.
+func appendOrphanFiles(
+	fsys nodefile.FS,
+	dir string,
+	files []OrphanFile,
+	failures []error,
+) ([]OrphanFile, []error) {
+	entries, err := fsys.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return files, failures
 	}
@@ -493,7 +512,7 @@ func appendOrphanFiles(dir string, files []OrphanFile, failures []error) ([]Orph
 		}
 	}
 	for _, child := range childDirs {
-		files, failures = appendOrphanFiles(child, files, failures)
+		files, failures = appendOrphanFiles(fsys, child, files, failures)
 	}
 	return files, failures
 }
