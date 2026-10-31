@@ -307,7 +307,9 @@ internal/clidoc/reference_test.go — TestReferenceUpToDate
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(cli): add capcom apply for all-or-none batches of issue writes`
 
-## 12. Document the apply file and the apply kind
+## 12. Document the apply file and the apply kind — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): the examples' output (text, `--json`, errors) was captured from a build of the current tree in a throwaway repository; the etags in them are that run's.
 
 **What:** Recast at the regression check (2026-10-31).
 **Goal:** `docs/site/reference/apply-file.md` documents the apply file format, `docs/site/reference/json-output.md` documents kind `apply`, and the generated CLI reference includes `capcom apply`.

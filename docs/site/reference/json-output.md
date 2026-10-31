@@ -25,7 +25,7 @@ $ capcom show session-refresh --json
 | Member | Always present | Value |
 | --- | --- | --- |
 | `schema` | yes | The envelope's version, currently `1`. |
-| `kind` | yes | What `data` holds: `issue`, `issue-write`, `close`, `ready`, `prime`, `context`, `recap`, `check`, `version`, ..., or `error`. |
+| `kind` | yes | What `data` holds: `issue`, `issue-write`, `close`, `apply`, `ready`, `prime`, `context`, `recap`, `check`, `version`, ..., or `error`. |
 | `match` | no | Only on kinds `search` and `know-search`: `all` when every hit holds every word searched for, `any` when no item held them all and the hits hold some of them. |
 | `data` | no | The command's result. Left out when a command fails before it has one. `null` when `capcom next` finds nothing Ready (kind `next`, exit code 4). |
 | `error` | no | Present only when the command failed; see Errors below. |
@@ -74,6 +74,26 @@ the Briefing: `ready_planned`, `ready_unplanned`, `doing`, `locks`, `worktree`, 
 `unshared_refs` and `check_problems`. A section whose source failed is left out, and the failure is
 one of the `warnings`. [The Briefing's JSON table](../agents/briefing.md#as-json) describes each
 member.
+
+### apply
+
+`capcom apply --json` gives kind `apply` with `data` an object: `dry_run` (`true` under
+`--dry-run`, when nothing was written), `ops`, one item per operation of the
+[apply file](apply-file.md) in file order, and `now_ready`, the Issues that existed before the batch, were
+not Ready then and are Ready after it, `[]` when there are none. An item of `ops` holds `index` (the operation's
+position in the file, from 1), `line` (the file line it starts on), `op` (`create`, `update`,
+`dep add`, `close` or `log`), `id` (the Issue it wrote), `outcome` (`created`, `updated`,
+`dep_added`, `closed` or `logged`) and `etag` (the etag the Issue's file has after the batch's
+writes up to that operation):
+
+```console
+$ capcom apply batch.yaml --json
+{"schema":1,"kind":"apply","data":{"dry_run":false,"ops":[{"index":1,"line":1,"op":"create","id":"session-store","outcome":"created","etag":"acdd12147295003d"},{"index":2,"line":8,"op":"create","id":"session-refresh","outcome":"created","etag":"c51ed8a203eaa527"},{"index":3,"line":15,"op":"create","id":"session-expiry","outcome":"created","etag":"7d6c3b739300d1cc"},{"index":4,"line":21,"op":"dep add","id":"login-flow","outcome":"dep_added","etag":"d94ebc775f8dcb76"},{"index":5,"line":24,"op":"close","id":"db-schema","outcome":"closed","etag":"0f86e144cc7a16de"}],"now_ready":["audit-log"]},"elsewhere":[],"warnings":[]}
+```
+
+A batch that fails writes nothing and gives kind `error`, with no `data`: its `path` and `line` are
+the apply file's and the line of the operation or problem, as
+[Errors in the apply file reference](apply-file.md#errors) describes.
 
 ### Versioning
 
