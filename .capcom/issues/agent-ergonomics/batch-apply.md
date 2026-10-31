@@ -3,6 +3,7 @@ title: Filing a linked set of issues takes one call per issue and edge
 status: open
 type: feature
 priority: 3
+plan: 2026-10-31 - 00 - batch-apply-and-mcp-adr-plan
 created: 2026-10-19T14:54:45Z
 ---
 

@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 3
 deps: [agent-eval-harness]
+plan: 2026-10-31 - 00 - batch-apply-and-mcp-adr-plan
 created: 2026-10-19T14:54:45Z
 ---
 
