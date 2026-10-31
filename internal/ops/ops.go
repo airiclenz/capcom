@@ -1,7 +1,9 @@
 // Package ops is the write glue both front ends share (ADR 0012): it joins the in-memory rules of
-// `issue` to the atomic, ETag-checked writes of `nodestore`, one function per write. Every write
+// `issue` to the atomic, ETag-checked writes of `nodestore`, one function per write. Every edit
 // resolves a reference through the index, takes an if-match ETag ("" skips the check) and returns a
-// typed result, never rendered text; the caller words and renders failures.
+// typed result, never rendered text; the caller words and renders failures. A create
+// (CreateIssue) takes the new issue's id instead, and the value checks (values.go) refuse a field
+// value as a typed *ValueError before anything is read.
 //
 // The edit contract every write follows: once the reference has resolved, the returned
 // nodestore.Written names the node's id and file even when the write fails, its ETag empty. A

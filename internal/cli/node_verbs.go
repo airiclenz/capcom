@@ -16,7 +16,7 @@ import (
 
 // nodeVerbs describes one Tree kind to the verbs built for both kinds by one generic constructor
 // each, capcom mv and know mv, capcom rm and know rm, and to the write path createNode runs for
-// capcom create and know add. It holds the kind's node store and everything the commands of the
+// know add. It holds the kind's node store and everything the commands of the
 // two kinds differ in: their wording, the kind's Descriptor, the write
 // and remove results, how a failed removal is typed, what is rendered after a write, and whether
 // --kv and --drop-deps are registered.
@@ -66,7 +66,7 @@ type commandHelp struct {
 	example string
 }
 
-// issueVerbs describes the issue Tree: capcom create, mv and rm.
+// issueVerbs describes the issue Tree: capcom mv and rm.
 var issueVerbs = nodeVerbs[issue.Issue]{
 	kind: func(a *app) *nodestore.Kind[issue.Issue] {
 		return nodestore.Issues(a.store, nil)

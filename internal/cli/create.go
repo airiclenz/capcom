@@ -1,17 +1,15 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/config"
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/ops"
 	"github.com/airiclenz/capcom/internal/reflist"
 )
 
@@ -22,16 +20,6 @@ const (
 	flagWhy        = "why"
 	flagAcceptance = "acceptance"
 )
-
-// The headings of the body sections create builds from --why and --acceptance.
-const (
-	whyHeading        = "## Why"
-	acceptanceHeading = "## Acceptance"
-)
-
-// preferredDefaultType is the type a new issue gets without --type, when the config declares it;
-// otherwise it gets the first declared type.
-const preferredDefaultType = "task"
 
 // emptyBodyWarning is the warning of a create that leaves the new issue without a body; it takes
 // the new issue's id twice.
@@ -122,196 +110,93 @@ func (a *app) newCreateCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// create places the new issue in the tree and writes it, with a warning for every tree problem
-// that concerns neither the issue's file nor its parent's, unless the index refresh already
-// warned about it, and a warning when the new issue has no body or only whitespace. A --dep that
-// resolves to no issue fails the create before anything is written.
+// create writes the new issue the flags describe through ops.CreateIssue, with a warning for every
+// tree problem that concerns neither the issue's file nor its parent's, unless the index refresh
+// already warned about it, then a warning when the new issue has no body or only whitespace, then
+// one when its --plan is in none of the plans directories. A --dep that resolves to no issue fails
+// the create before anything is written.
 func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result, error) {
-	if err := a.checkCreateValues(options); err != nil {
-		return output.Result{}, err
-	}
-	deps, err := a.resolveDeps(options.deps)
+	created, err := a.ops().CreateIssue(newIssue(cmd, options))
 	if err != nil {
-		return output.Result{}, err
+		return output.Result{}, a.createFailure(err, options.id)
 	}
-	var body string
-	result, err := createNode(
-		a,
-		issueVerbs,
-		options.id,
-		options.parent,
-		func() (issue.Issue, error) {
-			created, err := a.newIssue(cmd, options, deps)
-			body = created.Body
-			return created, err
-		},
-	)
-	if err != nil {
-		return output.Result{}, err
+	a.noteKindWrite(issueIDs, created.ID)
+	result := writeResult(created.ID, created.Path, created.ETag)
+	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(created.Problems)...)
+	a.warnRaisedFormat(created.Effects)
+	if created.IsBodyEmpty {
+		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, created.ID, created.ID))
 	}
-	if strings.TrimSpace(body) == "" {
-		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, options.id, options.id))
-	}
-	written, _ := result.Data.(map[string]string) // writeResult's data
-	result.Warnings = append(result.Warnings, a.missingPlanWarnings(options.plan, written["path"])...)
+	result.Warnings = append(result.Warnings, missingPlanWarnings(created.Path, created.MissingPlan)...)
 	return result, nil
 }
 
-// checkCreateValues refuses an undeclared --status or --type, a --priority out of range, listing
-// the values the flag accepts, and a --plan that is not a bare basename, before anything is
-// resolved or written. An empty --status or --type takes the default, so it is not checked.
-func (a *app) checkCreateValues(options *createOptions) error {
-	if err := a.checkPlanValue(options.plan); err != nil {
-		return err
+// newIssue returns the ops.NewIssue the flags describe, created now. --body-file is read only when
+// ops.CreateIssue builds the issue, after every check has passed.
+func newIssue(cmd *cobra.Command, options *createOptions) ops.NewIssue {
+	spec := ops.NewIssue{
+		ID:         options.id,
+		Parent:     options.parent,
+		Title:      options.title,
+		Status:     options.status,
+		Type:       options.issueType,
+		Priority:   &options.priority,
+		Labels:     options.labels,
+		Plan:       options.plan,
+		Deps:       options.deps,
+		IsStanding: options.isStanding,
+		Why:        options.why,
+		Acceptance: options.acceptance,
+		Created:    time.Now().UTC().Truncate(time.Second),
 	}
-	values := invalidValues(a.store.Config)
-	if options.status != "" {
-		if err := values.status(options.status); err != nil {
-			return err
-		}
+	switch {
+	case options.bodyFile != "":
+		spec.Body = func() (string, error) { return readTextInput(cmd, flagBodyFile, options.bodyFile) }
+	case options.body != "":
+		spec.Body = func() (string, error) { return options.body, nil }
 	}
-	if options.issueType != "" {
-		if err := values.issueType(options.issueType); err != nil {
-			return err
-		}
-	}
-	return values.priority(options.priority)
+	return spec
 }
 
-// checkPlanValue refuses, as invalid, a --plan that is not a bare basename, naming the plans
-// directories. An empty --plan sets no plan, or clears one, so it is not checked.
-func (a *app) checkPlanValue(plan string) error {
-	if plan == "" {
-		return nil
+// createFailure words a refusal of ops.CreateIssue: a value the flags do not accept, a closed
+// status, with the commands that create and then close the issue, a standing mark its status
+// forbids, a --dep naming no issue, and every failure of the node store's create.
+func (a *app) createFailure(err error, id string) error {
+	var value *ops.ValueError
+	if errors.As(err, &value) {
+		return valueFailure(err, invalidErrorf)
 	}
-	if err := a.store.Config.ValidatePlanName(plan); err != nil {
-		return output.Errorf(output.CodeInvalid, "--%s %q: %v", flagPlan, plan, err)
-	}
-	return nil
-}
-
-// missingPlanWarnings returns the warning of a write that set plan on the issue file at issuePath
-// while the plan is in none of the plans directories, "<issuePath>: <message>" with the message
-// capcom check reports for it; none when plan is empty or resolves to a file.
-func (a *app) missingPlanWarnings(plan string, issuePath string) []string {
-	if plan == "" {
-		return nil
-	}
-	if _, isFound := a.store.Config.PlanPath(a.store.WorktreeRoot, plan); isFound {
-		return nil
-	}
-	return []string{issuePath + ": " + a.store.Config.MissingPlanMessage(plan)}
-}
-
-// resolveDeps returns the canonical ids of the issues args name, in the order given and once each;
-// an empty arg is skipped. No cycle is possible, since nothing depends on a new issue yet.
-func (a *app) resolveDeps(args []string) ([]string, error) {
-	var deps []string
-	for _, arg := range args {
-		if arg == "" {
-			continue
-		}
-		addition, err := reflist.List{Entries: deps, Resolve: a.ops().ResolveIssueID, Names: namesItself}.Add(arg)
-		if err != nil {
-			return nil, a.refusalFailure(err, issueIDs, "", refusalWords{})
-		}
-		if !addition.IsPresent {
-			deps = append(deps, addition.ID)
-		}
-	}
-	return deps, nil
-}
-
-// namesItself is the reflist.NamesFunc of a new issue's deps, which resolveDeps writes as
-// canonical ids only: each entry names the issue whose id it is.
-func namesItself(entry string) (string, bool) {
-	return entry, true
-}
-
-// newIssue builds the issue the flags describe, created now, depending on deps. With --standing it
-// is marked standing once its status is chosen, so a status in the doing category is refused.
-func (a *app) newIssue(cmd *cobra.Command, options *createOptions, deps []string) (issue.Issue, error) {
-	cfg := a.store.Config
-	status := options.status
-	if status == "" {
-		status, _ = cfg.DefaultStatus(config.CategoryTodo) // config guarantees a todo status
-	}
-	if category, _ := cfg.CategoryOf(status); category.IsClosed() {
-		return issue.Issue{}, &output.Error{
-			Code:    output.CodeInvalid,
-			Message: fmt.Sprintf("status %q is in the %s category; an issue is created open and closed after", status, category),
+	var status *issue.StatusError
+	if errors.As(err, &status) && errors.Is(err, ops.ErrCreatedClosed) {
+		return &output.Error{
+			Code: output.CodeInvalid,
+			Message: fmt.Sprintf(
+				"status %q is in the %s category; an issue is created open and closed after",
+				status.Status,
+				status.Category,
+			),
 			Hint: fmt.Sprintf(
 				"capcom create --%s %s --%s <title>, then capcom close %s --%s <text>",
-				flagID, options.id, flagTitle, options.id, flagReason,
+				flagID, id, flagTitle, id, flagReason,
 			),
 		}
 	}
-	issueType := options.issueType
-	if issueType == "" {
-		issueType = defaultType(cfg)
+	if status != nil {
+		return statusChangeFailure(id, err)
 	}
-	created := issue.Issue{
-		Title:    options.title,
-		Status:   status,
-		Type:     issueType,
-		Priority: options.priority,
-		Labels:   edit.List(nil, options.labels, nil),
-		Plan:     options.plan,
-		Deps:     deps,
-		Created:  time.Now().UTC().Truncate(time.Second),
+	var refusal *reflist.Refusal
+	if errors.As(err, &refusal) {
+		return a.refusalFailure(err, issueIDs, "", refusalWords{})
 	}
-	if options.isStanding {
-		marked, err := issue.SetStanding(created, cfg, true)
-		if err != nil {
-			return issue.Issue{}, statusChangeFailure(options.id, err)
-		}
-		created = marked
-	}
-	body, err := newIssueBody(cmd, options)
-	if err != nil {
-		return issue.Issue{}, err
-	}
-	created.Body = body
-	return created, nil
+	return a.kindFailure(err, issueIDs)
 }
 
-// newIssueBody returns the body the flags describe: the --body or --body-file text, then a
-// "## Why" section holding --why, then an "## Acceptance" section with one bullet per non-empty
-// --acceptance, each block separated by a blank line. A flag left out adds nothing, so no flag
-// gives an empty body.
-func newIssueBody(cmd *cobra.Command, options *createOptions) (string, error) {
-	text := options.body
-	if options.bodyFile != "" {
-		read, err := readTextInput(cmd, flagBodyFile, options.bodyFile)
-		if err != nil {
-			return "", err
-		}
-		text = read
+// missingPlanWarnings returns the warning of a write that set a plan on the issue file at issuePath
+// while the plan is in none of the plans directories, "<issuePath>: <message>" with the message
+// capcom check reports for it (ops.Ops.MissingPlan); none when message is empty.
+func missingPlanWarnings(issuePath string, message string) []string {
+	if message == "" {
+		return nil
 	}
-	body := ""
-	if options.body != "" || options.bodyFile != "" {
-		body = edit.AppendBody(body, text)
-	}
-	if options.why != "" {
-		body = edit.AppendBody(body, whyHeading+"\n\n"+options.why)
-	}
-	var bullets []string
-	for _, criterion := range options.acceptance {
-		if criterion != "" {
-			bullets = append(bullets, "- "+criterion)
-		}
-	}
-	if len(bullets) > 0 {
-		body = edit.AppendBody(body, acceptanceHeading+"\n\n"+strings.Join(bullets, "\n"))
-	}
-	return body, nil
-}
-
-// defaultType is the type of an issue created without --type; config guarantees at least one
-// declared type.
-func defaultType(cfg config.Config) string {
-	if slices.Contains(cfg.Types, preferredDefaultType) {
-		return preferredDefaultType
-	}
-	return cfg.Types[0]
+	return []string{issuePath + ": " + message}
 }

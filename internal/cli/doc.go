@@ -14,7 +14,7 @@
 //   - `close.go` — capcom close: closes issues, recording why
 //   - `complete.go` — shell completion: Issue and Note ids, ui tab names, statuses, categories, types
 //   - `context.go` — capcom context: an issue with its deps and dependents, plan and the Notes that apply
-//   - `create.go` — capcom create: writes a new issue file under the caller's id
+//   - `create.go` — capcom create: writes a new issue file under the caller's id through internal/ops
 //   - `dep.go` — capcom dep add and rm: adds and removes the dependencies between issues through internal/ops
 //   - `dep_graph.go` — capcom dep graph and the Dependency graph that dep list and related load from the index
 //   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
@@ -22,7 +22,7 @@
 //   - `errors.go` — kindFailure, which types a nodestore failure, and the tree-problem warnings
 //   - `finish.go` — capcom finish: closes an Issue, frees this worktree's Tree lock and names the next Ready Issue
 //   - `flag_once.go` — refuses a single-value flag given more than once
-//   - `flags.go` — the flag names two or more commands share, unlimitedDepth, and valueChecker, which lists the valid values
+//   - `flags.go` — the flag names two or more commands share, unlimitedDepth, and valueFailure, which words an ops.ValueError with the valid values
 //   - `fmt.go` — capcom fmt: rewrites every issue and Note file in canonical form
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search

@@ -75,7 +75,14 @@ docs/reviews/agent-eval-2026-10-29-qwen3.8-27b-ud-q4-k-m.md — Total row
 - `capcom know show decisions` lists `adr-0018`.
 **Commit:** `docs(adr): propose ADR 0018, no MCP server for now`
 
-## 2. Move issue creation and the value checks into ops
+## 2. Move issue creation and the value checks into ops — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): ops.ValueError carries a fourth field, Err (the reason: ErrUndeclaredStatus, ErrUndeclaredType, ErrPriorityRange, or ValidatePlanName's error), so the plan check is a ValueError too (Field "plan", Valid nil) and the CLI's one wording function, valueFailure, rebuilds today's messages unchanged; category stays the CLI check checkCategory in flags.go.
+NOTES (2026-10-31): the closed-status refusal is an *issue.StatusError wrapping the new sentinel ops.ErrCreatedClosed, raised at build time as before (after Kind.Create's id and tree checks); the CLI's createFailure words it with today's hint. ops.MissingPlan(plan) is exported so update keeps its plan warning without a CLI copy of the rule; the CLI keeps only missingPlanWarnings(path, message) to word it.
+NOTES (2026-10-31): internal/cli/know_update.go named in Files holds none of the moved symbols, so it is untouched; createNode now serves know add only, so issueVerbs' writeResult field is no longer read (left in place, the struct is shared with noteVerbs).
+NOTES (2026-10-31): consequential edit — internal/ops/ops.go: made necessary by CreateIssue and the value checks (package doc said every write takes an if-match)
+NOTES (2026-10-31): consequential edit — internal/cli/node_verbs.go: made necessary by create no longer running createNode (nodeVerbs and issueVerbs comments)
+NOTES (2026-10-31): consequential edit — internal/cli/doc.go: made necessary by valueChecker's removal from flags.go and create going through internal/ops
 
 **What:**
 **Goal:** `internal/ops` offers `CreateIssue` and typed value checks; the CLI's `create` keeps only flags and output, its behaviour, messages and tests unchanged.

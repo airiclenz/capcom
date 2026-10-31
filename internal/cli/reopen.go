@@ -8,6 +8,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/ops"
 )
 
 // The help text of capcom reopen.
@@ -75,8 +76,8 @@ func targetStatus(
 		status, _ := cfg.DefaultStatus(categories[0])
 		return status, nil
 	}
-	if err := invalidValues(cfg).status(given); err != nil {
-		return "", err
+	if err := ops.CheckStatus(cfg, given); err != nil {
+		return "", valueFailure(err, invalidErrorf)
 	}
 	category, _ := cfg.CategoryOf(given)
 	if !slices.Contains(categories, category) {

@@ -14,6 +14,7 @@ import (
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/ops"
 )
 
 // flagNoStanding clears the standing mark of the issue capcom update changes.
@@ -112,7 +113,7 @@ func (a *app) newUpdateCommand() *cobra.Command {
 			}
 			result := writeResult(written.ID, written.Path, written.ETag)
 			if cmd.Flags().Changed(flagPlan) {
-				result.Warnings = a.missingPlanWarnings(options.plan, written.Path)
+				result.Warnings = missingPlanWarnings(written.Path, a.ops().MissingPlan(options.plan))
 			}
 			return a.emit(cmd, result)
 		}),
@@ -148,24 +149,24 @@ func (a *app) newUpdateCommand() *cobra.Command {
 // or written. A declared status is judged by the status rules in applyUpdate.
 func (a *app) checkUpdateValues(cmd *cobra.Command, options *updateOptions) error {
 	flags := cmd.Flags()
+	cfg := a.store.Config
 	if flags.Changed(flagPlan) {
-		if err := a.checkPlanValue(options.plan); err != nil {
-			return err
+		if err := ops.CheckPlan(cfg, options.plan); err != nil {
+			return valueFailure(err, invalidErrorf)
 		}
 	}
-	values := invalidValues(a.store.Config)
 	if flags.Changed(flagStatus) {
-		if err := values.status(options.status); err != nil {
-			return err
+		if err := ops.CheckStatus(cfg, options.status); err != nil {
+			return valueFailure(err, invalidErrorf)
 		}
 	}
 	if flags.Changed(flagType) {
-		if err := values.issueType(options.issueType); err != nil {
-			return err
+		if err := ops.CheckType(cfg, options.issueType); err != nil {
+			return valueFailure(err, invalidErrorf)
 		}
 	}
 	if flags.Changed(flagPriority) {
-		return values.priority(options.priority)
+		return valueFailure(ops.CheckPriority(options.priority), invalidErrorf)
 	}
 	return nil
 }

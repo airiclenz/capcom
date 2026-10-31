@@ -8,6 +8,7 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/ops"
 	"github.com/airiclenz/capcom/internal/outline"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -217,25 +218,25 @@ func (o *listOptions) hasRowFilter() bool {
 // unknown category, a priority out of range, a negative limit. Each refusal but the limit's lists the
 // values its flag accepts.
 func (a *app) checkListValues(options *listOptions) error {
-	values := usageValues(a.store.Config)
+	cfg := a.store.Config
 	for _, status := range options.statuses {
-		if err := values.status(status); err != nil {
-			return err
+		if err := ops.CheckStatus(cfg, status); err != nil {
+			return valueFailure(err, output.UsageErrorf)
 		}
 	}
 	for _, category := range options.categories {
-		if err := values.category(category); err != nil {
+		if err := checkCategory(category); err != nil {
 			return err
 		}
 	}
 	for _, issueType := range options.types {
-		if err := values.issueType(issueType); err != nil {
-			return err
+		if err := ops.CheckType(cfg, issueType); err != nil {
+			return valueFailure(err, output.UsageErrorf)
 		}
 	}
 	for _, priority := range options.priorities {
-		if err := values.priority(priority); err != nil {
-			return err
+		if err := ops.CheckPriority(priority); err != nil {
+			return valueFailure(err, output.UsageErrorf)
 		}
 	}
 	if options.limit < 0 {
