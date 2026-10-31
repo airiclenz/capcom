@@ -262,7 +262,12 @@ internal/cli/root.go — withKV
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/batch/`
 **Commit:** `feat(batch): parse apply files with operation positions and lines`
 
-## 10. Run a batch against staged ops
+## 10. Run a batch against staged ops — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): re-derived from the assumption that Run reaches the config and the working tree root through what it takes: neither *ops.Ops nor *stage.Overlay exposed its store, so ops.go gains `func (o *Ops) Store() *store.Store` (the close status, the Ready rules and the absolute path ov.OriginalETag needs all come from it).
+NOTES (2026-10-31): the if-match check runs right after the op's write (run with if-match ""), on the file the returned Written names, and a mismatch wins over the write's own failure; nothing is committed on failure, so the order is unobservable apart from that precedence. The Run parameter is named `operations`, since `ops` would shadow the package.
+NOTES (2026-10-31): a close's status refusals are an *ops.ValueError (undeclared) and a new *batch.CategoryError worded as capcom close's targetStatus words it; if-match on a batch-created issue is the sentinel batch.ErrIfMatchCreated wrapped with the file. OpError.Index is the operation's 1-based Position; on failure Run returns a zero Outcome.
+NOTES (2026-10-31): Outcome carries one Result per op (Written with its Effects, so dropped comments ride there; Problems, IsBodyEmpty, MissingPlan for a create or a plan-setting update) and RaisedFormat once for the batch; NowReady also leaves out issues ready.hide hides, as ops.Closer's NewlyReady does.
 
 **What:** Recast at the regression check (2026-10-31).
 **Goal:** `batch.Run(o *ops.Ops, ov *stage.Overlay, ops []Op, at time.Time) (Outcome, error)` runs the operations in order against staged ops and returns per-op outcomes and the newly Ready issues, or the first failure as `*OpError{Index, Line, Op, Err}`; it never commits.

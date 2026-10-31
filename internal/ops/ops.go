@@ -89,6 +89,12 @@ func Staged(s *store.Store, fsys nodefile.FS, raise func(version int) (bool, err
 	return &Ops{store: s, catalog: c, fsys: fsys, raise: raise}
 }
 
+// Store returns the store whose issues the writes act on: its config and working tree root are
+// the ones every write judges and names files by.
+func (o *Ops) Store() *store.Store {
+	return o.store
+}
+
 // issues returns the node store of the issue tree every write goes through: it resolves references
 // through the Ops's Catalog, reads and writes through its FS and raises the format through its
 // raise.
