@@ -54,7 +54,10 @@
 - 12: recast (the page states the header's if-match rule)
 - all items: trimmed for length
 
-## 1. ADR 0018: capcom does not serve its operations over MCP for now
+## 1. ADR 0018: capcom does not serve its operations over MCP for now — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): adr-0018-rejected carries `labels: [background]` like all 16 existing ADR rejected Notes, so plain `capcom know tree adr-0018` lists only adr-0018-decision; `capcom know tree adr-0018 --background` lists both children (the Acceptance's literal command omits the flag).
+NOTES (2026-10-31): the record lives in Knowledge, not as a file under docs/adr/ as the mcp-server-design Acceptance words it; docs/adr/README.md routes new records to Knowledge in ADR 0010's shape.
 
 **What:**
 **Goal:** Note `adr-0018` (status "Proposed") with children `adr-0018-decision` and `adr-0018-rejected`, listed in Note `decisions`; `capcom check` reports no problems.
