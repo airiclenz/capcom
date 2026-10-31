@@ -6,12 +6,12 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// load loads the kind's tree with ReadContent, so its Resolve refuses every name an unusable file
-// claims, and the problems tree.LoadContent reports while still returning the tree of what it could
-// place. A failure that returns no tree is returned with its files relative to the working tree
-// root.
+// load loads the kind's tree through the Kind's FS with ReadContent, so its Resolve refuses every
+// name an unusable file claims, and the problems tree.LoadContentFS reports while still returning
+// the tree of what it could place. A failure that returns no tree is returned with its files
+// relative to the working tree root.
 func (k *Kind[T]) load() (*tree.Tree, tree.Errors, error) {
-	nodes, err := tree.LoadContent(k.dir, k.codec.Noun, k.ReadContent)
+	nodes, err := tree.LoadContentFS(k.fsys, k.dir, k.codec.Noun, k.ReadContent)
 	if err == nil {
 		return nodes, nil, nil
 	}

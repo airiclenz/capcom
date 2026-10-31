@@ -40,8 +40,11 @@ type Kind[T any] struct {
 	// test swaps it to inject a failure of the rewrites and removals Apply makes.
 	applyRemoval func(removal *tree.Removal) ([]error, error)
 	// raiseFormat raises config.yaml to declare at least store format version and reports whether
-	// it changed the file, as store.Store.RaiseFormat does.
+	// it changed the file, as store.Store.RaiseFormat does; WithRaise swaps it.
 	raiseFormat func(version int) (bool, error)
+	// fsys is the file system the load, ReadContent, RecoverAliases, Create and Edit read and write
+	// the tree through: nodefile.Disk unless WithFS swaps it.
+	fsys nodefile.FS
 	// configPath is the store's config.yaml, which a failure of raiseFormat names.
 	configPath string
 	// sync is the hook WithSync sets, run once after each write that lands; nil runs none.
@@ -128,6 +131,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		applyRemoval: (*tree.Removal).Apply,
 		raiseFormat:  s.RaiseFormat,
 		configPath:   s.ConfigPath(),
+		fsys:         nodefile.Disk{},
 	}
 }
 
@@ -146,6 +150,7 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		applyRemoval: (*tree.Removal).Apply,
 		raiseFormat:  s.RaiseFormat,
 		configPath:   s.ConfigPath(),
+		fsys:         nodefile.Disk{},
 	}
 }
 
@@ -167,6 +172,26 @@ func (k *Kind[T]) WithSync(sync SyncFunc) *Kind[T] {
 	synced := *k
 	synced.sync = sync
 	return &synced
+}
+
+// WithFS returns a copy of the Kind that reads and writes the tree through fsys: the Tree load, with
+// its directory listings and ReadContent's reads, RecoverAliases' reads, Create's parent check and
+// write, and Edit's read, re-check and write. Format, Move and Remove still read, and Move and
+// Remove still write, the node files on the disk, so a Kind given an FS other than nodefile.Disk is
+// for Create and Edit only.
+func (k *Kind[T]) WithFS(fsys nodefile.FS) *Kind[T] {
+	routed := *k
+	routed.fsys = fsys
+	return &routed
+}
+
+// WithRaise returns a copy of the Kind whose writes raise the store format through raise instead
+// of store.Store.RaiseFormat: raise is handed the format a written file needs and reports whether
+// it raised config.yaml to it, failing as RaiseFormat does. A failure still names config.yaml.
+func (k *Kind[T]) WithRaise(raise func(version int) (bool, error)) *Kind[T] {
+	raising := *k
+	raising.raiseFormat = raise
+	return &raising
 }
 
 // runSync runs the Kind's sync hook, when it has one, recording its outcome on effects.
@@ -193,9 +218,10 @@ func applyMove(move *tree.Move) ([]error, error) {
 // finds nothing wrong with it. A file that does not parse gives the aliases tree.ReadAliases still
 // recovers from its raw frontmatter; the index reports it. A file nodefile.ReadRegularFile refuses
 // (not a regular file, or larger than 1 MiB) is left out unread, as the walk leaves one out. A file
-// that cannot be read otherwise fails with a *tree.Error naming path as it was given.
+// that cannot be read otherwise fails with a *tree.Error naming path as it was given. The file is
+// read through the Kind's FS (WithFS).
 func (k *Kind[T]) ReadContent(path string) (tree.Content, error) {
-	reading, err := k.reader.Read(path, k.relative(path))
+	reading, err := k.reader.ReadFS(k.fsys, path, k.relative(path))
 	if err != nil {
 		return tree.Content{}, &tree.Error{Path: path, Err: err}
 	}
@@ -213,9 +239,9 @@ func (k *Kind[T]) ReadContent(path string) (tree.Content, error) {
 // recovers from the raw frontmatter of a node file at path that does not parse, and none for one
 // that parses, whose Aliases ReadContent returns. A file nodefile.ReadRegularFile refuses gives none, as
 // for ReadContent. A file that cannot be read otherwise fails with a *tree.Error naming path as it
-// was given.
+// was given. The file is read through the Kind's FS (WithFS).
 func (k *Kind[T]) RecoverAliases(path string) ([]string, error) {
-	data, err := nodefile.ReadRegularFile(path)
+	data, err := k.fsys.ReadRegularFile(path)
 	if isRefusedRead(err) {
 		return nil, nil
 	}

@@ -50,11 +50,11 @@ func (k *Kind[T]) encode(path string, node T) ([]byte, error) {
 }
 
 // place writes data, the bytes encode returned, to path, the absolute file of the node id, under
-// mode as write documents, and returns the node written.
+// mode as write documents, through the Kind's FS, and returns the node written.
 func (k *Kind[T]) place(path string, id string, data []byte, mode writeMode) (Written, error) {
-	writeFile := nodefile.ReplaceFileAtomic
+	writeFile := k.fsys.ReplaceFile
 	if mode == createFile {
-		writeFile = nodefile.WriteFileExclusive
+		writeFile = k.fsys.CreateFile
 	}
 	err := writeFile(path, bytes.NewReader(data))
 	if mode == replaceFile && errors.Is(err, fs.ErrNotExist) {

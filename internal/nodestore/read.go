@@ -105,7 +105,13 @@ func NoteReader() Reader[knowledge.Note] {
 // finding, worded as the walk words it. A file that cannot be read otherwise fails with the read's
 // error.
 func (r Reader[T]) Read(path, relPath string) (Reading[T], error) {
-	data, err := nodefile.ReadRegularFile(path)
+	return r.ReadFS(nodefile.Disk{}, path, relPath)
+}
+
+// ReadFS is Read reading the node file through fsys, whose ReadRegularFile refuses a file as
+// nodefile.ReadRegularFile does.
+func (r Reader[T]) ReadFS(fsys nodefile.FS, path, relPath string) (Reading[T], error) {
+	data, err := fsys.ReadRegularFile(path)
 	if refusal := diagnose.ReadRefusal(err); refusal != nil {
 		return Reading[T]{
 			Refusal: []diagnose.Finding{{Code: diagnose.NotRegular, Path: relPath, Message: refusal.Error()}},

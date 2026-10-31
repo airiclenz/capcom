@@ -148,7 +148,13 @@ internal/nodefile/read.go — ReadRegularFile; internal/nodefile/atomic.go — R
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`
 **Commit:** `refactor(tree): read the node tree through a nodefile.FS`
 
-## 5. nodestore reads and writes through an injected FS
+## 5. nodestore reads and writes through an injected FS — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): re-derived from the assumption that Kind.load and every nodestore.Issues( in internal/ops sit only in the files the item lists: load lives in internal/nodestore/load.go (now tree.LoadContentFS through the Kind's FS) and the second ops call site is internal/ops/create.go (CreateIssue, added by item 2), both now routed through the Ops-owned helper Ops.issues.
+NOTES (2026-10-31): Reader gains ReadFS(fsys, path, relPath), which Read calls with nodefile.Disk; ReadContent uses it, so diagnose.ReadRefusal still maps a FIFO or a file over 1 MiB to tree.UnreadFile before Decode.
+NOTES (2026-10-31): Ops gains fsys and raise fields, set by New to nodefile.Disk and s.RaiseFormat; Ops.issues applies them with WithFS and WithRaise. Nothing sets them otherwise until item 8.
+NOTES (2026-10-31): Format, Move and Remove are not routed (out of the Goal): they load through the Kind's FS but read, and Move and Remove write, node files on disk; Format writes through place, so through the FS. WithFS's doc says a Kind with a non-Disk FS is for Create and Edit only.
+NOTES (2026-10-31): TestReadContent_ParseableUnparseableAndInvalidFiles gains a file over 1 MiB in its table and the makeFIFO case as its own subtest, so a skip on Windows or as root skips only the FIFO.
 
 **What:** Recast at the regression check (2026-10-31).
 **Goal:** `nodestore.Kind.WithFS(fsys)` routes load, `ReadContent`, `RecoverAliases`, `Create` and `Edit` through `fsys`, and `Kind.WithRaise` routes the format raise; the default Kind uses `nodefile.Disk` and behaves as before.

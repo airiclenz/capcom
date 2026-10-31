@@ -44,7 +44,8 @@ var beforeRecheck = func(path string) {}
 //
 // Once the write has landed, a node file whose frontmatter held a YAML comment, which the
 // canonical form written does not keep, is named on Effects.DroppedComments, and the Kind's sync
-// hook runs (WithSync), its outcome on the Written's Effects.
+// hook runs (WithSync), its outcome on the Written's Effects. The read, the re-check and the write
+// go through the Kind's FS (WithFS), and the raise through its WithRaise func.
 func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (Written, error) {
 	if k.resolver == nil {
 		return Written{}, errNoResolver
@@ -56,7 +57,7 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	located := Written{ID: target.ID, Path: target.Path}
 	path := filepath.Join(k.worktreeRoot, filepath.FromSlash(target.Path))
 
-	data, err := nodefile.ReadRegularFile(path)
+	data, err := k.fsys.ReadRegularFile(path)
 	if err != nil {
 		return located, k.fileError(path, err)
 	}
@@ -100,7 +101,7 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 // read or its etag is no longer firstETag, the etag Edit first read.
 func (k *Kind[T]) recheck(path string, firstETag string) error {
 	beforeRecheck(path)
-	data, err := nodefile.ReadRegularFile(path)
+	data, err := k.fsys.ReadRegularFile(path)
 	if err != nil {
 		return k.fileError(path, err)
 	}

@@ -1,8 +1,11 @@
 package nodestore
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,7 +15,9 @@ import (
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/frontmatter"
+	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -173,6 +178,7 @@ func TestReadContent_ParseableUnparseableAndInvalidFiles(t *testing.T) {
 			parseable := writeNodeFile(t, kind.dir, "parseable.md", kind.content)
 			broken := writeNodeFile(t, kind.dir, "broken.md", unparseable(kind.content))
 			invalid := writeNodeFile(t, kind.dir, "invalid.md", kind.invalid)
+			large := writeNodeFile(t, kind.dir, "large.md", strings.Repeat("x", nodefile.MaxNodeFileSize+1))
 			cases := []struct {
 				path string
 				want tree.Content
@@ -180,6 +186,7 @@ func TestReadContent_ParseableUnparseableAndInvalidFiles(t *testing.T) {
 				{parseable, tree.Content{Aliases: kind.aliases, Parse: tree.ParsedFile, IsUsable: true}},
 				{broken, tree.Content{Aliases: kind.aliases, Parse: tree.UnparsedFile}},
 				{invalid, tree.Content{Aliases: kind.aliases, Parse: tree.ParsedFile}},
+				{large, tree.Content{Parse: tree.UnreadFile}},
 			}
 			for _, testCase := range cases {
 				got, err := kind.read(testCase.path)
@@ -188,6 +195,16 @@ func TestReadContent_ParseableUnparseableAndInvalidFiles(t *testing.T) {
 					t.Errorf("%s: %+v, %v; want %+v", filepath.Base(testCase.path), got, err, testCase.want)
 				}
 			}
+			t.Run("named pipe", func(t *testing.T) {
+				fifo := filepath.Join(kind.dir, "fifo.md")
+				makeFIFO(t, fifo)
+
+				got, err := kind.read(fifo)
+
+				if want := (tree.Content{Parse: tree.UnreadFile}); err != nil || !reflect.DeepEqual(got, want) {
+					t.Errorf("fifo.md: %+v, %v; want %+v", got, err, want)
+				}
+			})
 		})
 	}
 }
@@ -378,5 +395,156 @@ func TestRaise_WrittenFileCarryingAKeyLine_RaisesToItsFormatWhateverTheEditChang
 					written.RaisedFormat, content, test.wantFormat, wantConfig)
 			}
 		})
+	}
+}
+
+// recordingFS is a nodefile.FS that reads through the disk and keeps every write in memory: it
+// records the path of every file read, a file it wrote reads back from memory, and nothing it
+// writes reaches the disk.
+type recordingFS struct {
+	nodefile.Disk
+	reads  []string
+	writes map[string][]byte
+}
+
+// newRecordingFS returns a recordingFS that has read and written nothing.
+func newRecordingFS() *recordingFS {
+	return &recordingFS{writes: map[string][]byte{}}
+}
+
+// ReadRegularFile records the read of path and returns what was written there, or the file on disk.
+func (r *recordingFS) ReadRegularFile(path string) ([]byte, error) {
+	r.reads = append(r.reads, path)
+	if data, isWritten := r.writes[path]; isWritten {
+		return data, nil
+	}
+	return r.Disk.ReadRegularFile(path)
+}
+
+// ReplaceFile keeps content as the file at path, failing as the disk would when no file is there.
+func (r *recordingFS) ReplaceFile(path string, content io.Reader) error {
+	if _, isWritten := r.writes[path]; !isWritten {
+		if _, err := r.Lstat(path); err != nil {
+			return err
+		}
+	}
+	return r.keep(path, content)
+}
+
+// CreateFile keeps content as the file at path, failing with fs.ErrExist when a file is there.
+func (r *recordingFS) CreateFile(path string, content io.Reader) error {
+	_, isWritten := r.writes[path]
+	if _, err := r.Lstat(path); isWritten || err == nil {
+		return &fs.PathError{Op: "create", Path: path, Err: fs.ErrExist}
+	}
+	return r.keep(path, content)
+}
+
+// keep stores everything read from content as the file at path.
+func (r *recordingFS) keep(path string, content io.Reader) error {
+	var data bytes.Buffer
+	if _, err := data.ReadFrom(content); err != nil {
+		return err
+	}
+	r.writes[path] = data.Bytes()
+	return nil
+}
+
+func TestWithFS_AliasLookups_ReadThroughTheFS(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	path := filepath.Join(s.IssuesDir(), "broken.md")
+	recording := newRecordingFS()
+	recording.writes[path] = []byte(unparseable(canonicalIssue))
+	issues := Issues(s, nil).WithFS(recording)
+
+	content, readErr := issues.ReadContent(path)
+	aliases, recoverErr := issues.RecoverAliases(path)
+
+	want := tree.Content{Aliases: []string{"old-parser"}, Parse: tree.UnparsedFile}
+	if readErr != nil || !reflect.DeepEqual(content, want) {
+		t.Errorf("ReadContent = %+v, %v; want %+v", content, readErr, want)
+	}
+	if recoverErr != nil || !slices.Equal(aliases, want.Aliases) {
+		t.Errorf("RecoverAliases = %v, %v; want %v", aliases, recoverErr, want.Aliases)
+	}
+}
+
+func TestWithFS_Edit_ReadsAndWritesThroughTheFS(t *testing.T) {
+	t.Parallel()
+	issues, path := newEditedIssue(t)
+	recording := newRecordingFS()
+	calls := 0
+	routed := issues.WithFS(recording)
+
+	written, err := routed.Edit(editedIssueID, "", retitle("Fix the lexer", &calls))
+
+	if err != nil {
+		t.Fatalf("Edit: %v", err)
+	}
+	if want := []string{path, path}; !slices.Equal(recording.reads, want) {
+		t.Errorf("reads = %v, want the read and the re-check %v", recording.reads, want)
+	}
+	data := recording.writes[path]
+	if !strings.Contains(string(data), "title: Fix the lexer\n") || written.ETag != nodefile.ETag(data) {
+		t.Errorf("written %q with ETag %q, want the retitled issue and its etag", data, written.ETag)
+	}
+	if content := readFile(t, path); content != canonicalIssue {
+		t.Errorf("issue file on disk =\n%s\nwant it unchanged", content)
+	}
+}
+
+func TestWithFS_Create_LoadsAndWritesThroughTheFS(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	other := writeNodeFile(t, s.IssuesDir(), "other-node.md", canonicalIssue)
+	recording := newRecordingFS()
+
+	written, _, err := Issues(s, nil).WithFS(recording).Create(newIssueID, "", buildIssue(t, "open"))
+
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if !slices.Contains(recording.reads, other) {
+		t.Errorf("reads = %v, want the load to read %s", recording.reads, other)
+	}
+	path := filepath.Join(s.IssuesDir(), newIssueID+".md")
+	if data, isWritten := recording.writes[path]; !isWritten || written.ETag != nodefile.ETag(data) {
+		t.Errorf("writes = %v, ETag %q; want %s written with its etag", recording.writes, written.ETag, path)
+	}
+	if files := nodeFiles(t, s.IssuesDir()); !slices.Equal(files, []string{"other-node.md"}) {
+		t.Errorf("issue files on disk = %v, want only other-node.md", files)
+	}
+}
+
+func TestWithRaise_StandingIssueBelowTheStandingFormat_RaisesThroughTheFunc(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	declared := fmt.Sprintf("format: %d\n", config.FormatAgents)
+	configPath := writeNodeFile(t, s.Root, "config.yaml", declared)
+	node, err := issue.Parse("node.md", []byte(canonicalIssue))
+	if err != nil {
+		t.Fatal(err)
+	}
+	node.Aliases = nil
+	node.IsStanding = true
+	var raised []int
+	raise := func(version int) (bool, error) {
+		raised = append(raised, version)
+		return true, nil
+	}
+	issues := Issues(s, nil).WithFS(newRecordingFS()).WithRaise(raise)
+
+	written, _, err := issues.Create(newIssueID, "", func() (issue.Issue, error) { return node, nil })
+
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	want := []int{config.FormatStanding}
+	if !slices.Equal(raised, want) || written.RaisedFormat != config.FormatStanding {
+		t.Errorf("raised %v, RaisedFormat %d; want %v", raised, written.RaisedFormat, want)
+	}
+	if content := readFile(t, configPath); content != declared {
+		t.Errorf("config.yaml = %q, want it unchanged", content)
 	}
 }

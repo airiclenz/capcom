@@ -3,7 +3,6 @@ package nodestore
 import (
 	"errors"
 	"io/fs"
-	"os"
 
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -42,7 +41,9 @@ import (
 //     as it is.
 //
 // Once a node written at the top of the tree has landed, the Kind's sync hook runs (WithSync), its
-// outcome on the Written's Effects; a node written below a parent runs none.
+// outcome on the Written's Effects; a node written below a parent runs none. The Tree load, the
+// parent re-check and the write go through the Kind's FS (WithFS), and the raise through its
+// WithRaise func.
 func (k *Kind[T]) Create(
 	id string,
 	parent string,
@@ -82,7 +83,7 @@ func (k *Kind[T]) Create(
 	if parentPath != "" {
 		// Writing below a parent whose node file is gone would recreate its children directory
 		// with no node file.
-		if _, err := os.Lstat(parentPath); err != nil {
+		if _, err := k.fsys.Lstat(parentPath); err != nil {
 			return Written{}, nil, k.fileError(parentPath, err)
 		}
 	}

@@ -90,8 +90,7 @@ func (o *Ops) CreateIssue(spec NewIssue) (CreateResult, error) {
 		return CreateResult{}, err
 	}
 	var body string
-	kind := nodestore.Issues(o.store, issueResolver{index: o.index})
-	written, problems, err := kind.Create(spec.ID, spec.Parent, func() (issue.Issue, error) {
+	written, problems, err := o.issues().Create(spec.ID, spec.Parent, func() (issue.Issue, error) {
 		created, err := buildIssue(o.store.Config, spec, deps)
 		body = created.Body
 		return created, err

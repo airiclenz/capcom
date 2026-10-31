@@ -22,6 +22,7 @@ import (
 	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -58,11 +59,24 @@ func (e *ChangeError) Unwrap() error {
 type Ops struct {
 	store *store.Store
 	index *index.Index
+	// fsys is the file system every write reads and writes the issue tree through.
+	fsys nodefile.FS
+	// raise raises config.yaml to a store format a written file needs, as store.Store.RaiseFormat
+	// does.
+	raise func(version int) (bool, error)
 }
 
-// New returns the writes on the issues of s, resolving references through x.
+// New returns the writes on the issues of s, resolving references through x, reading and writing
+// the disk and raising the store format in s's config.yaml.
 func New(s *store.Store, x *index.Index) *Ops {
-	return &Ops{store: s, index: x}
+	return &Ops{store: s, index: x, fsys: nodefile.Disk{}, raise: s.RaiseFormat}
+}
+
+// issues returns the node store of the issue tree every write goes through: it resolves references
+// through the Ops's index, reads and writes through its FS and raises the format through its raise.
+func (o *Ops) issues() *nodestore.Kind[issue.Issue] {
+	kind := nodestore.Issues(o.store, issueResolver{index: o.index})
+	return kind.WithFS(o.fsys).WithRaise(o.raise)
 }
 
 // EditNode changes the node ref names through kind (nodestore.Kind.Edit): it checks ifMatch, applies
@@ -93,7 +107,7 @@ func (o *Ops) EditIssue(
 	ifMatch string,
 	change func(issue.Issue) (issue.Issue, error),
 ) (nodestore.Written, error) {
-	return EditNode(nodestore.Issues(o.store, issueResolver{index: o.index}), ref, ifMatch, change)
+	return EditNode(o.issues(), ref, ifMatch, change)
 }
 
 // SetStatus moves the issue ref names to status, which must not cross into or out of a closed
