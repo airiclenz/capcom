@@ -102,7 +102,11 @@ internal/ops/ops_test.go — newOps, issueText
 - `go vet ./internal/ops/ ./internal/cli/`
 **Commit:** `refactor(ops): move issue creation and value checks out of the CLI`
 
-## 3. Move issue update into ops
+## 3. Move issue update into ops — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): IssueUpdate carries IsStanding *bool (true sets, false clears) and AppendText func() (string, error) for --body-append-file, run after the value checks and before the ref resolves, so `--status doing --body-append-file missing.md` stays the invalid-status refusal; its text is appended after Appends, as before.
+NOTES (2026-10-31): the at-least-one-flag rule stays flag-based in the CLI (hasAnyFlag); ops refuses an empty IssueUpdate with ErrNoChange, and the CLI rewrites the issue unchanged through editIssue when the flags give only no-op values (--no-standing=false), so ops never refuses what hasAnyFlag accepts. standingChange is folded into the CLI's issueUpdate flag mapping.
+NOTES (2026-10-31): checkPairs and bodyEdits stay in internal/cli/node_edit.go as the flag adapter both update and know update share (the uneven-pair usage wording is about flag positions; []ops.Replacement cannot be uneven); bodyEdits.apply now runs ops.EditBody, whose *ops.ReplacementError writeFailure words with the unchanged `--body-replace-old #%d %q: ...` text via replacementFailure. internal/cli/know_update.go needed no change.
 
 **What:**
 **Goal:** `internal/ops` offers `UpdateIssue`; the CLI's `update` keeps only flags and output, its behaviour, messages and tests unchanged.

@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/ops"
@@ -96,17 +95,22 @@ func (a *app) warnDroppedComments(effects nodestore.Effects) {
 
 // writeFailure types the failure of an ops write on the node of kind id names. A refusal of the
 // change itself (*ops.ChangeError) is worded by statusChangeFailure when it is a status rule's
-// refusal, and by kindFailure otherwise, and placed at the node's file when it names no file, so a
-// refusal of the change still names the file. Any other failure is typed by kindFailure.
+// refusal, by replacementFailure when it is a body replacement's, and by kindFailure otherwise,
+// and placed at the node's file when it names no file, so a refusal of the change still names the
+// file. Any other failure is typed by kindFailure.
 func (a *app) writeFailure(kind idKind, id string, err error) *output.Error {
 	var refusal *ops.ChangeError
 	if !errors.As(err, &refusal) {
 		return a.kindFailure(err, kind)
 	}
 	var statusRefusal *issue.StatusError
+	var replacementRefusal *ops.ReplacementError
 	failure := a.kindFailure(refusal.Err, kind)
-	if errors.As(refusal.Err, &statusRefusal) {
+	switch {
+	case errors.As(refusal.Err, &statusRefusal):
 		failure = output.AsError(statusChangeFailure(id, refusal.Err))
+	case errors.As(refusal.Err, &replacementRefusal):
+		failure = replacementFailure(replacementRefusal)
 	}
 	if failure.Path == "" {
 		failure.Path = refusal.Path
@@ -139,32 +143,38 @@ func (e bodyEdits) checkPairs() error {
 }
 
 // apply returns body with every replacement pair applied in order, each against the body the
-// pairs before it left, then every append in order. It fails, returning no body, with the usage
-// error of checkPairs when the pairs are uneven, and as invalid naming the pair by its position
-// from 1 and its old text when that text is empty or does not occur exactly once, so a failed
-// edit writes nothing.
+// pairs before it left, then every append in order (ops.EditBody). It fails, returning no body,
+// with the usage error of checkPairs when the pairs are uneven, and with the *ops.ReplacementError
+// of a pair whose old text is empty or does not occur exactly once, which writeFailure words, so a
+// failed edit writes nothing.
 func (e bodyEdits) apply(body string) (string, error) {
 	if err := e.checkPairs(); err != nil {
 		return "", err
 	}
+	return ops.EditBody(body, e.replacements(), e.appends)
+}
+
+// replacements returns the replacement pairs, each old text with the new text in its position;
+// checkPairs has already refused uneven pairs.
+func (e bodyEdits) replacements() []ops.Replacement {
+	pairs := make([]ops.Replacement, 0, len(e.olds))
 	for index, old := range e.olds {
-		replaced, err := edit.ReplaceBody(body, old, e.news[index])
-		if err != nil {
-			return "", output.Errorf(
-				output.CodeInvalid,
-				"--%s #%d %q: %s",
-				flagBodyReplaceOld,
-				index+1,
-				old,
-				err.Error(),
-			)
-		}
-		body = replaced
+		pairs = append(pairs, ops.Replacement{Old: old, New: e.news[index]})
 	}
-	for _, text := range e.appends {
-		body = edit.AppendBody(body, text)
-	}
-	return body, nil
+	return pairs
+}
+
+// replacementFailure words a replacement pair ops.EditBody refused, as invalid naming the pair by
+// its position from 1 and its old text.
+func replacementFailure(refusal *ops.ReplacementError) *output.Error {
+	return output.Errorf(
+		output.CodeInvalid,
+		"--%s #%d %q: %s",
+		flagBodyReplaceOld,
+		refusal.Index+1,
+		refusal.Old,
+		refusal.Err.Error(),
+	)
 }
 
 // readTextInput reads the file at path, which the flag named flag gave, or stdin when path is "-".

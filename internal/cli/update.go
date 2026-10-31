@@ -10,7 +10,6 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/diagnose"
-	"github.com/airiclenz/capcom/internal/edit"
 	"github.com/airiclenz/capcom/internal/frontmatter"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/nodestore"
@@ -94,20 +93,7 @@ func (a *app) newUpdateCommand() *cobra.Command {
 			if err := options.bodyEdits().checkPairs(); err != nil {
 				return err
 			}
-			if err := a.checkUpdateValues(cmd, options); err != nil {
-				return err
-			}
-			appendFile := ""
-			if cmd.Flags().Changed(flagBodyAppendFile) {
-				text, err := readTextInput(cmd, flagBodyAppendFile, options.bodyAppendFile)
-				if err != nil {
-					return err
-				}
-				appendFile = text
-			}
-			written, err := a.editIssue(args[0], options.ifMatch, func(target issue.Issue) (issue.Issue, error) {
-				return a.applyUpdate(cmd, options, appendFile, target)
-			})
+			written, err := a.updateIssue(cmd, args[0], options)
 			if err != nil {
 				return err
 			}
@@ -144,100 +130,70 @@ func (a *app) newUpdateCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// checkUpdateValues refuses an undeclared --status or --type, a --priority out of range, listing
-// the values the flag accepts, and a --plan that is not a bare basename, before the issue is read
-// or written. A declared status is judged by the status rules in applyUpdate.
-func (a *app) checkUpdateValues(cmd *cobra.Command, options *updateOptions) error {
-	flags := cmd.Flags()
-	cfg := a.store.Config
-	if flags.Changed(flagPlan) {
-		if err := ops.CheckPlan(cfg, options.plan); err != nil {
-			return valueFailure(err, invalidErrorf)
-		}
+// updateIssue applies the changed flags to the issue arg names through ops.UpdateIssue, which
+// checks their values before arg resolves and reads --body-append-file only once they pass. A flag
+// that changes nothing, such as --no-standing=false, still passes hasAnyFlag, so an update the
+// flags leave empty rewrites the issue as it is rather than meet ops' no-change refusal.
+func (a *app) updateIssue(cmd *cobra.Command, arg string, options *updateOptions) (nodestore.Written, error) {
+	change := issueUpdate(cmd, options)
+	if change.IsEmpty() {
+		return a.editIssue(arg, options.ifMatch, func(target issue.Issue) (issue.Issue, error) {
+			return target, nil
+		})
 	}
-	if flags.Changed(flagStatus) {
-		if err := ops.CheckStatus(cfg, options.status); err != nil {
-			return valueFailure(err, invalidErrorf)
-		}
+	written, err := a.ops().UpdateIssue(arg, options.ifMatch, change)
+	var value *ops.ValueError
+	if errors.As(err, &value) {
+		return nodestore.Written{}, valueFailure(err, invalidErrorf)
 	}
-	if flags.Changed(flagType) {
-		if err := ops.CheckType(cfg, options.issueType); err != nil {
-			return valueFailure(err, invalidErrorf)
-		}
-	}
-	if flags.Changed(flagPriority) {
-		return valueFailure(ops.CheckPriority(options.priority), invalidErrorf)
-	}
-	return nil
+	return a.written(issueIDs, written, err)
 }
 
-// applyUpdate applies the changed flags to target: the standing mark first, so a status change is
-// judged on the issue as marked or unmarked, then the other fields, then labels, then the body
-// replacements and appends in the order bodyEdits.apply gives them, then the --body-append-file
-// text. A status rule's refusal is returned as the raw *issue.StatusError,
-// for writeFailure to word with the issue's id.
-func (a *app) applyUpdate(
-	cmd *cobra.Command,
-	options *updateOptions,
-	appendFile string,
-	target issue.Issue,
-) (issue.Issue, error) {
+// issueUpdate returns the ops.IssueUpdate the changed flags describe. --standing sets the mark it
+// gives, and --no-standing clears it unless given false; the two are mutually exclusive.
+func issueUpdate(cmd *cobra.Command, options *updateOptions) ops.IssueUpdate {
 	flags := cmd.Flags()
-	if isStanding, isChanged := standingChange(cmd, options); isChanged {
-		changed, err := issue.SetStanding(target, a.store.Config, isStanding)
-		if err != nil {
-			return issue.Issue{}, err
-		}
-		target = changed
-	}
-	if flags.Changed(flagStatus) {
-		changed, err := issue.SetStatus(target, a.store.Config, options.status)
-		if err != nil {
-			return issue.Issue{}, err
-		}
-		target = changed
+	edits := options.bodyEdits()
+	change := ops.IssueUpdate{
+		AddLabels:    options.addLabels,
+		RemoveLabels: options.removeLabels,
+		Replacements: edits.replacements(),
+		Appends:      edits.appends,
 	}
 	if flags.Changed(flagTitle) {
-		target.Title = options.title
+		change.Title = &options.title
+	}
+	if flags.Changed(flagStatus) {
+		change.Status = &options.status
 	}
 	if flags.Changed(flagType) {
-		target.Type = options.issueType
+		change.Type = &options.issueType
 	}
 	if flags.Changed(flagPriority) {
-		target.Priority = options.priority
+		change.Priority = &options.priority
 	}
 	if flags.Changed(flagPlan) {
-		target.Plan = options.plan
+		change.Plan = &options.plan
 	}
-	target.Labels = edit.List(target.Labels, options.addLabels, options.removeLabels)
-	body, err := options.bodyEdits().apply(target.Body)
-	if err != nil {
-		return issue.Issue{}, err
+	switch {
+	case flags.Changed(flagStanding):
+		change.IsStanding = &options.isStanding
+	case flags.Changed(flagNoStanding) && options.isNotStanding:
+		isStanding := false
+		change.IsStanding = &isStanding
 	}
-	target.Body = body
 	if flags.Changed(flagBodyAppendFile) {
-		target.Body = edit.AppendBody(target.Body, appendFile)
+		change.AppendText = func() (string, error) {
+			return readTextInput(cmd, flagBodyAppendFile, options.bodyAppendFile)
+		}
 	}
-	return target, nil
+	return change
 }
 
 // bodyEdits returns the --body-replace-old/--body-replace-new pairs and the --body-append texts
 // of the update, in the order given.
 func (o *updateOptions) bodyEdits() bodyEdits {
 	return bodyEdits{olds: o.replaceOld, news: o.replaceNew, appends: o.bodyAppend}
-}
-
-// standingChange returns the standing mark --standing or --no-standing sets, and whether either
-// changes it; the two are mutually exclusive. --no-standing=false changes nothing.
-func standingChange(cmd *cobra.Command, options *updateOptions) (isStanding bool, isChanged bool) {
-	flags := cmd.Flags()
-	switch {
-	case flags.Changed(flagStanding):
-		return options.isStanding, true
-	case flags.Changed(flagNoStanding) && options.isNotStanding:
-		return false, true
-	}
-	return false, false
 }
 
 // statusChangeFailure types a refusal from issue.SetStatus, issue.SetStanding, issue.Close or
