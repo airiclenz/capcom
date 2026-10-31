@@ -284,7 +284,12 @@ internal/issue/mutate.go — Close, AppendLog; internal/nodestore/errors.go — 
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/batch/`
 **Commit:** `feat(batch): run apply operations against staged ops`
 
-## 11. The capcom apply command
+## 11. The capcom apply command — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): consequential edit — internal/cli/doc.go: made necessary by the new internal/cli/apply.go (the package file map that TestDocFileMap_MatchesDirectory enforces)
+NOTES (2026-10-31): internal/nodestore/errors_test.go added to test the new exported Kind.CommitFailure (a changed rewrite, a create over a file that appeared, any other failure) against a real tree.Plan; the plan's Files line names only errors.go
+NOTES (2026-10-31): CommitFailure takes the batch's created Writtens and finds the refused create by the "<absolute path>: " prefix nodefile.WriteFileExclusive gives its error, since that error carries no typed path
+NOTES (2026-10-31): outcome tokens chosen for the text, --json and --kv STATUS: created, updated, dep_added, closed, logged; a dry run still reports the batch's would-be warnings (empty body, missing plan, store format raise)
 
 **What:** Recast at the regression check (2026-10-31).
 **Goal:** `capcom apply <file|->` applies an apply file all or none, `--dry-run` reports the same outcome and writes nothing, and output comes in text, `--json` (kind `apply`) and `--kv`.

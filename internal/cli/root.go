@@ -170,6 +170,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.SetUsageTemplate(usageTemplate)
 	root.PersistentFlags().BoolVar(&a.isJSON, flagJSON, false, "print a versioned JSON envelope")
 	root.AddCommand(a.newAgentsCommand())
+	root.AddCommand(a.newApplyCommand())
 	root.AddCommand(a.newCheckCommand())
 	root.AddCommand(a.newCloseCommand())
 	root.AddCommand(a.newContextCommand())

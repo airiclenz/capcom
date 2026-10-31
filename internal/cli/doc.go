@@ -10,6 +10,7 @@
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
 //   - `agents.go` — capcom agents: writes, refreshes or checks the capcom block of AGENTS.md
+//   - `apply.go` — capcom apply: runs an apply file of Issue writes staged in memory and commits them all or none
 //   - `check.go` — capcom check: validates every config, issue and Note file of the store
 //   - `close.go` — capcom close: closes issues, recording why
 //   - `complete.go` — shell completion: Issue and Note ids, ui tab names, statuses, categories, types

@@ -41,6 +41,7 @@ capcom [flags]
 ### SEE ALSO
 
 * [capcom agents](capcom_agents.md)	 - Write or refresh the capcom block of AGENTS.md
+* [capcom apply](capcom_apply.md)	 - Apply a file of issue writes, all or none
 * [capcom check](capcom_check.md)	 - Validate every config, issue and Note file of the store
 * [capcom close](capcom_close.md)	 - Close issues, recording why
 * [capcom context](capcom_context.md)	 - Show an issue with its deps, plan and the Notes that apply

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/frontmatter"
@@ -127,6 +128,34 @@ func (k *Kind[T]) applyChangedFailure(err error) *ConflictError {
 		return nil
 	}
 	return k.changedError(changed.Path, failures[1:])
+}
+
+// CommitFailure types err, the failure of applying the tree.Plan of a batch of staged writes on
+// the Kind's tree (stage.Overlay.Plan), for the caller's kindFailure-style mapping: a rewrite
+// refused with tree.ErrChanged, because its file changed since the batch read it, is the
+// *ConflictError applyChangedFailure words; a create refused with fs.ErrExist, because a file
+// appeared at one of created, the nodes the plan creates, is the *ExistsError naming that node's
+// id and file. Any other failure is returned as it is.
+func (k *Kind[T]) CommitFailure(err error, created []Written) error {
+	if changed := k.applyChangedFailure(err); changed != nil {
+		return changed
+	}
+	failures := []error{err}
+	if joined, isJoined := err.(interface{ Unwrap() []error }); isJoined {
+		failures = joined.Unwrap()
+	}
+	if !errors.Is(failures[0], fs.ErrExist) {
+		return err
+	}
+	// nodefile.WriteFileExclusive names the file it refused as the prefix of its error.
+	cause := failures[0].Error()
+	for _, node := range created {
+		absolute := filepath.Join(k.worktreeRoot, filepath.FromSlash(node.Path))
+		if strings.HasPrefix(cause, absolute+": ") {
+			return k.existsError(node.ID, tree.Node{ID: node.ID, Path: absolute})
+		}
+	}
+	return err
 }
 
 // existsError refuses id, which is the id or an Alias of the existing node.
