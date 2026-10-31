@@ -174,6 +174,28 @@ func TestEntryNode_IndexedIssue_CarriesWhatTheReadyRulesRead(t *testing.T) {
 	}
 }
 
+func TestEntryOf_ParsedIssue_EqualsTheEntryARefreshStores(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	content := issueWith("Session refresh", "done", "labels: [auth, ui]\ndeps: [token-store]\n"+
+		"related: [login-flow]\naliases: [apogee-kk0.2]\nplan: auth-plan\n")
+	writeIssue(t, s, "login-flow.md", issueWith("Login flow", "open", ""))
+	path := writeIssue(t, s, "login-flow/session-refresh.md", content)
+	x := openIndex(t, s)
+	refresh(t, x)
+	stored := mustIssue(t, x, "session-refresh")
+	parsed, err := issue.Parse(path, []byte(content))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	got := EntryOf(filepath.FromSlash(stored.Path), "session-refresh", "login-flow", parsed, s.Config)
+
+	if !reflect.DeepEqual(got, stored) {
+		t.Errorf("EntryOf = %+v; want the stored %+v", got, stored)
+	}
+}
+
 func TestNodes_KeepsOrderAndFields(t *testing.T) {
 	t.Parallel()
 	entries := []Entry{

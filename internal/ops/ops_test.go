@@ -16,6 +16,7 @@ import (
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/reflist"
 	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // staleETag is an if-match etag no issue file of these tests carries.
@@ -290,6 +291,51 @@ func TestAddDep_NewDep_WritesItsCanonicalID(t *testing.T) {
 	})
 
 	written, err := o.AddDep("ship-it", "", "db-sch")
+
+	if err != nil {
+		t.Fatalf("AddDep: %v", err)
+	}
+	after := readIssue(t, s, "ship-it")
+	if !strings.Contains(after, "\ndeps: [db-schema]\n") || written.ID != "ship-it" || written.ETag == "" {
+		t.Errorf("written = %+v, file:\n%s", written, after)
+	}
+}
+
+// fakeCatalog is a Catalog over entries, resolving a reference by its key in names alone.
+type fakeCatalog struct {
+	entries []index.Entry
+	names   map[string]string
+}
+
+// Resolve returns the entry whose id names maps ref to, or an error matching tree.ErrNotFound.
+func (c fakeCatalog) Resolve(ref string) (index.Entry, error) {
+	for _, entry := range c.entries {
+		if entry.ID == c.names[ref] {
+			return entry, nil
+		}
+	}
+	return index.Entry{}, fmt.Errorf("id %q %w", ref, tree.ErrNotFound)
+}
+
+// List returns every entry, whatever the filter.
+func (c fakeCatalog) List(index.Filter) ([]index.Entry, error) {
+	return c.entries, nil
+}
+
+func TestAddDep_FakeCatalog_ResolvesBothReferencesThroughIt(t *testing.T) {
+	_, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": issueText("Design the schema", "open"),
+		"ship-it":   issueText("Ship it", "open"),
+	})
+	catalog := fakeCatalog{
+		entries: []index.Entry{
+			{ID: "db-schema", Path: ".capcom/issues/db-schema.md", Category: config.CategoryTodo},
+			{ID: "ship-it", Path: ".capcom/issues/ship-it.md", Category: config.CategoryTodo},
+		},
+		names: map[string]string{"schema": "db-schema", "ship": "ship-it", "ship-it": "ship-it"},
+	}
+
+	written, err := New(s, catalog).AddDep("ship", "", "schema")
 
 	if err != nil {
 		t.Fatalf("AddDep: %v", err)

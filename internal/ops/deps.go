@@ -11,11 +11,11 @@ import (
 // AddDep makes the issue ref names depend on the issue depRef names, writing the canonical id of
 // the dependency into its deps, as EditIssue does; a dep already naming that issue leaves the list
 // as it is and the file is written unchanged. reflist decides the edit against the deps and the
-// Dependency graph the index holds: a self-dependency, an edge that would close a cycle and a
+// Dependency graph the Catalog holds: a self-dependency, an edge that would close a cycle and a
 // depRef naming no issue are each its *reflist.Refusal, returned beside the dependent's located
 // Written before anything is written.
 func (o *Ops) AddDep(ref string, ifMatch string, depRef string) (nodestore.Written, error) {
-	dependent, err := o.index.Resolve(ref)
+	dependent, err := o.catalog.Resolve(ref)
 	if err != nil {
 		return nodestore.Written{}, err
 	}
@@ -46,7 +46,7 @@ func (o *Ops) AddDep(ref string, ifMatch string, depRef string) (nodestore.Writt
 // removal that drops no dep is a *ChangeError at the dependent's file wrapping the
 // *reflist.Refusal of reason NotFound.
 func (o *Ops) RemoveDep(ref string, ifMatch string, depRef string) (nodestore.Written, error) {
-	dependent, err := o.index.Resolve(ref)
+	dependent, err := o.catalog.Resolve(ref)
 	if err != nil {
 		return nodestore.Written{}, err
 	}
@@ -69,7 +69,7 @@ func (o *Ops) RemoveDep(ref string, ifMatch string, depRef string) (nodestore.Wr
 	})
 }
 
-// DepGraph builds the Dependency graph of every usable issue in the index, Closed ones included.
+// DepGraph builds the Dependency graph of every usable issue in the Catalog, Closed ones included.
 func (o *Ops) DepGraph() (issue.DepGraph, error) {
 	nodes, err := o.IssueNodes()
 	if err != nil {
@@ -79,16 +79,16 @@ func (o *Ops) DepGraph() (issue.DepGraph, error) {
 }
 
 // ReferenceList is the reference list entries of the issue holder, the deps or related it writes,
-// whose edits reflist decides: the index resolves an argument and graph names an entry by exact id
-// or Alias.
+// whose edits reflist decides: the Catalog resolves an argument and graph names an entry by exact
+// id or Alias.
 func (o *Ops) ReferenceList(graph issue.DepGraph, holder string, entries []string) reflist.List {
 	return reflist.List{Holder: holder, Entries: entries, Resolve: o.ResolveIssueID, Names: graph.Resolve}
 }
 
-// ResolveIssueID resolves ref to the id of the issue it names, failing as index.Index.Resolve does:
+// ResolveIssueID resolves ref to the id of the issue it names, failing as Catalog.Resolve does:
 // the reflist.ResolveFunc of an issue's reference lists.
 func (o *Ops) ResolveIssueID(ref string) (string, error) {
-	entry, err := o.index.Resolve(ref)
+	entry, err := o.catalog.Resolve(ref)
 	return entry.ID, err
 }
 

@@ -75,7 +75,7 @@ type CreateResult struct {
 // CreateIssue writes the new issue spec describes through the issue tree's node store
 // (nodestore.Kind.Create), checking, in this order and stopping at the first failure: the plan,
 // status, type and priority values (each refusal a *ValueError); the deps, each resolved through
-// the index to its canonical id, once each, in the order given (a dep naming no issue, the new
+// the Catalog to its canonical id, once each, in the order given (a dep naming no issue, the new
 // issue itself included, is the *reflist.Refusal of reflist.List.Add); then every check of
 // Kind.Create, with the issue built at its build step. The build refuses a status in a closed
 // category as an *issue.StatusError wrapping ErrCreatedClosed and a standing mark its status

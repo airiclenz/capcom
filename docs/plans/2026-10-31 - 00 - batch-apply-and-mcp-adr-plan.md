@@ -170,7 +170,10 @@ internal/nodestore/write.go — place, encode; internal/nodestore/read.go — Re
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/ops/`
 **Commit:** `refactor(nodestore): read and write through an injected nodefile.FS`
 
-## 6. ops resolves through a Catalog interface
+## 6. ops resolves through a Catalog interface — ✅ DONE (2026-10-31)
+
+NOTES (2026-10-31): internal/ops/update.go is listed under Files but holds no index use (its only `index` is a loop variable), so it is untouched; create.go changed only in its CreateIssue doc ("resolved through the Catalog").
+NOTES (2026-10-31): ops.New now takes `x Catalog` instead of `*index.Index`; every caller (internal/cli/node_edit.go, internal/ui/write.go and the ui tests) passes an *index.Index and compiles unchanged.
 
 **What:**
 **Goal:** `ops` resolves and lists through `ops.Catalog { Resolve(string) (index.Entry, error); List(index.Filter) ([]index.Entry, error) }`, which `*index.Index` satisfies; `index.EntryOf` builds an `index.Entry` from a parsed issue; `ops.New(s, x)` callers are unchanged.

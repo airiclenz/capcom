@@ -1,7 +1,7 @@
 // Package ops is the write glue both front ends share (ADR 0012): it joins the in-memory rules of
 // `issue` to the atomic, ETag-checked writes of `nodestore`, one function per write. Every edit
-// resolves a reference through the index, takes an if-match ETag ("" skips the check) and returns a
-// typed result, never rendered text; the caller words and renders failures. A create
+// resolves a reference through the Catalog, takes an if-match ETag ("" skips the check) and returns
+// a typed result, never rendered text; the caller words and renders failures. A create
 // (CreateIssue) takes the new issue's id instead, and the value checks (values.go) refuse a field
 // value as a typed *ValueError before anything is read.
 //
@@ -54,11 +54,20 @@ func (e *ChangeError) Unwrap() error {
 	return e.Err
 }
 
-// Ops runs the writes on the issues of one open store, resolving references through its index.
-// The index is read, never refreshed: the caller refreshes it when it needs the writes reflected.
+// Catalog is what the writes read of the issues they act on: *index.Index is one, read from its
+// latest refresh. Resolve finds the usable issue a reference names, failing as index.Index.Resolve
+// does (an error matching tree.ErrNotFound, a *tree.AmbiguousError, a duplicate or unusable
+// claim); List returns the usable issues filter selects, in tree order.
+type Catalog interface {
+	Resolve(ref string) (index.Entry, error)
+	List(filter index.Filter) ([]index.Entry, error)
+}
+
+// Ops runs the writes on the issues of one open store, resolving references through its Catalog.
+// The Catalog is read, never refreshed: the caller refreshes it when it needs the writes reflected.
 type Ops struct {
-	store *store.Store
-	index *index.Index
+	store   *store.Store
+	catalog Catalog
 	// fsys is the file system every write reads and writes the issue tree through.
 	fsys nodefile.FS
 	// raise raises config.yaml to a store format a written file needs, as store.Store.RaiseFormat
@@ -68,14 +77,15 @@ type Ops struct {
 
 // New returns the writes on the issues of s, resolving references through x, reading and writing
 // the disk and raising the store format in s's config.yaml.
-func New(s *store.Store, x *index.Index) *Ops {
-	return &Ops{store: s, index: x, fsys: nodefile.Disk{}, raise: s.RaiseFormat}
+func New(s *store.Store, x Catalog) *Ops {
+	return &Ops{store: s, catalog: x, fsys: nodefile.Disk{}, raise: s.RaiseFormat}
 }
 
 // issues returns the node store of the issue tree every write goes through: it resolves references
-// through the Ops's index, reads and writes through its FS and raises the format through its raise.
+// through the Ops's Catalog, reads and writes through its FS and raises the format through its
+// raise.
 func (o *Ops) issues() *nodestore.Kind[issue.Issue] {
-	kind := nodestore.Issues(o.store, issueResolver{index: o.index})
+	kind := nodestore.Issues(o.store, issueResolver{catalog: o.catalog})
 	return kind.WithFS(o.fsys).WithRaise(o.raise)
 }
 
@@ -161,8 +171,9 @@ type Closer struct {
 	isReported map[string]bool
 }
 
-// NewCloser reads every usable issue from the index, Closed ones included, and returns a Closer
-// over them. The index is not refreshed after the writes, so the issues are read once, before them.
+// NewCloser reads every usable issue from the Catalog, Closed ones included, and returns a Closer
+// over them. The Catalog is not refreshed after the writes, so the issues are read once, before
+// them.
 func (o *Ops) NewCloser() (*Closer, error) {
 	nodes, err := o.IssueNodes()
 	if err != nil {
@@ -249,24 +260,24 @@ func (o *Ops) AppendLog(ref string, ifMatch string, text string, at time.Time) (
 	})
 }
 
-// IssueNodes returns the Node of every usable issue in the index, Closed ones included.
+// IssueNodes returns the Node of every usable issue in the Catalog, Closed ones included.
 func (o *Ops) IssueNodes() ([]issue.Node, error) {
-	entries, err := o.index.List(index.Filter{IsClosedIncluded: true})
+	entries, err := o.catalog.List(index.Filter{IsClosedIncluded: true})
 	if err != nil {
 		return nil, err
 	}
 	return index.Nodes(entries), nil
 }
 
-// issueResolver resolves an issue reference through the index: the Resolver of the issue tree's
+// issueResolver resolves an issue reference through the Catalog: the Resolver of the issue tree's
 // node store.
 type issueResolver struct {
-	index *index.Index
+	catalog Catalog
 }
 
-// Resolve resolves ref to the issue it names, failing as index.Index.Resolve does.
+// Resolve resolves ref to the issue it names, failing as Catalog.Resolve does.
 func (r issueResolver) Resolve(ref string) (nodestore.Target, error) {
-	entry, err := r.index.Resolve(ref)
+	entry, err := r.catalog.Resolve(ref)
 	if err != nil {
 		return nodestore.Target{}, err
 	}

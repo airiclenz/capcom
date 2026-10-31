@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -250,6 +253,47 @@ func (n snapshotNames) refusal(ctx context.Context, name string) (tree.NameMatch
 		}
 	}
 	return tree.NameMatch{}, fmt.Errorf("%s: unknown refusal %q of %s %q", Path(n.x.store), reason, n.nodes.kind, name)
+}
+
+// EntryOf returns the Entry a refresh stores for the valid issue i, parsed from the file at path
+// (relative to the working tree root, either separator) whose id and parentID that path gives: the
+// path with forward slashes, the Category cfg gives i's status ("" for a status cfg does not
+// declare), the times in UTC to the second and an empty list as nil. It shares no slice with i.
+func EntryOf(path, id, parentID string, i issue.Issue, cfg config.Config) Entry {
+	category, _ := cfg.CategoryOf(i.Status)
+	return Entry{
+		ID:         id,
+		Path:       filepath.ToSlash(path),
+		ParentID:   parentID,
+		Status:     i.Status,
+		Category:   category,
+		Type:       i.Type,
+		Priority:   i.Priority,
+		Plan:       i.Plan,
+		Created:    storedTime(i.Created),
+		Closed:     storedTime(i.Closed),
+		Reason:     i.Reason,
+		Title:      i.Title,
+		IsStanding: i.IsStanding,
+		Labels:     storedList(i.Labels),
+		Deps:       storedList(i.Deps),
+		Related:    storedList(i.Related),
+		Aliases:    storedList(i.Aliases),
+	}
+}
+
+// storedTime returns value as the index reads it back: in UTC, truncated to the second, as
+// formatTime stores it.
+func storedTime(value time.Time) time.Time {
+	return value.UTC().Truncate(time.Second)
+}
+
+// storedList returns a copy of values as the index reads it back: nil when there are none.
+func storedList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	return slices.Clone(values)
 }
 
 // Node returns the issue as the ready rules and the Dependency graph see it.
