@@ -923,8 +923,9 @@ write, and the record is replaced atomically. Reading the lock (`lock check`, `l
 
 ## The Managed block in AGENTS.md
 
-`AGENTS.md` at the root of the working tree stays a hand-written agent guide, and the only home of
-the block capcom owns in it, the **Managed block**: the lines from `<!-- BEGIN CAPCOM -->` to
+`AGENTS.md` at the root of the working tree stays a hand-written agent guide, and the home of
+the block capcom owns in it, the **Managed block**, unless `agents.file` names another file (see
+the last rule below): the lines from `<!-- BEGIN CAPCOM -->` to
 `<!-- END CAPCOM -->`, each marker on a line of its own. The block holds a short paragraph naming
 capcom as the issue register of record,
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
@@ -991,5 +992,21 @@ status is declared alone, so the same tree and config always yield the same bloc
   one), or is larger than 1 MiB, is never read either, but is an error for `agents`,
   `agents --check` and `check` alike (an `agents-block` problem in `check`); a Note write warns
   that the block was not refreshed.
+- With `agents.file` naming another file (see [Config](#config)), every rule above that speaks of
+  the block in `AGENTS.md` holds for that file instead: `capcom agents` writes the block there,
+  creating the file and its directory when missing, Note writes refresh it
+  (`refreshed: <file>`), and `check` reports its markers and staleness. `AGENTS.md` must then reach
+  the block file as a guide reaches `AGENTS.md`: by resolving to it, or by a line `@<rel>` or
+  `@./<rel>`, `<rel>` being the block file relative to the directory of the file `AGENTS.md`
+  resolves to. `capcom agents` appends `@<rel>` to an `AGENTS.md` that does not reach it (`added
+  @docs/capcom.md to AGENTS.md`) and leaves one that does untouched, so an `AGENTS.md` that already
+  holds the line is never written; it never creates a missing `AGENTS.md`. The `agents.guides`
+  entries keep reaching `AGENTS.md`, never the block file. While the block file carries the block,
+  `capcom check` reports an `AGENTS.md` that does not reach it as an `agents-guide` problem
+  (`AGENTS.md: does not reach the capcom block in docs/capcom.md; run capcom agents to add
+  @docs/capcom.md`), and one still holding capcom markers as another
+  (`AGENTS.md: holds capcom markers, but the capcom block lives in docs/capcom.md; remove the
+  capcom markers and what lies between them from AGENTS.md`); `capcom agents --check` fails on
+  either once the block is current. capcom never removes those markers.
 
 Edits inside the markers are overwritten on the next refresh; write anything else outside them.

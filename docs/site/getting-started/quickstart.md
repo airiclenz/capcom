@@ -67,7 +67,8 @@ block into it, between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->`, that t
 use capcom, and leaves the rest of the file alone. Run `capcom agents` again after upgrading capcom
 to refresh it.
 
-`AGENTS.md` is the block's only home. Claude Code reads `CLAUDE.md` and Gemini CLI reads
+`AGENTS.md` is the block's home unless the `agents.file` key of `config.yaml` names another file,
+which `AGENTS.md` then imports. Claude Code reads `CLAUDE.md` and Gemini CLI reads
 `GEMINI.md`, so when either exists, `capcom agents` appends an `@AGENTS.md` import line to it, and
 the agent reads `AGENTS.md` too:
 
@@ -78,7 +79,9 @@ added @AGENTS.md to CLAUDE.md
 ```
 
 It never creates either file. The guides it looks after are the `agents.guides` list of
-`config.yaml`; [The Managed block](../agents/managed-block.md#other-agent-guides) has the details.
+`config.yaml`; [The Managed block](../agents/managed-block.md#other-agent-guides) has the details,
+and [Keeping the block in another file](../agents/managed-block.md#keeping-the-block-in-another-file)
+covers `agents.file`.
 
 ## 3. File Issues
 

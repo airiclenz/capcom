@@ -217,7 +217,10 @@ setup → `know add` no warning, `check` exits 0.
 Depends on item 4.
 **Commit:** `feat(agents): honour agents.file in capcom agents, Note writes and check`
 
-## 6. Document agents.file
+## 6. Document agents.file — ✅ DONE (2026-11-01)
+
+NOTES (2026-11-01): consequential edit — .capcom/knowledge/glossary/glossary-agent-interface/managed-block.md: made necessary by the docs now saying AGENTS.md is the block's home unless agents.file names another file (the glossary Note still called AGENTS.md its only home); capcom check passes after the hand edit.
+NOTES (2026-11-01): the new managed-block.md section's console output and messages were taken from a scratch run of the built binary (capcom agents, agents --check, check, know add, and a format-5 store with agents.file).
 
 **What:**
 **Goal:** the user docs say how to keep the block outside `AGENTS.md`: the key, its format,

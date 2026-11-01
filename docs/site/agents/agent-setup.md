@@ -29,7 +29,7 @@ This adds a marked section to `AGENTS.md` (creating the file when there is none)
 rest of the file alone. [The Managed block](managed-block.md) explains what it holds and how it
 stays current.
 
-`AGENTS.md` is the block's only home. An agent that reads a different instructions file reaches it
+`AGENTS.md` is the block's home unless `agents.file` names another file (see below). An agent that reads a different instructions file reaches it
 through that file: Claude Code reads `CLAUDE.md`, Gemini CLI reads `GEMINI.md`, and a guide holding
 the line `@AGENTS.md` makes the agent read `AGENTS.md` too; capcom's own repository does exactly
 that. The `agents.guides` key of `config.yaml` lists the guides that must reach the block,
@@ -48,6 +48,12 @@ writes the block into the file the link points to. While `AGENTS.md` carries the
 `capcom check` and `capcom agents --check` report a listed guide that does not reach it
 ([Other agent guides](managed-block.md#other-agent-guides) has the details). Commit `AGENTS.md`
 and every guide `capcom agents` changed.
+
+To keep the block out of `AGENTS.md`, for instance when that file is read-only, name another file
+in the `agents.file` key of `config.yaml` (store format 6). `capcom agents` then writes the block
+there, and `AGENTS.md` reaches it with an import line such as `@docs/capcom.md`, which capcom
+appends or you add once by hand
+([Keeping the block in another file](managed-block.md#keeping-the-block-in-another-file)).
 
 ## Step 2: Claude Code hooks
 
