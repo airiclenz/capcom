@@ -3,6 +3,7 @@ title: A staged edit that drops an alias still resolves by that alias
 status: open
 type: bug
 priority: 4
+plan: 2026-11-01 - 00 - staged-alias-removal-plan
 created: 2026-11-01T01:23:25Z
 ---
 
