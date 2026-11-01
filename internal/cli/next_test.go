@@ -107,3 +107,40 @@ func TestNext_NothingReadyKV_ExitsNothingReady(t *testing.T) {
 		t.Errorf("exit = %d stderr = %q stdout = %q", exitCode, stderr, stdout)
 	}
 }
+
+func TestNext_AllReadyHidden_WarnsAndExitsNothingReady(t *testing.T) {
+	root := newAllHiddenStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "next")
+
+	want := nothingReadyMessage + "\nwarning: " + allHiddenWarningText + "\n"
+	if exitCode != output.ExitNothingReady || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q stdout = %q, want exit %d stdout %q",
+			exitCode, stderr, stdout, output.ExitNothingReady, want)
+	}
+}
+
+func TestNext_AllReadyHiddenJSON_CarriesTheWarning(t *testing.T) {
+	root := newAllHiddenStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "next", "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	want := []any{allHiddenWarningText}
+	if exitCode != output.ExitNothingReady || !reflect.DeepEqual(envelope["warnings"], want) {
+		t.Errorf("exit = %d warnings = %#v, want exit %d warnings %#v",
+			exitCode, envelope["warnings"], output.ExitNothingReady, want)
+	}
+}
+
+func TestNext_AllReadyHiddenKV_IsOnlyTheWarningLine(t *testing.T) {
+	root := newAllHiddenStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "next", "--kv")
+
+	want := "WARNING=" + allHiddenWarningText + "\n"
+	if exitCode != output.ExitNothingReady || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q stdout = %q, want exit %d stdout %q",
+			exitCode, stderr, stdout, output.ExitNothingReady, want)
+	}
+}

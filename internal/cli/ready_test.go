@@ -320,3 +320,114 @@ func readyFieldsOf(entry map[string]any) map[string]any {
 	}
 	return fields
 }
+
+// hideTwoConfig hides the issues labelled owner-run or slow from ready.
+const hideTwoConfig = "ready:\n  hide: [owner-run, slow]\n"
+
+// allHiddenWarningText is the warning ready and next give when the two Ready issues of
+// newAllHiddenStore are hidden.
+const allHiddenWarningText = "nothing shown: 2 Ready issues carry a ready.hide label (owner-run, slow); " +
+	"--show-hidden lists them"
+
+// newHiddenStore creates a store whose config is hideTwoConfig, holding files.
+func newHiddenStore(t *testing.T, files map[string]string) string {
+	t.Helper()
+	root := newIssueStore(t, nil)
+	configPath := filepath.Join(root, ".capcom", "config.yaml")
+	if err := os.WriteFile(configPath, []byte(hideTwoConfig), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	writeIssueFiles(t, root, files)
+	return root
+}
+
+// newAllHiddenStore creates a store whose only Ready issues are hidden, one by each ready.hide
+// label: closed is done, and blocked is hidden too but waits for deploy.
+func newAllHiddenStore(t *testing.T) string {
+	t.Helper()
+	return newHiddenStore(t, map[string]string{
+		"deploy.md":  readyIssue("Deploy", "open", 1, "labels: [owner-run]\n"),
+		"rebuild.md": readyIssue("Rebuild", "open", 2, "labels: [slow, auth]\n"),
+		"blocked.md": readyIssue("Blocked", "open", 2, "labels: [slow]\ndeps: [deploy]\n"),
+		"closed.md":  readyIssue("Closed", "done", 0, ""),
+	})
+}
+
+func TestReady_AllReadyHidden_TextIsOnlyTheWarning(t *testing.T) {
+	root := newAllHiddenStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "ready")
+
+	want := "warning: " + allHiddenWarningText + "\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q stdout = %q, want stdout %q", exitCode, stderr, stdout, want)
+	}
+}
+
+func TestReady_HiddenNotice_Warnings(t *testing.T) {
+	cases := []struct {
+		name  string
+		files map[string]string
+		args  []string
+		want  []any
+	}{
+		{
+			name: "all Ready hidden",
+			files: map[string]string{
+				"deploy.md":  readyIssue("Deploy", "open", 1, "labels: [owner-run]\n"),
+				"rebuild.md": readyIssue("Rebuild", "open", 2, "labels: [slow, auth]\n"),
+			},
+			want: []any{allHiddenWarningText},
+		},
+		{
+			name: "one Ready hidden",
+			files: map[string]string{
+				"deploy.md": readyIssue("Deploy", "open", 1, "labels: [owner-run]\n"),
+			},
+			want: []any{"nothing shown: 1 Ready issue carries a ready.hide label (owner-run); " +
+				"--show-hidden lists them"},
+		},
+		{
+			name: "all lists only issues that are not Ready",
+			files: map[string]string{
+				"deploy.md":  readyIssue("Deploy", "open", 1, "labels: [owner-run]\n"),
+				"waiting.md": readyIssue("Waiting", "open", 2, "deps: [deploy]\n"),
+			},
+			args: []string{"--all"},
+			want: []any{"nothing shown: 1 Ready issue carries a ready.hide label (owner-run); " +
+				"--show-hidden lists them"},
+		},
+		{
+			name:  "nothing Ready",
+			files: map[string]string{"closed.md": readyIssue("Closed", "done", 0, "")},
+			want:  []any{},
+		},
+		{
+			name: "a Ready issue is shown",
+			files: map[string]string{
+				"deploy.md": readyIssue("Deploy", "open", 1, "labels: [owner-run]\n"),
+				"shown.md":  readyIssue("Shown", "open", 2, ""),
+			},
+			want: []any{},
+		},
+		{
+			name: "show-hidden",
+			files: map[string]string{
+				"deploy.md": readyIssue("Deploy", "open", 1, "labels: [owner-run]\n"),
+			},
+			args: []string{"--show-hidden"},
+			want: []any{},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newHiddenStore(t, testCase.files)
+
+			envelope := readyEnvelope(t, root, testCase.args...)
+
+			if got := envelope["warnings"]; !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("warnings = %#v, want %#v", got, testCase.want)
+			}
+		})
+	}
+}

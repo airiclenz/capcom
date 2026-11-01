@@ -67,7 +67,7 @@ labels; a hidden issue that is not Ready is not counted; `--label`/plan filters 
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/briefing/` passes; `go vet ./internal/briefing/` clean.
 **Commit:** `feat(briefing): count the Ready issues ready.hide hides`
 
-## 2. Warn in ready and next when every Ready issue is hidden
+## 2. Warn in ready and next when every Ready issue is hidden — ✅ DONE (2026-11-01)
 
 **What:**
 **Goal:** when `capcom ready` lists no Ready issue (with `--all`, none of the listed is Ready) and

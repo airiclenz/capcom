@@ -17,7 +17,7 @@ Each line gives the id, status, priority and title, and how many Issues closing 
 
 --all also lists the todo Issues that are not Ready, with what holds each one back; a standing Issue, which only groups its children, is never Ready and is held back by "standing: holds children".
 
-Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden is given.
+Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden is given; when they are the only Ready Issues, a warning says how many are hidden and by which labels.
 
 --planned keeps the Issues with a plan that resolves to a file in one of the config's plans directories; --unplanned keeps the rest, a plan that names no file included.
 

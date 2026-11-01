@@ -17,7 +17,7 @@ Print the Issue on the first line of capcom ready in full, as capcom show prints
 
 --json gives show's envelope for that Issue.
 
-With nothing Ready it prints "nothing is ready to work on" and exits 4, a code used for nothing else; --json then gives kind next with data null.
+With nothing Ready it prints "nothing is ready to work on" and exits 4, a code used for nothing else; --json then gives kind next with data null. When ready.hide alone hides every Ready Issue, a warning says how many and by which labels.
 
 Changes on other branches are reported as Elsewhere unless --no-elsewhere is given.
 

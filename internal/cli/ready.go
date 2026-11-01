@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -58,7 +59,8 @@ const (
 		"standing Issue, which only groups its children, is never Ready and is held back by " +
 		"\"standing: holds children\".\n\n" +
 		"Issues carrying a label listed under ready.hide in the config stay out unless --show-hidden " +
-		"is given.\n\n" +
+		"is given; when they are the only Ready Issues, a warning says how many are hidden and by " +
+		"which labels.\n\n" +
 		"--planned keeps the Issues with a plan that resolves to a file in one of the config's plans " +
 		"directories; --unplanned keeps the rest, a plan that names no file included.\n\n" +
 		"Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given."
@@ -86,7 +88,12 @@ func (a *app) newReadyCommand() *cobra.Command {
 			if options.limit < 0 {
 				return output.UsageErrorf("--%s %d: must not be negative", flagLimit, options.limit)
 			}
-			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, options.listOptions(a.store.WorktreeRoot))
+			listOptions := options.listOptions(a.store.WorktreeRoot)
+			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, listOptions)
+			if err != nil {
+				return err
+			}
+			hiddenWarnings, err := a.allHiddenWarnings(listed, listOptions)
 			if err != nil {
 				return err
 			}
@@ -94,7 +101,7 @@ func (a *app) newReadyCommand() *cobra.Command {
 				Kind:     "ready",
 				Data:     readyListData(listed),
 				Text:     readyLines(listed),
-				Warnings: droppedDepWarnings(listed),
+				Warnings: append(droppedDepWarnings(listed), hiddenWarnings...),
 			}
 			return a.emit(cmd, a.addElsewhere(result, options.isElsewhereSkipped, a.store.IssuesPathspec()))
 		}),
@@ -207,4 +214,35 @@ func droppedDepWarnings(listed []briefing.ReadyItem) []string {
 		}
 	}
 	return warnings
+}
+
+// allHiddenWarnings warns, when none of the listed issues is Ready, that the ready.hide rule alone
+// leaves out every Ready issue the other options keep: one warning naming how many and the
+// ready.hide labels they carry. There is none when a listed issue is Ready, when no Ready issue is
+// hidden, or when options include the hidden ones. It fails only when the index cannot be read.
+func (a *app) allHiddenWarnings(listed []briefing.ReadyItem, options briefing.ReadyOptions) ([]string, error) {
+	isReadyListed := slices.ContainsFunc(listed, func(current briefing.ReadyItem) bool {
+		return current.Readiness.IsReady
+	})
+	if isReadyListed {
+		return nil, nil
+	}
+	hidden, err := briefing.ReadyHidden(a.issueIndex, a.store.Config, options)
+	if err != nil || hidden.Count == 0 {
+		return nil, err
+	}
+	return []string{allHiddenWarning(hidden)}, nil
+}
+
+// allHiddenWarning is the warning that every Ready issue is hidden, e.g.
+// `nothing shown: 2 Ready issues carry a ready.hide label (owner-run, slow); --show-hidden lists them`.
+func allHiddenWarning(hidden briefing.Hidden) string {
+	subject := fmt.Sprintf("%d Ready issues carry", hidden.Count)
+	if hidden.Count == 1 {
+		subject = "1 Ready issue carries"
+	}
+	return fmt.Sprintf(
+		"nothing shown: %s a ready.hide label (%s); --%s lists them",
+		subject, strings.Join(hidden.Labels, ", "), flagShowHidden,
+	)
 }
