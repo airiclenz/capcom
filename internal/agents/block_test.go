@@ -458,7 +458,7 @@ func TestWrite_ExistingGuideWithoutBlock_AppendsAfterABlankLine(t *testing.T) {
 	hand := "# Guide\n\nHand-written rules."
 	root := writeGuide(t, hand)
 
-	status, err := write(root, goldenNotes, goldenDoing)
+	status, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateAbsent {
 		t.Fatalf("write = %+v, %v; want absent before writing", status, err)
@@ -474,7 +474,7 @@ func TestWrite_StaleBlock_RefreshesInPlaceKeepingSurroundingBytes(t *testing.T) 
 	after := "  \n\n## Hand-written tail\n\nKeep  this\ttext.\n"
 	root := writeGuide(t, before+render(goldenNotes[:1], goldenDoing)+after)
 
-	status, err := write(root, goldenNotes, goldenDoing)
+	status, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateStale || status.Line != 3 {
 		t.Fatalf("write = %+v, %v; want stale at line 3", status, err)
@@ -490,7 +490,7 @@ func TestWrite_BlockWithoutInstallLine_PutsItInsideTheMarkersKeepingSurroundingB
 	after := "  \n\n## Hand-written tail\n\nKeep  this\ttext.\n"
 	root := writeGuide(t, before+preInstallLineBlock+after)
 
-	status, err := write(root, goldenNotes, goldenDoing)
+	status, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateStale || status.Line != 3 {
 		t.Fatalf("write = %+v, %v; want stale at line 3", status, err)
@@ -510,7 +510,7 @@ func TestWrite_CurrentBlock_LeavesTheFileAlone(t *testing.T) {
 	root := writeGuide(t, goldenBlock+"\n")
 	before := mustStat(t, root)
 
-	status, err := write(root, goldenNotes, goldenDoing)
+	status, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateCurrent || status.Line != 1 {
 		t.Fatalf("write = %+v, %v; want current at line 1", status, err)
@@ -524,7 +524,7 @@ func TestWrite_MissingGuide_CreatesItWithTheBlock(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 
-	_, err := write(root, goldenNotes, goldenDoing)
+	_, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if got := readGuideText(t, root); err != nil || got != goldenBlock+"\n" {
 		t.Errorf("write err %v, AGENTS.md =\n%q\nwant the block alone", err, got)
@@ -536,8 +536,8 @@ func TestWrite_CRLFGuide_StaysCRLFAndIsThenCurrent(t *testing.T) {
 	crlfOf := func(text string) string { return strings.ReplaceAll(text, "\n", "\r\n") }
 	root := writeGuide(t, crlfOf("# Guide\n\n"+render(nil, goldenDoing)+"\n\nTail.\n"))
 
-	_, err := write(root, goldenNotes, goldenDoing)
-	status, inspectErr := inspect(root, goldenNotes, goldenDoing)
+	_, err := write(root, FileName, goldenNotes, goldenDoing)
+	status, inspectErr := inspect(root, FileName, goldenNotes, goldenDoing)
 
 	if err != nil || inspectErr != nil || status.State != StateCurrent {
 		t.Fatalf("write %v, inspect = %+v, %v; want current", err, status, inspectErr)
@@ -557,7 +557,7 @@ func TestWrite_PrivateGuide_KeepsItsMode(t *testing.T) {
 		t.Fatalf("Chmod: %v", err)
 	}
 
-	_, err := write(root, goldenNotes, goldenDoing)
+	_, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if err != nil {
 		t.Fatalf("write: %v", err)
@@ -584,7 +584,7 @@ func TestWrite_SymlinkedGuide_StaysALinkAndItsTargetGetsTheBlock(t *testing.T) {
 		t.Fatalf("Symlink: %v", err)
 	}
 
-	_, err := write(root, goldenNotes, goldenDoing)
+	_, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if err != nil {
 		t.Fatalf("write: %v", err)
@@ -617,7 +617,7 @@ func TestWrite_ReadOnlyDirectory_FailsNamingTheGuideAndLeavesItIntact(t *testing
 	}
 	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
 
-	_, err := write(root, goldenNotes, goldenDoing)
+	_, err := write(root, FileName, goldenNotes, goldenDoing)
 
 	if err == nil || !strings.HasPrefix(err.Error(), FileName+": ") {
 		t.Errorf("write err = %v, want an error starting %q", err, FileName+": ")
@@ -657,7 +657,7 @@ func TestInspect_States(t *testing.T) {
 			t.Parallel()
 			root := writeGuide(t, testCase.content)
 
-			status, err := inspect(root, goldenNotes, goldenDoing)
+			status, err := inspect(root, FileName, goldenNotes, goldenDoing)
 
 			if err != nil || status.State != testCase.wantState {
 				t.Errorf("inspect = %+v, %v; want state %d", status, err, testCase.wantState)
@@ -669,7 +669,7 @@ func TestInspect_States(t *testing.T) {
 func TestInspect_MissingGuide_IsAbsent(t *testing.T) {
 	t.Parallel()
 
-	status, err := inspect(t.TempDir(), goldenNotes, goldenDoing)
+	status, err := inspect(t.TempDir(), FileName, goldenNotes, goldenDoing)
 
 	if err != nil || status.State != StateAbsent {
 		t.Errorf("inspect = %+v, %v; want absent", status, err)
@@ -693,7 +693,7 @@ func TestInspect_TangledMarkers_FailAtTheMarkerLine(t *testing.T) {
 			t.Parallel()
 			root := writeGuide(t, testCase.content)
 
-			_, err := inspect(root, goldenNotes, goldenDoing)
+			_, err := inspect(root, FileName, goldenNotes, goldenDoing)
 
 			var failure *Error
 			if !errors.As(err, &failure) || failure.Line != testCase.wantLine || failure.Path != FileName {
@@ -939,7 +939,7 @@ func TestSync_EachModeAndState_ReportsTheStateFoundAndWritesOnlyWhatTheModeAllow
 				root = writeGuide(t, testCase.content)
 			}
 
-			status, err := Sync(root, knowledgeDir, goldenDoing, testCase.mode)
+			status, err := Sync(root, FileName, knowledgeDir, goldenDoing, testCase.mode)
 
 			if err != nil || status.State != testCase.wantState {
 				t.Fatalf("Sync = %+v, %v; want state %d", status, err, testCase.wantState)
@@ -957,7 +957,7 @@ func TestSync_TangledMarkers_FailsAtTheMarkerLineWithoutWriting(t *testing.T) {
 	content := "# Guide\n" + BeginMarker + "\ntext\n"
 	root := writeGuide(t, content)
 
-	_, err := Sync(root, knowledgeDir, goldenDoing, ModeWrite)
+	_, err := Sync(root, FileName, knowledgeDir, goldenDoing, ModeWrite)
 
 	var failure *Error
 	if !errors.As(err, &failure) || failure.Line != 2 {
@@ -1048,7 +1048,7 @@ func TestSync_GuideLinkedOutsideTheTree_FailsAndLeavesTheTargetAlone(t *testing.
 			knowledgeDir, _ := writeKnowledge(t)
 			root, outside := linkGuideOutside(t, testCase.content)
 
-			status, err := Sync(root, knowledgeDir, goldenDoing, testCase.mode)
+			status, err := Sync(root, FileName, knowledgeDir, goldenDoing, testCase.mode)
 
 			if testCase.isRefused {
 				want := FileName + ": links to " + outside +
@@ -1110,7 +1110,7 @@ func syncWithin(t *testing.T, root, knowledgeDir string, mode Mode) (Status, err
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		status, err := Sync(root, knowledgeDir, goldenDoing, mode)
+		status, err := Sync(root, FileName, knowledgeDir, goldenDoing, mode)
 		done <- outcome{status, err}
 	}()
 	select {
@@ -1210,5 +1210,102 @@ func TestSync_IrregularGuide_FailsAsAnAgentsError(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// capcomBlockFile is a block file other than AGENTS.md, in a directory of its own.
+const capcomBlockFile = ".capcom/AGENTS-capcom.md"
+
+func TestSync_BlockFile_WritesTheBlockThereAndLeavesAGENTSMdAlone(t *testing.T) {
+	t.Parallel()
+	knowledgeDir, notes := writeKnowledge(t)
+	const agentsContent = "# Guide\n\n@" + capcomBlockFile + "\n"
+	root := writeGuide(t, agentsContent)
+
+	status, err := Sync(root, capcomBlockFile, knowledgeDir, goldenDoing, ModeWrite)
+
+	if err != nil || status.State != StateAbsent {
+		t.Fatalf("Sync = %+v, %v; want StateAbsent before the write", status, err)
+	}
+	if got, want := readTreeFile(t, root, capcomBlockFile), render(notes, goldenDoing)+"\n"; got != want {
+		t.Errorf("%s =\n%q\nwant the block alone\n%q", capcomBlockFile, got, want)
+	}
+	if got := readGuideText(t, root); got != agentsContent {
+		t.Errorf("AGENTS.md =\n%q\nwant it untouched", got)
+	}
+	inspected, err := Sync(root, capcomBlockFile, knowledgeDir, goldenDoing, ModeInspect)
+	if err != nil || inspected.State != StateCurrent || inspected.Line != 1 {
+		t.Errorf("Sync inspect = %+v, %v; want StateCurrent at line 1", inspected, err)
+	}
+}
+
+func TestSync_BlockFileRefresh_RefreshesTheBlockFileAndLeavesAGENTSMdAlone(t *testing.T) {
+	t.Parallel()
+	knowledgeDir, notes := writeKnowledge(t)
+	stale := "# Guide\n\n" + render(nil, goldenDoing) + "\n"
+	root := writeGuide(t, stale)
+	writeTreeFile(t, root, capcomBlockFile, stale)
+
+	status, err := Sync(root, capcomBlockFile, knowledgeDir, goldenDoing, ModeRefresh)
+
+	if err != nil || status.State != StateStale {
+		t.Fatalf("Sync = %+v, %v; want StateStale", status, err)
+	}
+	if got, want := readTreeFile(t, root, capcomBlockFile), "# Guide\n\n"+render(notes, goldenDoing)+"\n"; got != want {
+		t.Errorf("%s =\n%q\nwant the block refreshed\n%q", capcomBlockFile, got, want)
+	}
+	if got := readGuideText(t, root); got != stale {
+		t.Errorf("AGENTS.md =\n%q\nwant it untouched", got)
+	}
+}
+
+func TestSync_BlockFileTangledMarkers_FailsNamingTheBlockFile(t *testing.T) {
+	t.Parallel()
+	knowledgeDir, _ := writeKnowledge(t)
+	root := t.TempDir()
+	writeTreeFile(t, root, capcomBlockFile, "# Guide\n"+EndMarker+"\n")
+
+	_, err := Sync(root, capcomBlockFile, knowledgeDir, goldenDoing, ModeInspect)
+
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Path != capcomBlockFile || failure.Line != 2 {
+		t.Errorf("Sync err = %v, want an *Error at %s:2", err, capcomBlockFile)
+	}
+}
+
+func TestSync_BlockFileLinkedOutsideTheTree_FailsNamingTheBlockFile(t *testing.T) {
+	t.Parallel()
+	knowledgeDir, _ := writeKnowledge(t)
+	root, outside := linkGuideOutside(t, "# Outside\n")
+	linkTreeFile(t, root, capcomBlockFile, outside)
+
+	_, err := Sync(root, capcomBlockFile, knowledgeDir, goldenDoing, ModeWrite)
+
+	want := capcomBlockFile + ": links to " + outside +
+		", outside the working tree; the capcom block is not read or written"
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Path != capcomBlockFile || err.Error() != want {
+		t.Errorf("Sync err = %v, want an *Error %q", err, want)
+	}
+	if content, readErr := os.ReadFile(outside); readErr != nil || string(content) != "# Outside\n" {
+		t.Errorf("outside file = %q, %v; want it untouched", content, readErr)
+	}
+}
+
+func TestSync_MissingBlockFileInADirectoryLinkedOutside_FailsWithoutCreatingIt(t *testing.T) {
+	t.Parallel()
+	knowledgeDir, _ := writeKnowledge(t)
+	root := t.TempDir()
+	outside := t.TempDir()
+	linkTreeFile(t, root, ".capcom", outside)
+
+	_, err := Sync(root, capcomBlockFile, knowledgeDir, goldenDoing, ModeWrite)
+
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Path != capcomBlockFile || failure.Line != 0 {
+		t.Errorf("Sync err = %v, want an *Error naming %s", err, capcomBlockFile)
+	}
+	if entries, readErr := os.ReadDir(outside); readErr != nil || len(entries) != 0 {
+		t.Errorf("outside directory = %v, %v; want it empty", entries, readErr)
 	}
 }

@@ -206,7 +206,7 @@ func writeCurrentBlock(t *testing.T, root string) {
 		t.Fatalf("Open: %v", err)
 	}
 	doingStatus, _ := opened.Config.DefaultStatus(config.CategoryDoing)
-	if _, err := agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), doingStatus, agents.ModeWrite); err != nil {
+	if _, err := agents.Sync(opened.WorktreeRoot, agents.FileName, opened.KnowledgeDir(), doingStatus, agents.ModeWrite); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
 }

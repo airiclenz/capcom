@@ -62,7 +62,7 @@ func guidesWithin(t *testing.T, root string, names []string, mode Mode) ([]Guide
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		guides, err := Guides(root, names, mode)
+		guides, err := Guides(root, FileName, names, mode)
 		done <- outcome{guides, err}
 	}()
 	select {
@@ -432,5 +432,165 @@ func TestGuideProblem_Unreached_NamesTheImportLine(t *testing.T) {
 		if got := testCase.guide.Problem(); got != testCase.want {
 			t.Errorf("%+v.Problem() = %q, want %q", testCase.guide, got, testCase.want)
 		}
+	}
+}
+
+func TestGuides_BlockInAnotherFile_GuidesStillReachAGENTSMd(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		content string
+		want    Guide
+	}{
+		{"without the import", "# Claude\n", Guide{Path: "CLAUDE.md", State: GuideUnreached, ImportLine: "@AGENTS.md"}},
+		{"with the import", "# Claude\n\n@AGENTS.md\n", Guide{Path: "CLAUDE.md", State: GuideReaches, ImportLine: "@AGENTS.md"}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeTreeFile(t, root, capcomBlockFile, blockGuide)
+			writeTreeFile(t, root, FileName, "# Guide\n\n@"+capcomBlockFile+"\n")
+			writeTreeFile(t, root, "CLAUDE.md", testCase.content)
+
+			guides, err := Guides(root, capcomBlockFile, []string{"CLAUDE.md"}, ModeInspect)
+
+			if err != nil || len(guides) != 1 || guides[0] != testCase.want {
+				t.Fatalf("Guides = %+v, %v; want [%+v]", guides, err, testCase.want)
+			}
+		})
+	}
+}
+
+func TestGuides_BlockInAnotherFileReachedGuide_IsUntouchedByAWrite(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTreeFile(t, root, capcomBlockFile, blockGuide)
+	const claude = "# Claude\n\n@AGENTS.md\n"
+	writeTreeFile(t, root, "CLAUDE.md", claude)
+
+	guides, err := Guides(root, capcomBlockFile, []string{"CLAUDE.md"}, ModeWrite)
+
+	if err != nil || len(guides) != 1 || guides[0].State != GuideReaches {
+		t.Fatalf("Guides = %+v, %v; want CLAUDE.md GuideReaches", guides, err)
+	}
+	if got := readTreeFile(t, root, "CLAUDE.md"); got != claude {
+		t.Errorf("CLAUDE.md = %q, want it untouched", got)
+	}
+}
+
+func TestGuides_BlockFileWithoutTheBlock_ReportsNothingThoughAGENTSMdHasOne(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTreeFile(t, root, FileName, blockGuide)
+	writeTreeFile(t, root, capcomBlockFile, "# No block\n")
+	writeTreeFile(t, root, "CLAUDE.md", "# Claude\n")
+
+	guides, err := Guides(root, capcomBlockFile, []string{"CLAUDE.md"}, ModeInspect)
+
+	if err != nil || guides != nil {
+		t.Errorf("Guides = %+v, %v; want nil, nil: the block file carries no block", guides, err)
+	}
+}
+
+func TestAgentsGuide_EachAGENTSMd_ReportsWhetherItReachesTheBlockFile(t *testing.T) {
+	t.Parallel()
+	const importLine = "@" + capcomBlockFile
+	cases := []struct {
+		name           string
+		content        string
+		isMissing      bool
+		wantState      GuideState
+		wantImportLine string
+		wantMarkers    bool
+	}{
+		{"without the import", "# Guide\n", false, GuideUnreached, importLine, false},
+		{"with the import", "# Guide\n\n" + importLine + "\n", false, GuideReaches, importLine, false},
+		{"with a dotted import", "# Guide\n\n@./" + capcomBlockFile + "\n", false, GuideReaches, importLine, false},
+		{"with a stray block", "# Guide\n\n" + importLine + "\n\n" + goldenBlock + "\n", false, GuideReaches, importLine, true},
+		{"with a stray end marker", "# Guide\n" + EndMarker + "\n", false, GuideUnreached, importLine, true},
+		{"missing", "", true, GuideMissing, "", false},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeTreeFile(t, root, capcomBlockFile, blockGuide)
+			if !testCase.isMissing {
+				writeTreeFile(t, root, FileName, testCase.content)
+			}
+
+			guide, err := AgentsGuide(root, capcomBlockFile, ModeInspect)
+
+			want := Guide{
+				Path:       FileName,
+				State:      testCase.wantState,
+				ImportLine: testCase.wantImportLine,
+				HasMarkers: testCase.wantMarkers,
+				blockFile:  capcomBlockFile,
+			}
+			if err != nil || guide != want {
+				t.Errorf("AgentsGuide = %+v, %v; want %+v", guide, err, want)
+			}
+			if _, statErr := os.Stat(guidePath(root)); testCase.isMissing && !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("AGENTS.md stat err = %v, want it still missing", statErr)
+			}
+		})
+	}
+}
+
+func TestAgentsGuide_UnreachedAGENTSMdWrite_AppendsTheImportLine(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTreeFile(t, root, FileName, "# Guide\n")
+
+	guide, err := AgentsGuide(root, capcomBlockFile, ModeWrite)
+
+	if err != nil || guide.State != GuideImported || guide.ImportLine != "@"+capcomBlockFile {
+		t.Fatalf("AgentsGuide = %+v, %v; want GuideImported with @%s", guide, err, capcomBlockFile)
+	}
+	if got, want := readGuideText(t, root), "# Guide\n\n@"+capcomBlockFile+"\n"; got != want {
+		t.Errorf("AGENTS.md = %q, want %q", got, want)
+	}
+}
+
+func TestAgentsGuide_AGENTSMdLinkedToTheBlockFile_ReachesItWithoutMarkers(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTreeFile(t, root, capcomBlockFile, blockGuide)
+	linkTreeFile(t, root, FileName, capcomBlockFile)
+
+	guide, err := AgentsGuide(root, capcomBlockFile, ModeWrite)
+
+	if err != nil || guide.State != GuideReaches || guide.HasMarkers {
+		t.Errorf("AgentsGuide = %+v, %v; want GuideReaches without stray markers", guide, err)
+	}
+}
+
+func TestAgentsGuide_BlockFileIsAGENTSMd_ReportsNothing(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTreeFile(t, root, FileName, "# Guide\n")
+
+	guide, err := AgentsGuide(root, FileName, ModeWrite)
+
+	if err != nil || guide != (Guide{}) {
+		t.Errorf("AgentsGuide = %+v, %v; want the zero Guide", guide, err)
+	}
+	if got := readGuideText(t, root); got != "# Guide\n" {
+		t.Errorf("AGENTS.md = %q, want it untouched", got)
+	}
+}
+
+func TestGuideProblem_AgentsGuide_NamesTheBlockFile(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeTreeFile(t, root, FileName, "# Guide\n")
+
+	guide, err := AgentsGuide(root, capcomBlockFile, ModeInspect)
+
+	want := "does not reach the capcom block in " + capcomBlockFile + "; run capcom agents to add @" + capcomBlockFile
+	if err != nil || guide.Problem() != want {
+		t.Errorf("Problem = %q, %v; want %q", guide.Problem(), err, want)
 	}
 }

@@ -122,7 +122,7 @@ func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 		data.Block = blockRefreshed
 		text = "refreshed the capcom block of " + agents.FileName + "\n"
 	}
-	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.Guides, agents.ModeWrite)
+	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.File, opened.Config.Agents.Guides, agents.ModeWrite)
 	if err != nil {
 		return agentsFailure(err)
 	}
@@ -130,12 +130,13 @@ func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 	return a.emit(cmd, output.Result{Kind: "agents", Data: data, Text: text + guidesText(guides)})
 }
 
-// syncAgentsBlock reconciles the capcom block of the AGENTS.md of opened with its Knowledge top level
-// and its configured doing status, as mode says; see agents.Sync.
+// syncAgentsBlock reconciles the capcom block of the block file opened configures (agents.file,
+// AGENTS.md by default) with its Knowledge top level and its configured doing status, as mode says;
+// see agents.Sync.
 func syncAgentsBlock(opened *store.Store, mode agents.Mode) (agents.Status, error) {
 	// No doing status configured is the empty string, which leaves the claim line out.
 	doingStatus, _ := opened.Config.DefaultStatus(config.CategoryDoing)
-	return agents.Sync(opened.WorktreeRoot, opened.KnowledgeDir(), doingStatus, mode)
+	return agents.Sync(opened.WorktreeRoot, opened.Config.Agents.File, opened.KnowledgeDir(), doingStatus, mode)
 }
 
 // guidesText reports each guide capcom agents added the import line to, and each it skipped
@@ -177,7 +178,7 @@ func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
 			Hint:    agentsCommand,
 		}
 	}
-	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.Guides, agents.ModeInspect)
+	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.File, opened.Config.Agents.Guides, agents.ModeInspect)
 	if err != nil {
 		return agentsFailure(err)
 	}

@@ -131,7 +131,13 @@ message; refused naming a guide (any case); refused `../x.md` and an absolute pa
 **Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 ./internal/config/` passes; `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Init'` passes.
 **Commit:** `feat(config): add agents.file at store format 6`
 
-## 4. Keep the managed block in the configured file
+## 4. Keep the managed block in the configured file — ✅ DONE (2026-11-01)
+
+NOTES (2026-11-01): Sync takes blockFile second (Sync(worktreeRoot, blockFile, knowledgeDir, doingStatus, mode)); Guides(worktreeRoot, blockFile, names, mode); AgentsGuide(worktreeRoot, blockFile, mode) as planned. findBlock and markerError take the file's name; outsideError takes the name and target.
+NOTES (2026-11-01): AgentsGuide reports markers through a new exported Guide.HasMarkers field, and its Guide carries an unexported blockFile so Problem() names the block file instead of AGENTS.md; both stay zero for guides Guides reports, so existing Guide comparisons and Problem text are unchanged.
+NOTES (2026-11-01): AgentsGuide does not gate on the block file carrying the block (Guides does); callers gate it on Sync's Status. A missing AGENTS.md is GuideMissing and never created, as for any guide.
+NOTES (2026-11-01): added a guard beyond the plan text: ModeWrite refuses (outsideError naming the block file) to create a missing block file whose nearest existing directory resolves outside the working tree, keeping the package's inside-the-tree invariant now that the block file can be nested; tested by TestSync_MissingBlockFileInADirectoryLinkedOutside_FailsWithoutCreatingIt.
+NOTES (2026-11-01): user-facing messages in internal/cli/agents.go and internal/check/agents.go still name agents.FileName; item 5 owns them. Only the doc comments of syncAgentsBlock and checker.agentsBlock were updated, as the changed calls made them false.
 
 **What:**
 Recast at the regression check (2026-11-01).

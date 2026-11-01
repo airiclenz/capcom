@@ -3,7 +3,6 @@ package agents
 import (
 	"bytes"
 	"fmt"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -39,48 +38,63 @@ type Guide struct {
 	Path string
 	// State is what Guides found, or did, for the guide.
 	State GuideState
-	// ImportLine is the line that imports AGENTS.md from the guide's file (`@AGENTS.md`, or
-	// `@../AGENTS.md` for a guide in a subdirectory). It is set for a guide Guides read or wrote:
+	// ImportLine is the line that imports the file the guide must reach from the guide's file
+	// (`@AGENTS.md`, or `@../AGENTS.md` for a guide in a subdirectory; for AgentsGuide, the block
+	// file, such as `@.capcom/AGENTS-capcom.md`). It is set for a guide read or written:
 	// GuideReaches through a line, GuideUnreached and GuideImported.
 	ImportLine string
+	// HasMarkers is set by AgentsGuide only: AGENTS.md, which is not the block file, still holds a
+	// capcom marker line.
+	HasMarkers bool
+	// blockFile is the block file AgentsGuide reports AGENTS.md against; it is empty for a guide
+	// Guides reports, which must reach AGENTS.md.
+	blockFile string
 }
 
-// Problem is the message that reports an unreached guide, naming the import line that would make it
-// reach the block, without the guide's path: callers put Path before it. It is empty for any other
-// State.
+// Problem is the message that reports an unreached guide, naming the file it must reach (AGENTS.md,
+// or the block file for AgentsGuide) and the import line that would make it reach the block,
+// without the guide's path: callers put Path before it. It is empty for any other State.
 func (g Guide) Problem() string {
 	if g.State != GuideUnreached {
 		return ""
 	}
-	return "does not reach the capcom block in " + FileName + "; run capcom agents to add " + g.ImportLine
+	target := FileName
+	if g.blockFile != "" {
+		target = g.blockFile
+	}
+	return "does not reach the capcom block in " + target + "; run capcom agents to add " + g.ImportLine
 }
 
-// blockHome is the AGENTS.md that holds the block, as the guides must reach it.
+// blockHome is the file a guide must reach, AGENTS.md or the block file.
 type blockHome struct {
-	// target is AGENTS.md's resolved target: a guide resolving to it is AGENTS.md.
+	// target is the file's resolved target: a guide resolving to it is the file itself.
 	target string
-	// rootPath is AGENTS.md at the working tree root, the tree's links resolved: import lines are
+	// rootPath is the file in the working tree, the tree's links resolved: import lines are
 	// relative to it.
 	rootPath string
 }
 
 // Guides reports, for each agent guide in names (paths relative to worktreeRoot, in slash form),
-// whether it reaches the Managed block in the AGENTS.md of worktreeRoot, in the order of names. A
-// guide reaches the block when it resolves to the same file as AGENTS.md, or when one of its lines,
-// white space trimmed, is `@<rel>` or `@./<rel>`, <rel> being the root AGENTS.md relative to the
-// directory of the file the guide resolves to, in slash form. ModeWrite appends `@<rel>` to each
-// guide that does not reach it, after a blank line and in the file's line ending, keeping its
-// permissions; no other mode writes. Guides sharing one resolved file are read, and written, once:
-// the first name the import line was appended through is GuideImported, the later ones GuideReaches.
+// whether it reaches the Managed block through the AGENTS.md of worktreeRoot, in the order of
+// names. A guide reaches the block when it resolves to the same file as AGENTS.md, or when one of
+// its lines, white space trimmed, is `@<rel>` or `@./<rel>`, <rel> being the root AGENTS.md
+// relative to the directory of the file the guide resolves to, in slash form. ModeWrite appends
+// `@<rel>` to each guide that does not reach it, after a blank line and in the file's line ending,
+// keeping its permissions; no other mode writes. Guides sharing one resolved file are read, and
+// written, once: the first name the import line was appended through is GuideImported, the later
+// ones GuideReaches.
 //
-// Guides returns nil, nil when AGENTS.md carries no block: when it is missing, links outside the
-// working tree, cannot be read or has markers that cannot be told apart, which the block inspection
-// reports. A missing guide is never created, and one that links outside the working tree is
-// neither read nor written. Guides fails with an *Error whose Path is the guide's name on a guide
-// that is not a regular file or is larger than 1 MiB, and when a guide cannot be resolved, read or
-// written; every error names the guide.
-func Guides(worktreeRoot string, names []string, mode Mode) ([]Guide, error) {
-	home, hasBlock := findBlockHome(worktreeRoot)
+// Guides returns nil, nil when blockFile (a path relative to worktreeRoot in slash form, FileName
+// for AGENTS.md itself) carries no block: when it is missing, links outside the working tree,
+// cannot be read or has markers that cannot be told apart, which the block inspection reports. Only
+// that gate reads blockFile: the guides reach AGENTS.md whichever file holds the block, and
+// AgentsGuide reports whether AGENTS.md reaches a block file other than itself. A missing guide is
+// never created, and one that links outside the working tree is neither read nor written. Guides
+// fails with an *Error whose Path is the guide's name on a guide that is not a regular file or is
+// larger than 1 MiB, and when a guide cannot be resolved, read or written; every error names the
+// guide.
+func Guides(worktreeRoot, blockFile string, names []string, mode Mode) ([]Guide, error) {
+	home, hasBlock := findBlockHome(worktreeRoot, blockFile)
 	if !hasBlock {
 		return nil, nil
 	}
@@ -88,7 +102,7 @@ func Guides(worktreeRoot string, names []string, mode Mode) ([]Guide, error) {
 	guides := make([]Guide, 0, len(names))
 	foundByTarget := map[string]Guide{}
 	for _, name := range names {
-		slashName := path.Clean(filepath.ToSlash(name))
+		slashName := slashPath(name)
 		guide, err := resolveGuide(worktreeRoot, slashName)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", slashName, err)
@@ -110,30 +124,108 @@ func Guides(worktreeRoot string, names []string, mode Mode) ([]Guide, error) {
 	return guides, nil
 }
 
-// findBlockHome resolves the AGENTS.md of worktreeRoot and reports whether it carries the block.
-// Every way AGENTS.md fails to carry one, an error included, is reported as no block: the block
-// inspection reports AGENTS.md's own faults, so the guides stay silent on them.
-func findBlockHome(worktreeRoot string) (blockHome, bool) {
-	agents, err := resolveGuide(worktreeRoot, FileName)
-	if err != nil || agents.isMissing || agents.isOutside {
+// findBlockHome reports whether blockFile, of the working tree at worktreeRoot, carries the block
+// and resolves the AGENTS.md the guides must reach. Every way blockFile fails to carry one, an
+// error included, is reported as no block: the block inspection reports the block file's own
+// faults, so the guides stay silent on them.
+func findBlockHome(worktreeRoot, blockFile string) (blockHome, bool) {
+	if !carriesBlock(worktreeRoot, slashPath(blockFile)) {
 		return blockHome{}, false
 	}
-	content, err := readGuide(agents)
+	home, err := resolveHome(worktreeRoot, FileName)
 	if err != nil {
 		return blockHome{}, false
 	}
-	span, err := findBlock(content)
-	if err != nil || !span.isFound {
-		return blockHome{}, false
+	return home, true
+}
+
+// carriesBlock reports whether the file name, a path relative to worktreeRoot in slash form, is
+// inside the working tree, can be read and holds one block whose markers can be told apart.
+func carriesBlock(worktreeRoot, name string) bool {
+	file, err := resolveGuide(worktreeRoot, name)
+	if err != nil || file.isMissing || file.isOutside {
+		return false
+	}
+	content, err := readGuide(file)
+	if err != nil {
+		return false
+	}
+	span, err := findBlock(name, content)
+	return err == nil && span.isFound
+}
+
+// resolveHome resolves name, a path relative to worktreeRoot in slash form, as the file a guide
+// must reach.
+func resolveHome(worktreeRoot, name string) (blockHome, error) {
+	file, err := resolveGuide(worktreeRoot, name)
+	if err != nil {
+		return blockHome{}, fmt.Errorf("%s: %w", name, err)
 	}
 	root, err := filepath.EvalSymlinks(worktreeRoot)
 	if err != nil {
-		return blockHome{}, false
+		return blockHome{}, err
 	}
-	return blockHome{target: agents.path, rootPath: filepath.Join(root, FileName)}, true
+	return blockHome{target: file.path, rootPath: namedGuidePath(root, name)}, nil
 }
 
-// reachBlock finds whether guide reaches the block in home and, when it does not and mode is
+// AgentsGuide reports whether the AGENTS.md of worktreeRoot reaches blockFile, the block file (a
+// path relative to worktreeRoot in slash form), as Guides reports a guide reaching AGENTS.md: by
+// resolving to blockFile, or by a line `@<rel>` or `@./<rel>`, <rel> being blockFile relative to
+// the directory of the file AGENTS.md resolves to. ModeWrite appends `@<rel>` to an AGENTS.md that
+// does not reach it, as Guides appends to a guide; a missing AGENTS.md is never created, and one
+// that links outside the working tree is neither read nor written. It does not look inside
+// blockFile: callers gate it on the block's Status. The Guide's Path is FileName, its Problem names
+// blockFile, and HasMarkers says whether AGENTS.md, read, still holds a capcom marker line, which
+// the block in blockFile makes stray.
+//
+// AgentsGuide returns the zero Guide, its Path empty, when blockFile is AGENTS.md itself: there is
+// nothing to reach. It fails as Guides does on a guide, every error naming AGENTS.md, and when
+// blockFile cannot be resolved, naming blockFile.
+func AgentsGuide(worktreeRoot, blockFile string, mode Mode) (Guide, error) {
+	blockFile = slashPath(blockFile)
+	if blockFile == FileName {
+		return Guide{}, nil
+	}
+	home, err := resolveHome(worktreeRoot, blockFile)
+	if err != nil {
+		return Guide{}, err
+	}
+	agents, err := resolveGuide(worktreeRoot, FileName)
+	if err != nil {
+		return Guide{}, fmt.Errorf("%s: %w", FileName, err)
+	}
+	hasMarkers, err := holdsMarkers(agents, home)
+	if err != nil {
+		return Guide{}, err
+	}
+
+	found, err := reachBlock(agents, home, mode)
+	if err != nil {
+		return Guide{}, err
+	}
+	found.Path = FileName
+	found.HasMarkers = hasMarkers
+	found.blockFile = blockFile
+	return found, nil
+}
+
+// holdsMarkers reports whether guide, read, holds a capcom marker line, tangled or not. A guide
+// that is missing, links outside the working tree or resolves to the file of home, whose markers
+// are the block's own, holds none.
+func holdsMarkers(guide guideFile, home blockHome) (bool, error) {
+	if guide.isMissing || guide.isOutside || guide.path == home.target {
+		return false, nil
+	}
+	content, err := readGuide(guide)
+	if err != nil {
+		return false, err
+	}
+	span, err := findBlock(guide.name, content)
+	// Every marker line either opens a span or is one findBlock cannot tell apart.
+	return err != nil || span.isFound, nil
+}
+
+// reachBlock finds whether guide reaches the file of home and, when it does not and mode is
 // ModeWrite, appends the import line to the file guide resolves to, which must still exist. The
 // Guide it returns carries no Path.
 func reachBlock(guide guideFile, home blockHome, mode Mode) (Guide, error) {

@@ -1,14 +1,16 @@
-// Package agents owns the Managed block of AGENTS.md: the part of the hand-written agent guide
-// between `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes. The block is
+// Package agents owns the Managed block: the part of a hand-written agent guide between
+// `<!-- BEGIN CAPCOM -->` and `<!-- END CAPCOM -->` that capcom writes, kept in the block file its
+// callers name (AGENTS.md by default). The block is
 // rendered deterministically from the top level of the Knowledge tree and whether the config
 // declares a doing status, which its claim line needs, and a write splices it in by its markers,
 // or appends it when absent, keeping every byte outside the markers and the file's line ending.
 // Sync is the one way callers reconcile the block with the Knowledge tree: it reads the top level
 // and inspects, refreshes or writes in one pass. The block is read and written only in a
-// file inside the working tree: an AGENTS.md that links outside it is never read or written. Guides
+// file inside the working tree: a block file that links outside it is never read or written. Guides
 // checks that the other agent guides beside AGENTS.md (CLAUDE.md, GEMINI.md) reach the block, by
 // being AGENTS.md through a link or by an `@AGENTS.md` import line, and appends that line to the
-// ones that do not.
+// ones that do not. When the block file is not AGENTS.md, AgentsGuide checks the same of AGENTS.md
+// against the block file.
 package agents
 
 import (
@@ -17,6 +19,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -26,7 +29,8 @@ import (
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// FileName is the agent guide the block lives in, at the working tree root.
+// FileName is AGENTS.md, at the working tree root: the block file unless the caller names another,
+// and the file every other agent guide reaches.
 const FileName = "AGENTS.md"
 
 // The marker lines that delimit the Managed block.
@@ -42,7 +46,7 @@ const (
 	crlf           = carriageReturn + lineFeed
 )
 
-// newFilePermissions are the permissions of a newly created AGENTS.md.
+// newFilePermissions are the permissions of a newly created block file.
 const newFilePermissions = 0o644
 
 // blockHeader is the fixed part of the block between the begin marker and the command list.
@@ -130,12 +134,12 @@ type Note struct {
 	Title string
 }
 
-// State is what Sync found in AGENTS.md.
+// State is what Sync found in the block file.
 type State int
 
 const (
-	// StateAbsent is an AGENTS.md without the block, no AGENTS.md at all, or an AGENTS.md that links
-	// outside the working tree when the mode does not write.
+	// StateAbsent is a block file without the block, no block file at all, or a block file that
+	// links outside the working tree when the mode does not write.
 	StateAbsent State = iota
 	// StateCurrent is a block equal to what render produces now.
 	StateCurrent
@@ -149,11 +153,11 @@ type Mode int
 const (
 	// ModeInspect reports the State and writes nothing.
 	ModeInspect Mode = iota
-	// ModeRefresh rewrites a stale block only, leaving an AGENTS.md without the block, or no
-	// AGENTS.md, as it is.
+	// ModeRefresh rewrites a stale block only, leaving a block file without the block, or no
+	// block file, as it is.
 	ModeRefresh
 	// ModeWrite brings the block up to date: a stale block is replaced, an absent one appended,
-	// and a missing AGENTS.md created.
+	// and a missing block file created, with its missing directories.
 	ModeWrite
 )
 
@@ -164,11 +168,12 @@ type Status struct {
 	Line  int
 }
 
-// Error is an AGENTS.md whose markers cannot be told apart: a marker repeated, an end marker
+// Error is a block file whose markers cannot be told apart: a marker repeated, an end marker
 // before the begin marker, or a begin marker never closed. Line is the offending marker's line.
-// It is also an AGENTS.md that cannot be read, being not a regular file or larger than 1 MiB, and
-// one a write refuses because it links outside the working tree; Line is 0 then. Path is the file's
-// name in the working tree: AGENTS.md, or the agent guide Guides refuses to read.
+// It is also a block file that cannot be read, being not a regular file or larger than 1 MiB, and
+// one a write refuses because it, or the directory it would be created in, links outside the
+// working tree; Line is 0 then. Path is the file's name in the working tree: the block file, or the
+// agent guide Guides or AgentsGuide refuses to read.
 type Error struct {
 	Path    string
 	Line    int
@@ -183,7 +188,7 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s:%d: %s", e.Path, e.Line, e.Message)
 }
 
-// guidePath returns the AGENTS.md of the working tree at worktreeRoot.
+// guidePath returns the AGENTS.md of the working tree at worktreeRoot, the default block file.
 func guidePath(worktreeRoot string) string {
 	return namedGuidePath(worktreeRoot, FileName)
 }
@@ -293,64 +298,64 @@ func render(notes []Note, doingStatus string) string {
 	return block.String()
 }
 
-// inspect reads the AGENTS.md of worktreeRoot and reports whether its block is absent, current or
-// stale against notes and doingStatus. A missing file is StateAbsent, and so is one that links
-// outside the working tree, which is not read. Line endings are ignored in the comparison, so a
-// CRLF file holding the current block is current. It fails with an *Error on markers that cannot
-// be told apart and on a file that is not a regular file or is larger than 1 MiB, and when the
-// file cannot be read.
-func inspect(worktreeRoot string, notes []Note, doingStatus string) (Status, error) {
-	return reconcile(worktreeRoot, notes, doingStatus, ModeInspect)
+// inspect reads blockFile, a path relative to worktreeRoot in slash form, and reports whether its
+// block is absent, current or stale against notes and doingStatus. A missing file is StateAbsent,
+// and so is one that links outside the working tree, which is not read. Line endings are ignored in
+// the comparison, so a CRLF file holding the current block is current. It fails with an *Error on
+// markers that cannot be told apart and on a file that is not a regular file or is larger than
+// 1 MiB, and when the file cannot be read.
+func inspect(worktreeRoot, blockFile string, notes []Note, doingStatus string) (Status, error) {
+	return reconcile(worktreeRoot, blockFile, notes, doingStatus, ModeInspect)
 }
 
-// write brings the block of the AGENTS.md of worktreeRoot up to date with notes and doingStatus and
-// returns the Status found before writing. A stale block is replaced in place, an absent one is
-// appended after a blank line, and a missing file is created holding the block alone; a current
-// block leaves the file untouched. Every byte outside the markers is kept, and the block takes the
-// file's line ending (CRLF when the file has any). It fails as inspect does, and when the file
-// cannot be written. An AGENTS.md that links outside the working tree fails it with an *Error, the
+// write brings the block of blockFile, a path relative to worktreeRoot in slash form, up to date
+// with notes and doingStatus and returns the Status found before writing. A stale block is replaced
+// in place, an absent one is appended after a blank line, and a missing file is created holding the
+// block alone, its missing directories with it; a current block leaves the file untouched. Every
+// byte outside the markers is kept, and the block takes the file's line ending (CRLF when the file
+// has any). It fails as inspect does, and when the file cannot be written. A block file that links
+// outside the working tree, or a missing one whose directory does, fails it with an *Error, the
 // file it links to neither read nor written.
-func write(worktreeRoot string, notes []Note, doingStatus string) (Status, error) {
-	return reconcile(worktreeRoot, notes, doingStatus, ModeWrite)
+func write(worktreeRoot, blockFile string, notes []Note, doingStatus string) (Status, error) {
+	return reconcile(worktreeRoot, blockFile, notes, doingStatus, ModeWrite)
 }
 
-// Sync reconciles the block of the AGENTS.md of worktreeRoot with the top level of the Knowledge
-// tree in knowledgeDir and with doingStatus, the configured doing status (the empty string when the
-// config declares none, which leaves the claim line and the capcom start sentence out), as mode
-// says, and returns the Status found before any write. Only whether doingStatus is empty shapes
-// the block, so renaming the doing status does not stale it. It reads the file once: the Status it reports is the one it
-// acted on. It fails as topNotes does, as inspect does, and, when mode writes, when the file cannot
-// be written. An AGENTS.md that links outside the working tree is never read: ModeWrite fails as
-// write does, and the other modes report StateAbsent.
-func Sync(worktreeRoot, knowledgeDir, doingStatus string, mode Mode) (Status, error) {
+// Sync reconciles the block of blockFile, a path relative to worktreeRoot in slash form (FileName
+// for AGENTS.md), with the top level of the Knowledge tree in knowledgeDir and with doingStatus,
+// the configured doing status (the empty string when the config declares none, which leaves the
+// claim line and the capcom start sentence out), as mode says, and returns the Status found before
+// any write. Only whether doingStatus is empty shapes the block, so renaming the doing status does
+// not stale it. It reads the file once: the Status it reports is the one it acted on. It fails as
+// topNotes does, as inspect does, and, when mode writes, as write does. A block file that links
+// outside the working tree is never read: ModeWrite fails as write does, and the other modes report
+// StateAbsent. Every error names blockFile.
+func Sync(worktreeRoot, blockFile, knowledgeDir, doingStatus string, mode Mode) (Status, error) {
 	notes, err := topNotes(knowledgeDir)
 	if err != nil {
 		return Status{}, err
 	}
-	return reconcile(worktreeRoot, notes, doingStatus, mode)
+	return reconcile(worktreeRoot, blockFile, notes, doingStatus, mode)
 }
 
-// reconcile resolves the AGENTS.md of worktreeRoot, reads it, finds its block's Status against
-// notes and doingStatus and, when mode calls for it, writes the block render produces for them to
-// the same file.
-// A guide that links outside the working tree is neither read nor written.
-func reconcile(worktreeRoot string, notes []Note, doingStatus string, mode Mode) (Status, error) {
-	guide, err := resolveGuide(worktreeRoot, FileName)
-	if err != nil {
-		return Status{}, fmt.Errorf("%s: %w", FileName, err)
-	}
-	if guide.isOutside && mode == ModeWrite {
-		return Status{}, outsideError(guide.path)
-	}
-	if guide.isOutside {
-		return Status{State: StateAbsent}, nil
-	}
-
-	content, err := readGuide(guide)
+// reconcile resolves blockFile, a path relative to worktreeRoot in slash form, reads it, finds its
+// block's Status against notes and doingStatus and, when mode calls for it, writes the block render
+// produces for them to the same file. A block file that links outside the working tree is neither
+// read nor written, and a missing one is not created in a directory that links outside it.
+func reconcile(worktreeRoot, blockFile string, notes []Note, doingStatus string, mode Mode) (Status, error) {
+	blockFile = slashPath(blockFile)
+	file, err := resolveBlockFile(worktreeRoot, blockFile, mode)
 	if err != nil {
 		return Status{}, err
 	}
-	span, err := findBlock(content)
+	if file.isOutside {
+		return Status{State: StateAbsent}, nil
+	}
+
+	content, err := readGuide(file)
+	if err != nil {
+		return Status{}, err
+	}
+	span, err := findBlock(blockFile, content)
 	if err != nil {
 		return Status{}, err
 	}
@@ -360,11 +365,66 @@ func reconcile(worktreeRoot string, notes []Note, doingStatus string, mode Mode)
 		return status, nil
 	}
 	spliced := splice(content, span, block)
-	err = nodefile.WriteFileAtomicVerbatim(guide.path, bytes.NewReader(spliced), guide.perm)
+	err = nodefile.WriteFileAtomicVerbatim(file.path, bytes.NewReader(spliced), file.perm)
 	if err != nil {
-		return status, fmt.Errorf("%s: %w", FileName, err)
+		return status, fmt.Errorf("%s: %w", blockFile, err)
 	}
 	return status, nil
+}
+
+// resolveBlockFile resolves blockFile, a path relative to worktreeRoot in slash form, as reconcile
+// reads and writes it. When mode writes, a block file outside the working tree, or a missing one
+// whose nearest existing directory lies outside it, fails with the outsideError naming blockFile;
+// any other error is wrapped naming blockFile.
+func resolveBlockFile(worktreeRoot, blockFile string, mode Mode) (guideFile, error) {
+	file, err := resolveGuide(worktreeRoot, blockFile)
+	if err != nil {
+		return guideFile{}, fmt.Errorf("%s: %w", blockFile, err)
+	}
+	if mode != ModeWrite {
+		return file, nil
+	}
+	if file.isOutside {
+		return guideFile{}, outsideError(blockFile, file.path)
+	}
+	if !file.isMissing {
+		return file, nil
+	}
+
+	// A missing block file is created with its directories: refuse a directory that leads outside.
+	directory, err := existingDirectory(filepath.Dir(file.path))
+	if err != nil {
+		return guideFile{}, fmt.Errorf("%s: %w", blockFile, err)
+	}
+	isInside, err := isInsideTree(worktreeRoot, directory)
+	if err != nil {
+		return guideFile{}, fmt.Errorf("%s: %w", blockFile, err)
+	}
+	if !isInside {
+		return guideFile{}, outsideError(blockFile, directory)
+	}
+	return file, nil
+}
+
+// existingDirectory returns directory, its links resolved, or the nearest of its ancestors that
+// exists when it does not.
+func existingDirectory(directory string) (string, error) {
+	for {
+		resolved, err := filepath.EvalSymlinks(directory)
+		if !errors.Is(err, fs.ErrNotExist) {
+			return resolved, err
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return "", err
+		}
+		directory = parent
+	}
+}
+
+// slashPath is name, a path relative to the working tree, cleaned and in slash form.
+func slashPath(name string) string {
+	return path.Clean(filepath.ToSlash(name))
 }
 
 // guideFile is the file an agent guide of a working tree, AGENTS.md or another, is read from and
@@ -426,11 +486,11 @@ func isInsideTree(worktreeRoot, target string) (bool, error) {
 	return filepath.IsLocal(relative), nil
 }
 
-// outsideError is the refusal of a write to an AGENTS.md that links to target, outside the working
-// tree.
-func outsideError(target string) *Error {
+// outsideError is the refusal of a write to the block file name, which links to target, outside
+// the working tree, or would be created in it.
+func outsideError(name, target string) *Error {
 	return &Error{
-		Path:    FileName,
+		Path:    name,
 		Message: "links to " + target + ", outside the working tree; the capcom block is not read or written",
 	}
 }
@@ -499,9 +559,9 @@ type blockSpan struct {
 	line    int
 }
 
-// findBlock scans content for the marker lines, a marker being a line that is exactly the marker
-// apart from surrounding white space.
-func findBlock(content []byte) (blockSpan, error) {
+// findBlock scans content, the file name in the working tree, for the marker lines, a marker being
+// a line that is exactly the marker apart from surrounding white space. Its *Error names name.
+func findBlock(name string, content []byte) (blockSpan, error) {
 	var span blockSpan
 	isEnded := false
 	offset := 0
@@ -514,13 +574,13 @@ func findBlock(content []byte) (blockSpan, error) {
 		line := string(content[offset:next])
 		switch text := strings.TrimSpace(line); {
 		case text == BeginMarker && span.isFound:
-			return blockSpan{}, markerError(number, "a second "+BeginMarker+"; keep one capcom block")
+			return blockSpan{}, markerError(name, number, "a second "+BeginMarker+"; keep one capcom block")
 		case text == BeginMarker:
 			span = blockSpan{isFound: true, start: offset + strings.Index(line, BeginMarker), line: number}
 		case text == EndMarker && isEnded:
-			return blockSpan{}, markerError(number, "a second "+EndMarker+"; keep one capcom block")
+			return blockSpan{}, markerError(name, number, "a second "+EndMarker+"; keep one capcom block")
 		case text == EndMarker && !span.isFound:
-			return blockSpan{}, markerError(number, EndMarker+" without a "+BeginMarker+" before it")
+			return blockSpan{}, markerError(name, number, EndMarker+" without a "+BeginMarker+" before it")
 		case text == EndMarker:
 			span.end = offset + strings.Index(line, EndMarker) + len(EndMarker)
 			isEnded = true
@@ -528,13 +588,14 @@ func findBlock(content []byte) (blockSpan, error) {
 		offset = next
 	}
 	if span.isFound && !isEnded {
-		return blockSpan{}, markerError(span.line, BeginMarker+" is never closed by "+EndMarker)
+		return blockSpan{}, markerError(name, span.line, BeginMarker+" is never closed by "+EndMarker)
 	}
 	return span, nil
 }
 
-func markerError(line int, message string) *Error {
-	return &Error{Path: FileName, Line: line, Message: message}
+// markerError is the *Error of the file name whose marker at line cannot be told apart.
+func markerError(name string, line int, message string) *Error {
+	return &Error{Path: name, Line: line, Message: message}
 }
 
 // splice puts block, given with LF line endings, into content in place of span, or appends it
