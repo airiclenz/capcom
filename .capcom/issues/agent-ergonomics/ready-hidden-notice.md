@@ -1,10 +1,12 @@
 ---
 title: ready prints nothing when every ready issue is hidden
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-11-01 - 00 - ready-notice-and-block-file-plan
 created: 2026-11-01T19:45:09Z
+closed: 2026-11-01T20:51:50Z
+reason: "Resolved by plan 2026-11-01 - 00 - ready-notice-and-block-file-plan (item 2; archived at d9c93e5): ready and next warn when every Ready issue is hidden."
 ---
 
 When every Ready issue carries a label listed under `ready.hide`, `capcom ready` prints

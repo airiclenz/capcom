@@ -36,3 +36,7 @@ it forces a choice between that guard and capcom's generated outline.
   warning and `capcom check` passes.
 - `capcom check` reports when `AGENTS.md` does not reference the configured file.
 - Without the key, behaviour is unchanged.
+
+## Log
+
+- 2026-11-01 Airic Lenz: Plan 2026-11-01 - 00 - ready-notice-and-block-file-plan (items 3-6; archived at d9c93e5) landed agents.file at format 6, used by agents, agents --check, Note writes and check, with docs. Left open: with agents.file set and no AGENTS.md, capcom agents creates none and capcom check still passes, so the missing-import check does not fire.
