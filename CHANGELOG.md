@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-01
+
 - `capcom ready` and `capcom next` now say when they show nothing only because ready.hide hides every Ready issue: when no listed issue is Ready (with `--all`, none of the listed ones) and at least one Ready issue carries a ready.hide label, the result carries one warning `nothing shown: <n> Ready issues carry a ready.hide label (<label>, …); --show-hidden lists them` (`1 Ready issue carries` for one), printed as a `warning: ` line in text mode, in the `warnings` array under `--json` and as a `WARNING=` line under `next --kv`. `next` keeps exit code 4. There is no warning when nothing is Ready, when a Ready issue is shown, or with `--show-hidden`.
 - `config.yaml` accepts `agents.file`, the file that holds the Managed block: a slash-separated path inside the repository, `AGENTS.md` when absent, never one of `agents.guides`. The key needs store format 6 (`agents.file needs store format 6, but the store declares format <n>: set format: 6`), which earlier capcom releases cannot read, and `capcom init` now writes `format: 6`.
 - `capcom agents`, `capcom agents --check`, `capcom check` and the Note writes that refresh the capcom block (`know add`, `know update`, `know mv`, `know rm`) now use the block file `agents.file` names and name it in their output. With a block file other than `AGENTS.md`, `capcom agents` appends its import line to an `AGENTS.md` that lacks it, and `capcom check` and `capcom agents --check` report an `AGENTS.md` that does not import the block file or that still holds capcom markers.
