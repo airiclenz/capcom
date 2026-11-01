@@ -3,6 +3,7 @@ title: The capcom block cannot live outside AGENTS.md
 status: open
 type: feature
 priority: 2
+plan: 2026-11-01 - 00 - ready-notice-and-block-file-plan
 created: 2026-11-01T19:45:09Z
 ---
 

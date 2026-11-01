@@ -3,6 +3,7 @@ title: ready prints nothing when every ready issue is hidden
 status: open
 type: bug
 priority: 2
+plan: 2026-11-01 - 00 - ready-notice-and-block-file-plan
 created: 2026-11-01T19:45:09Z
 ---
 
@@ -27,4 +28,5 @@ and saves a run that stops on "nothing to do".
 - With a store where every Ready issue is hidden, `capcom ready` prints a notice naming the
   count and the hiding labels and pointing at `--show-hidden`, instead of an empty body.
 - The notice does not appear when nothing is Ready, nor when at least one Ready issue is shown.
-- `--show-hidden` output is unchanged; `--json` and `--kv` carry the hidden count.
+- `--show-hidden` output is unchanged; the notice is a result warning, so `--json` carries it in its warnings array.
+- `capcom next` with nothing shown for the same reason carries the same notice and keeps its nothing-ready exit code.
