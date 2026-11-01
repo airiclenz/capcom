@@ -53,7 +53,8 @@ One release publishes to four channels:
 ## Cutting a release
 
 Ask an agent to cut the release: the `release-capcom` skill (`/release-capcom` in Claude Code;
-canonical file `.agents/skills/release-capcom/SKILL.md`) checks the gate, drafts the notes with
+canonical file `.agents/skills/release-capcom/SKILL.md`) checks the gate, pushing `main` and
+waiting for CI when the gate commit is only unpushed or untested, drafts the notes with
 `release-notes-capcom`, has you approve them and confirm the version, runs `prepare`, shows you a
 dry run, and runs `publish` after one explicit confirmation. To only see what shipped, run
 `release-notes-capcom`; it never publishes.

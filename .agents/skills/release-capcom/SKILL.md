@@ -2,7 +2,8 @@
 name: release-capcom
 description: >
   Cuts a capcom release: checks the release gate with `go run ./cmd/release
-  status`, drafts the notes with release-notes-capcom, proposes the version and
+  status` (pushing the gate commit and waiting for CI when that is all it
+  lacks), drafts the notes with release-notes-capcom, proposes the version and
   has the owner confirm it, makes the two local release commits with `prepare`,
   then — after a dry run and one explicit confirmation — runs `publish`, which
   pushes, waits for the CI-made tag, creates the GitHub release and updates
@@ -35,9 +36,11 @@ is run for capcom.
 - **One irreversible step: `publish`.** Everything before it is local and
   undone with `git reset --keep HEAD~2`; everything after it is fixed
   forward, never undone.
-- **No bypass.** A blocked gate stops the run. You never tag, push, create a
-  GitHub release, or commit to the tap or the bucket by hand — `publish`
-  does all of it, and the tag is made by CI, never by you or `publish`.
+- **No bypass.** A blocked gate stops the run, except the one gate fix this
+  skill makes itself: step 1a fast-forwards `main` to the gate commit and
+  waits for its CI run. Beyond that you never tag, push, create a GitHub
+  release, or commit to the tap or the bucket by hand — `publish` does all
+  of it, and the tag is made by CI, never by you or `publish`.
 - **Ask with the host's user-question tool** (`ask_user`, `AskUserQuestion`,
   or similar) at every *Ask* below, and wait for the answer. No answer, or a
   host without the tool, means stop — never assume consent.
@@ -65,12 +68,47 @@ pushed. Say so, take vX as the confirmed version, and go to step 6: the notes
 file `<TMP>/release-notes-capcom-vX.md` is reused when it exists (show it and
 *Ask* approval as in step 3), else step 2 runs with the argument vX first.
 
-**Gate.** `gate.ok` false and no resume → **stop**: list every
-`gate.failures` entry verbatim. Fixing them (a dirty tree, an unpushed or
-diverged HEAD, a red or missing `ci.yml` run) is the owner's work; offer
-nothing that skips them. Otherwise print one ledger line: baseline tag and
-publish date — or "no release published yet" when `baseline.tag` is empty —
-commit count, and highest tag ("none" when `highestTag` is empty).
+**Gate.** `gate.ok` false — on a resume too — and every `gate.failures`
+entry is one of these two → run step 1a, then read `$S` again:
+
+- `gate commit <sha> is not on origin/main: push it first`
+- `ci.yml has no successful run for <sha>[ or <sha>…]`
+
+Any other entry (a dirty tree, `origin/main has commits HEAD does not`, a
+check that could not run) → **stop**: list every `gate.failures` entry
+verbatim. Fixing it is the owner's work; offer nothing that skips it.
+
+Once `gate.ok` is true, print one ledger line: baseline tag and publish date
+— or "no release published yet" when `baseline.tag` is empty — commit count,
+and highest tag ("none" when `highestTag` is empty).
+
+### 1a — Push the gate commit and wait for CI
+
+The owner has authorized this push: it sends `gate.commit` — never `HEAD`,
+which may carry a `VERSION` bump that CI would tag — to `main`, a
+fast-forward only. Substitute `GATE_COMMIT_VALUE` with `gate.commit`; drop
+the `git push` line when no failure says `push it first`. The watch can take
+ten minutes or more: give the call a long timeout, or run it in the
+background and wait for it.
+
+```bash
+G="GATE_COMMIT_VALUE"
+git push origin "$G:refs/heads/main"
+R=""; for i in $(seq 1 30); do
+  R="$(gh run list --workflow ci.yml --commit "$G" --limit 1 --json databaseId --jq '.[0].databaseId // empty' || true)"
+  [ -n "$R" ] && break; sleep 10
+done
+echo "RUN=$R"; [ -n "$R" ] || exit 1
+gh run watch "$R" --exit-status --interval 30 > /dev/null || true
+gh run view "$R" --json conclusion,url --jq '.conclusion + " " + .url'
+go run ./cmd/release status --json > "$S" || true
+```
+
+A rejected push (not a fast-forward), no run after five minutes, or a
+conclusion other than `success` → **stop**: relay it (for a red run, the
+failed jobs from `gh run view "$R" --log-failed | tail -n 60`). A red run is
+the owner's to fix; never re-run it to get past it. Run step 1a at most once
+per release.
 
 ## 2 — Draft the notes
 
@@ -190,6 +228,7 @@ End with the final step table and, in plain words:
 
 ## Hard rules
 
-- Never tag, push, release or update a channel by hand; `publish` alone does.
+- Never tag, push, release or update a channel by hand; `publish` alone does,
+  apart from step 1a's fast-forward of `main` to the gate commit.
 - Never bypass the gate, nor switch versions to get past a failed `publish`.
 - The owner confirms notes, version and publish — each via the question tool.
