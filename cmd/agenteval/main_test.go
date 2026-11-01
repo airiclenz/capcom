@@ -57,7 +57,31 @@ func TestMain(m *testing.M) {
 	case fakeAgentName:
 		os.Exit(runFakeAgent(os.Getenv, os.Stdout, os.Stderr))
 	}
+	if err := os.Setenv(raceOptionsVariable, withoutRaceExitSleep(os.Getenv(raceOptionsVariable))); err != nil {
+		fmt.Fprintf(os.Stderr, "set %s: %v\n", raceOptionsVariable, err)
+		os.Exit(1)
+	}
 	os.Exit(m.Run())
+}
+
+// raceOptionsVariable is the race detector's options variable, read by every race-built process at
+// start. Each subprocess a test runs is the race-built test binary when the tests run with -race,
+// and the race runtime sleeps atexit_sleep_ms (1s by default) before every such process exits:
+// with several processes per capcom call that turned this package's run into ten minutes on CI.
+const raceOptionsVariable = "GORACE"
+
+// raceExitSleepOption is the GORACE option that disables that exit sleep.
+const raceExitSleepOption = "atexit_sleep_ms=0"
+
+// withoutRaceExitSleep returns the GORACE value options with the exit sleep disabled, keeping an
+// atexit_sleep_ms the caller set themselves. GORACE options are space-separated name=value pairs.
+func withoutRaceExitSleep(options string) string {
+	for _, option := range strings.Fields(options) {
+		if strings.HasPrefix(option, "atexit_sleep_ms=") {
+			return options
+		}
+	}
+	return strings.TrimSpace(options + " " + raceExitSleepOption)
 }
 
 // runFakeAgent runs the script AGENTEVAL_FAKE_SCRIPT names, echoing every call's stdout to
@@ -346,5 +370,24 @@ func TestFakeAgent_PassesAPreviousCallsOutputToTheNext(t *testing.T) {
 	}
 	if want := []string{"version", capcom.Version()}; !slices.Equal(logged[1].Args, want) {
 		t.Errorf("second call args = %q, want %q", logged[1].Args, want)
+	}
+}
+
+func TestWithoutRaceExitSleep_DisablesTheSleepUnlessTheCallerSetIt(t *testing.T) {
+	tests := []struct {
+		name    string
+		options string
+		want    string
+	}{
+		{name: "no options", options: "", want: "atexit_sleep_ms=0"},
+		{name: "other options", options: "halt_on_error=1", want: "halt_on_error=1 atexit_sleep_ms=0"},
+		{name: "the caller's own sleep", options: "atexit_sleep_ms=500 halt_on_error=1", want: "atexit_sleep_ms=500 halt_on_error=1"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := withoutRaceExitSleep(test.options); got != test.want {
+				t.Errorf("withoutRaceExitSleep(%q) = %q, want %q", test.options, got, test.want)
+			}
+		})
 	}
 }
