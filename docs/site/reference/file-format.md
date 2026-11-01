@@ -583,7 +583,7 @@ which reports it as one `warning: store:` line and exits 0.
 
 ```yaml
 # The store format version. capcom refuses a store whose format is newer than it reads.
-format: 5
+format: 6
 
 # Issue statuses in order, each mapped to its category: todo, doing, waiting, done or dropped.
 # capcom's rules read only the category. The first status listed in a category is its default.
@@ -612,8 +612,10 @@ elsewhere:
   # Branches whose tip is older than this many days are not scanned.
   days: 30
 
-# Agent guides that must reach AGENTS.md's Managed block by a link or an @AGENTS.md import (format 4).
+# Agent guides that must reach AGENTS.md's Managed block by a link or an @AGENTS.md import (format 4),
+# and the file that holds the block, which AGENTS.md must import when it is another file (format 6).
 # agents:
+#   file: AGENTS.md
 #   guides: [CLAUDE.md, GEMINI.md]
 ```
 
@@ -625,8 +627,8 @@ elsewhere:
   stay errors, and any new key in an issue, a Note or this file raises the format. Format 2 adds
   the `related` key to issue files; format 3 adds the Note keys `retired` and `superseded-by`;
   format 4 adds the `agents.guides` key to `config.yaml`; format 5 adds the `standing` key to
-  issue files.
-  `capcom init` writes `format: 5` into a store it creates; into an existing store without
+  issue files; format 6 adds the `agents.file` key to `config.yaml`.
+  `capcom init` writes `format: 6` into a store it creates; into an existing store without
   `config.yaml` it writes the same file with the `format:` line left as the commented
   `# format: 1`, so the store stays at format 1. A key line needs its format whatever it holds,
   an empty list or `retired: false` included, because a release older than the key rejects the
@@ -640,7 +642,8 @@ elsewhere:
   longer read the store. `capcom mv`, `rm`, `know mv`, `know rm` and `fmt` never raise it;
   `capcom check` reports the key line instead. Nothing raises it for `config.yaml`'s own keys:
   an `agents` key in a store declaring a format below 4 is an error at its line naming
-  `format: 4` as the fix.
+  `format: 4` as the fix, and an `agents.file` key below format 6 likewise names `format: 6`:
+  `.capcom/config.yaml:<line>: agents.file needs store format 6, but the store declares format <n>: set format: 6`.
 - **statuses** — an ordered mapping of status name to Status category. Every rule in capcom reads
   the category, never the name (ADR 0003). At least one status must be in `todo` and one in
   `done`. When capcom moves an issue into a category (create, close, reopen) it uses the first
@@ -662,6 +665,11 @@ elsewhere:
   link to `AGENTS.md` or an `@AGENTS.md` import line; `[CLAUDE.md, GEMINI.md]` when the key is
   absent, and `[]` turns the rule off. Each entry is a slash-separated path inside the repository,
   relative to its root, never `AGENTS.md` itself, and no two alike. The key needs store format 4.
+- **agents.file** — the file that holds the Managed block, `AGENTS.md` when the key is absent: a
+  slash-separated path inside the repository, relative to its root, and never one of the
+  `agents.guides` entries, in any letter case. It is read cleaned (`./docs/block.md` is
+  `docs/block.md`), and any letter case of `AGENTS.md` reads as `AGENTS.md`. The key needs store
+  format 6.
 
 ## The user config
 

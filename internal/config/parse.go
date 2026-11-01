@@ -260,19 +260,71 @@ func (p parser) elsewhere(value *yaml.Node, config *Config) error {
 	})
 }
 
-// agents reads the agents section. Its key needs store format FormatAgents: in a store declaring
-// less it fails at the key's line, naming the format to set, whatever the section holds.
+// agents reads the agents section. Its key needs store format FormatAgents and its file key
+// FormatBlockFile: in a store declaring less each fails at the key's line, naming the format to
+// set, whatever it holds. agents.file is checked against agents.guides once the whole section is
+// read, so the order of the two keys does not matter.
 func (p parser) agents(sectionKey, value *yaml.Node, config *Config) error {
 	if config.Format < FormatAgents {
-		return p.errorAt(sectionKey, "%s needs store format %d, but the store declares format %d: set format: %d",
-			keyAgents, FormatAgents, config.Format, FormatAgents)
+		return p.formatTooOld(sectionKey, keyAgents, FormatAgents, config.Format)
 	}
-	return p.eachKey(value, func(key, setting *yaml.Node) error {
-		if key.Value != keyGuides {
+	var fileValue *yaml.Node
+	err := p.eachKey(value, func(key, setting *yaml.Node) error {
+		switch key.Value {
+		case keyGuides:
+			return p.guides(setting, config)
+		case keyFile:
+			fileValue = setting
+			return p.blockFile(key, setting, config)
+		default:
 			return p.errorAt(key, "unknown key %q in %s", key.Value, keyAgents)
 		}
-		return p.guides(setting, config)
 	})
+	if err != nil || fileValue == nil {
+		return err
+	}
+	return p.blockFileClash(fileValue, config)
+}
+
+// formatTooOld is the error for a key, named field, that needs store format needed in a store
+// declaring the lower format declared.
+func (p parser) formatTooOld(key *yaml.Node, field string, needed, declared int) *Error {
+	return p.errorAt(key, "%s needs store format %d, but the store declares format %d: set format: %d",
+		field, needed, declared, needed)
+}
+
+// blockFile reads agents.file: one local slash-separated path, stored cleaned, with AGENTS.md in
+// any letter case stored as AGENTS.md.
+func (p parser) blockFile(key, value *yaml.Node, config *Config) error {
+	const field = keyAgents + "." + keyFile
+	if config.Format < FormatBlockFile {
+		return p.formatTooOld(key, field, FormatBlockFile, config.Format)
+	}
+	if value.Kind != yaml.ScalarNode || value.Tag == "!!null" || value.Value == "" {
+		return p.errorAt(value, "%s: expected a path", field)
+	}
+	if err := p.localPath(value, field); err != nil {
+		return err
+	}
+
+	cleaned := path.Clean(value.Value)
+	if strings.EqualFold(cleaned, agentsFile) {
+		cleaned = agentsFile
+	}
+	config.Agents.File = cleaned
+	return nil
+}
+
+// blockFileClash fails at fileValue when agents.file names one of agents.guides, in any letter
+// case once cleaned: a guide reaches the file that holds the Managed block, so it cannot be it.
+func (p parser) blockFileClash(fileValue *yaml.Node, config *Config) error {
+	for _, guide := range config.Agents.Guides {
+		if strings.EqualFold(path.Clean(guide), config.Agents.File) {
+			return p.errorAt(fileValue, "%s.%s: %q is also listed in %s.%s",
+				keyAgents, keyFile, fileValue.Value, keyAgents, keyGuides)
+		}
+	}
+	return nil
 }
 
 // guides reads agents.guides: a possibly empty list of local slash-separated paths, none of them
@@ -287,10 +339,8 @@ func (p parser) guides(value *yaml.Node, config *Config) error {
 	seen := make(map[string]bool, len(guides))
 	for index, guide := range guides {
 		item := value.Content[index]
-		// A backslash is a separator on Windows only, so a guide spelled with one would name a
-		// different file on each platform.
-		if strings.Contains(guide, `\`) || !filepath.IsLocal(filepath.FromSlash(guide)) {
-			return p.errorAt(item, "%s: %q must be a slash-separated path inside the repository", field, guide)
+		if err := p.localPath(item, field); err != nil {
+			return err
 		}
 		cleaned := path.Clean(guide)
 		if strings.EqualFold(cleaned, agentsFile) {
@@ -302,6 +352,17 @@ func (p parser) guides(value *yaml.Node, config *Config) error {
 		seen[cleaned] = true
 	}
 	config.Agents.Guides = guides
+	return nil
+}
+
+// localPath fails at value, naming field, unless it holds a slash-separated path inside the
+// repository.
+func (p parser) localPath(value *yaml.Node, field string) error {
+	// A backslash is a separator on Windows only, so a path spelled with one would name a
+	// different file on each platform.
+	if strings.Contains(value.Value, `\`) || !filepath.IsLocal(filepath.FromSlash(value.Value)) {
+		return p.errorAt(value, "%s: %q must be a slash-separated path inside the repository", field, value.Value)
+	}
 	return nil
 }
 

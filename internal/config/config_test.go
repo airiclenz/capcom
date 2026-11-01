@@ -41,7 +41,7 @@ func TestParse_EmptyDocument_ReturnsDefaultAtFormatOne(t *testing.T) {
 
 func TestFormatVersion_IsTheNewestNamedFormat(t *testing.T) {
 	t.Parallel()
-	named := []int{MissingFormat, FormatRelated, FormatSupersession, FormatAgents, FormatStanding}
+	named := []int{MissingFormat, FormatRelated, FormatSupersession, FormatAgents, FormatStanding, FormatBlockFile}
 
 	for i := 1; i < len(named); i++ {
 		if named[i] != named[i-1]+1 {
@@ -125,14 +125,15 @@ func TestParse_FormatTwo_Loads(t *testing.T) {
 
 func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 	t.Parallel()
+	tooNew := FormatVersion + 1
 	cases := []struct {
 		name     string
 		content  string
 		wantLine int
 	}{
-		{"format alone", "format: 6\n", 1},
-		{"after other keys", "types: [bug]\n\nformat: 6\n", 3},
-		{"unknown key above format", "colour: blue\nformat: 6\n", 2},
+		{"format alone", fmt.Sprintf("format: %d\n", tooNew), 1},
+		{"after other keys", fmt.Sprintf("types: [bug]\n\nformat: %d\n", tooNew), 3},
+		{"unknown key above format", fmt.Sprintf("colour: blue\nformat: %d\n", tooNew), 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -144,8 +145,8 @@ func TestParse_NewerFormat_FailsAsTooNewWithLine(t *testing.T) {
 			if !errors.As(err, &failure) {
 				t.Fatalf("err = %v, want *config.Error", err)
 			}
-			want := fmt.Sprintf("%s:%d: store format 6 is newer than this capcom reads (up to 5); upgrade capcom",
-				testPath, testCase.wantLine)
+			want := fmt.Sprintf("%s:%d: store format %d is newer than this capcom reads (up to %d); upgrade capcom",
+				testPath, testCase.wantLine, tooNew, FormatVersion)
 			if err.Error() != want {
 				t.Errorf("err = %q, want %q", err.Error(), want)
 			}
@@ -371,6 +372,13 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 		{"guide with a backslash", "format: 4\nagents:\n  guides:\n    - 'docs\\AI.md'\n", 4},
 		{"duplicate guide", "format: 4\nagents:\n  guides:\n    - CLAUDE.md\n    - CLAUDE.md\n", 5},
 		{"duplicate guide once cleaned", "format: 4\nagents:\n  guides:\n    - docs/AI.md\n    - ./docs/AI.md\n", 5},
+		{"block file is a default guide", "format: 6\nagents:\n  file: CLAUDE.md\n", 3},
+		{"block file is a guide in another case", "format: 6\nagents:\n  guides: [docs/AI.md]\n  file: ./DOCS/ai.md\n", 4},
+		{"block file outside the repository", "format: 6\nagents:\n  file: ../x.md\n", 3},
+		{"absolute block file", "format: 6\nagents:\n  file: /etc/x.md\n", 3},
+		{"block file with a backslash", "format: 6\nagents:\n  file: 'docs\\AI.md'\n", 3},
+		{"block file not a scalar", "format: 6\nagents:\n  file: [AI.md]\n", 3},
+		{"empty block file", "format: 6\nagents:\n  file: ''\n", 3},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -410,6 +418,45 @@ func TestParse_AgentsGuides_LoadsAtFormatFour(t *testing.T) {
 				t.Errorf("Parse(%q) = guides %q, %v; want %q", testCase.content, config.Agents.Guides, err, testCase.want)
 			}
 		})
+	}
+}
+
+func TestParse_AgentsFile_LoadsAtFormatSix(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"key absent", "format: 6\n", "AGENTS.md"},
+		{"set", "format: 6\nagents:\n  file: docs/AGENTS-capcom.md\n", "docs/AGENTS-capcom.md"},
+		{"set before guides that free it", "format: 6\nagents:\n  file: CLAUDE.md\n  guides: []\n", "CLAUDE.md"},
+		{"AGENTS.md in lower case", "format: 6\nagents:\n  file: agents.md\n", "AGENTS.md"},
+		{"AGENTS.md with a dot segment", "format: 6\nagents:\n  file: ./AGENTS.md\n", "AGENTS.md"},
+		{"uncleaned path", "format: 6\nagents:\n  file: docs//./block.md\n", "docs/block.md"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			config, err := Parse(testPath, []byte(testCase.content))
+
+			if err != nil || config.Agents.File != testCase.want {
+				t.Errorf("Parse(%q) = file %q, %v; want %q", testCase.content, config.Agents.File, err, testCase.want)
+			}
+		})
+	}
+}
+
+func TestParse_AgentsFileBelowFormatSix_FailsAtTheKeyNamingFormatSix(t *testing.T) {
+	t.Parallel()
+	content := "format: 5\nagents:\n  guides: []\n  file: AI.md\n"
+
+	_, err := Parse(testPath, []byte(content))
+
+	want := testPath + ":4: agents.file needs store format 6, but the store declares format 5: set format: 6"
+	if err == nil || err.Error() != want {
+		t.Errorf("err = %v, want %q", err, want)
 	}
 }
 

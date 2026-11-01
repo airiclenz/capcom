@@ -40,8 +40,8 @@ func ClosedCategories() []Category {
 // FormatVersion is the highest store format this capcom reads, and the one `capcom init` writes
 // (ADR 0009). Format 2 adds the related key to issue files; format 3 adds the retired and
 // superseded-by keys to Notes; format 4 adds the agents.guides key to config.yaml; format 5 adds
-// the standing key to issue files.
-const FormatVersion = 5
+// the standing key to issue files; format 6 adds the agents.file key to config.yaml.
+const FormatVersion = 6
 
 // The store formats that capcom's format rules name (ADR 0009).
 const (
@@ -57,6 +57,8 @@ const (
 	FormatAgents = 4
 	// FormatStanding is the first store format whose issue files may carry the standing key.
 	FormatStanding = 5
+	// FormatBlockFile is the first store format whose config.yaml may carry the agents.file key.
+	FormatBlockFile = 6
 )
 
 // formatComment is the template's comment line above its format key.
@@ -80,9 +82,11 @@ const (
 	keyDays      = "days"
 	keyAgents    = "agents"
 	keyGuides    = "guides"
+	keyFile      = "file"
 )
 
-// agentsFile is the agent guide that holds the Managed block; no other guide may name it.
+// agentsFile is AGENTS.md, the file that holds the Managed block unless agents.file names
+// another; no guide may name it.
 const agentsFile = "AGENTS.md"
 
 // Defaults for the keys a config file leaves out.
@@ -97,7 +101,7 @@ const maxElsewhereDays = 36500
 
 // DefaultFile is the config.yaml `capcom init` writes into a store it creates. It parses to
 // Default().
-const DefaultFile = templateHead + formatComment + "\nformat: 5\n" + templateBody
+const DefaultFile = templateHead + formatComment + "\nformat: 6\n" + templateBody
 
 // KeylessFile is the config.yaml `capcom init` writes into an existing store that has none: the
 // same file as DefaultFile with the format key left as a comment under its own comment line, so
@@ -139,8 +143,10 @@ elsewhere:
   # Branches whose tip is older than this many days are not scanned.
   days: 30
 
-# Agent guides that must reach AGENTS.md's Managed block by a link or an @AGENTS.md import (format 4).
+# Agent guides that must reach AGENTS.md's Managed block by a link or an @AGENTS.md import (format 4),
+# and the file that holds the block, which AGENTS.md must import when it is another file (format 6).
 # agents:
+#   file: AGENTS.md
 #   guides: [CLAUDE.md, GEMINI.md]
 `
 
@@ -187,8 +193,13 @@ type Elsewhere struct {
 	Days int
 }
 
-// Agents configures the agent guides kept beside AGENTS.md.
+// Agents configures the file that holds the Managed block and the agent guides kept beside
+// AGENTS.md.
 type Agents struct {
+	// File is the file that holds the Managed block, as a cleaned local slash-separated path
+	// relative to the repository root: AGENTS.md by default, spelled exactly so whatever letter
+	// case the config gives it, and never one of Guides.
+	File string
 	// Guides lists the agent guides, as local slash-separated paths relative to the repository
 	// root, that must reach AGENTS.md's Managed block. Unique, never AGENTS.md; empty turns the
 	// rule off.
@@ -228,7 +239,7 @@ func Default() Config {
 		Ready:     Ready{Hide: []string{}},
 		Lock:      Lock{TTL: defaultLockTTL},
 		Elsewhere: Elsewhere{Days: defaultElsewhereDays},
-		Agents:    Agents{Guides: []string{"CLAUDE.md", "GEMINI.md"}},
+		Agents:    Agents{File: agentsFile, Guides: []string{"CLAUDE.md", "GEMINI.md"}},
 	}
 }
 

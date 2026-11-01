@@ -1,5 +1,5 @@
 ---
-title: "What config.yaml controls: statuses, types, plans, ready.hide, lock.ttl, elsewhere.days, agents.guides and format"
+title: "What config.yaml controls: statuses, types, plans, ready.hide, lock.ttl, elsewhere.days, agents.guides, agents.file and format"
 labels: [architecture]
 refs: [docs/site/reference/file-format.md, internal/config/config.go#FormatVersion]
 ---
@@ -17,10 +17,12 @@ refs: [docs/site/reference/file-format.md, internal/config/config.go#FormatVersi
 - `elsewhere.days`: how recent a branch tip must be for the Elsewhere scan to read it.
 - `agents.guides`: the agent guides beside AGENTS.md (CLAUDE.md and GEMINI.md by default) that must
   reach its Managed block; `[]` turns the rule off. The key needs format 4.
+- `agents.file`: the file that holds the Managed block, `AGENTS.md` by default; never one of
+  `agents.guides`. The key needs format 6.
 - `format`: the store format version, a missing key meaning 1 (ADR 0009). A binary refuses a store
   whose format is newer than it reads (`prime` only warns), and any new key in an issue, a Note or
-  `config.yaml` raises the format by one; format 5 added the issue key `standing`, so `init` writes
-  `format: 5`. The highest format this capcom reads is `FormatVersion`.
+  `config.yaml` raises the format by one; format 6 added the `config.yaml` key `agents.file`, so
+  `init` writes `format: 6`. The highest format this capcom reads is `FormatVersion`.
 
 `docs/site/reference/file-format.md` `## Config` is the reference: the file `init` writes, the
 allowed values and the format raises.

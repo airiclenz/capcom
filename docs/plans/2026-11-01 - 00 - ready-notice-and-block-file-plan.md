@@ -100,7 +100,11 @@ ExitNothingReady (beside TestNext_NothingReadyKV_ExitsNothingReady, which stays 
 Depends on item 1.
 **Commit:** `fix(cli): warn when ready and next show nothing only because every Ready issue is hidden`
 
-## 3. Parse agents.file at store format 6
+## 3. Parse agents.file at store format 6 — ✅ DONE (2026-11-01)
+
+NOTES (2026-11-01): internal/config/parse_test.go does not exist; the parse tests live in internal/config/config_test.go beside the existing agents.guides tests, so the new tests went there and parse_test.go was not created.
+NOTES (2026-11-01): the guides path check moved into a shared parser.localPath helper and the agents format-gate message into parser.formatTooOld, both reused by agents.file; a null or empty agents.file is refused with `agents.file: expected a path`.
+NOTES (2026-11-01): the store-config Note's title gained agents.file, as it lists every config key it describes.
 
 **What:**
 **Goal:** config.yaml accepts `agents.file`, a local slash-separated path relative to the
