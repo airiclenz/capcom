@@ -1,10 +1,12 @@
 ---
 title: A staged edit that drops an alias still resolves by that alias
-status: open
+status: done
 type: bug
 priority: 4
 plan: 2026-11-01 - 00 - staged-alias-removal-plan
 created: 2026-11-01T01:23:25Z
+closed: 2026-11-01T10:17:13Z
+reason: "Resolved by plan 2026-11-01 - 00 - staged-alias-removal-plan (archived in a17283f): a staged edit dropping an alias now resolves that alias as the committed tree would, tested in internal/stage"
 ---
 
 Inside one staged batch (`internal/stage/catalog.go`, `catalog.Resolve`), a ref is first matched exactly against the staged issues' ids and aliases, then handed to the index. The index still holds the pre-batch aliases, so when a staged edit removes alias `old` from issue `x`, a later op in the same batch that names `old` resolves through the index to `x`, and `stagedByID` swaps in the staged `x`, which no longer carries `old`. After the commit, `old` no longer resolves at all.
