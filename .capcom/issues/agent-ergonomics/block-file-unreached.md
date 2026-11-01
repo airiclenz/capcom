@@ -1,9 +1,11 @@
 ---
 title: agents.file set and no AGENTS.md leaves the block reached by no guide
-status: active
+status: done
 type: bug
 priority: 2
 created: 2026-11-01T20:49:20Z
+closed: 2026-11-01T21:14:04Z
+reason: "Fixed in 245bf4a: with agents.file set and AGENTS.md missing, check and agents --check report it with a create hint, agents warns"
 ---
 
 With `agents.file` naming a file other than `AGENTS.md` and no `AGENTS.md` in the working tree, `capcom agents` creates no `AGENTS.md`, so a `CLAUDE.md` holding `@AGENTS.md` points at nothing and the Managed block is reached by no guide, yet `capcom check` passes.

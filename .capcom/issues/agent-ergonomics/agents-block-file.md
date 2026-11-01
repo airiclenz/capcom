@@ -1,10 +1,12 @@
 ---
 title: The capcom block cannot live outside AGENTS.md
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-11-01 - 00 - ready-notice-and-block-file-plan
 created: 2026-11-01T19:45:09Z
+closed: 2026-11-01T21:14:04Z
+reason: agents.file landed by plan 2026-11-01 - 00 - ready-notice-and-block-file-plan (archived d9c93e5); the missing-AGENTS.md gap closed in 245bf4a
 ---
 
 capcom keeps its managed block in `AGENTS.md`, and the config's `agents:` section accepts
