@@ -44,8 +44,8 @@ func (e *UnusableError) Is(target error) bool {
 	return target == ErrNotFound
 }
 
-// NotFoundError reports an argument that matches no id, Alias or id prefix (see ResolveIn). It
-// matches ErrNotFound under errors.Is.
+// NotFoundError reports an argument that matches no id, Alias or id prefix (see ResolveIn), or,
+// from ResolvePrefixIn, no id prefix. It matches ErrNotFound under errors.Is.
 type NotFoundError struct {
 	// Arg is the argument as given.
 	Arg string
@@ -141,8 +141,19 @@ func ResolveIn(names NameReader, arg string) (string, error) {
 	if match.ID != "" {
 		return match.ID, nil
 	}
+	return ResolvePrefixIn(names, arg)
+}
 
-	candidates, err := names.PrefixCandidates(name)
+// ResolvePrefixIn finds the id of the node an argument names among names as an id prefix alone,
+// once NormalizeArg has turned a citation spelling into a name: what ResolveIn returns for an
+// argument whose exact name matches nothing. Unlike ResolveIn, an exact id or Alias is not matched
+// as such and its membership verdict is not consulted: an Alias resolves only as a prefix of some
+// id, and an id as a prefix of itself and of every id it begins. It fails with an *AmbiguousError
+// when the prefix matches several ids, and with a *NotFoundError when it matches none; both quote
+// the argument as given. The one id matched fails as ResolveIn says when only an unusable file or a
+// duplicate claims it. An error names returns comes back unchanged.
+func ResolvePrefixIn(names NameReader, arg string) (string, error) {
+	candidates, err := names.PrefixCandidates(NormalizeArg(arg))
 	if err != nil {
 		return "", err
 	}

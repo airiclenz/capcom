@@ -94,6 +94,76 @@ func TestResolve_NoMatch_NotFound(t *testing.T) {
 	}
 }
 
+// prefixFixture loads a tree where x has the Alias old, a prefix of the id older-thing, and the
+// Alias legacy-x, a prefix of no id.
+func prefixFixture(t *testing.T) *tree.Tree {
+	t.Helper()
+	dir := t.TempDir()
+	writeNodes(t, dir, "x.md", "older-thing.md", "login-flow.md", "login-fix.md")
+	return mustLoad(t, dir, aliasesByFile(map[string][]string{
+		"x.md": {"old", "legacy-x"},
+	}))
+}
+
+func TestResolvePrefixIn_MatchesIDPrefixesOnly(t *testing.T) {
+	t.Parallel()
+	loaded := prefixFixture(t)
+	cases := []struct {
+		name string
+		arg  string
+		want string
+	}{
+		{"alias of one node and prefix of another id", "old", "older-thing"},
+		{"unique prefix", "older", "older-thing"},
+		{"citation spelling of a prefix", " OLDER ", "older-thing"},
+		{"exact id as its own prefix", "x", "x"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			id, err := tree.ResolvePrefixIn(loaded, testCase.arg)
+
+			if err != nil || id != testCase.want {
+				t.Fatalf("ResolvePrefixIn(%q) = %q, %v; want %q", testCase.arg, id, err, testCase.want)
+			}
+		})
+	}
+}
+
+func TestResolvePrefixIn_NoPrefix_NotFound(t *testing.T) {
+	t.Parallel()
+	loaded := prefixFixture(t)
+	for _, arg := range []string{"legacy-x", "nothing-here", ""} {
+		t.Run(arg, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := tree.ResolvePrefixIn(loaded, arg)
+
+			var notFound *tree.NotFoundError
+			if !errors.As(err, &notFound) || notFound.Arg != arg {
+				t.Fatalf("ResolvePrefixIn(%q) = %v, want *NotFoundError quoting it", arg, err)
+			}
+		})
+	}
+}
+
+func TestResolvePrefixIn_SeveralPrefixes_Ambiguous(t *testing.T) {
+	t.Parallel()
+	loaded := prefixFixture(t)
+
+	_, err := tree.ResolvePrefixIn(loaded, "login")
+
+	var ambiguous *tree.AmbiguousError
+	if !errors.As(err, &ambiguous) {
+		t.Fatalf("ResolvePrefixIn(login) = %v, want *AmbiguousError", err)
+	}
+	want := []string{"login-fix", "login-flow"}
+	if !reflect.DeepEqual(ambiguous.Candidates, want) {
+		t.Fatalf("Candidates = %v, want %v", ambiguous.Candidates, want)
+	}
+}
+
 func TestNormalizeArg_CitationSpellings(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

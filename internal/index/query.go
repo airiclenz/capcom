@@ -159,6 +159,25 @@ func (x *Index) Resolve(arg string) (entry Entry, err error) {
 	return entry, err
 }
 
+// ResolvePrefix finds the usable issue an argument names as an id prefix alone, as
+// tree.ResolvePrefixIn finds it among the names the latest refresh stored: what Resolve finds for
+// an argument whose exact name matches nothing. Unlike Resolve, an exact id or Alias is not matched
+// as such and its stored refusal is not consulted: an Alias resolves only as a prefix of some id. It
+// fails as Resolve does on that path: with a *tree.NotFoundError when the prefix matches no id, a
+// *tree.AmbiguousError when it matches several, and as that id would when the one id it matches is
+// refused. Every row comes from one read snapshot.
+func (x *Index) ResolvePrefix(arg string) (entry Entry, err error) {
+	err = x.snapshot(func(q querier) error {
+		id, err := tree.ResolvePrefixIn(snapshotNames{x: x, q: q, nodes: issueNodes}, arg)
+		if err != nil {
+			return err
+		}
+		entry, err = x.resolved(q, arg, id)
+		return err
+	})
+	return entry, err
+}
+
 // resolveID finds the id of the usable node of one kind that arg names, through tree.ResolveIn
 // over the kind's names as q reads them. Its errors quote arg as given, not its normalised name.
 func (x *Index) resolveID(q querier, nodes nodeTable, arg string) (string, error) {

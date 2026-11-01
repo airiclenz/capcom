@@ -33,7 +33,7 @@ found.
 - Notes (`ResolveNote`); the staged catalog covers issues only.
 - New apply ops that edit aliases.
 
-## 1. Prefix-only resolve in tree and index
+## 1. Prefix-only resolve in tree and index — ✅ DONE (2026-11-01)
 
 **What:**
 **Goal:** `tree.ResolvePrefixIn(names, arg)` returns what `tree.ResolveIn` returns for an arg

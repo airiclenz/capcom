@@ -260,6 +260,41 @@ func TestResolve_NoMatch_IsNotFound(t *testing.T) {
 	}
 }
 
+func TestResolvePrefix_AliasOfAnotherIssue_ResolvesAsAPrefixOnly(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name         string
+		withOlder    bool
+		wantID       string
+		wantNotFound bool
+	}{
+		{name: "prefix of another id", withOlder: true, wantID: "older-thing"},
+		{name: "prefix of no id", wantNotFound: true},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			writeIssue(t, s, "x.md", issueWith("X", "open", "aliases: [old]\n"))
+			if testCase.withOlder {
+				writeIssue(t, s, "older-thing.md", issueWith("Older thing", "open", ""))
+			}
+			x := openIndex(t, s)
+			refresh(t, x)
+
+			got, err := x.ResolvePrefix("old")
+
+			var notFound *tree.NotFoundError
+			if testCase.wantNotFound && !errors.As(err, &notFound) {
+				t.Errorf("ResolvePrefix(old) = %q, %v; want *tree.NotFoundError", got.ID, err)
+			}
+			if !testCase.wantNotFound && (err != nil || got.ID != testCase.wantID) {
+				t.Errorf("ResolvePrefix(old) = %q, %v; want %q", got.ID, err, testCase.wantID)
+			}
+		})
+	}
+}
+
 func TestIssueNames_EveryIDAndAliasOnceInOrder(t *testing.T) {
 	t.Parallel()
 	x := listFixture(t)
