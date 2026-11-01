@@ -60,11 +60,12 @@ const (
 	// UnsharedRef is a Note Ref that resolves in this working tree but names a path a clone lacks:
 	// one inside the git directory, or one git ignores.
 	UnsharedRef Kind = "unshared-ref"
-	// AgentsBlock is an AGENTS.md whose Managed block is stale or whose markers are tangled, or
-	// one that is not a regular file or is larger than 1 MiB.
+	// AgentsBlock is a block file (agents.file, AGENTS.md by default) whose Managed block is stale
+	// or whose markers are tangled, or one that is not a regular file or is larger than 1 MiB.
 	AgentsBlock Kind = "agents-block"
-	// AgentsGuide is an agent guide that does not reach the Managed block of AGENTS.md, or one that
-	// is not a regular file or is larger than 1 MiB.
+	// AgentsGuide is an agent guide that does not reach the Managed block through AGENTS.md, an
+	// AGENTS.md that is not the block file and does not reach it or still holds capcom markers, or
+	// a guide that is not a regular file or is larger than 1 MiB.
 	AgentsGuide Kind = "agents-guide"
 )
 

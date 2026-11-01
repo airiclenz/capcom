@@ -17,7 +17,7 @@ Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom n
 
 A --ref inside the git directory is refused, since a clone never has it; one that does not resolve here, or that git ignores, is written with a warning, as capcom check fails on it.
 
-It prints the new Note's id, path and etag, and a refreshed line when the capcom block of AGENTS.md was rewritten.
+It prints the new Note's id, path and etag, and a refreshed line when it rewrote the capcom block in the file agents.file names (AGENTS.md by default).
 
 ```
 capcom know add --id <slug> --title <title> [flags]

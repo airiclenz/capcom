@@ -445,3 +445,14 @@ func TestKnowMv_DependentWriteFails_RollsEveryFileBack(t *testing.T) {
 		t.Errorf("git-fixtures.md = %q; want %q", got, dependent)
 	}
 }
+
+func TestKnowMv_BlockFile_NamesItInTheRefreshLine(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+
+	stdout := mustRun(t, root, "know", "mv", "release-flow", "--parent", "testing-rules")
+
+	if !strings.HasSuffix(stdout, "refreshed: "+customBlockFile+"\n") {
+		t.Errorf("know mv = %q; want the refresh of %s", stdout, customBlockFile)
+	}
+}

@@ -14,7 +14,8 @@ const (
 		"longer resolve.\n\n" +
 		"A Note that no longer holds is retired rather than removed, optionally naming the Notes that " +
 		"supersede it, and leaves browsing with its subtree.\n\n" +
-		"A write that leaves the capcom block of AGENTS.md stale refreshes it."
+		"A write that leaves the capcom block stale refreshes it, in the file agents.file names " +
+		"(AGENTS.md by default)."
 	knowExample = "  capcom know tree --depth 2       # the top two levels of the Knowledge tree\n" +
 		"  capcom know show release-steps   # one Note in full\n" +
 		"  capcom know search release       # Notes that mention release\n" +

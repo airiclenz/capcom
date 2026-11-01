@@ -669,3 +669,14 @@ func TestKnowUpdate_WritesCarryingAKeyLine_RaiseTheConfigOnceWhateverTheyGain(t 
 		}
 	}
 }
+
+func TestKnowUpdate_BlockFile_NamesItInTheRefreshLine(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+
+	stdout := mustRun(t, root, "know", "update", "release-flow", "--title", "Release steps")
+
+	if !strings.HasSuffix(stdout, "refreshed: "+customBlockFile+"\n") {
+		t.Errorf("know update = %q; want the refresh of %s", stdout, customBlockFile)
+	}
+}

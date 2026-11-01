@@ -26,8 +26,8 @@ const (
 		"--body-file reads its markdown body from a file, - for stdin.\n\n" +
 		"A --ref inside the git directory is refused, since a clone never has it; one that does not " +
 		"resolve here, or that git ignores, is written with a warning, as capcom check fails on it.\n\n" +
-		"It prints the new Note's id, path and etag, and a refreshed line when the capcom block of " +
-		"AGENTS.md was rewritten."
+		"It prints the new Note's id, path and etag, and a refreshed line when it rewrote the capcom " +
+		"block in the file agents.file names (AGENTS.md by default)."
 	knowAddExample = "  capcom know add --id release-steps --title \"How a release is cut\" --ref docs/releasing.md   # a Note that depends on a file\n" +
 		"  capcom know add --id release-tags --parent release-steps --title \"Tagging a release\" --label release   # below release-steps\n" +
 		"  capcom know add --id adr-0031 --title \"ADR 0031: one index per worktree\" --body-file -   # body from stdin"
@@ -82,7 +82,7 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 // its parent, unless the index refresh already warned about it, and for every --ref checkNewRefs
 // warns about. A malformed --ref, or one inside the git directory, is refused before the Note's
 // id is weighed against the tree. A Note added at the top of the tree refreshes a stale capcom
-// block of AGENTS.md through the Kind's sync hook (see notes).
+// block of the configured block file through the Kind's sync hook (see notes).
 func (a *app) addNote(cmd *cobra.Command, options *knowAddOptions) (output.Result, error) {
 	for _, ref := range options.refs {
 		if err := knowledge.ValidateRef(ref); err != nil {
@@ -150,14 +150,15 @@ func noteWriteResult(id string, path string, etag string) output.Result {
 
 // notes is the node store of the Knowledge tree, resolving Note arguments through resolver, with
 // syncAgents as its sync hook: each Note write that may have changed the Knowledge top level (a
-// Create at the top, and every Edit, Move and Remove) refreshes the capcom block of AGENTS.md, so
-// check stays green.
+// Create at the top, and every Edit, Move and Remove) refreshes the capcom block of the configured
+// block file (agents.file, AGENTS.md by default), so check stays green.
 func (a *app) notes(resolver nodestore.Resolver) *nodestore.Kind[knowledge.Note] {
 	return nodestore.Notes(a.store, resolver).WithSync(a.syncAgents)
 }
 
-// syncAgents refreshes the capcom block of AGENTS.md, reporting whether it was stale and so
-// rewritten. Only a stale block is rewritten; an AGENTS.md without the block is left alone.
+// syncAgents refreshes the capcom block of the configured block file, reporting whether it was
+// stale and so rewritten. Only a stale block is rewritten; a block file without the block is left
+// alone.
 func (a *app) syncAgents() (bool, error) {
 	status, err := syncAgentsBlock(a.store, agents.ModeRefresh)
 	if err != nil {
@@ -166,11 +167,11 @@ func (a *app) syncAgents() (bool, error) {
 	return status.State == agents.StateStale, nil
 }
 
-// addSyncEffects renders the outcome of the AGENTS.md sync hook a Note write ran (see notes) onto
+// addSyncEffects renders the outcome of the block file sync hook a Note write ran (see notes) onto
 // result, a noteWriteResult or a noteRemoveResult. The Note is already written, so a failed refresh
-// is a warning, not a failed command; a refresh is reported in the text and as an agents key in
-// the --json data.
-func addSyncEffects(result *output.Result, effects nodestore.Effects) {
+// is a warning, not a failed command; a refresh is reported in the text, naming the configured
+// block file, and as an agents key in the --json data.
+func (a *app) addSyncEffects(result *output.Result, effects nodestore.Effects) {
 	if effects.SyncFailure != nil {
 		warning := flatten(agentsFailure(effects.SyncFailure).Error()) + "; the capcom block was not refreshed"
 		result.Warnings = append(result.Warnings, warning)
@@ -185,7 +186,7 @@ func addSyncEffects(result *output.Result, effects nodestore.Effects) {
 	case *noteRemoveData:
 		data.Agents = blockRefreshed
 	}
-	result.Text += "refreshed: " + agents.FileName + "\n"
+	result.Text += "refreshed: " + a.store.Config.Agents.File + "\n"
 }
 
 // newNote builds the Note the flags describe: labels without repeats or empty entries, and the

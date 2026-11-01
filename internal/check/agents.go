@@ -10,11 +10,13 @@ import (
 
 // agentsBlock checks the Managed block of the configured block file (agents.file, AGENTS.md by
 // default) against the Knowledge tree's top level and the configured doing status, and, when the
-// block file carries the block, that each configured agent guide reaches it.
+// block file carries the block, that AGENTS.md, when it is not the block file, and each configured
+// agent guide reach it.
 func (c *checker) agentsBlock() error {
+	blockFile := c.store.Config.Agents.File
 	// No doing status configured is the empty string, which leaves the claim line out.
 	doingStatus, _ := c.store.Config.DefaultStatus(config.CategoryDoing)
-	status, err := agents.Sync(c.store.WorktreeRoot, c.store.Config.Agents.File, c.store.KnowledgeDir(), doingStatus, agents.ModeInspect)
+	status, err := agents.Sync(c.store.WorktreeRoot, blockFile, c.store.KnowledgeDir(), doingStatus, agents.ModeInspect)
 	var tangled *agents.Error
 	if errors.As(err, &tangled) {
 		c.add(tangled.Path, tangled.Line, diagnose.AgentsBlock, tangled.Message)
@@ -24,14 +26,50 @@ func (c *checker) agentsBlock() error {
 		return err
 	}
 	if status.State == agents.StateStale {
-		c.add(agents.FileName, status.Line, diagnose.AgentsBlock,
+		c.add(blockFile, status.Line, diagnose.AgentsBlock,
 			"the capcom block is out of date; run capcom agents to refresh it")
 	}
 	if status.State != agents.StateCurrent && status.State != agents.StateStale {
 		return nil
 	}
+	if err := c.agentsFile(); err != nil {
+		return err
+	}
 	return c.agentsGuides()
 }
+
+// agentsFile reports an AGENTS.md that is not the configured block file and does not reach it, one
+// that still holds capcom markers, and one that cannot be read. With AGENTS.md as the block file
+// it reports nothing.
+func (c *checker) agentsFile() error {
+	blockFile := c.store.Config.Agents.File
+	guide, err := agents.AgentsGuide(c.store.WorktreeRoot, blockFile, agents.ModeInspect)
+	var unreadable *agents.Error
+	if errors.As(err, &unreadable) {
+		c.add(unreadable.Path, unreadable.Line, diagnose.AgentsGuide, unreadable.Message)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if guide.State == agents.GuideUnreached {
+		c.add(guide.Path, 0, diagnose.AgentsGuide, guide.Problem())
+	}
+	if guide.HasMarkers {
+		c.add(guide.Path, 0, diagnose.AgentsGuide, StrayMarkersMessage(blockFile)+"; "+StrayMarkersHint)
+	}
+	return nil
+}
+
+// StrayMarkersMessage reports capcom markers left in AGENTS.md while blockFile, another file, holds
+// the Managed block, without AGENTS.md's path: callers put it before the message.
+func StrayMarkersMessage(blockFile string) string {
+	return "holds capcom markers, but the capcom block lives in " + blockFile
+}
+
+// StrayMarkersHint is what clears capcom markers StrayMarkersMessage reports: capcom never removes
+// them.
+const StrayMarkersHint = "remove the capcom markers and what lies between them from " + agents.FileName
 
 // agentsGuides reports each configured agent guide that does not reach the Managed block, and one
 // that cannot be read.

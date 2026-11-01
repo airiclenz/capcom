@@ -170,7 +170,15 @@ existing `Sync` and `Guides` callers in tests pass `FileName` with their asserti
 Depends on item 3.
 **Commit:** `feat(agents): keep the managed block in a named file`
 
-## 5. Use agents.file in agents, the Note writes and check
+## 5. Use agents.file in agents, the Note writes and check — ✅ DONE (2026-11-01)
+
+NOTES (2026-11-01): capcom agents reports AGENTS.md's reach of a non-default block file as the first entry of the --json guides array (path AGENTS.md, same states) and through the existing "added <line> to <guide>" text line, rather than a new JSON key; the list stays unchanged when agents.file is AGENTS.md. Item 6 should document this.
+NOTES (2026-11-01): agents --check now skips the guide inspection when the block file has no block (it previously ran Guides, which returned nothing then), because AgentsGuide does not gate on the block itself; output is unchanged.
+NOTES (2026-11-01): stray capcom markers in AGENTS.md are reported under diagnose.AgentsGuide; the message and its remove hint live once in internal/check (StrayMarkersMessage, StrayMarkersHint), which agents --check reuses as its Message and Hint, and check joins with "; ".
+NOTES (2026-11-01): capcom agents (write mode) does not warn about stray markers left in AGENTS.md; only check and agents --check flag them, as the plan says.
+NOTES (2026-11-01): afterWrite now takes *app (addSyncEffects became an app method) so know update/mv/rm/add name the configured file in their refresh line; initText takes the block file and agentsHint became a function of it.
+NOTES (2026-11-01): consequential edit — internal/cli/doc.go: made necessary by agents.go and know_add.go no longer being about AGENTS.md alone (package map entries reworded)
+NOTES (2026-11-01): consequential edit — internal/cli/testdata/help/know-add.txt: made necessary by the knowAddLong rewording the item requires (help golden)
 
 **What:**
 Recast at the regression check (2026-11-01).

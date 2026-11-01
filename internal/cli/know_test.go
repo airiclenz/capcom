@@ -1063,3 +1063,23 @@ func TestKnowAdd_BesideUnparseableNoteWithOtherAlias_WritesAndWarnsOnce(t *testi
 	}
 	assertWarnedOnce(t, stdout+stderr, "warning: .capcom/knowledge/release-steps.md:")
 }
+
+func TestKnowAdd_BlockFile_RefreshesItAndNamesIt(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+
+	stdout := mustRun(t, root, "know", "add", "--id", "api-design", "--title", "API design")
+
+	if !strings.HasSuffix(stdout, "refreshed: "+customBlockFile+"\n") {
+		t.Errorf("know add = %q; want the refresh of %s", stdout, customBlockFile)
+	}
+	if !strings.Contains(readGuideFile(t, root, customBlockFile), "- `api-design`: API design\n") {
+		t.Errorf("%s =\n%s\nwant the new top-level Note listed", customBlockFile, readGuideFile(t, root, customBlockFile))
+	}
+	if got := readAgentsGuide(t, root); got != importingAgentsGuide {
+		t.Errorf("AGENTS.md = %q; want it untouched", got)
+	}
+	if output, _, exitCode := runCLI(t, root, "check"); exitCode != ExitOK {
+		t.Errorf("check after know add = %d\n%s", exitCode, output)
+	}
+}

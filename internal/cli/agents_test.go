@@ -444,3 +444,147 @@ func TestAgents_TwoGuidesSharingAFile_ReportOneAddedLine(t *testing.T) {
 		t.Errorf("CLAUDE.md = %q; want one import line", got)
 	}
 }
+
+// customBlockFile is the block file blockFileConfig names under agents.file.
+const customBlockFile = ".capcom/AGENTS-capcom.md"
+
+// blockFileConfig is a config.yaml keeping the Managed block in customBlockFile.
+const blockFileConfig = "format: 6\nagents:\n  file: " + customBlockFile + "\n"
+
+// importingAgentsGuide is an AGENTS.md that reaches customBlockFile by an import line.
+const importingAgentsGuide = "# Guide\n\n@" + customBlockFile + "\n"
+
+// newBlockFileStore returns a Knowledge store whose config.yaml names customBlockFile under
+// agents.file, its AGENTS.md holding agentsContent.
+func newBlockFileStore(t *testing.T, agentsContent string) string {
+	t.Helper()
+	root := newKnowStore(t)
+	writeStoreConfig(t, root, blockFileConfig)
+	writeAgentsGuide(t, root, agentsContent)
+	return root
+}
+
+func TestAgents_BlockFile_WritesTheBlockThereAndLeavesAgentsMDAlone(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+
+	first := mustRun(t, root, "agents")
+	jsonOut := mustRun(t, root, "agents", "--json")
+
+	if first != "wrote the capcom block to "+customBlockFile+"\n" {
+		t.Errorf("agents output = %q; want the block written to %s", first, customBlockFile)
+	}
+	agentsBlockOf(t, readGuideFile(t, root, customBlockFile))
+	if got := readAgentsGuide(t, root); got != importingAgentsGuide {
+		t.Errorf("AGENTS.md = %q; want it untouched", got)
+	}
+	data, _ := decodeEnvelope(t, jsonOut)["data"].(map[string]any)
+	guides, _ := data["guides"].([]any)
+	if len(guides) == 0 {
+		t.Fatalf("agents --json data = %v; want AGENTS.md among the guides", data)
+	}
+	leading, _ := guides[0].(map[string]any)
+	if data["path"] != customBlockFile || data["block"] != blockCurrent || leading["path"] != agents.FileName || leading["state"] != "reaches" {
+		t.Errorf("agents --json data = %v; want path %s, current, AGENTS.md reaching it first", data, customBlockFile)
+	}
+}
+
+func TestAgents_BlockFileNotImported_AppendsTheImportToAgentsMD(t *testing.T) {
+	root := newBlockFileStore(t, "# Guide\n")
+
+	stdout := mustRun(t, root, "agents")
+
+	want := "wrote the capcom block to " + customBlockFile + "\nadded @" + customBlockFile + " to AGENTS.md\n"
+	if stdout != want {
+		t.Errorf("agents output = %q; want %q", stdout, want)
+	}
+	if got := readAgentsGuide(t, root); got != "# Guide\n\n@"+customBlockFile+"\n" {
+		t.Errorf("AGENTS.md = %q; want the import line appended", got)
+	}
+}
+
+func TestCheck_BlockFile_ExitsZeroWhenImportedAndOneNamingAgentsMDWhenNot(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+
+	imported, _, importedExit := runCLI(t, root, "check")
+	writeAgentsGuide(t, root, "# Guide\n")
+	unreached, _, unreachedExit := runCLI(t, root, "check")
+
+	if importedExit != ExitOK {
+		t.Errorf("check with AGENTS.md importing the block file = %d\n%s", importedExit, imported)
+	}
+	if unreachedExit != ExitError || !strings.Contains(unreached, "AGENTS.md") || !strings.Contains(unreached, "@"+customBlockFile) {
+		t.Errorf("check with AGENTS.md not importing the block file = %d\n%s\nwant 1 naming AGENTS.md", unreachedExit, unreached)
+	}
+}
+
+func TestAgentsCheck_BlockFileNotImported_FailsAtAgentsMDNamingTheBlockFile(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+	writeAgentsGuide(t, root, "# Guide\n")
+
+	stdout, stderr, exitCode := runCLI(t, root, "agents", "--check")
+
+	want := "capcom: AGENTS.md: does not reach the capcom block in " + customBlockFile +
+		"; it needs the line @" + customBlockFile + "\nhint: capcom agents\n"
+	if exitCode != ExitError || stdout != "" || stderr != want {
+		t.Errorf("agents --check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
+	}
+}
+
+func TestAgentsCheck_BlockFileWithAnUnreachedGuide_NamesAgentsMD(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+	writeGuideFile(t, root, "CLAUDE.md", "# Claude\n")
+
+	_, stderr, exitCode := runCLI(t, root, "agents", "--check")
+
+	want := "capcom: CLAUDE.md: does not reach the capcom block in AGENTS.md; it needs the line @AGENTS.md\nhint: capcom agents\n"
+	if exitCode != ExitError || stderr != want {
+		t.Errorf("agents --check = %d, stderr %q; want 1 and %q", exitCode, stderr, want)
+	}
+}
+
+func TestAgentsCheckAndCheck_CapcomMarkersLeftInAgentsMD_FlagThemWithTheRemoveHint(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+	writeAgentsGuide(t, root, importingAgentsGuide+"\n"+agents.BeginMarker+"\nold block\n"+agents.EndMarker+"\n")
+
+	_, stderr, agentsExit := runCLI(t, root, "agents", "--check")
+	checkOut, _, checkExit := runCLI(t, root, "check")
+
+	want := "capcom: AGENTS.md: holds capcom markers, but the capcom block lives in " + customBlockFile +
+		"\nhint: remove the capcom markers and what lies between them from AGENTS.md\n"
+	if agentsExit != ExitError || stderr != want {
+		t.Errorf("agents --check = %d, stderr %q; want 1 and %q", agentsExit, stderr, want)
+	}
+	if checkExit != ExitError || !strings.Contains(checkOut, "AGENTS.md") || !strings.Contains(checkOut, "remove the capcom markers") {
+		t.Errorf("check = %d\n%s\nwant 1 flagging the markers in AGENTS.md", checkExit, checkOut)
+	}
+}
+
+func TestKnowAddAndCheck_BlockFileWithAReadOnlyRoot_WarnNothingAndPass(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission tests do not run on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("permission tests do not run as root")
+	}
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+	if err := os.Chmod(root, 0o555); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+
+	added, stderr, addExit := runCLI(t, root, "know", "add", "--id", "api-design", "--title", "API design")
+	checkOut, _, checkExit := runCLI(t, root, "check")
+
+	if addExit != ExitOK || stderr != "" || strings.Contains(added, "warning") ||
+		!strings.HasSuffix(added, "refreshed: "+customBlockFile+"\n") {
+		t.Errorf("know add = %d, stdout %q, stderr %q; want the block refreshed without a warning", addExit, added, stderr)
+	}
+	if checkExit != ExitOK {
+		t.Errorf("check = %d\n%s", checkExit, checkOut)
+	}
+}

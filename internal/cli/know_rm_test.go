@@ -345,3 +345,14 @@ func TestKnowRm_DependentWriteFails_RollsBackNamingTheDependentFile(t *testing.T
 		t.Errorf("git-fixtures.md = %q; want %q", got, dependent)
 	}
 }
+
+func TestKnowRm_BlockFile_NamesItInTheRefreshLine(t *testing.T) {
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+
+	stdout := mustRun(t, root, "know", "rm", "release-flow")
+
+	if !strings.HasSuffix(stdout, "refreshed: "+customBlockFile+"\n") {
+		t.Errorf("know rm = %q; want the refresh of %s", stdout, customBlockFile)
+	}
+}

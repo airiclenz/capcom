@@ -46,7 +46,7 @@ type nodeVerbs[T any] struct {
 	removeFailure func(a *app, err error) error
 	// afterWrite renders the Effects a write returned onto its result; nil when the kind has
 	// nothing to render.
-	afterWrite func(result *output.Result, effects nodestore.Effects)
+	afterWrite func(a *app, result *output.Result, effects nodestore.Effects)
 	// hasKV reports whether the kind's verbs take --kv: only where results carry KV records.
 	hasKV bool
 	// hasDropDeps reports whether the kind's rm takes --drop-deps, which removes the deps entries
@@ -87,7 +87,7 @@ var issueVerbs = nodeVerbs[issue.Issue]{
 }
 
 // noteVerbs describes the Knowledge tree: capcom know add, know mv and know rm. Its node store refreshes the
-// capcom block of AGENTS.md after each write (see notes), and afterWrite renders that refresh.
+// capcom block of the configured block file after each write (see notes), and afterWrite renders that refresh.
 var noteVerbs = nodeVerbs[knowledge.Note]{
 	kind: func(a *app) *nodestore.Kind[knowledge.Note] {
 		return a.notes(nil)
@@ -102,7 +102,7 @@ var noteVerbs = nodeVerbs[knowledge.Note]{
 	removeFailure: func(a *app, err error) error {
 		return a.kindFailure(err, noteIDs)
 	},
-	afterWrite:  addSyncEffects,
+	afterWrite:  (*app).addSyncEffects,
 	hasKV:       false,
 	hasDropDeps: false,
 	hasRefs:     true,
@@ -191,7 +191,7 @@ func move[T any](
 	result.Warnings = append(result.Warnings, cleanupWarnings(moved.LeftInPlace)...)
 	a.warnDroppedComments(moved.Effects)
 	if verbs.afterWrite != nil {
-		verbs.afterWrite(&result, moved.Effects)
+		verbs.afterWrite(a, &result, moved.Effects)
 	}
 	return result, nil
 }
@@ -272,7 +272,7 @@ func remove[T any](
 	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
 	a.warnDroppedComments(removed.Effects)
 	if verbs.afterWrite != nil {
-		verbs.afterWrite(&result, removed.Effects)
+		verbs.afterWrite(a, &result, removed.Effects)
 	}
 	return result, nil
 }
@@ -353,7 +353,7 @@ func createNode[T any](
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	a.warnRaisedFormat(written.Effects)
 	if verbs.afterWrite != nil {
-		verbs.afterWrite(&result, written.Effects)
+		verbs.afterWrite(a, &result, written.Effects)
 	}
 	return result, nil
 }

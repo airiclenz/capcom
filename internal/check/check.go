@@ -4,10 +4,13 @@
 // a Note's format-3 keys sit in a store declaring format 3; it collects what the config parser,
 // the tree loader, the issue and Note parsers and validators, the git conflict-marker scan of
 // package rawfm, the dependency cycle search and the Ref verifier report, each as a
-// Problem citing the file and, when known, the line (ADR 0006). It also reports an AGENTS.md whose
-// capcom Managed block is out of date or whose markers are tangled, and one that cannot be read,
-// being not a regular file or larger than 1 MiB; an AGENTS.md without the block, or no AGENTS.md
-// at all, is no problem. When AGENTS.md carries the block, it reports each agent guide config.yaml
+// Problem citing the file and, when known, the line (ADR 0006). It also reports a block file (the
+// file config.yaml names under agents.file, AGENTS.md by default) whose capcom Managed block is out
+// of date or whose markers are tangled, and one that cannot be read, being not a regular file or
+// larger than 1 MiB; a block file without the block, or no block file at all, is no problem. When
+// the block file carries the block and is not AGENTS.md, it reports an AGENTS.md that neither
+// resolves to the block file nor imports it, one that still holds capcom markers, and one that
+// cannot be read. When the block file carries the block, it reports each agent guide config.yaml
 // lists under agents.guides that neither resolves to AGENTS.md nor imports it, and one that cannot
 // be read; a missing guide, or one that links outside the working tree, is no problem.
 package check

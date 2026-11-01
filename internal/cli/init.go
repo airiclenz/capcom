@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/airiclenz/capcom/internal/agents"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/hooks"
 	"github.com/airiclenz/capcom/internal/store"
@@ -111,7 +110,7 @@ func (a *app) newInitCommand() *cobra.Command {
 				created = []string{}
 			}
 			data := initData{Root: opened.Root, Created: created}
-			text := initText(opened.Root, created)
+			text := initText(opened.Root, opened.Config.Agents.File, created)
 			snippet := "\n" + claudeHooksSnippet()
 			if isClaudeHooks {
 				var line string
@@ -232,12 +231,14 @@ func mergeDriverConfigText() string {
 }
 
 // agentsHint is the line init prints after creating a store: init writes no agent guide, so it
-// names the command that does.
-const agentsHint = "run capcom agents to write the capcom block into " + agents.FileName + "\n"
+// names the command that does and blockFile, the block file it writes (agents.file).
+func agentsHint(blockFile string) string {
+	return "run capcom agents to write the capcom block into " + blockFile + "\n"
+}
 
 // initText reports the store init found at root, or created with the paths in created, followed,
-// for a store it created, by agentsHint.
-func initText(root string, created []string) string {
+// for a store it created, by agentsHint for blockFile.
+func initText(root, blockFile string, created []string) string {
 	if len(created) == 0 {
 		return "capcom store already initialized at " + root + "\n"
 	}
@@ -246,7 +247,7 @@ func initText(root string, created []string) string {
 	for _, path := range created {
 		text.WriteString("created " + path + "\n")
 	}
-	text.WriteString(agentsHint)
+	text.WriteString(agentsHint(blockFile))
 	return text.String()
 }
 

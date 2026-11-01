@@ -9,7 +9,7 @@
 // Every non-test file of the package, with its responsibility. TestDocFileMap_MatchesDirectory
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
-//   - `agents.go` — capcom agents: writes, refreshes or checks the capcom block of AGENTS.md
+//   - `agents.go` — capcom agents: writes, refreshes or checks the capcom block of the block file
 //   - `apply.go` — capcom apply: runs an apply file of Issue writes staged in memory and commits them all or none
 //   - `check.go` — capcom check: validates every config, issue and Note file of the store
 //   - `close.go` — capcom close: closes issues, recording why
@@ -28,7 +28,7 @@
 //   - `init.go` — capcom init: creates the store and installs the Claude Code hooks
 //   - `issue_render.go` — the text, --json and --kv forms of an issue shared by list, show and search
 //   - `know.go` — capcom know and the Note data and resolution its subcommands share
-//   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and AGENTS.md refresh
+//   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and block file refresh
 //   - `know_search.go` — capcom know search: finds Notes whose title or body contains every word, else some
 //   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
 //   - `know_tree.go` — capcom know tree: the outline of Note ids and titles

@@ -17,7 +17,7 @@ A Ref names a path or path#symbol the Note depends on, and know verify lists the
 
 A Note that no longer holds is retired rather than removed, optionally naming the Notes that supersede it, and leaves browsing with its subtree.
 
-A write that leaves the capcom block of AGENTS.md stale refreshes it.
+A write that leaves the capcom block stale refreshes it, in the file agents.file names (AGENTS.md by default).
 
 ```
 capcom know [flags]

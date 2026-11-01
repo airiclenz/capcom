@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/agents"
+	"github.com/airiclenz/capcom/internal/check"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/store"
@@ -32,14 +33,15 @@ var guideStates = map[agents.GuideState]string{
 
 // agentsData is the --json data of capcom agents.
 type agentsData struct {
-	// Path is AGENTS.md, relative to the working tree root.
+	// Path is the block file config.yaml names under agents.file (AGENTS.md by default), relative
+	// to the working tree root.
 	Path string `json:"path"`
 	// Block is what the command found (--check) or did.
 	Block string `json:"block"`
 	// Line is the begin marker's line, when the block is present.
 	Line int `json:"line,omitempty"`
-	// Guides are the agent guides config.yaml lists under agents.guides, when AGENTS.md carries
-	// the block.
+	// Guides are the agent guides config.yaml lists under agents.guides, when the block file
+	// carries the block, led by AGENTS.md itself when the block file is another file.
 	Guides []agentsGuideData `json:"guides,omitempty"`
 }
 
@@ -79,10 +81,11 @@ const (
 		"  capcom agents --check   # fail when the block is out of date or a guide does not reach it"
 )
 
-// newAgentsCommand writes or refreshes the capcom Managed block of AGENTS.md and imports it into
-// the agent guides, or with --check reports whether the block is current and the guides reach it.
-// --check fails on a stale block or an unreached guide only: an AGENTS.md without the block, or no
-// AGENTS.md, is fine. Without --check the run is noted as a write of no Issue for the Tree lock
+// newAgentsCommand writes or refreshes the capcom Managed block of the configured block file
+// (agents.file, AGENTS.md by default) and makes AGENTS.md and the agent guides reach it, or with
+// --check reports whether the block is current and they reach it. --check fails on a stale block,
+// an unreached guide or capcom markers left in an AGENTS.md that is not the block file only: a
+// block file without the block, or no block file, is fine. Without --check the run is noted as a write of no Issue for the Tree lock
 // warning (app.noteWrite).
 func (a *app) newAgentsCommand() *cobra.Command {
 	isCheck := false
@@ -105,24 +108,26 @@ func (a *app) newAgentsCommand() *cobra.Command {
 	return cmd
 }
 
-// writeAgentsBlock brings the block up to date, appends the import line to each agent guide that
-// does not reach it, and reports what it did.
+// writeAgentsBlock brings the block of the configured block file up to date, appends the import
+// line to AGENTS.md when it is not the block file and does not reach it, and to each agent guide
+// that does not reach AGENTS.md, and reports what it did.
 func (a *app) writeAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
+	blockFile := opened.Config.Agents.File
 	status, err := syncAgentsBlock(opened, agents.ModeWrite)
 	if err != nil {
 		return agentsFailure(err)
 	}
-	data := agentsData{Path: agents.FileName, Block: blockWritten}
-	text := "wrote the capcom block to " + agents.FileName + "\n"
+	data := agentsData{Path: blockFile, Block: blockWritten}
+	text := "wrote the capcom block to " + blockFile + "\n"
 	switch status.State {
 	case agents.StateCurrent:
 		data.Block = blockCurrent
-		text = "the capcom block of " + agents.FileName + " is current\n"
+		text = "the capcom block of " + blockFile + " is current\n"
 	case agents.StateStale:
 		data.Block = blockRefreshed
-		text = "refreshed the capcom block of " + agents.FileName + "\n"
+		text = "refreshed the capcom block of " + blockFile + "\n"
 	}
-	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.File, opened.Config.Agents.Guides, agents.ModeWrite)
+	guides, err := reachingGuides(opened, agents.ModeWrite)
 	if err != nil {
 		return agentsFailure(err)
 	}
@@ -137,6 +142,25 @@ func syncAgentsBlock(opened *store.Store, mode agents.Mode) (agents.Status, erro
 	// No doing status configured is the empty string, which leaves the claim line out.
 	doingStatus, _ := opened.Config.DefaultStatus(config.CategoryDoing)
 	return agents.Sync(opened.WorktreeRoot, opened.Config.Agents.File, opened.KnowledgeDir(), doingStatus, mode)
+}
+
+// reachingGuides reports, as mode says, whether each file that must reach the block does: AGENTS.md
+// first when the block file opened configures is another file (see agents.AgentsGuide), then each
+// agent guide config.yaml lists under agents.guides (see agents.Guides). Callers run it only once
+// the block file carries the block.
+func reachingGuides(opened *store.Store, mode agents.Mode) ([]agents.Guide, error) {
+	agentsGuide, err := agents.AgentsGuide(opened.WorktreeRoot, opened.Config.Agents.File, mode)
+	if err != nil {
+		return nil, err
+	}
+	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.File, opened.Config.Agents.Guides, mode)
+	if err != nil {
+		return nil, err
+	}
+	if agentsGuide.Path == "" {
+		return guides, nil
+	}
+	return append([]agents.Guide{agentsGuide}, guides...), nil
 }
 
 // guidesText reports each guide capcom agents added the import line to, and each it skipped
@@ -155,55 +179,88 @@ func guidesText(guides []agents.Guide) string {
 }
 
 // checkAgentsBlock reports the block's state and the guides'; a stale block fails invalid at its
-// marker line, and, the block current, the first guide that does not reach it fails invalid at
-// that guide. Either failure hints capcom agents, which refreshes the block and adds the import
-// line to the guides.
+// marker line, and, the block current, the first file that does not reach it fails invalid at that
+// file: AGENTS.md, when the block file is another file, then the agent guides. Each failure hints
+// capcom agents, which refreshes the block and adds the import lines. The block current, an
+// AGENTS.md that is not the block file but still holds capcom markers fails invalid too, with a
+// hint to remove them.
 func (a *app) checkAgentsBlock(cmd *cobra.Command, opened *store.Store) error {
+	blockFile := opened.Config.Agents.File
 	status, err := syncAgentsBlock(opened, agents.ModeInspect)
 	if err != nil {
 		return agentsFailure(err)
 	}
-	data := agentsData{Path: agents.FileName, Block: blockAbsent, Line: status.Line}
-	text := agents.FileName + " has no capcom block\n"
+	data := agentsData{Path: blockFile, Block: blockAbsent, Line: status.Line}
+	text := blockFile + " has no capcom block\n"
 	switch status.State {
 	case agents.StateCurrent:
 		data.Block = blockCurrent
-		text = "the capcom block of " + agents.FileName + " is current\n"
+		text = "the capcom block of " + blockFile + " is current\n"
 	case agents.StateStale:
 		return &output.Error{
 			Code:    output.CodeInvalid,
-			Path:    agents.FileName,
+			Path:    blockFile,
 			Line:    status.Line,
 			Message: "the capcom block is out of date",
 			Hint:    agentsCommand,
 		}
 	}
-	guides, err := agents.Guides(opened.WorktreeRoot, opened.Config.Agents.File, opened.Config.Agents.Guides, agents.ModeInspect)
+	if status.State != agents.StateCurrent {
+		return a.emit(cmd, output.Result{Kind: "agents", Data: data, Text: text})
+	}
+	guides, err := reachingGuides(opened, agents.ModeInspect)
 	if err != nil {
 		return agentsFailure(err)
 	}
-	for _, guide := range guides {
-		if guide.State == agents.GuideUnreached {
-			return &output.Error{
-				Code:    output.CodeInvalid,
-				Path:    guide.Path,
-				Message: "does not reach the capcom block in " + agents.FileName + "; it needs the line " + guide.ImportLine,
-				Hint:    agentsCommand,
-			}
-		}
+	if err := guidesFailure(guides, blockFile); err != nil {
+		return err
 	}
 	data.Guides = newAgentsGuideData(guides)
 	return a.emit(cmd, output.Result{Kind: "agents", Data: data, Text: text})
+}
+
+// guidesFailure is the failure of capcom agents --check for guides, as reachingGuides reports
+// them against blockFile: the first one that does not reach the block, invalid at it and naming
+// the file it must reach (blockFile for AGENTS.md, AGENTS.md for an agent guide), or else an
+// AGENTS.md that still holds capcom markers, invalid at AGENTS.md. It is nil when every guide
+// reaches the block.
+func guidesFailure(guides []agents.Guide, blockFile string) error {
+	for _, guide := range guides {
+		if guide.State != agents.GuideUnreached {
+			continue
+		}
+		target := agents.FileName
+		if guide.Path == agents.FileName {
+			target = blockFile
+		}
+		return &output.Error{
+			Code:    output.CodeInvalid,
+			Path:    guide.Path,
+			Message: "does not reach the capcom block in " + target + "; it needs the line " + guide.ImportLine,
+			Hint:    agentsCommand,
+		}
+	}
+	for _, guide := range guides {
+		if guide.HasMarkers {
+			return &output.Error{
+				Code:    output.CodeInvalid,
+				Path:    guide.Path,
+				Message: check.StrayMarkersMessage(blockFile),
+				Hint:    check.StrayMarkersHint,
+			}
+		}
+	}
+	return nil
 }
 
 // agentsCommand is the command that refreshes the capcom block and makes every agent guide reach
 // it.
 const agentsCommand = "capcom agents"
 
-// agentsFailure types tangled markers as invalid at AGENTS.md and its line, an AGENTS.md that
+// agentsFailure types tangled markers as invalid at the block file and its line, a block file that
 // cannot be read (not a regular file, or larger than 1 MiB) or that links outside the working tree
-// as invalid at AGENTS.md, and an agent guide that cannot be read as invalid at the guide; nil
-// stays nil.
+// as invalid at the block file, and an agent guide, AGENTS.md among them, that cannot be read as
+// invalid at the guide; nil stays nil.
 func agentsFailure(err error) error {
 	var tangled *agents.Error
 	if errors.As(err, &tangled) {

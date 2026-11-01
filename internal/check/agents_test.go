@@ -306,3 +306,87 @@ func TestRun_UnreachedGuideInASubdirectory_NamesTheImportFromItsDirectory(t *tes
 		t.Errorf("problems = %q\nwant %q", got, want)
 	}
 }
+
+// blockFileConfig is a config.yaml keeping the Managed block in .capcom/AGENTS-capcom.md.
+const blockFileConfig = "format: 6\nagents:\n  file: .capcom/AGENTS-capcom.md\n"
+
+// customBlockFile is the block file blockFileConfig names.
+const customBlockFile = ".capcom/AGENTS-capcom.md"
+
+// importingAgentsGuide is an AGENTS.md that reaches customBlockFile by an import line.
+const importingAgentsGuide = "# Guide\n\n@" + customBlockFile + "\n"
+
+// newBlockFileRepo returns a repo whose config.yaml names customBlockFile, its block current there
+// and its AGENTS.md holding agentsContent.
+func newBlockFileRepo(t *testing.T, agentsContent string) string {
+	t.Helper()
+	root := newRepo(t)
+	writeFiles(t, root, map[string]string{".capcom/config.yaml": blockFileConfig, agents.FileName: agentsContent})
+	opened, err := store.Open(root)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	doingStatus, _ := opened.Config.DefaultStatus(config.CategoryDoing)
+	if _, err := agents.Sync(opened.WorktreeRoot, opened.Config.Agents.File, opened.KnowledgeDir(), doingStatus, agents.ModeWrite); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	return root
+}
+
+func TestRun_BlockFileImportedByAgentsMD_ReportsNothing(t *testing.T) {
+	root := newBlockFileRepo(t, importingAgentsGuide)
+
+	problems := runCheck(t, root)
+
+	if len(problems) != 0 {
+		t.Errorf("problems = %v, want none", problems)
+	}
+}
+
+func TestRun_AgentsMDNotImportingTheBlockFile_ReportsAnAgentsGuideProblem(t *testing.T) {
+	root := newBlockFileRepo(t, "# Guide\n")
+
+	problems := runCheck(t, root)
+
+	want := []string{string(diagnose.AgentsGuide) + " AGENTS.md: does not reach the capcom block in " +
+		customBlockFile + "; run capcom agents to add @" + customBlockFile}
+	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+func TestRun_StaleBlockInTheBlockFile_ReportsItAtTheBlockFile(t *testing.T) {
+	root := newBlockFileRepo(t, importingAgentsGuide)
+	writeFiles(t, root, map[string]string{".capcom/knowledge/api-design.md": "---\ntitle: API design\n---\n"})
+
+	problems := runCheck(t, root)
+
+	got := codedProblems(problems)
+	if len(got) != 1 || !strings.HasPrefix(got[0], string(diagnose.AgentsBlock)+" "+customBlockFile+":") {
+		t.Errorf("problems = %q; want one agents-block problem at %s", got, customBlockFile)
+	}
+}
+
+func TestRun_CapcomMarkersLeftInAgentsMD_ReportsThemWithTheRemoveHint(t *testing.T) {
+	root := newBlockFileRepo(t, importingAgentsGuide+"\n"+agents.BeginMarker+"\nold block\n"+agents.EndMarker+"\n")
+
+	problems := runCheck(t, root)
+
+	want := []string{string(diagnose.AgentsGuide) + " AGENTS.md: " +
+		check.StrayMarkersMessage(customBlockFile) + "; " + check.StrayMarkersHint}
+	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
+func TestRun_GuideReachingAgentsMDWithABlockFile_ReportsOnlyTheUnreachedGuide(t *testing.T) {
+	root := newBlockFileRepo(t, importingAgentsGuide)
+	writeFiles(t, root, map[string]string{"CLAUDE.md": "# Claude\n", "GEMINI.md": "# Gemini\n\n@AGENTS.md\n"})
+
+	problems := runCheck(t, root)
+
+	want := []string{string(diagnose.AgentsGuide) + " CLAUDE.md: " + unreachedGuideMessage}
+	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
