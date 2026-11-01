@@ -1,6 +1,6 @@
 // Package briefing composes what capcom tells an agent about the work in front of it: the
 // Briefing capcom prime renders (Compose) and the Ready-list that capcom ready and prime show
-// (ReadyList).
+// (ReadyList), and what ready.hide leaves out of it (ReadyHidden).
 package briefing
 
 import (
@@ -50,6 +50,75 @@ type ReadyItem struct {
 // verdict; the label filter is the index's own, and the plan filter resolves each plan against
 // cfg's plans directories under options.Root. It fails only when the index cannot be read.
 func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, error) {
+	candidates, err := judgeFiltered(x, cfg, options)
+	if err != nil {
+		return nil, err
+	}
+	var listed []ReadyItem
+	for _, candidate := range candidates {
+		if options.keeps(candidate.Readiness) {
+			listed = append(listed, candidate)
+		}
+	}
+
+	slices.SortStableFunc(listed, func(first, second ReadyItem) int {
+		return cmp.Or(
+			cmp.Compare(first.Entry.Priority, second.Entry.Priority),
+			cmp.Compare(len(second.Unblocks), len(first.Unblocks)),
+		)
+	})
+	if options.Limit > 0 && len(listed) > options.Limit {
+		listed = listed[:options.Limit]
+	}
+	return listed, nil
+}
+
+// Hidden is what the ready.hide rule alone leaves out of a Ready-list.
+type Hidden struct {
+	// Count is the number of Ready issues left out.
+	Count int
+	// Labels are the ready.hide labels those issues carry, sorted and each once; nil when Count
+	// is 0.
+	Labels []string
+}
+
+// ReadyHidden reports the Ready issues of x that ReadyList, given the same options, leaves out
+// only because they carry a label cfg's ready.hide lists: the ones the label and plan filters
+// keep, judged in the same pass ReadyList makes, so the two never disagree on an issue.
+// options.Limit and options.IsNotReadyIncluded change nothing, and options.IsHiddenIncluded
+// returns the zero Hidden without reading the index, since then nothing is left out. It fails
+// only when the index cannot be read.
+func ReadyHidden(x *index.Index, cfg config.Config, options ReadyOptions) (Hidden, error) {
+	if options.IsHiddenIncluded {
+		return Hidden{}, nil
+	}
+	candidates, err := judgeFiltered(x, cfg, options)
+	if err != nil {
+		return Hidden{}, err
+	}
+	var hidden Hidden
+	for _, candidate := range candidates {
+		if !candidate.Readiness.IsReady || !candidate.Readiness.IsHidden {
+			continue
+		}
+		hidden.Count++
+		for _, label := range candidate.Entry.Labels {
+			if slices.Contains(cfg.Ready.Hide, label) {
+				hidden.Labels = append(hidden.Labels, label)
+			}
+		}
+	}
+	slices.Sort(hidden.Labels)
+	hidden.Labels = slices.Compact(hidden.Labels)
+	return hidden, nil
+}
+
+// judgeFiltered judges the todo issues of x against the ready rules and returns, in tree order,
+// every one the label and plan filters of options keep, whatever its verdict and whether or not it
+// is hidden; a Ready item carries what it unblocks. The rules judge every issue, Closed ones and
+// those the filters leave out included, so a filter never changes a verdict. It fails only when
+// the index cannot be read.
+func judgeFiltered(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, error) {
 	entries, err := x.List(index.Filter{IsClosedIncluded: true})
 	if err != nil {
 		return nil, err
@@ -70,29 +139,19 @@ func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]Ready
 	}
 	verdicts := issue.Ready(nodes, cfg)
 	unblocks := unblocksByCloser(verdicts, issue.NewDepGraph(nodes))
-	var listed []ReadyItem
+	var candidates []ReadyItem
 	for _, verdict := range verdicts {
 		entry := byID[verdict.ID]
-		if !selected[verdict.ID] || !options.keeps(verdict) || !options.keepsPlan(cfg, entry) {
+		if !selected[verdict.ID] || !options.keepsPlan(cfg, entry) {
 			continue
 		}
 		item := ReadyItem{Entry: entry, Readiness: verdict}
 		if verdict.IsReady {
 			item.Unblocks = unblocks[verdict.ID]
 		}
-		listed = append(listed, item)
+		candidates = append(candidates, item)
 	}
-
-	slices.SortStableFunc(listed, func(first, second ReadyItem) int {
-		return cmp.Or(
-			cmp.Compare(first.Entry.Priority, second.Entry.Priority),
-			cmp.Compare(len(second.Unblocks), len(first.Unblocks)),
-		)
-	})
-	if options.Limit > 0 && len(listed) > options.Limit {
-		listed = listed[:options.Limit]
-	}
-	return listed, nil
+	return candidates, nil
 }
 
 // unblocksByCloser maps the id of each issue to the ids of the todo issues that become Ready when

@@ -43,7 +43,10 @@ workspace whose `AGENTS.md` is immutable passes `capcom check`.
 - 5 (writer): takes the orphaned AgentsBlock/AgentsGuide doc comments in internal/diagnose/diagnose.go
 - 4: second recast not re-checked (one re-check round only)
 
-## 1. Count the Ready issues ready.hide hides
+## 1. Count the Ready issues ready.hide hides — ✅ DONE (2026-11-01)
+
+NOTES (2026-11-01): the shared private helper is `judgeFiltered`, which returns every todo issue the label and plan filters keep as `ReadyItem`s (Ready ones with their Unblocks); `ReadyList` applies `keeps`, the sort and the limit to it, `ReadyHidden` counts the Ready+IsHidden ones. `ReadyHidden` returns the zero `Hidden` (Labels nil) before reading the index when `IsHiddenIncluded` is set.
+NOTES (2026-11-01): the package doc comment in internal/briefing/ready.go now also names ReadyHidden.
 
 **What:**
 **Goal:** `internal/briefing` reports, for the same options `ReadyList` takes, how many Ready

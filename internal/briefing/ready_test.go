@@ -332,3 +332,103 @@ func TestReadyList_Standing_NeverReadyNorUnblocked(t *testing.T) {
 		}
 	}
 }
+
+// parkedLabel is the second ready.hide label hiddenFixture's config lists.
+const parkedLabel = "parked"
+
+// hiddenFixture indexes a tree in a temp dir whose config hides hiddenLabel and parkedLabel. In
+// tree order, each id ending in -task: alpha (Ready, hidden, auth, planned), bravo (Ready, parked),
+// charlie (todo, hidden, blocked by bravo), delta (Ready, ui) and echo (done, hidden).
+func hiddenFixture(t *testing.T) (*index.Index, config.Config, string) {
+	t.Helper()
+	x, cfg, root := indexIssueFiles(t, map[string]string{
+		"alpha-task.md":   readyIssue("open", 2, "labels: ["+hiddenLabel+", auth]\nplan: "+alphaPlan+"\n"),
+		"bravo-task.md":   readyIssue("open", 1, "labels: ["+parkedLabel+"]\n"),
+		"charlie-task.md": readyIssue("open", 1, "labels: ["+hiddenLabel+"]\ndeps: [bravo-task]\n"),
+		"delta-task.md":   readyIssue("open", 2, "labels: [ui]\n"),
+		"echo-task.md":    readyIssue("done", 2, "labels: ["+hiddenLabel+"]\n"),
+	})
+	cfg.Ready.Hide = []string{hiddenLabel, parkedLabel}
+	return x, cfg, root
+}
+
+// hiddenCases are the options ReadyHidden is tried with against hiddenFixture, and what it reports.
+var hiddenCases = []struct {
+	name    string
+	options ReadyOptions
+	want    Hidden
+}{
+	{"default: every Ready hidden issue, under both labels", ReadyOptions{},
+		Hidden{Count: 2, Labels: []string{parkedLabel, hiddenLabel}}},
+	{"no hidden issue among those the filter keeps", ReadyOptions{Labels: []string{"ui"}}, Hidden{}},
+	{"label narrows the count", ReadyOptions{Labels: []string{"auth"}},
+		Hidden{Count: 1, Labels: []string{hiddenLabel}}},
+	{"no label narrows the count", ReadyOptions{NoLabels: []string{hiddenLabel}},
+		Hidden{Count: 1, Labels: []string{parkedLabel}}},
+	{"planned narrows the count", ReadyOptions{Plan: index.PlanSet},
+		Hidden{Count: 1, Labels: []string{hiddenLabel}}},
+	{"unplanned narrows the count", ReadyOptions{Plan: index.PlanUnset},
+		Hidden{Count: 1, Labels: []string{parkedLabel}}},
+	{"not ready included: a hidden issue that is not Ready is not counted",
+		ReadyOptions{IsNotReadyIncluded: true}, Hidden{Count: 2, Labels: []string{parkedLabel, hiddenLabel}}},
+	{"limit does not cap the count", ReadyOptions{Limit: 1},
+		Hidden{Count: 2, Labels: []string{parkedLabel, hiddenLabel}}},
+	{"hidden included: nothing is left out", ReadyOptions{IsHiddenIncluded: true}, Hidden{}},
+}
+
+func TestReadyHidden_Options_CountTheReadyIssuesReadyHideLeavesOut(t *testing.T) {
+	t.Parallel()
+	x, cfg, root := hiddenFixture(t)
+
+	for _, current := range hiddenCases {
+		t.Run(current.name, func(t *testing.T) {
+			options := current.options
+			options.Root = root
+
+			got, err := ReadyHidden(x, cfg, options)
+
+			if err != nil || got.Count != current.want.Count || !slices.Equal(got.Labels, current.want.Labels) {
+				t.Errorf("ReadyHidden = %+v, %v; want %+v", got, err, current.want)
+			}
+		})
+	}
+}
+
+func TestReadyHidden_Count_IsWhatHiddenIncludedAddsToReadyList(t *testing.T) {
+	t.Parallel()
+	x, cfg, root := hiddenFixture(t)
+
+	for _, current := range hiddenCases {
+		t.Run(current.name, func(t *testing.T) {
+			options := current.options
+			options.Root = root
+			options.IsNotReadyIncluded = false
+			options.Limit = 0
+			withHidden := options
+			withHidden.IsHiddenIncluded = true
+
+			hidden, err := ReadyHidden(x, cfg, options)
+			listed, listErr := ReadyList(x, cfg, options)
+			all, allErr := ReadyList(x, cfg, withHidden)
+
+			if err != nil || listErr != nil || allErr != nil || hidden.Count != len(all)-len(listed) {
+				t.Errorf("ReadyHidden count = %d (%v); ReadyList adds %d with hidden included (%v, %v)",
+					hidden.Count, err, len(all)-len(listed), listErr, allErr)
+			}
+		})
+	}
+}
+
+func TestReadyHidden_IndexClosed_Fails(t *testing.T) {
+	t.Parallel()
+	x, cfg, _ := hiddenFixture(t)
+	if err := x.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	got, err := ReadyHidden(x, cfg, ReadyOptions{})
+
+	if err == nil || got.Count != 0 || got.Labels != nil {
+		t.Errorf("ReadyHidden = %+v, %v; want an error", got, err)
+	}
+}
