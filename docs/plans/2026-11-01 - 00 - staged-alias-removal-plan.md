@@ -72,7 +72,10 @@ internal/tree/resolve_test.go — resolveFixture; internal/index/query_test.go �
 
 **Commit:** `feat(index): resolve an issue by id prefix only`
 
-## 2. Staged catalog honours a dropped alias
+## 2. Staged catalog honours a dropped alias — ✅ DONE (2026-11-01)
+
+NOTES (2026-11-01): no CHANGELOG entry: the bug is latent (no apply op edits aliases), so no user-visible behaviour changes.
+NOTES (2026-11-01): the shared switch is factored as mergeStaged; the fallback check is isAliasDropped, which tests the staged file's recovered Aliases (new stagedIssue.aliases field, from nodestore.Reading.Aliases).
 
 **What:** fixes the latent bug in issue `staged-alias-removal`: `catalog.Resolve` hands a ref to
 the index, which still matches the pre-batch Alias, and `stagedByID` then returns the staged issue

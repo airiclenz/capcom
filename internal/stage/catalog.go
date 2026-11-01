@@ -35,6 +35,9 @@ type catalog struct {
 // stagedIssue is one issue file the Overlay stages, as the index would store it.
 type stagedIssue struct {
 	entry index.Entry
+	// aliases are the Aliases the file records, as nodestore.Reading.Aliases reads them: the
+	// node's when it parses, and those still recovered from its raw frontmatter when it does not.
+	aliases []string
 	// isNew says whether a staged create made the file, so the index does not know it.
 	isNew bool
 	// isUsable says whether the file is usable, as the index keeps only such a file.
@@ -53,8 +56,10 @@ func (i stagedIssue) resolved(ref string) (index.Entry, error) {
 // Resolve finds the usable issue ref names, as index.Index.Resolve does, among the issues as the
 // Overlay holds them. A staged issue whose id, or else one of whose Aliases, is exactly the name ref
 // stands for (tree.NormalizeArg) is the match; otherwise the index resolves ref, its refusals kept,
-// and an issue it finds that is staged is the staged one. Staged creates count as prefix
-// candidates: beside the one id the index matched by prefix, or beside the several of its
+// and an issue it finds that is staged is the staged one. Where the index matched ref by an Alias
+// that the staged file of its issue no longer records, ref resolves as the index will once the
+// stage is applied: as an id prefix alone (index.Index.ResolvePrefix). Staged creates count as
+// prefix candidates: beside the one id the index matched by prefix, or beside the several of its
 // *tree.AmbiguousError, they make ref a *tree.AmbiguousError naming every candidate, and where
 // the index found nothing (a *tree.NotFoundError) the one staged create ref is a prefix of is the
 // match.
@@ -64,8 +69,30 @@ func (c catalog) Resolve(ref string) (index.Entry, error) {
 	if match, isMatched := exactMatch(staged, name); isMatched {
 		return match.resolved(ref)
 	}
-	created := createdPrefixMatches(staged, name)
 	entry, err := c.index.Resolve(ref)
+	if err == nil && isAliasDropped(staged, entry, name) {
+		entry, err = c.index.ResolvePrefix(ref)
+	}
+	return mergeStaged(ref, name, staged, entry, err)
+}
+
+// isAliasDropped reports whether entry, the index's match for name, is an issue the index matched
+// by its Alias name, and whose staged file no longer records that Alias.
+func isAliasDropped(staged []stagedIssue, entry index.Entry, name string) bool {
+	if entry.ID == name || !slices.Contains(entry.Aliases, name) {
+		return false
+	}
+	match, isStaged := stagedByID(staged, entry.ID)
+	return isStaged && !slices.Contains(match.aliases, name)
+}
+
+// mergeStaged returns what ref, whose name is name, resolves to among the staged issues, given
+// entry and err, what the index resolved it to: the staged issue in place of the one the index
+// found, and the staged creates name is a prefix of beside the index's prefix candidates.
+func mergeStaged(
+	ref string, name string, staged []stagedIssue, entry index.Entry, err error,
+) (index.Entry, error) {
+	created := createdPrefixMatches(staged, name)
 	var notFound *tree.NotFoundError
 	var ambiguous *tree.AmbiguousError
 	switch {
@@ -147,6 +174,7 @@ func (c catalog) staged() []stagedIssue {
 		}
 		issues = append(issues, stagedIssue{
 			entry:    index.EntryOf(relPath, tree.IDOf(path), parentID, reading.Node, s.Config),
+			aliases:  reading.Aliases,
 			isNew:    file.isNew,
 			isUsable: reading.IsUsable(),
 		})

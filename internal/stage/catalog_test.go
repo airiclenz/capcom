@@ -2,7 +2,9 @@ package stage_test
 
 import (
 	"errors"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/index"
@@ -93,6 +95,78 @@ func TestCatalog_Resolve_NoMatch_IsTheIndexNotFound(t *testing.T) {
 	var notFound *tree.NotFoundError
 	if !errors.As(err, &notFound) {
 		t.Errorf("Resolve err = %v, want a *tree.NotFoundError", err)
+	}
+}
+
+// aliasedIssueText returns the text of an open issue titled title whose aliases line lists
+// aliases.
+func aliasedIssueText(title string, aliases string) string {
+	return strings.Replace(issueText(title, "open"), "\n---\n", "\naliases: ["+aliases+"]\n---\n", 1)
+}
+
+func TestCatalog_Resolve_AliasTheStageDropped_ResolvesAsTheCommittedTreeWould(t *testing.T) {
+	isNotFound := func(err error) bool {
+		var notFound *tree.NotFoundError
+		return errors.As(err, &notFound)
+	}
+	isUnusable := func(err error) bool {
+		var unusable *tree.UnusableError
+		return errors.As(err, &unusable)
+	}
+	tests := []struct {
+		name       string
+		indexIDs   []string
+		createIDs  []string
+		stagedText string
+		ref        string
+		wantID     string
+		isWantErr  func(error) bool
+	}{
+		{name: "no other match is not found", ref: "old", isWantErr: isNotFound},
+		{name: "an index id it prefixes", indexIDs: []string{"older-thing"}, ref: "old", wantID: "older-thing"},
+		{name: "a staged create it prefixes", createIDs: []string{"old-new"}, ref: "old", wantID: "old-new"},
+		{name: "an alias the edit keeps", ref: "kept", wantID: "x"},
+		{
+			name:       "an unparsed staged file still listing it",
+			stagedText: "---\ntitle: [unclosed\naliases: [old, kept]\n---\n",
+			ref:        "old",
+			isWantErr:  isUnusable,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			files := map[string]string{"x": aliasedIssueText("X", "old, kept")}
+			for _, id := range test.indexIDs {
+				files[id] = issueText(id, "open")
+			}
+			s, x := newIssueStore(t, files)
+			staged, overlay := newStaged(s, x)
+			for _, id := range test.createIDs {
+				if _, err := staged.CreateIssue(ops.NewIssue{ID: id, Title: id, Created: createdAt}); err != nil {
+					t.Fatalf("CreateIssue %s: %v", id, err)
+				}
+			}
+			stagedText := test.stagedText
+			if stagedText == "" {
+				stagedText = aliasedIssueText("X", "kept")
+			}
+			path := filepath.Join(s.IssuesDir(), "x.md")
+			if err := overlay.ReplaceFile(path, strings.NewReader(stagedText)); err != nil {
+				t.Fatalf("ReplaceFile: %v", err)
+			}
+
+			entry, err := overlay.Catalog(x).Resolve(test.ref)
+
+			if test.isWantErr != nil {
+				if !test.isWantErr(err) {
+					t.Errorf("Resolve(%q) = %s, %v; want the error of case %q", test.ref, entry.ID, err, test.name)
+				}
+				return
+			}
+			if err != nil || entry.ID != test.wantID {
+				t.Errorf("Resolve(%q) = %s, %v; want %s", test.ref, entry.ID, err, test.wantID)
+			}
+		})
 	}
 }
 
