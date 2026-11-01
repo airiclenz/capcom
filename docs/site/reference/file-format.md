@@ -1000,13 +1000,16 @@ status is declared alone, so the same tree and config always yield the same bloc
   `@./<rel>`, `<rel>` being the block file relative to the directory of the file `AGENTS.md`
   resolves to. `capcom agents` appends `@<rel>` to an `AGENTS.md` that does not reach it (`added
   @docs/capcom.md to AGENTS.md`) and leaves one that does untouched, so an `AGENTS.md` that already
-  holds the line is never written; it never creates a missing `AGENTS.md`. The `agents.guides`
-  entries keep reaching `AGENTS.md`, never the block file. While the block file carries the block,
-  `capcom check` reports an `AGENTS.md` that does not reach it as an `agents-guide` problem
+  holds the line is never written; it never creates a missing `AGENTS.md`, but warns of it
+  (`warning: AGENTS.md: is missing, ...`). The `agents.guides` entries keep reaching `AGENTS.md`,
+  never the block file. While the block file carries the block, `capcom check` reports an
+  `AGENTS.md` that does not reach it as an `agents-guide` problem
   (`AGENTS.md: does not reach the capcom block in docs/capcom.md; run capcom agents to add
-  @docs/capcom.md`), and one still holding capcom markers as another
+  @docs/capcom.md`), a missing one as another, since no guide then reaches the block
+  (`AGENTS.md: is missing, so no agent guide reaches the capcom block in docs/capcom.md; create
+  AGENTS.md holding the line @docs/capcom.md`), and one still holding capcom markers as a third
   (`AGENTS.md: holds capcom markers, but the capcom block lives in docs/capcom.md; remove the
   capcom markers and what lies between them from AGENTS.md`); `capcom agents --check` fails on
-  either once the block is current. capcom never removes those markers.
+  each once the block is current. capcom never removes those markers.
 
 Edits inside the markers are overwritten on the next refresh; write anything else outside them.

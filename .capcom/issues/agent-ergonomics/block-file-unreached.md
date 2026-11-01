@@ -1,6 +1,6 @@
 ---
 title: agents.file set and no AGENTS.md leaves the block reached by no guide
-status: open
+status: active
 type: bug
 priority: 2
 created: 2026-11-01T20:49:20Z
@@ -18,3 +18,7 @@ agents.file exists so a workspace can keep the block out of AGENTS.md; when AGEN
 
 - With agents.file set and no AGENTS.md, either capcom agents makes the block reachable or capcom check reports that no guide reaches the block file
 - A test covers the case
+
+## Log
+
+- 2026-11-01 Airic Lenz: With agents.file set and AGENTS.md missing, capcom check now reports an agents-guide problem at AGENTS.md (is missing, so no agent guide reaches the capcom block in <file>; create AGENTS.md holding the line @<file>), capcom agents --check fails on it with that hint, and capcom agents warns; AGENTS.md is still never created. Message and hint defined once in check (MissingAGENTSMdMessage/Hint), with agents.Guide.IsMissingAGENTSMd. Tests in agents, check and cli; docs, help reference and CHANGELOG updated.

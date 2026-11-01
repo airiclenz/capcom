@@ -15,11 +15,11 @@ Write or refresh capcom's Managed block in the AGENTS.md at the working tree roo
 
 A stale block is replaced, an absent one appended and a missing AGENTS.md created; the rest of the file is left alone.
 
-With agents.file in config.yaml naming another file (store format 6), the block lives there instead: that file is written, and created when missing, and an AGENTS.md that does not reach it gets an import line such as @docs/capcom.md appended; a missing AGENTS.md is not created, and one that already holds the line is left alone.
+With agents.file in config.yaml naming another file (store format 6), the block lives there instead: that file is written, and created when missing, and an AGENTS.md that does not reach it gets an import line such as @docs/capcom.md appended; one that already holds the line is left alone, and a missing AGENTS.md is not created but warned about, since no guide then reaches the block.
 
 Each agent guide config.yaml lists under agents.guides (CLAUDE.md and GEMINI.md by default) that exists but neither links to AGENTS.md nor imports it gets an @AGENTS.md import line appended; a missing guide is not created, and one that links outside the working tree is skipped.
 
---check writes nothing: it reports whether the block is current, and fails invalid when it is stale, a guide (AGENTS.md among them, with agents.file set) does not reach it, or AGENTS.md keeps capcom markers while the block lives elsewhere, so CI catches a block that has drifted; a file without the block passes.
+--check writes nothing: it reports whether the block is current, and fails invalid when it is stale, a guide (AGENTS.md among them, with agents.file set) does not reach it, or AGENTS.md is missing or keeps capcom markers while the block lives elsewhere, so CI catches a block that has drifted; a file without the block passes.
 
 ```
 capcom agents [flags]

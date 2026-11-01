@@ -509,7 +509,7 @@ func TestAgentsGuide_EachAGENTSMd_ReportsWhetherItReachesTheBlockFile(t *testing
 		{"with a dotted import", "# Guide\n\n@./" + capcomBlockFile + "\n", false, GuideReaches, importLine, false},
 		{"with a stray block", "# Guide\n\n" + importLine + "\n\n" + goldenBlock + "\n", false, GuideReaches, importLine, true},
 		{"with a stray end marker", "# Guide\n" + EndMarker + "\n", false, GuideUnreached, importLine, true},
-		{"missing", "", true, GuideMissing, "", false},
+		{"missing", "", true, GuideMissing, importLine, false},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -592,5 +592,29 @@ func TestGuideProblem_AgentsGuide_NamesTheBlockFile(t *testing.T) {
 	want := "does not reach the capcom block in " + capcomBlockFile + "; run capcom agents to add @" + capcomBlockFile
 	if err != nil || guide.Problem() != want {
 		t.Errorf("Problem = %q, %v; want %q", guide.Problem(), err, want)
+	}
+}
+
+func TestGuideIsMissingAGENTSMd_EachGuide_ReportsOnlyAMissingAGENTSMdBesideABlockFile(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		guide Guide
+		want  bool
+	}{
+		{"missing AGENTS.md beside a block file", Guide{Path: FileName, State: GuideMissing, blockFile: capcomBlockFile}, true},
+		{"unreached AGENTS.md beside a block file", Guide{Path: FileName, State: GuideUnreached, blockFile: capcomBlockFile}, false},
+		{"missing agent guide", Guide{Path: "CLAUDE.md", State: GuideMissing}, false},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := testCase.guide.IsMissingAGENTSMd()
+
+			if got != testCase.want {
+				t.Errorf("%+v.IsMissingAGENTSMd() = %v, want %v", testCase.guide, got, testCase.want)
+			}
+		})
 	}
 }

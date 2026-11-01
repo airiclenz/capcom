@@ -532,6 +532,82 @@ func TestAgentsCheck_BlockFileNotImported_FailsAtAgentsMDNamingTheBlockFile(t *t
 	}
 }
 
+// missingAgentsMDProblem is what capcom check and capcom agents --check report of a missing
+// AGENTS.md while customBlockFile holds the block, AGENTS.md's path first.
+const missingAgentsMDProblem = "AGENTS.md: is missing, so no agent guide reaches the capcom block in " + customBlockFile
+
+// missingAgentsMDHint is the hint that goes with missingAgentsMDProblem.
+const missingAgentsMDHint = "create AGENTS.md holding the line @" + customBlockFile
+
+// newMissingAgentsMDStore returns a Knowledge store whose block is current in customBlockFile and
+// whose AGENTS.md is missing.
+func newMissingAgentsMDStore(t *testing.T) string {
+	t.Helper()
+	root := newBlockFileStore(t, importingAgentsGuide)
+	mustRun(t, root, "agents")
+	if err := os.Remove(filepath.Join(root, agents.FileName)); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	return root
+}
+
+func TestCheck_BlockFileWithoutAgentsMD_ExitsOneNamingAgentsMD(t *testing.T) {
+	root := newMissingAgentsMDStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "check")
+
+	want := missingAgentsMDProblem + "; " + missingAgentsMDHint + "\n"
+	if exitCode != ExitError || stdout != want {
+		t.Errorf("check = %d, stdout %q; want 1 and %q", exitCode, stdout, want)
+	}
+}
+
+func TestAgentsCheck_BlockFileWithoutAgentsMD_FailsAtAgentsMDWithTheCreateHint(t *testing.T) {
+	root := newMissingAgentsMDStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "agents", "--check")
+
+	want := "capcom: " + missingAgentsMDProblem + "\nhint: " + missingAgentsMDHint + "\n"
+	if exitCode != ExitError || stdout != "" || stderr != want {
+		t.Errorf("agents --check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
+	}
+}
+
+func TestAgents_BlockFileWithoutAgentsMD_WarnsAndCreatesNoAgentsMD(t *testing.T) {
+	root := newMissingAgentsMDStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "agents")
+	jsonOut := mustRun(t, root, "agents", "--json")
+
+	want := "the capcom block of " + customBlockFile + " is current\nwarning: " +
+		missingAgentsMDProblem + "; " + missingAgentsMDHint + "\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("agents = %d, stdout %q, stderr %q; want 0 and %q", exitCode, stdout, stderr, want)
+	}
+	if _, err := os.Stat(filepath.Join(root, agents.FileName)); !os.IsNotExist(err) {
+		t.Errorf("AGENTS.md stat = %v; want it still missing", err)
+	}
+	warnings, _ := decodeEnvelope(t, jsonOut)["warnings"].([]any)
+	if len(warnings) != 1 || warnings[0] != missingAgentsMDProblem+"; "+missingAgentsMDHint {
+		t.Errorf("agents --json warnings = %v; want the missing AGENTS.md", warnings)
+	}
+}
+
+func TestAgentsAndCheck_NoBlockFileAndNoAgentsMD_CreateAGENTSMdWithoutAWarning(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "agents")
+	checkOut, _, checkExit := runCLI(t, root, "check")
+
+	if exitCode != ExitOK || stderr != "" || stdout != "wrote the capcom block to AGENTS.md\n" {
+		t.Errorf("agents = %d, stdout %q, stderr %q; want 0 and the block written to AGENTS.md", exitCode, stdout, stderr)
+	}
+	agentsBlockOf(t, readAgentsGuide(t, root))
+	if checkExit != ExitOK || checkOut != "" {
+		t.Errorf("check = %d, stdout %q; want 0 and no output", checkExit, checkOut)
+	}
+}
+
 func TestAgentsCheck_BlockFileWithAnUnreachedGuide_NamesAgentsMD(t *testing.T) {
 	root := newBlockFileStore(t, importingAgentsGuide)
 	mustRun(t, root, "agents")

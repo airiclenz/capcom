@@ -39,8 +39,8 @@ func (c *checker) agentsBlock() error {
 }
 
 // agentsFile reports an AGENTS.md that is not the configured block file and does not reach it, one
-// that still holds capcom markers, and one that cannot be read. With AGENTS.md as the block file
-// it reports nothing.
+// that is missing, which leaves the block reached by no agent guide, one that still holds capcom
+// markers, and one that cannot be read. With AGENTS.md as the block file it reports nothing.
 func (c *checker) agentsFile() error {
 	blockFile := c.store.Config.Agents.File
 	guide, err := agents.AgentsGuide(c.store.WorktreeRoot, blockFile, agents.ModeInspect)
@@ -55,10 +55,28 @@ func (c *checker) agentsFile() error {
 	if guide.State == agents.GuideUnreached {
 		c.add(guide.Path, 0, diagnose.AgentsGuide, guide.Problem())
 	}
+	if guide.IsMissingAGENTSMd() {
+		c.add(guide.Path, 0, diagnose.AgentsGuide,
+			MissingAGENTSMdMessage(blockFile)+"; "+MissingAGENTSMdHint(guide.ImportLine))
+	}
 	if guide.HasMarkers {
 		c.add(guide.Path, 0, diagnose.AgentsGuide, StrayMarkersMessage(blockFile)+"; "+StrayMarkersHint)
 	}
 	return nil
+}
+
+// MissingAGENTSMdMessage reports a missing AGENTS.md while blockFile, another file, holds the
+// Managed block, so that no agent guide reaches it, without AGENTS.md's path: callers put it before
+// the message.
+func MissingAGENTSMdMessage(blockFile string) string {
+	return "is missing, so no agent guide reaches the capcom block in " + blockFile
+}
+
+// MissingAGENTSMdHint is what makes the block MissingAGENTSMdMessage reports reachable again:
+// AGENTS.md created holding importLine. capcom never creates AGENTS.md while agents.file names
+// another file, which may live there because AGENTS.md cannot be written.
+func MissingAGENTSMdHint(importLine string) string {
+	return "create " + agents.FileName + " holding the line " + importLine
 }
 
 // StrayMarkersMessage reports capcom markers left in AGENTS.md while blockFile, another file, holds

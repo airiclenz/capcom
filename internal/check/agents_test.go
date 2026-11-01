@@ -355,6 +355,21 @@ func TestRun_AgentsMDNotImportingTheBlockFile_ReportsAnAgentsGuideProblem(t *tes
 	}
 }
 
+func TestRun_AgentsMDMissingBesideTheBlockFile_ReportsItWithTheCreateHint(t *testing.T) {
+	root := newBlockFileRepo(t, importingAgentsGuide)
+	if err := os.Remove(filepath.Join(root, agents.FileName)); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	problems := runCheck(t, root)
+
+	want := []string{string(diagnose.AgentsGuide) + " AGENTS.md: " +
+		check.MissingAGENTSMdMessage(customBlockFile) + "; " + check.MissingAGENTSMdHint("@"+customBlockFile)}
+	if got := codedProblems(problems); !reflect.DeepEqual(got, want) {
+		t.Errorf("problems = %q\nwant %q", got, want)
+	}
+}
+
 func TestRun_StaleBlockInTheBlockFile_ReportsItAtTheBlockFile(t *testing.T) {
 	root := newBlockFileRepo(t, importingAgentsGuide)
 	writeFiles(t, root, map[string]string{".capcom/knowledge/api-design.md": "---\ntitle: API design\n---\n"})

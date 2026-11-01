@@ -41,7 +41,8 @@ type Guide struct {
 	// ImportLine is the line that imports the file the guide must reach from the guide's file
 	// (`@AGENTS.md`, or `@../AGENTS.md` for a guide in a subdirectory; for AgentsGuide, the block
 	// file, such as `@.capcom/AGENTS-capcom.md`). It is set for a guide read or written:
-	// GuideReaches through a line, GuideUnreached and GuideImported.
+	// GuideReaches through a line, GuideUnreached and GuideImported; and, for AgentsGuide, for a
+	// missing AGENTS.md: the line it would need to reach the block file.
 	ImportLine string
 	// HasMarkers is set by AgentsGuide only: AGENTS.md, which is not the block file, still holds a
 	// capcom marker line.
@@ -63,6 +64,13 @@ func (g Guide) Problem() string {
 		target = g.blockFile
 	}
 	return "does not reach the capcom block in " + target + "; run capcom agents to add " + g.ImportLine
+}
+
+// IsMissingAGENTSMd reports an AGENTS.md that AgentsGuide found missing while the block lives in
+// another file: no agent guide then reaches the block, and capcom never creates AGENTS.md. It is
+// false for every guide Guides reports.
+func (g Guide) IsMissingAGENTSMd() bool {
+	return g.blockFile != "" && g.State == GuideMissing
 }
 
 // blockHome is the file a guide must reach, AGENTS.md or the block file.
@@ -173,10 +181,11 @@ func resolveHome(worktreeRoot, name string) (blockHome, error) {
 // resolving to blockFile, or by a line `@<rel>` or `@./<rel>`, <rel> being blockFile relative to
 // the directory of the file AGENTS.md resolves to. ModeWrite appends `@<rel>` to an AGENTS.md that
 // does not reach it, as Guides appends to a guide; a missing AGENTS.md is never created, and one
-// that links outside the working tree is neither read nor written. It does not look inside
-// blockFile: callers gate it on the block's Status. The Guide's Path is FileName, its Problem names
-// blockFile, and HasMarkers says whether AGENTS.md, read, still holds a capcom marker line, which
-// the block in blockFile makes stray.
+// that links outside the working tree is neither read nor written. A missing AGENTS.md is
+// GuideMissing with the ImportLine it would need, and IsMissingAGENTSMd reports it: no agent guide
+// reaches the block then. It does not look inside blockFile: callers gate it on the block's Status.
+// The Guide's Path is FileName, its Problem names blockFile, and HasMarkers says whether AGENTS.md,
+// read, still holds a capcom marker line, which the block in blockFile makes stray.
 //
 // AgentsGuide returns the zero Guide, its Path empty, when blockFile is AGENTS.md itself: there is
 // nothing to reach. It fails as Guides does on a guide, every error naming AGENTS.md, and when
@@ -202,6 +211,10 @@ func AgentsGuide(worktreeRoot, blockFile string, mode Mode) (Guide, error) {
 	found, err := reachBlock(agents, home, mode)
 	if err != nil {
 		return Guide{}, err
+	}
+	if found.State == GuideMissing {
+		// AGENTS.md sits at the root, where blockFile, cleaned and in slash form, is already relative.
+		found.ImportLine = importPrefix + blockFile
 	}
 	found.Path = FileName
 	found.HasMarkers = hasMarkers

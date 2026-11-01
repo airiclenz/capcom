@@ -243,7 +243,15 @@ added @AGENTS.md to CLAUDE.md
 it, or one of its lines, white space trimmed, is `@<path>` or `@./<path>`, `<path>` being the block
 file relative to the directory of the file `AGENTS.md` resolves to. The other guides keep reaching
 `AGENTS.md`, never the block file, so an agent reading `CLAUDE.md` follows `@AGENTS.md` and then
-`@docs/capcom.md`. A missing `AGENTS.md` is never created while the block lives elsewhere.
+`@docs/capcom.md`. A missing `AGENTS.md` is never created while the block lives elsewhere, since
+the key exists for workspaces that may not write it; `capcom agents` warns instead, because no
+guide then reaches the block:
+
+```console
+$ capcom agents
+wrote the capcom block to docs/capcom.md
+warning: AGENTS.md: is missing, so no agent guide reaches the capcom block in docs/capcom.md; create AGENTS.md holding the line @docs/capcom.md
+```
 
 For an `AGENTS.md` that capcom must not write, add the import line to it once, by hand or through
 whoever owns the file:
@@ -267,6 +275,15 @@ it as an `agents-guide` problem, and `capcom agents --check` fails on it once th
 $ capcom agents --check
 capcom: AGENTS.md: does not reach the capcom block in docs/capcom.md; it needs the line @docs/capcom.md
 hint: capcom agents
+```
+
+A missing `AGENTS.md` counts as not reaching it: `capcom check` reports it as an `agents-guide`
+problem, and `capcom agents --check` fails on it, hinting the file to create:
+
+```console
+$ capcom agents --check
+capcom: AGENTS.md: is missing, so no agent guide reaches the capcom block in docs/capcom.md
+hint: create AGENTS.md holding the line @docs/capcom.md
 ```
 
 Moving the block out of `AGENTS.md` does not remove the old one: `capcom check` and
