@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A `capcom lock acquire`, `capcom lock check` or `capcom start <id>` refused by a lock another session holds now names the next step: the `capcom lock acquire --purpose "<held purpose>"` that resumes it when this worktree keeps a token for that purpose, the `--take-stale` acquire that takes over a stale lock, and otherwise to ask the user. `capcom start` names `capcom start <id> --token <token>`. A lock command's `--kv` failure record now carries its `HINT=` line before `STATUS=`.
+- A command name another CLI uses is now answered with the capcom command it means: `capcom get`, `view`, `read` and `cat` suggest `show`, `ls` suggests `list`, `new` and `add` suggest `create`, and `done` suggests `close`; under `capcom know`, `get`, `view`, `read` and `cat` suggest `know show`, `ls` and `list` suggest `know tree`, and `new` and `create` suggest `know add`. The command still fails with exit 2, and `capcom read` now suggests `show` instead of `ready`.
+
 ## [0.14.0] - 2026-11-01
 
 - `capcom ready` and `capcom next` now say when they show nothing only because ready.hide hides every Ready issue: when no listed issue is Ready (with `--all`, none of the listed ones) and at least one Ready issue carries a ready.hide label, the result carries one warning `nothing shown: <n> Ready issues carry a ready.hide label (<label>, …); --show-hidden lists them` (`1 Ready issue carries` for one), printed as a `warning: ` line in text mode, in the `warnings` array under `--json` and as a `WARNING=` line under `next --kv`. `next` keeps exit code 4. There is no warning when nothing is Ready, when a Ready issue is shown, or with `--show-hidden`.
