@@ -1,10 +1,12 @@
 ---
 title: A guessed command name gets an unrelated suggestion
-status: open
+status: done
 type: feature
 priority: 3
 plan: 2026-11-02 - 00 - lock-hint-and-synonyms-plan
 created: 2026-11-02T20:58:47Z
+closed: 2026-11-02T21:39:22Z
+reason: "Resolved by plan 2026-11-02 - 00 - lock-hint-and-synonyms-plan (item 2), archived in ee7aeb6: guessed synonyms suggest the meant command"
 ---
 
 `capcom get foo` fails with `unknown command "get" for "capcom"; did you mean dep?`. The suggestion

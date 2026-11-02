@@ -1,10 +1,12 @@
 ---
 title: A refusal on a held lock does not say how to resume or take it over
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-11-02 - 00 - lock-hint-and-synonyms-plan
 created: 2026-11-02T20:58:47Z
+closed: 2026-11-02T21:39:22Z
+reason: "Resolved by plan 2026-11-02 - 00 - lock-hint-and-synonyms-plan (item 1), archived in ee7aeb6: held-lock refusals hint resume and take-over commands"
 ---
 
 When `capcom lock acquire`, `capcom start` or `capcom lock check` meets a lock another purpose
