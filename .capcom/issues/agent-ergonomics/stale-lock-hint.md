@@ -3,6 +3,7 @@ title: A refusal on a held lock does not say how to resume or take it over
 status: open
 type: bug
 priority: 2
+plan: 2026-11-02 - 00 - lock-hint-and-synonyms-plan
 created: 2026-11-02T20:58:47Z
 ---
 

@@ -3,6 +3,7 @@ title: A guessed command name gets an unrelated suggestion
 status: open
 type: feature
 priority: 3
+plan: 2026-11-02 - 00 - lock-hint-and-synonyms-plan
 created: 2026-11-02T20:58:47Z
 ---
 
