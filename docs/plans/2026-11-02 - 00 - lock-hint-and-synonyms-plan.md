@@ -86,7 +86,7 @@ no-kept-token text.
 
 **Commit:** `fix(lock): name the resume and take-over commands when a held lock refuses`
 
-## 2. A guessed command name suggests the command it means
+## 2. A guessed command name suggests the command it means — ✅ DONE (2026-11-02)
 
 **What:**
 **Goal:** an unknown command word that is a known synonym is answered with that command as the

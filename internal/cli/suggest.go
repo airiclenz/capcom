@@ -72,6 +72,42 @@ func isNearName(typed, candidate string) bool {
 		strings.HasPrefix(strings.ToLower(candidate), strings.ToLower(typed))
 }
 
+// commandSynonyms maps, for each group by its command path, a word another CLI uses for one of its
+// subcommands to that subcommand's name, so that capcom get is answered with show. A synonym only
+// feeds the suggestion of an unknown command: it never runs the subcommand it names.
+var commandSynonyms = map[string]map[string]string{
+	"capcom": {
+		"get":  "show",
+		"view": "show",
+		"read": "show",
+		"cat":  "show",
+		"ls":   "list",
+		"new":  "create",
+		"add":  "create",
+		"done": "close",
+	},
+	"capcom know": {
+		"get":    "show",
+		"view":   "show",
+		"read":   "show",
+		"cat":    "show",
+		"ls":     "tree",
+		"list":   "tree",
+		"new":    "add",
+		"create": "add",
+	},
+}
+
+// synonymSubcommand returns the name of the subcommand of group that word is a synonym for in
+// commandSynonyms, ignoring case; it is empty when word is none, or names no subcommand of group.
+func synonymSubcommand(group *cobra.Command, word string) string {
+	name := commandSynonyms[group.CommandPath()][strings.ToLower(word)]
+	if name == "" || !namesSubcommand(group, name) {
+		return ""
+	}
+	return name
+}
+
 // maxIDSuggestions is the most ids or Aliases an unknown id argument names as the closest.
 const maxIDSuggestions = 3
 

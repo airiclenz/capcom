@@ -232,16 +232,21 @@ func withSubcommandDispatch(group *cobra.Command) *cobra.Command {
 }
 
 // unknownCommandError is the usage error for word given where a subcommand of group belongs. Its
-// Suggestion is the command path below capcom of the closest subcommand cobra finds within
-// suggestionDistance of word, or that word starts; it is empty when none is that close.
+// Suggestion is the command path below capcom of the subcommand word is a known synonym for
+// (synonymSubcommand), such as show for get; failing that, of the closest subcommand cobra finds
+// within suggestionDistance of word, or that word starts. It is empty when neither names one.
 func unknownCommandError(group *cobra.Command, word string) *output.Error {
 	failure := output.UsageErrorf("unknown command %q for %q", word, group.CommandPath())
-	group.SuggestionsMinimumDistance = suggestionDistance
-	suggestions := group.SuggestionsFor(word)
-	if len(suggestions) == 0 {
-		return failure
+	name := synonymSubcommand(group, word)
+	if name == "" {
+		group.SuggestionsMinimumDistance = suggestionDistance
+		suggestions := group.SuggestionsFor(word)
+		if len(suggestions) == 0 {
+			return failure
+		}
+		name = closestName(word, suggestions)
 	}
-	path := group.CommandPath() + " " + closestName(word, suggestions)
+	path := group.CommandPath() + " " + name
 	failure.Suggestion = strings.TrimSpace(strings.TrimPrefix(path, group.Root().Name()))
 	return failure
 }

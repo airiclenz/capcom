@@ -141,7 +141,11 @@ $ capcom update feature-requests --status active --json
 ```
 
 A mistyped command or subcommand also sets `suggestion`, the path below `capcom` of the closest
-valid one; it is left out when none is close:
+valid one; it is left out when none is close. A word another CLI uses for a command is answered
+with the command it means, ahead of the closest match: `get`, `view`, `read` and `cat` suggest
+`show`, `ls` suggests `list`, `new` and `add` suggest `create`, and `done` suggests `close`; under
+`capcom know`, `get`, `view`, `read` and `cat` suggest `know show`, `ls` and `list` suggest
+`know tree`, and `new` and `create` suggest `know add`. Either way the command fails, with exit 2:
 
 ```console
 $ capcom know shwo x --json

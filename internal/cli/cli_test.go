@@ -90,6 +90,50 @@ var unknownCommandCases = []struct {
 	{[]string{"dep", "lst", "x"}, "dep list", "capcom dep --help"},
 	{[]string{"related", "ad", "x", "y"}, "related add", "capcom related --help"},
 	{[]string{"updat", "x", "--status", "active"}, "update", "capcom --help"},
+	{[]string{"get", "x"}, "show", "capcom --help"},
+}
+
+// synonymCommandCases are words other CLIs use for a command, each given to the group it belongs
+// to, with the subcommand capcom suggests for it; read suggests show, not the closer ready.
+var synonymCommandCases = []struct {
+	group          []string
+	word           string
+	wantSuggestion string
+}{
+	{nil, "get", "show"},
+	{nil, "view", "show"},
+	{nil, "read", "show"},
+	{nil, "cat", "show"},
+	{nil, "ls", "list"},
+	{nil, "new", "create"},
+	{nil, "add", "create"},
+	{nil, "done", "close"},
+	{[]string{"know"}, "get", "know show"},
+	{[]string{"know"}, "view", "know show"},
+	{[]string{"know"}, "read", "know show"},
+	{[]string{"know"}, "cat", "know show"},
+	{[]string{"know"}, "ls", "know tree"},
+	{[]string{"know"}, "list", "know tree"},
+	{[]string{"know"}, "new", "know add"},
+	{[]string{"know"}, "create", "know add"},
+}
+
+func TestRun_UnknownCommandSynonym_SuggestsMeantCommand(t *testing.T) {
+	for _, testCase := range synonymCommandCases {
+		args := append(append([]string{}, testCase.group...), testCase.word, "x")
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			groupPath := strings.Join(append([]string{"capcom"}, testCase.group...), " ")
+
+			stdout, stderr, exitCode := runCLI(t, "", args...)
+
+			want := fmt.Sprintf("capcom: unknown command %q for %q; did you mean %s?\nhint: %s --help\n",
+				testCase.word, groupPath, testCase.wantSuggestion, groupPath)
+			if exitCode != ExitUsage || stdout != "" || stderr != want {
+				t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and stderr %q",
+					exitCode, stdout, stderr, ExitUsage, want)
+			}
+		})
+	}
 }
 
 func TestRun_UnknownCommandInText_SuggestsClosest(t *testing.T) {
