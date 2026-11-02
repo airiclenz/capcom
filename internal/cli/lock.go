@@ -191,7 +191,7 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 			if isResumed {
 				state = lockResumed
 			}
-			return a.emitLock(cmd, state, status, status.Token, err)
+			return a.emitLock(cmd, state, status, status.Token, err, fmt.Sprintf("%q", purpose))
 		}),
 	}
 	cmd.Flags().StringVar(&purpose, flagPurpose, "", "what the lock is held for")
@@ -214,7 +214,7 @@ func (a *app) newLockTouchCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			target := a.openLockTarget()
 			status, err := target.lock.Touch(token)
-			return a.emitLock(cmd, lockHeld, status, token, err)
+			return a.emitLock(cmd, lockHeld, status, token, err, "")
 		}),
 	}
 	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned")
@@ -234,7 +234,7 @@ func (a *app) newLockReleaseCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			target := a.openLockTarget()
 			status, err := target.lock.Release(token)
-			return a.emitLock(cmd, endedState(status), status, token, err)
+			return a.emitLock(cmd, endedState(status), status, token, err, "")
 		}),
 	}
 	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned")
@@ -256,7 +256,7 @@ func (a *app) newLockBreakCommand() *cobra.Command {
 			if err == nil && status.IsCorrupt {
 				return a.emitDiscardedLock(cmd, status, target.lock.RecordPath())
 			}
-			return a.emitLock(cmd, endedState(status), status, "", err)
+			return a.emitLock(cmd, endedState(status), status, "", err, "")
 		}),
 	})
 }
@@ -277,7 +277,7 @@ func (a *app) newLockCheckCommand() *cobra.Command {
 			if status.IsHeld {
 				ownToken = token
 			}
-			return a.emitLock(cmd, lockStateName(status.State()), status, ownToken, err)
+			return a.emitLock(cmd, lockStateName(status.State()), status, ownToken, err, checkTakeOverPurpose)
 		}),
 	}
 	cmd.Flags().StringVar(&token, flagToken, "", "your token; the lock counts as free when you hold it")
@@ -312,6 +312,56 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 // who holds this worktree's lock, if anyone.
 const lockStatusHint = "capcom lock status"
 
+// checkTakeOverPurpose stands for the --purpose a capcom lock check refusal names for a take-over:
+// check is run without one.
+const checkTakeOverPurpose = "<purpose>"
+
+// The fixed parts of the hint of a refusal by a lock another session holds (heldLockHint).
+const (
+	askUserHint       = "; otherwise ask the user"
+	askBeforeTakeOver = lockStatusHint + "; ask the user before taking it over"
+	resumeItSuffix    = " to resume it"
+	takeItOverSuffix  = " to take it over"
+	ifLockIsYoursHint = " if the lock is yours"
+)
+
+// heldLockHint is the hint of a lock acquire or check refused by held, a lock another session
+// holds. The command that resumes it, an acquire for the held purpose, is named only when worktree
+// keeps a token for that purpose; a stale lock adds the acquire --take-stale that takes it over
+// for takeOverPurpose, the --purpose argument as the hint shows it. A live lock with no kept token
+// names capcom lock status and says to ask the user.
+func heldLockHint(worktree lock.Worktree, held *lock.HeldError, takeOverPurpose string) string {
+	resume := keptResumeCommand(worktree, held.Status.Record.Purpose)
+	takeOver := takeOverCommand(takeOverPurpose) + takeItOverSuffix
+	switch {
+	case held.Status.IsStale && resume != "":
+		return resume + resumeItSuffix + ", or " + takeOver
+	case held.Status.IsStale:
+		return takeOver
+	case resume != "":
+		return resume + ifLockIsYoursHint + askUserHint
+	}
+	return askBeforeTakeOver
+}
+
+// keptResumeCommand is the acquire that resumes worktree's lock for purpose from the token kept for
+// it, or "" when worktree keeps none.
+func keptResumeCommand(worktree lock.Worktree, purpose string) string {
+	kept, err := worktree.SessionToken("", purpose)
+	// An unreadable token file only drops the resume command from a hint: the refusal it explains
+	// stays locked, and the resume would fail on the same read.
+	if err != nil || kept == "" {
+		return ""
+	}
+	return fmt.Sprintf("capcom lock acquire --%s %q", flagPurpose, purpose)
+}
+
+// takeOverCommand is the acquire that takes over a stale lock for purpose, the --purpose argument
+// as the hint shows it.
+func takeOverCommand(purpose string) string {
+	return fmt.Sprintf("capcom lock acquire --%s %s --%s", flagPurpose, purpose, flagTakeStale)
+}
+
 // corruptLockHint is the hint of a command that met a lock record holding no valid lock: capcom lock
 // status shows the record as invalid, and capcom lock break discards it.
 const corruptLockHint = "capcom lock status, then capcom lock break"
@@ -334,15 +384,28 @@ func (a *app) openLockTarget() lockTarget {
 }
 
 // emitLock renders a lock command's outcome: status in state on success. A lock held by another
-// session fails locked, and a touch of a free lock fails not_found; either failure hints capcom
-// lock status and still renders the lock as found, so --kv keeps its LOCK= record and closes it
-// with the failure's code. A record that holds no valid lock fails invalid (corruptLockFailure).
-func (a *app) emitLock(cmd *cobra.Command, state string, status lock.Status, token string, err error) error {
+// session fails locked, and a touch of a free lock fails not_found; either failure still renders
+// the lock as found, so --kv keeps its LOCK= record and closes it with the failure's code. The
+// locked failure hints as heldLockHint does for takeOverPurpose, the --purpose argument a take-over
+// names (acquire and check); an empty takeOverPurpose (touch, release, break), like not_found,
+// hints capcom lock status. A record that holds no valid lock fails invalid (corruptLockFailure).
+func (a *app) emitLock(
+	cmd *cobra.Command,
+	state string,
+	status lock.Status,
+	token string,
+	err error,
+	takeOverPurpose string,
+) error {
 	var held *lock.HeldError
 	var notHeld *lock.NotHeldError
 	switch {
 	case errors.As(err, &held):
-		failure := &output.Error{Code: output.CodeLocked, Message: held.Message(), Path: held.Path, Hint: lockStatusHint}
+		hint := lockStatusHint
+		if takeOverPurpose != "" {
+			hint = heldLockHint(a.openLockTarget().lock, held, takeOverPurpose)
+		}
+		failure := &output.Error{Code: output.CodeLocked, Message: held.Message(), Path: held.Path, Hint: hint}
 		return a.emit(cmd, failedLockResult(lockStateName(held.Status.State()), held.Status, failure))
 	case errors.As(err, &notHeld):
 		failure := &output.Error{
@@ -380,13 +443,15 @@ func (a *app) emitDiscardedLock(cmd *cobra.Command, status lock.Status, path str
 }
 
 // failedLockResult is the partial result of a failed lock command: the lock as found, and the
-// failure that explains it in place of the text.
+// failure that explains it in place of the text; --kv closes the lock record with the failure's
+// hint lines, then its code.
 func failedLockResult(state string, status lock.Status, failure *output.Error) output.Result {
 	data := newLockData(state, status, "")
+	pairs := append(lockPairs(data), output.ErrorHintPairs(failure)...)
 	return output.Result{
 		Kind:    kindLock,
 		Data:    data,
-		KV:      []output.KVRecord{{Pairs: lockPairs(data), Status: string(failure.Code)}},
+		KV:      []output.KVRecord{{Pairs: pairs, Status: string(failure.Code)}},
 		Failure: failure,
 	}
 }

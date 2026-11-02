@@ -54,13 +54,26 @@ token 6071ae76aab99defb4d17a08f832bf3d
 yours: `touch` and `release` take it, and capcom keeps it for you (see
 [The kept token](#the-kept-token)). `status` never shows it. `--holder` defaults to `user@host`.
 
-While the lock is held, a second session's `acquire` fails with exit code 3:
+While the lock is held, a second session's `acquire` fails with exit code 3. Its hint names the
+`acquire` that resumes the lock when this worktree keeps a token for the held purpose, and
+otherwise `capcom lock status`:
 
 ```console
 $ capcom lock acquire --purpose "fixing the docs"
 capcom: /home/you/your-repo/.git/capcom/locks/_main.json: locked by claude@devbox (implementing the login rework) for 0s, heartbeat 0s ago
-hint: capcom lock status
+hint: capcom lock acquire --purpose "implementing the login rework" if the lock is yours; otherwise ask the user
 ```
+
+A stale lock's refusal also names the `acquire --take-stale` that takes it over:
+
+```console
+$ capcom lock acquire --purpose "fixing the docs"
+capcom: /home/you/your-repo/.git/capcom/locks/_main.json: locked by claude@devbox (implementing the login rework) for 3h0m0s, heartbeat 3h0m0s ago, stale
+hint: capcom lock acquire --purpose "implementing the login rework" to resume it, or capcom lock acquire --purpose "fixing the docs" --take-stale to take it over
+```
+
+`capcom lock check` refused by a held lock hints the same, with `<purpose>` in place of the
+purpose to take it over for, and `capcom start <id>` names `capcom start <id> --token <token>`.
 
 Running the same `acquire --purpose` again resumes your lock, even a stale one, prints the token
 again and keeps its original `since` time:

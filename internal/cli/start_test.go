@@ -119,6 +119,7 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 		arg      string
 		file     string
 		isLocked bool
+		isStale  bool
 		wantExit int
 		wantCode output.Code
 		want     string
@@ -195,7 +196,17 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			isLocked: true,
 			wantExit: ExitNotFound,
 			wantCode: output.CodeLocked,
-			want:     "capcom start login-flow --token <token>, or capcom lock status",
+			want:     "capcom start login-flow --token <token> if the lock is yours; otherwise ask the user",
+		},
+		{
+			name:     "stale lock held by another",
+			arg:      startIssue,
+			isLocked: true,
+			isStale:  true,
+			wantExit: ExitNotFound,
+			wantCode: output.CodeLocked,
+			want: `capcom start login-flow --token <token> if the lock is yours, or ` +
+				`capcom lock acquire --purpose "login-flow" --take-stale, then capcom start login-flow, to take it over`,
 		},
 	}
 	for _, test := range tests {
@@ -203,6 +214,9 @@ func TestStart_RefusedIssue_WritesNothingAndNamesTheResolver(t *testing.T) {
 			root := newStartStore(t, test.files)
 			if test.isLocked {
 				acquireToken(t, root, "agent-b")
+			}
+			if test.isStale {
+				makeLocksStale(t, root)
 			}
 			file := test.file
 			if file == "" {

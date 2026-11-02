@@ -94,7 +94,7 @@ func TestFinish_KeepLock_BareStartOfAnotherIssueIsLockedAndNamesToken(t *testing
 
 	stdout, stderr, exitCode := runCLI(t, root, "start", finishFollowUp)
 
-	want := "hint: capcom start " + finishFollowUp + " --token <token>, or capcom lock status"
+	want := "hint: capcom start " + finishFollowUp + " --token <token> if the lock is yours; otherwise ask the user"
 	if exitCode != ExitNotFound || lastLine(stderr) != want {
 		t.Errorf("exit = %d stderr = %q, want %d ending with %q\n%s", exitCode, stderr, ExitNotFound, want, stdout)
 	}

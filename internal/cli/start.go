@@ -242,10 +242,9 @@ func (a *app) refuseLock(recordPath string, entry index.Entry, isDoing bool, che
 	return nil
 }
 
-// startLockFailure types a lock another session holds as locked, its hint naming the start of the
-// Issue id with --token, for a session that holds the lock under another purpose, and capcom lock
-// status; a record at recordPath that holds no valid lock is typed as corruptLockFailure does, and
-// any other failure passes through.
+// startLockFailure types a lock another session holds as locked, its hint as startHeldHint gives it;
+// a record at recordPath that holds no valid lock is typed as corruptLockFailure does, and any other
+// failure passes through.
 func startLockFailure(recordPath string, id string, err error) error {
 	if errors.Is(err, lock.ErrCorruptRecord) {
 		return corruptLockFailure(recordPath, err)
@@ -258,8 +257,23 @@ func startLockFailure(recordPath string, id string, err error) error {
 		Code:    output.CodeLocked,
 		Message: held.Message(),
 		Path:    held.Path,
-		Hint:    fmt.Sprintf("capcom start %s --%s <token>, or capcom lock status", id, flagToken),
+		Hint:    startHeldHint(id, held),
 	}
+}
+
+// startHeldHint is the hint of a start of the Issue id refused by held, a lock another session
+// holds: the start with --token, for a session that holds the lock under another purpose; for a
+// stale lock also the acquire --take-stale for id, then the start, that take it over; for a live
+// one, to ask the user.
+func startHeldHint(id string, held *lock.HeldError) string {
+	resume := fmt.Sprintf("capcom start %s --%s <token>", id, flagToken) + ifLockIsYoursHint
+	if !held.Status.IsStale {
+		return resume + askUserHint
+	}
+	return fmt.Sprintf(
+		"%s, or %s, then capcom start %s,%s",
+		resume, takeOverCommand(fmt.Sprintf("%q", id)), id, takeItOverSuffix,
+	)
 }
 
 // claimForStart claims entry's Issue through ops after the lock was taken with token. A claim that

@@ -34,7 +34,11 @@ over, and a guessed command name from another CLI is answered with the capcom co
 - Synonyms that run a command (they only feed the suggestion); synonyms for groups other than root and `know`.
 - `lock touch`, `lock release` and `finish` lock notes.
 
-## 1. Lock refusals name the resume and take-over commands
+## 1. Lock refusals name the resume and take-over commands — ✅ DONE (2026-11-02)
+
+NOTES (2026-11-02): lock-command failures in --kv printed no HINT= line at base; failedLockResult now appends output.ErrorHintPairs (as show.go does), so the goal's "--kv alike" holds — this also adds HINT=capcom lock status to touch/release/check failure records, their hint text unchanged.
+NOTES (2026-11-02): the unreadable-kept-token test reuses finish_test.go's makeKeptTokenUnreadable (token file replaced by a directory), which fails the read on every OS and as root, so it needs no Windows/root skip.
+NOTES (2026-11-02): the --json stale assertion is carried by assertFailureHint in the acquire/check table test (it checks text and --json error.hint for every case), not a separate test.
 
 **What:**
 **Goal:** `capcom lock acquire`, `capcom lock check` and `capcom start <id>` refused by a lock held

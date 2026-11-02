@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -591,11 +592,99 @@ func TestLock_KVShape_EveryCommandEmitsTheLockRecord(t *testing.T) {
 	}
 }
 
-func TestLockAcquire_HeldByAnother_HintsLockStatus(t *testing.T) {
+// Hints of an acquire for other, or a check, refused by the lock acquireToken holds for item 12.
+const (
+	acquireStaleHint = `capcom lock acquire --purpose "item 12" to resume it, or ` +
+		`capcom lock acquire --purpose "other" --take-stale to take it over`
+	acquireStaleUnkeptHint = `capcom lock acquire --purpose "other" --take-stale to take it over`
+	checkStaleHint         = `capcom lock acquire --purpose "item 12" to resume it, or ` +
+		`capcom lock acquire --purpose <purpose> --take-stale to take it over`
+	checkStaleUnkeptHint = `capcom lock acquire --purpose <purpose> --take-stale to take it over`
+	heldLiveHint         = `capcom lock acquire --purpose "item 12" if the lock is yours; otherwise ask the user`
+	heldLiveUnkeptHint   = "capcom lock status; ask the user before taking it over"
+)
+
+// removeKeptTokens deletes every token file in root's lock directory.
+func removeKeptTokens(t *testing.T, root string) {
+	t.Helper()
+	for _, path := range keptTokenFiles(t, root) {
+		if err := os.Remove(path); err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+	}
+}
+
+func TestLockRefusal_HeldByAnother_HintNamesResumeAndTakeOver(t *testing.T) {
+	acquire := []string{"lock", "acquire", "--purpose", "other", "--holder", "agent-b"}
+	check := []string{"lock", "check"}
+	tests := []struct {
+		name          string
+		args          []string
+		isStale       bool
+		isTokenUnkept bool
+		want          string
+	}{
+		{name: "acquire stale", args: acquire, isStale: true, want: acquireStaleHint},
+		{name: "acquire live", args: acquire, want: heldLiveHint},
+		{name: "check stale", args: check, isStale: true, want: checkStaleHint},
+		{name: "check live", args: check, want: heldLiveHint},
+		{
+			name:          "acquire stale without a kept token",
+			args:          acquire,
+			isStale:       true,
+			isTokenUnkept: true,
+			want:          acquireStaleUnkeptHint,
+		},
+		{name: "acquire live without a kept token", args: acquire, isTokenUnkept: true, want: heldLiveUnkeptHint},
+		{
+			name:          "check stale without a kept token",
+			args:          check,
+			isStale:       true,
+			isTokenUnkept: true,
+			want:          checkStaleUnkeptHint,
+		},
+		{name: "check live without a kept token", args: check, isTokenUnkept: true, want: heldLiveUnkeptHint},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := newLockStore(t)
+			acquireToken(t, root, "agent-a")
+			if test.isStale {
+				makeLocksStale(t, root)
+			}
+			if test.isTokenUnkept {
+				removeKeptTokens(t, root)
+			}
+
+			assertFailureHint(t, root, test.want, test.args...)
+		})
+	}
+}
+
+func TestLockAcquire_StaleLockWithKV_HintPrecedesStatus(t *testing.T) {
 	root := newLockStore(t)
 	acquireToken(t, root, "agent-a")
+	makeLocksStale(t, root)
 
-	assertFailureHint(t, root, "capcom lock status", "lock", "acquire", "--purpose", "other", "--holder", "agent-b")
+	stdout, _, exitCode := runCLI(t, root, "lock", "acquire", "--purpose", "other", "--holder", "agent-b", "--kv")
+
+	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
+	want := []string{"HINT=" + acquireStaleHint, "STATUS=locked"}
+	if exitCode != ExitNotFound || len(lines) < len(want) || !slices.Equal(lines[len(lines)-len(want):], want) {
+		t.Errorf("exit = %d stdout = %q, want %d ending with %q", exitCode, stdout, ExitNotFound, want)
+	}
+}
+
+func TestLockAcquire_UnreadableKeptToken_StaysLockedWithoutResume(t *testing.T) {
+	root := newLockStore(t)
+	acquireToken(t, root, "agent-a")
+	makeKeptTokenUnreadable(t, root)
+
+	stdout, _, exitCode := runCLI(t, root, "lock", "acquire", "--purpose", "other", "--holder", "agent-b", "--kv")
+
+	if exitCode != ExitNotFound || lastLine(stdout) != "STATUS=locked" || kvValue(t, stdout, "HINT") != heldLiveUnkeptHint {
+		t.Errorf("exit = %d stdout = %q, want %d, STATUS=locked and HINT=%s", exitCode, stdout, ExitNotFound, heldLiveUnkeptHint)
+	}
 }
 
 func TestLockTouch_FreeLock_HintsLockStatus(t *testing.T) {
