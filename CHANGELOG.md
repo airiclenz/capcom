@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-11-02
+
 - A `capcom lock acquire`, `capcom lock check` or `capcom start <id>` refused by a lock another session holds now names the next step: the `capcom lock acquire --purpose "<held purpose>"` that resumes it when this worktree keeps a token for that purpose, the `--take-stale` acquire that takes over a stale lock, and otherwise to ask the user. `capcom start` names `capcom start <id> --token <token>`. A lock command's `--kv` failure record now carries its `HINT=` line before `STATUS=`.
 - A command name another CLI uses is now answered with the capcom command it means: `capcom get`, `view`, `read` and `cat` suggest `show`, `ls` suggests `list`, `new` and `add` suggest `create`, and `done` suggests `close`; under `capcom know`, `get`, `view`, `read` and `cat` suggest `know show`, `ls` and `list` suggest `know tree`, and `new` and `create` suggest `know add`. The command still fails with exit 2, and `capcom read` now suggests `show` instead of `ready`.
 
