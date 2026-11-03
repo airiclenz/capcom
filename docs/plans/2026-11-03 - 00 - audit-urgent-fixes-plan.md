@@ -157,7 +157,7 @@ the symlink cases load with `tree.Load` and accept its `tree.Errors`.
 **Closes:** tree-symlinked-children-dir
 **Commit:** `fix(tree): refuse a children path that is not a real directory`
 
-## 5. Check config plans entries stay inside the repository
+## 5. Check config plans entries stay inside the repository — ✅ DONE (2026-11-03)
 
 **What:** fixes `plans: [../../../etc, /srv/x, 'a\b']` being accepted, which lets `PlanPath`
 stat and report files outside the worktree.

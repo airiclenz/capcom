@@ -356,6 +356,9 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 		{"days just above the bound", "elsewhere:\n  days: 36501\n", 2},
 		{"days far above the bound", "elsewhere:\n  days: 999999\n", 2},
 		{"plans not a list", "\nplans: docs/plans\n", 2},
+		{"plans directory outside the repository", "plans:\n  - docs/plans\n  - ../x\n", 3},
+		{"absolute plans directory", "plans:\n  - /abs\n", 2},
+		{"plans directory with a backslash", "plans:\n  - 'a\\b'\n", 2},
 		{"not a mapping", "- open\n", 1},
 		{"format zero", "format: 0\n", 1},
 		{"negative format", "types: [bug]\nformat: -1\n", 2},
@@ -394,6 +397,34 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 				t.Errorf("error at %s:%d (%v), want %s:%d", failure.Path, failure.Line, err, testPath, testCase.wantLine)
 			}
 		})
+	}
+}
+
+func TestParse_PlansOutsideRepository_ErrorNamesPlans(t *testing.T) {
+	t.Parallel()
+	for _, entry := range []string{"../x", "/abs", `'a\b'`} {
+		t.Run(entry, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Parse(testPath, []byte("plans: ["+entry+"]\n"))
+
+			if err == nil || !strings.Contains(err.Error(), "plans: ") ||
+				!strings.Contains(err.Error(), "must be a slash-separated path inside the repository") {
+				t.Errorf("Parse(plans: [%s]) error = %v, want one naming plans and a path inside the repository", entry, err)
+			}
+		})
+	}
+}
+
+func TestParse_Plans_LoadsRelativeSlashPaths(t *testing.T) {
+	t.Parallel()
+	content := "plans: [docs/plans, ./design/plans, plans]\n"
+
+	config, err := Parse(testPath, []byte(content))
+
+	want := []string{"docs/plans", "./design/plans", "plans"}
+	if err != nil || !reflect.DeepEqual(config.Plans, want) {
+		t.Errorf("Parse(%q) = plans %q, %v; want %q", content, config.Plans, err, want)
 	}
 }
 

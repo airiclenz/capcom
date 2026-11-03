@@ -649,7 +649,8 @@ elsewhere:
   `done`. When capcom moves an issue into a category (create, close, reopen) it uses the first
   status listed in that category.
 - **types** — the issue types; at least one, no duplicates.
-- **plans** — the directories a `plan:` basename is looked up in, in order. A plan is named by its
+- **plans** — the directories a `plan:` basename is looked up in, in order. Each entry is a
+  slash-separated path inside the repository, relative to its root. A plan is named by its
   basename alone: `create --plan` and `update --plan` refuse (`invalid`, exit 1) a value that is
   absolute, holds `/` or `\`, or is `.` or `..`, naming these directories; `--plan ""` clears the
   plan. A basename found in none of them is written with the warning

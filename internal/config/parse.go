@@ -137,7 +137,7 @@ func (p parser) topLevel(root *yaml.Node, config *Config) error {
 		case keyTypes:
 			return p.nameList(value, keyTypes, &config.Types, true)
 		case keyPlans:
-			return p.nameList(value, keyPlans, &config.Plans, false)
+			return p.plans(value, config)
 		case keyReady:
 			return p.ready(value, config)
 		case keyLock:
@@ -324,6 +324,22 @@ func (p parser) blockFileClash(fileValue *yaml.Node, config *Config) error {
 				keyAgents, keyFile, fileValue.Value, keyAgents, keyGuides)
 		}
 	}
+	return nil
+}
+
+// plans reads plans: a possibly empty list of distinct directories, each a local slash-separated
+// path, so a plan is never looked up outside the repository.
+func (p parser) plans(value *yaml.Node, config *Config) error {
+	var plans []string
+	if err := p.nameList(value, keyPlans, &plans, false); err != nil {
+		return err
+	}
+	for _, item := range value.Content {
+		if err := p.localPath(item, keyPlans); err != nil {
+			return err
+		}
+	}
+	config.Plans = plans
 	return nil
 }
 
