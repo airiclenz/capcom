@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,8 +13,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/lock"
+	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/ops"
 )
 
@@ -197,6 +200,88 @@ func TestWrite_FileChangedOnDisk_AsksAndYRunsAgain(t *testing.T) {
 	got := string(readStoreFile(t, ts, alphaPath))
 	if !strings.Contains(got, "status: active") || !strings.Contains(got, "title: Alpha task renamed") {
 		t.Errorf("alpha after y:\n%s\nwant the edit with status active", got)
+	}
+}
+
+func TestWrite_FileGoneBeforeReread_ReportsTheReloadFailure(t *testing.T) {
+	ts := newTestStore(t, readyFiles)
+	m := newTestModel(t, ts, 120, 30)
+	alphaFile := filepath.Join(ts.store.Root, filepath.FromSlash(alphaPath))
+	conflict := &nodestore.ConflictError{Path: ".capcom/" + alphaPath, Message: "changed since it was read"}
+	write := pendingWrite{
+		action: writeAction{
+			name: claimName,
+			run: func(*ops.Ops, config.Config, string, string) (string, error) {
+				if err := os.Remove(alphaFile); err != nil {
+					t.Fatalf("Remove %s: %v", alphaPath, err)
+				}
+				return "", conflict
+			},
+		},
+		id:              "alpha",
+		etag:            m.issue.etag,
+		shown:           m.issue.node,
+		isLockConfirmed: true,
+	}
+
+	msg := write.land(ts.store, ts.index)
+	if msg.conflict == nil || msg.conflict.readErr == nil {
+		t.Fatalf("land after the file vanished: conflict %+v, want a conflict with a read error", msg.conflict)
+	}
+	m, _ = m.applyWritten(msg)
+
+	wantPrefix := writeFailurePrefix + oneLine(conflict.Error()) + " (reload: "
+	if !strings.HasPrefix(m.writeNotice, wantPrefix) || !strings.HasSuffix(m.writeNotice, ")") {
+		t.Errorf("notice = %q, want %q...)", m.writeNotice, wantPrefix)
+	}
+	if m.prompt.isOpen {
+		t.Errorf("prompt %q open after the reload failed, want none", m.prompt.text)
+	}
+	if _, err := os.Stat(alphaFile); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("Stat %s after the reload failed: %v, want it still gone", alphaPath, err)
+	}
+}
+
+func TestWrite_RefreshFailsAfterWrite_AddsItToTheNotice(t *testing.T) {
+	ts := newTestStore(t, readyFiles)
+	m := newTestModel(t, ts, 120, 30)
+	msg := writtenMsg{notice: "claimed alpha", refreshErr: errors.New("index busy\nretry later")}
+
+	m, _ = m.applyWritten(msg)
+
+	want := "claimed alpha (refresh: index busy retry later)"
+	if m.writeNotice != want {
+		t.Errorf("notice = %q, want %q", m.writeNotice, want)
+	}
+}
+
+func TestWrite_NonConflictFailure_ReportsTheWriteFailure(t *testing.T) {
+	ts := newTestStore(t, readyFiles)
+	m := newTestModel(t, ts, 120, 30)
+	before := readStoreFile(t, ts, alphaPath)
+	write := pendingWrite{
+		action: writeAction{
+			name: claimName,
+			run: func(*ops.Ops, config.Config, string, string) (string, error) {
+				return "claimed alpha", errors.New("disk full")
+			},
+		},
+		id:              "alpha",
+		etag:            m.issue.etag,
+		isLockConfirmed: true,
+	}
+
+	msg := write.land(ts.store, ts.index)
+	m, _ = m.applyWritten(msg)
+
+	if want := writeFailurePrefix + "disk full"; m.writeNotice != want {
+		t.Errorf("notice = %q, want %q", m.writeNotice, want)
+	}
+	if m.prompt.isOpen {
+		t.Errorf("prompt %q open after a failed write, want none", m.prompt.text)
+	}
+	if got := readStoreFile(t, ts, alphaPath); !bytes.Equal(got, before) {
+		t.Errorf("alpha after a failed write:\n%s\nwant it unchanged", got)
 	}
 }
 

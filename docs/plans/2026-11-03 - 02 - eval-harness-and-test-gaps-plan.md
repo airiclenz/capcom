@@ -239,7 +239,7 @@ NOTES (2026-11-03): the two cases are separate TestCompute_* functions (TestComp
 **Closes:** test-stage-overlay-limits
 **Commit:** `test(stage): cover the overlay's size cap and directory refusal`
 
-## 13. Test the UI write path's failure branches
+## 13. Test the UI write path's failure branches — ✅ DONE (2026-11-03)
 
 **What:** the post-write failure branches of `applyWritten` and `applyConflict` (`internal/ui/write.go`) are untested: `withRefreshFailure`, `reloadAfterFormat` failing on a vanished file, and the `writeFailurePrefix` notice.
 **Regression guard.** A file deleted before the write fails in `Kind.Edit`'s read as a file error, not a `ConflictError`: build the vanished-file case as a `pendingWrite` whose `writeAction.run` deletes alpha's file and returns a `*nodestore.ConflictError`, run `write.land(ts.store, ts.index)`, then `m.applyWritten(msg)`.
