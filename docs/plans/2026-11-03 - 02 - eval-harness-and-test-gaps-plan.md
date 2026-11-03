@@ -120,7 +120,7 @@ Second signal: after the first, resend SIGINT every ~50 ms until the process exi
 **Closes:** test-batch-update-ops
 **Commit:** `test(batch): cover update ops setting a plan and empty updates`
 
-## 5. Test the briefing's busy-index branch
+## 5. Test the briefing's busy-index branch — ✅ DONE (2026-11-03)
 
 **What:** the `errors.Is(err, index.ErrBusy)` branch of `readWork` (`internal/briefing/briefing.go`) is untested; it must not carry the "; run capcom reindex" hint.
 **Regression guard.** `readWork` calls `index.Open` directly and the seam block holds only `readyList`, `listIssues`, `runCheck`: stubbing the open means adding an `openIndex = index.Open` seam beside `readyList` in `internal/briefing/briefing.go`, stubbed to return an error wrapping `index.ErrBusy`.

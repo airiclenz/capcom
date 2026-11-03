@@ -16,6 +16,8 @@ import (
 
 // The sources Compose reads through a seam, so a test can make one fail or panic.
 var (
+	// openIndex opens the index readWork reads.
+	openIndex = index.Open
 	// readyList is the Ready-list readWork reads.
 	readyList = ReadyList
 	// listIssues is the index query readWork reads the doing issues with.
@@ -129,7 +131,7 @@ func (b *Briefing) readWork(s *store.Store) {
 	// findings of the per-file verdicts that left files out of the index, which check reports
 	// too, so readHealth already counts each of them in ProblemCount. Repeating them would flood
 	// the session start with one line per broken file.
-	opened, err := index.Open(s, index.ModeRefresh)
+	opened, err := openIndex(s, index.ModeRefresh)
 	if errors.Is(err, index.ErrBusy) {
 		// A busy index needs a retry, not a rebuild: its message already says so.
 		b.fail(SectionIndex, err)

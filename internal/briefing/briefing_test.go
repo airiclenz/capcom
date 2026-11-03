@@ -2,6 +2,7 @@ package briefing
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -226,6 +227,29 @@ func TestCompose_BrokenIndexAndLocks_FailInOrderAndKeepTheRest(t *testing.T) {
 	}
 	if len(got.Failures) > 0 && !strings.HasSuffix(got.Failures[0].Err.Error(), "; run capcom reindex") {
 		t.Errorf("index failure = %v; want it to end with the reindex hint", got.Failures[0].Err)
+	}
+}
+
+func TestCompose_BusyIndex_IsOneIndexFailureWithoutTheReindexHint(t *testing.T) {
+	original := openIndex
+	t.Cleanup(func() { openIndex = original })
+	busyErr := fmt.Errorf("index.db: %w", index.ErrBusy)
+	openIndex = func(*store.Store, index.Mode, ...index.Option) (*index.Index, error) { return nil, busyErr }
+	root := newBriefingRepo(t, briefingStore())
+
+	got := Compose(root, time.Now())
+
+	if sections := failedSections(got.Failures); !slices.Equal(sections, []Section{SectionIndex}) {
+		t.Fatalf("failed sections = %v (failures %v), want [index]", sections, got.Failures)
+	}
+	if !errors.Is(got.Failures[0].Err, index.ErrBusy) {
+		t.Errorf("index failure = %v, want it to match index.ErrBusy", got.Failures[0].Err)
+	}
+	if message := got.Failures[0].Err.Error(); strings.Contains(message, "run capcom reindex") {
+		t.Errorf("index failure = %q; want no reindex hint", message)
+	}
+	if got.Work != nil || got.LockOverview == nil || got.Health == nil {
+		t.Errorf("Compose = %+v; want Work left out and LockOverview and Health kept", got)
 	}
 }
 
