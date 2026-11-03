@@ -198,7 +198,9 @@ NOTES (2026-11-03): the stale-Catalog test is table-driven over a file naming th
 **Closes:** test-ops-dep-idempotence
 **Commit:** `fix(ops): never duplicate a dep the file already names`
 
-## 10. Test recap's hostile-repository guards
+## 10. Test recap's hostile-repository guards — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): the two cases are separate TestCompute_* functions (TestCompute_OversizedFile_IsAWarningAndLeftOut, TestCompute_DuplicateID_KeepsTheFirstFileAndWarnsOfTheSecond), the file's existing one-function-per-case style, not subtests of a single TestCompute.
 
 **What:** in `internal/recap/recap.go`, the oversized-blob guard (`gitx.ErrBlobTooLarge` becoming a warning) and the warning when a second file claims an id already seen are untested.
 **Regression guard.** `list` keeps the first file (`a/x.md`) and drops only the second: `b/x.md` is given a different title and is the one left out — `x` is listed once with `a/x.md`'s title and one `recap:` warning names `b/x.md`. Commit the pair at HEAD only (`Compute(s, "")`) so the boundary adds no second warning.

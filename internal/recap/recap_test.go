@@ -225,6 +225,45 @@ func TestCompute_UnparsableFile_IsAWarningAndLeftOut(t *testing.T) {
 	}
 }
 
+func TestCompute_OversizedFile_IsAWarningAndLeftOut(t *testing.T) {
+	s := newStore(t)
+	oversized := issueFile("Oversized", "open", "") + strings.Repeat("x", int(maxFileSize)) + "\n"
+	commit(t, s, map[string]string{
+		"issues/huge.md":  oversized,
+		"issues/small.md": issueFile("Small", "open", ""),
+	})
+
+	report, err := Compute(s, "")
+
+	want := []Entry{{ID: "small", Title: "Small"}}
+	if err != nil || !reflect.DeepEqual(report.Filed, want) || len(report.Warnings) != 1 {
+		t.Fatalf("Compute = %+v, %v; want only small filed and one warning", report, err)
+	}
+	warning := report.Warnings[0]
+	if !strings.HasPrefix(warning, "recap: ") || !strings.Contains(warning, "huge.md") {
+		t.Errorf("warning = %q; want the recap: prefix naming huge.md", warning)
+	}
+}
+
+func TestCompute_DuplicateID_KeepsTheFirstFileAndWarnsOfTheSecond(t *testing.T) {
+	s := newStore(t)
+	commit(t, s, map[string]string{
+		"issues/a/x.md": issueFile("First copy", "open", ""),
+		"issues/b/x.md": issueFile("Second copy", "open", ""),
+	})
+
+	report, err := Compute(s, "")
+
+	want := []Entry{{ID: "x", Title: "First copy"}}
+	if err != nil || !reflect.DeepEqual(report.Filed, want) || len(report.Warnings) != 1 {
+		t.Fatalf("Compute = %+v, %v; want x filed once and one warning", report, err)
+	}
+	warning := report.Warnings[0]
+	if !strings.HasPrefix(warning, "recap: ") || !strings.Contains(warning, "b/x.md") {
+		t.Errorf("warning = %q; want the recap: prefix naming b/x.md", warning)
+	}
+}
+
 func TestCompute_UnknownBoundary_FailsWithErrUnknownBoundary(t *testing.T) {
 	s := newStore(t)
 	commit(t, s, baseline)
