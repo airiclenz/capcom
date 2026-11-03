@@ -34,6 +34,9 @@ var (
 	// ErrChanged reports a file a Plan rewrites that no longer holds the bytes the rewrite was
 	// worked out from: it changed after it was read, and the rewrite is not written over it.
 	ErrChanged = errors.New("changed since it was read")
+	// ErrNotDirectory reports a node's children path that exists as something other than a real
+	// directory: a symlink, whatever it points to, or a file.
+	ErrNotDirectory = errors.New("not a real directory")
 )
 
 // Error is a problem with one file or directory of a tree. Err wraps one of the sentinel errors.

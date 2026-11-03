@@ -123,7 +123,10 @@ as text in the Ready row and the status bar.
 **Closes:** ui-row-control-bytes
 **Commit:** `fix(ui): show control bytes in titles and lock records as text`
 
-## 4. Refuse a children directory that is not a real directory
+## 4. Refuse a children directory that is not a real directory — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): added the sentinel `tree.ErrNotDirectory` ("not a real directory") to internal/tree/errors.go, beside the package's other sentinels, for the refusal's `*tree.Error` to wrap; errors.go is not on the item's Files list.
+NOTES (2026-11-03): the PlanMove test checks the outside directory stays empty and bar.md stays in place rather than snapshotting the tree, since snapshotDir reads the symlink with os.ReadFile and fails on a link to a directory.
 
 **What:** fixes `capcom mv` and child creation writing through a committed symlink
 `issues/foo -> /elsewhere` beside `foo.md`, landing the node outside the store.

@@ -1,7 +1,10 @@
 package tree
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -275,7 +278,9 @@ func (t *Tree) ChildrenOf(id string) []Node {
 
 // PathFor returns the file a node named id stores at when placed below parentID ("" for the top
 // level), whether or not it exists yet. It fails with ErrInvalidID for an invalid id and with
-// ErrNotFound when parentID is not a node of the tree.
+// ErrNotFound when parentID is not a node of the tree. A parent whose children directory exists
+// as anything but a real directory, a symlink or a file, fails with a *Error naming that path and
+// wrapping ErrNotDirectory, so nothing is written through it; a missing one is fine.
 func (t *Tree) PathFor(id string, parentID string) (string, error) {
 	if err := ValidateID(id); err != nil {
 		return "", err
@@ -287,7 +292,31 @@ func (t *Tree) PathFor(id string, parentID string) (string, error) {
 	if !found {
 		return "", fmt.Errorf("parent id %q %w", parentID, ErrNotFound)
 	}
-	return filepath.Join(ChildrenDir(t.nodes[parent].Path), id+nodeExtension), nil
+	childrenDir := ChildrenDir(t.nodes[parent].Path)
+	if err := checkRealDir(childrenDir, parentID); err != nil {
+		return "", err
+	}
+	return filepath.Join(childrenDir, id+nodeExtension), nil
+}
+
+// checkRealDir refuses dir, the children directory of the node parentID, when it exists as
+// anything but a real directory. Lstat does not follow a symlink, so one that points at a
+// directory is refused too. A dir that does not exist passes.
+func checkRealDir(dir string, parentID string) error {
+	info, err := os.Lstat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return &Error{
+			Path: dir,
+			Err:  fmt.Errorf("children directory of %s is %w", parentID, ErrNotDirectory),
+		}
+	}
+	return nil
 }
 
 // IDOf returns the id the node file at nodePath has by its name: the base name without the .md

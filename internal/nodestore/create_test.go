@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -197,6 +198,54 @@ func TestPlace_ReplaceMissingTarget_FailsAtTheFileAndCreatesNothing(t *testing.T
 			_, statErr := os.Lstat(filepath.Join(s.IssuesDir(), "gone-parent"))
 			if !errors.Is(statErr, fs.ErrNotExist) {
 				t.Errorf("gone-parent Lstat = %v, want it missing", statErr)
+			}
+		})
+	}
+}
+
+func TestCreate_ChildOfParentWhoseChildrenPathIsNotARealDirectory_FailsNamingItAndWritesNothing(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		// make puts the parent's children path at childrenDir; outside is a directory beyond the
+		// store that a symlink points at.
+		make func(t *testing.T, childrenDir string, outside string)
+	}{
+		{"symlink", func(t *testing.T, childrenDir string, outside string) {
+			if runtime.GOOS == "windows" {
+				t.Skip("symlink tests do not run on Windows")
+			}
+			if os.Geteuid() == 0 {
+				t.Skip("symlink tests do not run as root")
+			}
+			if err := os.Symlink(outside, childrenDir); err != nil {
+				t.Fatalf("Symlink(%s): %v", childrenDir, err)
+			}
+		}},
+		{"regular file", func(t *testing.T, childrenDir string, _ string) {
+			writeNodeFile(t, filepath.Dir(childrenDir), filepath.Base(childrenDir), "x\n")
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			outside := t.TempDir()
+			writeNodeFile(t, s.IssuesDir(), "parser-epic.md", canonicalIssue)
+			testCase.make(t, filepath.Join(s.IssuesDir(), "parser-epic"), outside)
+
+			_, _, err := Issues(s, nil).Create(newIssueID, "parser-epic", buildIssue(t, "open"))
+
+			var problem *tree.Error
+			if !errors.As(err, &problem) || problem.Path != ".capcom/issues/parser-epic" ||
+				!errors.Is(err, tree.ErrNotDirectory) {
+				t.Fatalf("Create error = %v; want a *tree.Error at .capcom/issues/parser-epic", err)
+			}
+			if files := nodeFiles(t, outside); len(files) != 0 {
+				t.Errorf("outside directory holds %v, want nothing", files)
+			}
+			if files := nodeFiles(t, s.IssuesDir()); len(files) != 2 {
+				t.Errorf("issues dir holds %v, want only the parent and its children path", files)
 			}
 		})
 	}

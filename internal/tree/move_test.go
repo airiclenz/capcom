@@ -227,6 +227,33 @@ func TestPlanMove_UnderItselfOrDescendant_RefusedNamingKind(t *testing.T) {
 	}
 }
 
+func TestPlanMove_BelowParentWhoseChildrenPathIsNotARealDirectory_RefusedWritingNothing(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range notRealDirCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			dir, outside := t.TempDir(), t.TempDir()
+			writeNodes(t, dir, "foo.md", "bar.md")
+			childrenDir := filepath.Join(dir, "foo")
+			testCase.make(t, childrenDir, outside)
+			nodes := loadKeepingProblems(t, dir)
+
+			_, err := nodes.PlanMove("bar", tree.Destination{ID: "bar", ParentID: "foo"}, issueKind)
+
+			var problem *tree.Error
+			if !errors.As(err, &problem) || problem.Path != childrenDir || !errors.Is(err, tree.ErrNotDirectory) {
+				t.Fatalf("PlanMove = %v; want a *tree.Error at %s wrapping ErrNotDirectory", err, childrenDir)
+			}
+			if _, err := os.Lstat(filepath.Join(dir, "bar.md")); err != nil {
+				t.Errorf("bar.md Lstat = %v, want it in place", err)
+			}
+			if written := snapshotDir(t, outside); len(written) != 0 {
+				t.Errorf("outside directory holds %v, want nothing", written)
+			}
+		})
+	}
+}
+
 func TestPlanMove_RenameOntoTakenIDOrAlias_RefusedNamingKind(t *testing.T) {
 	dir := t.TempDir()
 	writeNodes(t, dir, "moved-node.md", "taken-node.md")

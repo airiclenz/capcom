@@ -806,6 +806,53 @@ func TestPathFor(t *testing.T) {
 	}
 }
 
+// notRealDirCases are the children paths PathFor refuses. Each make puts one at childrenDir; outside
+// is a directory beyond the tree that a symlink points at.
+var notRealDirCases = []struct {
+	name string
+	make func(t *testing.T, childrenDir string, outside string)
+}{
+	{"symlink", func(t *testing.T, childrenDir string, outside string) {
+		makeSymlink(t, outside, childrenDir)
+	}},
+	{"regular file", func(t *testing.T, childrenDir string, _ string) {
+		writeSizedFile(t, childrenDir, 1)
+	}},
+}
+
+// loadKeepingProblems loads dir as an issue tree, accepting the tree.Errors Load returns beside the
+// tree, such as the one a symlink in it draws.
+func loadKeepingProblems(t *testing.T, dir string) *tree.Tree {
+	t.Helper()
+	loaded, err := tree.Load(dir, "issue", nil)
+	var problems tree.Errors
+	if loaded == nil || (err != nil && !errors.As(err, &problems)) {
+		t.Fatalf("Load = %v, %v; want a tree", loaded, err)
+	}
+	return loaded
+}
+
+func TestPathFor_ChildrenPathNotARealDirectory_RefusedNamingIt(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range notRealDirCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			dir, outside := t.TempDir(), t.TempDir()
+			writeNodes(t, dir, "foo.md")
+			childrenDir := filepath.Join(dir, "foo")
+			testCase.make(t, childrenDir, outside)
+			loaded := loadKeepingProblems(t, dir)
+
+			_, err := loaded.PathFor("bar", "foo")
+
+			var problem *tree.Error
+			if !errors.As(err, &problem) || problem.Path != childrenDir || !errors.Is(err, tree.ErrNotDirectory) {
+				t.Fatalf("PathFor = %v; want a *tree.Error at %s wrapping ErrNotDirectory", err, childrenDir)
+			}
+		})
+	}
+}
+
 func TestPathFor_Failures(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
