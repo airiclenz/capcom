@@ -346,6 +346,90 @@ func TestAddDep_FakeCatalog_ResolvesBothReferencesThroughIt(t *testing.T) {
 	}
 }
 
+// schemaWithAlias is the content of a valid open issue file with the Alias schema-v1.
+const schemaWithAlias = "---\ntitle: Design the schema\nstatus: open\ntype: task\npriority: 2\n" +
+	"aliases: [schema-v1]\ncreated: 2026-10-11T09:00:00Z\n---\nBody.\n"
+
+func TestAddDep_Twice_LeavesTheSecondFileUnchanged(t *testing.T) {
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": issueText("Design the schema", "open"),
+		"ship-it":   issueText("Ship it", "open"),
+	})
+	if _, err := o.AddDep("ship-it", "", "db-schema"); err != nil {
+		t.Fatalf("first AddDep: %v", err)
+	}
+	// The second AddDep decides against a Catalog that holds the first one's dep.
+	if _, err := o.catalog.(*index.Index).Refresh(); err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	before := readIssue(t, s, "ship-it")
+
+	_, err := o.AddDep("ship-it", "", "db-schema")
+
+	if err != nil {
+		t.Fatalf("second AddDep: %v", err)
+	}
+	if after := readIssue(t, s, "ship-it"); after != before || !strings.Contains(after, "\ndeps: [db-schema]\n") {
+		t.Errorf("file after the second AddDep:\n%s", after)
+	}
+}
+
+func TestAddDep_AliasOfAnExistingDep_LeavesTheFileUnchanged(t *testing.T) {
+	before := issueText("Ship it", "open", "db-schema")
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema": schemaWithAlias,
+		"ship-it":   before,
+	})
+
+	_, err := o.AddDep("ship-it", "", "schema-v1")
+
+	if err != nil {
+		t.Fatalf("AddDep: %v", err)
+	}
+	if after := readIssue(t, s, "ship-it"); after != before {
+		t.Errorf("file changed:\n%s", after)
+	}
+}
+
+func TestAddDep_StaleCatalogMissingTheDep_LeavesTheFileUnchanged(t *testing.T) {
+	tests := []struct {
+		name string
+		dep  string
+	}{
+		{name: "named by id", dep: "db-schema"},
+		{name: "named by alias", dep: "schema-v1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := issueText("Ship it", "open", tt.dep)
+			_, s := newOps(t, config.Default(), map[string]string{
+				"db-schema": schemaWithAlias,
+				"ship-it":   before,
+			})
+			// The Catalog's entry for ship-it predates the dep its file names.
+			catalog := fakeCatalog{
+				entries: []index.Entry{
+					{
+						ID: "db-schema", Path: ".capcom/issues/db-schema.md", Category: config.CategoryTodo,
+						Aliases: []string{"schema-v1"},
+					},
+					{ID: "ship-it", Path: ".capcom/issues/ship-it.md", Category: config.CategoryTodo},
+				},
+				names: map[string]string{"db-schema": "db-schema", "ship-it": "ship-it"},
+			}
+
+			_, err := New(s, catalog).AddDep("ship-it", "", "db-schema")
+
+			if err != nil {
+				t.Fatalf("AddDep: %v", err)
+			}
+			if after := readIssue(t, s, "ship-it"); after != before {
+				t.Errorf("file changed:\n%s", after)
+			}
+		})
+	}
+}
+
 func TestAddDep_Cycle_IsARefusalBesideTheLocatedDependent(t *testing.T) {
 	before := issueText("Design the schema", "open")
 	o, s := newOps(t, config.Default(), map[string]string{
@@ -403,5 +487,22 @@ func TestRemoveDep_LastDep_LeavesTheDepsKeyOut(t *testing.T) {
 	}
 	if after := readIssue(t, s, "ship-it"); strings.Contains(after, "deps:") {
 		t.Errorf("deps key kept:\n%s", after)
+	}
+}
+
+func TestRemoveDep_IDOfADepStoredAsAnAlias_RemovesIt(t *testing.T) {
+	o, s := newOps(t, config.Default(), map[string]string{
+		"db-schema":  schemaWithAlias,
+		"login-flow": issueText("Build the login", "open"),
+		"ship-it":    issueText("Ship it", "open", "schema-v1", "login-flow"),
+	})
+
+	_, err := o.RemoveDep("ship-it", "", "db-schema")
+
+	if err != nil {
+		t.Fatalf("RemoveDep: %v", err)
+	}
+	if after := readIssue(t, s, "ship-it"); !strings.Contains(after, "\ndeps: [login-flow]\n") {
+		t.Errorf("file after RemoveDep:\n%s", after)
 	}
 }

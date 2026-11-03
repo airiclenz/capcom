@@ -9,8 +9,9 @@ import (
 )
 
 // AddDep makes the issue ref names depend on the issue depRef names, writing the canonical id of
-// the dependency into its deps, as EditIssue does; a dep already naming that issue leaves the list
-// as it is and the file is written unchanged. reflist decides the edit against the deps and the
+// the dependency into its deps, as EditIssue does; a dep already naming that issue, by its id or
+// by an Alias, in the Catalog or in the file as the edit reads it, leaves the list as it is and the
+// file is written unchanged. reflist decides the edit against the deps and the
 // Dependency graph the Catalog holds: a self-dependency, an edge that would close a cycle and a
 // depRef naming no issue are each its *reflist.Refusal, returned beside the dependent's located
 // Written before anything is written.
@@ -31,11 +32,21 @@ func (o *Ops) AddDep(ref string, ifMatch string, depRef string) (nodestore.Writt
 		return located, err
 	}
 	return o.EditIssue(dependent.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
-		if !addition.IsPresent {
+		// A stale Catalog misses a dep the file names, so the file read again decides as well.
+		if !addition.IsPresent && !slices.ContainsFunc(target.Deps, namesIssue(graph, addition.ID)) {
 			target.Deps = append(slices.Clone(target.Deps), addition.ID)
 		}
 		return target, nil
 	})
+}
+
+// namesIssue returns a test of whether a dep names the issue with id: it is the id's text, or graph
+// resolves it, as an id or an Alias, to id.
+func namesIssue(graph issue.DepGraph, id string) func(string) bool {
+	return func(dep string) bool {
+		named, isFound := graph.Resolve(dep)
+		return dep == id || (isFound && named == id)
+	}
 }
 
 // RemoveDep removes every dep of the issue ref names that names the issue depRef names, whether

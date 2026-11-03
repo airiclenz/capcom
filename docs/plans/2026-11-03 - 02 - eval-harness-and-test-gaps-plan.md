@@ -181,7 +181,10 @@ Prefer a `Writer` field for the timeout (zero means `runTimeout`), matching "Eve
 **Closes:** test-gendocs-stale-pages
 **Commit:** `test(gendocs): cover stale-page removal`
 
-## 9. Dependency idempotence, alias matching and a stale-Catalog duplicate
+## 9. Dependency idempotence, alias matching and a stale-Catalog duplicate — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): the AddDep closure keeps the Catalog's IsPresent short-circuit and additionally skips the append when the file read again names the dep (its id's text, or an id or Alias the Dependency graph resolves to it), via a new unexported helper namesIssue; a dep the Catalog names but the file lacks is still not appended, so the cycle check reflist skips for a present dep is never bypassed.
+NOTES (2026-11-03): the stale-Catalog test is table-driven over a file naming the dep by id and by alias; both cases fail against the pre-item deps.go (deps: [db-schema, db-schema] / [schema-v1, db-schema]). The AddDep-twice test refreshes the real index between the calls via o.catalog.(*index.Index).Refresh() so the second call exercises the Catalog's no-op path.
 
 **What:** fix: `Ops.AddDep`'s `EditIssue` closure appends when the Catalog-based `addition.IsPresent` is false, without checking the file it edits, so a stale Catalog duplicates a dep the file already names. Also untested: AddDep's no-op and RemoveDep matching a dep stored as an alias.
 **Goal:** AddDep never writes a dep the target file already names (by id or by an Alias of that issue); AddDep twice, or with an alias of an existing dep, leaves `Deps` and the file bytes unchanged; RemoveDep with the id of an issue the file names by an alias removes that entry.
