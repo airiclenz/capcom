@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `capcom ui` now shows each issue's type in the Ready and Issues lists, after the priority: every row reads `id  status  P<n>  type  title`, the type and the title each starting at one column. The type column is as wide as the widest type in the list, at most 10 cells; a longer type is cut to that width ending in `…`. The dependency view keeps the rows `capcom dep list` prints, without the type.
+- `capcom ui` now shows each issue's type in the Closed list too, after the id: every row reads `<closed date>  id  type  title`, the type and the title each starting at one column. As in the Ready and Issues lists, the type column is as wide as the widest type in the list, at most 10 cells; a longer type is cut to that width ending in `…`.
+
 ## [0.15.0] - 2026-11-03
 
 - `capcom ui` no longer crashes on an issue or Note body holding a forged link marker, and such a marker can no longer pass itself off as a followable link. Control bytes in a body (escape sequences such as one setting the window title) now show in the detail pane as visible `\xHH` text, as `capcom show` already prints them.
