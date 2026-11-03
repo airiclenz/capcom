@@ -149,6 +149,26 @@ func TestReplaceFileVerbatim_CRLFFile_KeepsBytesAndModeAndLeavesNoTempFile(t *te
 	}
 }
 
+func TestReplaceFileVerbatim_FileRemovedMidWrite_FailsNotExistAndCreatesNothing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "login-flow.md")
+	writeNodes(t, dir, "login-flow.md")
+	reader := &removingReader{path: path, content: strings.NewReader("new\r\ncontent\r\n")}
+
+	err := nodefile.ReplaceFileVerbatim(path, reader)
+
+	if reader.removeErr != nil {
+		t.Fatalf("removing %s mid-write: %v", path, reader.removeErr)
+	}
+	if !errors.Is(err, fs.ErrNotExist) || !strings.Contains(err.Error(), path) {
+		t.Fatalf("ReplaceFileVerbatim = %v, want fs.ErrNotExist naming %s", err, path)
+	}
+	if names := dirEntries(t, dir); len(names) != 0 {
+		t.Fatalf("dir holds %v, want nothing: no file brought back and no temp file", names)
+	}
+}
+
 func TestWriteFileAtomicVerbatim_CRLF_WrittenUnchangedWithGivenMode(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -365,6 +385,23 @@ func (r *failingReader) Read(p []byte) (int, error) {
 		return n, errReaderFailed
 	}
 	return n, err
+}
+
+// removingReader removes the file at path on its first read, as another session removing a node
+// file mid-write does, then returns its content; removeErr holds that removal's error.
+type removingReader struct {
+	path      string
+	content   io.Reader
+	isRemoved bool
+	removeErr error
+}
+
+func (r *removingReader) Read(p []byte) (int, error) {
+	if !r.isRemoved {
+		r.isRemoved = true
+		r.removeErr = os.Remove(r.path)
+	}
+	return r.content.Read(p)
 }
 
 // dirEntries returns the names in dir.

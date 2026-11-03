@@ -231,7 +231,7 @@ CRLF content gives the same markers.
 **Closes:** conflict-scan-unclosed-fence
 **Commit:** `fix(rawfm): let an unclosed fence hide no conflict markers`
 
-## 8. ReplaceFileVerbatim never recreates a removed file
+## 8. ReplaceFileVerbatim never recreates a removed file — ✅ DONE (2026-11-03)
 
 **What:** fixes `ReplaceFileVerbatim` recreating a node file another session removed between its
 existence check and the rename, the case `ReplaceFileAtomic` already refuses.
