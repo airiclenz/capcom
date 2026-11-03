@@ -1,10 +1,11 @@
 ---
 title: Make capcom easier for agents, small local models included
-status: open
+status: done
 type: feature
 priority: 1
-standing: true
 created: 2026-10-19T14:54:44Z
+closed: 2026-11-03T20:50:01Z
+reason: All children closed; group retired.
 ---
 
 Groups the work that makes capcom easier for coding agents to drive, with a particular eye on
