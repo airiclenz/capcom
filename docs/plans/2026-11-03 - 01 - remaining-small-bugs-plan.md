@@ -177,7 +177,9 @@ or a model.
 
 **Commit:** `fix(agenteval): kill a timed-out agent with every process it started`
 
-## 4. Name the children directory once when capcom mv refuses it
+## 4. Name the children directory once when capcom mv refuses it — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): no CHANGELOG entry: the regression is from 134cf37, still unreleased, and its existing [Unreleased] entry already gives the message this fix makes true (`.capcom/issues/<parent>: children directory of <parent> is not a real directory`).
 
 **What:** Fixes `mv-error-path-twice`, a regression from 134cf37: `Tree.PathFor` returns a
 `*tree.Error` naming the parent's children directory, and `nodestore.Kind.planFailure` wraps it in

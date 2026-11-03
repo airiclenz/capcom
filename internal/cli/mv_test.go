@@ -168,6 +168,50 @@ func TestMv_UnknownIssueOrParent_FailsNotFound(t *testing.T) {
 	}
 }
 
+func TestMv_BelowParentWhoseChildrenPathIsNotARealDirectory_FailsNamingItOnce(t *testing.T) {
+	cases := []struct {
+		name string
+		// make puts foo's children path at childrenDir.
+		make func(t *testing.T, childrenDir string)
+	}{
+		{"symlink", func(t *testing.T, childrenDir string) {
+			if runtime.GOOS == "windows" {
+				t.Skip("symlink tests do not run on Windows")
+			}
+			if os.Geteuid() == 0 {
+				t.Skip("symlink tests do not run as root")
+			}
+			if err := os.Symlink(t.TempDir(), childrenDir); err != nil {
+				t.Fatalf("Symlink(%s): %v", childrenDir, err)
+			}
+		}},
+		{"regular file", func(t *testing.T, childrenDir string) {
+			if err := os.WriteFile(childrenDir, []byte("x\n"), 0o644); err != nil {
+				t.Fatalf("WriteFile(%s): %v", childrenDir, err)
+			}
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newIssueStore(t, map[string]string{
+				"foo.md": readIssue("Foo", "open", "", ""),
+				"bar.md": readIssue("Bar", "open", "", ""),
+			})
+			testCase.make(t, filepath.Join(root, ".capcom", "issues", "foo"))
+
+			_, stderr, exitCode := runCLI(t, root, "mv", "bar", "--parent", "foo")
+
+			want := ".capcom/issues/foo: children directory of foo is not a real directory"
+			if exitCode != ExitError || !strings.Contains(stderr, want) || strings.Contains(stderr, "bar.md:") {
+				t.Errorf("exit = %d stderr = %q; want %d naming %q once", exitCode, stderr, ExitError, want)
+			}
+			if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "bar.md")); err != nil {
+				t.Errorf("bar.md: %v", err)
+			}
+		})
+	}
+}
+
 func TestMv_NothingToDo_FailsUsage(t *testing.T) {
 	root := newMoveStore(t)
 

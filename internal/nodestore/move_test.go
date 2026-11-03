@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -262,6 +263,59 @@ func TestMove_Refusals_MoveNothing(t *testing.T) {
 			test.assert(t, err)
 			if after := treeContent(t, dir); !maps.Equal(after, before) {
 				t.Errorf("tree changed by the refusal:\n%v\nwant\n%v", after, before)
+			}
+		})
+	}
+}
+
+func TestMove_BelowParentWhoseChildrenPathIsNotARealDirectory_FailsNamingItAndMovesNothing(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		// make puts the parent's children path at childrenDir; outside is a directory beyond the
+		// store that a symlink points at.
+		make func(t *testing.T, childrenDir string, outside string)
+	}{
+		{"symlink", func(t *testing.T, childrenDir string, outside string) {
+			if runtime.GOOS == "windows" {
+				t.Skip("symlink tests do not run on Windows")
+			}
+			if os.Geteuid() == 0 {
+				t.Skip("symlink tests do not run as root")
+			}
+			if err := os.Symlink(outside, childrenDir); err != nil {
+				t.Fatalf("Symlink(%s): %v", childrenDir, err)
+			}
+		}},
+		{"regular file", func(t *testing.T, childrenDir string, _ string) {
+			writeNodeFile(t, filepath.Dir(childrenDir), filepath.Base(childrenDir), "x\n")
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			outside := t.TempDir()
+			dir := s.IssuesDir()
+			writeNodeFile(t, dir, "foo.md", plainIssue)
+			writeNodeFile(t, dir, "bar.md", plainIssue)
+			testCase.make(t, filepath.Join(dir, "foo"), outside)
+
+			_, _, err := Issues(s, nil).Move("bar", Destination{Parent: "foo", IsReparented: true}, "")
+
+			var problem *tree.Error
+			if !errors.As(err, &problem) || problem.Path != ".capcom/issues/foo" ||
+				!errors.Is(err, tree.ErrNotDirectory) {
+				t.Fatalf("Move error = %v; want a *tree.Error at .capcom/issues/foo", err)
+			}
+			if readFile(t, filepath.Join(dir, "bar.md")) != plainIssue {
+				t.Error("bar.md changed by the refusal")
+			}
+			if files := nodeFiles(t, outside); len(files) != 0 {
+				t.Errorf("outside directory holds %v, want nothing", files)
+			}
+			if files := nodeFiles(t, dir); len(files) != 3 {
+				t.Errorf("issues dir holds %v, want only foo, bar and foo's children path", files)
 			}
 		})
 	}

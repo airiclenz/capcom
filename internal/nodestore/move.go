@@ -66,8 +66,10 @@ type Moved struct {
 //     or, for a name only an unusable file claims, a *tree.UnusableError naming it, which matches
 //     tree.ErrNotFound. The exact id of a node whose file does not parse resolves, and fails at
 //     the plan.
-//  3. the plan: an id another node holds is an *ExistsError; the node file that does not parse, or
-//     any other refusal (an invalid id, a parent inside the node's own subtree), a *FileError.
+//  3. the plan: an id another node holds is an *ExistsError; a new parent whose children path
+//     exists as anything but a real directory is the *tree.Error naming that path and wrapping
+//     tree.ErrNotDirectory; the node file that does not parse, or any other refusal (an invalid
+//     id, a parent inside the node's own subtree), a *FileError.
 //  4. on a rename, the claim: a file other than the node's own that holds the new id, as
 //     tree.Tree.Claimant finds it with RecoverAliases, is an *ExistsError at that file worded by
 //     how it holds the id: a node file inside an orphan directory, a file left out for its repeated
@@ -180,9 +182,10 @@ func resolveParent(nodes *tree.Tree, parent string) (tree.Node, error) {
 }
 
 // planFailure types err, the failure of the plan of a move of node: a new id another node holds
-// is an *ExistsError naming that node's file; an unknown node or parent stays tree.ErrNotFound;
-// everything else, the node file that does not parse among it, is a *FileError at the node's file,
-// at its line when known.
+// is an *ExistsError naming that node's file; an unknown node or parent stays tree.ErrNotFound; a
+// *tree.Error, a new parent's children path that is not a real directory, stays that *tree.Error,
+// its path relative to the working tree root, as Create returns it; everything else, the node file
+// that does not parse among it, is a *FileError at the node's file, at its line when known.
 func (k *Kind[T]) planFailure(err error, node tree.Node) error {
 	var taken *tree.TakenError
 	if errors.As(err, &taken) {
@@ -190,6 +193,10 @@ func (k *Kind[T]) planFailure(err error, node tree.Node) error {
 	}
 	if errors.Is(err, tree.ErrNotFound) {
 		return err
+	}
+	var problem *tree.Error
+	if errors.As(err, &problem) {
+		return k.relativeTreeError(problem)
 	}
 	return k.fileError(node.Path, err)
 }
