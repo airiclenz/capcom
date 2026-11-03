@@ -50,7 +50,9 @@ Extends `columnWidths` in `internal/ui/ready.go` with a type width: `widen` take
 - `go vet ./internal/ui/`
 **Commit:** `feat(ui): show the issue type in the Ready and Issues lists`
 
-## 2. Type column in the Closed list
+## 2. Type column in the Closed list — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): instead of a separate typeWidth beside idWidth, paintClosedSidebar widens item 1's columnWidths (widen(0, entry)) over the whole list and closedRow takes it, so the 10-cell cap lives in one place; the now-unused ansi import left closed.go. No golden draws the Closed sidebar, so none changed.
 
 **What:**
 Depends on item 1 (`typeCell`, `typeColumnMax`).

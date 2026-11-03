@@ -161,9 +161,10 @@ the top level. The only write here is `e` (`$EDITOR`).
 ### Closed tab
 
 The issues in a closed category, as an `index.List` over `config.ClosedCategories()`, newest
-Closed time first and, on a tie, by id. Each row is `<closed date>  id  title`: the Closed time's
-day in UTC as `2006-01-02`, and the id padded to the widest id of the whole list, so scrolling
-never shifts the titles. It shares Ready's flat entry list (`internal/ui/entrylist.go`). `R`
+Closed time first and, on a tie, by id. Each row is `<closed date>  id  type  title`: the Closed
+time's day in UTC as `2006-01-02`, the id padded to the widest id of the whole list, and the type
+padded to the widest type of the whole list, at most 10 cells, a longer type cut to that width
+ending in `…`, so scrolling never shifts the types or the titles. It shares Ready's flat entry list (`internal/ui/entrylist.go`). `R`
 reopens the selected issue, which leaves the tab on the next read; `e` opens its file; `a`, `s`,
 `c` and `L` do nothing here. `d` opens the dependency view as on the Ready and Issues tabs.
 

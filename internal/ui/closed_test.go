@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
@@ -36,6 +37,25 @@ func closedFiles() map[string]string {
 // scrappedPath is the file of closedFiles' scrapped issue, relative to .capcom.
 const scrappedPath = "issues/scrapped.md"
 
+// closedTypedIssueFile returns an issue file of type issueType titled title, done at closed, with
+// no body.
+func closedTypedIssueFile(title, issueType, closed string) string {
+	return fmt.Sprintf(
+		"---\ntitle: %s\nstatus: done\npriority: 2\ntype: %s\ncreated: 2026-10-11T09:00:00Z\n"+
+			"closed: %s\nreason: shipped\n---\n",
+		title, issueType, closed,
+	)
+}
+
+// strippedSidebar returns the sidebar's rows, their styling stripped, top to bottom.
+func strippedSidebar(m model) []string {
+	rows := make([]string, 0, len(m.sidebar))
+	for _, row := range m.sidebar {
+		rows = append(rows, ansi.Strip(row))
+	}
+	return rows
+}
+
 // closedIDs returns the ids of the Closed tab's list, top to bottom.
 func closedIDs(m model) []string {
 	ids := make([]string, 0, len(m.closed.entries))
@@ -65,16 +85,50 @@ func newClosedModel(t *testing.T, ts *testStore, id string) model {
 func TestClosedTab_Sidebar_ListsTheClosedIssuesNewestFirst(t *testing.T) {
 	m := newClosedModel(t, newTestStore(t, closedFiles()), "")
 
-	got := make([]string, 0, len(m.sidebar))
-	for _, row := range m.sidebar {
-		got = append(got, ansi.Strip(row))
-	}
+	got := strippedSidebar(m)
 
 	want := []string{
-		"2026-10-15  scrapped  Scrapped task",
-		"2026-10-13  aa        AA task",
-		"2026-10-13  zz        ZZ task",
-		"2026-10-12  finished  Finished",
+		"2026-10-15  scrapped  task  Scrapped task",
+		"2026-10-13  aa        task  AA task",
+		"2026-10-13  zz        task  ZZ task",
+		"2026-10-12  finished  task  Finished",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("Closed sidebar = %q, want %q", got, want)
+	}
+}
+
+func TestClosedTab_TypesOfDifferentWidths_StartEveryTypeAndTitleAtOneColumn(t *testing.T) {
+	m := newClosedModel(t, newTestStore(t, map[string]string{
+		"issues/fix.md":  closedTypedIssueFile("Fix it", "bug", "2026-10-14T10:00:00Z"),
+		"issues/feat.md": closedTypedIssueFile("Add it", "feature", "2026-10-13T10:00:00Z"),
+		"issues/tidy.md": closedTypedIssueFile("Tidy it", "chore", "2026-10-12T10:00:00Z"),
+	}), "")
+
+	got := strippedSidebar(m)
+
+	want := []string{
+		"2026-10-14  fix   bug      Fix it",
+		"2026-10-13  feat  feature  Add it",
+		"2026-10-12  tidy  chore    Tidy it",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("Closed sidebar = %q, want %q", got, want)
+	}
+}
+
+func TestClosedTab_TypeWiderThanTheColumn_CutToItWithTheTitlesAligned(t *testing.T) {
+	m := newClosedModel(t, newTestStore(t, map[string]string{
+		"config.yaml":     longTypeConfig,
+		"issues/fix.md":   closedTypedIssueFile("Fix it", "bug", "2026-10-14T10:00:00Z"),
+		"issues/infra.md": closedTypedIssueFile("Build it", longType, "2026-10-13T10:00:00Z"),
+	}), "")
+
+	got := strippedSidebar(m)
+
+	want := []string{
+		"2026-10-14  fix    bug         Fix it",
+		"2026-10-13  infra  infrastru…  Build it",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("Closed sidebar = %q, want %q", got, want)

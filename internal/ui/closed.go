@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
@@ -23,7 +22,8 @@ const (
 	notOnClosedFormat = "%s is not on the Closed tab"
 	// closedDateLayout is how a row shows its issue's Closed time, in UTC.
 	closedDateLayout = "2006-01-02"
-	// closedColumnGap separates the columns of a closed issue's sidebar row: date, id, title.
+	// closedColumnGap separates the columns of a closed issue's sidebar row: date, id, type,
+	// title.
 	closedColumnGap = "  "
 )
 
@@ -150,9 +150,9 @@ func (m model) closedSelection() (index.Entry, bool) {
 }
 
 // paintClosedSidebar fills the sidebar with the closed issues the Closed filter keeps, one
-// `<closed date>  id  title` row per issue, the selected one marked, scrolled so the selection
-// stays on screen. The id column is measured over the whole list, on screen or not, so scrolling
-// never shifts the titles. No closed issue, a list that could not be read and a filter that keeps
+// `<closed date>  id  type  title` row per issue, the selected one marked, scrolled so the
+// selection stays on screen. The id and type columns are measured over the whole list, on screen
+// or not, so scrolling never shifts the types or the titles. No closed issue, a list that could not be read and a filter that keeps
 // nothing each take a single row saying so. It does nothing on another tab.
 func (m model) paintClosedSidebar() model {
 	if m.tab != TabClosed {
@@ -164,24 +164,26 @@ func (m model) paintClosedSidebar() model {
 	case len(m.closed.entries) == 0:
 		return m.withSidebar([]string{m.emptySidebarText(TabClosed, closedEmptyText)}, 0, 1)
 	}
-	idWidth := 0
+	var columns columnWidths
 	for _, entry := range m.closed.entries {
-		idWidth = max(idWidth, ansi.StringWidth(entry.ID))
+		columns = columns.widen(0, entry)
 	}
 	start, end, selected := m.closed.window(max(m.sidebarHeight(), 1))
 	rows := make([]string, 0, end-start)
 	for row := start; row < end; row++ {
 		mark := m.theme.markOf(false, row == selected)
-		rows = append(rows, mark.render(closedRow(m.closed.entries[row], idWidth)))
+		rows = append(rows, mark.render(closedRow(m.closed.entries[row], columns)))
 	}
 	return m.withSidebar(rows, start, len(m.closed.entries))
 }
 
-// closedRow is the span of the sidebar row of one closed issue, `<closed date>  id  title`, its
-// date the Closed time's day in UTC and its id padded to idWidth.
-func closedRow(entry index.Entry, idWidth int) span {
+// closedRow is the span of the sidebar row of one closed issue, `<closed date>  id  type  title`,
+// its date the Closed time's day in UTC, its id padded to the id width of columns and its type
+// fitted to their type width.
+func closedRow(entry index.Entry, columns columnWidths) span {
 	date := entry.Closed.UTC().Format(closedDateLayout)
 	return span{
-		text: date + closedColumnGap + entry.ID + padding(entry.ID, idWidth) + closedColumnGap + oneLine(entry.Title),
+		text: date + closedColumnGap + entry.ID + padding(entry.ID, columns.id) + closedColumnGap +
+			typeCell(entry, columns.issueType) + closedColumnGap + oneLine(entry.Title),
 	}
 }
