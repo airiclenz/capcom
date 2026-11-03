@@ -1,10 +1,12 @@
 ---
 title: Recap's hostile-repository guards are untested
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-11-03 - 03 - recap-warning-text-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T12:28:58Z
+reason: "plan '2026-11-03 - 03 - recap-warning-text-plan' (archived in 7cc04f4) item 1: the oversized-file test now asserts the tree.ErrTooLarge warning text; with the duplicate-id test from plan 02 item 10, both Acceptance cases are met"
 ---
 
 In `internal/recap/recap.go`, the oversized-blob guard (`gitx.ErrBlobTooLarge` becoming a
