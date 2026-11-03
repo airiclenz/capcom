@@ -84,7 +84,10 @@ Every comment or doc line saying what the sweep kills is updated, found by `grep
 **Closes:** agenteval-sweep-misses-groups
 **Commit:** `fix(agenteval): sweep the shell groups the agent loop started`
 
-## 3. Test the harness's signal wiring
+## 3. Test the harness's signal wiring — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): the agent-group cleanup (SIGKILL -<agent pid>, then waitUntilGone) is registered by the shared waitForAgent helper for both tests, not only by the second-signal test, so the first test's failure path (a harness killed outright) cannot leak the agent's sleep either.
+NOTES (2026-11-03): the first-signal test is a table over SIGINT and SIGTERM; it asserts exit status exitRunFailed, the agent gone and no report. The second asserts the harness died by SIGINT in under agentWaitDelay/2. Mutation-checked: dropping context.AfterFunc(ctx, stop) fails the second test, and dropping signal.NotifyContext fails both subtests of the first.
 
 **What:** `main` (`cmd/agenteval/main.go`) cancels the command tree on SIGINT/SIGTERM via `signal.NotifyContext` and restores the default action once cancelled (`context.AfterFunc(ctx, stop)`). Nothing tests it (issue `agenteval-signal-wiring-test`).
 **Regression guard.** binding — item 3 runs only after item 2 has landed (already declared "Depends on item 2"); its tests rely on item 2's ledger sweep, so no signal test may leave a child running.

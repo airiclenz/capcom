@@ -27,6 +27,7 @@ import (
 const (
 	realCapcomName = "capcom-real"
 	fakeAgentName  = "fake-agent"
+	agentevalName  = "agenteval"
 )
 
 // fakeScriptVariable names the fake agent's script: one JSON argv array per line, each run as
@@ -46,8 +47,8 @@ const (
 // executableFileMode is the permission copyTestBinary gives a copy.
 const executableFileMode = 0o755
 
-// TestMain runs the test binary as the program its basename names (shim, real capcom or fake
-// agent), and runs the tests otherwise.
+// TestMain runs the test binary as the program its basename names (shim, real capcom, fake agent
+// or agenteval itself), and runs the tests otherwise.
 func TestMain(m *testing.M) {
 	switch programName(os.Args[0]) {
 	case shimName:
@@ -56,6 +57,9 @@ func TestMain(m *testing.M) {
 		os.Exit(cli.Run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 	case fakeAgentName:
 		os.Exit(runFakeAgent(os.Getenv, os.Stdout, os.Stderr))
+	case agentevalName:
+		main()
+		os.Exit(0)
 	}
 	if err := os.Setenv(raceOptionsVariable, withoutRaceExitSleep(os.Getenv(raceOptionsVariable))); err != nil {
 		fmt.Fprintf(os.Stderr, "set %s: %v\n", raceOptionsVariable, err)
