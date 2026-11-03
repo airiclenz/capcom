@@ -24,7 +24,7 @@
 **Regression check (2026-11-03, 71a58d4):**
 - all items SAFE
 
-## 1. Assert the oversized-file warning text in the recap test
+## 1. Assert the oversized-file warning text in the recap test — ✅ DONE (2026-11-03)
 
 **What:**
 Test-only. `TestCompute_OversizedFile_IsAWarningAndLeftOut` in `internal/recap/recap_test.go` checks only the `recap: ` prefix and `huge.md`. Add an assertion that the warning contains `tree.ErrTooLarge.Error()` (`file is larger than 1 MiB`), the text the `ErrBlobTooLarge` branch of `load` writes. The generic branch would write `gitx.ErrBlobTooLarge`'s text (`blob is larger than the size limit`), which lacks it, so the assertion distinguishes the two. Reference the sentinel's `Error()` rather than a literal string; import `internal/tree` in the test if not already imported. Keep the existing prefix and file-name checks.

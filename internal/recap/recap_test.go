@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Log entries the tests write.
@@ -242,6 +243,9 @@ func TestCompute_OversizedFile_IsAWarningAndLeftOut(t *testing.T) {
 	warning := report.Warnings[0]
 	if !strings.HasPrefix(warning, "recap: ") || !strings.Contains(warning, "huge.md") {
 		t.Errorf("warning = %q; want the recap: prefix naming huge.md", warning)
+	}
+	if !strings.Contains(warning, tree.ErrTooLarge.Error()) {
+		t.Errorf("warning = %q; want it to say %q", warning, tree.ErrTooLarge.Error())
 	}
 }
 
