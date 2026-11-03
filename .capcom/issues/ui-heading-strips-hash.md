@@ -1,10 +1,12 @@
 ---
 title: The UI heading renderer strips the author's leading hash
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-11-03 - 01 - remaining-small-bugs-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T10:21:23Z
+reason: "Resolved by plan '2026-11-03 - 01 - remaining-small-bugs-plan' item 2 (archived in 3ecf9f7): headingText removes only the counted marker, tests pin #42 and #hashtag"
 ---
 
 `headingText` (`internal/ui/markdown/markdown.go:327`) uses `TrimLeft(line, " #")`, which removes

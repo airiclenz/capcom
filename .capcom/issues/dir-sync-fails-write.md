@@ -1,10 +1,12 @@
 ---
 title: A directory-sync failure reports a write that landed as failed
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-11-03 - 01 - remaining-small-bugs-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T10:21:23Z
+reason: "Resolved by plan '2026-11-03 - 01 - remaining-small-bugs-plan' item 1 (archived in 3ecf9f7): unsupported directory sync ignored, other sync errors wrap ErrNotSynced, tests pin both"
 ---
 
 `WriteFileAtomic` (`internal/nodefile/atomic.go:153`) and `WriteFileExclusive` (`:119`) return a

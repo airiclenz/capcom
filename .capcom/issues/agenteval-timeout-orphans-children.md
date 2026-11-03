@@ -27,3 +27,7 @@ two-minute shell timeout, still with the shim first on PATH, inside a workspace 
 
 - On Unix, a test agent that spawns a long-running child and hits the task timeout leaves no surviving child.
 - Windows behaviour is unchanged.
+
+## Log
+
+- 2026-11-03 Airic Lenz: Plan '2026-11-03 - 01 - remaining-small-bugs-plan' item 3 (archived in 3ecf9f7) landed the process-group kill and sweep after every agent run on Unix, with a timeout test. Left open for deferred gaps: an agent outliving WaitDelay leaves its agent-loop shell groups (own pgid) outside the sweep; an agent exiting 0 after a parent-cancel SIGTERM reports 'start the agent X: context canceled'; no test covers main.go's NotifyContext wiring.

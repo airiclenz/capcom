@@ -1,10 +1,12 @@
 ---
 title: capcom mv onto a parent with a symlinked children directory prints the path twice
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-11-03 - 01 - remaining-small-bugs-plan
 created: 2026-11-03T09:49:54Z
+closed: 2026-11-03T10:21:23Z
+reason: "Resolved by plan '2026-11-03 - 01 - remaining-small-bugs-plan' item 4 (archived in 3ecf9f7): planFailure returns the *tree.Error, so mv names the children directory once"
 ---
 
 `capcom mv bar --parent foo`, where `.capcom/issues/foo` is a symlink, fails with the path twice:
