@@ -169,7 +169,7 @@ Prefer a `Writer` field for the timeout (zero means `runTimeout`), matching "Eve
 **Closes:** test-config-ready-hide
 **Commit:** `test(config): cover ready.hide and duplicate top-level keys`
 
-## 8. Test gendocs' stale-page removal
+## 8. Test gendocs' stale-page removal — ✅ DONE (2026-11-03)
 
 **What:** `run` and `removeStalePages` (`cmd/gendocs/main.go`) delete every `capcom*.md` in the output directory; `cmd/gendocs` has no test file.
 **Goal:** `cmd/gendocs/main_test.go` calls `run(t.TempDir())` with a pre-seeded `capcomold.md` and an unrelated `notes.md` and asserts the stale page is gone, `notes.md` survives and the reference pages are written.
