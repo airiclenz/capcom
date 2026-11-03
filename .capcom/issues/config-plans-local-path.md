@@ -1,10 +1,12 @@
 ---
 title: Config plans directories skip the local-path check
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-11-03 - 00 - audit-urgent-fixes-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T09:20:04Z
+reason: Resolved by plan 2026-11-03 - 00 - audit-urgent-fixes-plan item 5 (archived in 1dcb36a)
 ---
 
 `plans` entries go through `nameList` only (`internal/config/parse.go:140`), so unlike

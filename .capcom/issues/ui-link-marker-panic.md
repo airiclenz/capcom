@@ -1,10 +1,12 @@
 ---
 title: A forged link marker in a body crashes capcom ui
-status: open
+status: done
 type: bug
 priority: 1
 plan: 2026-11-03 - 00 - audit-urgent-fixes-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T09:20:04Z
+reason: Resolved by plan 2026-11-03 - 00 - audit-urgent-fixes-plan item 2 (archived in 1dcb36a)
 ---
 
 The terminal UI's markdown renderer trusts any `ESC _capcom-link:<n> ESC \` marker it finds in

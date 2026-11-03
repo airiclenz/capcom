@@ -1,10 +1,12 @@
 ---
 title: The winget probe trusts any pull request with a matching title
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-11-03 - 00 - audit-urgent-fixes-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T09:20:04Z
+reason: Resolved by plan 2026-11-03 - 00 - audit-urgent-fixes-plan item 6 (archived in 1dcb36a)
 ---
 
 `probeWinget` (`cmd/release/winget.go:60`) counts any open winget-pkgs pull request whose title

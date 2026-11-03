@@ -1,10 +1,12 @@
 ---
 title: A symlinked children directory sends mv and child creation outside the store
-status: open
+status: done
 type: bug
 priority: 2
 plan: 2026-11-03 - 00 - audit-urgent-fixes-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T09:20:04Z
+reason: Resolved by plan 2026-11-03 - 00 - audit-urgent-fixes-plan item 4 (archived in 1dcb36a)
 ---
 
 `planRenames` and `PlanMove` (`internal/tree/move.go:151`, `:163`) use `os.Stat`, which follows

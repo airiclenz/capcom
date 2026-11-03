@@ -1,10 +1,12 @@
 ---
 title: Control bytes in titles and lock records reach UI rows unsanitised
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-11-03 - 00 - audit-urgent-fixes-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T09:20:04Z
+reason: "Resolved by plan 2026-11-03 - 00 - audit-urgent-fixes-plan item 3 (archived in 1dcb36a): oneLine and status-bar notices escape control bytes"
 ---
 
 `oneLine` only joins `strings.Fields`, keeping ESC, C0 and C1 bytes. Issue titles, Note titles
@@ -32,3 +34,7 @@ sequence: title spoofing, an OSC 52 clipboard write, or forged status text or a 
 
 - The probe's result is logged on the issue.
 - If exploitable, a test drawing every listed view with a title and a lock purpose holding OSC and CSI sequences finds no control bytes in the output; otherwise the issue is closed with the probe as its reason.
+
+## Log
+
+- 2026-11-03 Airic Lenz: Probe outcome: not run as a separate probe; plan 2026-11-03 - 00 - audit-urgent-fixes-plan item 3 escapes control bytes in oneLine (termsafe.Escape) unconditionally, covering every listed draw site, and statusBar escapes notices. ready_test.go asserts m.View().Content holds no raw OSC/CSI/BEL for a spoofed title and lock Holder/Purpose.
