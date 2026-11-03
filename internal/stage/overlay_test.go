@@ -182,6 +182,45 @@ func TestOverlay_WriteRefusals(t *testing.T) {
 	}
 }
 
+func TestOverlay_ReadRegularFile_StagedFileOverOneMiB_FailsTooLarge(t *testing.T) {
+	f := newFixture(t)
+	atCap := strings.Repeat("x", nodefile.MaxNodeFileSize)
+	if err := f.overlay.ReplaceFile(f.existing, strings.NewReader(atCap)); err != nil {
+		t.Fatalf("ReplaceFile at the cap: %v", err)
+	}
+	if data, err := f.overlay.ReadRegularFile(f.existing); err != nil || len(data) != nodefile.MaxNodeFileSize {
+		t.Fatalf("ReadRegularFile at the cap = %d bytes %v, want all %d bytes", len(data), err, nodefile.MaxNodeFileSize)
+	}
+	if err := f.overlay.ReplaceFile(f.existing, strings.NewReader(atCap+"x")); err != nil {
+		t.Fatalf("ReplaceFile over the cap: %v", err)
+	}
+
+	data, err := f.overlay.ReadRegularFile(f.existing)
+
+	if !errors.Is(err, nodefile.ErrTooLarge) || !strings.Contains(err.Error(), f.existing) {
+		t.Errorf("ReadRegularFile over the cap: err = %v, want nodefile.ErrTooLarge naming it", err)
+	}
+	if data != nil {
+		t.Errorf("ReadRegularFile over the cap returned %d bytes, want none", len(data))
+	}
+}
+
+func TestOverlay_ReadRegularFile_StagedDirectory_FailsNotRegular(t *testing.T) {
+	f := newFixture(t)
+	if err := f.overlay.CreateFile(f.newFile, strings.NewReader(createdContent)); err != nil {
+		t.Fatalf("CreateFile: %v", err)
+	}
+
+	data, err := f.overlay.ReadRegularFile(f.newDir)
+
+	if !errors.Is(err, nodefile.ErrNotRegular) || !strings.Contains(err.Error(), f.newDir) {
+		t.Errorf("ReadRegularFile of a staged directory: err = %v, want nodefile.ErrNotRegular naming it", err)
+	}
+	if data != nil {
+		t.Errorf("ReadRegularFile of a staged directory returned %d bytes, want none", len(data))
+	}
+}
+
 func TestOverlay_OriginalETag_IsTheFileAsTheBatchFoundIt(t *testing.T) {
 	f := newFixture(t)
 	f.stageCreateAndEdit(t)

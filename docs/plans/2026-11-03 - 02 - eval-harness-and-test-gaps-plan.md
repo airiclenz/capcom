@@ -227,7 +227,7 @@ NOTES (2026-11-03): the two cases are separate TestCompute_* functions (TestComp
 **Closes:** test-stage-catalog-parity
 **Commit:** `test(stage): check catalog filters against the index`
 
-## 12. Test the staged overlay's size cap and directory refusal
+## 12. Test the staged overlay's size cap and directory refusal — ✅ DONE (2026-11-03)
 
 **What:** the 1 MiB cap on a staged file (`ReadRegularFile` → `nodefile.ErrTooLarge`) and the staged-directory `ErrNotRegular` refusal (`internal/stage/overlay.go`) are untested.
 **Goal:** a test stages a ReplaceFile over 1 MiB and asserts `ReadRegularFile` fails with `nodefile.ErrTooLarge`; a test stages a CreateFile'd directory and asserts `nodefile.ErrNotRegular`.
