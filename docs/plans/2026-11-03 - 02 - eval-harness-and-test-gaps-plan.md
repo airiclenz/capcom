@@ -38,7 +38,7 @@
 - Sweeping the children of agents other than `agenteval agent` (`claude -p`)
 - Windows process handling (stays as it is)
 
-## 1. A cancelled run whose agent exits cleanly is not a start failure
+## 1. A cancelled run whose agent exits cleanly is not a start failure — ✅ DONE (2026-11-03)
 
 **What:** fix: `runAgent` reports `start the agent <argv0>: context canceled` when the parent context is cancelled and the agent exits 0 after the group SIGTERM, though the agent ran (issue `agenteval-cancel-error-wording`).
 **Regression guard.** The test script sets `trap 'exit 0' TERM` and only then touches a marker (`$0`); the test cancels with `cancelOnceExists` on that marker and asserts `err == nil` (or a message without `start the agent`), never `errors.Is(err, context.Canceled)`, which the `%w`-wrapped start error already satisfies.

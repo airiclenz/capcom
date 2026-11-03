@@ -131,26 +131,37 @@ func TestRunTask_ACancelledRunReturnsTheCancellationUnjudged(t *testing.T) {
 		t.Skip("the agent here is a POSIX shell command")
 	}
 	setHermeticGitEnv(t)
-	dir := t.TempDir()
-	started := filepath.Join(dir, "started")
 	task, isFound := findScenario("next-claim-close")
 	if !isFound {
 		t.Fatal("no scenario next-claim-close")
 	}
-	settings := runSettings{
-		capcomPath:     copyTestBinary(t, dir, realCapcomName),
-		agentArgv:      []string{"sh", "-c", `touch "$0" && exec sleep 300`, started},
-		timeout:        time.Minute,
-		transcriptsDir: t.TempDir(),
+	tests := []struct {
+		name   string
+		script string
+	}{
+		{name: "an agent killed by SIGTERM", script: `touch "$0" && exec sleep 300`},
+		{name: "an agent that exits 0 on SIGTERM", script: `trap 'exit 0' TERM; touch "$0"; sleep 300 & wait`},
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go cancelOnceExists(ctx, started, cancel)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			started := filepath.Join(dir, "started")
+			settings := runSettings{
+				capcomPath:     copyTestBinary(t, dir, realCapcomName),
+				agentArgv:      []string{"sh", "-c", test.script, started},
+				timeout:        time.Minute,
+				transcriptsDir: t.TempDir(),
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go cancelOnceExists(ctx, started, cancel)
 
-	_, err := runTask(ctx, &bytes.Buffer{}, settings, task)
+			_, err := runTask(ctx, &bytes.Buffer{}, settings, task)
 
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("runTask error = %v, want %v", err, context.Canceled)
+			if !errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "start the agent") {
+				t.Errorf("runTask error = %v, want %v unjudged", err, context.Canceled)
+			}
+		})
 	}
 }
 

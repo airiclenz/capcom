@@ -154,8 +154,10 @@ func (w workspace) runAgent(
 		fmt.Fprintf(transcript, "\nagenteval: kill what the agent left running: %v\n", sweepErr)
 	}
 
-	var exited *exec.ExitError
-	if err != nil && !errors.As(err, &exited) && !run.IsTimedOut {
+	// Only an agent without a process never started, and one the timeout beat to its start is
+	// timed out. One stopped by the timeout or by ctx may exit 0 on SIGTERM, and Run then
+	// returns the context's error rather than an exit error.
+	if err != nil && command.Process == nil && !run.IsTimedOut {
 		return agentRun{}, fmt.Errorf("start the agent %s: %w", agentArgv[0], err)
 	}
 	if err != nil {
