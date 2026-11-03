@@ -3,6 +3,7 @@ title: The eval sweep misses agent-loop shell groups after WaitDelay
 status: open
 type: bug
 priority: 3
+plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T10:19:37Z
 ---
 

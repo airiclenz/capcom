@@ -3,6 +3,7 @@ title: A cancelled eval run reports a clean agent exit as a failed start
 status: open
 type: bug
 priority: 3
+plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T10:19:32Z
 ---
 

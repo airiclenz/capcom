@@ -3,6 +3,7 @@ title: Test the eval harness's Ctrl-C and SIGTERM wiring
 status: open
 type: task
 priority: 3
+plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T10:19:33Z
 ---
 

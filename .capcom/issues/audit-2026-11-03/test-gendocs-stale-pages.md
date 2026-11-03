@@ -3,6 +3,7 @@ title: cmd/gendocs deletes files with no test
 status: open
 type: task
 priority: 3
+plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T08:23:42Z
 ---
 
