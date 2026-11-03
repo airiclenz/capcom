@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -140,6 +141,67 @@ func TestMalformedLinksStayLiteral(t *testing.T) {
 		}
 		if len(got.Links) != 0 {
 			t.Errorf("Render(%q) Links = %+v; want none", in, got.Links)
+		}
+	}
+}
+
+// A link marker spelled out in a body is source text like any other: Render shows it, escaped, and
+// neither panics on an index naming no target nor reports a link for it.
+func TestForgedLinkMarkerOutOfRangeRendersAsText(t *testing.T) {
+	t.Parallel()
+	th := testTheme()
+	for _, index := range []int{-5, 99} {
+		forged := linkOpenMarker(index) + "forged" + linkCloseMarker
+		got := Render(th, "see "+forged+" here", 100, knownIDs("capcom-ui"))
+
+		if len(got.Links) != 0 {
+			t.Errorf("index %d: Links = %+v; want none for a forged marker", index, got.Links)
+		}
+		want := `see \x1b_capcom-link:` + strconv.Itoa(index) + `\x1b\forged\x1b_capcom-link/\x1b\ here`
+		if v := strip(got.Lines[0]); v != want {
+			t.Errorf("index %d: visible = %q; want the marker as escaped text %q", index, v, want)
+		}
+		assertNoMarkers(t, got)
+	}
+}
+
+// A forged marker naming an index a real link holds cannot claim that link's target: the only
+// region reported is the real link's own text.
+func TestForgedLinkMarkerInRangeCannotSpoofALink(t *testing.T) {
+	t.Parallel()
+	th := testTheme()
+	forged := linkOpenMarker(0) + "forged" + linkCloseMarker
+
+	got := Render(th, forged+" and [x](capcom-ui)", 100, knownIDs("capcom-ui"))
+
+	if len(got.Links) != 1 {
+		t.Fatalf("Links = %+v; want exactly the one real link", got.Links)
+	}
+	if got.Links[0].Target != "capcom-ui" {
+		t.Errorf("link target = %q; want capcom-ui", got.Links[0].Target)
+	}
+	if text := regionText(t, th, got, got.Links[0]); text != "x" {
+		t.Errorf("region text = %q; want the real link's text %q", text, "x")
+	}
+	if v := strip(got.Lines[0]); !strings.Contains(v, `\x1b_capcom-link:0\x1b\forged`) {
+		t.Errorf("visible = %q; want the forged marker shown as escaped text", v)
+	}
+	assertNoMarkers(t, got)
+}
+
+// stripLinkMarkers never trusts an open marker's index: one that is negative or past the targets
+// Render marked yields no link and no panic.
+func TestStripLinkMarkersIgnoresAnOutOfRangeIndex(t *testing.T) {
+	t.Parallel()
+	th := testTheme()
+	targets := []string{"capcom-ui"}
+	for _, index := range []int{-5, 3} {
+		line := "see " + linkOpenMarker(index) + "text" + linkCloseMarker + " here"
+
+		_, links := stripLinkMarkers(th, line, 0, targets)
+
+		if len(links) != 0 {
+			t.Errorf("index %d: links = %+v; want none", index, links)
 		}
 	}
 }

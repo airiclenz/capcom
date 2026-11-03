@@ -350,6 +350,31 @@ func TestPlainTextUnchanged(t *testing.T) {
 	}
 }
 
+// A control byte in the source reaches the output as visible \xHH text, never as itself, so a body
+// cannot drive the terminal: an OSC sequence that would set the window title shows as text.
+func TestRenderShowsSourceControlBytesAsText(t *testing.T) {
+	t.Parallel()
+
+	th := testTheme()
+	for _, tc := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"OSC title", "title \x1b]0;x\x07 here", `title \x1b]0;x\x07 here`},
+		{"C0, DEL and C1", "a\x00b\x7fc\u009bd", `a\x00b\x7fc\x9bd`},
+		{"carriage return", "a\rb", `a\x0db`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := Render(th, tc.in, 80, Options{}).Lines
+			if len(out) != 1 || out[0] != tc.want {
+				t.Errorf("Render(%q) = %#v; want the single line %q", tc.in, out, tc.want)
+			}
+		})
+	}
+}
+
 // Every rendered line stays within the content width, even when a bold span crosses a soft-wrap
 // boundary — the guarantee that baked-in ANSI never perturbs the wrap arithmetic. A table obeys
 // the same cap: its columns shrink and its cells truncate until the whole block fits.

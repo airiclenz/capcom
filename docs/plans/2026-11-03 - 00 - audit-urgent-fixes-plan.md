@@ -60,7 +60,7 @@ kept, plain and multi-byte text unchanged. The existing `internal/cli/output` te
 - `grep -rn 'sanitizeTerminal' internal/` prints nothing (every mention, comments included)
 **Commit:** `refactor(output): move the terminal sanitiser into internal/termsafe`
 
-## 2. A forged link marker in a body no longer crashes capcom ui
+## 2. A forged link marker in a body no longer crashes capcom ui — ✅ DONE (2026-11-03)
 
 **What:** fixes the `capcom ui` panic: a body holding `ESC _capcom-link:-5 ESC \` indexes
 `targets[-5]`, and a forged in-range index spoofs a followable link.

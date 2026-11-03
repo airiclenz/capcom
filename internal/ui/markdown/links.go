@@ -19,7 +19,10 @@ import (
 // copies verbatim. wrapText closes a link at the end of each line it spans and reopens it at the
 // start of the next, so every physical line carries complete pairs whatever is later composed
 // around it (a table's columns, a list's hang, a quote's bars). Render then reads each pair's
-// column and width off its finished line and strips the markers before returning.
+// column and width off its finished line and strips the markers before returning. Render escapes
+// every control byte of the source first, so a marker spelled out in a body reaches the scan as
+// visible text, never as a marker; the scan still reads a negative or out-of-range index as no
+// link rather than trusting it.
 
 // Marker spellings. An open marker carries the index of its target in linkSet.targets; the close
 // marker carries none, since links never nest.
@@ -182,7 +185,7 @@ func nextLinkMarker(s string, from int) (linkMarker, bool) {
 		return marker, true
 	}
 	index, err := strconv.Atoi(strings.TrimPrefix(payload, linkOpenPayload))
-	if err != nil || !strings.HasPrefix(payload, linkOpenPayload) {
+	if err != nil || index < 0 || !strings.HasPrefix(payload, linkOpenPayload) {
 		// Not a marker this package wrote; the scan resumes after it.
 		return nextLinkMarker(s, marker.end)
 	}
@@ -251,8 +254,8 @@ func stripLinkMarkers(th Theme, line string, lineIndex int, targets []string) (s
 			open, openAt = marker.target, b.Len()
 			continue
 		}
-		if open == noLink || open >= len(targets) {
-			continue
+		if open < 0 || open >= len(targets) {
+			continue // no link is open, or the open one names no target this Render marked
 		}
 		prefix := b.String()
 		if link, ok := linkRegion(th, prefix[:openAt], prefix[openAt:]); ok {

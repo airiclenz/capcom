@@ -21,6 +21,8 @@ package markdown
 
 import (
 	"strings"
+
+	"github.com/airiclenz/capcom/internal/termsafe"
 )
 
 // codeBlockIndent leads every line of a fenced code block.
@@ -47,12 +49,16 @@ const maxBlockIndent = 3
 // pipes ("- | -") as a bullet; a block that is no table, or one the width cannot fit, falls
 // through to the paragraph path. Runs of two or more blank lines outside code blocks are collapsed
 // to one first. Empty text yields one empty line and no links.
+//
+// The text is untrusted, so before anything else every control byte in it other than TAB and LF
+// is rewritten as visible \xHH text (termsafe.Escape): the output then holds no escape sequence
+// the source wrote, and no link marker but the ones Render itself writes (see links.go).
 func Render(th Theme, text string, width int, opts Options) Rendered {
 	if width < 1 {
 		width = 1
 	}
 	links := &linkSet{isID: opts.IsID}
-	lines := collapseBlankRuns(strings.Split(text, "\n"))
+	lines := collapseBlankRuns(strings.Split(termsafe.Escape(text), "\n"))
 	var out []string
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
