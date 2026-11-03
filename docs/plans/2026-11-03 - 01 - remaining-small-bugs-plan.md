@@ -40,7 +40,7 @@ after an agent timeout in the eval harness, and the doubled path in a `capcom mv
 - 3: guard folded, re-check round (runTask returns ctx.Err() after an interrupt and stop() restores
   the default signal; the sweep skips a nil `command.Process`; cancelled-parent shell-command test)
 
-## 1. Count an unsupported directory sync as success and fix the writeFileAtomic doc comment
+## 1. Count an unsupported directory sync as success and fix the writeFileAtomic doc comment — ✅ DONE (2026-11-03)
 
 **What:** Fixes `dir-sync-fails-write`: `WriteFileAtomic`, `WriteFileExclusive` and the other atomic
 writes return a `syncDir` error after the rename or link landed, so a caller sees a failure for a

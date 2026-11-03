@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
@@ -416,6 +417,61 @@ func dirEntries(t *testing.T, dir string) []string {
 		names = append(names, entry.Name())
 	}
 	return names
+}
+
+// syncWrites are the two writes that sync the directory once the file is in place: the atomic
+// replace and the exclusive create.
+var syncWrites = []struct {
+	name  string
+	write func(path string, content io.Reader) error
+}{
+	{"WriteFileAtomic", nodefile.WriteFileAtomic},
+	{"WriteFileExclusive", nodefile.WriteFileExclusive},
+}
+
+func TestSyncWrites_DirectorySyncUnsupported_SucceedWithFileInPlace(t *testing.T) {
+	for _, errno := range []syscall.Errno{syscall.EINVAL, syscall.ENOTSUP, syscall.EOPNOTSUPP} {
+		for _, write := range syncWrites {
+			t.Run(write.name+"/"+errno.Error(), func(t *testing.T) {
+				nodefile.SetSyncDir(t, func(dir string) error {
+					return &fs.PathError{Op: "sync", Path: dir, Err: errno}
+				})
+				path := filepath.Join(t.TempDir(), "login-flow.md")
+
+				err := write.write(path, strings.NewReader("new\ncontent\n"))
+
+				if err != nil {
+					t.Fatalf("%s = %v, want nil for an unsupported directory sync", write.name, err)
+				}
+				if got, _ := os.ReadFile(path); string(got) != "new\ncontent\n" {
+					t.Fatalf("content = %q, want the new content", got)
+				}
+			})
+		}
+	}
+}
+
+func TestSyncWrites_DirectorySyncFails_ErrNotSyncedNamingPathWithFileInPlace(t *testing.T) {
+	for _, write := range syncWrites {
+		t.Run(write.name, func(t *testing.T) {
+			nodefile.SetSyncDir(t, func(dir string) error {
+				return &fs.PathError{Op: "sync", Path: dir, Err: syscall.EIO}
+			})
+			path := filepath.Join(t.TempDir(), "login-flow.md")
+
+			err := write.write(path, strings.NewReader("new\ncontent\n"))
+
+			if !errors.Is(err, nodefile.ErrNotSynced) || !errors.Is(err, syscall.EIO) {
+				t.Fatalf("%s = %v, want ErrNotSynced wrapping EIO", write.name, err)
+			}
+			if !strings.HasPrefix(err.Error(), path+": ") {
+				t.Fatalf("error %q does not start with %s", err, path)
+			}
+			if got, _ := os.ReadFile(path); string(got) != "new\ncontent\n" {
+				t.Fatalf("content = %q, want the new content", got)
+			}
+		})
+	}
 }
 
 func TestWriteFileAtomic_Success_ReplacesFileAndLeavesNoTempFile(t *testing.T) {

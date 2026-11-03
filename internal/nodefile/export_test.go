@@ -37,3 +37,13 @@ func SetNoReplaceRename(
 	}
 	t.Cleanup(func() { renameNoReplace = saved })
 }
+
+// SetSyncDir replaces the directory fsync the atomic writes run once the file is in place, until t
+// ends, so a test can force a sync failure. It swaps a package variable: a test that calls it
+// never runs in parallel.
+func SetSyncDir(t *testing.T, fn func(dir string) error) {
+	t.Helper()
+	saved := syncDirectory
+	syncDirectory = fn
+	t.Cleanup(func() { syncDirectory = saved })
+}

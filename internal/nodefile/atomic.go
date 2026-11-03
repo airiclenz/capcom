@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 )
 
 // Permissions of the files and directories WriteFileAtomic and WriteFileExclusive create.
@@ -20,6 +21,15 @@ const hiddenPrefix = "."
 
 // tempPattern names a temp file `.<file name>.tmp-<random>`, which Load skips as a dotfile.
 const tempPattern = hiddenPrefix + "%s.tmp-*"
+
+// ErrNotSynced marks a write whose file is in place under its path but whose directory could not
+// be fsynced afterwards, so the new name may not survive a crash. A directory sync the file system
+// does not support (EINVAL, ENOTSUP, EOPNOTSUPP) is skipped and never reported with it.
+var ErrNotSynced = errors.New("written, but syncing the directory failed")
+
+// syncDirectory is the directory fsync syncWrittenDir runs after a write lands; a test swaps it to
+// force a sync failure.
+var syncDirectory = syncDir
 
 // link is the hard link placeExclusive names the written file with; a test swaps it to force the
 // no-replace rename.
@@ -52,7 +62,8 @@ func SwapLink(fn func(oldPath string, newPath string) error) (restore func()) {
 // directory (off Windows). On Windows, where a reader holding path open blocks the rename, the
 // rename is tried up to five times over about 150 ms before its last error is returned. Readers
 // see either the old file or the whole new one; on any failure the temp file is removed and the
-// old file is left intact. Errors name path.
+// old file is left intact. A directory sync the file system does not support is skipped; any other
+// sync failure comes after the new file is in place and wraps ErrNotSynced. Errors name path.
 func WriteFileAtomic(path string, content io.Reader) error {
 	return writeFileAtomic(path, content, true, filePermissions, false)
 }
@@ -99,9 +110,10 @@ func ReplaceFileVerbatim(path string, content io.Reader) error {
 // or the file system refuses it for any reason but an existing path does it copy the temp file
 // into path opened with O_CREATE|O_EXCL; there a reader can see the file part-written, and a crash
 // can leave it so. When path already exists it fails with an error wrapping fs.ErrExist and
-// leaves that file as it was; on any failure the temp file is removed. Errors name path.
+// leaves that file as it was; on any failure the temp file is removed. A directory sync the file
+// system does not support is skipped; any other sync failure comes after the file is in place and
+// wraps ErrNotSynced, so a retry would fail with fs.ErrExist. Errors name path.
 func WriteFileExclusive(path string, content io.Reader) error {
-	dir := filepath.Dir(path)
 	temp, err := writeTemp(path, content, true, filePermissions, true)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
@@ -118,18 +130,16 @@ func WriteFileExclusive(path string, content io.Reader) error {
 	if removeErr != nil {
 		return fmt.Errorf("%s: written, but removing the temp file: %w", path, removeErr)
 	}
-	if err := syncDir(dir); err != nil {
-		return fmt.Errorf("%s: syncing directory: %w", path, err)
-	}
-	return nil
+	return syncWrittenDir(path)
 }
 
-// writeFileAtomic is the atomic write of WriteFileAtomic, WriteFileAtomicVerbatim and
-// ReplaceFileAtomic: it converts CRLF to LF when isConvertingCRLF and gives the file permissions
-// perm. It renames through replaceRename, which retries on Windows while a reader holds path.
+// writeFileAtomic is the atomic write of WriteFileAtomic, WriteFileAtomicVerbatim,
+// ReplaceFileAtomic and ReplaceFileVerbatim: it converts CRLF to LF when isConvertingCRLF and
+// gives the file permissions perm. It renames through replaceRename, which retries on Windows while a reader holds path.
 // When isReplacing it creates no directory and renames only over a file still at path, checked
 // before the rename and every retry, failing with a *fs.PathError (Op "replace") wrapping
-// fs.ErrNotExist when path is gone.
+// fs.ErrNotExist when path is gone. Once the rename lands it syncs the directory through
+// syncWrittenDir, which skips an unsupported sync and wraps any other failure in ErrNotSynced.
 func writeFileAtomic(
 	path string,
 	content io.Reader,
@@ -137,7 +147,6 @@ func writeFileAtomic(
 	perm fs.FileMode,
 	isReplacing bool,
 ) error {
-	dir := filepath.Dir(path)
 	temp, err := writeTemp(path, content, isConvertingCRLF, perm, !isReplacing)
 	if err != nil {
 		return fmt.Errorf("%s: %w", path, err)
@@ -152,10 +161,26 @@ func writeFileAtomic(
 		removeErr := os.Remove(temp)
 		return joinNonNil(err, removeErr)
 	}
-	if err := syncDir(dir); err != nil {
-		return fmt.Errorf("%s: syncing directory: %w", path, err)
+	return syncWrittenDir(path)
+}
+
+// syncWrittenDir fsyncs the directory of path, a file a write has just put in place. A sync the
+// file system does not support (EINVAL, ENOTSUP, EOPNOTSUPP) counts as done, since the write has
+// landed; any other failure is returned naming path and wrapping both ErrNotSynced and the sync
+// error.
+func syncWrittenDir(path string) error {
+	err := syncDirectory(filepath.Dir(path))
+	if err == nil || isSyncUnsupported(err) {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("%s: %w: %w", path, ErrNotSynced, err)
+}
+
+// isSyncUnsupported reports whether err says the file system cannot fsync a directory at all.
+func isSyncUnsupported(err error) bool {
+	return errors.Is(err, syscall.EINVAL) ||
+		errors.Is(err, syscall.ENOTSUP) ||
+		errors.Is(err, syscall.EOPNOTSUPP)
 }
 
 // checkReplaceTarget fails with a *fs.PathError (Op "replace") naming path that wraps
