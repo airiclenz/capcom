@@ -39,7 +39,7 @@
 //
 //   - `agent.go` — the agent verb: a minimal chat completions loop with one shell tool
 //   - `agent_other.go` — the shell and the process kills outside Unix: cmd /C, the one process alone
-//   - `agent_unix.go` — the shell and the process kills on Unix: sh -c, the whole process group
+//   - `agent_unix.go` — the shell and the process kills on Unix: sh -c, the whole process group and the loop's group ledger
 //   - `doc.go` — the package comment and this file map
 //   - `main.go` — main, the shim-or-command dispatch, the root command and the exit codes
 //   - `report.go` — renders a run's task results as the markdown report

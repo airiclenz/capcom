@@ -320,7 +320,10 @@ func (l agentLoop) runToolCall(ctx context.Context, call toolCall) string {
 // runShellCommand runs command through the platform's shell in dir with empty stdin, and returns
 // its combined output, cut to shellOutputLimit, followed by a line giving its exit code. At timeout
 // the command is killed, on Unix with every process it started, and its output pipe is waited on
-// for at most shellWaitDelay more, so a child left holding the pipe cannot stall the turn.
+// for at most shellWaitDelay more, so a child left holding the pipe cannot stall the turn. On Unix
+// the command's process group is recorded in the ledger AGENTEVAL_PROCESS_GROUPS names, when it is
+// set, so the harness can kill a group this loop leaves behind; a failure to record it is a line
+// of the output, never the command's failure.
 func runShellCommand(ctx context.Context, dir, command string, timeout time.Duration) string {
 	timed, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -331,9 +334,20 @@ func runShellCommand(ctx context.Context, dir, command string, timeout time.Dura
 	process.Stdout, process.Stderr = output, output
 	process.WaitDelay = shellWaitDelay
 	isolateProcessGroup(process)
+	ledger := processGroupLedger(os.Getenv(processGroupsVariable))
 
-	err := process.Run()
+	var ledgerErr error
+	err := process.Start()
+	if err == nil {
+		ledgerErr = ledger.recordStarted(process.Process.Pid)
+		err = process.Wait()
+		ledgerErr = errors.Join(ledgerErr, ledger.recordEnded(process.Process.Pid))
+	}
 
+	var note string
+	if ledgerErr != nil {
+		note = fmt.Sprintf("agenteval: %v\n", ledgerErr)
+	}
 	var status string
 	switch {
 	case errors.Is(timed.Err(), context.DeadlineExceeded):
@@ -343,7 +357,7 @@ func runShellCommand(ctx context.Context, dir, command string, timeout time.Dura
 	default:
 		status = fmt.Sprintf("[could not run: %v]", err)
 	}
-	return output.String() + status
+	return output.String() + note + status
 }
 
 // cappedBuffer keeps the first limit bytes written to it and counts the rest, so a command's

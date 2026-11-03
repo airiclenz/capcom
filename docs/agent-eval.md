@@ -93,7 +93,11 @@ reads the repo's `.capcom/` files, the Tree lock state under the git directory a
 log. A task whose agent runs past `--timeout` is killed and fails as timed out, whatever it got
 done. On Unix the agent runs in a process group of its own: a timeout sends the group SIGTERM, and
 once the agent has returned, timed out or not, whatever it left running is killed, so nothing it
-started outlives its workspace. Ctrl-C (or SIGTERM) stops the agent the same way and ends the run
+started outlives its workspace. That reaches past the agent's group to the shell commands an
+`agenteval agent` loop started, each in a group of its own: the harness names a ledger file in
+`AGENTEVAL_PROCESS_GROUPS` (outside the repo), the loop lists each command's group there, and the
+harness kills every listed group still running, even when the loop ignored SIGTERM. Another agent,
+such as `claude -p`, gets the variable too but lists nothing, so only its own group is killed. Ctrl-C (or SIGTERM) stops the agent the same way and ends the run
 without judging that task or writing a report; a second Ctrl-C kills the harness at once. An agent that ends with a non-zero exit, or is killed, gets a line saying so at the end of
 its transcript; its exit status never judges the task.
 

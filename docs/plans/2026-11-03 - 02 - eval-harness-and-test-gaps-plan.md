@@ -55,7 +55,12 @@
 **Closes:** agenteval-cancel-error-wording
 **Commit:** `fix(agenteval): report a cancelled run as cancelled when its agent exits cleanly`
 
-## 2. The sweep kills the shell groups the agent loop started
+## 2. The sweep kills the shell groups the agent loop started — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): the CHANGELOG text above is an AMENDMENT, not a new entry: it replaces the existing `## [Unreleased]` line beginning "agenteval no longer leaves an agent's processes running" (CHANGELOG.md line 19), adding the ledger sweep; the CHANGELOG file itself is untouched.
+NOTES (2026-11-03): the wait-delay seam is a `waitDelay` field on `workspace` (zero keeps `agentWaitDelay`); `agentWaitDelay` stays a const. runAgent creates the ledger as `<workspace root>/process-groups`, and a ledger it cannot create is an error before the agent starts (runAgent doc comment says so).
+NOTES (2026-11-03): runShellCommand keeps its signature and reads the ledger path from the env; it now calls Start then Wait instead of Run so the group is recorded between them. Ledger read/append and the ended-group probe live in agent_unix.go (a `processGroupLedger` type); agent_other.go carries no-op methods. The sweep's skip rules are tested on `liveGroups` directly, so a broken guard can never SIGKILL pgid 0, 1 or the test's own group.
+NOTES (2026-11-03): consequential edit — cmd/agenteval/doc.go: made necessary by agent_unix.go now holding the group ledger (its file-map line names it).
 
 **What:** fix: when an `agenteval agent` loop outlives `agentWaitDelay` after the group SIGTERM, its shell commands (each in its own process group via `isolateProcessGroup`) survive the sweep of the agent's group and outlive the workspace (issue `agenteval-sweep-misses-groups`). Binding (ratified): a group ledger file.
 **Regression guard.** The sweep skips any pgid `<= 1` and the harness's own `syscall.Getpgrp()`, and counts a ledger line only when it ends in `\n` (a torn tail is skipped); the env var reaches every agent (`os.Environ()`), `claude -p` included.

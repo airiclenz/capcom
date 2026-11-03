@@ -20,6 +20,10 @@ const (
 	callLogVariable = "AGENTEVAL_CALL_LOG"
 )
 
+// processGroupsVariable names the process group ledger the harness hands every agent, where an
+// agenteval agent loop lists the groups of the shell commands it starts, for the harness's sweep.
+const processGroupsVariable = "AGENTEVAL_PROCESS_GROUPS"
+
 // windowsExecutableSuffix is the suffix every executable carries on Windows; programName strips
 // it so the shim answers to capcom and capcom.exe alike.
 const windowsExecutableSuffix = ".exe"

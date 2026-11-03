@@ -461,6 +461,92 @@ func TestAgentShell_ACancelledParentKillsTheBackgroundChild(t *testing.T) {
 	waitUntilGone(t, pidFile)
 }
 
+func TestAgentShell_RecordsItsProcessGroupInTheLedger(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process groups are recorded on Unix only")
+	}
+	tests := []struct {
+		name        string
+		command     string
+		wantIsEnded bool
+	}{
+		{name: "a command that ends with its group", command: "exit 0", wantIsEnded: true},
+		{
+			name:    "a command that leaves a background job in its group",
+			command: "sleep 300 > /dev/null 2>&1 & echo $! > child.pid",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			ledger := filepath.Join(dir, "process-groups")
+			t.Setenv(processGroupsVariable, ledger)
+			t.Cleanup(func() { killChildIfStarted(t, filepath.Join(dir, "child.pid")) })
+
+			result := runShellCommand(context.Background(), dir, test.command, shellTimeout)
+
+			text, err := os.ReadFile(ledger)
+			if err != nil {
+				t.Fatalf("read the ledger: %v (result %q)", err, result)
+			}
+			lines := strings.Split(strings.TrimSuffix(string(text), "\n"), "\n")
+			pgid, err := strconv.Atoi(lines[0])
+			if err != nil || pgid <= 1 {
+				t.Fatalf("ledger = %q, want a pgid on its first line", text)
+			}
+			want := []string{lines[0]}
+			if test.wantIsEnded {
+				want = append(want, "-"+lines[0])
+			}
+			if strings.Join(lines, "\n") != strings.Join(want, "\n") {
+				t.Errorf("ledger = %q, want the lines %q", text, want)
+			}
+		})
+	}
+}
+
+func TestAgentShell_ALedgerItCannotWriteIsALineOfTheOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process groups are recorded on Unix only")
+	}
+	dir := t.TempDir()
+	t.Setenv(processGroupsVariable, filepath.Join(dir, "missing", "process-groups"))
+
+	result := runShellCommand(context.Background(), dir, "exit 0", shellTimeout)
+
+	if !strings.Contains(result, "agenteval: record the process group") || !strings.Contains(result, "[exit code 0]") {
+		t.Errorf("result = %q, want the ledger failure noted and the exit code 0", result)
+	}
+}
+
+// killChildIfStarted kills the process whose pid a test command wrote to pidFile, when it wrote
+// one, so a background job the test leaves running dies with the test.
+func killChildIfStarted(t *testing.T, pidFile string) {
+	t.Helper()
+	text, err := os.ReadFile(pidFile)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		t.Errorf("read the child's pid: %v", err)
+		return
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(text)))
+	if err != nil {
+		t.Errorf("parse the child's pid %q: %v", text, err)
+		return
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		t.Errorf("find the child %d: %v", pid, err)
+		return
+	}
+	defer process.Release()
+	if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		t.Errorf("kill the child %d: %v", pid, err)
+	}
+}
+
 func TestAgentOutput_KeepsTheLimitAndCountsTheRest(t *testing.T) {
 	buffer := &cappedBuffer{limit: 4}
 

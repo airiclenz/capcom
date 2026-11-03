@@ -21,11 +21,12 @@ const (
 	seedUserEmail = "agenteval@example.invalid"
 )
 
-// The layout of a task's workspace: the seeded repo the agent works in, and the directory put
-// first on the agent's PATH, holding the shim.
+// The layout of a task's workspace: the seeded repo the agent works in, the directory put first
+// on the agent's PATH, holding the shim, and the process group ledger, outside the repo.
 const (
-	workspaceRepoDir = "repo"
-	workspaceBinDir  = "bin"
+	workspaceRepoDir           = "repo"
+	workspaceBinDir            = "bin"
+	workspaceProcessGroupsFile = "process-groups"
 )
 
 // The permissions the workspace's directories and its shim copy are created with.
@@ -34,16 +35,21 @@ const (
 	shimFileMode     = 0o755
 )
 
+// processGroupsFileMode is the permission the process group ledger is created with.
+const processGroupsFileMode = 0o644
+
 // agentWaitDelay bounds how long the harness waits for the agent's process to be gone after it
 // was killed at the timeout, so an agent whose child ignores the kill cannot hang the run.
 const agentWaitDelay = 5 * time.Second
 
 // workspace is one task's throwaway directory: a git repo seeded with the task's starting state,
-// and a bin directory holding the shim.
+// and a bin directory holding the shim. waitDelay, when set, replaces agentWaitDelay, so a test
+// need not wait the full delay out.
 type workspace struct {
-	root   string
-	repo   string
-	binDir string
+	root      string
+	repo      string
+	binDir    string
+	waitDelay time.Duration
 }
 
 // agentRun is how one agent run ended: how long the agent ran, and whether it was killed at the
@@ -124,8 +130,10 @@ func (w workspace) remove() error {
 // written to transcript, the shim first on its PATH, and the shim pointed at the build at
 // capcomPath and the call log at callLogPath. The agent is stopped when it runs past timeout or
 // ctx is cancelled, and on Unix every process it started is killed before runAgent returns, so
-// none outlives the workspace. Its exit status is noted at the end of the transcript and never
-// judges the task; only an agent that cannot be started is an error.
+// none outlives the workspace: those in its process group, and those in the groups an agenteval
+// agent loop listed in the process group ledger, which AGENTEVAL_PROCESS_GROUPS names to every
+// agent. Its exit status is noted at the end of the transcript and never judges the task; only an
+// agent that cannot be started, or a ledger that cannot be created, is an error.
 func (w workspace) runAgent(
 	ctx context.Context,
 	agentArgv []string,
@@ -140,11 +148,19 @@ func (w workspace) runAgent(
 	command.Stdin = strings.NewReader(prompt)
 	command.Stdout, command.Stderr = transcript, transcript
 	command.WaitDelay = agentWaitDelay
-	sweep := isolateAgentProcessGroup(command)
+	if w.waitDelay > 0 {
+		command.WaitDelay = w.waitDelay
+	}
+	ledgerPath := filepath.Join(w.root, workspaceProcessGroupsFile)
+	if err := os.WriteFile(ledgerPath, nil, processGroupsFileMode); err != nil {
+		return agentRun{}, fmt.Errorf("create the process group ledger: %w", err)
+	}
+	sweep := isolateAgentProcessGroup(command, processGroupLedger(ledgerPath))
 	command.Env = append(os.Environ(),
 		"PATH="+w.binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		capcomVariable+"="+capcomPath,
 		callLogVariable+"="+callLogPath,
+		processGroupsVariable+"="+ledgerPath,
 	)
 
 	started := time.Now()
