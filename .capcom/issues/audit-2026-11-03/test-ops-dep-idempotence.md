@@ -1,10 +1,12 @@
 ---
 title: Dependency idempotence and alias matching are untested in ops
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T11:42:19Z
+reason: "Resolved by plan '2026-11-03 - 02 - eval-harness-and-test-gaps-plan' (archived in e1a1506) item 9: AddDep never duplicates a dep the file names; tests cover idempotence, alias matching and a stale Catalog."
 ---
 
 In `internal/ops/deps.go:46-77`, AddDep's no-op for a dep already present and RemoveDep's

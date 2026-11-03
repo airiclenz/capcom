@@ -1,10 +1,12 @@
 ---
 title: The real clipboard runner and its timeout are never exercised
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T11:42:19Z
+reason: "Resolved by plan '2026-11-03 - 02 - eval-harness-and-test-gaps-plan' (archived in e1a1506) item 6: tests exercise the real runner (stdin, non-zero exit) and a shortened Writer.Timeout kill."
 ---
 
 `runProgram` (`internal/clipboard/clipboard.go:216`), the only production runner, and its 2 s

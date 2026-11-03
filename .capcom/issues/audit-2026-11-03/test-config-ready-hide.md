@@ -1,10 +1,12 @@
 ---
 title: ready.hide and duplicate-key config handling are untested
-status: open
+status: done
 type: task
 priority: 3
 plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T11:42:19Z
+reason: "Resolved by plan '2026-11-03 - 02 - eval-harness-and-test-gaps-plan' (archived in e1a1506) item 7: tests cover ready.hide loading, invalid hide/ready entries and duplicate top-level keys."
 ---
 
 No test in `internal/config` sets a non-empty `hide` list, an unknown `ready.*` key, a non-list

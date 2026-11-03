@@ -1,10 +1,12 @@
 ---
 title: An agent timeout in the eval harness leaves its children running
-status: open
+status: done
 type: bug
 priority: 3
 plan: 2026-11-03 - 02 - eval-harness-and-test-gaps-plan
 created: 2026-11-03T08:23:42Z
+closed: 2026-11-03T11:42:19Z
+reason: Resolved by plan '2026-11-03 - 02 - eval-harness-and-test-gaps-plan' (archived in e1a1506) items 1-3, which closed the remaining gaps (cancel wording, ledger sweep of agent-loop groups, signal-wiring tests).
 ---
 
 The harness kills a timed-out agent with plain `exec.CommandContext`
