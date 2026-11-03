@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-03
+
 - `capcom ui` no longer crashes on an issue or Note body holding a forged link marker, and such a marker can no longer pass itself off as a followable link. Control bytes in a body (escape sequences such as one setting the window title) now show in the detail pane as visible `\xHH` text, as `capcom show` already prints them.
 - `capcom ui` drew a control byte in an issue or Note title, a Tree lock's holder or purpose, or an error notice raw, so a crafted title or lock record could act on the terminal. Its rows, prompts and status bar now show each such byte as visible `\xHH` text, as `capcom show` does.
 - `capcom mv <id> --parent <parent>` and creating a child of `<parent>` no longer write through a parent's children path that is a symlink (or a file) beside its node file, which could land the node outside the repository. They now fail naming that path (`.capcom/issues/<parent>: children directory of <parent> is not a real directory`) and write nothing.
