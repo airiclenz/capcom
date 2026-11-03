@@ -182,7 +182,7 @@ message; the default `plans` list still loads.
 **Closes:** config-plans-local-path
 **Commit:** `fix(config): require plans entries to be paths inside the repository`
 
-## 6. Count only the maintainer's own winget pull requests
+## 6. Count only the maintainer's own winget pull requests — ✅ DONE (2026-11-03)
 
 **What:** fixes `probeWinget` counting any open winget-pkgs pull request with a matching title
 as the release's submission, so a stranger's PR makes publish skip the winget step.

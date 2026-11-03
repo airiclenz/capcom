@@ -152,9 +152,10 @@ func (c memChannelRepos) ListDirs(_ context.Context, repo, path string) ([]strin
 	return slices.Clone(dirs), isFound, nil
 }
 
-// OpenPulls returns every open pull request the repository holds, whatever the query: the
-// probes judge each pull request's title themselves, as they must of the viewer's pull requests
-// the production adapter adds unsearched.
+// OpenPulls returns every open pull request the repository holds, whatever the query and whoever
+// authored it: the author filter lives in the production adapter, and the probes judge each pull
+// request's title themselves, as they must of the viewer's pull requests that adapter adds
+// unsearched.
 func (c memChannelRepos) OpenPulls(_ context.Context, repo, _ string) ([]pullRequest, error) {
 	if err := c.read(methodOpenPulls, repo); err != nil {
 		return nil, err

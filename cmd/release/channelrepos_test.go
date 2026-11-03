@@ -75,15 +75,15 @@ func TestExecChannelReposRunsEachMethodsArgv(t *testing.T) {
 }
 
 // TestExecChannelReposOpenPullsReadsTheViewersPullsBesideTheSearch pins OpenPulls' two gh
-// calls — the search listing, then the signed-in account's open pull requests through GraphQL,
-// which does not wait on the search index — and how it merges them: the viewer's pull requests in
-// the repository alone, each pull request once.
+// calls — the search listing of the signed-in account's own pull requests, then its open pull
+// requests through GraphQL, which does not wait on the search index — and how it merges them: the
+// viewer's pull requests in the repository alone, each pull request once.
 func TestExecChannelReposOpenPullsReadsTheViewersPullsBesideTheSearch(t *testing.T) {
 	t.Parallel()
 
 	wantCalls := []recordedCall{
 		{dir: "/work", name: "gh", args: []string{"pr", "list", "--repo", "microsoft/winget-pkgs", "--state", "open",
-			"--search", "AiricLenz.Capcom 0.24.11 in:title", "--json", "number,title,url"}},
+			"--author", "@me", "--search", "AiricLenz.Capcom 0.24.11 in:title", "--json", "number,title,url"}},
 		{dir: "/work", env: nonInteractiveEnv, name: "gh", args: []string{"api", "graphql", "-f",
 			"query=query { viewer { pullRequests(states: OPEN, first: 100, orderBy: {field: CREATED_AT, direction: DESC}) " +
 				"{ nodes { number title url repository { nameWithOwner } } } } }"}},

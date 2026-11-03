@@ -28,9 +28,10 @@ type channelRepos interface {
 	// default branch, and whether path is there to list: false for a missing path, repository or
 	// commit.
 	ListDirs(ctx context.Context, repo, path string) ([]string, bool, error)
-	// OpenPulls returns the repository's open pull requests that a GitHub search for query finds,
-	// together with the open ones the signed-in account authored there, read without the search
-	// index — which lags behind a pull request just opened — each pull request once.
+	// OpenPulls returns the signed-in account's open pull requests in the repository: those a
+	// GitHub search for query finds among the ones it authored, together with every open one it
+	// authored there, read without the search index — which lags behind a pull request just
+	// opened — each pull request once. A pull request another account opened is never among them.
 	OpenPulls(ctx context.Context, repo, query string) ([]pullRequest, error)
 	// PublishFile writes content to the file at path in the repository's branch and, only when
 	// that changes the file, commits it with subject and pushes the commit straight to the branch
@@ -142,8 +143,9 @@ func (r execChannelRepos) ListDirs(ctx context.Context, repo, path string) ([]st
 const viewerOpenPullsQuery = "query { viewer { pullRequests(states: OPEN, first: 100, " +
 	"orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number title url repository { nameWithOwner } } } } }"
 
-// OpenPulls merges what `gh pr list --search` finds with the signed-in account's open pull
-// requests in the repository, which a GraphQL query on the viewer reads without the search index.
+// OpenPulls merges what `gh pr list --author @me --search` finds with the signed-in account's open
+// pull requests in the repository, which a GraphQL query on the viewer reads without the search
+// index; both read the account's own pull requests alone.
 func (r execChannelRepos) OpenPulls(ctx context.Context, repo, query string) ([]pullRequest, error) {
 	pulls, err := r.searchPulls(ctx, repo, query)
 	if err != nil {
@@ -161,9 +163,10 @@ func (r execChannelRepos) OpenPulls(ctx context.Context, repo, query string) ([]
 	return pulls, nil
 }
 
-// searchPulls lists the open pull requests a GitHub search for query finds, with `gh pr list`.
+// searchPulls lists the open pull requests the signed-in account authored that a GitHub search for
+// query finds, with `gh pr list --author @me`: anyone may open a pull request with a matching title.
 func (r execChannelRepos) searchPulls(ctx context.Context, repo, query string) ([]pullRequest, error) {
-	output, err := r.gh(ctx, "pr", "list", "--repo", repo, "--state", "open",
+	output, err := r.gh(ctx, "pr", "list", "--repo", repo, "--state", "open", "--author", "@me",
 		"--search", query, "--json", "number,title,url")
 	if err != nil {
 		return nil, err
