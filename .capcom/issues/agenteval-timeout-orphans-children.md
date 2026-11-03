@@ -3,6 +3,7 @@ title: An agent timeout in the eval harness leaves its children running
 status: open
 type: bug
 priority: 3
+plan: 2026-11-03 - 01 - remaining-small-bugs-plan
 created: 2026-11-03T08:23:42Z
 ---
 

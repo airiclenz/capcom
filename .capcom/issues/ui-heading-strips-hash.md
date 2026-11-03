@@ -3,6 +3,7 @@ title: The UI heading renderer strips the author's leading hash
 status: open
 type: bug
 priority: 3
+plan: 2026-11-03 - 01 - remaining-small-bugs-plan
 created: 2026-11-03T08:23:42Z
 ---
 
