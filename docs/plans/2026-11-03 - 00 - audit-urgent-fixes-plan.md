@@ -34,7 +34,7 @@ shares their helper, so that repository text cannot crash, spoof or escape capco
 - 6: guard folded
 - 8: guard folded
 
-## 1. Move the terminal sanitiser into a shared package
+## 1. Move the terminal sanitiser into a shared package — ✅ DONE (2026-11-03)
 
 **What:**
 **Goal:** a package `internal/termsafe` exports `Escape(text string) string`, which rewrites C0

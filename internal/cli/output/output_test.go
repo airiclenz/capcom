@@ -301,33 +301,6 @@ func TestRenderError_EmptyHintLists_RenderAsWithout(t *testing.T) {
 	}
 }
 
-func TestSanitizeTerminal_EscapesControlsOnly(t *testing.T) {
-	cases := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{"escape", "a\x1b[2Jb", `a\x1b[2Jb`},
-		{"bell", "a\ab", `a\x07b`},
-		{"carriage return", "a\rb", `a\x0db`},
-		{"delete", "a\x7fb", `a\x7fb`},
-		{"C1 control U+009B", "a\u009bb", `a\x9bb`},
-		{"lone byte 0x9b", "a\x9bb", `a\x9bb`},
-		{"tab and line feed", "a\tb\nc", "a\tb\nc"},
-		{"accented letter", "café", "café"},
-		{"plain text", "Login flow", "Login flow"},
-	}
-	for _, current := range cases {
-		t.Run(current.name, func(t *testing.T) {
-			got := sanitizeTerminal(current.input)
-
-			if got != current.want {
-				t.Errorf("sanitizeTerminal(%q) = %q, want %q", current.input, got, current.want)
-			}
-		})
-	}
-}
-
 // controlInput carries ESC (a screen clear), a lone byte 0x9b, the C1 control U+009B and BEL,
 // then the TAB and LF that text output keeps.
 const (
