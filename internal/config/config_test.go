@@ -102,6 +102,20 @@ func TestParse_PartialConfig_KeepsDefaultsForMissingKeys(t *testing.T) {
 	}
 }
 
+func TestParse_ReadyHide_LoadsTheListedLabels(t *testing.T) {
+	t.Parallel()
+	content := "ready:\n  hide: [wip, blocked]\n"
+
+	config, err := Parse(testPath, []byte(content))
+
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if want := []string{"wip", "blocked"}; !reflect.DeepEqual(config.Ready.Hide, want) {
+		t.Errorf("ready.hide = %q, want %q", config.Ready.Hide, want)
+	}
+}
+
 func TestParse_Format_MissingOrOneLoads(t *testing.T) {
 	t.Parallel()
 	for _, content := range []string{"types: [bug]\n", "format: 1\ntypes: [bug]\n"} {
@@ -382,6 +396,10 @@ func TestParse_InvalidConfig_FailsWithPathAndLine(t *testing.T) {
 		{"block file with a backslash", "format: 6\nagents:\n  file: 'docs\\AI.md'\n", 3},
 		{"block file not a scalar", "format: 6\nagents:\n  file: [AI.md]\n", 3},
 		{"empty block file", "format: 6\nagents:\n  file: ''\n", 3},
+		{"ready.hide not a list", "ready:\n  hide: wip\n", 2},
+		{"unknown ready key", "ready:\n  other: x\n", 2},
+		{"empty ready.hide entry", "ready:\n  hide: [\"\"]\n", 2},
+		{"duplicate top-level key", "types: [bug]\ntypes: [task]\n", 2},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

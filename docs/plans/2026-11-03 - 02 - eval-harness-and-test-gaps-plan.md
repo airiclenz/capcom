@@ -156,7 +156,7 @@ Prefer a `Writer` field for the timeout (zero means `runTimeout`), matching "Eve
 **Closes:** test-clipboard-real-runner
 **Commit:** `test(clipboard): exercise the real runner and its timeout`
 
-## 7. Test ready.hide and duplicate-key config handling
+## 7. Test ready.hide and duplicate-key config handling — ✅ DONE (2026-11-03)
 
 **What:** no `internal/config` test sets a non-empty `hide`, an unknown `ready.*` key, a non-list or empty-string `hide` entry, or a duplicate top-level key.
 **Goal:** a load case `ready:\n  hide: [wip, blocked]` yields `Ready.Hide == [wip blocked]`; invalid-config rows for `ready:\n  hide: wip`, `ready:\n  other: x`, `ready:\n  hide: [""]` and `types: [bug]\ntypes: [task]` each fail naming the offending line.
