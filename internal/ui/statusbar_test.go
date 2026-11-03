@@ -341,3 +341,23 @@ func TestStatusBar_LayoutButton_PaintedInTheLayoutButtonRole(t *testing.T) {
 		})
 	}
 }
+
+func TestOneLine_ControlBytes_EscapedAndLineBreaksCollapsed(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want string
+	}{
+		{name: "ESC", text: "a\x1b[2Jb", want: `a\x1b[2Jb`},
+		{name: "BEL", text: "ring\x07", want: `ring\x07`},
+		{name: "CR", text: "one\rtwo", want: "one two"},
+		{name: "plain lines", text: "  one\n two  ", want: "one two"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := oneLine(testCase.text); got != testCase.want {
+				t.Errorf("oneLine(%q) = %q, want %q", testCase.text, got, testCase.want)
+			}
+		})
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/lock"
 	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/termsafe"
 )
 
 // The status bar's texts.
@@ -94,7 +95,7 @@ func lockText(overview lock.Overview, err error, now time.Time) string {
 	heartbeat := lock.AgeText(now.Sub(record.Heartbeat))
 	switch overview.State {
 	case lock.StateHeld:
-		return fmt.Sprintf("%sheld by %s: %s (heartbeat %s ago)", lockPrefix, record.Holder, oneLine(record.Purpose), heartbeat)
+		return fmt.Sprintf("%sheld by %s: %s (heartbeat %s ago)", lockPrefix, oneLine(record.Holder), oneLine(record.Purpose), heartbeat)
 	case lock.StateStale:
 		return fmt.Sprintf("%sstale: %s (heartbeat %s ago)", lockPrefix, oneLine(record.Purpose), heartbeat)
 	default:
@@ -102,9 +103,12 @@ func lockText(overview lock.Overview, err error, now time.Time) string {
 	}
 }
 
-// oneLine joins text's lines and runs of spaces into single spaces, for the one-row status bar.
+// oneLine joins text's lines and runs of spaces into single spaces, for the one-row status bar,
+// and writes every control byte left in the result as visible \xHH text through termsafe.Escape,
+// so a title, lock record or error drawn in a row can never act on the terminal. Escaping after
+// the join keeps CR, VT, FF and U+0085 collapsing to a space.
 func oneLine(text string) string {
-	return strings.Join(strings.Fields(text), " ")
+	return termsafe.Escape(strings.Join(strings.Fields(text), " "))
 }
 
 // statusBar draws the bottom row: an open confirmation prompt's question or an open text prompt's
@@ -114,7 +118,8 @@ func oneLine(text string) string {
 // or stopped, the notice of an id that could not be selected and the report of the last write
 // when there are any, the key hints, muted, and the layout button when it is drawn, at the row's
 // right edge with blanks between it and the hints. A row too long for the terminal is cut before
-// the hints and the button, so they stay visible while there is room for them.
+// the hints and the button, so they stay visible while there is room for them. Every notice shows a
+// control byte as visible \xHH text.
 func (m model) statusBar() string {
 	if m.prompt.isOpen {
 		return fit(m.prompt.text, m.width)
@@ -128,7 +133,7 @@ func (m model) statusBar() string {
 	}
 	for _, notice := range []string{m.flash, m.configNotice, m.stateNotice, m.worktreeStateNotice, m.storeNotice, m.refreshNotice, m.notice, m.writeNotice} {
 		if notice != "" {
-			text += statusSeparator + notice
+			text += statusSeparator + termsafe.Escape(notice)
 		}
 	}
 	hints := statusSeparator + m.keyHints()

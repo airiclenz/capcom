@@ -93,7 +93,7 @@ and a second case with a positive out-of-range index, does not panic and returns
 **Closes:** ui-link-marker-panic
 **Commit:** `fix(ui): render forged link markers and control bytes in bodies as text`
 
-## 3. Sanitise titles and lock records drawn in UI rows
+## 3. Sanitise titles and lock records drawn in UI rows — ✅ DONE (2026-11-03)
 
 **What:** fixes control bytes in issue and Note titles and in lock Holder and Purpose reaching
 the terminal raw through `capcom ui` rows, the status bar and notices.

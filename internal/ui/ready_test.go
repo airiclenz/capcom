@@ -13,6 +13,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/lock"
 )
 
 // readyFiles is a store whose Ready queue is alpha (P1), beta (P2, unblocking gamma) and delta
@@ -110,6 +111,35 @@ func TestReadyTab_Sidebar_ListsTheReadyListInItsOrder(t *testing.T) {
 	}
 	if got := ansi.Strip(m.sidebar[1]); got != "beta   open  P2  Beta task" {
 		t.Errorf("second sidebar row = %q, want %q", got, "beta   open  P2  Beta task")
+	}
+}
+
+func TestReadyTab_ControlBytesInTitleLockAndNotice_DrawnAsText(t *testing.T) {
+	ts := newTestStore(t, map[string]string{
+		"issues/spoof.md": issueFile("title: \"Spoof \\e]0;x\\a title\"\nstatus: open\npriority: 1\n", ""),
+	})
+	claim := lock.Claim{Holder: "bob\x1b[31m", Purpose: "fix\x1b[2J"}
+	if _, _, err := lock.ForWorktree(ts.store).Acquire(claim, "", false); err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+	m := newTestModel(t, ts, 200, 30)
+	m.refreshNotice = refreshFailurePrefix + "bad\x1b[2J"
+
+	content := m.View().Content
+
+	for _, raw := range []string{"\x1b]", "\x07", "\x1b[31m", "\x1b[2J"} {
+		if strings.Contains(content, raw) {
+			t.Errorf("view holds the raw sequence %q, want it drawn as text", raw)
+		}
+	}
+	if got, want := ansi.Strip(m.sidebar[0]), `spoof  open  P1  Spoof \x1b]0;x\x07 title`; got != want {
+		t.Errorf("Ready row = %q, want %q", got, want)
+	}
+	row := statusRow(m)
+	for _, want := range []string{`held by bob\x1b[31m: fix\x1b[2J`, refreshFailurePrefix + `bad\x1b[2J`} {
+		if !strings.Contains(row, want) {
+			t.Errorf("status bar = %q, want it to hold %q", row, want)
+		}
 	}
 }
 
