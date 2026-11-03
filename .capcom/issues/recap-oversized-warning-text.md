@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 3
 labels: [test]
+plan: 2026-11-03 - 03 - recap-warning-text-plan
 created: 2026-11-03T11:40:37Z
 ---
 
