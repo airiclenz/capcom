@@ -135,7 +135,10 @@ The held-lock route instead pays the full 5 s `defaultBusyTimeout` (`dsnOptions`
 **Closes:** test-briefing-busy-index
 **Commit:** `test(briefing): cover a busy index without the reindex hint`
 
-## 6. Exercise the real clipboard runner and its timeout
+## 6. Exercise the real clipboard runner and its timeout — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): the timeout is a new `Writer.Timeout` field (zero means `runTimeout`, 2 s), the item's preferred option; the two real-runner tests switch the helper on with `t.Setenv` and so do not call `t.Parallel`
+NOTES (2026-11-03): consequential edit — internal/clipboard/doc.go: made necessary by the real-runner tests, which falsify "no real program runs" (now names the timeout field and the test binary as the one real program)
 
 **What:** `runProgram` (`internal/clipboard/clipboard.go`), the only production runner, and the `runTimeout` kill are untested.
 **Regression guard.** `runProgram` returns `cmd.Run()`'s `*exec.ExitError` (`signal: killed`), not `ctx.Err()`: the timeout test asserts a non-nil error returned well before the helper's sleep ends (an elapsed bound), not `errors.Is(err, context.DeadlineExceeded)` nor the `signal: killed` wording (Windows differs) — or `runProgram` returns `ctx.Err()` once ctx is done and the item names the new message.

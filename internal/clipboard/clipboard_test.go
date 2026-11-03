@@ -3,6 +3,7 @@ package clipboard
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,10 +11,68 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // copiedText is the text every write in these tests hands over.
 const copiedText = "copied text"
+
+// helperModeEnv switches the re-executed test binary into a stand-in clipboard program: copying
+// with helperCopy, sleeping with helperSleep. Unset, the binary runs the tests.
+const helperModeEnv = "CAPCOM_CLIPBOARD_TEST_HELPER"
+
+// helperOutEnv names the file the copying helper writes what it read on its standard input to.
+const helperOutEnv = "CAPCOM_CLIPBOARD_TEST_HELPER_OUT"
+
+// helperCopy is the helper mode that copies its standard input to helperOutEnv's file and exits
+// with helperExitCode.
+const helperCopy = "copy"
+
+// helperSleep is the helper mode that sleeps for helperSleepFor, far past runTimeout.
+const helperSleep = "sleep"
+
+// helperExitCode is the copying helper's exit status once it has written its file; any other
+// status means the copy failed.
+const helperExitCode = 3
+
+// helperSleepFor is how long the sleeping helper waits: long enough that a test returning before
+// runTimeout proves the program was killed under the shortened timeout.
+const helperSleepFor = 10 * runTimeout
+
+// TestMain runs the binary as a stand-in clipboard program when helperModeEnv asks for one, before
+// the flag parser in m.Run sees a clipboard program's arguments, and runs the tests otherwise.
+func TestMain(m *testing.M) {
+	switch os.Getenv(helperModeEnv) {
+	case helperCopy:
+		os.Exit(copyStdin(os.Getenv(helperOutEnv)))
+	case helperSleep:
+		time.Sleep(helperSleepFor)
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+// copyStdin writes the standard input to path and returns helperExitCode, or 1 when it cannot.
+func copyStdin(path string) int {
+	text, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return 1
+	}
+	if err := os.WriteFile(path, text, 0o600); err != nil {
+		return 1
+	}
+	return helperExitCode
+}
+
+// testBinary is the absolute path of the running test binary, which runs again as a helper.
+func testBinary(t *testing.T) string {
+	t.Helper()
+	path, err := os.Executable()
+	if err != nil {
+		t.Fatalf("Executable: %v", err)
+	}
+	return path
+}
 
 // run is one program start a recorder saw.
 type run struct {
@@ -458,5 +517,48 @@ func assertRuns(t *testing.T, got, want []run) {
 	})
 	if !equal {
 		t.Errorf("runs = %+v, want %+v", got, want)
+	}
+}
+
+// The real-runner tests switch the helper on through the environment with t.Setenv, so they do not
+// call t.Parallel.
+
+func TestWriteNative_RealRunner_DeliversStdinAndReturnsTheExit(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "stdin")
+	t.Setenv(helperModeEnv, helperCopy)
+	t.Setenv(helperOutEnv, out)
+	writer := Writer{
+		GOOS:     "linux",
+		Getenv:   environment(nil),
+		LookPath: lookPathOf(map[string]string{"xclip": testBinary(t)}),
+	}
+
+	err := writer.WriteNative(copiedText)
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != helperExitCode {
+		t.Fatalf("WriteNative = %v, want the helper's exit status %d", err, helperExitCode)
+	}
+	read, readErr := os.ReadFile(out)
+	if readErr != nil || string(read) != copiedText {
+		t.Fatalf("helper read %q (%v), want %q", read, readErr, copiedText)
+	}
+}
+
+func TestWriteNative_RealRunner_TimeoutKillsTheProgram(t *testing.T) {
+	t.Setenv(helperModeEnv, helperSleep)
+	writer := Writer{
+		GOOS:     "linux",
+		Getenv:   environment(nil),
+		LookPath: lookPathOf(map[string]string{"xclip": testBinary(t)}),
+		Timeout:  100 * time.Millisecond,
+	}
+
+	start := time.Now()
+	err := writer.WriteNative(copiedText)
+	elapsed := time.Since(start)
+
+	if err == nil || elapsed >= runTimeout {
+		t.Fatalf("WriteNative = %v after %v, want an error before %v", err, elapsed, runTimeout)
 	}
 }

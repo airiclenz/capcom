@@ -7,5 +7,6 @@
 // be a question a directory of the working tree answers. Every program is resolved on PATH and
 // refused when it resolves inside the working tree, or through a relative PATH entry; a refused
 // program runs nothing. Every input is a field of Writer, so tests swap the PATH lookup, the
-// runner and the Windows writer and no real program runs.
+// runner, the timeout and the Windows writer; the one real program a test runs is the test binary
+// itself, standing in for a clipboard program.
 package clipboard

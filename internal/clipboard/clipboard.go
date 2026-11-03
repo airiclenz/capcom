@@ -81,6 +81,8 @@ type Writer struct {
 	Run func(ctx context.Context, stdin, program string, args ...string) error
 	// WriteWindows writes the Windows clipboard. Nil means atotto/clipboard's WriteAll.
 	WriteWindows func(string) error
+	// Timeout bounds one program run. Zero means runTimeout, 2 s.
+	Timeout time.Duration
 }
 
 // WriteNative writes text to the host's clipboard. On Windows it calls WriteWindows and runs no
@@ -174,9 +176,9 @@ func (w Writer) resolve(name string) (string, error) {
 }
 
 // runBounded runs the resolved program with its arguments and text on its standard input, under
-// runTimeout.
+// the Writer's timeout.
 func (w Writer) runBounded(text, path string, program candidate) error {
-	ctx, cancel := context.WithTimeout(context.Background(), runTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), w.timeout())
 	defer cancel()
 	if err := w.runner()(ctx, text, path, program.args...); err != nil {
 		return fmt.Errorf("clipboard: %s: %w", path, err)
@@ -234,6 +236,14 @@ func (w Writer) runner() func(context.Context, string, string, ...string) error 
 		return runProgram
 	}
 	return w.Run
+}
+
+// timeout is w.Timeout, or runTimeout when it is zero.
+func (w Writer) timeout() time.Duration {
+	if w.Timeout == 0 {
+		return runTimeout
+	}
+	return w.Timeout
 }
 
 // writeWindows is w.WriteWindows, or atotto/clipboard's WriteAll when it is nil.
