@@ -413,3 +413,58 @@ func TestRun_NowReady_NamesOnlyIssuesThatExistedBeforeTheBatch(t *testing.T) {
 		t.Errorf("NowReady = %v, want %v", outcome.NowReady, want)
 	}
 }
+
+func TestRun_UpdateSettingPlan_ReportsMissingPlanOnTheResult(t *testing.T) {
+	f := newFixture(t, map[string]string{
+		"planned": issueText("Planned", "open"),
+		"orphan":  issueText("Orphan", "open"),
+	})
+	plansDir := filepath.Join(f.store.WorktreeRoot, "docs", "plans")
+	if err := os.MkdirAll(plansDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plansDir, "landed.md"), []byte("# Landed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	outcome, err := f.run(t, "- op: update\n  id: planned\n  plan: landed\n- op: update\n  id: orphan\n  plan: unwritten\n")
+
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := outcome.Results[0].MissingPlan; got != "" {
+		t.Errorf("MissingPlan for a plan with a file = %q, want empty", got)
+	}
+	if got, want := outcome.Results[1].MissingPlan, f.store.Config.MissingPlanMessage("unwritten"); got != want {
+		t.Errorf("MissingPlan for a plan without a file = %q, want %q", got, want)
+	}
+	if updated := f.staged(t, outcome.Results[1].Path); !strings.Contains(updated, "plan: unwritten\n") {
+		t.Errorf("updated issue = %q, want the plan set although its file is missing", updated)
+	}
+}
+
+func TestRun_EmptyUpdate_RewritesTheIssueUnchanged(t *testing.T) {
+	original := issueText("Base", "open")
+	f := newFixture(t, map[string]string{"base": original})
+	etag := f.diskETag(t, "base")
+
+	outcome, err := f.run(t, "- op: update\n  id: base\n  no-standing: false\n")
+
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	result := outcome.Results[0]
+	if result.Kind != batch.KindUpdate || result.ID != "base" {
+		t.Errorf("Result = %s of %q, want %s of %q", result.Kind, result.ID, batch.KindUpdate, "base")
+	}
+	if result.ETag != etag {
+		t.Errorf("Result.ETag = %q, want %q, the etag of the file before the batch", result.ETag, etag)
+	}
+	if result.MissingPlan != "" {
+		t.Errorf("MissingPlan = %q, want empty for an update that sets no plan", result.MissingPlan)
+	}
+	if rewritten := f.staged(t, result.Path); rewritten != original {
+		t.Errorf("rewritten issue = %q, want it unchanged: %q", rewritten, original)
+	}
+	f.assertUnwritten(t, "base")
+}

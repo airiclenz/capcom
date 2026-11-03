@@ -107,7 +107,7 @@ Second signal: after the first, resend SIGINT every ~50 ms until the process exi
 **Closes:** agenteval-signal-wiring-test
 **Commit:** `test(agenteval): cover the Ctrl-C and SIGTERM wiring`
 
-## 4. Test batch update operations
+## 4. Test batch update operations — ✅ DONE (2026-11-03)
 
 **What:** the empty-change update branch of `batch.Run` (`op.Update.IsEmpty()` rewriting through `EditIssue`) and `Result.MissingPlan` from an update setting a plan are untested.
 **Goal:** `internal/batch/run_test.go` holds `TestRun_UpdateSettingPlan_ReportsMissingPlanOnTheResult` (no plan file → `MissingPlan` names it; existing plan → empty) and `TestRun_EmptyUpdate_RewritesTheIssueUnchanged`.
