@@ -213,7 +213,7 @@ NOTES (2026-11-03): the two cases are separate TestCompute_* functions (TestComp
 **Closes:** test-recap-hostile-guards
 **Commit:** `test(recap): cover oversized blobs and duplicate ids`
 
-## 11. Test the staged catalog's filters against the index
+## 11. Test the staged catalog's filters against the index — ✅ DONE (2026-11-03)
 
 **What:** `isSelected` (`internal/stage/catalog.go`) re-implements the index query filter in memory; `catalog_test.go` covers few fields.
 **Regression guard.** `Catalog.List` runs `isSelected` only on staged entries (index entries come back as `index.List` filtered them): every issue in the table is staged (`Overlay.ReplaceFile` of each indexed file with its own bytes, or staged creates in a twin store), so every row of `Catalog.List` goes through `isSelected`. `Filter.PlanContains`, which `isSelected` re-implements with `strings.Contains`, is in the field list beside Plan.
