@@ -17,6 +17,10 @@ const logConflict = "\nThe body.\n\n## Log\n\n" +
 	"<<<<<<< HEAD\n- 2026-10-11 alice: reproduced it.\n=======\n" +
 	"- 2026-10-11 bob: found the cause.\n>>>>>>> other-branch\n"
 
+// unclosedFenceConflict is a body from line 7 on below frontmatter whose three-backtick line at
+// line 8 no later line closes, followed by a conflict whose markers are at lines 10, 12 and 14.
+const unclosedFenceConflict = "\n```\ntext\n<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> b\n"
+
 // markerLines returns the 1-based lines of markers, in their order.
 func markerLines(markers []rawfm.ConflictMarker) []int {
 	lines := make([]int, 0, len(markers))
@@ -75,6 +79,21 @@ func TestConflictMarkers_FileContent_ReturnsTheMarkerLines(t *testing.T) {
 			content: frontmatter +
 				"\n~~~ a`b\n<<<<<<< HEAD\n=======\n>>>>>>> other-branch\n~~~\n",
 			want: []int{},
+		},
+		{
+			name:    "markers below a code fence no later line closes",
+			content: frontmatter + unclosedFenceConflict,
+			want:    []int{10, 12, 14},
+		},
+		{
+			name:    "markers below a code fence no later line closes, with CRLF line endings",
+			content: strings.ReplaceAll(frontmatter+unclosedFenceConflict, "\n", "\r\n"),
+			want:    []int{10, 12, 14},
+		},
+		{
+			name:    "markers inside the same code fence once a later line closes it",
+			content: frontmatter + unclosedFenceConflict + "```\n",
+			want:    []int{},
 		},
 		{
 			name:    "markers after a closed code fence",

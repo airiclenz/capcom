@@ -849,6 +849,12 @@ func TestRun_ConflictMarkers_ReportedAtEachMarkerLine(t *testing.T) {
 				"\n~~~~\n<<<<<<< HEAD\n```\n=======\n>>>>>>> other-branch\n~~~~\n"},
 			want: []string{},
 		},
+		{
+			name: "markers below a code fence no later line closes",
+			files: map[string]string{issues + "login-flow.md": issueFile("") +
+				"\n```\ntext\n" + logConflict},
+			want: conflictAt(issues+"login-flow.md", 16, 18, 20),
+		},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

@@ -31,18 +31,21 @@ type ConflictMarker struct {
 // ConflictMarkers returns the git conflict markers in the content of an issue or Note file, in
 // line order: every line that starts with "<<<<<<< ", ">>>>>>> " or "||||||| ", and a "=======" line
 // only between a "<<<<<<< " line and the ">>>>>>> " line that ends it, since a bare one is a setext
-// heading underline. The frontmatter is always scanned; body lines inside a fenced code block are
-// skipped. One trailing "\r" is trimmed from each line, so CRLF content gives the same markers.
+// heading underline. The frontmatter is always scanned; body lines inside a fenced code block that
+// a later line closes are skipped, as ClosedCodeLines finds them, so a fence opener no later line
+// closes hides nothing. One trailing "\r" is trimmed from each line, so CRLF content gives the
+// same markers.
 func ConflictMarkers(data []byte) []ConflictMarker {
 	lines := strings.Split(string(data), "\n")
-	bodyStart := bodyStartIndex(lines)
+	for index, line := range lines {
+		lines[index] = strings.TrimSuffix(line, "\r")
+	}
+	isCode := ClosedCodeLines(lines, bodyStartIndex(lines))
 	var markers []ConflictMarker
 	var separators []ConflictMarker
 	isConflictOpen := false
-	var fence CodeFence
-	for index, line := range lines {
-		text := strings.TrimSuffix(line, "\r")
-		if index >= bodyStart && fence.IsCode(text) {
+	for index, text := range lines {
+		if isCode[index] {
 			continue
 		}
 		marker := ConflictMarker{Line: index + 1, Text: text}

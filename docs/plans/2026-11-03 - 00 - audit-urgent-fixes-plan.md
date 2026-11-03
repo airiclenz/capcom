@@ -207,7 +207,9 @@ doc comment says the author filter lives in the production adapter. No probe tes
 **Closes:** winget-probe-any-author
 **Commit:** `fix(release): count only the signed-in account's winget pull requests`
 
-## 7. An unclosed code fence no longer hides conflict markers
+## 7. An unclosed code fence no longer hides conflict markers — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): added a check-level case to TestRun_ConflictMarkers_ReportedAtEachMarkerLine in internal/check/check_test.go (not in the item's Files) because the issue conflict-scan-unclosed-fence's Acceptance asks for a test that runs the unclosed-fence body through check.
 
 **What:** fixes `ConflictMarkers` treating every line after an unclosed fence opener as code,
 so a body with a stray fence line and a later conflict passes `capcom check`.
