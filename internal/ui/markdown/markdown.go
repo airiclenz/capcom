@@ -296,12 +296,18 @@ func isFence(line string) bool {
 
 // isHeading reports whether line is an ATX heading: one to six # then a space.
 func isHeading(line string) bool {
-	trimmed := strings.TrimLeft(line, " ")
-	n := 0
+	trimmed, n := headingMarker(line)
+	return n >= 1 && n <= 6 && n < len(trimmed) && trimmed[n] == ' '
+}
+
+// headingMarker returns line with its leading spaces trimmed and the length of the run of # that
+// opens it: the marker isHeading judges and headingText strips.
+func headingMarker(line string) (trimmed string, n int) {
+	trimmed = strings.TrimLeft(line, " ")
 	for n < len(trimmed) && trimmed[n] == '#' {
 		n++
 	}
-	return n >= 1 && n <= 6 && n < len(trimmed) && trimmed[n] == ' '
+	return trimmed, n
 }
 
 // isQuote reports whether line is a blockquote line: a > after at most three leading spaces.
@@ -328,9 +334,12 @@ func splitQuote(line string) (depth int, text string) {
 	return depth, rest
 }
 
-// headingText returns a heading line's text with the # markers and surrounding space stripped.
+// headingText returns a heading line's text with its marker # run and surrounding space stripped.
+// A # that opens the text itself, after the marker's space, is the author's and stays: "## #42"
+// is "#42".
 func headingText(line string) string {
-	return strings.TrimSpace(strings.TrimLeft(line, " #"))
+	trimmed, n := headingMarker(line)
+	return strings.TrimSpace(trimmed[n:])
 }
 
 // listItem is a parsed list line: its leading indentation, the marker to show ("• " for a bullet,

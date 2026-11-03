@@ -159,6 +159,35 @@ func TestHeadingStripsMarkers(t *testing.T) {
 	}
 }
 
+// Only the marker run is stripped: a # that opens the heading's own text is the author's and stays,
+// and a trailing # run is left as it was.
+func TestHeadingKeepsAuthorHash(t *testing.T) {
+	t.Parallel()
+
+	th := testTheme()
+	cases := []struct {
+		name, in, want string
+	}{
+		{"leading hash in text", "## #42 follow-up", "#42 follow-up"},
+		{"hashtag under level one", "# #hashtag", "#hashtag"},
+		{"indented heading", "  ### Title", "Title"},
+		{"trailing hash run", "## Title ##", "Title ##"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := Render(th, tc.in, 40, Options{}).Lines
+			if len(out) != 1 {
+				t.Fatalf("Render(%q): got %d lines, want 1", tc.in, len(out))
+			}
+			if v := strip(out[0]); v != tc.want {
+				t.Errorf("Render(%q) visible = %q; want %q", tc.in, v, tc.want)
+			}
+		})
+	}
+}
+
 // Seven #s (or a # with no following space) is not a heading; it renders as a plain paragraph.
 func TestNotAHeading(t *testing.T) {
 	t.Parallel()

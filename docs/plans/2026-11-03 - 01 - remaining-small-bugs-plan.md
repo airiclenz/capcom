@@ -88,7 +88,7 @@ internal/nodefile/atomic_test.go — TestWriteFileExclusive_FreePathWithoutHardL
 
 **Commit:** `fix(nodefile): count an unsupported directory sync as a landed write`
 
-## 2. Keep the author's leading hash in a rendered UI heading
+## 2. Keep the author's leading hash in a rendered UI heading — ✅ DONE (2026-11-03)
 
 **What:** Fixes `ui-heading-strips-hash`: `headingText` in `internal/ui/markdown/markdown.go` trims
 every leading space and `#`, so `## #42 follow-up` renders as `42 follow-up`.
