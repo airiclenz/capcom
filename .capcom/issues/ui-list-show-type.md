@@ -1,10 +1,12 @@
 ---
 title: Show the issue type in the capcom ui issue lists
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-11-03 - 04 - ui-list-type-column-plan
 created: 2026-11-03T18:15:49Z
+closed: 2026-11-03T18:35:31Z
+reason: "Resolved by plan 2026-11-03 - 04 - ui-list-type-column-plan (archived at 3939682): aligned, capped type column in the Ready, Issues and Closed lists"
 ---
 
 The issue lists in capcom ui do not show an issue's type (bug, feature, task, ...). A reviewer has to open an issue to see what kind of work it is, which makes scanning a long list slower than it needs to be.
