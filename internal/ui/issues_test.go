@@ -123,6 +123,28 @@ func TestIssuesTab_ExpandedThreeLevels_StartEveryStatusAndPriorityAtOneColumn(t 
 	}
 }
 
+func TestIssuesTab_ExpandedThreeLevels_StartEveryTypeAndTitleAtOneColumn(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, map[string]string{
+		"config.yaml":               longTypeConfig,
+		"issues/epic.md":            typedIssueFile("Epic", "feature", 1),
+		"issues/epic/child.md":      typedIssueFile("Child", "bug", 2),
+		"issues/epic/child/leaf.md": typedIssueFile("Leaf", longType, 3),
+		"issues/solo.md":            typedIssueFile("Solo", "chore", 2),
+	}), "", 120, 30)
+
+	m = pressKeys(t, m, runeKey('l'), runeKey('j'), specialKey(tea.KeyRight))
+	typeColumns, titleColumns := sidebarTypeColumns(t, m, issueSidebarEntries(m))
+
+	wantIDs := []string{"epic", "child", "leaf", "solo"}
+	if got := visibleIDs(m); !slices.Equal(got, wantIDs) {
+		t.Fatalf("expanded tree = %v, want %v", got, wantIDs)
+	}
+	if len(typeColumns) != 1 || len(titleColumns) != 1 {
+		t.Errorf("tree rows start their type at columns %v and title at %v, want one each",
+			typeColumns, titleColumns)
+	}
+}
+
 func TestIssuesTab_ScrolledTree_KeepsTheColumnsOfItsUnscrolledView(t *testing.T) {
 	m := newIssuesModel(t, newTestStore(t, treeFiles), "", 120, scrolledTreeHeight)
 	m = pressKeys(t, m, runeKey('l'), runeKey('j'), specialKey(tea.KeyRight))

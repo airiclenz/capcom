@@ -1,10 +1,10 @@
  Issues [5]  │  Ready [2]  │  Knowledge [0]  │  Closed [2]                                           ~ · v1.2.3 · capcom
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-· base     open    P1  Base              │ waits on:                                                                    
-▼ epic     open    P1  Epic  (0/1 clo…   │   base  open  P1  Base                                                       
-┕ · alpha  active  P2  Alpha             │   shipped  done  P2  Shipped                                                 
-· lonely   open    P2  Lonely            │   ghost  missing                                                             
-· user     open    P3  User              │ blocks:                                                                      
+· base     open    P1  task  Base        │ waits on:                                                                    
+▼ epic     open    P1  task  Epic  (0…   │   base  open  P1  Base                                                       
+┕ · alpha  active  P2  task  Alpha       │   shipped  done  P2  Shipped                                                 
+· lonely   open    P2  task  Lonely      │   ghost  missing                                                             
+· user     open    P3  task  User        │ blocks:                                                                      
                                          │   user  open  P3  User                                                       
                                          │                                                                              
                                          │                                                                              

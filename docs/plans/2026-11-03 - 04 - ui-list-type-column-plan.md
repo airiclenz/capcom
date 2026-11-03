@@ -27,7 +27,10 @@
 - The detail pane header, the CLI list output, the Knowledge tab.
 - Colouring the type.
 
-## 1. Type column in the Ready and Issues lists
+## 1. Type column in the Ready and Issues lists — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): deps-both-120x30.golden changed, against the plan's "does not change": that golden also draws the Issues sidebar, whose rows gain the type column; a line-by-line check confirmed every changed golden line differs only left of the pane divider, so the dependency view's rows are byte-identical (no type cell at zero type width).
+NOTES (2026-11-03): the columnWidths type field is named issueType (the plan's `c.type` is a Go keyword); goldens of other tabs that draw the Ready or Issues sidebar (layout, theme, mouse, write, filter) were regenerated too, each changing only sidebar rows.
 
 **What:**
 **Goal:** Every Ready and Issues sidebar row reads `id  status  P<n>  type  title` (plus the Issues tree's progress suffix), the type column starting at one character position across all rows of the list; its width is the widest type in the list, at most 10 cells, and a longer type is cut to that width ending in `…`, the row's other columns unchanged.

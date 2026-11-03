@@ -142,11 +142,11 @@ func (m model) issuesSelection() (index.Entry, bool) {
 	return row.Entry, isSelected
 }
 
-// paintIssuesSidebar fills the sidebar with the Issues tree, one `id  status  P<n>  title` row
-// per visible issue with its children's progress, scrolled so the selection stays on screen. The
-// columns are measured over every visible row, on screen or not, so scrolling never shifts them. An
-// empty tree, issues that could not be read and a filter that leaves nothing each take a single
-// row saying so. It does nothing on another tab.
+// paintIssuesSidebar fills the sidebar with the Issues tree, one `id  status  P<n>  type  title`
+// row per visible issue with its children's progress, scrolled so the selection stays on screen.
+// The columns are measured over every visible row, on screen or not, so scrolling never shifts
+// them. An empty tree, issues that could not be read and a filter that leaves nothing each take a
+// single row saying so. It does nothing on another tab.
 func (m model) paintIssuesSidebar() model {
 	if m.tab != TabIssues {
 		return m
@@ -168,10 +168,10 @@ func (m model) paintIssuesSidebar() model {
 	return m.withSidebar(rows, m.issues.tree.top, len(m.issues.tree.rows))
 }
 
-// issueTreeRow is the spans of one issue in the tree: `id  status  P<n>  title`, its id and status
-// padded to columns, which count the row's lead, so every row's status and P<n> start at one
-// column whatever its depth, then `(<closed>/<total> closed)` over all its children, hidden ones
-// included, when it has any. Its status is in its category's colour.
+// issueTreeRow is the spans of one issue in the tree: `id  status  P<n>  type  title`, its id,
+// status and type padded to columns, which count the row's lead, so every row's status, P<n>, type
+// and title start at one column whatever its depth, then `(<closed>/<total> closed)` over all its
+// children, hidden ones included, when it has any. Its status is in its category's colour.
 func (m model) issueTreeRow(row outline.Row[index.Entry], columns columnWidths) []span {
 	spans := readyRow(row.Entry, m.theme.status(row.Entry.Category), columns.after(leadWidth(row.Depth)))
 	children := m.issues.tree.children(row.ID)

@@ -1,8 +1,8 @@
  Issues [5]  │  Ready [3]  │  Knowledge [0]  │  Closed [1]                                           ~ · v1.2.3 · capcom
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-alpha  open  P1  Alpha task              │ Alpha task                                                                   
-beta   open  P2  Beta task               │                                                                              
-delta  open  P2  Delta task              │ status: open · P1 · bug                                                      
+alpha  open  P1  bug   Alpha task        │ Alpha task                                                                   
+beta   open  P2  task  Beta task         │                                                                              
+delta  open  P2  task  Delta task        │ status: open · P1 · bug                                                      
                                          │ labels: ui, tui                                                              
                                          │ deps: finished                                                               
                                          │ created: 2026-10-11 09:00                                                    

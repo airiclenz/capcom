@@ -130,23 +130,26 @@ capcom ui [issues|ready|knowledge|closed] [id]
 
 ### Issues tab
 
-- **Tree**: the outline `capcom list --tree` prints, collapsible, with each row's status and
-  priority and a parent's `(<closed>/<total> closed)` progress. The statuses start at one column
-  and the priorities at another, at every depth, measured over every visible row so scrolling
-  never shifts them; the CLI's output stays unaligned. Closed issues follow the CLI's
+- **Tree**: the outline `capcom list --tree` prints, collapsible, with each row's status,
+  priority and type and a parent's `(<closed>/<total> closed)` progress, as
+  `id  status  P<n>  type  title`. The statuses, the priorities, the types and the titles each
+  start at one column, at every depth, measured over every visible row so scrolling never shifts
+  them; the type column is as wide as the widest type, at most 10 cells, a longer type cut to that
+  width ending in `…`. The CLI's output stays unaligned. Closed issues follow the CLI's
   default visibility; a `status:<name>` filter naming a closed-category status shows them (see
   Filter). The tree opens collapsed to the top level; selecting an id expands its ancestors, and
   a selected node the outline hides (a Closed issue) shows muted, with its ancestors, while it
   stays selected.
 - **Dependency view**: `d`, on the Ready, Issues and Closed tabs, swaps the detail pane for the
-  selected issue's "waits on" and "blocks" lists, both sides as `capcom dep list` prints them, a
-  dep naming no issue marked missing. It has its own cursor (↑↓, j k); Enter selects that issue
+  selected issue's "waits on" and "blocks" lists, both sides as `capcom dep list` prints them
+  (`id  status  P<n>  title`, unaligned and without the type), a dep naming no issue marked
+  missing. It has its own cursor (↑↓, j k); Enter selects that issue
   in the Issues tab; Esc or `d` returns to the detail. Moving the sidebar's selection closes it.
 
 ### Ready tab
 
-The queue `capcom ready` prints, most urgent first, through `briefing.ReadyList`, its statuses
-and priorities aligned in columns as on the Issues tab.
+The queue `capcom ready` prints, most urgent first, through `briefing.ReadyList`, its statuses,
+priorities, types and titles aligned in columns as on the Issues tab.
 
 ### Knowledge tab
 

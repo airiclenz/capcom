@@ -1,8 +1,8 @@
  Issues [5]  │  Ready [3]  │  Knowledge [0]  │  Closed [1]                                           ~ · v1.2.3 · capcom
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-alpha  open  P1  Alpha task              │ status of alpha:                                                             
-beta   open  P2  Beta task               │   open                                                                       
-delta  open  P2  Delta task              │   active                                                                     
+alpha  open  P1  task  Alpha task        │ status of alpha:                                                             
+beta   open  P2  task  Beta task         │   open                                                                       
+delta  open  P2  task  Delta task        │   active                                                                     
                                          │   parked                                                                     
                                          │                                                                              
                                          │                                                                              

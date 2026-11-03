@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/briefing"
+	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/lock"
 )
@@ -38,6 +40,26 @@ var readyFiles = map[string]string{
 // time, and body after it.
 func issueFile(fields, body string) string {
 	return "---\n" + fields + "type: task\ncreated: 2026-10-11T09:00:00Z\n---\n" + body
+}
+
+// longType is an issue type wider than typeColumnMax, declared by longTypeConfig.
+const longType = "infrastructure"
+
+// longTypeConfig is the config.yaml capcom init writes with longType declared among its types.
+var longTypeConfig = strings.Replace(
+	config.DefaultFile,
+	"types: [bug, feature, task, chore]",
+	"types: [bug, feature, task, chore, "+longType+"]",
+	1,
+)
+
+// typedIssueFile returns an open issue file of type issueType titled title at priority, with no
+// body.
+func typedIssueFile(title, issueType string, priority int) string {
+	return fmt.Sprintf(
+		"---\ntitle: %s\nstatus: open\npriority: %d\ntype: %s\ncreated: 2026-10-11T09:00:00Z\n---\n",
+		title, priority, issueType,
+	)
 }
 
 // detailText returns the detail pane's rows, their styling stripped, joined by newlines.
@@ -76,6 +98,39 @@ func rowColumns(t *testing.T, text string, entry index.Entry) (int, int) {
 	return statusColumn, priorityColumn
 }
 
+// typeAndTitleColumns returns the columns at which the sidebar row text shows entry's type and its
+// title: the type's column is the one right after the P<n> and its gap.
+func typeAndTitleColumns(t *testing.T, text string, entry index.Entry) (int, int) {
+	t.Helper()
+	text = ansi.Strip(text)
+	priority := priorityPattern.FindStringIndex(text)
+	if priority == nil {
+		t.Fatalf("sidebar row %q does not show a P<n>", text)
+	}
+	titleStart := strings.Index(text[priority[1]:], entry.Title)
+	if titleStart < 0 {
+		t.Fatalf("sidebar row %q does not show the title %q after its P<n>", text, entry.Title)
+	}
+	return ansi.StringWidth(text[:priority[1]]), ansi.StringWidth(text[:priority[1]+titleStart])
+}
+
+// sidebarTypeColumns returns the distinct columns at which the sidebar's rows, showing entries top
+// to bottom, start their type and their title.
+func sidebarTypeColumns(t *testing.T, m model, entries []index.Entry) ([]int, []int) {
+	t.Helper()
+	var typeColumns, titleColumns []int
+	for row, text := range m.sidebar {
+		typeColumn, titleColumn := typeAndTitleColumns(t, text, entries[row])
+		if !slices.Contains(typeColumns, typeColumn) {
+			typeColumns = append(typeColumns, typeColumn)
+		}
+		if !slices.Contains(titleColumns, titleColumn) {
+			titleColumns = append(titleColumns, titleColumn)
+		}
+	}
+	return typeColumns, titleColumns
+}
+
 // sidebarColumns returns the distinct columns at which the sidebar's rows, showing entries top to
 // bottom, start their status and their P<n>.
 func sidebarColumns(t *testing.T, m model, entries []index.Entry) ([]int, []int) {
@@ -109,8 +164,8 @@ func TestReadyTab_Sidebar_ListsTheReadyListInItsOrder(t *testing.T) {
 	if got := readyIDs(m); !slices.Equal(got, want) || !slices.Equal(want, []string{"alpha", "beta", "delta"}) {
 		t.Errorf("Ready queue = %v, want ReadyList's %v (alpha, beta, delta)", got, want)
 	}
-	if got := ansi.Strip(m.sidebar[1]); got != "beta   open  P2  Beta task" {
-		t.Errorf("second sidebar row = %q, want %q", got, "beta   open  P2  Beta task")
+	if got := ansi.Strip(m.sidebar[1]); got != "beta   open  P2  task  Beta task" {
+		t.Errorf("second sidebar row = %q, want %q", got, "beta   open  P2  task  Beta task")
 	}
 }
 
@@ -132,7 +187,7 @@ func TestReadyTab_ControlBytesInTitleLockAndNotice_DrawnAsText(t *testing.T) {
 			t.Errorf("view holds the raw sequence %q, want it drawn as text", raw)
 		}
 	}
-	if got, want := ansi.Strip(m.sidebar[0]), `spoof  open  P1  Spoof \x1b]0;x\x07 title`; got != want {
+	if got, want := ansi.Strip(m.sidebar[0]), `spoof  open  P1  task  Spoof \x1b]0;x\x07 title`; got != want {
 		t.Errorf("Ready row = %q, want %q", got, want)
 	}
 	row := statusRow(m)
@@ -153,6 +208,43 @@ func TestReadyTab_IDsOfDifferentLengths_StartEveryStatusAndPriorityAtOneColumn(t
 			"%d Ready rows start their status at columns %v and P<n> at %v, want 3 rows at one column each",
 			len(m.sidebar), statusColumns, priorityColumns,
 		)
+	}
+}
+
+func TestReadyTab_TypesOfDifferentWidths_StartEveryTypeAndTitleAtOneColumn(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, map[string]string{
+		"issues/fix.md":  typedIssueFile("Fix it", "bug", 1),
+		"issues/feat.md": typedIssueFile("Add it", "feature", 2),
+		"issues/tidy.md": typedIssueFile("Tidy it", "chore", 3),
+	}), 120, 30)
+
+	typeColumns, titleColumns := sidebarTypeColumns(t, m, m.ready.entries)
+
+	if len(m.sidebar) != 3 || len(typeColumns) != 1 || len(titleColumns) != 1 {
+		t.Errorf(
+			"%d Ready rows start their type at columns %v and title at %v, want 3 rows at one column each",
+			len(m.sidebar), typeColumns, titleColumns,
+		)
+	}
+	if got, want := ansi.Strip(m.sidebar[0]), "fix   open  P1  bug      Fix it"; got != want {
+		t.Errorf("first Ready row = %q, want %q", got, want)
+	}
+}
+
+func TestReadyTab_TypeWiderThanTheColumn_CutToItWithTheTitlesAligned(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, map[string]string{
+		"config.yaml":     longTypeConfig,
+		"issues/fix.md":   typedIssueFile("Fix it", "bug", 1),
+		"issues/infra.md": typedIssueFile("Build it", longType, 2),
+	}), 120, 30)
+
+	_, titleColumns := sidebarTypeColumns(t, m, m.ready.entries)
+
+	if got, want := ansi.Strip(m.sidebar[1]), "infra  open  P2  infrastru…  Build it"; got != want {
+		t.Errorf("long-typed Ready row = %q, want %q", got, want)
+	}
+	if len(titleColumns) != 1 {
+		t.Errorf("Ready rows start their title at columns %v, want one", titleColumns)
 	}
 }
 

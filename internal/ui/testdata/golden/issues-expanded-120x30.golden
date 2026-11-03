@@ -1,10 +1,10 @@
  Issues [5]  │  Ready [3]  │  Knowledge [0]  │  Closed [4]                                           ~ · v1.2.3 · capcom
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-▼ epic      open    P1  Epic  (1/2 cl…   │ Alpha                                                                        
-┕ ▼ alpha   active  P2  Alpha  (0/1 c…   │                                                                              
-  ┕ · leaf  open    P3  Leaf             │ status: active · P2 · task                                                   
-· solo      open    P2  Solo             │ parent: epic                                                                 
-· wrapped   open    P2  Wrapped  (2/2…   │ created: 2026-10-11 09:00                                                    
+▼ epic      open    P1  task  Epic  (…   │ Alpha                                                                        
+┕ ▼ alpha   active  P2  task  Alpha  …   │                                                                              
+  ┕ · leaf  open    P3  task  Leaf       │ status: active · P2 · task                                                   
+· solo      open    P2  task  Solo       │ parent: epic                                                                 
+· wrapped   open    P2  task  Wrapped…   │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
                                          │ Alpha's body.                                                                
                                          │                                                                              

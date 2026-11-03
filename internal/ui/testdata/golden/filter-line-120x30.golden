@@ -1,10 +1,10 @@
  Issues [6]  │  Ready [3]  │  Knowledge [4]  │  Closed [2]                                           ~ · v1.2.3 · capcom
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
 /parser                                  │ Epic                                                                         
-▶ epic     open  P1  Epic  (1/2 close…   │                                                                              
-· solo     open  P2  Solo                │ status: open · P1 · task                                                     
-· user     open  P2  User                │ labels: ui                                                                   
-· wrapped  open  P2  Wrapped  (1/1 cl…   │ created: 2026-10-11 09:00                                                    
+▶ epic     open  P1  task  Epic  (1/2…   │                                                                              
+· solo     open  P2  task  Solo          │ status: open · P1 · task                                                     
+· user     open  P2  task  User          │ labels: ui                                                                   
+· wrapped  open  P2  task  Wrapped  (…   │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
                                          │ The epic plans the rollout.                                                  
                                          │                                                                              

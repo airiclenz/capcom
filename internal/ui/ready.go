@@ -24,8 +24,12 @@ const (
 	// selectFailureFormat is the notice for an id capcom ui ready, issues, knowledge or closed
 	// names that resolves to no issue or Note.
 	selectFailureFormat = "select %s: %v"
-	// readyColumnGap separates the columns of an issue's sidebar row: id, status, priority, title.
+	// readyColumnGap separates the columns of an issue's sidebar row: id, status, priority, type,
+	// title.
 	readyColumnGap = "  "
+	// typeColumnMax is the widest an issue's sidebar row lets its type column grow, in cells; a
+	// longer type is cut to it, ending in truncateTail.
+	typeColumnMax = 10
 )
 
 // readyOptions are the options capcom ready builds from no flags: every Ready issue, planned or
@@ -146,9 +150,9 @@ func (m model) readySelection() (index.Entry, bool) {
 }
 
 // paintReadySidebar fills the sidebar with the Ready queue the Ready filter keeps, one `id  status
-// P<n>  title` row per issue, its status in its category's colour and the selected one marked,
-// scrolled so the selection stays on screen. The columns are measured over the whole queue, on
-// screen or not, so scrolling never shifts them.
+// P<n>  type  title` row per issue, its status in its category's colour and the selected one
+// marked, scrolled so the selection stays on screen. The columns are measured over the whole
+// queue, on screen or not, so scrolling never shifts them.
 // An empty queue, one that could not be read and a filter that keeps nothing each take a single
 // row saying so. It does nothing on another tab.
 func (m model) paintReadySidebar() model {
@@ -175,18 +179,22 @@ func (m model) paintReadySidebar() model {
 	return m.withSidebar(rows, start, len(m.ready.entries))
 }
 
-// columnWidths are the widths a sidebar row pads its id and its status to, so the status and the
-// P<n> of every row start at one column; the zero columnWidths pads nothing.
+// columnWidths are the widths a sidebar row pads its id, its status and its type to, so the
+// status, the P<n> and the type of every row start at one column, and so does the title; the zero
+// columnWidths pads nothing and leaves the type column out.
 type columnWidths struct {
-	id     int
-	status int
+	id        int
+	status    int
+	issueType int
 }
 
-// widen returns c widened to hold the id and the status of entry, its id led by lead columns.
+// widen returns c widened to hold the id, the status and the type of entry, its id led by lead
+// columns and its type column held to typeColumnMax.
 func (c columnWidths) widen(lead int, entry index.Entry) columnWidths {
 	return columnWidths{
-		id:     max(c.id, lead+ansi.StringWidth(entry.ID)),
-		status: max(c.status, ansi.StringWidth(entry.Status)),
+		id:        max(c.id, lead+ansi.StringWidth(entry.ID)),
+		status:    max(c.status, ansi.StringWidth(entry.Status)),
+		issueType: min(max(c.issueType, ansi.StringWidth(entry.Type)), typeColumnMax),
 	}
 }
 
@@ -201,16 +209,26 @@ func padding(text string, width int) string {
 	return strings.Repeat(" ", max(width-ansi.StringWidth(text), 0))
 }
 
-// readyRow is the spans of the sidebar row of one issue, `id  status  P<n>  title`, its id and its
-// status padded to columns and its status painted in status. The padding stays outside the status
-// style, so a selected row's fill runs unbroken beneath it.
+// readyRow is the spans of the sidebar row of one issue, `id  status  P<n>  type  title`, its id,
+// its status and its type padded to columns and its status painted in status. A zero type width
+// leaves the type and its gap out, the row the dependency view shows as capcom dep list prints it.
+// The padding stays outside the status style, so a selected row's fill runs unbroken beneath it.
 func readyRow(entry index.Entry, status lipgloss.Style, columns columnWidths) []span {
+	rest := padding(entry.Status, columns.status) + readyColumnGap +
+		fmt.Sprintf("P%d", entry.Priority) + readyColumnGap
+	if columns.issueType > 0 {
+		rest += typeCell(entry, columns.issueType) + readyColumnGap
+	}
 	return []span{
 		{text: entry.ID + padding(entry.ID, columns.id) + readyColumnGap},
 		{text: entry.Status, style: status},
-		{
-			text: padding(entry.Status, columns.status) + readyColumnGap +
-				fmt.Sprintf("P%d", entry.Priority) + readyColumnGap + oneLine(entry.Title),
-		},
+		{text: rest + oneLine(entry.Title)},
 	}
+}
+
+// typeCell returns the type of entry fitted to width cells, a longer type cut to end in
+// truncateTail, and padded out to width.
+func typeCell(entry index.Entry, width int) string {
+	fitted := fit(entry.Type, width)
+	return fitted + padding(fitted, width)
 }

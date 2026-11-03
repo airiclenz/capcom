@@ -1,8 +1,8 @@
  Issues [2/6]  │  Ready [3]  │  Knowledge [4]  │  Closed [2]                                         ~ · v1.2.3 · capcom
 ─────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────
-▼ epic      open    P1  Epic  (1/2 cl…   │ Epic                                                                         
-┕ ▼ alpha   active  P2  Alpha  (0/1 c…   │                                                                              
-  ┕ · leaf  open    P3  Leaf             │ status: open · P1 · task                                                     
+▼ epic      open    P1  task  Epic  (…   │ Epic                                                                         
+┕ ▼ alpha   active  P2  task  Alpha  …   │                                                                              
+  ┕ · leaf  open    P3  task  Leaf       │ status: open · P1 · task                                                     
                                          │ labels: ui                                                                   
                                          │ created: 2026-10-11 09:00                                                    
                                          │                                                                              
