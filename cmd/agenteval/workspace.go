@@ -122,9 +122,10 @@ func (w workspace) remove() error {
 
 // runAgent runs agentArgv in the workspace's repo with prompt on stdin and both output streams
 // written to transcript, the shim first on its PATH, and the shim pointed at the build at
-// capcomPath and the call log at callLogPath. The agent is killed when it runs past timeout. Its
-// exit status is noted at the end of the transcript and never judges the task; only an agent that
-// cannot be started is an error.
+// capcomPath and the call log at callLogPath. The agent is stopped when it runs past timeout or
+// ctx is cancelled, and on Unix every process it started is killed before runAgent returns, so
+// none outlives the workspace. Its exit status is noted at the end of the transcript and never
+// judges the task; only an agent that cannot be started is an error.
 func (w workspace) runAgent(
 	ctx context.Context,
 	agentArgv []string,
@@ -139,6 +140,7 @@ func (w workspace) runAgent(
 	command.Stdin = strings.NewReader(prompt)
 	command.Stdout, command.Stderr = transcript, transcript
 	command.WaitDelay = agentWaitDelay
+	sweep := isolateAgentProcessGroup(command)
 	command.Env = append(os.Environ(),
 		"PATH="+w.binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		capcomVariable+"="+capcomPath,
@@ -148,6 +150,9 @@ func (w workspace) runAgent(
 	started := time.Now()
 	err := command.Run()
 	run := agentRun{Duration: time.Since(started), IsTimedOut: errors.Is(timed.Err(), context.DeadlineExceeded)}
+	if sweepErr := sweep(); sweepErr != nil {
+		fmt.Fprintf(transcript, "\nagenteval: kill what the agent left running: %v\n", sweepErr)
+	}
 
 	var exited *exec.ExitError
 	if err != nil && !errors.As(err, &exited) && !run.IsTimedOut {

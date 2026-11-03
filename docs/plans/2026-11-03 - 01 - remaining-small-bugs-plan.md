@@ -116,7 +116,13 @@ from the base before the change and pin it).
 
 **Commit:** `fix(ui): keep the author's leading hash in a heading`
 
-## 3. Kill a timed-out eval agent's whole process group
+## 3. Kill a timed-out eval agent's whole process group — ✅ DONE (2026-11-03)
+
+NOTES (2026-11-03): the helper is isolateAgentProcessGroup, returning sweep func() error; a sweep error other than ESRCH is noted at the end of the transcript rather than failing the task.
+NOTES (2026-11-03): the tests check a child is gone with os.FindProcess + Signal(0) == os.ErrProcessDone (ESRCH on Unix) instead of syscall.Kill(pid, 0), so the shared waitUntilGone helper in agent_test.go compiles for GOOS=windows; workspace_unix_test.go also covers an agent that finishes normally and leaves a background child.
+NOTES (2026-11-03): the cancelled-runTask test (run_test.go) skips on Windows: its agent is a POSIX shell command.
+NOTES (2026-11-03): consequential edit — cmd/agenteval/doc.go: made necessary by agent_unix.go/agent_other.go now holding the agent's process-group kill too, not just the shell command's.
+NOTES (2026-11-03): consequential edit — docs/agent-eval.md: made necessary by the new group kill after every agent run and the Ctrl-C/SIGTERM handling in main.
 
 **What:** Recast at the regression check (2026-11-03). Fixes `agenteval-timeout-orphans-children`: `workspace.runAgent` in
 `cmd/agenteval/workspace.go` cancels with plain `exec.CommandContext` (SIGKILL to one process), so

@@ -4,16 +4,68 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
+
+// processGoneWait bounds how long a test waits for a killed process to be gone and reaped.
+const processGoneWait = 2 * time.Second
+
+// processPollInterval is how often a test looks again for a file or a process it waits on.
+const processPollInterval = 10 * time.Millisecond
+
+// cancelOnceExists calls cancel as soon as path exists, so a test cancels a command only once the
+// command has got as far as writing path. It gives up when ctx is done.
+func cancelOnceExists(ctx context.Context, path string, cancel context.CancelFunc) {
+	for ctx.Err() == nil {
+		if _, err := os.Stat(path); err == nil {
+			cancel()
+			return
+		}
+		time.Sleep(processPollInterval)
+	}
+}
+
+// waitUntilGone fails the test unless the process whose pid is written in pidFile is gone within
+// processGoneWait. A process still running then is killed, so a failing test leaves none behind.
+func waitUntilGone(t *testing.T, pidFile string) {
+	t.Helper()
+	text, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatalf("read the child's pid: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(text)))
+	if err != nil {
+		t.Fatalf("parse the child's pid %q: %v", text, err)
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		t.Fatalf("find the child %d: %v", pid, err)
+	}
+	defer process.Release()
+
+	deadline := time.Now().Add(processGoneWait)
+	for !errors.Is(process.Signal(syscall.Signal(0)), os.ErrProcessDone) {
+		if time.Now().After(deadline) {
+			t.Errorf("the child %d still runs %s after the command returned", pid, processGoneWait)
+			if err := process.Kill(); err != nil {
+				t.Logf("kill the child %d: %v", pid, err)
+			}
+			return
+		}
+		time.Sleep(processPollInterval)
+	}
+}
 
 // scriptedReply is one reply a scripted endpoint sends: a status and a JSON body.
 type scriptedReply struct {
@@ -392,6 +444,21 @@ func TestAgentShell_ATimedOutCommandWithABackgroundChildReturnsAtTheTimeout(t *t
 	if !strings.Contains(result, "started") || !strings.Contains(result, "killed after the 200ms timeout") {
 		t.Errorf("result = %q, want the output so far and the timeout", result)
 	}
+}
+
+func TestAgentShell_ACancelledParentKillsTheBackgroundChild(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process groups are killed as a group on Unix only")
+	}
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "child.pid")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cancelOnceExists(ctx, pidFile, cancel)
+
+	runShellCommand(ctx, dir, "sleep 300 & echo $! > child.pid; wait", time.Minute)
+
+	waitUntilGone(t, pidFile)
 }
 
 func TestAgentOutput_KeepsTheLimitAndCountsTheRest(t *testing.T) {

@@ -91,7 +91,10 @@ Seeding runs that build directly, so its calls are never counted as the agent's.
 A task passes or fails on what the agent left behind, never on its transcript: the scenario's check
 reads the repo's `.capcom/` files, the Tree lock state under the git directory and the task's call
 log. A task whose agent runs past `--timeout` is killed and fails as timed out, whatever it got
-done. An agent that ends with a non-zero exit, or is killed, gets a line saying so at the end of
+done. On Unix the agent runs in a process group of its own: a timeout sends the group SIGTERM, and
+once the agent has returned, timed out or not, whatever it left running is killed, so nothing it
+started outlives its workspace. Ctrl-C (or SIGTERM) stops the agent the same way and ends the run
+without judging that task or writing a report; a second Ctrl-C kills the harness at once. An agent that ends with a non-zero exit, or is killed, gets a line saying so at the end of
 its transcript; its exit status never judges the task.
 
 The counts come from a call shim. The harness copies its own executable into the task's

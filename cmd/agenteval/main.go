@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -17,12 +19,18 @@ const (
 )
 
 // main runs the shim when the executable was started under the shim's name, and the command
-// tree otherwise.
+// tree otherwise. The tree's context is cancelled on SIGINT or SIGTERM, so a run stops its agent
+// and the agent verb kills its shell command before the program exits; once it is cancelled, the
+// signals take their default action again, so a second Ctrl-C kills at once.
 func main() {
 	if programName(os.Args[0]) == shimName {
 		os.Exit(runShim(os.Args[1:], os.Getenv, os.Stdin, os.Stdout, os.Stderr))
 	}
-	if err := newRootCommand().ExecuteContext(context.Background()); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	context.AfterFunc(ctx, stop)
+	err := newRootCommand().ExecuteContext(ctx)
+	stop()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "agenteval:", err)
 		os.Exit(exitCodeFor(err))
 	}

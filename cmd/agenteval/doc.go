@@ -38,8 +38,8 @@
 // fails when a file is missing from this map or the map names a file that does not exist.
 //
 //   - `agent.go` — the agent verb: a minimal chat completions loop with one shell tool
-//   - `agent_other.go` — the agent's shell and command kill outside Unix: cmd /C, the shell alone
-//   - `agent_unix.go` — the agent's shell and command kill on Unix: sh -c, the whole process group
+//   - `agent_other.go` — the shell and the process kills outside Unix: cmd /C, the one process alone
+//   - `agent_unix.go` — the shell and the process kills on Unix: sh -c, the whole process group
 //   - `doc.go` — the package comment and this file map
 //   - `main.go` — main, the shim-or-command dispatch, the root command and the exit codes
 //   - `report.go` — renders a run's task results as the markdown report

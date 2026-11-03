@@ -181,8 +181,9 @@ func selectScenarios(only []string) []scenario {
 }
 
 // runTask runs one scenario: it starts the task's transcript and call log afresh, seeds its
-// workspace, runs the agent there, and judges the result. The workspace is removed afterwards; a
-// removal that fails is reported on stderr and the run goes on.
+// workspace, runs the agent there, and judges the result. A ctx cancelled while the agent runs
+// is returned as the error, unjudged. The workspace is removed afterwards; a removal that fails is
+// reported on stderr and the run goes on.
 func runTask(ctx context.Context, stderr io.Writer, settings runSettings, task scenario) (taskResult, error) {
 	callLogPath := filepath.Join(settings.transcriptsDir, task.id+callLogExtension)
 	if err := os.WriteFile(callLogPath, nil, runFileMode); err != nil {
@@ -208,6 +209,9 @@ func runTask(ctx context.Context, stderr io.Writer, settings runSettings, task s
 		ctx, settings.agentArgv, task.prompt, settings.capcomPath, callLogPath, transcript, settings.timeout,
 	)
 	if err != nil {
+		return taskResult{}, err
+	}
+	if err := ctx.Err(); err != nil {
 		return taskResult{}, err
 	}
 	calls, err := readCallLog(callLogPath)

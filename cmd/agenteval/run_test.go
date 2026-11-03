@@ -7,9 +7,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // reportTimeColumn is the index of the Time cell among a report row's cells, the one cell that
@@ -121,6 +123,34 @@ func TestRun_AnAgentPastTheTimeoutFailsTheTask(t *testing.T) {
 	row := reportRow(t, report, "next-claim-close")
 	if row[1] != resultFailed || !strings.Contains(row[len(row)-1], "timed out") {
 		t.Errorf("next-claim-close row = %q, want a fail saying it timed out", row)
+	}
+}
+
+func TestRunTask_ACancelledRunReturnsTheCancellationUnjudged(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the agent here is a POSIX shell command")
+	}
+	setHermeticGitEnv(t)
+	dir := t.TempDir()
+	started := filepath.Join(dir, "started")
+	task, isFound := findScenario("next-claim-close")
+	if !isFound {
+		t.Fatal("no scenario next-claim-close")
+	}
+	settings := runSettings{
+		capcomPath:     copyTestBinary(t, dir, realCapcomName),
+		agentArgv:      []string{"sh", "-c", `touch "$0" && exec sleep 300`, started},
+		timeout:        time.Minute,
+		transcriptsDir: t.TempDir(),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cancelOnceExists(ctx, started, cancel)
+
+	_, err := runTask(ctx, &bytes.Buffer{}, settings, task)
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("runTask error = %v, want %v", err, context.Canceled)
 	}
 }
 
