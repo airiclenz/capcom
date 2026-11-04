@@ -169,7 +169,11 @@ internal/frontmatter/encode.go — Encoder.List, scalar; internal/clidoc/referen
 **Depends on item 4.**
 **Commit:** `test(knowledge): fuzz Note parse round trips`
 
-## 7. Fuzz config and apply-file parsing
+## 7. Fuzz config and apply-file parsing — ✅ DONE (2026-11-04)
+
+NOTES (2026-11-04): the fuzz-parsers issue's "an error names path and a line" is narrowed to the path: both targets assert only that every error's text contains the name passed (config.yaml, batch.yaml), since yamlError keeps yaml.v3's line inside its message and some yaml.v3 errors carry none; item 8's close of fuzz-parsers names this narrowing.
+NOTES (2026-11-04): config seeds add KeylessFile beside DefaultFile, the repeated key is `types`, and this repo's .capcom/config.yaml is read from ../../.capcom/config.yaml (skipped when absent); apply seeds add an update and a log entry so all five op kinds are seeded, and the body-file seed is a create refused for its file key. fuzz_test.go is `package config` in internal/config (as config_test.go) and `package batch_test` in internal/batch (as parse_test.go).
+NOTES (2026-11-04): no crasher was found in a 2m run of either target, so nothing is committed under testdata/fuzz/.
 
 **What:** add `internal/config/fuzz_test.go` with `FuzzParseConfig` and `internal/batch/fuzz_test.go` with `FuzzParseApply`.
 **Goal:** `config.Parse("config.yaml", data)` and `batch.Parse("batch.yaml", data)` never panic, and every error's text contains the name passed.
