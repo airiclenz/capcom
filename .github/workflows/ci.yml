@@ -45,6 +45,24 @@ jobs:
         if: runner.os == 'Windows'
         run: go test -count=1 ./...
 
+  # staticcheck and govulncheck at pinned versions; `make lint` runs the same two commands at the
+  # same pins (STATICCHECK_VERSION and GOVULNCHECK_VERSION in the Makefile). A reachable stdlib
+  # vulnerability is fixed by raising the toolchain line in go.mod, never excused.
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      STATICCHECK_VERSION: '2026.2.2'
+      GOVULNCHECK_VERSION: 'v1.9.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION} ./...
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
+
   # Cross-compiles the six release targets so every archive `go run ./cmd/release dist`
   # builds keeps building. CGO_ENABLED=0 matches the release build: a static binary.
   cross:

@@ -6,7 +6,11 @@ BUILDFLAGS ?=
 LDFLAGS    ?=
 PKG        ?= ./...
 
-.PHONY: all build vet test clean
+# The linters CI's lint job runs, at the same pins as its env block in .github/workflows/ci.yml.
+STATICCHECK_VERSION ?= 2026.2.2
+GOVULNCHECK_VERSION ?= v1.9.0
+
+.PHONY: all build vet test lint clean
 
 all: build
 
@@ -18,6 +22,10 @@ vet:
 
 test:
 	go test -count=1 $(PKG)
+
+lint:
+	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 clean:
 	rm -f $(BINARY) $(BINARY).exe

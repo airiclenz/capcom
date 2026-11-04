@@ -85,7 +85,12 @@ internal/ui/closed_test.go — TestClosedTab_TabChange_SavesTheTabAndItsSelectio
 **Depends on item 1.**
 **Commit:** `test: drop dead assignments staticcheck reports`
 
-## 3. Run staticcheck and govulncheck in CI and make lint
+## 3. Run staticcheck and govulncheck in CI and make lint — ✅ DONE (2026-11-04)
+
+NOTES (2026-11-04): pins are staticcheck 2026.2.2 (honnef.co/go/tools v0.8.2, the newest on proxy.golang.org) and govulncheck v1.9.0 (the newest golang.org/x/vuln tag); the lint job uses actions/setup-go@v6 per item 1's decision, not the @v5 the item text names.
+NOTES (2026-11-04): `make lint` exited 0 locally under go1.26.10: staticcheck clean, govulncheck "No vulnerabilities found."; go.mod and go.sum unchanged (`go run pkg@version` does not touch them).
+NOTES (2026-11-04): CONTRIBUTING.md's "every target is one of them" sentence now names `make lint` as the two `go run` lines in the Makefile, since its comment lists no single go command.
+NOTES (2026-11-04): ADR-0008 and its Makefile amendment were left unedited: the gate reads `ci.yml`'s overall run status (cmd/release/repo.go HasGreenRun), which now includes the lint job with no code change, and the amendment's "every target stays a plain go command" still holds.
 
 **What:** add a `lint` job and a `make lint` target (issue `ci-static-analysis`). The job is ubuntu-latest only, `actions/checkout@v4`, `actions/setup-go@v5` with `go-version-file: go.mod`, then `go run honnef.co/go/tools/cmd/staticcheck@<pin> ./...` and `go run golang.org/x/vuln/cmd/govulncheck@<pin> ./...`; pins are the newest tagged releases at run time that build under the item-1 go1.26 toolchain (staticcheck 2026.2.x and govulncheck v1.9.x at write time), written once as job `env` values and once as Makefile variables. The lint job lives in ci.yml and so joins the ADR-0008 release gate (green CI on the gated commit).
 **Goal:** CI fails on any staticcheck finding or any govulncheck-reachable vulnerability; `make lint` runs the same two commands at the same pins; `CONTRIBUTING.md` lists both among the CI checks.

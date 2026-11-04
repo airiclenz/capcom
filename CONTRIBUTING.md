@@ -14,17 +14,22 @@ fetches that toolchain and switches to it.
 make build    # static ./capcom: CGO_ENABLED=0 go build -trimpath ./cmd/capcom
 make vet      # go vet ./...
 make test     # go test -count=1 ./...
+make lint     # staticcheck and govulncheck over ./..., at the pins CI uses
 make clean    # remove ./capcom
 ```
 
 Without `make`, as on stock Windows, run the `go` commands in the comments directly; every target
-is one of them. `make vet` and `make test` take `PKG=<package>` to narrow them, for example
-`make test PKG=./internal/ui/`. `make build` takes `BUILDFLAGS` and `LDFLAGS` for extra build
-flags. Releases never go through `make` (Note `adr-0008-amend-makefile`).
+is one of them, and `make lint` is the two `go run` lines in the [`Makefile`](Makefile). `make vet`
+and `make test` take `PKG=<package>` to narrow them, for example `make test PKG=./internal/ui/`.
+`make build` takes `BUILDFLAGS` and `LDFLAGS` for extra build flags. Releases
+never go through `make` (Note `adr-0008-amend-makefile`).
 
 CI runs `go vet ./...` and `go test -count=1 ./...` on Linux, macOS and Windows, with `-race` on
 Linux and macOS; the Linux job fails when total coverage drops below `COVERAGE_FLOOR` in
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml). On a machine with little memory,
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). Its lint job runs `staticcheck` and
+`govulncheck` over `./...` at the versions pinned in its `env` block, the same pins as
+`STATICCHECK_VERSION` and `GOVULNCHECK_VERSION` in the `Makefile`; any staticcheck finding or
+reachable vulnerability fails it, and a release needs CI green. On a machine with little memory,
 such as a Raspberry Pi, test one package at a time with `GOMEMLIMIT=2GiB`
 (`GOMEMLIMIT=2GiB make test PKG=./internal/cli/`), and never run `./...` with `-race` (see
 [`AGENTS.md`](AGENTS.md)).
