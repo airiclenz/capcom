@@ -129,7 +129,15 @@ func standing(value frontmatter.Field) (bool, error) {
 	return false, value.Errorf("%s: expected %s or %s", keyStanding, standingTrue, standingFalse)
 }
 
+// The years an RFC3339 timestamp can spell in four digits, the range a timestamp must keep in UTC
+// so that Serialize writes it back in a form Parse reads.
+const (
+	minTimestampYear = 0
+	maxTimestampYear = 9999
+)
+
 // timestamp reads an RFC3339 timestamp as UTC to the second; an empty value reads as the zero time.
+// It refuses a timestamp whose offset moves it out of the years 0000 to 9999 in UTC.
 func timestamp(value frontmatter.Field) (time.Time, error) {
 	if value.IsEmpty() {
 		return time.Time{}, nil
@@ -142,5 +150,14 @@ func timestamp(value frontmatter.Field) (time.Time, error) {
 			value.Key,
 		)
 	}
-	return parsed.UTC().Truncate(time.Second), nil
+	utc := parsed.UTC()
+	if year := utc.Year(); year < minTimestampYear || year > maxTimestampYear {
+		return time.Time{}, value.Errorf(
+			"%s: the timestamp falls outside the years %04d to %04d in UTC",
+			value.Key,
+			minTimestampYear,
+			maxTimestampYear,
+		)
+	}
+	return utc.Truncate(time.Second), nil
 }

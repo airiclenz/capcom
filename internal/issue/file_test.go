@@ -287,6 +287,16 @@ func TestParse_Failures_CiteFileLine(t *testing.T) {
 			want:    testPath + ":2: created: expected an RFC3339 timestamp such as 2026-10-11T09:30:00Z",
 		},
 		{
+			name:    "created before year 0000 in UTC",
+			content: "---\ncreated: 0000-01-01T00:00:00+01:00\n---\n",
+			want:    testPath + ":2: created: the timestamp falls outside the years 0000 to 9999 in UTC",
+		},
+		{
+			name:    "closed after year 9999 in UTC",
+			content: "---\nclosed: 9999-12-31T23:30:00-01:00\n---\n",
+			want:    testPath + ":2: closed: the timestamp falls outside the years 0000 to 9999 in UTC",
+		},
+		{
 			name:    "labels not a list",
 			content: "---\ntitle: T\nlabels: ui\n---\n",
 			want:    testPath + ":3: labels: expected a list such as [a, b]",

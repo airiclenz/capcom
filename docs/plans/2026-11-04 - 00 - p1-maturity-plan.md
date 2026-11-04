@@ -129,7 +129,11 @@ internal/issue/testdata — full.md, fence-in-code-block.md
 - `GOMEMLIMIT=2GiB go test -run='^$' -fuzz='^FuzzConflictMarkers$' -fuzztime=2m -parallel=2 ./internal/rawfm/`
 **Commit:** `fix(frontmatter): read a run of \r before \n as one line ending; fuzz Decode and the conflict marker scan`
 
-## 5. Fuzz issue parsing and MergeFile
+## 5. Fuzz issue parsing and MergeFile — ✅ DONE (2026-11-04)
+
+NOTES (2026-11-04): the out-of-range timestamp error has its own message, `<key>: the timestamp falls outside the years 0000 to 9999 in UTC`, since the value is valid RFC3339 and the existing "expected an RFC3339 timestamp" text would misdescribe it; file_test.go covers both ends (a `created` before 0000 and a `closed` after 9999) in TestParse_Failures_CiteFileLine.
+NOTES (2026-11-04): FuzzParseIssue seeds add hand cases beside testdata/*.md (`\r\r\n`, the 0000/9999 UTC boundaries, the +01:00 year-0000 value, fractional seconds, quoted text, NUL and `\x1b` bytes); FuzzMergeFile seeds also include a fenced Log example, three empty versions and a Log-less side. No crasher was found in 2m runs of each target, so nothing is committed under testdata/fuzz/.
+NOTES (2026-11-04): the commit message leads with fix(issue) instead of the planned test(issue), since the item carries the timestamp fix (as item 4 led with fix(frontmatter)).
 
 **What:** add `internal/issue/fuzz_test.go` with `FuzzParseIssue` and `FuzzMergeFile`.
 **Goal:** `FuzzParseIssue`: `issue.Parse("x.md", data)` never panics; when it succeeds, `s1 := i.Serialize()` parses again and `Parse(s1).Serialize()` equals `s1` byte for byte (canonical form is a fixed point). `FuzzMergeFile` takes three byte slices and calls `issue.MergeFile(base, ours, theirs, fakeTextMerge)`; it never panics and never returns an error (`fakeTextMerge` never fails).
