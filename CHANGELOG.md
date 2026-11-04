@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The README, the FAQ and the capcom compared page now describe beads as it works today: its issues live in a Dolt database (embedded under `.beads/` or on a Dolt server), synced with `bd dolt push` and `bd dolt pull` on a git ref apart from the code branches, with `issues.jsonl` only an export, no longer as a database exported to git. The beads migration guide's first step runs `bd dolt pull` on a Dolt-based beads release and keeps the final `bd sync` for an older release that still has it.
+
 ## [0.15.1] - 2026-11-03
 
 - `capcom ui` now shows each issue's type in the Ready and Issues lists, after the priority: every row reads `id  status  P<n>  type  title`, the type and the title each starting at one column. The type column is as wide as the widest type in the list, at most 10 cells; a longer type is cut to that width ending in `…`. The dependency view keeps the rows `capcom dep list` prints, without the type.

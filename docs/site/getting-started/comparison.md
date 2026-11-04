@@ -12,8 +12,8 @@ and no LLM calls of its own. This page compares it with the alternatives people 
 
 | | capcom | beads | GitHub Issues | Task Master | `TODO.md` or agent memory |
 | --- | --- | --- | --- | --- | --- |
-| Where the data lives | Markdown files in the repository | A database, with a JSONL export in git | GitHub's servers | A JSON task file in the repository | One markdown file |
-| Branches with the code | Yes | Through the export | No | Yes | Yes |
+| Where the data lives | Markdown files in the repository | A Dolt database under `.beads/`, or a Dolt server | GitHub's servers | A JSON task file in the repository | One markdown file |
+| Branches with the code | Yes | No: synced on its own git ref with `bd dolt push` and `pull` | No | Yes | Yes |
 | Works offline, no account | Yes | Yes | No | Needs an LLM API key to generate tasks | Yes |
 | Dependencies and a ready queue | Yes | Yes | Partial | Yes | No |
 
@@ -23,11 +23,14 @@ worktree.
 
 ## capcom vs beads
 
-beads (`bd`) is an issue tracker for coding agents that keeps its issues in a database and exports
-a JSONL copy for git. capcom has no database to keep in step: each Issue is its own markdown file,
-the SQLite index is a cache rebuilt from the files and never committed, and an Issue branches,
-merges and shows up in code review with the code it describes. Ids are readable slugs you choose
-(`login-timeout-race`) instead of hashes. To move a repository over, follow
+beads (`bd`) is an issue tracker for coding agents that keeps its issues in a Dolt database, a
+versioned SQL store, either embedded under `.beads/` or on a `dolt sql-server` for several writers.
+Machines share it with `bd dolt push` and `bd dolt pull`, which sync the database on a git ref of
+its own (`refs/dolt/data`), apart from your code branches; its `issues.jsonl` is an export for
+viewers, not the source of truth. capcom has no database to keep in step: each Issue is its own
+markdown file, the SQLite index is a cache rebuilt from the files and never committed, and an Issue
+branches, merges and shows up in code review with the code it describes. Ids are readable slugs you
+choose (`login-timeout-race`) instead of hashes. To move a repository over, follow
 [Migrating from beads](migrating-from-beads.md).
 
 ## capcom vs GitHub Issues

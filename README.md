@@ -241,9 +241,10 @@ jobs:
 ```
 
 **How is capcom different from beads, GitHub Issues or Task Master?**
-beads keeps a database and exports it to git; capcom keeps only the files, so there is nothing
-to sync. GitHub Issues lives on a server, apart from your branches; capcom works offline and
-merges with the code. Task Master generates tasks with an LLM; capcom calls none. See
+beads keeps a Dolt database and syncs it with `bd dolt push` and `pull`, on a ref of its own;
+capcom keeps only the files, so there is nothing to sync. GitHub Issues lives on a server, apart
+from your branches; capcom works offline and merges with the code. Task Master generates tasks
+with an LLM; capcom calls none. See
 [capcom compared](docs/site/getting-started/comparison.md) and
 [migrating from beads](docs/site/getting-started/migrating-from-beads.md).
 

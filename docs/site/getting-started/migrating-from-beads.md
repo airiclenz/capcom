@@ -13,12 +13,14 @@ The file formats are in the [File format](../reference/file-format.md) reference
 
 ## Steps
 
-1. **Freeze beads.** Tell every agent and person working in the repository to stop writing to
-   beads. Run a final `bd sync`, so the database and its JSONL agree, then `bd export` to write
-   every issue to one JSONL file, one issue per line. Keep the export outside the repository and do
-   not commit it; keep it after the cut-over too, since it is the only record of what does not
-   migrate (see What does not migrate). Copy out every memory saved with `bd remember` as well:
-   each becomes a Knowledge Note (see Memories).
+1. **Freeze beads.** Tell every agent and person working in the repository to stop writing to beads.
+   Bring the database up to date first: on a Dolt-based release, run `bd dolt pull` so it holds
+   every change pushed from other machines; on an older release that still has `bd sync`, run a
+   final `bd sync`, so the database and its JSONL agree. Then run `bd export` to write every issue
+   to one JSONL file, one issue per line. Keep the export outside the repository and do not commit
+   it; keep it after the cut-over too, since it is the only record of what does not migrate (see
+   What does not migrate). Copy out every memory saved with `bd remember` as well: each becomes a
+   Knowledge Note (see Memories).
 2. **Create the store.** Run `capcom init`. If the export uses statuses or types the default
    `.capcom/config.yaml` lacks (see the mapping below), declare them there now.
 3. **Choose the ids.** Build the table of beads id to capcom id first, for every issue in the

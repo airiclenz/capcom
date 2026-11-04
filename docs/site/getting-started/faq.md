@@ -69,9 +69,9 @@ files out of canonical form; both exit non-zero on a problem and write nothing.
 ## How is capcom different from beads, GitHub Issues or Task Master?
 
 capcom keeps only files in git, with no database to sync, no hosted service and no LLM calls of
-its own. beads keeps a database and exports a copy to git; GitHub Issues lives on a server, apart
-from your branches; Task Master generates tasks with an LLM. The full comparison is in
-[capcom compared](comparison.md), and a move off beads is in
+its own. beads keeps a Dolt database and syncs it with `bd dolt push` and `pull`, on a ref of its
+own; GitHub Issues lives on a server, apart from your branches; Task Master generates tasks with
+an LLM. The full comparison is in [capcom compared](comparison.md), and a move off beads is in
 [Migrating from beads](migrating-from-beads.md).
 
 ## Is capcom only for AI agents?
