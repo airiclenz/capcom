@@ -1,0 +1,53 @@
+name: Fuzz
+
+# Runs every native fuzz target for 30s, one job per target, since Go fuzzes one target per
+# invocation. It lives apart from ci.yml so a fuzz failure never blocks a release: the release
+# gate reads ci.yml's runs only (Note adr-0008, HasGreenRun in cmd/release).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: internal/frontmatter
+            target: FuzzDecode
+          - package: internal/rawfm
+            target: FuzzConflictMarkers
+          - package: internal/issue
+            target: FuzzParseIssue
+          - package: internal/issue
+            target: FuzzMergeFile
+          - package: internal/knowledge
+            target: FuzzParseNote
+          - package: internal/config
+            target: FuzzParseConfig
+          - package: internal/batch
+            target: FuzzParseApply
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Fuzz
+        run: go test -run='^$' -fuzz='^${{ matrix.target }}$' -fuzztime=30s ./${{ matrix.package }}
+      # A crash leaves its input under the package's testdata/fuzz/<Target>/; commit it with the
+      # fix so it runs as a regression case in every plain `go test`.
+      - name: Upload the crasher
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crasher-${{ matrix.target }}
+          path: ${{ matrix.package }}/testdata/fuzz/
+          if-no-files-found: ignore

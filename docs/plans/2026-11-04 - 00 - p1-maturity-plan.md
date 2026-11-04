@@ -189,7 +189,12 @@ internal/batch/parse.go — Parse, parser.list, parser.yamlError, Error.Error; d
 - `GOMEMLIMIT=2GiB go test -run='^$' -fuzz='^FuzzParseApply$' -fuzztime=2m -parallel=2 ./internal/batch/`
 **Commit:** `test(config): fuzz config and apply file parsing`
 
-## 8. Run every fuzz target in CI
+## 8. Run every fuzz target in CI — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-04): fuzz.yml triggers on push to main and on pull_request, mirroring ci.yml's `on:` block, rather than on a push to any branch; the repo commits to main, and an unfiltered push would run every target twice on a pull request's branch.
+NOTES (2026-11-04): fuzz.yml uses actions/setup-go@v6 with go-version-file: go.mod (per the item 1 decision), a 15-minute job timeout, and uploads `<package>/testdata/fuzz/` as `fuzz-crasher-<Target>` only on failure (if-no-files-found: ignore).
+NOTES (2026-11-04): 10-minute soak, serial, GOMEMLIMIT=2GiB -parallel=2: FuzzDecode, FuzzConflictMarkers, FuzzParseIssue, FuzzMergeFile, FuzzParseNote, FuzzParseConfig, FuzzParseApply all passed with no failure and no crasher written.
+NOTES (2026-11-04): the fuzz-parsers issue's Acceptance names a `fuzz` job in ci.yml; per the ratified Release gate call it lives in .github/workflows/fuzz.yml instead, off the ADR-0008 release gate.
 
 **What:** Recast at the regression check (2026-11-04). Add a `fuzz` job to `.github/workflows/ci.yml`: ubuntu-latest, `fail-fast: false`, a matrix `include` of `{package, target}` for the seven targets of items 4–7, each step `go test -run='^$' -fuzz='^${{ matrix.target }}$' -fuzztime=30s ./${{ matrix.package }}`. On failure, upload `${{ matrix.package }}/testdata/fuzz/` as an artifact so the crasher can be committed.
 **Goal:** a push or pull request runs all seven targets for 30s each and fails on a crash; `CONTRIBUTING.md` says how to run one target locally and that a crasher is committed under `testdata/fuzz/<Target>/` with its fix.

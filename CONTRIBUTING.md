@@ -34,6 +34,20 @@ such as a Raspberry Pi, test one package at a time with `GOMEMLIMIT=2GiB`
 (`GOMEMLIMIT=2GiB make test PKG=./internal/cli/`), and never run `./...` with `-race` (see
 [`AGENTS.md`](AGENTS.md)).
 
+The parsers of hostile input carry native fuzz targets, one `fuzz_test.go` per package. Plain
+`go test` runs their seed corpora as ordinary tests;
+[`.github/workflows/fuzz.yml`](.github/workflows/fuzz.yml) fuzzes each target for 30s on every
+push to `main` and every pull request, in a workflow of its own so a fuzz failure never blocks a
+release. Go fuzzes one target per invocation; run one locally with
+
+```sh
+go test -run='^$' -fuzz='^FuzzParseIssue$' -fuzztime=1m ./internal/issue
+```
+
+adding `-parallel=2` and `GOMEMLIMIT=2GiB` on a small machine. A crash writes its input under the
+package's `testdata/fuzz/<Target>/` (CI uploads that directory as an artifact): commit that file
+with the fix in the same change, so it stays a regression case every `go test` runs.
+
 ## Conventions and tests
 
 - Code conventions, formatting and error messages: Note
