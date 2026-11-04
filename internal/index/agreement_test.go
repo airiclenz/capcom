@@ -103,8 +103,10 @@ var agreementKinds = []agreementKind{
 
 // content is the text of file in the kind's tree; a formSymlink file has none.
 func (k agreementKind) content(file agreementFile) string {
-	fields := k.valid
+	var fields string
 	switch file.form {
+	case formValid:
+		fields = k.valid
 	case formInvalid:
 		fields = k.invalid
 	case formBroken:

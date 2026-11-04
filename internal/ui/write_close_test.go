@@ -220,7 +220,7 @@ func TestWriteClose_L_FileChangedOnDisk_AsksAndYRunsAgain(t *testing.T) {
 	if got := readStoreFile(t, ts, alphaPath); !bytes.Equal(got, edited) {
 		t.Errorf("alpha after a refused L:\n%s\nwant the edit unchanged", got)
 	}
-	m = press(t, m, runeKey('y'))
+	press(t, m, runeKey('y'))
 	got := string(readStoreFile(t, ts, alphaPath))
 	if !strings.Contains(got, "Test Author: tried the retry path") || !strings.Contains(got, "title: Alpha task renamed") {
 		t.Errorf("alpha after y:\n%s\nwant the edit with the log entry", got)
@@ -247,7 +247,7 @@ func TestWriteClose_L_HeldLock_Asks(t *testing.T) {
 			if got := statusRow(m); got != "locked by refactor the parser, write anyway? (y/n)" {
 				t.Fatalf("status bar = %q, want the lock question", got)
 			}
-			m = press(t, m, answer.key)
+			press(t, m, answer.key)
 
 			isWritten := !bytes.Equal(readStoreFile(t, ts, alphaPath), before)
 			if isWritten != answer.isWritten {

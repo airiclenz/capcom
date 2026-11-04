@@ -204,7 +204,7 @@ func TestWorktreeState_TabChange_SavesAtOnce(t *testing.T) {
 	options := newTestOptions(t, ts)
 	m := startModel(t, options, worktreeStateWidth, 30)
 
-	m = press(t, m, runeKey('1'))
+	press(t, m, runeKey('1'))
 
 	if got := readWorktreeState(t, options.UIStatePath).Tab; got != "issues" {
 		t.Errorf("stored tab = %q, want issues", got)

@@ -64,7 +64,10 @@ cmd/release/dist.go — buildArchive; README.md — "From source (Go 1.25 or lat
 - `go build ./cmd/capcom && go vet ./internal/config/`
 **Commit:** `chore(build): pin the patched Go 1.26 toolchain`
 
-## 2. Fix the staticcheck findings in test files
+## 2. Fix the staticcheck findings in test files — ✅ DONE (2026-11-04)
+
+NOTES (2026-11-04): staticcheck run at 2026.2.2 (module v0.8.2, the newest honnef.co/go/tools release, built under go1.26.10); item 3 has not yet set STATICCHECK_VERSION in the Makefile, so the pin was read from `go list -m -versions honnef.co/go/tools`. It reported the U1000 plus four SA4006 (not write_close_test.go:223); :223 had its dead `m = ` dropped anyway, as the item's guard names it.
+NOTES (2026-11-04): formValid kept and named in agreementKind.content (`case formValid:` sets k.valid, `fields` now starts empty); every SA4006 fixed by dropping only `m = ` and keeping the press call.
 
 **What:** `staticcheck@2025.1.1 ./...` at the base reports five findings, all in tests: `internal/index/agreement_test.go` unused const `formValid` (U1000); `internal/ui/closed_test.go`, `internal/ui/mouse_test.go`, `internal/ui/uistate_test.go`, `internal/ui/write_close_test.go` a value of `m` never used (SA4006).
 **Goal:** `staticcheck ./...` at the version item 3 pins exits 0, with no `//lint:ignore` and no `staticcheck.conf`.

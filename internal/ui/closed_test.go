@@ -218,7 +218,7 @@ func TestClosedTab_TabChange_SavesTheTabAndItsSelection(t *testing.T) {
 	options := newTestOptions(t, ts)
 	m := startModel(t, options, worktreeStateWidth, 30)
 
-	m = press(t, m, runeKey('4'))
+	press(t, m, runeKey('4'))
 
 	stored := readWorktreeState(t, options.UIStatePath)
 	if stored.Tab != "closed" || stored.Closed != "scrapped" {

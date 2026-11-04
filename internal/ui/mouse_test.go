@@ -591,7 +591,7 @@ func TestMouse_ClickDuringReasonPrompt_EnterClosesOnlyThePromptedIssue(t *testin
 
 	m = press(t, m, click(3, 3))
 	m = press(t, m, wheel(tea.MouseWheelDown, 3, 3))
-	m = press(t, m, specialKey(tea.KeyEnter))
+	press(t, m, specialKey(tea.KeyEnter))
 
 	if got := readStoreFile(t, ts, alphaPath); !bytes.Equal(withoutClosedTime(got), withoutClosedTime(want)) {
 		t.Errorf("alpha after the close:\n%s\nwant:\n%s", got, want)
