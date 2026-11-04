@@ -108,7 +108,11 @@ cmd/release/gate.go — checkGreenRun; cmd/release/repo.go — HasGreenRun; .cap
 **Closes:** ci-static-analysis
 **Commit:** `ci: run staticcheck and govulncheck`
 
-## 4. Fuzz frontmatter.Decode and the rawfm scanners
+## 4. Fuzz frontmatter.Decode and the rawfm scanners — ✅ DONE (2026-11-04)
+
+NOTES (2026-11-04): re-derived from the assumption that internal/frontmatter/frontmatter_test.go exists: the package's Split tests live in internal/frontmatter/decode_test.go (TestSplit_Fences), so the `\r\r\n` Split case is a new row of that table.
+NOTES (2026-11-04): consequential edit — docs/site/reference/file-format.md: made necessary by crlfToLF reading a run of carriage returns before a line feed as one line ending (the line-endings bullet now says so).
+NOTES (2026-11-04): FuzzDecode reuses decode_test.go's issueKind, noteKind and listKeys (same package frontmatter_test) and also checks Split's front and body hold no `\r\n`; FuzzConflictMarkers additionally asserts markers in strictly ascending line order and every alias non-empty and listed once, as their doc comments state. No crasher was found in 45s runs of each target, so nothing is committed under testdata/fuzz/.
 
 **What:** Recast at the regression check (2026-11-04). Add `internal/frontmatter/fuzz_test.go` with `FuzzDecode` and `internal/rawfm/fuzz_test.go` with `FuzzConflictMarkers` (issue `fuzz-parsers`).
 **Goal:** `FuzzDecode` calls `frontmatter.Decode("x.md", data, kind, apply)` for an issue-like and a Note-like `Kind` (built in the test from a fixed key list) with an `apply` that reads each `Field` through its helpers; it never panics and every error's text contains `x.md`. `FuzzConflictMarkers` calls `rawfm.ConflictMarkers(data)` and `rawfm.Aliases(data)`; it never panics and every returned `ConflictMarker.Line` is between 1 and the line count of `data` (`len(strings.Split(string(data), "\n"))`), its `Text` equal to that line with one trailing `\r` removed (`strings.TrimSuffix`), as `ConflictMarkers`' doc comment states.

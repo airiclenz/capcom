@@ -294,7 +294,8 @@ back yields the same bytes, so a write only changes what it means to change:
 - text unquoted wherever YAML reads it back unchanged, and in double quotes otherwise (a value
   holding `: `, a leading `#`, a number such as `"123"`, a keyword such as `"true"`, a line break
   written as `\n`), always on one line;
-- LF line endings; a file with CRLF line endings reads the same and is written back with LF;
+- LF line endings; a file with CRLF line endings reads the same and is written back with LF, and
+  so does one with a run of carriage returns before a line feed;
 - the body byte for byte.
 
 Hand-written files may use any valid YAML for these keys (block-style lists, quoted text, comments,

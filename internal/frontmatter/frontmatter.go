@@ -45,10 +45,11 @@ func (e *Error) Error() string {
 }
 
 // Split separates the file content data into its frontmatter YAML and its body, both with CRLF
-// line endings read as LF. The frontmatter is everything between the opening `---` line and the
-// first later line that is a fence, `---` with at most one trailing carriage return
-// (rawfm.IsFrontmatterFence), so a closing `---\r` that ends the file closes it too; the body is
-// everything after that line, byte for byte. path names the file in an error, and noun names one
+// line endings read as LF, a run of carriage returns before a line feed included. The frontmatter
+// is everything between the opening `---` line and the first later line that is a fence, `---`
+// with at most one trailing carriage return (rawfm.IsFrontmatterFence), so a closing `---\r` that
+// ends the file closes it too; the body is everything after that line, byte for byte but for its
+// line endings. path names the file in an error, and noun names one
 // file of its kind with its article ("an issue", "a Note").
 //
 // Split fails, with an *Error citing line 1, when data does not open with a `---` line ("an issue
@@ -93,7 +94,23 @@ func splitAtFence(rest string) (front string, body string, isClosed bool) {
 	}
 }
 
-// crlfToLF returns text with each CRLF line ending read as LF.
+// crlfToLF returns text with each line ending read as LF: a line feed and every carriage return
+// immediately before it, so "\r\r\n" is one line ending too and the result holds no "\r\n" a
+// second reading would shorten. A carriage return before any other byte is kept.
 func crlfToLF(text string) string {
-	return strings.ReplaceAll(text, "\r\n", "\n")
+	if !strings.Contains(text, "\r\n") {
+		return text
+	}
+	var builder strings.Builder
+	builder.Grow(len(text))
+	for line := range strings.SplitAfterSeq(text, "\n") {
+		content, hasLineFeed := strings.CutSuffix(line, "\n")
+		if !hasLineFeed {
+			builder.WriteString(line)
+			continue
+		}
+		builder.WriteString(strings.TrimRight(content, "\r"))
+		builder.WriteString("\n")
+	}
+	return builder.String()
 }

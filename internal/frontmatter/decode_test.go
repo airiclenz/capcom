@@ -409,6 +409,12 @@ func TestSplit_Fences(t *testing.T) {
 		{name: "lone opening fence", content: "---\n", wantErr: neverClosed},
 		{name: "closing fence with a lone CR at end of file", content: "---\ntitle: T\n---\r", front: "title: T\n"},
 		{
+			name:    "a run of CRs before an LF is one line ending",
+			content: "---\r\ntitle: T\r\r\n---\r\nbody\r\r\nlone\r cr\r\r\r\n",
+			front:   "title: T\n",
+			body:    "body\nlone\r cr\n",
+		},
+		{
 			name:    "fence lines in the body are kept",
 			content: "---\ntitle: T\n---\r\nabove\r\n---\r\nbelow\n",
 			front:   "title: T\n",
