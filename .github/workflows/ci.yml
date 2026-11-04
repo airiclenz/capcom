@@ -21,7 +21,7 @@ jobs:
       COVERAGE_FLOOR: '90'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Vet
@@ -61,7 +61,7 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Build the binary

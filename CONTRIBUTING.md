@@ -6,7 +6,9 @@ lists them and `capcom know show <id>` reads one; without it, read the markdown 
 
 ## Build and test
 
-capcom needs the Go version named in [`go.mod`](go.mod).
+capcom needs the Go version named in [`go.mod`](go.mod). Its `toolchain` line pins the patched Go
+release that CI and releases build with; with the default `GOTOOLCHAIN=auto`, an older local Go
+fetches that toolchain and switches to it.
 
 ```sh
 make build    # static ./capcom: CGO_ENABLED=0 go build -trimpath ./cmd/capcom

@@ -2,6 +2,8 @@ module github.com/airiclenz/capcom
 
 go 1.25.0
 
+toolchain go1.26.10
+
 require (
 	charm.land/bubbles/v2 v2.1.0
 	charm.land/bubbletea/v2 v2.0.8

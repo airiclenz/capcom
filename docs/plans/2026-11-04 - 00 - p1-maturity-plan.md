@@ -44,7 +44,10 @@
 - 9: guard folded (git merge-file exits with the conflict count; Log dates ascend per side)
 - 10: guard folded (seed-determined texts; acyclic deps; a merge runner that accepts exit 1; raw Log for conflicted issues; build by import path)
 
-## 1. Pin a patched Go toolchain in go.mod
+## 1. Pin a patched Go toolchain in go.mod — ✅ DONE (2026-11-04)
+
+NOTES (2026-11-04): re-derived from the assumption that actions/setup-go@v5 reads the go.mod toolchain line; per the DECISION, both setup-go steps in .github/workflows/ci.yml (test and cross, the only workflow using setup-go) move to actions/setup-go@v6.
+NOTES (2026-11-04): newest Go 1.26 patch at run time is go1.26.10 (go.dev/dl JSON and go list -m -versions golang.org/toolchain agree); README and install.md "Go 1.25 or later" left as is, still true via GOTOOLCHAIN=auto.
 
 **What:** Recast at the regression check (2026-11-04). `go.mod` declares `go 1.25.0` and no `toolchain`, so setup-go and the release host build with Go 1.25.0 and its unpatched standard library.
 **Goal:** `go.mod` carries a `toolchain go1.26.N` line naming the newest Go 1.26 patch release published at run time (read from `https://go.dev/dl/?mode=json&include=all` or `go list -m -versions golang.org/toolchain`), and the `go` line is unchanged.
