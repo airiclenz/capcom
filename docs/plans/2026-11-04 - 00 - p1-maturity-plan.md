@@ -151,7 +151,9 @@ internal/issue/merge.go — MergeFile, parseLog, logSection.withPlaceholder; int
 **Depends on item 4.**
 **Commit:** `test(issue): fuzz Parse round trips and MergeFile`
 
-## 6. Fuzz Note parsing
+## 6. Fuzz Note parsing — ✅ DONE (2026-11-04)
+
+NOTES (2026-11-04): fuzz_test.go declares `package knowledge`, as knowledge_test.go does; seeds are the 109 committed Notes walked from ../../.capcom/knowledge (skipped when absent) plus hand cases: every key with retired true, CRLF with a `\r\r\n` body, a conflict marker in the frontmatter and in the body, quoted and empty values, NUL and `\x1b` bytes, an empty frontmatter. No crasher was found in a 2m run, so nothing is committed under testdata/fuzz/.
 
 **What:** add `internal/knowledge/fuzz_test.go` with `FuzzParseNote`.
 **Goal:** `knowledge.Parse("x.md", data)` never panics; when it succeeds, `s1 := n.Serialize()` parses again and re-serializes to `s1` byte for byte.
