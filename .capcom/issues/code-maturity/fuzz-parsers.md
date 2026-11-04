@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 1
 labels: [maturity, testing]
+plan: 2026-11-04 - 00 - p1-maturity-plan
 created: 2026-11-04T18:27:23Z
 ---
 
