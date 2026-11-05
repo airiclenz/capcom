@@ -210,7 +210,10 @@ internal/cli/lock.go — newLockAcquireCommand, heldLockHint; internal/lock/clai
 - `GOMEMLIMIT=2GiB go test -count=1 -run Stress ./internal/cli` runs no stress test (tag absent)
 **Commit:** `test(cli): stress the Tree lock with racing processes`
 
-## 9. Stress one worktree with mixed commands
+## 9. Stress one worktree with mixed commands — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): bug found and fixed per the header's "Bugs found" call: concurrent first opens of a new index.db failed busy at once, since `PRAGMA journal_mode=WAL` upgrades a read lock and SQLite skips the busy handler there; `openFile` now calls `connect`, which retries a busy or locked `Ping` every 20 ms until `connectRetryTimeout` (the 5 s busy timeout) passes. Regression test `TestOpen_RacingOnANewIndex_EveryOpenSucceeds` in internal/index/index_test.go; `shortenBusyTimeout` now also shortens `connectRetryTimeout`. The commit keeps the item's `test(cli)` line; the fix rides in it.
+NOTES (2026-11-05): a command that fails `the index is busy` after running at least 4 s (`busyWaitFloor`) counts as documented: at the default 16 workers on the Pi, ready/close/reindex occasionally wait out the index's 5 s busy timeout on `begin refresh`, since every command refreshes inside an IMMEDIATE transaction. A busy failure sooner than that still fails the test. Each recorded command keeps its elapsed time for the failure message.
 
 **What:**
 **Goal:** `TestStress_OneWorktree` runs `CAPCOM_STRESS_WORKERS` (default 16) goroutines of 50 random commands each (`create` with unique ids, `log`, `update --priority`, `dep add` among their own issues, `close`, `ready`, `prime`, `reindex`, `lock acquire`/`release` with their own purpose) on one store; afterwards `check` exits 0, every create and log that exited 0 is in its file, `reindex` then `list --all --json` equals the listing before it, and no process panicked or failed with an undocumented error.

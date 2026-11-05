@@ -1478,13 +1478,15 @@ func TestOpen_GarbageIndex_RefreshFailsCorruptAndRebuildRepairsIt(t *testing.T) 
 // shortBusyTimeout is the busy timeout shortenBusyTimeout gives the index's connections.
 const shortBusyTimeout = 100 * time.Millisecond
 
-// shortenBusyTimeout swaps the package's dsnOptions seam for one waiting shortBusyTimeout on a
-// locked index, restoring it when the test ends. Its callers never run in parallel.
+// shortenBusyTimeout swaps the package's dsnOptions and connectRetryTimeout seams for ones waiting
+// shortBusyTimeout on a locked index, restoring them when the test ends. Its callers never run in
+// parallel.
 func shortenBusyTimeout(t *testing.T) {
 	t.Helper()
-	original := dsnOptions
-	t.Cleanup(func() { dsnOptions = original })
+	originalOptions, originalRetry := dsnOptions, connectRetryTimeout
+	t.Cleanup(func() { dsnOptions, connectRetryTimeout = originalOptions, originalRetry })
 	dsnOptions = connectionOptions(shortBusyTimeout)
+	connectRetryTimeout = shortBusyTimeout
 }
 
 func TestOpen_BusyIndex_IsNotCorruptAndIsNeverDeleted(t *testing.T) {
@@ -1554,6 +1556,39 @@ func TestRefresh_IndexLockedByAnotherCommand_FailsBusy(t *testing.T) {
 
 	if !errors.Is(refreshErr, ErrBusy) || !strings.HasPrefix(refreshErr.Error(), Path(s)+": ") {
 		t.Errorf("Refresh under the held lock err = %v, want ErrBusy naming %s", refreshErr, Path(s))
+	}
+}
+
+func TestOpen_RacingOnANewIndex_EveryOpenSucceeds(t *testing.T) {
+	const (
+		rounds  = 20
+		openers = 8
+	)
+	for round := range rounds {
+		s := newStore(t)
+		writeIssue(t, s, "shared-issue.md", issueText("Shared", "open", ""))
+		openErrs := make([]error, openers)
+		start := make(chan struct{})
+		var group sync.WaitGroup
+		for n := range openers {
+			group.Add(1)
+			go func() {
+				defer group.Done()
+				<-start
+				x, err := Open(s, ModeRefresh)
+				if err == nil {
+					err = x.Close()
+				}
+				openErrs[n] = err
+			}()
+		}
+		close(start)
+		group.Wait()
+		for n, err := range openErrs {
+			if err != nil {
+				t.Fatalf("round %d, opener %d: Open of a new index racing %d others: %v", round, n, openers-1, err)
+			}
+		}
 	}
 }
 

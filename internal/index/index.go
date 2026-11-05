@@ -96,8 +96,17 @@ const defaultBusyTimeout = 5 * time.Second
 // upgrading a read lock. It is a variable only so a test can shorten the busy timeout.
 var dsnOptions = connectionOptions(defaultBusyTimeout)
 
+// connectRetryTimeout is how long connect keeps retrying a first connection that fails busy; it
+// matches the busy timeout of dsnOptions and is a variable only so a test can shorten both.
+var connectRetryTimeout = defaultBusyTimeout
+
+// connectRetryInterval is how long connect waits before it retries a first connection that
+// failed busy.
+const connectRetryInterval = 20 * time.Millisecond
+
 // connectionOptions builds the DSN query string of dsnOptions with busyTimeout as SQLite's busy
-// timeout. The busy timeout comes first, so it already applies to the journal_mode pragma.
+// timeout. The busy timeout comes first, so it applies to the journal_mode pragma wherever SQLite
+// calls the busy handler at all; where it does not, connect retries.
 func connectionOptions(busyTimeout time.Duration) string {
 	return fmt.Sprintf(
 		"?_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)&_txlock=immediate",
@@ -236,7 +245,7 @@ func openFile(s *store.Store, path string, mode Mode, options []Option) (*Index,
 	// One connection keeps the IMMEDIATE transaction and the queries of a command on the same
 	// SQLite handle.
 	db.SetMaxOpenConns(1)
-	if err := db.Ping(); err != nil {
+	if err := connect(db); err != nil {
 		return nil, errors.Join(asBusyError(path, fmt.Errorf("%s: %w", path, err)), db.Close())
 	}
 
@@ -248,6 +257,23 @@ func openFile(s *store.Store, path string, mode Mode, options []Option) (*Index,
 		return nil, errors.Join(err, db.Close())
 	}
 	return index, nil
+}
+
+// connect opens db's first connection, which runs the pragmas of dsnOptions. Switching a new index
+// file to WAL upgrades a read lock to an exclusive one, and SQLite fails that busy at once, without
+// calling the busy handler, while another command is opening the same new file; so a busy or locked
+// failure is retried every connectRetryInterval until connectRetryTimeout has passed, and the last
+// failure is returned.
+func connect(db *sql.DB) error {
+	deadline := time.Now().Add(connectRetryTimeout)
+	for {
+		err := db.Ping()
+		isBusy := hasPrimaryCode(err, sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED)
+		if err == nil || !isBusy || !time.Now().Before(deadline) {
+			return err
+		}
+		time.Sleep(connectRetryInterval)
+	}
 }
 
 // isCorruptIndex reports whether err carries a SQLite failure whose primary result code says the
