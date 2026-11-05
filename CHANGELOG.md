@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - The README, the FAQ and the capcom compared page now describe beads as it works today: its issues live in a Dolt database (embedded under `.beads/` or on a Dolt server), synced with `bd dolt push` and `bd dolt pull` on a git ref apart from the code branches, with `issues.jsonl` only an export, no longer as a database exported to git. The beads migration guide's first step runs `bd dolt pull` on a Dolt-based beads release and keeps the final `bd sync` for an older release that still has it.
+- capcom is now built with Go 1.26.10: `go.mod` pins it on a `toolchain` line, so CI and release binaries carry the patched standard library rather than Go 1.25.0's. The `go 1.25.0` line is unchanged; building from source with Go 1.25 still works, as the go command fetches the pinned toolchain.
+- CI gains a lint job that runs staticcheck 2026.2.2 and govulncheck v1.9.0 over `./...`; any staticcheck finding or reachable vulnerability fails CI, and with it the release gate. `make lint` runs the same two commands at the same pins (`STATICCHECK_VERSION` and `GOVULNCHECK_VERSION` in the `Makefile`).
+- A run of carriage returns before a line feed (`\r\r\n`) now reads as one line ending, so reading an issue or Note and writing it back no longer changes it on the next read.
+- An issue's `created` or `closed` timestamp whose offset moves it out of the years 0000 to 9999 in UTC (such as `0000-01-01T00:00:00+01:00`) is now refused when the file is read, with `created: the timestamp falls outside the years 0000 to 9999 in UTC`, instead of being written back as a timestamp no later read accepts.
 
 ## [0.15.1] - 2026-11-03
 
