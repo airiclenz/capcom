@@ -28,25 +28,44 @@ type fixtureNode struct {
 	ID string `json:"id"`
 }
 
+// newerStoreDir is the package-relative directory of the store a newer capcom wrote: it holds no
+// config.yaml, since its format key is written at test time as newerFormat, and it sits outside
+// the format-<n> namespace, so a raised config.FormatVersion never takes it for its fixture.
+var newerStoreDir = filepath.Join("testdata", "stores", "newer")
+
 // copyFixtureStore copies the hand-written store testdata/stores/format-<format> into the .capcom
 // directory of a fresh git repository and commits it, returning the repository's root.
 func copyFixtureStore(t *testing.T, format int) string {
 	t.Helper()
-	source, err := filepath.Abs(fixtureStoreDir(format))
+	root := copyStoreDir(t, fixtureStoreDir(format))
+	commitFixtureStore(t, root, fmt.Sprintf("format %d fixture", format))
+	return root
+}
+
+// copyStoreDir copies the package-relative store directory dir into the .capcom directory of a
+// fresh git repository, uncommitted, and returns the repository's root.
+func copyStoreDir(t *testing.T, dir string) string {
+	t.Helper()
+	source, err := filepath.Abs(dir)
 	if err != nil {
 		t.Fatalf("Abs: %v", err)
 	}
 	if _, err := os.Stat(source); err != nil {
-		t.Fatalf("no fixture store for format %d: %v", format, err)
+		t.Fatalf("no fixture store %s: %v", dir, err)
 	}
 	root := newGitRepo(t)
 	target := filepath.Join(root, ".capcom")
 	if err := os.CopyFS(target, os.DirFS(source)); err != nil {
 		t.Fatalf("CopyFS %s: %v", source, err)
 	}
-	runGit(t, root, "add", "-A")
-	runGit(t, root, "commit", "-q", "-m", fmt.Sprintf("format %d fixture", format))
 	return root
+}
+
+// commitFixtureStore commits everything in the repository at root with message.
+func commitFixtureStore(t *testing.T, root, message string) {
+	t.Helper()
+	runGit(t, root, "add", "-A")
+	runGit(t, root, "commit", "-q", "-m", message)
 }
 
 // fixtureStoreDir is the package-relative directory of the fixture store for format.
@@ -153,5 +172,115 @@ func TestFormatFixture_Reads(t *testing.T) {
 				t.Errorf("know tree --retired ids = %q, want %q", got, wantNotes)
 			}
 		})
+	}
+}
+
+// TestFormatFixture_LogKeepsFormat proves a write that needs no newer format leaves a store at its
+// own: capcom log on each fixture, the oldest included, keeps config.yaml byte for byte and warns
+// of no raise.
+func TestFormatFixture_LogKeepsFormat(t *testing.T) {
+	for format := config.MissingFormat; format <= config.FormatVersion; format++ {
+		t.Run(fmt.Sprintf("format-%d", format), func(t *testing.T) {
+			root := copyFixtureStore(t, format)
+			before := readStoreConfig(t, root)
+
+			stdout := mustRun(t, root, "log", fixtureReadyIssue, "Drafted the release script.")
+
+			if after := readStoreConfig(t, root); after != before {
+				t.Errorf("config.yaml after log =\n%s\nwant it unchanged:\n%s", after, before)
+			}
+			if strings.Contains(stdout, "store format raised") {
+				t.Errorf("log stdout = %q, want no format raise warning", stdout)
+			}
+		})
+	}
+}
+
+// TestFormatFixture_StandingRaisesFormat pins today's raise rule on a real store of the format just
+// below config.FormatStanding: creating a standing issue raises the store to FormatStanding,
+// rewriting only the format line, and warns once that older releases can no longer read it.
+func TestFormatFixture_StandingRaisesFormat(t *testing.T) {
+	const fromFormat = config.FormatStanding - 1
+	root := copyFixtureStore(t, fromFormat)
+	before := readStoreConfig(t, root)
+
+	stdout := mustRun(t, root, "create", "--id", "feature-requests", "--title", "Feature requests", "--standing")
+
+	want := "warning: " + fmt.Sprintf(formatRaisedWarning, ".capcom/config.yaml", config.FormatStanding, fromFormat) + "\n"
+	if count := strings.Count(stdout, want); count != 1 {
+		t.Errorf("create stdout = %q, want the warning %q once, got %d", stdout, want, count)
+	}
+	wantConfig := strings.Replace(before, fmt.Sprintf("\nformat: %d\n", fromFormat), fmt.Sprintf("\nformat: %d\n", config.FormatStanding), 1)
+	if after := readStoreConfig(t, root); wantConfig == before || after != wantConfig {
+		t.Errorf("config.yaml after create =\n%s\nwant only its format line raised to %d:\n%s", after, config.FormatStanding, wantConfig)
+	}
+}
+
+// TestFormatFixture_NewerFormatRefused proves every command refuses a store one format past
+// config.FormatVersion with the same message: prime as its one warning, exiting 0; check as its one
+// config problem, exiting 1; every other command as its error, writing nothing.
+func TestFormatFixture_NewerFormatRefused(t *testing.T) {
+	const issueFile = "newer-issue.md"
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "reindex", args: []string{"reindex"}},
+		{name: "list", args: []string{"list"}},
+		{name: "ready", args: []string{"ready"}},
+		{name: "know tree", args: []string{"know", "tree"}},
+		{name: "show", args: []string{"show", "newer-issue"}},
+		{name: "log", args: []string{"log", "newer-issue", "A note a newer store must not take."}},
+		{name: "create", args: []string{"create", "--id", "new-issue", "--title", "New issue"}},
+	}
+	root := copyStoreDir(t, newerStoreDir)
+	writeNewerFormatConfig(t, root)
+	commitFixtureStore(t, root, fmt.Sprintf("format %d store", newerFormat))
+	issueBefore := readStoreFile(t, root, issueFile)
+
+	t.Run("prime", func(t *testing.T) {
+		stdout, stderr, exitCode := runCLI(t, root, "prime")
+
+		if exitCode != ExitOK || stderr != "" || stdout != "warning: store: "+newerFormatMessage+"\n" {
+			t.Errorf("prime = %d, stdout %q, stderr %q; want 0 and one too-new store warning", exitCode, stdout, stderr)
+		}
+	})
+	t.Run("check", func(t *testing.T) {
+		stdout, stderr, exitCode := runCLI(t, root, "check")
+
+		if exitCode != ExitError || stdout != newerFormatMessage+"\n" || stderr != "" {
+			t.Errorf("check = %d, stdout %q, stderr %q; want 1 and the too-new config problem", exitCode, stdout, stderr)
+		}
+	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			stdout, stderr, exitCode := runCLI(t, root, test.args...)
+
+			if exitCode == ExitOK || stdout != "" || !strings.HasPrefix(stderr, "capcom: "+newerFormatMessage+"\n") {
+				t.Errorf("%v = %d, stdout %q, stderr %q; want a failure carrying %q", test.args, exitCode, stdout, stderr, newerFormatMessage)
+			}
+		})
+	}
+
+	if issueAfter := readStoreFile(t, root, issueFile); issueAfter != issueBefore {
+		t.Errorf("%s after the refused commands =\n%s\nwant it unchanged:\n%s", issueFile, issueAfter, issueBefore)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "new-issue.md")); !os.IsNotExist(err) {
+		t.Errorf("new-issue.md stat err = %v, want the refused create to write no file", err)
+	}
+}
+
+// TestFormatFixture_CurrentFormatHasFixture fails when the newest store format has no fixture: a
+// raised config.FormatVersion needs its testdata/stores/format-<n> store, declaring that format.
+func TestFormatFixture_CurrentFormatHasFixture(t *testing.T) {
+	path := filepath.Join(fixtureStoreDir(config.FormatVersion), "config.yaml")
+
+	data, err := os.ReadFile(path)
+
+	if err != nil {
+		t.Fatalf("no fixture store for store format %d: %v", config.FormatVersion, err)
+	}
+	if want := fmt.Sprintf("\nformat: %d\n", config.FormatVersion); !strings.Contains(string(data), want) {
+		t.Errorf("%s does not declare format %d", path, config.FormatVersion)
 	}
 }

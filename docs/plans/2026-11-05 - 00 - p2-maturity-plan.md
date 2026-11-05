@@ -171,7 +171,10 @@ internal/check/agents.go — agentsBlock (absent AGENTS.md reports nothing); int
 - `ls internal/cli/testdata/stores/` lists `format-1` .. `format-6`
 **Commit:** `test(cli): read a fixture store of every store format`
 
-## 7. Format writes, format 7 refusal, and the FormatVersion guard
+## 7. Format writes, format 7 refusal, and the FormatVersion guard — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): `testdata/stores/newer/` holds only issues/ and knowledge/ (one issue, one Note), no config.yaml: the test writes it with `writeNewerFormatConfig` before committing, so the refusal message is `newerFormatMessage` (built from `config.FormatVersion`); `copyFixtureStore` is split into `copyStoreDir` and `commitFixtureStore` so the newer store reuses the copy.
+NOTES (2026-11-05): the refusal test pins stderr by prefix (`capcom: <msg>\n`), leaving the per-command hint line free; `log` and `create` are shown to write nothing by the issue file staying byte-identical and no new-issue.md appearing; the standing raise asserts config.yaml differs from the fixture's only in its format line.
 
 **What:**
 **Goal:** tests show `capcom log` on each fixture leaves its `format:` unchanged; creating a `standing` issue on the format-4 fixture raises the format with a warning (today's rule); a store one format past `config.FormatVersion` is refused by every command the item lists with `store format <FormatVersion+1> is newer than this capcom reads (up to <FormatVersion>); upgrade capcom`; and a test fails when `testdata/stores/format-<config.FormatVersion>` is missing.
