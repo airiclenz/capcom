@@ -4,6 +4,7 @@ status: open
 type: bug
 priority: 3
 labels: [maturity, performance]
+plan: 2026-11-05 - 00 - large-store-performance-plan
 created: 2026-11-05T11:02:17Z
 ---
 
@@ -16,5 +17,5 @@ Several agents in one worktree, or one agent running commands in parallel, is th
 ## Acceptance
 
 - A refresh that finds no changed file does not hold the write lock (for example: check in a deferred transaction, upgrade only when there is something to write).
-- `GOMEMLIMIT=2GiB go test -tags stress -count=3 -run Stress_OneWorktree ./internal/cli` at the default 16 workers ends with no "the index is busy" failure from a read-only command.
+- A stress test pins it: on a quiescent store, with one process holding the index write lock past the busy timeout, parallel `ready` and `prime` processes all exit 0. The mixed `TestStress_OneWorktree` workload keeps accepting a busy failure after the wait, since its reads usually find files other workers just wrote (decided 2026-11-05: a clean refresh takes no write lock; a read-only command may still fail busy after the wait when files changed).
 - Two refreshes that both have changes to write still never deadlock (a test in `internal/index` pins it).

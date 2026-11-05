@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 2
 labels: [maturity, performance]
+plan: 2026-11-05 - 00 - large-store-performance-plan
 created: 2026-11-05T10:50:43Z
 ---
 

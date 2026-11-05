@@ -4,6 +4,7 @@ status: open
 type: bug
 priority: 3
 labels: [maturity]
+plan: 2026-11-05 - 00 - large-store-performance-plan
 created: 2026-11-05T10:54:01Z
 ---
 
