@@ -61,6 +61,16 @@ CAPCOM_STRESS_WORKERS=4 GOMEMLIMIT=2GiB go test -tags stress -count=1 -run Stres
 
 A failed run logs its seed; `CAPCOM_STRESS_SEED=<seed>` replays its random choices.
 
+The command benchmarks in `internal/cli/bench_test.go` time whole commands, cold and warm index
+and one `log` write, on generated stores of 1000 and 10000 issues (`CAPCOM_BENCH_LARGE=1` adds
+50000). [`.github/workflows/bench.yml`](.github/workflows/bench.yml) runs them on every push to
+`main` for the pushed commit and its parent, and fails when one is more than 25% slower with
+p < 0.05 by `benchstat`; like the stress tests, it lives apart from `ci.yml`. Run one locally with
+
+```sh
+GOMEMLIMIT=2GiB go test -run='^$' -bench='^BenchmarkLog$' -benchtime=1x ./internal/cli
+```
+
 ## Conventions and tests
 
 - Code conventions, formatting and error messages: Note

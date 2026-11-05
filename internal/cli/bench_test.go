@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -49,6 +50,10 @@ const (
 // benchSeed seeds the store content, so every run generates the same issues and Notes. Commit
 // dates are not seeded: they are relative to the time the store is built.
 const benchSeed = 20261105
+
+// benchLogIssue is the issue BenchmarkLog writes to: the first generated issue, which is top level
+// and exists from the first commit at every store size.
+const benchLogIssue = "bench-00000"
 
 // benchHistorySpan is how far back the first generated commit lies, benchMainTipAge how old the
 // last commit on the checked-out branch is, and benchRecapDays the window recap is asked about:
@@ -394,13 +399,25 @@ func benchStoreSizes() []int {
 	return benchSizes
 }
 
-// benchCommand benchmarks capcom args at every store size, as a sub-benchmark N=<size>. Each
+// benchCommand benchmarks capcom args at every store size, as a sub-benchmark N=<size>, with
+// nothing done between the timed runs; see benchCommandEach.
+func benchCommand(b *testing.B, isPerIssue bool, args ...string) {
+	benchCommandEach(b, isPerIssue, nil, args...)
+}
+
+// benchCommandEach benchmarks capcom args at every store size, as a sub-benchmark N=<size>. Each
 // size's store is built once, in b's temp dir, which lasts until every round of the
 // sub-benchmark has run. Each round runs args once untimed, which changes into the store, sets
-// the hermetic git environment and warms the index, then times b.N runs. With isPerIssue it
+// the hermetic git environment and warms the index, then times b.N runs. A non-nil beforeEach
+// runs on the store's root before every timed run, with the timer stopped. With isPerIssue it
 // also reports the time per run divided by the issue count, for a command whose cost scales with
 // the store.
-func benchCommand(b *testing.B, isPerIssue bool, args ...string) {
+func benchCommandEach(
+	b *testing.B,
+	isPerIssue bool,
+	beforeEach func(b *testing.B, root string),
+	args ...string,
+) {
 	for _, size := range benchStoreSizes() {
 		root := newBenchStore(b, defaultBenchShape(size))
 		b.Run(fmt.Sprintf("N=%d", size), func(b *testing.B) {
@@ -411,6 +428,11 @@ func benchCommand(b *testing.B, isPerIssue bool, args ...string) {
 			b.ResetTimer()
 
 			for range b.N {
+				if beforeEach != nil {
+					b.StopTimer()
+					beforeEach(b, root)
+					b.StartTimer()
+				}
 				stdout.Reset()
 				stderr.Reset()
 				if exitCode := Run(args, strings.NewReader(""), &stdout, &stderr); exitCode != ExitOK {
@@ -421,6 +443,17 @@ func benchCommand(b *testing.B, isPerIssue bool, args ...string) {
 				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(size), "ns/issue")
 			}
 		})
+	}
+}
+
+// removeBenchIndex deletes the index of the store at root together with the WAL sidecars SQLite
+// keeps beside it (sidecarSuffixes in internal/index), so the next command builds it from nothing.
+func removeBenchIndex(b *testing.B, root string) {
+	path := filepath.Join(root, ".git", "capcom", "index.db")
+	for _, name := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Remove(name); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			b.Fatalf("Remove: %v", err)
+		}
 	}
 }
 
@@ -459,6 +492,24 @@ func BenchmarkCheck(b *testing.B) {
 func BenchmarkRecap(b *testing.B) {
 	since := time.Now().AddDate(0, 0, -benchRecapDays).Format(time.DateOnly)
 	benchCommand(b, false, "recap", "--since", since)
+}
+
+// BenchmarkReindex measures reindex, which rebuilds the index from every file of the store.
+func BenchmarkReindex(b *testing.B) {
+	benchCommand(b, true, "reindex")
+}
+
+// BenchmarkColdFirstCommand measures the first command after the index is deleted: list, which
+// has to build the index from every file of the store before it can answer.
+func BenchmarkColdFirstCommand(b *testing.B) {
+	benchCommandEach(b, true, removeBenchIndex, "list")
+}
+
+// BenchmarkLog measures one log write and the index update that follows it. Every run appends
+// one more entry to benchLogIssue, in a store this benchmark builds for itself. The update walks
+// the whole store, so it reports a per-issue time.
+func BenchmarkLog(b *testing.B) {
+	benchCommand(b, true, "log", benchLogIssue, "a benchmark Log entry")
 }
 
 func TestBenchStore_Shape(t *testing.T) {

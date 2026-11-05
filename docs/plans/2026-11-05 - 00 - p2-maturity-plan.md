@@ -274,7 +274,13 @@ internal/index/bench_test.go — benchIndex, BenchmarkList
 - `GOMEMLIMIT=2GiB go test -run='^$' -bench=. -benchtime=1x ./internal/cli` runs N=1000 and 10000 only
 **Commit:** `test(cli): benchmark whole read commands on generated large stores`
 
-## 12. Cold-start and write benchmarks, and the benchmark workflow
+## 12. Cold-start and write benchmarks, and the benchmark workflow — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): `BenchmarkColdFirstCommand` runs `list` after `removeBenchIndex` deletes `index.db` with its `-wal`/`-shm` sidecars (timer stopped); `list` is the command item 11's observation measured cold. The per-run hook is a new `benchCommandEach(b, isPerIssue, beforeEach, args...)`; `benchCommand` now delegates to it with a nil hook, its callers unchanged.
+NOTES (2026-11-05): `BenchmarkLog` appends to `bench-00000` (const `benchLogIssue`) in the stores it builds for itself; all three new benchmarks report ns/issue, since reindex, the cold build and log's index refresh all walk the store.
+NOTES (2026-11-05): golang.org/x/perf has no release tags; benchstat is pinned to the newest pseudo-version, v0.0.0-20261009192801-be2c69fb417e (from `go list -m golang.org/x/perf@latest`), written inline on the `go run` line so the Acceptance grep `benchstat@v` matches. The pinned benchstat and the workflow itself were not run here (downloading and running the tool was refused in this session); the threshold awk was tested with mawk on a hand-written benchstat table (a +40% p=0.002 row fails; `~`, p=0.065, -33%, one-sided and geomean rows pass).
+NOTES (2026-11-05): observed on the Pi with `-benchtime=1x`: reindex 1.8 s / 65 s, cold first list 2.5 s / 71 s, log 57 ms / 405 ms at N=1000 / 10000; the run took 386 s. At `-count=6 -benchtime=3x` on both sides the cold and reindex runs at N=10000 dominate, so bench.yml sets `timeout-minutes: 360` (the GitHub-hosted maximum); the run may come close to it until the cold-index cost item 11 noted is fixed.
+NOTES (2026-11-05): CONTRIBUTING.md gains a benchmark paragraph beside the fuzz and stress ones, naming bench.yml and a local run command.
 
 **What:**
 **Goal:** benchmarks cover `reindex`, a cold first command after deleting the index, and one `log` write with its index update; `.github/workflows/bench.yml` runs on push to `main` only on ubuntu-latest, benchmarks the commit and its parent with `-count=6 -benchtime=3x`, compares them with `golang.org/x/perf/cmd/benchstat` at a pinned version, and fails when any benchmark is more than 25% slower with p < 0.05.

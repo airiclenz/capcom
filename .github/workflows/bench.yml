@@ -1,0 +1,80 @@
+name: Bench
+
+# Runs the command benchmarks (internal/cli/bench_test.go) on each push to main, for the pushed
+# commit and for its parent on the same runner, and fails when a benchmark is more than
+# BENCH_MAX_SLOWDOWN percent slower than on the parent with p below BENCH_MAX_P. It lives apart
+# from ci.yml so a benchmark failure never blocks a release: the release gate reads ci.yml's runs
+# only (Note adr-0008, HasGreenRun in cmd/release). A benchmark only one side has, a new one or a
+# removed one, has no delta and is never judged.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # An explicit bash runs with -o pipefail, so a failed go test is not hidden by tee.
+    shell: bash
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    # Both sides run every benchmark six times; the cold-index benchmarks at N=10000 dominate.
+    timeout-minutes: 360
+    env:
+      BENCH_FLAGS: "-run=^$ -bench=. -count=6 -benchtime=3x"
+      BENCH_MAX_SLOWDOWN: '25'
+      BENCH_MAX_P: '0.05'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Check out the parent
+        id: parent
+        run: |
+          if ! git cat-file -e HEAD^:internal/cli/bench_test.go 2>/dev/null; then
+            echo "::notice::the parent commit has no internal/cli/bench_test.go; nothing to compare against"
+            echo "compare=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git worktree add --detach "$RUNNER_TEMP/parent" HEAD^
+          echo "compare=true" >> "$GITHUB_OUTPUT"
+      - name: Benchmark the parent
+        if: steps.parent.outputs.compare == 'true'
+        working-directory: ${{ runner.temp }}/parent
+        run: go test $BENCH_FLAGS ./internal/cli | tee "$RUNNER_TEMP/parent.txt"
+      - name: Benchmark this commit
+        if: steps.parent.outputs.compare == 'true'
+        run: go test $BENCH_FLAGS ./internal/cli | tee "$RUNNER_TEMP/commit.txt"
+      - name: Compare
+        if: steps.parent.outputs.compare == 'true'
+        # golang.org/x/perf has no release tags: benchstat is pinned to the newest pseudo-version
+        # on 2026-11-05.
+        run: |
+          go run golang.org/x/perf/cmd/benchstat@v0.0.0-20261009192801-be2c69fb417e \
+            parent="$RUNNER_TEMP/parent.txt" commit="$RUNNER_TEMP/commit.txt" | tee "$RUNNER_TEMP/benchstat.txt"
+      - name: Fail on a slowdown
+        if: steps.parent.outputs.compare == 'true'
+        # Judges only the rows that carry both sides and a delta with its p-value, such as
+        # `+31.20% (p=0.002 n=6)`; a `~` row (no significant change), a one-sided row and the
+        # geomean row carry none. Every metric the benchmarks report, sec/op and ns/issue, is
+        # worse when it grows.
+        run: |
+          awk -v limit="$BENCH_MAX_SLOWDOWN" -v alpha="$BENCH_MAX_P" '
+            match($0, /[+-][0-9.]+% \(p=[0-9.]+ n=[0-9+]+\)/) {
+              row = substr($0, RSTART, RLENGTH)
+              delta = row; sub(/%.*/, "", delta); sub(/^\+/, "", delta)
+              p = row; sub(/.*p=/, "", p); sub(/ .*/, "", p)
+              if (delta + 0 > limit + 0 && p + 0 < alpha + 0) {
+                printf "::error::%s is %s%% slower than on the parent (p=%s)\n", $1, delta, p
+                failed = 1
+              }
+            }
+            END { exit failed }
+          ' "$RUNNER_TEMP/benchstat.txt"
