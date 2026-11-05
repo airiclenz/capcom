@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI gains a lint job that runs staticcheck 2026.2.2 and govulncheck v1.9.0 over `./...`; any staticcheck finding or reachable vulnerability fails CI, and with it the release gate. `make lint` runs the same two commands at the same pins (`STATICCHECK_VERSION` and `GOVULNCHECK_VERSION` in the `Makefile`).
 - A run of carriage returns before a line feed (`\r\r\n`) now reads as one line ending, so reading an issue or Note and writing it back no longer changes it on the next read.
 - An issue's `created` or `closed` timestamp whose offset moves it out of the years 0000 to 9999 in UTC (such as `0000-01-01T00:00:00+01:00`) is now refused when the file is read, with `created: the timestamp falls outside the years 0000 to 9999 in UTC`, instead of being written back as a timestamp no later read accepts.
+- capcom now reads and writes YAML with `go.yaml.in/yaml/v3` v3.0.6, the maintained successor of the archived `gopkg.in/yaml.v3`, which it no longer depends on. Issue, Note, config and batch files read and write as before, and every YAML error message is unchanged.
+- Several capcom commands started at once in a worktree whose index does not exist yet (a fresh clone, a new worktree, or after the index was deleted) no longer fail with `the index is busy` at once: switching the new index to WAL failed busy without waiting, and opening the index now retries that for up to its 5-second busy timeout.
 
 ## [0.15.1] - 2026-11-03
 
