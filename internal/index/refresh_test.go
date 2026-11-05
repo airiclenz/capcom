@@ -1,6 +1,7 @@
 package index
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -336,5 +338,115 @@ func TestRefresh_FileAddedAfterARefresh_GetsOneFtsRow(t *testing.T) {
 	}
 	if found, err := x.Search("charlieword"); err != nil || !slices.Equal(found, []string{"added"}) {
 		t.Errorf("Search(charlieword) = %v, %v; want [added]", found, err)
+	}
+}
+
+// holdWriteLock begins an IMMEDIATE transaction on the index of s through a second connection, the
+// way a command writing the index holds its write lock, and keeps it until the test ends.
+func holdWriteLock(t *testing.T, s *store.Store) {
+	t.Helper()
+	holder, err := sql.Open(driverName, Path(s)+"?_txlock=immediate")
+	if err != nil {
+		t.Fatalf("sql.Open holder: %v", err)
+	}
+	held, err := holder.Begin()
+	if err != nil {
+		t.Fatalf("BEGIN IMMEDIATE: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := held.Rollback(); err != nil {
+			t.Errorf("Rollback: %v", err)
+		}
+		if err := holder.Close(); err != nil {
+			t.Errorf("Close holder: %v", err)
+		}
+	})
+}
+
+// TestRefresh_NothingToWriteUnderAHeldWriteLock_SucceedsWithTheSameWarnings shortens the busy
+// timeout through the package's seams, so it never runs in parallel.
+func TestRefresh_NothingToWriteUnderAHeldWriteLock_SucceedsWithTheSameWarnings(t *testing.T) {
+	shortenBusyTimeout(t)
+	s := newStore(t)
+	writeIssue(t, s, "bad.md", issueWith("Bad", "bogus", ""))
+	writeIssue(t, s, "a.md", issueText("A", "open", ""))
+	writeIssue(t, s, "a/x.md", issueText("X one", "open", ""))
+	writeIssue(t, s, "b.md", issueText("B", "open", ""))
+	writeIssue(t, s, "b/x.md", issueText("X two", "open", ""))
+	writeIssue(t, s, "mmm.md", issueWith("M", "open", "aliases: [s]\n"))
+	writeIssue(t, s, "zzz.md", issueWith("Z", "open", "aliases: [s]\n"))
+	x := openIndex(t, s, laterClock())
+	before := x.Report()
+	holdWriteLock(t, s)
+
+	report, err := x.refresh(false)
+
+	if err != nil {
+		t.Fatalf("refresh under a held write lock: %v, want it to write nothing and succeed", err)
+	}
+	for _, path := range []string{".capcom/issues/bad.md", ".capcom/issues/b/x.md", ".capcom/issues/zzz.md"} {
+		if !slices.ContainsFunc(before.Warnings, func(warning diagnose.Finding) bool { return warning.Path == path }) {
+			t.Errorf("warnings before = %q, want one about %s", warningStrings(before), path)
+		}
+	}
+	if !slices.Equal(warningStrings(report), warningStrings(before)) {
+		t.Errorf("warnings = %q, want the ones the refresh before gave: %q", warningStrings(report), warningStrings(before))
+	}
+	if report.isChanged() || report.Indexed != before.Indexed {
+		t.Errorf("report = %+v, want nothing changed and %d indexed", report, before.Indexed)
+	}
+}
+
+func TestRefresh_TwoIndexesWithChangesToWrite_BothSucceed(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "first.md", issueText("First", "open", ""))
+	indexes := []*Index{openIndex(t, s), openIndex(t, s)}
+	writeIssue(t, s, "pending.md", issueText("Pending", "open", ""))
+	refreshErrs := make([]error, len(indexes))
+	start := make(chan struct{})
+	var group sync.WaitGroup
+
+	for n, x := range indexes {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-start
+			_, refreshErrs[n] = x.Refresh()
+		}()
+	}
+	close(start)
+	group.Wait()
+
+	for n, err := range refreshErrs {
+		if err != nil {
+			t.Errorf("index %d: Refresh racing another with changes to write: %v", n, err)
+		}
+	}
+	for n, x := range indexes {
+		if !isIndexed(t, x, "pending") {
+			t.Errorf("index %d does not see pending after its refresh", n)
+		}
+	}
+}
+
+func TestRefresh_StoredFileVerdictDiffers_RewritesIt(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "kept.md", issueText("Kept", "open", ""))
+	x := openIndex(t, s, laterClock())
+	_, err := x.db.Exec(
+		`UPDATE file_verdicts SET verdict = ? WHERE path = ?`, verdictRepeatedID, ".capcom/issues/kept.md",
+	)
+	if err != nil {
+		t.Fatalf("tamper with the stored verdict: %v", err)
+	}
+
+	refresh(t, x)
+
+	var verdict string
+	err = x.db.QueryRow(`SELECT verdict FROM file_verdicts WHERE path = ?`, ".capcom/issues/kept.md").Scan(&verdict)
+	if err != nil || verdict != verdictKept {
+		t.Errorf("stored verdict of kept.md = %q, %v; want %q rewritten", verdict, err, verdictKept)
 	}
 }

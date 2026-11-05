@@ -51,11 +51,13 @@ var (
 // superseded-by ids of Notes as written, in file order; claims holds, by kind, every name a file
 // with problems, a file the walk leaves out unread, or a node file under a directory the walk
 // leaves out claims (its id and its aliases), in file order, for the membership verdicts to decide
-// from, each row with the file's parse state as tree reads it (one of parseStateNames). file_verdicts and name_verdicts hold the membership verdicts of the latest refresh,
-// rebuilt whole by each one: file_verdicts holds, by kind, every node file the walk found, kept or
-// left out for a repeated id it has or lies below, and name_verdicts every name of a kind that must
-// not be resolved, why, and the conflict that refuses it (its file in path, the other file claiming
-// it in other, or "" when none does).
+// from, each row with the file's parse state as tree reads it (one of parseStateNames).
+// file_verdicts and name_verdicts hold the membership verdicts of the latest refresh that wrote,
+// rebuilt whole by each refresh with changes to write; a refresh that finds nothing to write, its
+// decided verdicts the stored ones included, leaves them as they are. file_verdicts holds, by
+// kind, every node file the walk found, kept or left out for a repeated id it has or lies below,
+// and name_verdicts every name of a kind that must not be resolved, why, and the conflict that
+// refuses it (its file in path, the other file claiming it in other, or "" when none does).
 var schemaStatements = []string{
 	`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 	`CREATE TABLE files (

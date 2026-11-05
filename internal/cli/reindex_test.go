@@ -134,6 +134,11 @@ func TestReindex_BusyIndex_ListFailsInvalidNamingReindexWithoutReindexHint(t *te
 	mustRun(t, root, "reindex")
 	indexPath := filepath.Join(root, ".git", "capcom", "index.db")
 	holdIndexLock(t, indexPath)
+	// A new file gives list's refresh a change to write: one with none takes no write lock.
+	newIssue := filepath.Join(root, ".capcom", "issues", "new-issue.md")
+	if err := os.WriteFile(newIssue, []byte(validIssue), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 	wantMessage := indexPath + ": the index is busy: another capcom command, " +
 		"such as capcom reindex, is rebuilding or writing it; retry when it finishes"
 

@@ -92,8 +92,10 @@ func asBusyError(path string, err error) error {
 const defaultBusyTimeout = 5 * time.Second
 
 // dsnOptions wait defaultBusyTimeout for a concurrent command's write, keep readers off the
-// writer's back with WAL, and begin every transaction IMMEDIATE so two refreshes never deadlock
-// upgrading a read lock. It is a variable only so a test can shorten the busy timeout.
+// writer's back with WAL, and begin every transaction but a ReadOnly one IMMEDIATE: a refresh that
+// writes takes the write lock up front, so two never deadlock upgrading a read lock, while the
+// ReadOnly check a refresh runs first begins deferred and takes none. It is a variable only so a
+// test can shorten the busy timeout.
 var dsnOptions = connectionOptions(defaultBusyTimeout)
 
 // connectRetryTimeout is how long connect keeps retrying a first connection that fails busy; it
@@ -242,7 +244,7 @@ func openFile(s *store.Store, path string, mode Mode, options []Option) (*Index,
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	// One connection keeps the IMMEDIATE transaction and the queries of a command on the same
+	// One connection keeps a refresh's transactions and the queries of a command on the same
 	// SQLite handle.
 	db.SetMaxOpenConns(1)
 	if err := connect(db); err != nil {
@@ -580,8 +582,9 @@ type querier interface {
 // snapshot runs read inside one deferred SQLite read transaction, so every statement read issues
 // through its querier sees the index as the first one did, whatever another connection commits
 // meanwhile. It begins the transaction with a raw BEGIN DEFERRED rather than BeginTx, since
-// dsnOptions make BeginTx take the write lock. The pool holds one connection, which read's querier
-// holds until snapshot returns: read must issue every statement through it, never through x.db.
+// dsnOptions make a BeginTx that is not ReadOnly take the write lock. The pool holds one
+// connection, which read's querier holds until snapshot returns: read must issue every statement
+// through it, never through x.db.
 func (x *Index) snapshot(read func(q querier) error) (err error) {
 	ctx := context.Background()
 	conn, err := x.db.Conn(ctx)

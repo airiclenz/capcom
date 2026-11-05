@@ -538,6 +538,50 @@ func TestStress_OneWorktree(t *testing.T) {
 	assertStoreHoldsWrites(t, binary, root, mixed)
 }
 
+// defaultCleanReaders is how many ready and how many prime processes
+// TestStress_CleanReadsWhileTheWriteLockIsHeld runs at once by default.
+const defaultCleanReaders = 8
+
+// cleanReadIssues is how many Issues the store of TestStress_CleanReadsWhileTheWriteLockIsHeld
+// holds.
+const cleanReadIssues = 5
+
+// racyCleanWait is how long TestStress_CleanReadsWhileTheWriteLockIsHeld waits after its last write
+// before the refresh that records every file clean: past the second of the refresh that recorded it
+// (index.racyGranularity), a file is no longer racily clean and is not read again.
+const racyCleanWait = 2 * time.Second
+
+func TestStress_CleanReadsWhileTheWriteLockIsHeld(t *testing.T) {
+	binary := stressBinary(t)
+	readers := stressWorkers(t, defaultCleanReaders)
+	root := newLockStore(t)
+	setHermeticGitEnv(t)
+	for n := range cleanReadIssues {
+		id := fmt.Sprintf("clean-%d", n)
+		mustRunBinary(t, binary, root, "create", "--id", id, "--title", "Clean "+id)
+	}
+	time.Sleep(racyCleanWait)
+	mustRunBinary(t, binary, root, "list")
+	holdIndexLock(t, filepath.Join(root, ".git", "capcom", "index.db"))
+
+	results := raceProcesses(t, binary, root, 2*readers, func(n int) []string {
+		if n%2 == 0 {
+			return []string{"ready"}
+		}
+		return []string{"prime"}
+	})
+
+	for n, result := range results {
+		label := fmt.Sprintf("reader %d", n)
+		assertCleanProcess(t, label, result)
+		isBusy := strings.Contains(result.stdout+result.stderr, "the index is busy")
+		if result.exitCode != ExitOK || isBusy {
+			t.Errorf("%s exit = %d under a held write lock, want 0 with no index-busy warning\nstdout = %s\nstderr = %s",
+				label, result.exitCode, result.stdout, result.stderr)
+		}
+	}
+}
+
 // lockPoller runs capcom lock status in one worktree, over and over, until it is told to stop,
 // and keeps every result.
 type lockPoller struct {

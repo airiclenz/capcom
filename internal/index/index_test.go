@@ -1240,6 +1240,8 @@ func TestRefresh_CommitFails_ReportsOnlyTheCommitError(t *testing.T) {
 	s := newStore(t)
 	writeIssue(t, s, "an-issue.md", issueText("An issue", "open", ""))
 	x := openIndex(t, s)
+	// A new file gives the refresh a change to write, so it reaches the commit.
+	writeIssue(t, s, "another-issue.md", issueText("Another issue", "open", ""))
 	errCommit := errors.New("disk I/O error")
 	original := commitTx
 	t.Cleanup(func() { commitTx = original })
@@ -1556,6 +1558,8 @@ func TestRefresh_IndexLockedByAnotherCommand_FailsBusy(t *testing.T) {
 			t.Errorf("Rollback: %v", err)
 		}
 	}()
+	// A new file gives the refresh a change to write: one with none takes no write lock.
+	writeIssue(t, s, "new-issue.md", issueText("New", "open", ""))
 
 	_, refreshErr := x.Refresh()
 

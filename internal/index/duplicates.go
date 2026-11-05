@@ -1,6 +1,7 @@
 package index
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -82,7 +83,8 @@ type kindFacts struct {
 // repeated id and every alias two clean files claim (ADR 0002: names are unique across the tree).
 // It runs after replaceWalkClaims, once the files and claims rows are current, so a node comes back
 // once its rival is gone and a clean file is never read again for it. An issue and a Note never
-// clash.
+// clash. A refresh that finds nothing to write runs isMembershipStored instead, which gives the
+// same warnings and writes nothing.
 func (r *refresher) persistMembership() error {
 	for _, table := range []string{"file_verdicts", "name_verdicts"} {
 		if _, err := r.tx.ExecContext(r.ctx, `DELETE FROM `+table); err != nil {
@@ -97,17 +99,46 @@ func (r *refresher) persistMembership() error {
 	return nil
 }
 
-// persistMembershipOf runs persistMembership over the files of one kind and marks each node row
-// left out for a repeated id as excluded. Its one tree.DecideMembership both splits the files and
-// gives the verdicts it stores.
+// persistMembershipOf runs persistMembership over the files of one kind: decideMembership's
+// verdicts and warnings, then storeMembership.
 func (r *refresher) persistMembershipOf(nodes nodeTable) error {
-	read, err := r.membershipFacts(nodes.kind)
+	read, membership, err := r.decideMembership(nodes.kind)
 	if err != nil {
-		return fmt.Errorf("read indexed names: %w", err)
+		return err
+	}
+	return r.storeMembership(nodes, read.facts, membership)
+}
+
+// isMembershipStored reports whether the membership verdicts decideMembership gives on the files of
+// each kind, as the rows record them, are the stored ones, writing nothing. It gives r the
+// membership warnings of every kind it decides, as persistMembership does; it stops at the first
+// kind whose verdicts differ.
+func (r *refresher) isMembershipStored() (bool, error) {
+	for _, nodes := range []nodeTable{issueNodes, noteNodes} {
+		read, membership, err := r.decideMembership(nodes.kind)
+		if err != nil {
+			return false, err
+		}
+		isStored, err := r.areVerdictsStored(nodes.kind, read.facts, membership)
+		if err != nil || !isStored {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// decideMembership decides the membership of the files of kind from the rows of this refresh with
+// one tree.DecideMembership, and warns: below a repeated id (warnBelowRepeatedIDs), about every
+// repeated id, and about every alias two clean files claim. It reads the rows and writes none, so
+// a refresh that writes and one that only checks give the same warnings.
+func (r *refresher) decideMembership(kind string) (kindFacts, tree.Membership, error) {
+	read, err := r.membershipFacts(kind)
+	if err != nil {
+		return kindFacts{}, tree.Membership{}, fmt.Errorf("read indexed names: %w", err)
 	}
 	membership := tree.DecideMembership(read.facts)
 	if err := r.warnBelowRepeatedIDs(read, membership); err != nil {
-		return err
+		return kindFacts{}, tree.Membership{}, err
 	}
 	r.warnings = append(r.warnings, diagnose.NameClashes(membership.IDConflicts)...)
 	for _, conflict := range membership.AliasConflicts {
@@ -127,14 +158,24 @@ func (r *refresher) persistMembershipOf(nodes nodeTable) error {
 		problem := tree.DuplicateAliasError(conflict.Key, other, conflict.Name, isOtherAlias)
 		r.warn(diagnose.Duplicate, problem.Path, 0, problem.Message())
 	}
+	return read, membership, nil
+}
 
-	if err := r.insertFileVerdicts(nodes.kind, read.facts, membership); err != nil {
+// storeMembership stores membership, the verdicts on facts, the files of the kind of nodes, and
+// marks each node row left out for a repeated id as excluded. persistMembership has cleared the
+// verdict tables first.
+func (r *refresher) storeMembership(
+	nodes nodeTable,
+	facts []tree.FileFact,
+	membership tree.Membership,
+) error {
+	if err := r.insertFileVerdicts(nodes.kind, fileVerdictsOf(facts, membership)); err != nil {
 		return err
 	}
-	if err := r.insertNameVerdicts(nodes.kind, membership); err != nil {
+	if err := r.insertNameVerdicts(nodes.kind, nameVerdictsOf(membership)); err != nil {
 		return err
 	}
-	_, err = r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = EXISTS (
+	_, err := r.tx.ExecContext(r.ctx, `UPDATE `+nodes.table+` SET excluded = EXISTS (
 		SELECT 1 FROM file_verdicts AS stored
 		WHERE stored.path = `+nodes.table+`.path AND stored.verdict <> ?)`, verdictKept)
 	if err != nil {
@@ -327,53 +368,160 @@ func namesByPath(ctx context.Context, tx *sql.Tx, query string, args ...any) (ma
 	return names, paths, errors.Join(rows.Err(), rows.Close())
 }
 
-// insertFileVerdicts stores the verdict of every walk file of kind among facts: kept, or left out
-// and why.
-func (r *refresher) insertFileVerdicts(kind string, facts []tree.FileFact, membership tree.Membership) error {
+// fileVerdict is one file_verdicts row of a kind: a walk file, its id and its verdict.
+type fileVerdict struct {
+	path    string
+	id      string
+	verdict string
+}
+
+// fileVerdictsOf returns the verdict of every walk file among facts that membership gives: kept,
+// or left out and why. They are in path order, as storedFileVerdicts reads them.
+func fileVerdictsOf(facts []tree.FileFact, membership tree.Membership) []fileVerdict {
+	verdicts := make([]fileVerdict, 0, len(membership.Kept)+len(membership.LeftOut))
+	for _, i := range membership.Kept {
+		verdicts = append(verdicts, fileVerdict{path: facts[i].Key, id: facts[i].ID, verdict: verdictKept})
+	}
+	for _, file := range membership.LeftOut {
+		fact := facts[file.Fact]
+		verdicts = append(verdicts, fileVerdict{path: fact.Key, id: fact.ID, verdict: leftOutVerdicts[file.Reason]})
+	}
+	slices.SortFunc(verdicts, func(a, b fileVerdict) int { return cmp.Compare(a.path, b.path) })
+	return verdicts
+}
+
+// nameVerdict is one name_verdicts row of a kind: a refused name, why, and the conflict that
+// refuses it.
+type nameVerdict struct {
+	name         string
+	refusal      string
+	path         string
+	other        string
+	isAlias      bool
+	isOtherAlias bool
+}
+
+// nameVerdictsOf returns a verdict for every name membership refuses, in name order, as
+// storedNameVerdicts reads them.
+func nameVerdictsOf(membership tree.Membership) []nameVerdict {
+	var verdicts []nameVerdict
+	for name, verdict := range membership.Names {
+		if verdict.Refusal == 0 {
+			continue
+		}
+		conflict := verdict.Conflict
+		verdicts = append(verdicts, nameVerdict{
+			name:         name,
+			refusal:      refusalNames[verdict.Refusal],
+			path:         conflict.Key,
+			other:        conflict.Other,
+			isAlias:      conflict.IsAlias,
+			isOtherAlias: conflict.IsOtherAlias,
+		})
+	}
+	slices.SortFunc(verdicts, func(a, b nameVerdict) int { return cmp.Compare(a.name, b.name) })
+	return verdicts
+}
+
+// areVerdictsStored reports whether membership, the verdicts on facts, the files of kind, are the
+// file_verdicts and name_verdicts rows of kind.
+func (r *refresher) areVerdictsStored(
+	kind string,
+	facts []tree.FileFact,
+	membership tree.Membership,
+) (bool, error) {
+	storedFiles, err := r.storedFileVerdicts(kind)
+	if err != nil {
+		return false, err
+	}
+	if !slices.Equal(storedFiles, fileVerdictsOf(facts, membership)) {
+		return false, nil
+	}
+	storedNames, err := r.storedNameVerdicts(kind)
+	if err != nil {
+		return false, err
+	}
+	return slices.Equal(storedNames, nameVerdictsOf(membership)), nil
+}
+
+// storedFileVerdicts reads the file_verdicts rows of kind, in path order.
+func (r *refresher) storedFileVerdicts(kind string) ([]fileVerdict, error) {
+	rows, err := r.tx.QueryContext(r.ctx,
+		`SELECT path, id, verdict FROM file_verdicts WHERE kind = ? ORDER BY path`, kind)
+	if err != nil {
+		return nil, fmt.Errorf("read file verdicts: %w", err)
+	}
+	var verdicts []fileVerdict
+	for rows.Next() {
+		var verdict fileVerdict
+		if err := rows.Scan(&verdict.path, &verdict.id, &verdict.verdict); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("read file verdicts: %w", err)
+		}
+		verdicts = append(verdicts, verdict)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, fmt.Errorf("read file verdicts: %w", err)
+	}
+	return verdicts, nil
+}
+
+// storedNameVerdicts reads the name_verdicts rows of kind, in name order.
+func (r *refresher) storedNameVerdicts(kind string) ([]nameVerdict, error) {
+	rows, err := r.tx.QueryContext(r.ctx, `SELECT name, refusal, path, other, is_alias, is_other_alias
+		FROM name_verdicts WHERE kind = ? ORDER BY name`, kind)
+	if err != nil {
+		return nil, fmt.Errorf("read name verdicts: %w", err)
+	}
+	var verdicts []nameVerdict
+	for rows.Next() {
+		var verdict nameVerdict
+		err := rows.Scan(
+			&verdict.name, &verdict.refusal, &verdict.path, &verdict.other,
+			&verdict.isAlias, &verdict.isOtherAlias,
+		)
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("read name verdicts: %w", err)
+		}
+		verdicts = append(verdicts, verdict)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, fmt.Errorf("read name verdicts: %w", err)
+	}
+	return verdicts, nil
+}
+
+// insertFileVerdicts stores verdicts, the verdicts of the walk files of kind.
+func (r *refresher) insertFileVerdicts(kind string, verdicts []fileVerdict) error {
 	insert, err := r.tx.PrepareContext(r.ctx, `INSERT INTO file_verdicts (path, kind, id, verdict) VALUES (?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("store file verdicts: %w", err)
 	}
 	defer insert.Close()
-	record := func(i int, verdict string) error {
-		if _, err := insert.ExecContext(r.ctx, facts[i].Key, kind, facts[i].ID, verdict); err != nil {
-			return fmt.Errorf("store the verdict of %s: %w", facts[i].Key, err)
-		}
-		return nil
-	}
-	for _, i := range membership.Kept {
-		if err := record(i, verdictKept); err != nil {
-			return err
-		}
-	}
-	for _, file := range membership.LeftOut {
-		if err := record(file.Fact, leftOutVerdicts[file.Reason]); err != nil {
-			return err
+	for _, verdict := range verdicts {
+		if _, err := insert.ExecContext(r.ctx, verdict.path, kind, verdict.id, verdict.verdict); err != nil {
+			return fmt.Errorf("store the verdict of %s: %w", verdict.path, err)
 		}
 	}
 	return nil
 }
 
-// insertNameVerdicts stores every name of kind membership refuses, with why and the conflict that
-// refuses it.
-func (r *refresher) insertNameVerdicts(kind string, membership tree.Membership) error {
+// insertNameVerdicts stores verdicts, the verdicts of the refused names of kind.
+func (r *refresher) insertNameVerdicts(kind string, verdicts []nameVerdict) error {
 	insert, err := r.tx.PrepareContext(r.ctx, `INSERT INTO name_verdicts
 		(kind, name, refusal, path, other, is_alias, is_other_alias) VALUES (?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("store name verdicts: %w", err)
 	}
 	defer insert.Close()
-	for name, verdict := range membership.Names {
-		if verdict.Refusal == 0 {
-			continue
-		}
-		conflict := verdict.Conflict
+	for _, verdict := range verdicts {
 		_, err := insert.ExecContext(
-			r.ctx, kind, name, refusalNames[verdict.Refusal],
-			conflict.Key, conflict.Other, conflict.IsAlias, conflict.IsOtherAlias,
+			r.ctx, kind, verdict.name, verdict.refusal,
+			verdict.path, verdict.other, verdict.isAlias, verdict.isOtherAlias,
 		)
 		if err != nil {
-			return fmt.Errorf("store the verdict of %q: %w", name, err)
+			return fmt.Errorf("store the verdict of %q: %w", verdict.name, err)
 		}
 	}
 	return nil

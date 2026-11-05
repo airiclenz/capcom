@@ -42,7 +42,9 @@ var readNodeFile = nodefile.ReadRegularFile
 // before. With no file changed since a refresh that recorded it clean, it re-parses nothing and
 // reports false; a racily clean file is read once more and counts as changed. On failure it
 // returns false with the error, and Report keeps the previous refresh's report; the error matches
-// ErrBusy when another command kept the index locked past the busy timeout.
+// ErrBusy when this refresh had changes to write and another command kept the index locked past
+// the busy timeout. A refresh with nothing to write takes no write lock, so it never waits on
+// another command's write.
 func (x *Index) Refresh() (bool, error) {
 	report, err := x.refresh(false)
 	if err != nil {
@@ -51,20 +53,105 @@ func (x *Index) Refresh() (bool, error) {
 	return report.isChanged(), nil
 }
 
-// refresh brings the index up to date with the issue tree and the Knowledge tree on disk in one
-// IMMEDIATE transaction, and records its report as the one Report returns. It re-parses only the
-// files that are new, changed in size, mtime, change time or identity, or racily clean, drops the
-// rows of files that are gone, and rebuilds everything when the schema version or the configured
-// statuses and types changed; isForced drops every table and indexes both trees again. It then stores the membership
-// verdicts tree.DecideMembership gives on the rows it recorded. Files that cannot be used are
-// reported in the Report's Warnings and left out; refresh itself fails only when the index or
-// the tree cannot be read, with ErrBusy when another command held the index locked.
+// refresh brings the index up to date with the issue tree and the Knowledge tree on disk, and
+// records its report as the one Report returns. An unforced refresh first walks both trees and
+// checks, in a read transaction that takes no write lock, whether there is anything to write: a
+// schema version or configured statuses and types changed since the index was recorded, a file new,
+// changed in size, mtime, change time or identity, racily clean or gone, changed walk claims or
+// changed membership verdicts. With none it returns the Report a write refresh would give, writing
+// nothing, so it never waits on another command's write. Otherwise, and always when isForced, it
+// writes in one IMMEDIATE transaction that walks both trees again under the lock, so it never
+// forgets a file another command indexed after the read pass: it re-parses only the files that
+// changed, drops the rows of files that are gone, and rebuilds everything when the schema or the
+// configuration changed; isForced drops every table and indexes both trees again. It then stores
+// the membership verdicts tree.DecideMembership gives on the rows it recorded. Files that cannot be
+// used are reported in the Report's Warnings and left out; refresh itself fails only when the index
+// or the tree cannot be read, with ErrBusy when another command held the index locked while this
+// one had changes to write.
 func (x *Index) refresh(isForced bool) (report Report, err error) {
 	ctx := context.Background()
 	start := x.now().Truncate(racyGranularity)
-	// Deferred first so it runs last, over the rollback's failure too: any failure of the
-	// transaction reads as ErrBusy when another command held the index locked.
+	// Deferred first so it runs last: any failure of either transaction reads as ErrBusy when
+	// another command held the index locked.
 	defer func() { err = asBusyError(Path(x.store), err) }()
+	if !isForced {
+		var isUnchanged bool
+		report, isUnchanged, err = x.readRefresh(ctx, start)
+		if err != nil || isUnchanged {
+			return report, err
+		}
+	}
+	return x.writeRefresh(ctx, start, isForced)
+}
+
+// newRefresher returns a refresher on tx for a refresh begun at start.
+func (x *Index) newRefresher(ctx context.Context, tx *sql.Tx, start time.Time) *refresher {
+	return &refresher{
+		ctx:          ctx,
+		tx:           tx,
+		config:       x.store.Config,
+		issues:       nodestore.IssueReader(x.store.Config),
+		notes:        nodestore.NoteReader(),
+		worktreeRoot: x.store.WorktreeRoot,
+		refreshed:    start.UnixNano(),
+	}
+}
+
+// readRefresh walks the store and checks, in a deferred read transaction that never takes the write
+// lock, whether a write refresh would change anything: the schema and configuration are current,
+// every found file is recorded clean, no recorded file is gone, and the walk claims and membership
+// verdicts are the stored ones. isUnchanged reports that all hold; report is then the Report a
+// write refresh would give, warnings included, and is recorded as the one Report returns. The read
+// transaction ends before readRefresh returns, so it never upgrades to a write lock and two
+// refreshes never deadlock.
+func (x *Index) readRefresh(
+	ctx context.Context,
+	start time.Time,
+) (report Report, isUnchanged bool, err error) {
+	tx, err := x.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return Report{}, false, fmt.Errorf("%s: begin read refresh: %w", Path(x.store), err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			err = errors.Join(err, x.databaseError(fmt.Errorf("end read refresh: %w", rollbackErr)))
+		}
+	}()
+
+	isCurrent, err := isSchemaCurrent(ctx, tx, configHash(x.store.Config))
+	if err != nil {
+		return Report{}, false, x.databaseError(err)
+	}
+	if !isCurrent {
+		return Report{}, false, nil
+	}
+	r := x.newRefresher(ctx, tx, start)
+	found, err := walkStore(x.store, r)
+	if err != nil {
+		return Report{}, false, err
+	}
+	isUnchanged, err = r.isUnchanged(found)
+	if err != nil {
+		return Report{}, false, x.databaseError(err)
+	}
+	if !isUnchanged {
+		return Report{}, false, nil
+	}
+	if report.Indexed, err = r.countIndexed(); err != nil {
+		return Report{}, false, x.databaseError(err)
+	}
+	return x.recordReport(report, r), true, nil
+}
+
+// writeRefresh brings the index up to date with the store in one IMMEDIATE transaction, taking the
+// write lock: it rebuilds every table when isForced or when the schema or configuration changed,
+// then walks the store under the lock and re-indexes only what changed since the files rows
+// recorded it. The report it gives is recorded as the one Report returns.
+func (x *Index) writeRefresh(
+	ctx context.Context,
+	start time.Time,
+	isForced bool,
+) (report Report, err error) {
 	tx, err := x.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Report{}, fmt.Errorf("%s: begin refresh: %w", Path(x.store), err)
@@ -84,15 +171,7 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	if err != nil {
 		return Report{}, x.databaseError(err)
 	}
-	r := &refresher{
-		ctx:          ctx,
-		tx:           tx,
-		config:       x.store.Config,
-		issues:       nodestore.IssueReader(x.store.Config),
-		notes:        nodestore.NoteReader(),
-		worktreeRoot: x.store.WorktreeRoot,
-		refreshed:    start.UnixNano(),
-	}
+	r := x.newRefresher(ctx, tx, start)
 	found, err := walkStore(x.store, r)
 	if err != nil {
 		return Report{}, err
@@ -106,19 +185,24 @@ func (x *Index) refresh(isForced bool) (report Report, err error) {
 	if err := r.persistMembership(); err != nil {
 		return Report{}, x.databaseError(err)
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM issues WHERE excluded = 0`).Scan(&report.Indexed); err != nil {
-		return Report{}, x.databaseError(fmt.Errorf("count indexed issues: %w", err))
+	if report.Indexed, err = r.countIndexed(); err != nil {
+		return Report{}, x.databaseError(err)
 	}
 	if err := commitTx(tx); err != nil {
 		return Report{}, fmt.Errorf("%s: commit refresh: %w", Path(x.store), err)
 	}
+	return x.recordReport(report, r), nil
+}
 
+// recordReport gives report r's warnings, in path, line and message order, and records it as the
+// one Report returns.
+func (x *Index) recordReport(report Report, r *refresher) Report {
 	report.Warnings = r.warnings
 	slices.SortFunc(report.Warnings, func(a, b diagnose.Finding) int {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Line, b.Line), cmp.Compare(a.Message, b.Message))
 	})
 	x.report = report
-	return report, nil
+	return report
 }
 
 // walkStore lists the node files of the issue tree and then of the Knowledge tree, each in path
@@ -162,7 +246,7 @@ func (x *Index) databaseError(err error) error {
 	return fmt.Errorf("%s: %w", Path(x.store), err)
 }
 
-// refresher carries one refresh transaction and the warnings it collects.
+// refresher carries one refresh transaction, read or write, and the warnings it collects.
 type refresher struct {
 	ctx    context.Context
 	tx     *sql.Tx
@@ -225,6 +309,18 @@ func (recorded recordedFile) isDirty(file foundFile) bool {
 		recorded.mtime >= recorded.refreshed || recorded.ctime >= recorded.refreshed
 }
 
+// takeRecorded looks up the files row of file in recorded and deletes it there, so the rows left
+// once every found file is taken are those of the files that are gone. isKnown reports whether the
+// row exists, and isClean whether it does and the file needs no new read.
+func takeRecorded(
+	recorded map[string]recordedFile,
+	file foundFile,
+) (previous recordedFile, isKnown, isClean bool) {
+	previous, isKnown = recorded[file.path]
+	delete(recorded, file.path)
+	return previous, isKnown, isKnown && !previous.isDirty(file)
+}
+
 // sync re-indexes the new and changed files, keeps the clean ones and forgets the vanished ones.
 func (r *refresher) sync(found []foundFile, report *Report) error {
 	recorded, err := r.recordedFiles()
@@ -232,9 +328,8 @@ func (r *refresher) sync(found []foundFile, report *Report) error {
 		return err
 	}
 	for _, file := range found {
-		previous, isKnown := recorded[file.path]
-		delete(recorded, file.path)
-		if isKnown && !previous.isDirty(file) {
+		previous, isKnown, isClean := takeRecorded(recorded, file)
+		if isClean {
 			if err := r.rewarn(file.path, previous.problems); err != nil {
 				return err
 			}
@@ -260,6 +355,48 @@ func (r *refresher) sync(found []foundFile, report *Report) error {
 	}
 	slices.Sort(report.removed)
 	return nil
+}
+
+// isUnchanged reports whether a write refresh of found would change no row: every found file is
+// recorded clean, no recorded file is gone, this walk's claims are the stored ones and the
+// membership verdicts decided from the rows are the stored ones. It reads through r.tx and writes
+// nothing. While all hold it gives r the warnings a write refresh would: the stored problems of
+// every file and the membership warnings; once one fails it stops, and r's warnings are partial.
+func (r *refresher) isUnchanged(found []foundFile) (bool, error) {
+	recorded, err := r.recordedFiles()
+	if err != nil {
+		return false, err
+	}
+	for _, file := range found {
+		previous, _, isClean := takeRecorded(recorded, file)
+		if !isClean {
+			return false, nil
+		}
+		if err := r.rewarn(file.path, previous.problems); err != nil {
+			return false, err
+		}
+	}
+	if len(recorded) > 0 {
+		return false, nil
+	}
+	stored, err := r.storedWalkClaims()
+	if err != nil {
+		return false, err
+	}
+	if !slices.Equal(stored, r.walkClaimKeys()) {
+		return false, nil
+	}
+	return r.isMembershipStored()
+}
+
+// countIndexed counts the issues every query sees: the issues rows not excluded.
+func (r *refresher) countIndexed() (int, error) {
+	var indexed int
+	err := r.tx.QueryRowContext(r.ctx, `SELECT count(*) FROM issues WHERE excluded = 0`).Scan(&indexed)
+	if err != nil {
+		return 0, fmt.Errorf("count indexed issues: %w", err)
+	}
+	return indexed, nil
 }
 
 // recordedFiles reads every files row, by path.
@@ -409,19 +546,28 @@ func (r *refresher) replaceWalkClaims() (isChanged bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("drop the claims of left-out files from index: %w", err)
 	}
-	current := make([]string, 0, len(r.walkClaims))
 	for _, walkClaim := range r.walkClaims {
-		parse := parseStateNames[walkClaim.parse]
 		_, err := r.tx.ExecContext(
-			r.ctx, insertClaimQuery, walkClaim.path, walkClaim.kind, walkClaim.name, parse,
+			r.ctx, insertClaimQuery,
+			walkClaim.path, walkClaim.kind, walkClaim.name, parseStateNames[walkClaim.parse],
 		)
 		if err != nil {
 			return false, fmt.Errorf("index %s: %w", walkClaim.path, err)
 		}
-		current = append(current, claimKey(walkClaim.path, walkClaim.kind, walkClaim.name, parse))
 	}
-	slices.Sort(current)
-	return !slices.Equal(stored, current), nil
+	return !slices.Equal(stored, r.walkClaimKeys()), nil
+}
+
+// walkClaimKeys spells this walk's claims as claimKey spells a claims row, sorted, as
+// storedWalkClaims reads the stored ones.
+func (r *refresher) walkClaimKeys() []string {
+	keys := make([]string, 0, len(r.walkClaims))
+	for _, walkClaim := range r.walkClaims {
+		parse := parseStateNames[walkClaim.parse]
+		keys = append(keys, claimKey(walkClaim.path, walkClaim.kind, walkClaim.name, parse))
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 // storedWalkClaims reads the claims an earlier walk recorded for the files it left out, the
