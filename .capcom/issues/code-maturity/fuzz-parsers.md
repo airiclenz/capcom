@@ -4,6 +4,7 @@ status: done
 type: task
 priority: 1
 labels: [maturity, testing]
+plan: 2026-11-04 - 00 - p1-maturity-plan
 created: 2026-11-04T18:27:23Z
 closed: 2026-11-05T00:13:29Z
 reason: "Resolved by plan p1-maturity-plan items 4-8 (archived at 1ac8d9d): seven fuzz targets, 10-minute soaks clean, every target fuzzed 30s per push in .github/workflows/fuzz.yml (kept off the ADR-0008 release gate)."

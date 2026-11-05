@@ -4,6 +4,7 @@ status: done
 type: task
 priority: 1
 labels: [maturity, testing]
+plan: 2026-11-04 - 00 - p1-maturity-plan
 created: 2026-11-04T18:27:23Z
 closed: 2026-11-05T00:13:29Z
 reason: "Resolved by plan p1-maturity-plan items 9-10 (archived at 1ac8d9d): MergeFile property test (5000 iterations clean) and end-to-end git merge property test, CAPCOM_PROPERTY_ITERATIONS controls both."
