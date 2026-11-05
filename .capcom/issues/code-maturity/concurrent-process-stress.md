@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 2
 labels: [maturity, testing, concurrency]
+plan: 2026-11-05 - 00 - p2-maturity-plan
 created: 2026-11-04T18:27:23Z
 ---
 
