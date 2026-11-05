@@ -117,3 +117,29 @@ builds the generated stores: every benchmark builds its own store at each size.
 | `BenchmarkReindex` | 0.36 s | 4.25 s |
 | `BenchmarkColdFirstCommand` | 0.76 s | 5.32 s |
 | `BenchmarkLog` | 0.069 s | 0.49 s |
+
+## 2026-11-05 — the first `bench.yml` run on GitHub
+
+[Run 42029722411](https://github.com/airiclenz/capcom/actions/runs/42029722411), for commit
+`43b395e` against its parent `4c359e4`, passed in 23 min 15 s on `ubuntu-latest`. Each side's
+`go test` took about 11 minutes (659 s for the parent, 677 s for the commit), under half the Pi
+estimate and well inside the 30-minute `-timeout` and the 70-minute job limit.
+
+The commit changed only the workflow and this doc, yet benchstat judged 15 of 20 rows 1% to 8%
+slower with p ≤ 0.026: the commit side, which runs second on the same runner, ran slower
+throughout. Six counts per side give p = 0.002 for a consistent shift, so the gate has samples to
+spare. Its 25% threshold sits far above this drift, but a real slowdown below about 10% cannot be
+told apart from it.
+
+| Benchmark | N = 1000 (parent) | N = 10000 (parent) |
+| --- | ---: | ---: |
+| `BenchmarkPrime` | 0.46 s | 2.13 s |
+| `BenchmarkReady` | 0.39 s | 1.50 s |
+| `BenchmarkNext` | 0.15 s | 0.85 s |
+| `BenchmarkListAllJSON` | 0.39 s | 1.48 s |
+| `BenchmarkSearch` | 0.027 s | 0.21 s |
+| `BenchmarkCheck` | 0.074 s | 0.61 s |
+| `BenchmarkRecap` | 0.087 s | 0.65 s |
+| `BenchmarkReindex` | 0.27 s | 2.47 s |
+| `BenchmarkColdFirstCommand` | 0.65 s | 3.79 s |
+| `BenchmarkLog` | 0.054 s | 0.41 s |
