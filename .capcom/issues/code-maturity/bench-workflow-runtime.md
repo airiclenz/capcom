@@ -1,6 +1,6 @@
 ---
 title: bench.yml may not finish inside its 360-minute timeout
-status: open
+status: active
 type: task
 priority: 3
 labels: [maturity, ci]
@@ -18,3 +18,7 @@ A benchmark job that times out reports nothing, so the regression gate it exists
 
 - The first `bench.yml` run on GitHub is recorded (its duration, linked from the benchmark baseline doc).
 - The job finishes in under 60 minutes, by fixing `index-build-quadratic` and `recap-large-store` or by trimming the counts/benchtime for the slowest benchmarks, and the benchstat comparison still has enough samples for p < 0.05.
+
+## Log
+
+- 2026-11-05 Airic Lenz: One count of every benchmark at bench.yml's flags takes 235 s on the Pi (about 47 min for the job). bench.yml lacked -timeout, so a 24-minute side would hit go test's 10-minute default; added -timeout=30m and cut timeout-minutes to 70.

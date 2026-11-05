@@ -91,3 +91,29 @@ git processes per copy. The baseline rows above stand as measured.
 | `recap --since <30 days ago>` | `BenchmarkRecap` | 0.097 s | 1.03 s | 10.6× (8.5× without the slow count) |
 
 N = 10000 runs in about 1 s, down from about 126 s and well under the 10 s goal.
+
+## 2026-11-05 — one count of every benchmark, for `bench.yml`'s runtime
+
+With both fixes in, one count of every benchmark at the flags `bench.yml` uses runs in 235 s on
+this host. Each side of the workflow runs six counts, about 24 minutes here, and the job runs two
+sides, about 47 minutes. A side exceeds `go test`'s default 10-minute limit, so `bench.yml` now
+passes `-timeout=30m` and caps the job at 70 minutes instead of 360. About half of each count
+builds the generated stores: every benchmark builds its own store at each size.
+
+- **Command:** `GOMEMLIMIT=2GiB go test -run='^$' -bench=. -count=1 -benchtime=3x -timeout=0 ./internal/cli`
+- **Commit:** `4c359e4`
+- **Run:** 2026-11-05, 235 s, on the same host and toolchain as the baseline.
+- **Values:** one count of three timed runs per benchmark, so they are noisier than the rows above.
+
+| Benchmark | N = 1000 | N = 10000 |
+| --- | ---: | ---: |
+| `BenchmarkPrime` | 0.46 s | 3.33 s |
+| `BenchmarkReady` | 0.36 s | 1.56 s |
+| `BenchmarkNext` | 0.16 s | 1.20 s |
+| `BenchmarkListAllJSON` | 0.37 s | 1.81 s |
+| `BenchmarkSearch` | 0.036 s | 0.35 s |
+| `BenchmarkCheck` | 0.11 s | 1.11 s |
+| `BenchmarkRecap` | 0.096 s | 0.83 s |
+| `BenchmarkReindex` | 0.36 s | 4.25 s |
+| `BenchmarkColdFirstCommand` | 0.76 s | 5.32 s |
+| `BenchmarkLog` | 0.069 s | 0.49 s |

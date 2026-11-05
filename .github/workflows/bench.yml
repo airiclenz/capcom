@@ -22,10 +22,13 @@ defaults:
 jobs:
   bench:
     runs-on: ubuntu-latest
-    # Both sides run every benchmark six times; the cold-index benchmarks at N=10000 dominate.
-    timeout-minutes: 360
+    # Both sides run every benchmark six times. One count of every benchmark took 235 s on the
+    # Raspberry Pi 5 host (docs/reviews/benchmarks-2026-11-05.md), so a side takes about 24
+    # minutes there. -timeout replaces go test's default 10-minute limit, which a side exceeds,
+    # and stops a hung side with a goroutine dump before the job limit cancels it silently.
+    timeout-minutes: 70
     env:
-      BENCH_FLAGS: "-run=^$ -bench=. -count=6 -benchtime=3x"
+      BENCH_FLAGS: "-run=^$ -bench=. -count=6 -benchtime=3x -timeout=30m"
       BENCH_MAX_SLOWDOWN: '25'
       BENCH_MAX_P: '0.05'
     steps:
