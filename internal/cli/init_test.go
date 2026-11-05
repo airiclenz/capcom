@@ -15,7 +15,7 @@ import (
 
 // newGitRepo creates an empty git repository in a temp dir and returns its symlink-free root.
 // It stops git from discovering a repository above the temp dir.
-func newGitRepo(t *testing.T) string {
+func newGitRepo(t testing.TB) string {
 	t.Helper()
 	root := outsideGitDir(t)
 	setHermeticGitEnv(t)
@@ -27,7 +27,7 @@ func newGitRepo(t *testing.T) string {
 }
 
 // outsideGitDir returns a symlink-free temp dir that git treats as outside any repository.
-func outsideGitDir(t *testing.T) string {
+func outsideGitDir(t testing.TB) string {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

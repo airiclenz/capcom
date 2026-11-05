@@ -10,7 +10,7 @@ import (
 // runCLI runs capcom in process with dir as the working directory (skipped when dir is empty)
 // and returns its stdout, stderr and exit code. It sets the hermetic git environment of ADR 0007,
 // so tests using it must not call t.Parallel.
-func runCLI(t *testing.T, dir string, args ...string) (stdout, stderr string, exitCode int) {
+func runCLI(t testing.TB, dir string, args ...string) (stdout, stderr string, exitCode int) {
 	t.Helper()
 	if dir != "" {
 		t.Chdir(dir)
@@ -24,7 +24,7 @@ func runCLI(t *testing.T, dir string, args ...string) (stdout, stderr string, ex
 
 // setHermeticGitEnv isolates git from user and system configuration and fixes the author and
 // committer identity, so git-backed tests behave the same on every machine.
-func setHermeticGitEnv(t *testing.T) {
+func setHermeticGitEnv(t testing.TB) {
 	t.Helper()
 	environment := map[string]string{
 		"GIT_CONFIG_GLOBAL":   os.DevNull,

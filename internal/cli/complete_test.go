@@ -127,7 +127,7 @@ func TestComplete_OutsideAStore_HasNoCandidatesAndNoFiles(t *testing.T) {
 		dir  func(t *testing.T) string
 	}{
 		{"outside a git repository", func(t *testing.T) string { return t.TempDir() }},
-		{"git repository without a store", newGitRepo},
+		{"git repository without a store", func(t *testing.T) string { return newGitRepo(t) }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

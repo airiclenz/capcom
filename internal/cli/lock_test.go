@@ -38,7 +38,7 @@ func addWorktree(t *testing.T, root, name string) string {
 }
 
 // runGit runs a git command in dir and fails the test when it fails.
-func runGit(t *testing.T, dir string, args ...string) {
+func runGit(t testing.TB, dir string, args ...string) {
 	t.Helper()
 	command := exec.Command("git", args...)
 	command.Dir = dir

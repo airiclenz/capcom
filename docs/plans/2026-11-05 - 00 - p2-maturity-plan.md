@@ -250,7 +250,15 @@ Depends on item 9.
 - `grep -E 'ubuntu-latest|macos-latest' .github/workflows/stress.yml` prints both; `! grep -n stress .github/workflows/ci.yml`
 **Commit:** `test(cli): stress several worktrees, and run the stress tests in CI`
 
-## 11. Benchmark store generator and the read-command benchmarks
+## 11. Benchmark store generator and the read-command benchmarks — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): the generated history is streamed to one `git fast-import` with each commit's author and committer time written relative to `time.Now()` in the stream, instead of one `git commit` per commit under `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` as `commitAt` does: 500 commits as separate git processes on a 10000-file tree would take minutes per store. Only content is seeded; dates stay relative to the build time.
+NOTES (2026-11-05): each top-level benchmark (`BenchmarkPrime`, `BenchmarkReady`, `BenchmarkNext`, `BenchmarkListAllJSON`, `BenchmarkSearch`, `BenchmarkCheck`, `BenchmarkRecap`) builds each N's store in its own `b.TempDir`, which outlives the per-round cleanup of its `N=<size>` sub-benchmarks (the guard's per-benchmark-helper option), so a store is built once per benchmark per N rather than once per run, and nothing outlives the run. The timed loop calls `Run` directly; the untimed warm-up goes through `runCLI`, which sets chdir and env once per round. A shared `sync.Once` store would need a directory nothing removes without `TestMain`, and /tmp on the Pi is tmpfs (about 215 MB leaked per run); the cost is one store build and one cold index per benchmark per N, which item 12's `-count=6` multiplies.
+NOTES (2026-11-05): newBenchStore waits for the next whole second after `git reset --hard`: otherwise the index's racy-clean rule re-reads the files written in the warm-up's second on every timed run, and the first run measured prime at 110 s at N=10000 instead of a warm index.
+NOTES (2026-11-05): observed on the Pi (binary on a 10000-issue store): cold first `list` 55 s, warm list 1.7 s, prime 2.5 s, ready 1.6 s, next 1.3 s, search 0.4 s, check 0.8 s, recap --since 30 days 125 s. The cold cost is `refresher.forget`'s `DELETE FROM fts WHERE path = ?`, a full FTS5 scan per indexed file (path is UNINDEXED); not fixed here (plan out of scope: slow commands go to item 13).
+NOTES (2026-11-05): consequential edit — internal/cli/cli_test.go: made necessary by widening `outsideGitDir`/`newGitRepo` to `testing.TB` (a table field typed `func(*testing.T) string` now wraps them in a closure).
+NOTES (2026-11-05): consequential edit — internal/cli/complete_test.go: made necessary by widening `newGitRepo` to `testing.TB` (same table-field closure).
+NOTES (2026-11-05): `go test -run='^$' -bench=. -benchtime=1x ./internal/cli` took 617 s on the Pi, about 4.5 min of it the two untimed and timed recap runs at N=10000 and about 1 min per benchmark the cold index of its N=10000 store.
 
 **What:**
 **Goal:** `go test -run='^$' -bench=. ./internal/cli` benchmarks `prime` (warm index), `ready`, `next`, `list --all --json`, `search <word>`, `check` and `recap --since <30 days ago>` at N = 1000 and 10000 issues, and adds N = 50000 only when `CAPCOM_BENCH_LARGE=1`.

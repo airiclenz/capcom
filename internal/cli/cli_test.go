@@ -465,7 +465,7 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 	}{
 		{
 			name:  "outside git",
-			setup: outsideGitDir,
+			setup: func(t *testing.T) string { return outsideGitDir(t) },
 			wantFail: func(dir string) string {
 				return "capcom: " + dir + ": " + store.ErrNotGitRepository.Error() + "\n"
 			},
@@ -473,7 +473,7 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 		},
 		{
 			name:  "no store",
-			setup: newGitRepo,
+			setup: func(t *testing.T) string { return newGitRepo(t) },
 			wantFail: func(root string) string {
 				return "capcom: " + filepath.Join(root, ".capcom") + ": no capcom store here\n"
 			},
