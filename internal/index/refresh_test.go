@@ -291,3 +291,50 @@ func TestRefresh_SameSizeEditWithMtimeRestored_IsSeen(t *testing.T) {
 		t.Errorf("Search(bravo) = %v, %v; want [kept-mtime]", found, err)
 	}
 }
+
+// ftsRows counts the fts rows the index holds for the file at path, a worktree-relative path.
+func ftsRows(t *testing.T, x *Index, path string) int {
+	t.Helper()
+	var count int
+	if err := x.db.QueryRow(`SELECT count(*) FROM fts WHERE path = ?`, path).Scan(&count); err != nil {
+		t.Fatalf("count fts rows of %s: %v", path, err)
+	}
+	return count
+}
+
+func TestRefresh_ChangedBody_LeavesOneFtsRowWithTheNewBody(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "changed.md", issueText("Changed", "open", "alphaword before\n"))
+	x := openIndex(t, s)
+	writeIssue(t, s, "changed.md", issueText("Changed", "open", "bravoword after the edit\n"))
+
+	refresh(t, x)
+
+	if count := ftsRows(t, x, ".capcom/issues/changed.md"); count != 1 {
+		t.Errorf("fts rows of changed.md = %d, want 1", count)
+	}
+	if found, err := x.Search("bravoword"); err != nil || !slices.Equal(found, []string{"changed"}) {
+		t.Errorf("Search(bravoword) = %v, %v; want [changed]", found, err)
+	}
+	if found, err := x.Search("alphaword"); err != nil || len(found) != 0 {
+		t.Errorf("Search(alphaword) = %v, %v; want the old body gone", found, err)
+	}
+}
+
+func TestRefresh_FileAddedAfterARefresh_GetsOneFtsRow(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "first.md", issueText("First", "open", ""))
+	x := openIndex(t, s)
+	writeIssue(t, s, "added.md", issueText("Added", "open", "charlieword\n"))
+
+	refresh(t, x)
+
+	if count := ftsRows(t, x, ".capcom/issues/added.md"); count != 1 {
+		t.Errorf("fts rows of added.md = %d, want 1", count)
+	}
+	if found, err := x.Search("charlieword"); err != nil || !slices.Equal(found, []string{"added"}) {
+		t.Errorf("Search(charlieword) = %v, %v; want [added]", found, err)
+	}
+}

@@ -833,7 +833,7 @@ func TestIndexFile_FileGrownPastTheLimitSinceTheWalk_WarnsAndKeepsItOut(t *testi
 		size:     10,
 	}
 
-	isGone, err := r.indexFile(file)
+	isGone, err := r.indexFile(file, false)
 
 	if err != nil || isGone {
 		t.Fatalf("indexFile = gone %v, err %v; want a warning instead", isGone, err)
@@ -1226,6 +1226,11 @@ func TestRefresh_WalkRefusedFileFixed_DropsItsClaim(t *testing.T) {
 
 	if entry, err := x.Resolve("foo"); err != nil || entry.ID != "foo" {
 		t.Errorf("Resolve(foo) = %q, %v; want foo", entry.ID, err)
+	}
+	var claims int
+	err := x.db.QueryRow(`SELECT count(*) FROM claims WHERE path = ?`, ".capcom/issues/foo.md").Scan(&claims)
+	if err != nil || claims != 0 {
+		t.Errorf("claims rows at foo.md = %d, %v; want the old walk claim dropped", claims, err)
 	}
 }
 

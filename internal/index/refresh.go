@@ -240,7 +240,7 @@ func (r *refresher) sync(found []foundFile, report *Report) error {
 			}
 			continue
 		}
-		isGone, err := r.indexFile(file)
+		isGone, err := r.indexFile(file, isKnown)
 		if err != nil {
 			return err
 		}
@@ -253,7 +253,7 @@ func (r *refresher) sync(found []foundFile, report *Report) error {
 		report.parsed = append(report.parsed, file.path)
 	}
 	for path := range recorded {
-		if err := r.forget(path); err != nil {
+		if err := r.forget(path, true); err != nil {
 			return err
 		}
 		report.removed = append(report.removed, path)
@@ -306,8 +306,9 @@ func (r *refresher) rewarn(path string, problems sql.NullString) error {
 // through nodefile.ReadRegularFile: one that is no longer a regular file, or has grown past 1 MiB,
 // since the walk kept it is left out unread with a diagnose.NotRegular, never failing the
 // refresh. A file removed since the walk kept it is left without rows, and isGone reports it.
-func (r *refresher) indexFile(file foundFile) (isGone bool, err error) {
-	if err := r.forget(file.path); err != nil {
+// isKnown reports whether the index holds a files row for the file, as forget takes it.
+func (r *refresher) indexFile(file foundFile, isKnown bool) (isGone bool, err error) {
+	if err := r.forget(file.path, isKnown); err != nil {
 		return false, err
 	}
 	data, err := readNodeFile(file.absolute)
@@ -515,9 +516,17 @@ func (r *refresher) exec(file foundFile, statements []statement) error {
 	return nil
 }
 
-// forget drops every row of one file.
-func (r *refresher) forget(path string) error {
+// forget drops every row of one file. isKnown reports whether the index holds a files row for it.
+// fts rows exist only beside a files row (insertIssue, insertNote), and fts cannot find a path
+// through an index, so each delete from it scans the whole table: a file without a files row skips
+// it, which keeps a cold build linear in the store. The other tables are cleared either way, by
+// their path index: claims can still hold the claims an earlier walk recorded for a file it left
+// out (replaceWalkClaims spares a path once it has a files row).
+func (r *refresher) forget(path string, isKnown bool) error {
 	for _, table := range rowTables {
+		if table == "fts" && !isKnown {
+			continue
+		}
 		if _, err := r.tx.ExecContext(r.ctx, `DELETE FROM `+table+` WHERE path = ?`, path); err != nil {
 			return fmt.Errorf("drop %s from index: %w", path, err)
 		}

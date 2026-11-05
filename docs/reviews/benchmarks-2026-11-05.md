@@ -52,3 +52,25 @@ push to `main` against its parent; this page is the absolute reference those rel
 
 N = 50000 (`CAPCOM_BENCH_LARGE=1`) was not run: at the costs above its index build and recap
 alone would take hours on this host.
+
+## 2026-11-05 — index build after `index-build-quadratic`
+
+A refresh now drops a file's rows only when the index holds a files row for it, so a cold build
+and a `reindex` no longer scan the whole FTS5 table once per file. The baseline rows above stand
+as measured.
+
+- **Command:** `GOMEMLIMIT=2GiB go test -run='^$' -bench='Reindex|Cold' -count=3 -timeout=0 ./internal/cli`
+- **Commit:** `6d1db27` with the change `perf(index): forget a file's rows only when the index holds them`
+- **Run:** 2026-11-05, 11:49 to 11:51 UTC (103 s), on the same host and toolchain as the baseline.
+- **Values:** the mean time per command over the three counts. The counts spread wider than the
+  baseline's: one count of each N = 10000 row ran about 1.5 s slower than the other two, and the
+  N = 1000 cold first command took 1.84 to 2.10 s here against 0.83 s in a single
+  `-benchtime=1x` run just before.
+
+| Command | Benchmark | N = 1000 | N = 10000 | N = 10000 / N = 1000 |
+| --- | --- | ---: | ---: | ---: |
+| `reindex` | `BenchmarkReindex` | 0.41 s | 4.33 s | 10.6× (9.3× without the slow count) |
+| `list` after deleting the index | `BenchmarkColdFirstCommand` | 1.94 s | 5.34 s | 2.8× |
+
+Both stay under 10 s at N = 10000, down from about 54 s. `reindex` costs about 0.4 ms per issue at
+either size, so the build now grows linearly with the store.

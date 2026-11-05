@@ -54,7 +54,10 @@ failed build still leaves it set, and have `TestMain` `os.RemoveAll` it whenever
 
 **Commit:** `fix(cli): remove the stress tests' built binary when they finish`
 
-## 2. Index build grows linearly with the store
+## 2. Index build grows linearly with the store — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): for a file without a files row, forget skips only the fts delete and keeps the other deletes (all by a path index), so an earlier walk's claims at that path are still dropped (the plan's regression guard); TestIndexFile_FileGrownPastTheLimitSinceTheWalk_WarnsAndKeepsItOut now calls indexFile(file, false).
+NOTES (2026-11-05): measured with -count=3 (as the baseline) besides the Acceptance's -benchtime=1x run: reindex 0.41 s -> 4.33 s (10.6x mean, 9.3x without one slow count; 0.39 s -> 3.96 s in the 1x run), cold first command 1.94 s -> 5.34 s (0.83 s -> 4.81 s in the 1x run); per-issue reindex cost is flat at ~0.4 ms, so no profile was taken.
 
 **What:** Fixes the quadratic cold build measured in the baseline (`BenchmarkReindex` 1.08 s → 53.95 s, `BenchmarkColdFirstCommand` 1.42 s → 54.51 s from N=1000 to N=10000).
 **Regression guard.** A file unknown to `files` may still hold claims rows from an earlier walk that left it out
