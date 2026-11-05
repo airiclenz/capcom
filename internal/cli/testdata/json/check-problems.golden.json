@@ -1,0 +1,1 @@
+{"schema":1,"kind":"check","data":[{"path":".capcom/knowledge/gone-ref.md","line":3,"code":"broken-ref","message":"ref \"internal/removed.go\": no such file or directory"}],"elsewhere":[],"warnings":[]}

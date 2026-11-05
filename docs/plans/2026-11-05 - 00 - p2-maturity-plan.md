@@ -66,7 +66,12 @@ internal/nodestore/read_test.go; internal/cli/init_test.go
 - `git diff HEAD -- '*_test.go' | grep '^[-+][^-+]' | grep -v 'yaml'` prints nothing (only import lines change)
 **Commit:** `chore(deps): move to go.yaml.in/yaml/v3`
 
-## 2. Golden harness and the read-command kinds
+## 2. Golden harness and the read-command kinds — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): compareGolden takes the store root as a third argument, compareGolden(want, got, root string) error, since the <DIR> regexp is built from the temp root; it stays pure (no t, no file access) and the harness test calls it directly.
+NOTES (2026-11-05): the per-kind tests are subtests of one table test, TestGolden_ReadKinds/<kind>, rather than one TestGolden_<Kind> function each; next-empty, check-problems and init have their own TestGolden_* functions since they need another store or exit code. All match -run Golden.
+NOTES (2026-11-05): added a check-problems golden (a Note with a broken ref, exit 1) next to the clean check golden, so the {path, line, code, message} problem shape is pinned, not only the empty list.
+NOTES (2026-11-05): goldenJSONDir is made absolute when the test binary starts, because runCLI t.Chdir-s into the store and a relative testdata path would be written there.
 
 **What:**
 **Goal:** `internal/cli` has a golden JSON harness with an `-update` flag and a fixed seeded store, and golden files under `internal/cli/testdata/json/` pin the kinds `issue`, `issue-list`, `ready`, `next` (both a found Issue and `data: null` with exit 4), `context`, `deps`, `dep-graph`, `search` (`match: all` and `match: any`), `prime`, `recap`, `check`, `version`, `reindex`, `init`, `agents`.
