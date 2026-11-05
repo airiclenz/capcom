@@ -1,10 +1,12 @@
 ---
 title: The merge driver is tested by examples, not by random concurrent edits
-status: open
+status: done
 type: task
 priority: 1
 labels: [maturity, testing]
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-05T00:13:29Z
+reason: "Resolved by plan p1-maturity-plan items 9-10 (archived at 1ac8d9d): MergeFile property test (5000 iterations clean) and end-to-end git merge property test, CAPCOM_PROPERTY_ITERATIONS controls both."
 ---
 
 "Issues branch and merge with the code" is capcom's main promise, and the `capcom merge-driver`

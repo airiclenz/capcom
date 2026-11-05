@@ -1,10 +1,12 @@
 ---
 title: CI runs only go vet; add staticcheck and govulncheck
-status: open
+status: done
 type: chore
 priority: 1
 labels: [maturity, ci]
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-05T00:13:29Z
+reason: "Resolved by plan p1-maturity-plan item 3 (archived at 1ac8d9d): CI lint job and make lint run staticcheck 2026.2.2 and govulncheck v1.9.0, tree clean, CONTRIBUTING names both."
 ---
 
 `.github/workflows/ci.yml` runs `go vet ./...` and the tests, nothing else. Bugs staticcheck
