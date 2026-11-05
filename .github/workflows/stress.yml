@@ -1,0 +1,32 @@
+name: Stress
+
+# Runs the stress tests (internal/cli/stress_test.go, build tag stress): the real capcom binary as
+# many concurrent processes, in one worktree and across linked worktrees. It lives apart from
+# ci.yml so a stress failure never blocks a release: the release gate reads ci.yml's runs only
+# (Note adr-0008, HasGreenRun in cmd/release). A failed run logs its seed; replay it with
+# CAPCOM_STRESS_SEED=<seed>.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  stress:
+    name: stress ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Stress
+        run: go test -tags stress -count=1 -run Stress ./internal/cli

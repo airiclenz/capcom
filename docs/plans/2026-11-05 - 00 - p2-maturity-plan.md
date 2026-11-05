@@ -228,7 +228,12 @@ internal/cli/init_test.go — newGitRepo, outsideGitDir; internal/cli/reindex.go
 - `GOMEMLIMIT=2GiB CAPCOM_STRESS_WORKERS=4 go test -tags stress -count=10 -run Stress_OneWorktree ./internal/cli`
 **Commit:** `test(cli): stress one worktree with concurrent mixed commands`
 
-## 10. Stress several worktrees, and the stress workflow
+## 10. Stress several worktrees, and the stress workflow — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): item 9's workload is split into newMixedWorkers, runTogether, workloadJobs, assertDocumentedCommands and assertStoreHoldsWrites, which both tests share; every worker now tags its holder (`<tag>-<n>`), purpose (`<tag>-p<n>`) and Issue ids (`<tag>-w<n>-i<c>`) with its worktree's name, so TestStress_OneWorktree's holders read `main-<n>` instead of `h<n>`; its command mix is unchanged.
+NOTES (2026-11-05): the three linked worktrees (tree-a, tree-b, tree-c) come from addWorktree; a lock-status poller per worktree runs `lock status --kv` throughout the workload, and every HOLDER= line and "locked by" message, in the workers' output and the poller's, must name that worktree's tag; afterwards each worktree's index must list exactly its Issue files, and a lock acquired in each worktree in turn must succeed and show its own holder.
+NOTES (2026-11-05): each worktree runs CAPCOM_STRESS_WORKERS workers (default 16, as item 9), so CI races 48 workers plus 3 pollers; stress.yml allows 30 minutes. At 4 workers the -count=10 acceptance run took 91 s on the Pi.
+NOTES (2026-11-05): CONTRIBUTING.md gains a paragraph on the stress tests and stress.yml, beside the one on fuzz.yml (rule 6 docs update).
 
 **What:**
 **Goal:** `TestStress_Worktrees` runs item 9's workload against three `git worktree add` checkouts of one repository: each worktree's lock never names another's holder and each worktree's index matches its files; `.github/workflows/stress.yml` runs `go test -tags stress -count=1 -run Stress ./internal/cli` on ubuntu-latest and macos-latest on push and pull request.

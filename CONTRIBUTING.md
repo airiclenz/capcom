@@ -48,6 +48,19 @@ adding `-parallel=2` and `GOMEMLIMIT=2GiB` on a small machine. A crash writes it
 package's `testdata/fuzz/<Target>/` (CI uploads that directory as an artifact): commit that file
 with the fix in the same change, so it stays a regression case every `go test` runs.
 
+The stress tests in `internal/cli/stress_test.go` run the real binary as many concurrent
+processes, in one worktree and across linked worktrees. They sit behind the `stress` build tag,
+so plain `go test` skips them;
+[`.github/workflows/stress.yml`](.github/workflows/stress.yml) runs them on Linux and macOS on
+every push to `main` and every pull request, apart from `ci.yml` so a failure never blocks a
+release. Run them locally with
+
+```sh
+CAPCOM_STRESS_WORKERS=4 GOMEMLIMIT=2GiB go test -tags stress -count=1 -run Stress ./internal/cli
+```
+
+A failed run logs its seed; `CAPCOM_STRESS_SEED=<seed>` replays its random choices.
+
 ## Conventions and tests
 
 - Code conventions, formatting and error messages: Note

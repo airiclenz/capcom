@@ -4,6 +4,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -11,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +53,13 @@ const (
 // before it fails busy, and SQLite's busy handler can give up a little early. A busy failure that
 // comes sooner skipped that wait, which is a bug.
 const busyWaitFloor = 4 * time.Second
+
+// stressWorktrees are the linked worktrees TestStress_Worktrees adds, each name also the tag of
+// its workers' holders, purposes and Issue ids.
+var stressWorktrees = []string{"tree-a", "tree-b", "tree-c"}
+
+// oneWorktreeTag tags the holders, purposes and Issue ids of TestStress_OneWorktree's workers.
+const oneWorktreeTag = "main"
 
 // stressBuild builds the capcom binary once per test process; stressBinaryPath and
 // stressBuildErr hold its outcome. The binary's directory outlives the tests, since no TestMain
@@ -253,11 +262,14 @@ type mixedCommand struct {
 }
 
 // mixedWorker runs one goroutine's random commands against a shared store, choosing only among
-// its own Issues and its own lock purpose, and remembers what it wrote. Its random choices come
-// from its own seeded source; the outcome of a dep add or a lock acquire, which other workers
-// decide, feeds back into later choices, so a replay repeats the choices, not the interleaving.
+// its own Issues and its own lock purpose, and remembers what it wrote. Its holder, purpose and
+// Issue ids start with its tag and a dash, so a lock or an Issue can be traced to the workers of
+// one store. Its random choices come from its own seeded source; the outcome of a dep add or a
+// lock acquire, which other workers decide, feeds back into later choices, so a replay repeats the
+// choices, not the interleaving.
 type mixedWorker struct {
 	n       int
+	tag     string
 	binary  string
 	dir     string
 	random  *rand.Rand
@@ -317,7 +329,7 @@ func (w *mixedWorker) step(command int) {
 	w.counter++
 	switch command {
 	case mixedCreate:
-		id := fmt.Sprintf("w%d-i%d", w.n, w.counter)
+		id := fmt.Sprintf("%s-w%d-i%d", w.tag, w.n, w.counter)
 		result := w.exec("create", "--id", id, "--title", "Stress "+id, "--body", "Stress body.")
 		if result.exitCode == ExitOK {
 			w.issues = append(w.issues, id)
@@ -369,7 +381,7 @@ func (w *mixedWorker) depAdd() {
 func (w *mixedWorker) acquireLock() {
 	result := w.execAllowing(func(result processResult) bool {
 		return result.exitCode == ExitNotFound && strings.Contains(result.stdout, "STATUS=locked")
-	}, "lock", "acquire", "--purpose", fmt.Sprintf("p%d", w.n), "--holder", fmt.Sprintf("h%d", w.n), "--kv")
+	}, "lock", "acquire", "--purpose", fmt.Sprintf("%s-p%d", w.tag, w.n), "--holder", fmt.Sprintf("%s-%d", w.tag, w.n), "--kv")
 	if result.exitCode != ExitOK {
 		return
 	}
@@ -416,42 +428,58 @@ func (w *mixedWorker) execAllowing(isExpectedFailure func(processResult) bool, a
 	return result
 }
 
-func TestStress_OneWorktree(t *testing.T) {
-	binary := stressBinary(t)
-	workers := stressWorkers(t, defaultMixedWorkers)
-	seed := stressSeed(t)
-	root := newLockStore(t)
-	setHermeticGitEnv(t)
-
-	mixed := make([]*mixedWorker, workers)
-	for n := range workers {
-		mixed[n] = &mixedWorker{
+// newMixedWorkers returns count workers tagged tag on the store at dir, worker n drawing its
+// choices from the stream firstStream+n of seed, so workers on different stores choose apart.
+func newMixedWorkers(binary, dir, tag string, count int, seed, firstStream uint64) []*mixedWorker {
+	workers := make([]*mixedWorker, count)
+	for n := range count {
+		workers[n] = &mixedWorker{
 			n:      n,
+			tag:    tag,
 			binary: binary,
-			dir:    root,
-			random: rand.New(rand.NewPCG(seed, uint64(n))),
+			dir:    dir,
+			random: rand.New(rand.NewPCG(seed, firstStream+uint64(n))),
 			logs:   map[string][]string{},
 		}
 	}
+	return workers
+}
+
+// runTogether starts every job at once, each in its own goroutine, and waits for all of them.
+func runTogether(jobs ...func()) {
 	start := make(chan struct{})
 	var group sync.WaitGroup
-	for _, worker := range mixed {
+	for _, job := range jobs {
 		group.Add(1)
 		go func() {
 			defer group.Done()
 			<-start
-			worker.run(mixedCommandsPerWorker)
+			job()
 		}()
 	}
 	close(start)
 	group.Wait()
+}
 
-	for _, worker := range mixed {
+// workloadJobs returns one job per worker, running mixedCommandsPerWorker commands.
+func workloadJobs(workers []*mixedWorker) []func() {
+	jobs := make([]func(), len(workers))
+	for n, worker := range workers {
+		jobs[n] = func() { worker.run(mixedCommandsPerWorker) }
+	}
+	return jobs
+}
+
+// assertDocumentedCommands fails the test when a worker could not start a process, or when one of
+// its commands panicked, let a database lock through or failed in a way it does not document.
+func assertDocumentedCommands(t *testing.T, workers []*mixedWorker) {
+	t.Helper()
+	for _, worker := range workers {
 		if worker.runErr != nil {
-			t.Fatalf("worker %d: %v", worker.n, worker.runErr)
+			t.Fatalf("%s worker %d: %v", worker.tag, worker.n, worker.runErr)
 		}
 		for _, command := range worker.ran {
-			label := fmt.Sprintf("worker %d: %v", worker.n, command.args)
+			label := fmt.Sprintf("%s worker %d: %v", worker.tag, worker.n, command.args)
 			assertCleanProcess(t, label, command.result)
 			if !command.documented {
 				t.Errorf("%s exit = %d after %v\nstdout = %s\nstderr = %s",
@@ -459,13 +487,19 @@ func TestStress_OneWorktree(t *testing.T) {
 			}
 		}
 	}
+}
 
-	mustRunBinary(t, binary, root, "check")
-	for _, worker := range mixed {
+// assertStoreHoldsWrites fails the test unless the store at dir passes check, holds every Issue
+// its workers created and every Log entry they wrote, and lists the same Issues before and after
+// a reindex. It returns that listing.
+func assertStoreHoldsWrites(t *testing.T, binary, dir string, workers []*mixedWorker) string {
+	t.Helper()
+	mustRunBinary(t, binary, dir, "check")
+	for _, worker := range workers {
 		for _, id := range worker.issues {
-			data, err := os.ReadFile(filepath.Join(root, ".capcom", "issues", id+".md"))
+			data, err := os.ReadFile(filepath.Join(dir, ".capcom", "issues", id+".md"))
 			if err != nil {
-				t.Errorf("worker %d created %s, but its file cannot be read: %v", worker.n, id, err)
+				t.Errorf("%s worker %d created %s, but its file cannot be read: %v", worker.tag, worker.n, id, err)
 				continue
 			}
 			content := string(data)
@@ -479,10 +513,191 @@ func TestStress_OneWorktree(t *testing.T) {
 			}
 		}
 	}
-	before := mustRunBinary(t, binary, root, "list", "--all", "--json")
-	mustRunBinary(t, binary, root, "reindex")
-	after := mustRunBinary(t, binary, root, "list", "--all", "--json")
+	before := mustRunBinary(t, binary, dir, "list", "--all", "--json")
+	mustRunBinary(t, binary, dir, "reindex")
+	after := mustRunBinary(t, binary, dir, "list", "--all", "--json")
 	if before != after {
-		t.Errorf("list --all --json changed across reindex\nbefore = %s\nafter  = %s", before, after)
+		t.Errorf("%s: list --all --json changed across reindex\nbefore = %s\nafter  = %s", dir, before, after)
+	}
+	return after
+}
+
+func TestStress_OneWorktree(t *testing.T) {
+	binary := stressBinary(t)
+	workers := stressWorkers(t, defaultMixedWorkers)
+	seed := stressSeed(t)
+	root := newLockStore(t)
+	setHermeticGitEnv(t)
+	mixed := newMixedWorkers(binary, root, oneWorktreeTag, workers, seed, 0)
+
+	runTogether(workloadJobs(mixed)...)
+
+	assertDocumentedCommands(t, mixed)
+	assertStoreHoldsWrites(t, binary, root, mixed)
+}
+
+// lockPoller runs capcom lock status in one worktree, over and over, until it is told to stop,
+// and keeps every result.
+type lockPoller struct {
+	binary  string
+	dir     string
+	results []processResult
+	runErr  error
+}
+
+// run polls the worktree's lock until done is closed. A process that cannot be started stops it.
+func (p *lockPoller) run(done <-chan struct{}) {
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		result, err := runBinary(p.binary, p.dir, "lock", "status", "--kv")
+		if err != nil {
+			p.runErr = err
+			return
+		}
+		p.results = append(p.results, result)
+	}
+}
+
+// foreignHolders returns every holder result names, on a HOLDER= line or in a "locked by"
+// message, whose name does not start with tag and a dash.
+func foreignHolders(result processResult, tag string) []string {
+	var foreign []string
+	isForeign := func(holder string) bool { return holder != "" && !strings.HasPrefix(holder, tag+"-") }
+	for _, line := range strings.Split(result.stdout, "\n") {
+		if holder, found := strings.CutPrefix(line, "HOLDER="); found && isForeign(holder) {
+			foreign = append(foreign, holder)
+		}
+	}
+	rest := result.stdout + result.stderr
+	for {
+		_, after, found := strings.Cut(rest, "locked by ")
+		if !found {
+			return foreign
+		}
+		holder, _, _ := strings.Cut(after, " ")
+		if isForeign(holder) {
+			foreign = append(foreign, holder)
+		}
+		rest = after
+	}
+}
+
+// assertOwnHolders fails the test when a command of one worktree's workers, or a lock status its
+// poller ran, names a holder of another worktree.
+func assertOwnHolders(t *testing.T, tag string, workers []*mixedWorker, poller *lockPoller) {
+	t.Helper()
+	for _, worker := range workers {
+		for _, command := range worker.ran {
+			if foreign := foreignHolders(command.result, tag); len(foreign) > 0 {
+				t.Errorf("%s worker %d: %v names the holders %v of another worktree\nstdout = %s\nstderr = %s",
+					tag, worker.n, command.args, foreign, command.result.stdout, command.result.stderr)
+			}
+		}
+	}
+	if poller.runErr != nil {
+		t.Fatalf("%s lock status: %v", tag, poller.runErr)
+	}
+	for _, result := range poller.results {
+		assertCleanProcess(t, tag+" lock status", result)
+		if result.exitCode != ExitOK {
+			t.Errorf("%s lock status exit = %d\nstdout = %s\nstderr = %s", tag, result.exitCode, result.stdout, result.stderr)
+		}
+		if foreign := foreignHolders(result, tag); len(foreign) > 0 {
+			t.Errorf("%s lock status names the holders %v of another worktree\nstdout = %s", tag, foreign, result.stdout)
+		}
+	}
+}
+
+// assertIndexMatchesFiles fails the test unless listing, a list --all --json of the worktree at
+// dir, names exactly the Issue files under its .capcom/issues, each one tagged tag.
+func assertIndexMatchesFiles(t *testing.T, dir, tag, listing string) {
+	t.Helper()
+	var envelope struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(listing), &envelope); err != nil {
+		t.Fatalf("%s: decode list --all --json: %v\n%s", tag, err, listing)
+	}
+	listed := make([]string, 0, len(envelope.Data))
+	for _, issue := range envelope.Data {
+		listed = append(listed, issue.ID)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, ".capcom", "issues"))
+	if err != nil {
+		t.Fatalf("%s: read the Issue files: %v", tag, err)
+	}
+	var files []string
+	for _, entry := range entries {
+		if id, found := strings.CutSuffix(entry.Name(), ".md"); found && !entry.IsDir() {
+			files = append(files, id)
+		}
+	}
+	slices.Sort(listed)
+	slices.Sort(files)
+	if !slices.Equal(listed, files) {
+		t.Errorf("%s: the index lists %v, the files are %v", tag, listed, files)
+	}
+	for _, id := range files {
+		if !strings.HasPrefix(id, tag+"-") {
+			t.Errorf("%s holds %s, an Issue of another worktree", tag, id)
+		}
+	}
+}
+
+func TestStress_Worktrees(t *testing.T) {
+	binary := stressBinary(t)
+	workers := stressWorkers(t, defaultMixedWorkers)
+	seed := stressSeed(t)
+	root := newLockStore(t)
+	setHermeticGitEnv(t)
+	dirs := make([]string, len(stressWorktrees))
+	mixed := make([][]*mixedWorker, len(stressWorktrees))
+	pollers := make([]*lockPoller, len(stressWorktrees))
+	for index, tag := range stressWorktrees {
+		dirs[index] = addWorktree(t, root, tag)
+		mixed[index] = newMixedWorkers(binary, dirs[index], tag, workers, seed, uint64(index*workers))
+		pollers[index] = &lockPoller{binary: binary, dir: dirs[index]}
+	}
+	done := make(chan struct{})
+	var workloads sync.WaitGroup
+	var jobs []func()
+	for index := range stressWorktrees {
+		for _, job := range workloadJobs(mixed[index]) {
+			workloads.Add(1)
+			jobs = append(jobs, func() {
+				defer workloads.Done()
+				job()
+			})
+		}
+		poller := pollers[index]
+		jobs = append(jobs, func() { poller.run(done) })
+	}
+	go func() {
+		workloads.Wait()
+		close(done)
+	}()
+
+	runTogether(jobs...)
+
+	for index, tag := range stressWorktrees {
+		assertDocumentedCommands(t, mixed[index])
+		assertOwnHolders(t, tag, mixed[index], pollers[index])
+		listing := assertStoreHoldsWrites(t, binary, dirs[index], mixed[index])
+		assertIndexMatchesFiles(t, dirs[index], tag, listing)
+	}
+	for index, tag := range stressWorktrees {
+		mustRunBinary(t, binary, dirs[index], "lock", "acquire", "--purpose", tag+"-final", "--holder", tag+"-final")
+	}
+	for index, tag := range stressWorktrees {
+		status := mustRunBinary(t, binary, dirs[index], "lock", "status", "--kv")
+		if holder := kvValue(t, status, "HOLDER"); holder != tag+"-final" {
+			t.Errorf("%s lock status HOLDER = %q, want %q", tag, holder, tag+"-final")
+		}
 	}
 }
