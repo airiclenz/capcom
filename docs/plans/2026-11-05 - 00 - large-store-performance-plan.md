@@ -104,7 +104,12 @@ internal/index/schema.go — ensureSchema; internal/cli/reindex_test.go — hold
 
 **Commit:** `perf(index): check for changes before taking the index write lock`
 
-## 4. recap reads every file copy through one git process
+## 4. recap reads every file copy through one git process — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): consequential edit — internal/gitx/branches.go: made necessary by ReadBlobs also returning ErrBlobTooLarge (its doc comment named ShowFile only)
+NOTES (2026-11-05): ReadBlobs asks git in the caller's order with duplicates dropped (not sorted), so the body-corrupt test can place the corrupt blob first; an object of another type (a tree) is skipped with an unexported errNotBlob, and an unrecognised answer header ends that process like a death. A process that dies before writing a single byte, when no earlier object was answered, is the returned error; a git that dies before printing a corrupt first blob's header (git 2.47 prints it first) would therefore fail the whole recap rather than warn.
+NOTES (2026-11-05): added TestReadBlobs_NotARepository_ReturnsTheGitError beyond the plan's test list, pinning the "no object answered" error path; the existing TestCompute_OversizedFile_IsAWarningAndLeftOut already pins the tree.ErrTooLarge warning and passes unchanged, and TestCompute_UnreadableFile_IsAWarningAndLeftOut deletes a loose blob for the unreadable case.
+NOTES (2026-11-05): benchmark measured on the Pi 5 at 583586d plus this change with -count=3: N=1000 0.097 s, N=10000 1.03 s (one count 1.44 s, the others 0.81 s and 0.84 s); added as a dated section to docs/reviews/benchmarks-2026-11-05.md.
 
 **What:**
 **Regression guard.** When the cat-file --batch process dies after it has started answering, the object in flight gets an Err carrying git's stderr and the unanswered rest is read in a new process; ReadBlobs returns an error only when no object was answered; add a gitx test with a body-corrupt blob before a good one. Correct the approach: only internal/elsewhere calls gitx.ShowFile (cmd/release has its own execRepo.ShowFile), so ShowFile stays for internal/elsewhere.

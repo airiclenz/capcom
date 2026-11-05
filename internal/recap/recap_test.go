@@ -249,6 +249,34 @@ func TestCompute_OversizedFile_IsAWarningAndLeftOut(t *testing.T) {
 	}
 }
 
+func TestCompute_UnreadableFile_IsAWarningAndLeftOut(t *testing.T) {
+	s := newStore(t)
+	commit(t, s, map[string]string{
+		"issues/lost.md":  issueFile("Lost", "open", ""),
+		"issues/small.md": issueFile("Small", "open", ""),
+	})
+	blob := git(t, s.WorktreeRoot, "rev-parse", "HEAD:.capcom/issues/lost.md")
+	object := filepath.Join(s.WorktreeRoot, ".git", "objects", blob[:2], blob[2:])
+	// git writes loose objects read-only, which Windows refuses to remove.
+	if err := os.Chmod(object, 0o644); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	if err := os.Remove(object); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	report, err := Compute(s, "")
+
+	want := []Entry{{ID: "small", Title: "Small"}}
+	if err != nil || !reflect.DeepEqual(report.Filed, want) || len(report.Warnings) != 1 {
+		t.Fatalf("Compute = %+v, %v; want only small filed and one warning", report, err)
+	}
+	warning := report.Warnings[0]
+	if !strings.HasPrefix(warning, "recap: ") || !strings.Contains(warning, "lost.md") {
+		t.Errorf("warning = %q; want the recap: prefix naming lost.md", warning)
+	}
+}
+
 func TestCompute_DuplicateID_KeepsTheFirstFileAndWarnsOfTheSecond(t *testing.T) {
 	s := newStore(t)
 	commit(t, s, map[string]string{

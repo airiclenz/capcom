@@ -39,8 +39,8 @@ const (
 	changeType     = "T"
 )
 
-// ErrBlobTooLarge reports a blob ShowFile refused to read because git reported it larger than
-// the caller's limit.
+// ErrBlobTooLarge reports a blob ShowFile or ReadBlobs refused to read because git reported it
+// larger than the caller's limit.
 var ErrBlobTooLarge = errors.New("blob is larger than the size limit")
 
 // ChangeKind is how a file differs between two revisions.

@@ -74,3 +74,20 @@ as measured.
 
 Both stay under 10 s at N = 10000, down from about 54 s. `reindex` costs about 0.4 ms per issue at
 either size, so the build now grows linearly with the store.
+
+## 2026-11-05 — recap after `recap-large-store`
+
+Recap now reads every file copy it needs through one `git cat-file --batch` process instead of two
+git processes per copy. The baseline rows above stand as measured.
+
+- **Command:** `GOMEMLIMIT=2GiB go test -run='^$' -bench=Recap -benchtime=1x -count=3 -timeout=0 ./internal/cli`
+- **Commit:** `583586d` with the change `perf(recap): read every file copy through one git cat-file process`
+- **Run:** 2026-11-05, 12:29 to 12:30 UTC (23 s), on the same host and toolchain as the baseline.
+- **Values:** the mean time per command over the three counts. One N = 10000 count took 1.44 s
+  against 0.81 s and 0.84 s for the other two.
+
+| Command | Benchmark | N = 1000 | N = 10000 | N = 10000 / N = 1000 |
+| --- | --- | ---: | ---: | ---: |
+| `recap --since <30 days ago>` | `BenchmarkRecap` | 0.097 s | 1.03 s | 10.6× (8.5× without the slow count) |
+
+N = 10000 runs in about 1 s, down from about 126 s and well under the 10 s goal.

@@ -37,6 +37,9 @@ const (
 // ErrUnknownBoundary is the error Compute fails with when the boundary names no commit.
 var ErrUnknownBoundary = errors.New("names no commit")
 
+// errNotRead reports a file copy load was asked for that readCopies did not read.
+var errNotRead = errors.New("copy was not read")
+
 // Entry is one line of a recap group: an issue or a Note, by its id at HEAD.
 type Entry struct {
 	// ID is the id at HEAD; for a removed Note, the id it had at the boundary.
@@ -112,6 +115,9 @@ func Compute(s *store.Store, boundary string) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	if err := c.readCopies(issuesBefore, issuesAfter, notesBefore, notesAfter); err != nil {
+		return Report{}, err
+	}
 	c.compareIssues(issuesBefore, issuesAfter)
 	c.compareNotes(notesBefore, notesAfter)
 	c.report.NotesRetired = sortedByID(c.report.NotesRetired)
@@ -142,6 +148,8 @@ type computation struct {
 	config config.Config
 	before revision
 	after  revision
+	// blobs holds every file copy the recap may read, by blob object name.
+	blobs  map[string]gitx.Blob
 	report Report
 }
 
@@ -183,6 +191,34 @@ func (c *computation) list(end revision, pathspec string) (snapshot, error) {
 		files[id] = file
 	}
 	return files, nil
+}
+
+// readCopies reads, in one git process, the blob of every file a recap may read: each file at HEAD
+// that is new or differs from its boundary file, and each boundary file not kept as it is at HEAD.
+func (c *computation) readCopies(
+	issuesBefore, issuesAfter, notesBefore, notesAfter snapshot,
+) error {
+	objects := appendChanged(nil, issuesAfter, issuesBefore)
+	objects = appendChanged(objects, issuesBefore, issuesAfter)
+	objects = appendChanged(objects, notesAfter, notesBefore)
+	objects = appendChanged(objects, notesBefore, notesAfter)
+	blobs, err := gitx.ReadBlobs(c.root, objects, maxFileSize)
+	if err != nil {
+		return err
+	}
+	c.blobs = blobs
+	return nil
+}
+
+// appendChanged appends to objects the blob of every file in files whose id others does not hold
+// with the same blob.
+func appendChanged(objects []string, files, others snapshot) []string {
+	for _, id := range sortedIDs(files) {
+		if other, isHeld := others[id]; !isHeld || other.Blob != files[id].Blob {
+			objects = append(objects, files[id].Blob)
+		}
+	}
+	return objects
 }
 
 // nodeID returns the id of the file at filePath below pathspec, and false for a file the trees do
@@ -369,8 +405,8 @@ func pairRenames[T any](
 	}
 }
 
-// load reads the copy of file in end and parses it, or returns false with a warning when it is
-// larger than maxFileSize, cannot be read or does not parse.
+// load parses the copy of file in end, read by readCopies, or returns false with a warning when it
+// is larger than maxFileSize, could not be read or does not parse.
 func load[T any](
 	c *computation,
 	end revision,
@@ -378,21 +414,24 @@ func load[T any](
 	parse func(string, []byte) (T, error),
 ) (parsed[T], bool) {
 	label := end.label + ":" + file.Path
-	data, err := gitx.ShowFile(c.root, end.commit, file.Path, maxFileSize)
-	if errors.Is(err, gitx.ErrBlobTooLarge) {
+	blob, isRead := c.blobs[file.Blob]
+	if !isRead {
+		blob.Err = fmt.Errorf("%s: %w", file.Blob, errNotRead)
+	}
+	if errors.Is(blob.Err, gitx.ErrBlobTooLarge) {
 		c.warn("%s: %v", label, tree.ErrTooLarge)
 		return parsed[T]{}, false
 	}
-	if err != nil {
-		c.warn("%s: %v", label, err)
+	if blob.Err != nil {
+		c.warn("%s: %v", label, blob.Err)
 		return parsed[T]{}, false
 	}
-	value, err := parse(label, data)
+	value, err := parse(label, blob.Data)
 	if err != nil {
 		c.warn("%v", err)
 		return parsed[T]{}, false
 	}
-	return parsed[T]{label: label, data: data, value: value}, true
+	return parsed[T]{label: label, data: blob.Data, value: value}, true
 }
 
 // warn records one warning, prefixed so a reader knows it comes from the recap.
