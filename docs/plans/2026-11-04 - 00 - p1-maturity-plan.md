@@ -234,7 +234,12 @@ internal/issue/merge_test.go — issueFile, fakeTextMerge, conflict, crlf; inter
 **Depends on item 5.**
 **Commit:** `test(issue): property-test the Log merge against git merge-file`
 
-## 10. Property-test the merge driver through git merge
+## 10. Property-test the merge driver through git merge — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): every git command but `git merge` and `git diff --diff-filter=U` runs through a test-local `mergePropertyRepo.git` instead of `runGit`, so a failing git command also names the seed and the repo path, as the Goal asks of every failure message; capcom writes go through `runCLI` via a matching helper.
+NOTES (2026-11-05): the git config commands are taken from `init --merge-driver --json`'s `git_config` and split into git arguments, so the test runs exactly what init prints; the binary is built with `go build -o <tmp>/capcom[.exe] github.com/airiclenz/capcom/cmd/capcom` (by import path, before any runCLI); skips under `-short`.
+NOTES (2026-11-05): beyond the item's properties the test also asserts that check's conflict files equal git's unmerged files, that each Log holds only entries (`issue.LogEntries` isEntryOnly), and that each written Log text appears exactly once; some base issues also get a Log entry on main. Seeds are the iteration indices 0..N-1.
+NOTES (2026-11-05): 20 iterations run in 3.9s on the Pi (10 conflicted), 200 in 33s (96 conflicted), all passing; skipping the `git config` of the driver failed it at seed 0 with the seed and repo path printed (checked by hand, reverted). The failing repo lives under t.TempDir, so it is removed when the test ends; rerun the seed to rebuild it.
 
 **What:** add `internal/cli/merge_property_test.go` (issue `merge-driver-property-test`, end-to-end layer).
 **Goal:** `TestMergeDriver_RandomBranches_KeepEveryLogEntry` runs N iterations (`CAPCOM_PROPERTY_ITERATIONS`, default 20 here, since each is a git repo): a repo from `newGitRepo` with `capcom init --merge-driver`, the two `git config merge.capcom-log.*` commands init prints, a few issues committed on `main`, two branches each running random `capcom log`, `update --priority/--title`, `dep add`, `close` through `runCLI` and committing, then `git merge` of both into `main`. It asserts `capcom check` exits 0 or reports only `conflict` problems, and `capcom show <id> --json` lists every Log entry either branch added. Seed and failing repo path in the failure message.
