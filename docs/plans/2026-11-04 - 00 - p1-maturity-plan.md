@@ -214,7 +214,11 @@ The Acceptance checks the targets, the budget and the docs, not lines holding "F
 **Closes:** fuzz-parsers
 **Commit:** `ci: fuzz the parsers on every push`
 
-## 9. Property-test MergeFile against git merge-file
+## 9. Property-test MergeFile against git merge-file — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): Log dates are distinct and strictly ascending within each side, after base's last entry; the two sides may share a date, which exercises the ours-first tie rule, so "date order" is asserted non-strictly.
+NOTES (2026-11-05): seeds are the iteration indices 0..N-1 (deterministic, so seed k reproduces with CAPCOM_PROPERTY_ITERATIONS > k); beyond the item's properties a clean merge is also checked to hold no conflict marker and no Log entry beyond those of ours and theirs.
+NOTES (2026-11-05): 200 iterations run in 0.25s (90 clean), 5000 in 6.9s (2272 clean) on the Pi; dropping theirs's new entries in mergeEntries failed it at seed 1 with the seed and the inputs printed (checked by hand, reverted).
 
 **What:** add `internal/issue/merge_property_test.go` (issue `merge-driver-property-test`, unit layer).
 **Goal:** `TestMergeFile_RandomEdits_KeepEveryLogEntry` runs N iterations (`CAPCOM_PROPERTY_ITERATIONS`, default 200), each seeded from `math/rand/v2` with the seed in the failure message along with the three inputs. Each builds a base issue file, applies two independent random edit sequences (Log entries with distinct dates and texts; title, priority, status, labels, deps, body paragraph) giving ours and theirs, merges with `MergeFile` and a test-local textMerge running `git merge-file -p`, and asserts: without conflict, the result passes `issue.Parse`, every Log entry of ours and theirs appears once and in date order, and a field changed on one side only has that side's value; with conflict, `rawfm.ConflictMarkers` finds a marker. Skips when `git` is not on PATH.
