@@ -46,7 +46,7 @@
 - 12: guard folded (top-level benchmark names, untimed warm-up, sidecars, two-sided benchstat rows)
 - 13: guard folded (issue id per >1s row, checked by capcom show)
 
-## 1. Swap gopkg.in/yaml.v3 for go.yaml.in/yaml/v3
+## 1. Swap gopkg.in/yaml.v3 for go.yaml.in/yaml/v3 — ✅ DONE (2026-11-05)
 
 **What:**
 **Goal:** no `.go` file under `cmd/` or `internal/` imports `gopkg.in/yaml.v3`; `go.mod` requires `go.yaml.in/yaml/v3` directly and not `gopkg.in/yaml.v3`; every test that pins a YAML-derived error string passes unchanged.

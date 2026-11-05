@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // tagString is the YAML tag the parser resolves plain text to.

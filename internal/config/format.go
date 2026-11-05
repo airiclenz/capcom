@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // realFormatLine matches the start of a line holding a top-level format key, plain, single- or
