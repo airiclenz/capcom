@@ -1,11 +1,13 @@
 ---
 title: Building the index from nothing grows with the square of the store
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, performance]
 plan: 2026-11-05 - 00 - large-store-performance-plan
 created: 2026-11-05T10:50:43Z
+closed: 2026-11-05T12:34:19Z
+reason: resolved by large-store-performance-plan (archived in 385c441), item 2
 ---
 
 Building the index from nothing takes time that grows with the square of the store size. The

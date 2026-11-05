@@ -1,11 +1,13 @@
 ---
 title: The stress tests leave a built capcom binary in the temp dir
-status: open
+status: done
 type: bug
 priority: 3
 labels: [maturity]
 plan: 2026-11-05 - 00 - large-store-performance-plan
 created: 2026-11-05T10:54:01Z
+closed: 2026-11-05T12:34:19Z
+reason: resolved by large-store-performance-plan (archived in 385c441), item 1
 ---
 
 Each `go test -tags stress` run of `internal/cli` builds capcom once into a fresh `os.MkdirTemp("", "capcom-stress-")` directory (`stressBinary` in `internal/cli/stress_test.go:86`) and never removes it, since the package may have no `TestMain` to clean it up. One `capcom-stress-*` directory holding a capcom binary is left in the system temp dir per run.

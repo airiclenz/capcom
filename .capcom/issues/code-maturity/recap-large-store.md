@@ -1,11 +1,13 @@
 ---
 title: recap takes two minutes over 30 days of a 10000-issue store
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, performance]
 plan: 2026-11-05 - 00 - large-store-performance-plan
 created: 2026-11-05T10:50:43Z
+closed: 2026-11-05T12:34:19Z
+reason: resolved by large-store-performance-plan (archived in 385c441), item 4
 ---
 
 `capcom recap` over a 30-day window takes 3.59 s on a store of 1000 issues and 125.7 s on one of

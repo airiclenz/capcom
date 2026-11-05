@@ -1,11 +1,13 @@
 ---
 title: Concurrent commands wait out the 5s busy timeout on index refresh
-status: open
+status: done
 type: bug
 priority: 3
 labels: [maturity, performance]
 plan: 2026-11-05 - 00 - large-store-performance-plan
 created: 2026-11-05T11:02:17Z
+closed: 2026-11-05T12:34:19Z
+reason: resolved by large-store-performance-plan (archived in 385c441), item 3
 ---
 
 Every capcom command refreshes the index in one IMMEDIATE transaction (`Index.refresh` in `internal/index/refresh.go`, `dsnOptions` in `internal/index/index.go`), even when no file changed and the refresh writes nothing. IMMEDIATE takes the write lock up front, so concurrent commands on one store queue behind each other. With 16 processes on one store (`TestStress_OneWorktree` at its default worker count), some commands wait the full 5s busy timeout on "begin refresh" and fail "the index is busy". The stress test accepts that failure as documented when the process ran at least 4s (`busyWaitFloor` in `internal/cli/stress_test.go`), so it does not fail on it.
