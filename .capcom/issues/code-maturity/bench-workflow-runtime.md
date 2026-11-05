@@ -1,11 +1,13 @@
 ---
 title: bench.yml may not finish inside its 360-minute timeout
-status: active
+status: done
 type: task
 priority: 3
 labels: [maturity, ci]
 deps: [index-build-quadratic]
 created: 2026-11-05T11:02:17Z
+closed: 2026-11-05T13:08:41Z
+reason: bench.yml now passes -timeout=30m (each 6-count side exceeded go test's 10-minute default) with timeout-minutes 70; first GitHub run 42029722411 passed in 23 min 15 s, recorded in docs/reviews/benchmarks-2026-11-05.md
 ---
 
 `.github/workflows/bench.yml` runs every benchmark with `-count=6 -benchtime=3x` on the commit and again on its parent. On the Raspberry Pi 5 host one `-benchtime=1x` pass over N=10000 already costs about 55s for `BenchmarkReindex`, 55s for `BenchmarkColdFirstCommand` and 126s for the recap benchmark (`docs/reviews/benchmarks-2026-11-05.md`). Multiplied by 6 counts, 3 iterations and two sides, the job may come close to its `timeout-minutes: 360`. The workflow has never run on GitHub, so its real runtime on ubuntu-latest is unknown. `command-benchmarks` stays open until that first run.

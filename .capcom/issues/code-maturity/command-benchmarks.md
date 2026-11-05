@@ -1,11 +1,13 @@
 ---
 title: No benchmark measures whole commands on a large store with git history
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, performance]
 plan: 2026-11-05 - 00 - p2-maturity-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-05T13:08:41Z
+reason: bench.yml's first GitHub run (42029722411) passed in 23 min 15 s; recorded in docs/reviews/benchmarks-2026-11-05.md
 ---
 
 The only benchmarks are `BenchmarkList` and `BenchmarkSearchExcerpt` in
