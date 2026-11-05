@@ -192,7 +192,10 @@ internal/cli/write_test.go — the standing raise test using formatRaisedWarning
 - renaming `testdata/stores/format-6` makes `TestFormatFixture_CurrentFormatHasFixture` fail
 **Commit:** `test(cli): pin format raises and refuse a store newer than capcom reads`
 
-## 8. Stress harness and lock contention
+## 8. Stress harness and lock contention — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): the sync.Once build writes the binary to an os.MkdirTemp directory (`capcom-stress-*` under the system temp dir) that is never removed, since no TestMain may clean it up; one directory (~one capcom binary) is left per `go test -tags stress` invocation.
+NOTES (2026-11-05): workers start behind a shared channel barrier (raceProcesses); `assertCleanProcess` fails on any `panic:` or `database is locked` in a process's stdout or stderr, for items 9 and 10 to reuse.
 
 **What:**
 **Goal:** a test file behind the `stress` build tag builds the real binary once and runs it as subprocesses; `TestStress_LockContention` races `CAPCOM_STRESS_WORKERS` (default 8) processes on `capcom lock acquire --purpose p<n>`: exactly one exits 0, every other exits 3 and names the holder.
