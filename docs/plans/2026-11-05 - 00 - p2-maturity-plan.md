@@ -152,7 +152,10 @@ internal/cli/lock_test.go — TestLockCheck_ExitCodes, acquireToken, newLockStor
 - deleting any one `testdata/kv/*.golden` makes `TestGolden_KVCovered` fail
 **Commit:** `test(cli): pin the --kv records and exit codes, and require a golden per kind`
 
-## 6. Fixture stores for formats 1 to 6
+## 6. Fixture stores for formats 1 to 6 — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): each `testdata/stores/format-<n>/` holds the contents of a `.capcom/` directory (config.yaml, issues/, knowledge/) rather than a nested hidden `.capcom/` directory; `copyFixtureStore` copies it into the temp repo's `.capcom/`.
+NOTES (2026-11-05): fixtures hold seven issues (a parent with two children, deps, Log entries, an alias, a closed and a parked issue) and three Notes in formats 1-2, four from format 3 (a retired Note superseded by another); the test runs `know tree --retired` so the retired Note is listed too, and requires every --json envelope to carry no warnings.
 
 **What:**
 **Goal:** `internal/cli/testdata/stores/format-<n>/` exists for n = 1..6, each a `.capcom/` tree using only the keys format n allows, and a test copies each into a temp git repo and shows `check` exits 0 and `reindex`, `list --all --json`, `ready`, `prime` and `know tree` succeed and return the fixture's issues and Notes.
