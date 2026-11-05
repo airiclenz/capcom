@@ -1,0 +1,1 @@
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"unknown command \"shwo\" for \"capcom know\"","suggestion":"know show","hint":"capcom know --help"},"elsewhere":[],"warnings":[]}

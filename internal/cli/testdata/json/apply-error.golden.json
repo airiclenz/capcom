@@ -1,0 +1,1 @@
+{"schema":1,"kind":"error","error":{"code":"not_found","message":"operation 2 (update): id \"no-such-issue\" not found","path":"golden-batch.yaml","line":4,"hint":"capcom search <text>"},"elsewhere":[],"warnings":[]}

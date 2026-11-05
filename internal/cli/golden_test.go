@@ -27,6 +27,10 @@ import (
 //   - <ETAG>: the value of an "etag" member (etagPattern).
 //   - <VERSION>: the release version as a JSON string, so a VERSION bump leaves the files green
 //     (versionPattern).
+//   - <TOKEN>: the value of a lock's "token" member (tokenPattern).
+//   - <USER>@<HOST>: the value of a lock's "holder" member, user@host (holderPattern).
+//   - <HOST>: the value of a lock's "host" member (hostPattern).
+//   - <USER>: the value of a lock's "user" member (userPattern).
 
 // isGoldenUpdate rewrites the golden files under testdata/json from the commands' output:
 // go test ./internal/cli -run Golden -update.
@@ -56,6 +60,9 @@ const (
 	placeholderDate    = "<DATE>"
 	placeholderETag    = "<ETAG>"
 	placeholderVersion = "<VERSION>"
+	placeholderToken   = "<TOKEN>"
+	placeholderHost    = "<HOST>"
+	placeholderUser    = "<USER>"
 )
 
 var (
@@ -68,6 +75,14 @@ var (
 	etagPattern = regexp.MustCompile(`("etag":")[0-9a-f]+(")`)
 	// versionPattern matches the release version as a JSON string.
 	versionPattern = regexp.MustCompile(`"` + regexp.QuoteMeta(capcom.Version()) + `"`)
+	// tokenPattern matches the value of a lock's "token" member.
+	tokenPattern = regexp.MustCompile(`("token":")[0-9a-f]+(")`)
+	// holderPattern matches the value of a lock's "holder" member when it is user@host.
+	holderPattern = regexp.MustCompile(`("holder":")[^"@]+@[^"]+(")`)
+	// hostPattern matches the value of a lock's "host" member.
+	hostPattern = regexp.MustCompile(`("host":")[^"]+(")`)
+	// userPattern matches the value of a lock's "user" member.
+	userPattern = regexp.MustCompile(`("user":")[^"]+(")`)
 )
 
 // dirPattern matches root followed by the rest of its JSON string value (everything up to the
@@ -88,7 +103,11 @@ func normaliseGolden(got, root string) string {
 	got = timePattern.ReplaceAllString(got, placeholderTime)
 	got = logDatePattern.ReplaceAllString(got, "${1}"+placeholderDate+"${2}")
 	got = etagPattern.ReplaceAllString(got, "${1}"+placeholderETag+"${2}")
-	return versionPattern.ReplaceAllString(got, `"`+placeholderVersion+`"`)
+	got = versionPattern.ReplaceAllString(got, `"`+placeholderVersion+`"`)
+	got = tokenPattern.ReplaceAllString(got, "${1}"+placeholderToken+"${2}")
+	got = holderPattern.ReplaceAllString(got, "${1}"+placeholderUser+"@"+placeholderHost+"${2}")
+	got = hostPattern.ReplaceAllString(got, "${1}"+placeholderHost+"${2}")
+	return userPattern.ReplaceAllString(got, "${1}"+placeholderUser+"${2}")
 }
 
 // replaceDir replaces every occurrence of root in got with <DIR>, followed by the rest of the
@@ -202,10 +221,12 @@ func writeGoldenFile(t *testing.T, root, name, content string) {
 func TestGoldenHarness_CompareGolden_ReportsOnlyRealChanges(t *testing.T) {
 	root := filepath.Join(string(filepath.Separator)+"tmp", "golden root")
 	want := `{"kind":"issue","data":{"path":"<DIR>/.capcom","created":"<TIME>","etag":"<ETAG>",` +
-		`"body":"- <DATE> Test Author: done","version":"<VERSION>"}}`
+		`"body":"- <DATE> Test Author: done","version":"<VERSION>",` +
+		`"lock":{"holder":"<USER>@<HOST>","host":"<HOST>","user":"<USER>","token":"<TOKEN>"}}}`
 	got := `{"kind":"issue","data":{"path":"` + jsonEscape(filepath.Join(root, ".capcom")) + `",` +
 		`"created":"2026-11-05T07:58:12Z","etag":"803b58eea3012260",` +
-		`"body":"- 2026-11-05 Test Author: done","version":"` + capcom.Version() + `"}}`
+		`"body":"- 2026-11-05 Test Author: done","version":"` + capcom.Version() + `",` +
+		`"lock":{"holder":"ada@build-host","host":"build-host","user":"ada","token":"64fe804b1b93ad6677b7974a424b3822"}}}`
 	tests := []struct {
 		name      string
 		got       string

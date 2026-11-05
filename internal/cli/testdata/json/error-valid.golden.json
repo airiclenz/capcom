@@ -1,0 +1,1 @@
+{"schema":1,"kind":"error","error":{"code":"invalid","message":"--type \"bugg\": not a type declared in config.yaml","valid":["bug","feature","task","chore"],"hint":"capcom update --help"},"elsewhere":[],"warnings":[]}

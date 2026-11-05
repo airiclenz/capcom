@@ -88,7 +88,11 @@ internal/cli/root.go — newVersionCommand; internal/cli/reindex.go — reindexD
 - `ls internal/cli/testdata/json/` lists a file per kind above
 **Commit:** `test(cli): golden-test the --json kinds of the read commands`
 
-## 3. Golden tests for the write-command kinds and errors
+## 3. Golden tests for the write-command kinds and errors — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): cases are grouped into table tests (TestGolden_WriteKinds, TestGolden_LockKinds, TestGolden_Errors) plus TestGolden_Fmt, TestGolden_Apply, TestGolden_ApplyFailure and TestGolden_Merge, each subtest on its own newGoldenStore; all match -run Golden, as item 2 did.
+NOTES (2026-11-05): <TOKEN>, <HOST>, <USER> and the user@host holder are replaced by JSON-member-anchored regexps ("token", "holder", "host", "user") rather than by the current host and user values, so a short user or host name cannot rewrite unrelated text; the KEY=VALUE form is left to item 5. The lock goldens also set USER and rename the branch to main, so the holder is user@host and the branch does not follow git's default branch name on any host.
+NOTES (2026-11-05): the plain error golden is the dep-add cycle (error.golden.json, with path); the error variants are error-unknown-command, error-unknown-flag, error-valid and close-not-found (the partial failure); the apply failure golden is apply-error. The fmt golden swaps two frontmatter keys first, so its paths list is non-empty.
 
 **What:**
 **Goal:** golden files pin the kinds `issue-write`, `close`, `apply` (a success and a failed batch giving `error` with `path` and `line`), `start`, `finish`, `lock`, `issue-remove`, `fmt`, `merge`, and `error` in each documented form: a plain error, an error with `suggestion` (unknown command, unknown flag), with `valid` (bad `--type`), and the partial-failure form carrying both `data` and `error` (`close nosuch`).

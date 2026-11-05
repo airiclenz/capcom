@@ -1,0 +1,1 @@
+{"schema":1,"kind":"lock","data":{"lock":"acquired","worktree":"_main","holder":"<USER>@<HOST>","purpose":"golden work","host":"<HOST>","user":"<USER>","branch":"main","since":"<TIME>","heartbeat":"<TIME>","stale":false,"token":"<TOKEN>"},"elsewhere":[],"warnings":[]}
