@@ -296,7 +296,11 @@ Depends on item 11.
 - `grep -n 'benchstat@v' .github/workflows/bench.yml` shows a pinned version; `! grep -n '@latest' .github/workflows/bench.yml`
 **Commit:** `ci: compare command benchmarks against the parent commit`
 
-## 13. Benchmark baseline and follow-up issues
+## 13. Benchmark baseline and follow-up issues — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): the baseline ran as `GOMEMLIMIT=2GiB go test -run='^$' -bench=. -count=3 -timeout=0 ./internal/cli` at 99fc3d9: `-timeout=0` added because the run takes 1866 s, past go test's default 10-minute timeout; the doc records the exact command.
+NOTES (2026-11-05): seven rows exceed 1 s at N=10000 and share three follow-up issues by likely cause: `index-build-quadratic` (reindex 53.95 s, cold first list 54.51 s), `recap-large-store` (recap 125.74 s), `warm-reads-large-store` (prime 2.51 s, ready 1.62 s, next 1.25 s, list --all --json 1.59 s); each issue names its numbers. search, check and log stay under 1 s.
+NOTES (2026-11-05): N=50000 (`CAPCOM_BENCH_LARGE=1`) was not run; the doc says so. No CHANGELOG entry: the item adds a review doc and issues, nothing user-visible.
 
 **What:**
 **Goal:** `docs/reviews/benchmarks-<date>.md` (the run date) records the baseline numbers at N = 1000 and 10000, the host they were measured on, and the command that produced them; every command slower than 1s at N = 10000 has an open issue under `code-maturity` naming its number.
