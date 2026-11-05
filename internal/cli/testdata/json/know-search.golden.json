@@ -1,0 +1,1 @@
+{"schema":1,"kind":"know-search","match":"all","data":[{"id":"auth-refresh","path":".capcom/knowledge/auth-refresh.md","title":"How the auth refresh works","labels":["auth"],"refs":["internal/auth"],"superseded_by":[],"aliases":[]}],"elsewhere":[],"warnings":[]}

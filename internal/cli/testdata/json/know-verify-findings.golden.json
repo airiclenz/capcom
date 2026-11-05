@@ -1,0 +1,1 @@
+{"schema":1,"kind":"know-verify","data":[{"code":"broken-ref","note":"gone-ref","path":".capcom/knowledge/gone-ref.md","line":3,"ref":"internal/removed.go","message":"no such file or directory"}],"error":{"code":"invalid","message":"1 Note refs do not resolve","hint":"capcom know verify --help"},"elsewhere":[],"warnings":[]}

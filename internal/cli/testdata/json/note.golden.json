@@ -1,0 +1,1 @@
+{"schema":1,"kind":"note","data":[{"id":"auth-refresh","path":".capcom/knowledge/auth-refresh.md","etag":"<ETAG>","title":"How the auth refresh works","labels":["auth"],"refs":["internal/auth"],"superseded_by":[],"aliases":[],"body":"\nThe refresh timer starts at login.\n"}],"elsewhere":[],"warnings":[]}

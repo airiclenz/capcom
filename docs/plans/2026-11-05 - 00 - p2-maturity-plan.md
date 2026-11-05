@@ -109,7 +109,10 @@ docs/site/reference/json-output.md — Errors
 - `s=$(mktemp); sha256sum internal/cli/testdata/json/* > "$s" && GOMEMLIMIT=2GiB go test -count=1 -run Golden ./internal/cli -update && sha256sum -c --quiet "$s"` succeeds (goldens are stable)
 **Commit:** `test(cli): golden-test the --json kinds of the write commands and errors`
 
-## 4. Golden tests for the Knowledge kinds
+## 4. Golden tests for the Knowledge kinds — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): the six kinds are subtests of one table test, TestGolden_KnowKinds/<kind>, each on its own newGoldenStore, as items 2 and 3 grouped theirs; all match -run Golden.
+NOTES (2026-11-05): added a know-verify-findings golden (a Note with a broken ref, exit 1) next to the clean know-verify golden, so the finding shape and the error member are pinned, not only the empty list.
 
 **What:**
 **Goal:** golden files pin the kinds `note`, `note-write`, `note-remove`, `know-tree`, `know-search` and `know-verify`.
