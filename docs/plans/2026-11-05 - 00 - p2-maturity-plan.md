@@ -128,7 +128,12 @@ internal/cli/know_search.go — know-search result; internal/cli/rm.go — kindN
 - `s=$(mktemp); sha256sum internal/cli/testdata/json/* > "$s" && GOMEMLIMIT=2GiB go test -count=1 -run Golden ./internal/cli -update && sha256sum -c --quiet "$s"` succeeds (goldens are stable)
 **Commit:** `test(cli): golden-test the --json kinds of the know commands`
 
-## 5. Every kind covered, --kv goldens, exit-code table
+## 5. Every kind covered, --kv goldens, exit-code table — ✅ DONE (2026-11-05)
+
+NOTES (2026-11-05): the KEY=VALUE normalisation (ETAG=, VERSION=, TOKEN=, HOLDER= user@host) and assertGoldenKV live in golden_test.go beside item 2's normaliser, which the plan's Files line did not name; assertGoldenJSON and assertGoldenKV share one assertGolden, and -update now rewrites testdata/kv too. SINCE=/HEARTBEAT= need no new regexp: timePattern already matches any RFC 3339 value.
+NOTES (2026-11-05): the --kv goldens are subtests of two table tests, TestGolden_KV/<command> and TestGolden_KVHeldLock/<command> (the lock commands that act on a lock taken first), rather than one TestGolden_KV_<Command> function each, as items 2 to 4 grouped theirs; all match -run Golden. A golden is named by the command path below capcom, spaces as dashes (dep-add.golden, lock-acquire.golden); --kv is offered by 23 commands, none of them a know verb, and each has exactly one file, so deleting any one fails TestGolden_KVCovered.
+NOTES (2026-11-05): TestGolden_KindsCovered reads each golden's kind member rather than matching file names, so issue.golden.json is not covered by issue-list.golden.json; a deleted variant file (search-any) still fails its own TestGolden_* case. It also asserts the scan finds kindLock and "version", so a broken source regexp cannot pass it vacuously.
+NOTES (2026-11-05): TestExitCodes runs with --json and checks error.code too, so its two rows for exit 3 are told apart (not_found, locked); added TestGoldenHarness_CompareGolden_NormalisesKVRecords for the KEY=VALUE patterns.
 
 **What:**
 **Goal:** a test fails when the code emits a `kind` with no golden file; every command registered through `withKV` has a `--kv` golden under `internal/cli/testdata/kv/<command>.golden`; a table test produces every exit code `json-output.md` documents (0, 1, 2, 3 not found, 3 locked, 4); the `kind` row of `json-output.md` lists every kind instead of `...`.

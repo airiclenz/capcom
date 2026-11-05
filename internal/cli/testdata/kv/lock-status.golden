@@ -1,0 +1,7 @@
+LOCK=held
+HOLDER=golden-agent
+PURPOSE=item 12
+SINCE=<TIME>
+HEARTBEAT=<TIME>
+TOKEN=
+STATUS=ok

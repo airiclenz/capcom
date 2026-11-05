@@ -1,0 +1,12 @@
+ID=session-timeout
+ETAG=<ETAG>
+ISSUE_STATUS=open
+CATEGORY=todo
+TITLE=Session timeout races the refresh
+TYPE=bug
+PRIORITY=1
+LABELS=auth
+PARENT=login-flow
+DEPS=
+PLAN=golden-plan
+STATUS=ok

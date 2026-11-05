@@ -25,7 +25,7 @@ $ capcom show session-refresh --json
 | Member | Always present | Value |
 | --- | --- | --- |
 | `schema` | yes | The envelope's version, currently `1`. |
-| `kind` | yes | What `data` holds: `issue`, `issue-write`, `close`, `apply`, `ready`, `prime`, `context`, `recap`, `check`, `version`, ..., or `error`. |
+| `kind` | yes | What `data` holds: `issue`, `issue-list`, `issue-write`, `issue-remove`, `close`, `apply`, `ready`, `next`, `start`, `finish`, `lock`, `context`, `deps`, `dep-graph`, `search`, `prime`, `recap`, `check`, `fmt`, `merge`, `reindex`, `init`, `agents`, `version`, `note`, `note-write`, `note-remove`, `know-tree`, `know-search`, `know-verify`, or `error`. |
 | `match` | no | Only on kinds `search` and `know-search`: `all` when every hit holds every word searched for, `any` when no item held them all and the hits hold some of them. |
 | `data` | no | The command's result. Left out when a command fails before it has one. `null` when `capcom next` finds nothing Ready (kind `next`, exit code 4). |
 | `error` | no | Present only when the command failed; see Errors below. |

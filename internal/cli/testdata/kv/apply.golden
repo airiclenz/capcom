@@ -1,0 +1,13 @@
+WARNING=login-audit has no body: add what, why and acceptance with capcom update login-audit --body-append <text>; create takes --body, --why and --acceptance
+INDEX=1
+LINE=1
+OP=create
+ID=login-audit
+ETAG=<ETAG>
+STATUS=created
+INDEX=2
+LINE=4
+OP=close
+ID=login-copy
+ETAG=<ETAG>
+STATUS=closed

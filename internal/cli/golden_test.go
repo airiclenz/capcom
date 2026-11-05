@@ -13,12 +13,15 @@ import (
 	"github.com/airiclenz/capcom"
 )
 
-// The golden JSON harness pins the --json envelope of each kind byte for byte: a test runs a
-// command against a fixed store and hands its stdout to assertGoldenJSON, which compares it with
-// testdata/json/<name>.golden.json after replacing the values that change from run to run. Run
-// go test ./internal/cli -run Golden -update to rewrite the files from the commands' output.
+// The golden harness pins the --json envelope of each kind, and the --kv records of each command
+// that offers --kv, byte for byte: a test runs a command against a fixed store and hands its stdout
+// to assertGoldenJSON, which compares it with testdata/json/<name>.golden.json, or to
+// assertGoldenKV, which compares it with testdata/kv/<command>.golden, after replacing the values
+// that change from run to run. Run go test ./internal/cli -run Golden -update to rewrite the files
+// from the commands' output.
 //
-// The volatile values and the one regexp that replaces each, in this order:
+// The volatile values and the one regexp that replaces each, in this order; an RFC 3339 value of
+// a KEY=VALUE line, such as SINCE= or HEARTBEAT=, is a <TIME> through timePattern too:
 //   - <DIR>: the store's temp root, matched in its JSON-escaped form and then in its native form;
 //     the rest of the path after the root, up to the end of the JSON string, is turned into
 //     slashes, so a golden file reads the same on Windows (dirPattern).
@@ -31,10 +34,14 @@ import (
 //   - <USER>@<HOST>: the value of a lock's "holder" member, user@host (holderPattern).
 //   - <HOST>: the value of a lock's "host" member (hostPattern).
 //   - <USER>: the value of a lock's "user" member (userPattern).
+//   - <ETAG>: the value of an ETAG= line (kvETagPattern).
+//   - <VERSION>: the value of a VERSION= line (kvVersionPattern).
+//   - <TOKEN>: the value of a TOKEN= line (kvTokenPattern).
+//   - <USER>@<HOST>: the value of a HOLDER= line when it is user@host (kvHolderPattern).
 
-// isGoldenUpdate rewrites the golden files under testdata/json from the commands' output:
-// go test ./internal/cli -run Golden -update.
-var isGoldenUpdate = flag.Bool("update", false, "rewrite the golden files under testdata/json")
+// isGoldenUpdate rewrites the golden files under testdata/json and testdata/kv from the commands'
+// output: go test ./internal/cli -run Golden -update.
+var isGoldenUpdate = flag.Bool("update", false, "rewrite the golden files under testdata/json and testdata/kv")
 
 // goldenJSONDir holds the expected --json envelopes, one <name>.golden.json file per name. It is
 // made absolute when the test binary starts, in the package directory, since runCLI changes the
@@ -50,8 +57,15 @@ func absolutePath(path string) string {
 	return absolute
 }
 
-// goldenJSONSuffix ends every golden file name.
+// goldenKVDir holds the expected --kv output, one <command>.golden file per command that offers
+// --kv; it is made absolute as goldenJSONDir is.
+var goldenKVDir = absolutePath(filepath.Join("testdata", "kv"))
+
+// goldenJSONSuffix ends every golden file name under goldenJSONDir.
 const goldenJSONSuffix = ".golden.json"
+
+// goldenKVSuffix ends every golden file name under goldenKVDir.
+const goldenKVSuffix = ".golden"
 
 // The placeholders that stand for the volatile values in a golden file.
 const (
@@ -83,6 +97,14 @@ var (
 	hostPattern = regexp.MustCompile(`("host":")[^"]+(")`)
 	// userPattern matches the value of a lock's "user" member.
 	userPattern = regexp.MustCompile(`("user":")[^"]+(")`)
+	// kvETagPattern matches the value of an ETAG= line.
+	kvETagPattern = regexp.MustCompile(`(?m)^(ETAG=)[0-9a-f]+$`)
+	// kvVersionPattern matches the release version as the value of a VERSION= line.
+	kvVersionPattern = regexp.MustCompile(`(?m)^(VERSION=)` + regexp.QuoteMeta(capcom.Version()) + `$`)
+	// kvTokenPattern matches the value of a TOKEN= line.
+	kvTokenPattern = regexp.MustCompile(`(?m)^(TOKEN=)[0-9a-f]+$`)
+	// kvHolderPattern matches the value of a HOLDER= line when it is user@host.
+	kvHolderPattern = regexp.MustCompile(`(?m)^(HOLDER=)[^@\n]+@.+$`)
 )
 
 // dirPattern matches root followed by the rest of its JSON string value (everything up to the
@@ -107,7 +129,11 @@ func normaliseGolden(got, root string) string {
 	got = tokenPattern.ReplaceAllString(got, "${1}"+placeholderToken+"${2}")
 	got = holderPattern.ReplaceAllString(got, "${1}"+placeholderUser+"@"+placeholderHost+"${2}")
 	got = hostPattern.ReplaceAllString(got, "${1}"+placeholderHost+"${2}")
-	return userPattern.ReplaceAllString(got, "${1}"+placeholderUser+"${2}")
+	got = userPattern.ReplaceAllString(got, "${1}"+placeholderUser+"${2}")
+	got = kvETagPattern.ReplaceAllString(got, "${1}"+placeholderETag)
+	got = kvVersionPattern.ReplaceAllString(got, "${1}"+placeholderVersion)
+	got = kvTokenPattern.ReplaceAllString(got, "${1}"+placeholderToken)
+	return kvHolderPattern.ReplaceAllString(got, "${1}"+placeholderUser+"@"+placeholderHost)
 }
 
 // replaceDir replaces every occurrence of root in got with <DIR>, followed by the rest of the
@@ -143,10 +169,25 @@ func compareGolden(want, got, root string) error {
 // variant suffix such as next-empty where one kind needs two files.
 func assertGoldenJSON(t *testing.T, name, root, stdout string) {
 	t.Helper()
-	path := filepath.Join(goldenJSONDir, name+goldenJSONSuffix)
+	assertGolden(t, filepath.Join(goldenJSONDir, name+goldenJSONSuffix), root, stdout)
+}
+
+// assertGoldenKV compares stdout, a --kv run in the store at root, with
+// testdata/kv/<name>.golden; with -update it writes the normalised stdout to that file instead.
+// name is the command's path below capcom, spaces as dashes, such as lock-acquire.
+func assertGoldenKV(t *testing.T, name, root, stdout string) {
+	t.Helper()
+	assertGolden(t, filepath.Join(goldenKVDir, name+goldenKVSuffix), root, stdout)
+}
+
+// assertGolden compares stdout, run in the store at root, with the golden file at path; with
+// -update it writes the normalised stdout to that file instead.
+func assertGolden(t *testing.T, path, root, stdout string) {
+	t.Helper()
 	if *isGoldenUpdate {
-		if err := os.MkdirAll(goldenJSONDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll %s: %v", goldenJSONDir, err)
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("MkdirAll %s: %v", dir, err)
 		}
 		if err := os.WriteFile(path, []byte(normaliseGolden(stdout, root)), 0o644); err != nil {
 			t.Fatalf("WriteFile %s: %v", path, err)
