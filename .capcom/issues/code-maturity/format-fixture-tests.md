@@ -1,11 +1,13 @@
 ---
 title: No fixture store per older store format proves capcom still reads it
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, testing, compat]
 plan: 2026-11-05 - 00 - p2-maturity-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-05T10:56:22Z
+reason: "Resolved by plan '2026-11-05 - 00 - p2-maturity-plan' (archived in 1a6b7b0) items 6-7: fixture stores for formats 1-6 read by every listed command, a newer-format store refused by each, and a guard requiring a fixture for FormatVersion."
 ---
 
 `internal/config/config.go` defines `FormatVersion = 6` and documents what each format added

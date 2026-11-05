@@ -1,11 +1,13 @@
 ---
 title: No test runs many capcom processes at once on one store
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, testing, concurrency]
 plan: 2026-11-05 - 00 - p2-maturity-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-05T10:56:22Z
+reason: "Resolved by plan '2026-11-05 - 00 - p2-maturity-plan' (archived in 1a6b7b0) items 8-10: lock-contention, one-worktree and several-worktree stress tests behind the stress tag, passing -count=10, run by stress.yml on Linux and macOS; leaked binary dir filed as stress-binary-dir-leak."
 ---
 
 Several agents in one repository means several `capcom` processes at once: in one worktree

@@ -48,3 +48,7 @@ numbers at scale are what an adopter with a big repository asks for first.
 - `go test -run='^$' -bench=. ./internal/cli` runs the command benchmarks at N=1000 and 10000; `CAPCOM_BENCH_LARGE=1` adds 50000.
 - A CI job compares benchmarks against the parent commit with benchstat and fails on a significant regression over 25%.
 - `docs/reviews/benchmarks-<date>.md` records the baseline; every command slower than 1s at N=10000 has a filed follow-up issue.
+
+## Log
+
+- 2026-11-05 Airic Lenz: Plan '2026-11-05 - 00 - p2-maturity-plan' (archived in 1a6b7b0) items 11-13 landed internal/cli/bench_test.go, bench.yml (benchstat vs parent) and docs/reviews baseline with follow-ups index-build-quadratic, recap-large-store, warm-reads-large-store; left open until bench.yml's first run on GitHub completes within its 360-minute timeout.

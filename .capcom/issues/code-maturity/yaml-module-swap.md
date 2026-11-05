@@ -1,11 +1,13 @@
 ---
 title: capcom depends on the archived gopkg.in/yaml.v3
-status: open
+status: done
 type: chore
 priority: 2
 labels: [maturity, deps]
 plan: 2026-11-05 - 00 - p2-maturity-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-05T10:56:22Z
+reason: "Resolved by plan '2026-11-05 - 00 - p2-maturity-plan' (archived in 1a6b7b0) item 1: every import moved to go.yaml.in/yaml/v3, now a direct requirement; tests pass with no expected error text changed."
 ---
 
 `go.mod` requires `gopkg.in/yaml.v3 v3.0.1`, whose repository is archived and gets no fixes.

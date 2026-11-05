@@ -1,11 +1,13 @@
 ---
 title: No golden test pins the shape of each --json kind and the exit codes
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, testing, compat]
 plan: 2026-11-05 - 00 - p2-maturity-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-05T10:56:22Z
+reason: "Resolved by plan '2026-11-05 - 00 - p2-maturity-plan' (archived in 1a6b7b0) items 2-5: a golden file and test per emitted --json kind, --kv goldens per command, an exit-code table, and -update to regenerate."
 ---
 
 Agents parse capcom's `--json` envelope (`{"schema":1,"kind":...,"data":...,"elsewhere":[],
