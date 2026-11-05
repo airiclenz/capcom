@@ -35,7 +35,7 @@ stress tests leaking their built binary.
 - 4: guard folded (writer's decision); the Approach's `ShowFile` callers corrected
 - 3 (re-check): guard folded; narrows the `CHANGELOG.md` [0.12.0] busy-index entry (line 93), which the item's own CHANGELOG entry says
 
-## 1. Stress tests remove their built binary
+## 1. Stress tests remove their built binary — ✅ DONE (2026-11-05)
 
 **What:**
 **Regression guard.** Set the build-dir package var right after `os.MkdirTemp` succeeds, before `go build`, so a

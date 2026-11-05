@@ -62,10 +62,11 @@ var stressWorktrees = []string{"tree-a", "tree-b", "tree-c"}
 const oneWorktreeTag = "main"
 
 // stressBuild builds the capcom binary once per test process; stressBinaryPath and
-// stressBuildErr hold its outcome. The binary's directory outlives the tests, since no TestMain
-// may remove it (bench_test.go shares this package).
+// stressBuildErr hold its outcome. stressBuildDir is the directory it builds into, set as soon as
+// that directory exists, so TestMain removes it when the tests finish, even after a failed build.
 var (
 	stressBuild      sync.Once
+	stressBuildDir   string
 	stressBinaryPath string
 	stressBuildErr   error
 )
@@ -88,6 +89,7 @@ func stressBinary(t *testing.T) string {
 			stressBuildErr = fmt.Errorf("make build dir: %w", err)
 			return
 		}
+		stressBuildDir = dir
 		path := filepath.Join(dir, "capcom")
 		if runtime.GOOS == "windows" {
 			path += ".exe"
