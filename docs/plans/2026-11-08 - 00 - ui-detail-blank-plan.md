@@ -72,7 +72,11 @@ internal/ui/session_test.go — TestSession_Do_ConcurrentCalls_RunOneAtATime
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Session' ./internal/ui/`
 **Commit:** `feat(ui): record what holds the session's mutex`
 
-## 2. Track the pending detail read and show a loading line
+## 2. Track the pending detail read and show a loading line — ✅ DONE (2026-11-08)
+
+NOTES (2026-11-08): the empty-selection clearing block the four show*Selection functions and openTab each repeated is now one helper, clearDetail (detail.go), which also drops the pending read; the shown-or-pending check is one helper, wantsDetail, called by all four.
+NOTES (2026-11-08): applyDetail clears the pending read whenever the pending read's answer arrives, applied or dropped by the selection check; clearPendingDetail also drops the loading line when the pane shows no issue or Note.
+NOTES (2026-11-08): loadDetail and loadNoteDetail take the sequence number as a third argument; their only callers are requestDetail and requestNoteDetail.
 
 **What:** Recast at the regression check (2026-11-08). Hardening for `ui-detail-blank`: a read could be dropped or never answer with nothing
 on screen and no retry, because no state named the read in flight.

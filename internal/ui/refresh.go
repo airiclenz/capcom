@@ -179,19 +179,19 @@ func (m model) withShownReloaded(tab Tab, isReload bool, cmd tea.Cmd) (model, te
 	switch tab {
 	case TabReady:
 		if entry, isSelected := m.readySelection(); isSelected && entry.ID == m.issue.id {
-			return m, loadDetail(m.session, entry)
+			return m.requestDetail(entry)
 		}
 	case TabIssues:
 		if entry, isSelected := m.issuesSelection(); isSelected && entry.ID == m.issue.id {
-			return m, loadDetail(m.session, entry)
+			return m.requestDetail(entry)
 		}
 	case TabKnowledge:
 		if note, isSelected := m.knowledgeSelection(); isSelected && note.ID == m.issue.id {
-			return m, loadNoteDetail(m.session, note)
+			return m.requestNoteDetail(note)
 		}
 	case TabClosed:
 		if entry, isSelected := m.closedSelection(); isSelected && entry.ID == m.issue.id {
-			return m, loadDetail(m.session, entry)
+			return m.requestDetail(entry)
 		}
 	}
 	return m, nil

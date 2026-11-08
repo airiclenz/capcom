@@ -133,26 +133,23 @@ func (m model) knowledgeKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 	return next, cmd, true
 }
 
-// showKnowledgeSelection paints the Knowledge sidebar and, when the selected Note is not the one
-// the detail pane shows, returns the command that loads it; an empty tree clears the detail pane.
-// It does nothing on another tab.
+// showKnowledgeSelection paints the Knowledge sidebar and, when the selected Note is neither the one the
+// detail pane shows nor the one a pending read asks for, returns the command that loads it (see
+// wantsDetail); an empty tree clears the detail pane. It does nothing on another tab.
 func (m model) showKnowledgeSelection() (model, tea.Cmd) {
 	if m.tab != TabKnowledge {
 		return m, nil
 	}
 	m = m.paintKnowledgeSidebar()
 	selected, isSelected := m.knowledgeSelection()
-	switch {
-	case !isSelected:
-		m.issue = issueDetail{}
-		m.sel = detailSel{}
-		m.detail = nil
-		m.detailOffset = 0
-		return m, nil
-	case selected.ID == m.issue.id:
+	if !isSelected {
+		return m.clearDetail(), nil
+	}
+	m, isWanted := m.wantsDetail(selected.ID, true)
+	if !isWanted {
 		return m, nil
 	}
-	return m, loadNoteDetail(m.session, selected)
+	return m.requestNoteDetail(selected)
 }
 
 // knowledgeSelection returns the selected Note of the Knowledge tree, and false when it has no

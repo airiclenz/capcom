@@ -25,16 +25,22 @@ const (
 	standingYes = "yes"
 	// headerTimeLayout is how the header shows the created and closed times, in UTC.
 	headerTimeLayout = "2006-01-02 15:04"
+	// loadingFormat is the one line the detail pane draws, with the id, while it shows no issue or
+	// Note and a read is pending.
+	loadingFormat = "loading %s…"
 )
 
 // detailMsg carries one read of an issue or a Note for the detail pane: whether it is a Note,
 // its id, the markdown source the pane renders (the frontmatter header, then the body or why
 // the file could not be read), the file's ETag ("" when it did not parse) and the snapshot of
 // every issue and Note id in the index that the read took. An issue's read also carries the
-// parsed issue and its parent's id, which a write's conflict prompt compares against.
+// parsed issue and its parent's id, which a write's conflict prompt compares against. seq is the
+// number requestDetail or requestNoteDetail gave the read, 0 for a read neither asked for, such
+// as a write conflict's.
 type detailMsg struct {
 	isNote   bool
 	id       string
+	seq      int
 	source   string
 	etag     string
 	ids      map[string]bool
@@ -78,10 +84,81 @@ func (d issueDetail) linkAt(line, col int) (string, bool) {
 	return "", false
 }
 
+// pendingDetail is the one detail read the pane waits on: the id it reads, whether it reads a
+// Note, and the number it was asked with. Its zero value, seq 0, is no read pending.
+type pendingDetail struct {
+	id     string
+	isNote bool
+	seq    int
+}
+
+// isPending reports whether a read is pending.
+func (p pendingDetail) isPending() bool {
+	return p.seq != 0
+}
+
+// requestDetail returns the command that reads the issue entry names for the detail pane, and
+// makes it the pending read under the next sequence number, so any read asked for before it no
+// longer applies. The pane is drawn again, so it says it is loading while it shows nothing.
+func (m model) requestDetail(entry index.Entry) (model, tea.Cmd) {
+	m = m.pendDetail(entry.ID, false)
+	return m.renderDetail(), loadDetail(m.session, entry, m.detailPending.seq)
+}
+
+// requestNoteDetail is requestDetail for the Note entry names.
+func (m model) requestNoteDetail(note index.NoteEntry) (model, tea.Cmd) {
+	m = m.pendDetail(note.ID, true)
+	return m.renderDetail(), loadNoteDetail(m.session, note, m.detailPending.seq)
+}
+
+// pendDetail makes the read of id, a Note's when isNote, the pending read under the next
+// sequence number.
+func (m model) pendDetail(id string, isNote bool) model {
+	m.detailSeq++
+	m.detailPending = pendingDetail{id: id, isNote: isNote, seq: m.detailSeq}
+	return m
+}
+
+// clearPendingDetail drops the pending read, so its answer no longer applies, and the loading
+// line with it while the pane shows no issue or Note. Every site that drops the pending read
+// goes through it.
+func (m model) clearPendingDetail() model {
+	if m.detailPending.isPending() && m.issue.id == "" {
+		m.detail = nil
+	}
+	m.detailPending = pendingDetail{}
+	return m
+}
+
+// clearDetail empties the detail pane, as an empty selection leaves it: no issue or Note shown,
+// no rows, no detail selection, its top on screen and no read pending.
+func (m model) clearDetail() model {
+	m.issue = issueDetail{}
+	m.sel = detailSel{}
+	m.detail = nil
+	m.detailOffset = 0
+	return m.clearPendingDetail()
+}
+
+// wantsDetail reports whether the selection id, a Note's when isNote, needs a read for the
+// detail pane: not while a read of it is pending, nor while the pane shows it. Landing on the
+// shown id drops a pending read of any other id, so its late answer is dropped too; a pending
+// re-read of the shown id, as a live refresh asks for, stays pending.
+func (m model) wantsDetail(id string, isNote bool) (model, bool) {
+	pending := m.detailPending
+	switch {
+	case pending.isPending() && pending.id == id && pending.isNote == isNote:
+		return m, false
+	case id == m.issue.id:
+		return m.clearPendingDetail(), false
+	}
+	return m, true
+}
+
 // loadDetail returns a command that reads the issue at entry's path for the detail pane, through
-// the session, as readIssueDetail does. Ids that cannot be read show `<path>: <error>` in place of
-// the body, under a header from the index entry, and keep no ETag.
-func loadDetail(s *session, entry index.Entry) tea.Cmd {
+// the session, as readIssueDetail does, its message carrying seq. Ids that cannot be read show
+// `<path>: <error>` in place of the body, under a header from the index entry, and keep no ETag.
+func loadDetail(s *session, entry index.Entry, seq int) tea.Cmd {
 	return func() tea.Msg {
 		msg := detailMsg{id: entry.ID}
 		err := s.do(func(opened *store.Store, issueIndex *index.Index) error {
@@ -92,6 +169,7 @@ func loadDetail(s *session, entry index.Entry) tea.Cmd {
 		if err != nil {
 			msg.source = issueHeader(entry) + fmt.Sprintf("%s: %v", entry.Path, err)
 		}
+		msg.seq = seq
 		return msg
 	}
 }
@@ -239,12 +317,12 @@ func codeSpan(id string) string {
 }
 
 // loadNoteDetail returns a command that reads the Note at entry's path for the detail pane,
-// through the session: the file with nodestore.NoteReader and the ids the index holds. A file
-// that does not parse shows `<path>: <error>` in place of its body, under a header from the index
-// entry, and keeps no ETag.
-func loadNoteDetail(s *session, entry index.NoteEntry) tea.Cmd {
+// through the session: the file with nodestore.NoteReader and the ids the index holds, its
+// message carrying seq. A file that does not parse shows `<path>: <error>` in place of its body,
+// under a header from the index entry, and keeps no ETag.
+func loadNoteDetail(s *session, entry index.NoteEntry, seq int) tea.Cmd {
 	return func() tea.Msg {
-		msg := detailMsg{isNote: true, id: entry.ID}
+		msg := detailMsg{isNote: true, id: entry.ID, seq: seq}
 		err := s.do(func(opened *store.Store, issueIndex *index.Index) error {
 			ids, err := indexIDs(issueIndex)
 			if err != nil {
@@ -309,10 +387,19 @@ func noteHeader(entry index.NoteEntry) string {
 // has moved on since it was asked for, and shows it from its top with the detail selection
 // cleared; a read of the issue or Note shown already, as a live refresh takes, keeps the scroll.
 // A Note's read applies only on the Knowledge tab and an issue's only on the others, so an issue
-// and a Note sharing an id never take each other's place.
+// and a Note sharing an id never take each other's place. A read requestDetail or
+// requestNoteDetail asked for applies only while it is the pending read, so a stale one never
+// replaces a newer one; the pending read's answer clears it, applied or not.
 func (m model) applyDetail(msg detailMsg) model {
+	isPendingRead := msg.seq != 0 && msg.seq == m.detailPending.seq
+	if isPendingRead {
+		m = m.clearPendingDetail()
+	}
 	selectedID, isSelected := m.sidebarSelection()
 	if !isSelected || selectedID != msg.id || msg.isNote != (m.tab == TabKnowledge) {
+		return m
+	}
+	if msg.seq != 0 && !isPendingRead {
 		return m
 	}
 	isShown := m.issue.id == msg.id
@@ -335,9 +422,15 @@ func (m model) applyDetail(msg detailMsg) model {
 
 // renderDetail fills the detail pane with the shown issue or Note rendered at the pane's width, rendering
 // again only when the source or the width changed since the last time. A re-render that rewrites a
-// line the detail selection spans clears the selection.
+// line the detail selection spans clears the selection. With no issue or Note shown and a read
+// pending, the pane holds only the loading line.
 func (m model) renderDetail() model {
 	width := m.detailWidth()
+	if m.issue.id == "" && m.detailPending.isPending() && width > 0 {
+		loading := fit(fmt.Sprintf(loadingFormat, m.detailPending.id), width)
+		m.detail = []string{m.theme.mutedRow.Render(loading)}
+		m.detailOffset = 0
+	}
 	if m.issue.id == "" || width <= 0 {
 		return m
 	}

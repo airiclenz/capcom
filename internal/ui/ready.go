@@ -121,26 +121,23 @@ func (m model) readyKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 	return next, cmd, true
 }
 
-// showReadySelection paints the Ready sidebar and, when the selected issue is not the one the
-// detail pane shows, returns the command that loads it; an empty queue clears the detail pane.
-// It does nothing on another tab.
+// showReadySelection paints the Ready sidebar and, when the selected issue is neither the one the
+// detail pane shows nor the one a pending read asks for, returns the command that loads it (see
+// wantsDetail); an empty queue clears the detail pane. It does nothing on another tab.
 func (m model) showReadySelection() (model, tea.Cmd) {
 	if m.tab != TabReady {
 		return m, nil
 	}
 	m = m.paintReadySidebar()
 	selected, isSelected := m.readySelection()
-	switch {
-	case !isSelected:
-		m.issue = issueDetail{}
-		m.sel = detailSel{}
-		m.detail = nil
-		m.detailOffset = 0
-		return m, nil
-	case selected.ID == m.issue.id:
+	if !isSelected {
+		return m.clearDetail(), nil
+	}
+	m, isWanted := m.wantsDetail(selected.ID, false)
+	if !isWanted {
 		return m, nil
 	}
-	return m, loadDetail(m.session, selected)
+	return m.requestDetail(selected)
 }
 
 // readySelection returns the selected issue of the Ready queue, and false when the queue is

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/index"
@@ -201,5 +202,157 @@ func TestKnowledgeTab_RetiredNoteDetail_LinksItsSuccessor(t *testing.T) {
 	}
 	if !slices.Contains(targets, "guide") {
 		t.Errorf("detail links = %v, want a link to guide", targets)
+	}
+}
+
+// pendingFiles is a store of two open issues, alpha above beta in the Issues tree.
+var pendingFiles = map[string]string{
+	"issues/alpha.md": issueFile("title: Alpha task\nstatus: open\npriority: 1\n", "Alpha first.\n"),
+	"issues/beta.md":  issueFile("title: Beta task\nstatus: open\npriority: 2\n", "Beta's body.\n"),
+}
+
+// rewriteAlpha writes alpha's file again with body.
+func rewriteAlpha(t *testing.T, ts *testStore, body string) {
+	t.Helper()
+	writeStoreFile(t, ts, "issues/alpha.md", issueFile("title: Alpha task\nstatus: open\npriority: 1\n", body))
+}
+
+// reloadIssues hands the model the Issues tab's reload read, as a live refresh does, and returns
+// the command it answers with, unrun: the re-read of the shown issue.
+func reloadIssues(t *testing.T, m model) (model, tea.Cmd) {
+	t.Helper()
+	updated, cmd := m.Update(loadIssues(m.session, m.reloadRead(TabIssues))())
+	next, isModel := updated.(model)
+	if !isModel {
+		t.Fatalf("Update returned %T, want model", updated)
+	}
+	if cmd == nil {
+		t.Fatal("the reload returned no command, want the shown issue's re-read")
+	}
+	return next, cmd
+}
+
+// updateHeld hands msg to the model's Update and returns the updated model and its command, unrun.
+func updateHeld(t *testing.T, m model, msg tea.Msg) (model, tea.Cmd) {
+	t.Helper()
+	updated, cmd := m.Update(msg)
+	next, isModel := updated.(model)
+	if !isModel {
+		t.Fatalf("Update returned %T, want model", updated)
+	}
+	return next, cmd
+}
+
+func TestDetailPane_TabSwitchBeforeTheRead_SaysItIsLoading(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, pendingFiles), 120, 30)
+
+	m = send(t, m, runeKey('1'))
+
+	if m.tab != TabIssues {
+		t.Fatalf("tab = %v after 1, want the Issues tab", m.tab)
+	}
+	want := []string{m.theme.mutedRow.Render("loading alpha…")}
+	if !slices.Equal(m.detail, want) {
+		t.Errorf("detail pane = %q, want the one muted line %q", m.detail, want)
+	}
+	if frame := ansi.Strip(m.View().Content); !strings.Contains(frame, "loading alpha…") {
+		t.Errorf("frame = %q, want it to hold %q", frame, "loading alpha…")
+	}
+}
+
+func TestDetailPane_ReadDelivered_ReplacesTheLoadingLine(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, pendingFiles), 120, 30)
+
+	m, cmd := updateHeld(t, m, runeKey('1'))
+	m = drive(t, m, cmd)
+
+	if text := detailText(m); strings.Contains(text, "loading") || !strings.Contains(text, "Alpha first.") {
+		t.Errorf("detail pane = %q, want alpha's body and no loading line", text)
+	}
+}
+
+func TestDetailPane_TwoReReadsOfTheShownIssueInReverseOrder_KeepsTheNewerBody(t *testing.T) {
+	ts := newTestStore(t, pendingFiles)
+	m := newIssuesModel(t, ts, "alpha", 120, 30)
+	rewriteAlpha(t, ts, "Alpha second.\n")
+	m, olderRead := reloadIssues(t, m)
+	older := olderRead()
+	rewriteAlpha(t, ts, "Alpha third.\n")
+	m, newerRead := reloadIssues(t, m)
+
+	m = send(t, m, newerRead())
+	m = send(t, m, older)
+
+	if text := detailText(m); !strings.Contains(text, "Alpha third.") {
+		t.Errorf("detail pane = %q, want the newer read's body %q", text, "Alpha third.")
+	}
+}
+
+func TestDetailPane_StaleReadOfTheShownIssue_LeavesTheNewerOnePending(t *testing.T) {
+	ts := newTestStore(t, pendingFiles)
+	m := newIssuesModel(t, ts, "alpha", 120, 30)
+	rewriteAlpha(t, ts, "Alpha second.\n")
+	m, olderRead := reloadIssues(t, m)
+	older := olderRead()
+	rewriteAlpha(t, ts, "Alpha third.\n")
+	m, newerRead := reloadIssues(t, m)
+
+	m = send(t, m, older)
+
+	if text := detailText(m); !strings.Contains(text, "Alpha first.") {
+		t.Errorf("detail pane after the stale read = %q, want the shown body %q kept", text, "Alpha first.")
+	}
+	m = send(t, m, newerRead())
+	if text := detailText(m); !strings.Contains(text, "Alpha third.") {
+		t.Errorf("detail pane after the pending read = %q, want %q", text, "Alpha third.")
+	}
+}
+
+func TestDetailPane_BackOnTheShownIssueBeforeTheNextAnswers_DropsTheNextsRead(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, pendingFiles), "alpha", 120, 30)
+
+	m, betaRead := updateHeld(t, m, runeKey('j'))
+	m = press(t, m, runeKey('k'))
+	m = send(t, m, betaRead())
+
+	if m.issue.id != "alpha" || m.detailPending.isPending() {
+		t.Errorf("shown %q, pending %+v; want alpha shown and nothing pending", m.issue.id, m.detailPending)
+	}
+	if text := detailText(m); !strings.Contains(text, "Alpha first.") {
+		t.Errorf("detail pane after beta's late read = %q, want alpha's body", text)
+	}
+	m, cmd := updateHeld(t, m, runeKey('j'))
+	if cmd == nil {
+		t.Fatal("j back onto beta returned no command, want beta read again")
+	}
+	m = drive(t, m, cmd)
+	if text := detailText(m); !strings.Contains(text, "Beta's body.") {
+		t.Errorf("detail pane after the second j = %q, want beta's body", text)
+	}
+}
+
+func TestDetailPane_ReReadHeldOverAKeyThatKeepsTheSelection_ShowsTheEditedBody(t *testing.T) {
+	ts := newTestStore(t, pendingFiles)
+	m := newIssuesModel(t, ts, "alpha", 120, 30)
+	rewriteAlpha(t, ts, "Alpha edited.\n")
+	m, reRead := reloadIssues(t, m)
+
+	m = press(t, m, runeKey('k'))
+	m = drive(t, m, reRead)
+
+	if text := detailText(m); !strings.Contains(text, "Alpha edited.") {
+		t.Errorf("detail pane = %q, want the re-read's body %q", text, "Alpha edited.")
+	}
+}
+
+func TestDetailPane_ReadNoRequestAskedFor_StillAppliesToTheSelection(t *testing.T) {
+	ts := newTestStore(t, pendingFiles)
+	m := newIssuesModel(t, ts, "alpha", 120, 30)
+	m, _ = reloadIssues(t, m)
+
+	m = send(t, m, detailMsg{id: "alpha", source: "# Alpha as the conflict read it\n"})
+
+	if text := detailText(m); !strings.Contains(text, "Alpha as the conflict read it") {
+		t.Errorf("detail pane = %q, want the conflict's read applied", text)
 	}
 }

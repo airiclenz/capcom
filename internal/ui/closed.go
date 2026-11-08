@@ -122,26 +122,23 @@ func (m model) closedKey(msg tea.KeyPressMsg) (model, tea.Cmd, bool) {
 	return next, cmd, true
 }
 
-// showClosedSelection paints the Closed sidebar and, when the selected issue is not the one the
-// detail pane shows, returns the command that loads it; an empty list clears the detail pane. It
-// does nothing on another tab.
+// showClosedSelection paints the Closed sidebar and, when the selected issue is neither the one the
+// detail pane shows nor the one a pending read asks for, returns the command that loads it (see
+// wantsDetail); an empty list clears the detail pane. It does nothing on another tab.
 func (m model) showClosedSelection() (model, tea.Cmd) {
 	if m.tab != TabClosed {
 		return m, nil
 	}
 	m = m.paintClosedSidebar()
 	selected, isSelected := m.closedSelection()
-	switch {
-	case !isSelected:
-		m.issue = issueDetail{}
-		m.sel = detailSel{}
-		m.detail = nil
-		m.detailOffset = 0
-		return m, nil
-	case selected.ID == m.issue.id:
+	if !isSelected {
+		return m.clearDetail(), nil
+	}
+	m, isWanted := m.wantsDetail(selected.ID, false)
+	if !isWanted {
 		return m, nil
 	}
-	return m, loadDetail(m.session, selected)
+	return m.requestDetail(selected)
 }
 
 // closedSelection returns the selected issue of the Closed tab, and false when it lists none.

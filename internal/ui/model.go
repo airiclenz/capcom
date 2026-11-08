@@ -173,6 +173,10 @@ type model struct {
 	closed    closedTab
 	issue     issueDetail
 	deps      depView
+	// detailSeq is the sequence number of the last detail read asked for, and detailPending the
+	// one read the detail pane waits on, at most one: only its answer applies.
+	detailSeq     int
+	detailPending pendingDetail
 
 	// filters are the filters in effect over each tab's sidebar, and filterAsked the filter line
 	// text each tab was last kept with, "" once cleared, both indexed by Tab: a matched filter
