@@ -216,7 +216,10 @@ write after `close` is dropped; every test that opens a tracer closes it in `t.C
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ ./internal/cli/ ./internal/clidoc/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(ui): trace detail reads to the file CAPCOM_UI_TRACE names`
 
-## 6. A randomized interleaving test pins the detail pane
+## 6. A randomized interleaving test pins the detail pane — ✅ DONE (2026-11-08)
+
+NOTES (2026-11-08): beyond the Goal, each click is followed by its release (so detail links are followed), the pending-read watch tick is made immediate so its checks join the pool, and every step also checks that a shown selection with no read pending is the kind the tab lists (marker line per issue/Note), which catches a Note standing in for the issue sharing its id; 5 seeds x 200 steps x 4 sizes run in about 2s on the Pi.
+NOTES (2026-11-08): mutation-checked by hand: dropping the stale-read check, the loading line, or openTab's clearDetail each makes the test fail.
 
 **What:** Depends on item 2. Test-only.
 **Goal:** `internal/ui/interleave_test.go` drives a fixed set of seeds (bounded so the test runs
