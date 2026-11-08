@@ -36,6 +36,9 @@ type session struct {
 	heldSince time.Time
 	// onHeld, nil in production, is called with the purpose once a holder of mu is recorded.
 	onHeld func(purpose string)
+	// tracer, nil unless CAPCOM_UI_TRACE names a file, traces every wait on mu past
+	// traceWaitThreshold.
+	tracer *tracer
 }
 
 // The purposes the session's mutex is held for, as the status bar names them.
@@ -80,9 +83,20 @@ func (s *session) doFor(purpose string, access func(*store.Store, *index.Index) 
 	return access(s.store, s.index)
 }
 
-// acquire takes the mutex and records purpose and the time as its holder.
+// acquire takes the mutex and records purpose and the time as its holder. A wait for the mutex
+// past traceWaitThreshold is traced with purpose, how long it took and the holder it found.
 func (s *session) acquire(purpose string) {
+	holderAtStart, _, _ := s.holder()
+	start := time.Now()
 	s.mu.Lock()
+	if waited := time.Since(start); waited > traceWaitThreshold {
+		s.tracer.write(
+			traceWait,
+			traceField{"purpose", purpose},
+			traceField{"waited", waited.Round(time.Millisecond)},
+			traceField{"holder", holderAtStart},
+		)
+	}
 	s.holderMu.Lock()
 	s.heldFor, s.heldSince = purpose, time.Now()
 	s.holderMu.Unlock()

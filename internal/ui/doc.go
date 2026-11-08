@@ -40,6 +40,7 @@
 //   - `statusbar.go` — the status bar: the Tree lock, notices and key hints
 //   - `statuspick.go` — statusPicker: the list of statuses s opens over the detail pane
 //   - `theme.go` — palette and theme: the colour schemes, the selection marks and every style
+//   - `trace.go` — tracer: the CAPCOM_UI_TRACE file of detail reads, mutex waits and drawn panes
 //   - `tree.go` — treeWidget: the expandable sidebar tree, its connectors and painting
 //   - `ui.go` — Tab, Options and Run: the package's entry point
 //   - `uistate.go` — saving the tab and each tab's selection to the worktree state file

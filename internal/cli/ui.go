@@ -18,6 +18,10 @@ const uiMaxArgs = 2
 // terminal UI's colours off (https://no-color.org).
 const noColorVariable = "NO_COLOR"
 
+// traceVariable names the environment variable that, set to a path, makes the terminal UI append
+// a trace of its detail reads to that file.
+const traceVariable = ui.TraceVariable
+
 // The help text of capcom ui.
 const (
 	uiLong = "Open the terminal UI over this store: the Ready, Issues, Knowledge and Closed tabs.\n\n" +
@@ -26,6 +30,11 @@ const (
 		"A tab name opens that tab, and an id after it selects that Issue or Note there; the " +
 		"arguments win over what was kept.\n\n" +
 		"It needs a terminal: when stdin or stdout is not one, it fails.\n\n" +
+		"With " + traceVariable + " set to a path, it appends to that file one line per " +
+		"detail-pane read event (requested, applied, stale, rendered, slow-read notice), per wait " +
+		"over 100ms for the store, " +
+		"and per change of the detail pane it draws, each a UTC time, an event and key=value " +
+		"fields; a path it cannot open fails it before the screen opens.\n\n" +
 		"q or ctrl+c quits.\n\n" +
 		"--json does not apply and is refused."
 	uiExample = "  capcom ui                           # the last tab and selection in this worktree\n" +
@@ -72,6 +81,7 @@ func (a *app) newUICommand() *cobra.Command {
 				Out:        out,
 				NoColor:    os.Getenv(noColorVariable) != "",
 				Version:    capcom.Version(),
+				TracePath:  os.Getenv(traceVariable),
 			})
 		}),
 	}

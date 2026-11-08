@@ -43,7 +43,10 @@ const (
 // status bar.
 type model struct {
 	session *session
-	tab     Tab
+	// tracer, nil unless CAPCOM_UI_TRACE names a file, traces the detail reads and the detail
+	// pane View draws; Run sets it on the model and its session.
+	tracer *tracer
+	tab    Tab
 	// initialID is the id the command line named to select in initialTab, "" when it named none;
 	// storedIDs are the ids the worktree state file stores to select in each tab, indexed by Tab,
 	// "" for none. Each tab selects its stored id unless the command line named one there.

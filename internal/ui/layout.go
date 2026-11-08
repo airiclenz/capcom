@@ -296,6 +296,7 @@ func (m model) body() []string {
 		return paneRows(helpLines, 0, height, m.width)
 	case m.isSinglePane() && (m.isDetailOpen || m.picker.isOpen):
 		lines, offset := m.detailRows()
+		m.traceDrawn(lines, offset, height)
 		return m.scrolledPaneRows(lines, offset, height, m.detailWidth())
 	case m.isSinglePane():
 		return m.sidebarRows(height)
@@ -305,6 +306,7 @@ func (m model) body() []string {
 
 	sidebar := m.sidebarRows(height)
 	lines, offset := m.detailRows()
+	m.traceDrawn(lines, offset, height)
 	detail := m.scrolledPaneRows(lines, offset, height, m.detailWidth())
 	margin := strings.Repeat(" ", dividerMargin)
 	divider := margin + m.dividerStyle().Render(paneSeparator) + margin
@@ -322,7 +324,32 @@ func (m model) stackedBody() []string {
 	rows = append(rows, m.sidebarRows(m.stackedSidebarRows())...)
 	rows = append(rows, m.dividerStyle().Render(strings.Repeat(ruleGlyph, m.width)))
 	lines, offset := m.detailRows()
+	m.traceDrawn(lines, offset, m.detailPaneRows())
 	return append(rows, m.scrolledPaneRows(lines, offset, m.detailPaneRows(), m.detailWidth())...)
+}
+
+// traceDrawn traces the detail pane body draws, the rows of lines from offset on over height
+// rows, unless it is the pane traced last: the shown id, the rows that hold any text, the pane's
+// left column, its width and its rows. A blank screen over a pane drawn with text is then a
+// terminal's fault, a pane drawn blank the model's. Without a tracer it does nothing, so View
+// pays nothing for it.
+func (m model) traceDrawn(lines []string, offset, height int) {
+	if m.tracer == nil {
+		return
+	}
+	textRows := 0
+	for _, line := range lines[min(offset, len(lines)):min(offset+height, len(lines))] {
+		if strings.TrimSpace(ansi.Strip(line)) != "" {
+			textRows++
+		}
+	}
+	m.tracer.drawn(
+		traceField{"id", m.issue.id},
+		traceField{"text_rows", textRows},
+		traceField{"left", m.detailLeft()},
+		traceField{"width", m.detailWidth()},
+		traceField{"rows", height},
+	)
 }
 
 // stackedDividerRow returns the screen row of the stacked layout's divider: under the tab bar's

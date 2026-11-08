@@ -135,12 +135,19 @@ func (m model) requestNoteDetail(note index.NoteEntry) (model, tea.Cmd) {
 }
 
 // pendDetail makes the read of id, a Note's when isNote, the pending read under the next
-// sequence number. The report of the read it replaces goes with it.
+// sequence number, and traces it as requested. The report of the read it replaces goes with it.
 func (m model) pendDetail(id string, isNote bool) model {
 	m.detailSeq++
 	m.detailPending = pendingDetail{id: id, isNote: isNote, seq: m.detailSeq}
 	m.detailNotice = ""
+	m.tracer.write(traceRequested, readFields(id, isNote, m.detailSeq)...)
 	return m
+}
+
+// readFields returns the trace fields naming a detail read: its id, whether it reads a Note, and
+// its sequence number.
+func readFields(id string, isNote bool, seq int) []traceField {
+	return []traceField{{"id", id}, {"note", isNote}, {"seq", seq}}
 }
 
 // watchDetail returns the tick that asks, after delay, whether the pending read, asked for at
@@ -165,6 +172,7 @@ func (m model) applyDetailWatch(msg detailWatchMsg) (model, tea.Cmd) {
 	if purpose, _, isHeld := m.session.holder(); isHeld {
 		m.detailNotice += fmt.Sprintf(detailHolderFormat, purpose)
 	}
+	m.tracer.write(traceWatch, traceField{"id", m.detailPending.id}, traceField{"notice", m.detailNotice})
 	return m, m.watchDetail(detailWatchInterval, msg.requested)
 }
 
@@ -439,19 +447,19 @@ func noteHeader(entry index.NoteEntry) string {
 // A Note's read applies only on the Knowledge tab and an issue's only on the others, so an issue
 // and a Note sharing an id never take each other's place. A read requestDetail or
 // requestNoteDetail asked for applies only while it is the pending read, so a stale one never
-// replaces a newer one; the pending read's answer clears it, applied or not.
+// replaces a newer one; the pending read's answer clears it, applied or not. The read is traced
+// as applied, or as stale with the reason it was dropped.
 func (m model) applyDetail(msg detailMsg) model {
 	isPendingRead := msg.seq != 0 && msg.seq == m.detailPending.seq
 	if isPendingRead {
 		m = m.clearPendingDetail()
 	}
-	selectedID, isSelected := m.sidebarSelection()
-	if !isSelected || selectedID != msg.id || msg.isNote != (m.tab == TabKnowledge) {
+	fields := readFields(msg.id, msg.isNote, msg.seq)
+	if reason := m.staleReason(msg, isPendingRead); reason != "" {
+		m.tracer.write(traceStale, append(fields, traceField{"reason", reason})...)
 		return m
 	}
-	if msg.seq != 0 && !isPendingRead {
-		return m
-	}
+	m.tracer.write(traceApplied, fields...)
 	isShown := m.issue.id == msg.id
 	if !isShown {
 		m.sel = detailSel{}
@@ -470,10 +478,40 @@ func (m model) applyDetail(msg detailMsg) model {
 	return m.renderDetail()
 }
 
+// The reasons a detail read's answer is dropped, as its stale trace line names them.
+const (
+	// staleDeselected: the sidebar selects nothing.
+	staleDeselected = "deselected"
+	// staleSelectionMoved: the sidebar selects another id.
+	staleSelectionMoved = "selection-moved"
+	// staleOtherTab: an issue's read on the Knowledge tab, or a Note's on another tab.
+	staleOtherTab = "other-tab"
+	// staleSuperseded: a newer read was asked for after it.
+	staleSuperseded = "superseded"
+)
+
+// staleReason returns why the read msg answers no longer applies, "" when it does: the sidebar
+// selects nothing or another id, the read is of the other kind than the tab shows, or a newer
+// read was asked for after it. isPendingRead reports msg answering the pending read.
+func (m model) staleReason(msg detailMsg, isPendingRead bool) string {
+	selectedID, isSelected := m.sidebarSelection()
+	switch {
+	case !isSelected:
+		return staleDeselected
+	case selectedID != msg.id:
+		return staleSelectionMoved
+	case msg.isNote != (m.tab == TabKnowledge):
+		return staleOtherTab
+	case msg.seq != 0 && !isPendingRead:
+		return staleSuperseded
+	}
+	return ""
+}
+
 // renderDetail fills the detail pane with the shown issue or Note rendered at the pane's width, rendering
 // again only when the source or the width changed since the last time. A re-render that rewrites a
 // line the detail selection spans clears the selection. With no issue or Note shown and a read
-// pending, the pane holds only the loading line.
+// pending, the pane holds only the loading line. Each rendering is traced with its line count.
 func (m model) renderDetail() model {
 	width := m.detailWidth()
 	if m.issue.id == "" && m.detailPending.isPending() && width > 0 {
@@ -493,6 +531,12 @@ func (m model) renderDetail() model {
 		)
 		m.issue.renderedSource = m.issue.source
 		m.issue.renderedWidth = width
+		m.tracer.write(
+			traceRendered,
+			traceField{"id", m.issue.id},
+			traceField{"lines", len(m.issue.rendered.Lines)},
+			traceField{"width", width},
+		)
 	}
 	if !m.sel.spanUnchanged(m.detail, m.issue.rendered.Lines) {
 		m.sel = detailSel{}

@@ -19,6 +19,8 @@ A tab name opens that tab, and an id after it selects that Issue or Note there; 
 
 It needs a terminal: when stdin or stdout is not one, it fails.
 
+With CAPCOM_UI_TRACE set to a path, it appends to that file one line per detail-pane read event (requested, applied, stale, rendered, slow-read notice), per wait over 100ms for the store, and per change of the detail pane it draws, each a UTC time, an event and key=value fields; a path it cannot open fails it before the screen opens.
+
 q or ctrl+c quits.
 
 --json does not apply and is refused.

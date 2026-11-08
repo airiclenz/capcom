@@ -76,7 +76,9 @@ func ParseTab(name string) (Tab, error) {
 // v<Version> · capcom`, where path is Store.WorktreeRoot with Home shown as `~`, or as
 // `v<Version> · capcom` when the terminal is too narrow for the path; empty, the tab bar draws no
 // version label. Home is the home directory the path is shortened by; empty, the user's home
-// directory with symlinks resolved is used, and none when it cannot be found.
+// directory with symlinks resolved is used, and none when it cannot be found. TracePath, the
+// value of TraceVariable, names the file the detail reads are traced to; empty, nothing is traced
+// and no file is touched.
 type Options struct {
 	Store          *store.Store
 	Index          *index.Index
@@ -91,6 +93,7 @@ type Options struct {
 	NoColor        bool
 	Version        string
 	Home           string
+	TracePath      string
 }
 
 // Run runs the terminal UI until the user quits, with q or ctrl+c. It first loads the user config
@@ -105,8 +108,19 @@ type Options struct {
 // A tab change is saved to that file at once and a selection change a second after the last one;
 // quitting writes a change still waiting. The first save that fails this session is reported in
 // the status bar, later ones are not, and the UI runs on.
+//
+// With options.TracePath set, Run appends to that file, created with mode 0600 when missing, one
+// line per detail read event, per wait on the session's mutex past traceWaitThreshold and per
+// change of the detail pane drawn. A path it cannot open fails Run before the screen opens, with
+// `CAPCOM_UI_TRACE: <path>: <error>`.
 func Run(options Options) error {
+	trace, err := openTracer(options.TracePath)
+	if err != nil {
+		return err
+	}
 	initial := newModel(options)
+	initial.tracer = trace
+	initial.session.tracer = trace
 	program := tea.NewProgram(
 		initial,
 		tea.WithInput(options.In),
@@ -123,6 +137,9 @@ func Run(options Options) error {
 	}
 	if closeErr := initial.session.close(); closeErr != nil {
 		err = errors.Join(err, fmt.Errorf("close the re-opened index: %w", closeErr))
+	}
+	if closeErr := trace.close(); closeErr != nil {
+		err = errors.Join(err, fmt.Errorf("write the trace: %w", closeErr))
 	}
 	return err
 }

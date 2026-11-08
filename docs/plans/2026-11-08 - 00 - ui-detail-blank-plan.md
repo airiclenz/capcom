@@ -172,7 +172,12 @@ directly (`cmd() == tea.ClearScreen()`); help golden updated; the help screen st
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Key|Editor|Help|Golden' ./internal/ui/`
 **Commit:** `feat(ui): repaint the frame on ctrl+l and after the editor`
 
-## 5. CAPCOM_UI_TRACE writes a detail-read trace
+## 5. CAPCOM_UI_TRACE writes a detail-read trace — ✅ DONE (2026-11-08)
+
+NOTES (2026-11-08): refresh.go left unchanged — poll and doFor already share session.acquire (added by item 1), so the wait is timed there and covers both; no new lock helper was needed.
+NOTES (2026-11-08): the variable's name lives in ui as the exported TraceVariable (ui.Run's error names it); internal/cli/ui.go's traceVariable is defined as ui.TraceVariable.
+NOTES (2026-11-08): a failed trace write stops further lines and is returned by close; Run joins it as `write the trace: <error>` on exit.
+NOTES (2026-11-08): drawn lines are traced only while a detail pane is drawn (none while help or the one-pane sidebar shows); stale reasons are deselected, selection-moved, other-tab and superseded; applyDetail's drop checks moved into staleReason to name them.
 
 **What:** Depends on items 1, 2 and 3.
 **Goal:** with `CAPCOM_UI_TRACE` set to a path, `capcom ui` appends one line per detail-read
