@@ -77,10 +77,15 @@ does not apply and is refused. `q` or ctrl+c quits. The flags are in the
   type, then its labels, Parent, dependencies, related, plan, aliases, created and closed times and
   close reason; a Note shows its labels, Refs, retired, superseded-by and aliases. A field that is
   empty is left out, and `retired` shows only when true. The body follows, rendered as markdown:
-  headings, lists, code, tables, blockquotes and links.
+  headings, lists, code, tables, blockquotes and links. The pane is never blank without a word:
+  while it has nothing to show and the selection is still being read, as on a tab switch or at
+  the start, it holds one dim line, `loading <id>…`. Moving the selection keeps the Issue or Note
+  on screen until the new one is read, then shows the new one in its place.
 - **Status bar**: the Tree lock of this worktree (`lock  free`, `lock  held by <holder>: <purpose>`
   or `lock  stale: <purpose>`, with the heartbeat's age), the filter in effect, notices and the
-  report of the last write, then the key hints. The word `lock`, with a space either side, is a
+  report of the last write, then the key hints. A read of the selection that takes longer than 2
+  seconds is reported there, as `reading <id>: waiting <N>s on <holder>`, brought up to date each
+  second; see [A slow read](#a-slow-read). The word `lock`, with a space either side, is a
   badge: filled with the `lock-held` colour while another session holds the lock, live or stale,
   and with `lock-free` while it is free. Under `NO_COLOR` a held lock's badge is drawn in reverse.
   On a terminal that fits both the split and the stacked layout, the layout button fills the
@@ -180,6 +185,7 @@ status   s        claim    a
 close    c        reopen   R
 log      L        editor   e
 help     ?        quit     q
+repaint  ctrl+l
 ```
 
 - The up and down arrows and `j` `k` move the sidebar's selection. On a tree, → and `l` expand the
@@ -192,6 +198,10 @@ help     ?        quit     q
 - `v` switches between the split and the stacked layout on a terminal that fits both; see
   [Choosing the layout](#choosing-the-layout).
 - `?` shows the full key map; `?` or Esc closes it.
+- ctrl+l clears the screen and repaints the whole frame, for a screen a terminal fault left blank
+  or garbled. It works on every tab and on the help screen, but not while a prompt, the status
+  picker or the filter line is open. The UI repaints the same way when the
+  editor exits.
 - Prompts (a reason, a Log entry, a confirmation) take Enter to submit and Esc to cancel; a
   confirmation also takes `y` and `n`.
 
@@ -243,7 +253,8 @@ as `closed login-timeout-race; now ready: session-store`.
 ### The editor
 
 `e` opens the selected file in `$VISUAL`, or in `$EDITOR` when `$VISUAL` is unset; with neither
-set it says so. The UI hands the terminal to the editor and comes back when it exits. It then runs
+set it says so. The UI hands the terminal to the editor and comes back when it exits, clearing
+the screen and repainting the frame, as ctrl+l does. It then runs
 the [`capcom check`](../reference/cli/capcom_check.md) checks and reports the first problem in the
 file you edited, else the first problem anywhere, with how many there are, or that check found
 none.
@@ -286,6 +297,47 @@ A change to `config.yaml` re-opens the store on the new config. One the UI canno
 previous config in effect, with the error in the status bar, until the file changes again. When
 another capcom version rebuilt the index, polling stops with `index changed by another capcom
 version: restart capcom ui`.
+
+### A slow read
+
+Everything the UI reads or writes takes its turn on the index, one access at a time: the poll,
+each read and each write. A read of the selection still waiting after 2 seconds is reported in the status bar, with the whole
+seconds it has waited and, while something else has the index, what that is:
+
+```text
+reading login-timeout-race: waiting 3s on the index poll
+```
+
+The holder is `the index poll`, `a write`, `the editor's check` or `another read`; with nothing
+holding the index the line ends at the seconds. It is brought up to date each second, and goes
+when the read is shown or a newer one replaces it, as when you move the selection on.
+
+### Tracing the detail pane
+
+To find out why the detail pane went blank, set `CAPCOM_UI_TRACE` to a file before you start
+`capcom ui`:
+
+```sh
+CAPCOM_UI_TRACE=/tmp/capcom-ui.trace capcom ui
+```
+
+The UI appends to that file, created readable by you alone when it is missing, one line per event:
+its time in UTC to the millisecond, the event, then `key=value` fields, a value holding a space
+or `=` in quotes.
+
+| Event | When |
+|---|---|
+| `requested` | a read of the selection is asked for: its `id`, whether it reads a Note (`note`) and its number (`seq`) |
+| `applied` | that read is shown in the detail pane |
+| `stale` | that read is dropped, with the `reason`: `deselected`, `selection-moved`, `other-tab` or `superseded` |
+| `rendered` | the shown Issue or Note is rendered: its `id`, its `lines` and the `width` |
+| `watch` | the status bar reports a slow read: its `id` and the `notice` |
+| `wait` | an access waited more than 100ms for the index: its `purpose`, how long it `waited` and the `holder` it found |
+| `drawn` | the detail pane drawn differs from the last one drawn: the shown `id`, the rows holding text (`text_rows`), the pane's `left` column, `width` and `rows` |
+
+A `drawn` line with text rows over a blank screen points at the terminal, and a `drawn` line with
+none at capcom. Unset, nothing is traced. A path that cannot be opened stops `capcom ui` before
+the screen opens, with `CAPCOM_UI_TRACE: <path>: <error>`.
 
 ## Mouse
 

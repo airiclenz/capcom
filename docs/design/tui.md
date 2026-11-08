@@ -93,6 +93,9 @@ capcom ui [issues|ready|knowledge|closed] [id]
   minute. Followable links are Issue and Note ids only: markdown links whose target is an id,
   inline-code spans exactly matching an existing id, and the parent, deps, related, refs and
   superseded-by naming an id. URLs and file refs are styled but inert. Body links are mouse-only.
+  With no Issue or Note shown and a detail read pending (a tab switch, the start), the pane holds
+  one line, `loading <id>…` in the muted row style, never a silent blank; on a selection move the
+  old Issue or Note stays until the new read applies (see The detail read).
 - **Status bar**: the Tree lock (free, held by this worktree's other session with its purpose,
   or stale), the filter in effect, transient messages, and key hints. It opens with ` lock `,
   the word padded with a space each side, then one plain space and the state (` lock  free`,
@@ -224,10 +227,17 @@ status   s        claim    a
 close    c        reopen   R
 log      L        editor   e
 help     ?        quit     q
+repaint  ctrl+l
 ```
 
 `?` shows the full map. `v` toggles the layout where the terminal fits both (see Layout). Prompts (reason, log text, confirmations) take Enter to submit and Esc
 to cancel; a confirmation also takes y and n.
+
+**Repaint**: ctrl+l returns `tea.ClearScreen` wherever `handleKey` sees it, the help screen
+included, so the terminal is cleared and the whole frame drawn again: the remedy for a screen a
+terminal fault left blank or garbled. A prompt, the status picker and the filter line take their
+keys first, so it does nothing while one is open. The editor's return clears and repaints the
+same way, whether or not the editor ran.
 
 **Detail scroll**: PgUp/PgDn scroll the detail pane a page and ctrl+u/ctrl+d half a page, from
 anywhere; the sidebar keeps focus. In the one-pane narrow detail view j/k and the arrows also
@@ -276,7 +286,36 @@ capcom ui`; the UI never rebuilds it back. The filter in effect is matched again
 The index is not safe for concurrent use, so one session owns it: the poll, reads and writes
 all run as Bubble Tea commands serialised through its mutex. `Index.Refresh` is the exported
 refresh for this: it runs the full incremental refresh every call, as `Open` does, and reports
-whether any Issue or Note changed.
+whether any Issue or Note changed. Each access names its purpose as it takes the mutex (`the index
+poll`, `a write`, `the editor's check`, else `another read`), and `session.holder` reports it
+and since when, under a mutex of its own, so it answers while the session's is held.
+
+### The detail read
+
+The detail pane has at most one pending read: `requestDetail` and `requestNoteDetail` number each
+read they ask for with the next `detailSeq` and make it the pending one, so a read asked for later
+supersedes it. An answer applies only while it is the pending read's and the sidebar still
+selects its id on the tab of its kind; the pending read's answer clears it, applied or dropped.
+A read the pane does not need is not asked for: not while a read of the same id is pending, nor
+for the id already shown, and landing on the shown id drops a pending read of another. A tab
+switch empties the pane and drops the pending read, so the new tab's read shows the loading line.
+
+**The watch.** Each request also starts a tick: 2 seconds on, while that read is still pending,
+the status bar reports `reading <id>: waiting <N>s`, followed by ` on <purpose>` while the
+session's mutex is held, and the tick repeats each second. A tick for a read no longer pending
+changes nothing, and the report goes when the read applies or is superseded.
+
+**The trace.** `CAPCOM_UI_TRACE=<file>` makes `ui.Run` open that file for appending (mode 0600)
+before the screen opens, failing with `CAPCOM_UI_TRACE: <path>: <error>` when it cannot, and close
+it after the session. One line per event, a UTC time to the millisecond, the event and
+`key=value` fields: `requested`, `applied` and `stale` (with its reason: `deselected`,
+`selection-moved`, `other-tab` or `superseded`) for each read; `rendered` with the line count;
+`watch` with the status bar's report; `wait` for an access that waited on the session's mutex past
+100ms, with the holder it found; and `drawn`, the detail pane `View` drew, its text rows, left
+column, width and rows, written only when it differs from the last. A pane drawn with text over a
+blank screen is then the terminal's fault, a pane drawn blank the model's. Unset, the tracer is
+nil and costs nothing. `internal/ui/interleave_test.go` drives randomized interleavings of
+selection moves, tab switches, answers and ticks against these rules.
 
 No file watcher: polling needs no new dependency, behaves the same on every OS, and reuses the
 refresh the CLI already trusts.
