@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-08
+
 - `capcom ui` now says when the detail pane is waiting on a read: where the pane has nothing to show yet (after a tab switch, at start), it shows one dim line `loading <id>…` until the issue or Note arrives; moving the selection keeps the previous issue on screen until the new one is read. Only the most recent read of the detail pane applies, so an older read of the same issue, such as a live refresh's, arriving after a newer one no longer puts the older text back.
 - `capcom ui` now reports a detail read that takes too long: once the issue or Note asked for has waited 2 seconds, the status bar says `reading <id>: waiting <N>s on <holder>`, naming what holds the session (the index poll, a write, the editor's check), and counts up each second until the read arrives or the selection moves on.
 - `capcom ui` repaints the screen on ctrl+l, listed on the help screen, and repaints it by itself when the editor returns, so a frame a terminal fault left blank or garbled can be redrawn without quitting.
