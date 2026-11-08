@@ -274,6 +274,7 @@ func TestWorktreeState_ReloadBeforeKnowledgesFirstRead_KeepsItsStoredID(t *testi
 	m := newModel(options)
 	m.tick = noTick
 	m.saveTick = noFlashTick
+	m.detailTick = noFlashTick
 	m = drive(t, m, loadReady(m.session, m.initialRead(TabReady)))
 	m = drive(t, m, loadIssues(m.session, m.initialRead(TabIssues)))
 	m = drive(t, m, loadKnowledge(m.session, m.reloadRead(TabKnowledge)))

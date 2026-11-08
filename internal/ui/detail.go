@@ -30,6 +30,27 @@ const (
 	loadingFormat = "loading %s…"
 )
 
+// The status bar's report of a detail read that waits too long.
+const (
+	// detailWatchDelay is how long a detail read stays pending before the status bar reports it.
+	detailWatchDelay = 2 * time.Second
+	// detailWatchInterval is how often the report is brought up to date while the read stays
+	// pending.
+	detailWatchInterval = time.Second
+	// detailWaitFormat is the report, with the id read and the whole seconds it has waited.
+	detailWaitFormat = "reading %s: waiting %ds"
+	// detailHolderFormat follows the report, with the purpose the session's mutex is held for,
+	// while it is held.
+	detailHolderFormat = " on %s"
+)
+
+// detailWatchMsg asks whether the detail read numbered seq, asked for at requested, is still
+// pending, so the status bar reports how long it has waited.
+type detailWatchMsg struct {
+	seq       int
+	requested time.Time
+}
+
 // detailMsg carries one read of an issue or a Note for the detail pane: whether it is a Note,
 // its id, the markdown source the pane renders (the frontmatter header, then the body or why
 // the file could not be read), the file's ETag ("" when it did not parse) and the snapshot of
@@ -102,31 +123,60 @@ func (p pendingDetail) isPending() bool {
 // longer applies. The pane is drawn again, so it says it is loading while it shows nothing.
 func (m model) requestDetail(entry index.Entry) (model, tea.Cmd) {
 	m = m.pendDetail(entry.ID, false)
-	return m.renderDetail(), loadDetail(m.session, entry, m.detailPending.seq)
+	load := loadDetail(m.session, entry, m.detailPending.seq)
+	return m.renderDetail(), tea.Batch(load, m.watchDetail(detailWatchDelay, m.now()))
 }
 
 // requestNoteDetail is requestDetail for the Note entry names.
 func (m model) requestNoteDetail(note index.NoteEntry) (model, tea.Cmd) {
 	m = m.pendDetail(note.ID, true)
-	return m.renderDetail(), loadNoteDetail(m.session, note, m.detailPending.seq)
+	load := loadNoteDetail(m.session, note, m.detailPending.seq)
+	return m.renderDetail(), tea.Batch(load, m.watchDetail(detailWatchDelay, m.now()))
 }
 
 // pendDetail makes the read of id, a Note's when isNote, the pending read under the next
-// sequence number.
+// sequence number. The report of the read it replaces goes with it.
 func (m model) pendDetail(id string, isNote bool) model {
 	m.detailSeq++
 	m.detailPending = pendingDetail{id: id, isNote: isNote, seq: m.detailSeq}
+	m.detailNotice = ""
 	return m
 }
 
-// clearPendingDetail drops the pending read, so its answer no longer applies, and the loading
-// line with it while the pane shows no issue or Note. Every site that drops the pending read
-// goes through it.
+// watchDetail returns the tick that asks, after delay, whether the pending read, asked for at
+// requested, is still pending.
+func (m model) watchDetail(delay time.Duration, requested time.Time) tea.Cmd {
+	seq := m.detailPending.seq
+	return m.detailTick(delay, func(time.Time) tea.Msg {
+		return detailWatchMsg{seq: seq, requested: requested}
+	})
+}
+
+// applyDetailWatch reports in the status bar a read still pending: its id, the whole seconds it
+// has waited and, while the session's mutex is held, the purpose it is held for. It asks again
+// after detailWatchInterval, so the report stays current until the read applies or a newer one
+// replaces it. A tick for a read no longer pending changes nothing and asks for no other.
+func (m model) applyDetailWatch(msg detailWatchMsg) (model, tea.Cmd) {
+	if !m.detailPending.isPending() || msg.seq != m.detailPending.seq {
+		return m, nil
+	}
+	waited := int(m.now().Sub(msg.requested) / time.Second)
+	m.detailNotice = fmt.Sprintf(detailWaitFormat, m.detailPending.id, waited)
+	if purpose, _, isHeld := m.session.holder(); isHeld {
+		m.detailNotice += fmt.Sprintf(detailHolderFormat, purpose)
+	}
+	return m, m.watchDetail(detailWatchInterval, msg.requested)
+}
+
+// clearPendingDetail drops the pending read, so its answer no longer applies, the loading line
+// with it while the pane shows no issue or Note, and the status bar's report of its wait. Every
+// site that drops the pending read goes through it.
 func (m model) clearPendingDetail() model {
 	if m.detailPending.isPending() && m.issue.id == "" {
 		m.detail = nil
 	}
 	m.detailPending = pendingDetail{}
+	m.detailNotice = ""
 	return m
 }
 

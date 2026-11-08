@@ -115,8 +115,8 @@ func oneLine(text string) string {
 // line in place of everything else, or the Tree lock, its leading word in its badge, the open
 // tab's filter, the copy notice, the user config notice, the state file notice, the worktree state
 // file notice, the notices of a config.yaml that could not be reloaded and of a poll that failed
-// or stopped, the notice of an id that could not be selected and the report of the last write
-// when there are any, the key hints, muted, and the layout button when it is drawn, at the row's
+// or stopped, the report of a detail read that waits too long, the notice of an id that could
+// not be selected and the report of the last write when there are any, the key hints, muted, and the layout button when it is drawn, at the row's
 // right edge with blanks between it and the hints. A row too long for the terminal is cut before
 // the hints and the button, so they stay visible while there is room for them. Every notice shows a
 // control byte as visible \xHH text.
@@ -131,7 +131,7 @@ func (m model) statusBar() string {
 	if filter := m.filterStatus(); filter != "" {
 		text += statusSeparator + filter
 	}
-	for _, notice := range []string{m.flash, m.configNotice, m.stateNotice, m.worktreeStateNotice, m.storeNotice, m.refreshNotice, m.notice, m.writeNotice} {
+	for _, notice := range []string{m.flash, m.configNotice, m.stateNotice, m.worktreeStateNotice, m.storeNotice, m.refreshNotice, m.detailNotice, m.notice, m.writeNotice} {
 		if notice != "" {
 			text += statusSeparator + termsafe.Escape(notice)
 		}

@@ -110,7 +110,11 @@ still applies.
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/ui/`
 **Commit:** `fix(ui): track the pending detail read and say when the pane is loading`
 
-## 3. Report a detail read that waits too long
+## 3. Report a detail read that waits too long — ✅ DONE (2026-11-08)
+
+NOTES (2026-11-08): pendDetail also clears detailNotice, besides clearPendingDetail, so a newer read that replaces the pending one (a selection move, a live refresh's re-read) drops the older read's report before its own watch starts.
+NOTES (2026-11-08): the watch tick carries the read's requested time from m.now(), and every later tick keeps that time, so N counts from the request; the tests fix m.now rather than backdating against the wall clock.
+NOTES (2026-11-08): the statusBar doc comment names the new notice in its list (statusbar.go, the item's own file).
 
 **What:** Depends on items 1 and 2.
 **Goal:** a detail read still pending 2s after it was requested puts `reading <id>: waiting <N>s

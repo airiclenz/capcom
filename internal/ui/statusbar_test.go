@@ -361,3 +361,19 @@ func TestOneLine_ControlBytes_EscapedAndLineBreaksCollapsed(t *testing.T) {
 		})
 	}
 }
+
+func TestStatusBar_DetailNotice_DrawnBetweenTheRefreshNoticeAndTheSelectNotice(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, readyFiles), 200, 30)
+	m.refreshNotice = "poll failed"
+	m.detailNotice = "reading alpha: waiting 2s"
+	m.notice = "no such id"
+
+	got := statusRow(m)
+
+	refresh := strings.Index(got, m.refreshNotice)
+	detail := strings.Index(got, m.detailNotice)
+	selectNotice := strings.Index(got, m.notice)
+	if refresh < 0 || detail < refresh || selectNotice < detail {
+		t.Errorf("status bar = %q, want %q, then %q, then %q", got, m.refreshNotice, m.detailNotice, m.notice)
+	}
+}

@@ -177,6 +177,11 @@ type model struct {
 	// one read the detail pane waits on, at most one: only its answer applies.
 	detailSeq     int
 	detailPending pendingDetail
+	// detailTick schedules the next check on the pending detail read: tea.Tick, which tests
+	// replace so no real clock runs. detailNotice is the status bar's report of that read once it
+	// has waited detailWatchDelay, empty before then and once it applies or is dropped.
+	detailTick   tickFunc
+	detailNotice string
 
 	// filters are the filters in effect over each tab's sidebar, and filterAsked the filter line
 	// text each tab was last kept with, "" once cleared, both indexed by Tab: a matched filter
@@ -250,6 +255,7 @@ func newModel(options Options) model {
 		writeTmux:           writer.WriteTmux,
 		flashTick:           tea.Tick,
 		saveTick:            tea.Tick,
+		detailTick:          tea.Tick,
 	}
 	m.theme = m.themeOf()
 	m.markdownTheme = m.theme.markdown
@@ -510,6 +516,8 @@ func (m model) update(msg tea.Msg) (model, tea.Cmd) {
 		return m.applyClosed(msg)
 	case detailMsg:
 		m = m.applyDetail(msg).paintDeps()
+	case detailWatchMsg:
+		return m.applyDetailWatch(msg)
 	case depsMsg:
 		m = m.applyDeps(msg)
 	case filterMsg:

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/index"
+	"github.com/airiclenz/capcom/internal/store"
 )
 
 func TestIssueHeader_RendersEachSetKeyInOrder(t *testing.T) {
@@ -354,5 +355,159 @@ func TestDetailPane_ReadNoRequestAskedFor_StillAppliesToTheSelection(t *testing.
 
 	if text := detailText(m); !strings.Contains(text, "Alpha as the conflict read it") {
 		t.Errorf("detail pane = %q, want the conflict's read applied", text)
+	}
+}
+
+// watchClock is the time the model's clock reads in the tests of a detail read that waits.
+var watchClock = time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+
+// pendingWatch fixes m's clock at watchClock and returns the detailWatchMsg of its pending read,
+// asked for detailWatchDelay before then.
+func pendingWatch(t *testing.T, m model) (model, detailWatchMsg) {
+	t.Helper()
+	if !m.detailPending.isPending() {
+		t.Fatal("no detail read pending, want one to watch")
+	}
+	m.now = func() time.Time { return watchClock }
+	return m, detailWatchMsg{seq: m.detailPending.seq, requested: watchClock.Add(-detailWatchDelay)}
+}
+
+// holdSession holds s's mutex for purpose from another goroutine and returns once the holder is
+// recorded. The function it returns frees the mutex and waits for that goroutine to end.
+func holdSession(t *testing.T, s *session, purpose string) func() {
+	t.Helper()
+	held := make(chan struct{})
+	freed := make(chan struct{})
+	result := make(chan error, 1)
+	go func() {
+		result <- s.doFor(purpose, func(*store.Store, *index.Index) error {
+			close(held)
+			<-freed
+			return nil
+		})
+	}()
+	<-held
+	return func() {
+		close(freed)
+		if err := <-result; err != nil {
+			t.Errorf("holding the session for %q: %v", purpose, err)
+		}
+	}
+}
+
+// watchedBeta returns the Issues tab showing alpha with beta's read pending and reported in the
+// status bar as waiting.
+func watchedBeta(t *testing.T) model {
+	t.Helper()
+	m := newIssuesModel(t, newTestStore(t, pendingFiles), "alpha", 120, 30)
+	m, _ = updateHeld(t, m, runeKey('j'))
+	m, watch := pendingWatch(t, m)
+	m = send(t, m, watch)
+	if got := statusRow(m); !strings.Contains(got, "reading beta: waiting 2s") {
+		t.Fatalf("status bar = %q, want beta's read reported as waiting", got)
+	}
+	return m
+}
+
+func TestDetailWatch_PendingWhileThePollHoldsTheSession_ReportsTheWaitAndTheHolder(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, pendingFiles), 120, 30)
+	m = send(t, m, runeKey('1'))
+	m, watch := pendingWatch(t, m)
+	release := holdSession(t, m.session, purposePoll)
+	defer release()
+
+	m = send(t, m, watch)
+
+	want := "reading alpha: waiting 2s on the index poll"
+	if got := statusRow(m); !strings.Contains(got, want) {
+		t.Errorf("status bar = %q, want it to hold %q", got, want)
+	}
+}
+
+func TestDetailWatch_PendingWithTheSessionFree_ReportsTheWaitAlone(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, pendingFiles), 120, 30)
+	m = send(t, m, runeKey('1'))
+	m, watch := pendingWatch(t, m)
+
+	m = send(t, m, watch)
+
+	got := statusRow(m)
+	if !strings.Contains(got, "reading alpha: waiting 2s") || strings.Contains(got, "waiting 2s on") {
+		t.Errorf("status bar = %q, want %q with no holder", got, "reading alpha: waiting 2s")
+	}
+}
+
+func TestDetailWatch_StillPending_AsksAgainEachSecond(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, pendingFiles), 120, 30)
+	var delays []time.Duration
+	var watches []detailWatchMsg
+	m.detailTick = func(delay time.Duration, message func(time.Time) tea.Msg) tea.Cmd {
+		delays = append(delays, delay)
+		if watch, isWatch := message(watchClock).(detailWatchMsg); isWatch {
+			watches = append(watches, watch)
+		}
+		return nil
+	}
+	m = send(t, m, runeKey('1'))
+	m.now = func() time.Time { return watchClock.Add(detailWatchDelay) }
+
+	m = send(t, m, watches[0])
+
+	if want := []time.Duration{detailWatchDelay, detailWatchInterval}; !slices.Equal(delays, want) {
+		t.Errorf("ticks scheduled after %v, want %v", delays, want)
+	}
+	if len(watches) != 2 || watches[1] != watches[0] {
+		t.Errorf("watches = %+v, want the second asking after the same read as the first", watches)
+	}
+}
+
+func TestDetailWatch_StaleSequence_ChangesNothing(t *testing.T) {
+	m := newIssuesModel(t, newTestStore(t, pendingFiles), "alpha", 120, 30)
+	m, _ = updateHeld(t, m, runeKey('j'))
+	m, watch := pendingWatch(t, m)
+	watch.seq--
+
+	m, cmd := updateHeld(t, m, watch)
+
+	if got := statusRow(m); strings.Contains(got, "reading") || cmd != nil {
+		t.Errorf("status bar = %q, command %v; want no report and no further tick", got, cmd != nil)
+	}
+}
+
+func TestDetailWatch_ReadDelivered_ClearsTheReport(t *testing.T) {
+	m := newTestModel(t, newTestStore(t, pendingFiles), 120, 30)
+	m, read := updateHeld(t, m, runeKey('1'))
+	m, watch := pendingWatch(t, m)
+	m = send(t, m, watch)
+	if got := statusRow(m); !strings.Contains(got, "reading alpha") {
+		t.Fatalf("status bar = %q, want alpha's read reported before it is delivered", got)
+	}
+
+	m = drive(t, m, read)
+
+	if got := statusRow(m); strings.Contains(got, "reading alpha") {
+		t.Errorf("status bar = %q, want the report gone once the read applied", got)
+	}
+}
+
+func TestDetailWatch_PendingReadDroppedOrReplaced_ClearsTheReport(t *testing.T) {
+	cases := []struct {
+		name string
+		key  tea.KeyPressMsg
+	}{
+		{name: "a tab with an empty list", key: runeKey('4')},
+		{name: "a tab whose selection is read anew", key: runeKey('2')},
+		{name: "back on the issue already shown", key: runeKey('k')},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := watchedBeta(t)
+
+			m = send(t, m, testCase.key)
+
+			if got := statusRow(m); strings.Contains(got, "reading") {
+				t.Errorf("status bar = %q, want the report of beta's read gone", got)
+			}
+		})
 	}
 }
