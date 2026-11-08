@@ -297,8 +297,11 @@ read they ask for with the next `detailSeq` and make it the pending one, so a re
 supersedes it. An answer applies only while it is the pending read's and the sidebar still
 selects its id on the tab of its kind; the pending read's answer clears it, applied or dropped.
 A read the pane does not need is not asked for: not while a read of the same id is pending, nor
-for the id already shown, and landing on the shown id drops a pending read of another. A tab
-switch empties the pane and drops the pending read, so the new tab's read shows the loading line.
+for the id already shown, and landing on the shown id drops a pending read of another. A re-read
+of the shown id that is dropped or superseded before it answers marks it outdated, and landing on
+an outdated shown id reads it again, so a live refresh's edit is not lost to a key away and
+back. A tab switch empties the pane and drops the pending read, so the new tab's read shows the
+loading line.
 
 **The watch.** Each request also starts a tick: 2 seconds on, while that read is still pending,
 the status bar reports `reading <id>: waiting <N>s`, followed by ` on <purpose>` while the

@@ -346,6 +346,24 @@ func TestDetailPane_ReReadHeldOverAKeyThatKeepsTheSelection_ShowsTheEditedBody(t
 	}
 }
 
+func TestDetailPane_ReReadSupersededByAKeyAwayAndBack_ShowsTheEditedBody(t *testing.T) {
+	ts := newTestStore(t, pendingFiles)
+	m := newIssuesModel(t, ts, "alpha", 120, 30)
+	rewriteAlpha(t, ts, "Alpha edited.\n")
+	m, reRead := reloadIssues(t, m)
+
+	m, _ = updateHeld(t, m, runeKey('j'))
+	m = press(t, m, runeKey('k'))
+	m = drive(t, m, reRead)
+
+	if text := detailText(m); !strings.Contains(text, "Alpha edited.") {
+		t.Errorf("detail pane = %q, want the edited body %q", text, "Alpha edited.")
+	}
+	if m.detailPending.isPending() {
+		t.Errorf("pending %+v, want nothing pending", m.detailPending)
+	}
+}
+
 func TestDetailPane_ReadNoRequestAskedFor_StillAppliesToTheSelection(t *testing.T) {
 	ts := newTestStore(t, pendingFiles)
 	m := newIssuesModel(t, ts, "alpha", 120, 30)

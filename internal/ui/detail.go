@@ -83,6 +83,9 @@ type issueDetail struct {
 	// conflict prompt compares the file on disk with; both are zero for a Note.
 	node     issue.Issue
 	parentID string
+	// isOutdated reports a re-read of it dropped before it answered, so the file may be newer
+	// than what the pane shows and landing on it again reads it anew.
+	isOutdated bool
 
 	rendered       markdown.Rendered
 	renderedSource string
@@ -135,8 +138,10 @@ func (m model) requestNoteDetail(note index.NoteEntry) (model, tea.Cmd) {
 }
 
 // pendDetail makes the read of id, a Note's when isNote, the pending read under the next
-// sequence number, and traces it as requested. The report of the read it replaces goes with it.
+// sequence number, and traces it as requested. The report of the read it replaces goes with it,
+// and a re-read of the shown issue or Note it replaces marks that outdated.
 func (m model) pendDetail(id string, isNote bool) model {
+	m = m.outdateShownReRead()
 	m.detailSeq++
 	m.detailPending = pendingDetail{id: id, isNote: isNote, seq: m.detailSeq}
 	m.detailNotice = ""
@@ -178,13 +183,25 @@ func (m model) applyDetailWatch(msg detailWatchMsg) (model, tea.Cmd) {
 
 // clearPendingDetail drops the pending read, so its answer no longer applies, the loading line
 // with it while the pane shows no issue or Note, and the status bar's report of its wait. Every
-// site that drops the pending read goes through it.
+// site that drops the pending read goes through it. A dropped re-read of the shown issue or Note
+// marks that outdated.
 func (m model) clearPendingDetail() model {
+	m = m.outdateShownReRead()
 	if m.detailPending.isPending() && m.issue.id == "" {
 		m.detail = nil
 	}
 	m.detailPending = pendingDetail{}
 	m.detailNotice = ""
+	return m
+}
+
+// outdateShownReRead marks the shown issue or Note outdated when the pending read, about to be
+// dropped or replaced, re-reads it: that read's answer will no longer apply, so the pane may keep
+// a body older than the file. The read that next applies to it clears the mark.
+func (m model) outdateShownReRead() model {
+	if m.detailPending.isPending() && m.issue.id != "" && m.detailPending.id == m.issue.id {
+		m.issue.isOutdated = true
+	}
 	return m
 }
 
@@ -199,15 +216,16 @@ func (m model) clearDetail() model {
 }
 
 // wantsDetail reports whether the selection id, a Note's when isNote, needs a read for the
-// detail pane: not while a read of it is pending, nor while the pane shows it. Landing on the
-// shown id drops a pending read of any other id, so its late answer is dropped too; a pending
+// detail pane: not while a read of it is pending, nor while the pane shows it unless a re-read of
+// it was dropped (isOutdated), so the edit that re-read would have shown still lands. Landing on
+// the shown id drops a pending read of any other id, so its late answer is dropped too; a pending
 // re-read of the shown id, as a live refresh asks for, stays pending.
 func (m model) wantsDetail(id string, isNote bool) (model, bool) {
 	pending := m.detailPending
 	switch {
 	case pending.isPending() && pending.id == id && pending.isNote == isNote:
 		return m, false
-	case id == m.issue.id:
+	case id == m.issue.id && !m.issue.isOutdated:
 		return m.clearPendingDetail(), false
 	}
 	return m, true
