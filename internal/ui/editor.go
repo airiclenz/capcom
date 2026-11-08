@@ -179,7 +179,7 @@ func checkEdit(s *session, edit editRequest) tea.Cmd {
 	return func() tea.Msg {
 		var msg checkedMsg
 		var problems []check.Problem
-		checkErr := s.do(func(opened *store.Store, issueIndex *index.Index) error {
+		checkErr := s.doFor(purposeCheck, func(opened *store.Store, issueIndex *index.Index) error {
 			var err error
 			problems, err = check.Run(opened)
 			_, msg.refreshErr = issueIndex.Refresh()

@@ -42,7 +42,10 @@ repainted on demand, and an opt-in trace pins the cause the next time it happens
 - 6: guard folded
 - 7: guard folded
 
-## 1. The session records what holds it
+## 1. The session records what holds it — ✅ DONE (2026-11-08)
+
+NOTES (2026-11-08): the mutex is taken through acquire/release helpers in session.go that record and clear the holder; poll and close use them too, so close also records `another read` and holder never reports free while the mutex is held.
+NOTES (2026-11-08): the regression guard's test hook is the unexported field `session.onHeld func(purpose string)`, nil in production, called by acquire (so by doFor and poll) once the holder is recorded; the poll sub-test asserts `the index poll` through it.
 
 **What:**
 **Goal:** `session` reports, while its mutex is held, the purpose of the holder and when it took

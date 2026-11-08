@@ -70,8 +70,8 @@ func pollIndex(s *session) tea.Cmd {
 // version rebuilt, otherwise refreshes the index, and reads this worktree's Tree lock, all while no
 // other access runs.
 func (s *session) poll() refreshedMsg {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.acquire(purposePoll)
+	defer s.release()
 	var msg refreshedMsg
 	msg.reload, msg.reloadErr = s.reloadConfig()
 	msg.isChanged = msg.reload == reloadDone

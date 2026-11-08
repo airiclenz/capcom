@@ -216,7 +216,7 @@ type conflictRead struct {
 func runWrite(s *session, write pendingWrite) tea.Cmd {
 	return func() tea.Msg {
 		msg := writtenMsg{write: write}
-		msg.err = s.do(func(opened *store.Store, issueIndex *index.Index) error {
+		msg.err = s.doFor(purposeWrite, func(opened *store.Store, issueIndex *index.Index) error {
 			msg = write.land(opened, issueIndex)
 			return msg.err
 		})
