@@ -1,10 +1,12 @@
 ---
 title: capcom ui sometimes leaves the detail pane empty for the selected issue
-status: open
+status: done
 type: bug
 priority: 1
 plan: 2026-11-08 - 00 - ui-detail-blank-plan
 created: 2026-11-08T16:40:08Z
+closed: 2026-11-08T17:57:20Z
+reason: "Resolved by plan 2026-11-08 - 00 - ui-detail-blank-plan (archived in 0f33e9a): tracked detail reads with a loading line, slow-read status notice, ctrl+l repaint, CAPCOM_UI_TRACE, randomized interleaving test."
 ---
 
 `capcom ui` sometimes leaves the detail pane empty: an issue or Note is selected in the sidebar,
