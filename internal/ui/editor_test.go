@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -275,5 +276,46 @@ func TestEditorWords_SplitsOnSpaces(t *testing.T) {
 				t.Errorf("editorWords = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// yieldsMessage reports whether cmd, or one of the commands a tea.Batch of it holds, yields want.
+func yieldsMessage(t *testing.T, cmd tea.Cmd, want tea.Msg) bool {
+	t.Helper()
+	if cmd == nil {
+		return false
+	}
+	got := cmd()
+	batch, isBatch := got.(tea.BatchMsg)
+	if !isBatch {
+		return got == want
+	}
+	return slices.ContainsFunc(batch, func(batched tea.Cmd) bool {
+		return yieldsMessage(t, batched, want)
+	})
+}
+
+func TestEdit_EditorReturns_ClearsTheScreen(t *testing.T) {
+	ts := newTestStore(t, readyFiles)
+	m := startEditModel(t, ts, TabReady, newFakeEditor(t, "", ""))
+
+	_, cmd := pressForCommand(t, m, editedMsg{edit: editRequest{path: alphaPath}})
+
+	if !yieldsMessage(t, cmd, tea.ClearScreen()) {
+		t.Errorf("the editor's return yields no tea.ClearScreen message, want it beside the check")
+	}
+}
+
+func TestEdit_EditorFails_ClearsTheScreen(t *testing.T) {
+	ts := newTestStore(t, readyFiles)
+	m := startEditModel(t, ts, TabReady, newFakeEditor(t, "", ""))
+
+	_, cmd := pressForCommand(t, m, editedMsg{err: errors.New("exit status 1")})
+
+	if cmd == nil {
+		t.Fatalf("a failed edit returned no command, want tea.ClearScreen")
+	}
+	if got := cmd(); got != tea.ClearScreen() {
+		t.Errorf("a failed edit's command yields %T, want tea.ClearScreen's message", got)
 	}
 }

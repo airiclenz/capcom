@@ -29,13 +29,17 @@ const (
 	keyGrowSidebar   = ">"
 	// keyLayout switches between the split and the stacked layout where the terminal fits both.
 	keyLayout = "v"
+	// keyRepaint clears the terminal and repaints the frame, for a screen a terminal fault left
+	// blank or garbled.
+	keyRepaint = "ctrl+l"
 )
 
 // closedInertKeys are the write keys that do nothing on the Closed tab: a closed issue takes no
 // claim, close, status change or Log line there, and R, which reopens it, is the tab's one write.
 var closedInertKeys = []string{keyClaim, keyClose, keyStatus, keyLog}
 
-// handleKey applies one key press. q and ctrl+c quit from anywhere. While the help screen is open
+// handleKey applies one key press. q and ctrl+c quit from anywhere, and ctrl+l clears the screen
+// and repaints the frame from anywhere, the help screen included. While the help screen is open
 // only ? and Esc, which close it, do anything else. Otherwise the keys switch tabs, open and leave
 // the one-pane layout's detail view, open the filter line, open the help screen, and scroll the
 // detail pane: the page keys from anywhere, the arrows and j k only where the detail pane fills a
@@ -54,6 +58,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (model, tea.Cmd) {
 	key := msg.String()
 	if key == keyQuit || key == keyInterrupt {
 		return m, tea.Quit
+	}
+	if key == keyRepaint {
+		return m, tea.ClearScreen
 	}
 	if m.isHelpOpen {
 		if key == keyHelp || key == keyBack {

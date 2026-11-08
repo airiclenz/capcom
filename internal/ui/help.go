@@ -2,7 +2,6 @@ package ui
 
 // helpLines are the help screen ? opens over the panes: the full key map.
 var helpLines = []string{
-	"",
 	"  Keys",
 	"",
 	"  move     ↑↓←→  j k h l",
@@ -17,6 +16,7 @@ var helpLines = []string{
 	"  close    c        reopen   R",
 	"  log      L        editor   e",
 	"  help     ?        quit     q",
+	"  repaint  ctrl+l",
 	"",
 	"  The scroll keys move the detail pane from anywhere; in the narrow",
 	"  detail view the arrows and j k scroll it too.",

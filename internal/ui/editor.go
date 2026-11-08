@@ -164,13 +164,14 @@ func (m model) runEditor(edit editRequest) tea.Cmd {
 }
 
 // applyEdited takes in the editor's exit: an editor that failed is reported, and otherwise the
-// store is checked and the index refreshed.
+// store is checked and the index refreshed. Either way the screen is cleared and the frame
+// repainted, as ctrl+l does, since the editor drew over the terminal.
 func (m model) applyEdited(msg editedMsg) (model, tea.Cmd) {
 	if msg.err != nil {
 		m.writeNotice = editorFailurePrefix + oneLine(msg.err.Error())
-		return m, nil
+		return m, tea.ClearScreen
 	}
-	return m, checkEdit(m.session, msg.edit)
+	return m, tea.Batch(tea.ClearScreen, checkEdit(m.session, msg.edit))
 }
 
 // checkEdit returns the command that runs the capcom check checks on the session's store after

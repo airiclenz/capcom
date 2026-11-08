@@ -178,3 +178,31 @@ func TestKeys_LayoutKey_UnwritableStateFile_ShowsTheLayoutSaveNoticeAndStillTogg
 		t.Errorf("state notice = %q, want it to open with %q", m.stateNotice, "cannot save the layout: ")
 	}
 }
+
+func TestKeys_RepaintKey_ClearsTheScreen(t *testing.T) {
+	cases := []struct {
+		name   string
+		before []tea.KeyPressMsg
+	}{
+		{name: "sidebar"},
+		{name: "help screen", before: []tea.KeyPressMsg{runeKey('?')}},
+	}
+	ts := newTestStore(t, readyFiles)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			m := newTestModel(t, ts, 120, 30)
+			for _, key := range testCase.before {
+				m = send(t, m, key)
+			}
+
+			_, cmd := pressForCommand(t, m, ctrlKey('l'))
+
+			if cmd == nil {
+				t.Fatalf("ctrl+l returned no command, want tea.ClearScreen")
+			}
+			if got := cmd(); got != tea.ClearScreen() {
+				t.Errorf("ctrl+l's command yields %T, want tea.ClearScreen's message", got)
+			}
+		})
+	}
+}

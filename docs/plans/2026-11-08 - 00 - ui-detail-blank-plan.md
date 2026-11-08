@@ -144,7 +144,10 @@ shown) clears it too.
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Detail|StatusBar' ./internal/ui/`
 **Commit:** `feat(ui): report a detail read that waits on the session`
 
-## 4. ctrl+l and the editor's return repaint the frame
+## 4. ctrl+l and the editor's return repaint the frame — ✅ DONE (2026-11-08)
+
+NOTES (2026-11-08): ctrl+l is checked in handleKey right after q and ctrl+c, before the help screen's early return, so it repaints with the help screen open too (a sub-test covers it); prompts, the picker, the filter line and the dependency view still take their keys first.
+NOTES (2026-11-08): the help row is folded in by dropping helpLines' leading "" row and adding `  repaint  ctrl+l` after the help/quit row, so the screen keeps 20 rows; keyRepaint sits at the end of the key const block (after keyLayout) so gofmt does not realign the existing constants.
 
 **What:**
 **Goal:** ctrl+l, among the model's own keys, returns a command whose message is Bubble Tea's

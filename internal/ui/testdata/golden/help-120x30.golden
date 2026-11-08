@@ -1,6 +1,5 @@
  Issues [0]  │  Ready [0]  │  Knowledge [0]  │  Closed [0]                                           ~ · v1.2.3 · capcom
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
   Keys
 
   move     ↑↓←→  j k h l
@@ -15,6 +14,7 @@
   close    c        reopen   R
   log      L        editor   e
   help     ?        quit     q
+  repaint  ctrl+l
 
   The scroll keys move the detail pane from anywhere; in the narrow
   detail view the arrows and j k scroll it too.
