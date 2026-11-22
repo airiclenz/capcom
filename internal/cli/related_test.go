@@ -4,15 +4,10 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
 )
-
-// formatRaisedText is the warning line of the related add that raises a store to format 2.
-const formatRaisedText = "warning: .capcom/config.yaml: store format raised to 2; " +
-	"capcom releases that read only format 1 can no longer read this store\n"
 
 // newRelatedStore creates a store of three free issues, db-schema with an alias.
 func newRelatedStore(t *testing.T) string {
@@ -326,27 +321,39 @@ func TestRelatedRm_CitationSpellingOfADanglingEntry_RemovesItByItsText(t *testin
 	}
 }
 
-func TestRelatedAdd_KeylessConfig_RaisesTheFormatOnceWithAWarning(t *testing.T) {
+func TestRelatedAdd_KeylessConfig_FailsUntilUpgradeRaisesTheFormat(t *testing.T) {
 	root := newRelatedStore(t)
 	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n")
+	commitFixtureStore(t, root, "format 1 store")
 
-	first := mustRun(t, root, "related", "add", "login-flow", "db-schema")
-	second := mustRun(t, root, "related", "add", "login-flow", "build-pipeline")
+	assertFormatRefused(t, root, "related", 2, 1, "related", "add", "login-flow", "db-schema")
+	mustRun(t, root, "upgrade", "--format", "2")
+	stdout := mustRun(t, root, "related", "add", "login-flow", "db-schema")
 
-	if !strings.HasPrefix(first, formatRaisedText) || strings.Contains(second, "warning:") {
-		t.Errorf("first = %q\nsecond = %q, want the warning on the first only", first, second)
-	}
-	if config := readStoreConfig(t, root); config != "format: 2\ntypes: [bug, feature, task, chore]\n" {
-		t.Errorf("config.yaml = %q", config)
+	if related := showRelated(t, root, "login-flow"); !slices.Equal(related, []string{"db-schema"}) ||
+		strings.Contains(stdout, "warning:") {
+		t.Errorf("related = %v stdout = %q, want the link written without a warning", related, stdout)
 	}
 }
 
-func TestRelatedAdd_ConfigOpeningWithDocumentMarker_RaisesInsideIt(t *testing.T) {
+func TestRelatedRm_FormatOneStoreHoldingRelated_FailsAndWritesNothing(t *testing.T) {
+	root := newRelatedStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"login-flow.md": readIssue("Login flow", "open", "related: [db-schema, build-pipeline]\n", ""),
+	})
+	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n")
+	commitFixtureStore(t, root, "format 1 store holding related")
+
+	assertFormatRefused(t, root, "related", 2, 1, "related", "rm", "login-flow", "db-schema")
+}
+
+func TestRelatedAdd_ConfigOpeningWithDocumentMarker_UpgradeRaisesInsideIt(t *testing.T) {
 	root := newRelatedStore(t)
 	writeIssueFiles(t, root, map[string]string{"review-me.md": readIssue("Review me", "review", "", "")})
 	statuses := "statuses:\n  open: todo\n  review: doing\n  done: done\n"
 	writeStoreConfig(t, root, "# mine\n---\n"+statuses)
 
+	mustRun(t, root, "upgrade", "--format", "2")
 	mustRun(t, root, "related", "add", "login-flow", "db-schema")
 	listed := mustRun(t, root, "list")
 
@@ -358,16 +365,17 @@ func TestRelatedAdd_ConfigOpeningWithDocumentMarker_RaisesInsideIt(t *testing.T)
 	}
 }
 
-func TestRelatedAdd_MissingConfig_CreatesItAtFormatTwo(t *testing.T) {
+func TestRelatedAdd_MissingConfig_FailsAndCreatesNoConfig(t *testing.T) {
 	root := newRelatedStore(t)
 	if err := os.Remove(filepath.Join(root, ".capcom", "config.yaml")); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
+	commitFixtureStore(t, root, "store without config.yaml")
 
-	stdout := mustRun(t, root, "related", "add", "login-flow", "db-schema")
+	assertFormatRefused(t, root, "related", 2, 1, "related", "add", "login-flow", "db-schema")
 
-	if config := readStoreConfig(t, root); config != "format: 2\n" || !strings.HasPrefix(stdout, formatRaisedText) {
-		t.Errorf("config.yaml = %q stdout = %q", config, stdout)
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "config.yaml")); !os.IsNotExist(err) {
+		t.Errorf("config.yaml Stat = %v, want it still missing", err)
 	}
 }
 
@@ -392,31 +400,5 @@ func TestRelatedAdd_ThenListJSON_LeavesRelatedOut(t *testing.T) {
 		if _, isPresent := item.(map[string]any)["related"]; isPresent {
 			t.Errorf("list --json issue carries related: %v", item)
 		}
-	}
-}
-
-func TestRelatedAdd_RaiseFails_FailsInvalidAtTheConfig(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("a read-only directory does not stop file creation on Windows")
-	}
-	if os.Geteuid() == 0 {
-		t.Skip("root writes into a read-only directory")
-	}
-	root := newRelatedStore(t)
-	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n")
-	storeDir := filepath.Join(root, ".capcom")
-	if err := os.Chmod(storeDir, 0o555); err != nil {
-		t.Fatalf("Chmod: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(storeDir, 0o755) })
-
-	stdout, _, exitCode := runCLI(t, root, "--json", "related", "add", "login-flow", "db-schema")
-
-	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
-	if exitCode != ExitError || failure["code"] != string(CodeInvalid) || failure["path"] != ".capcom/config.yaml" {
-		t.Errorf("exit = %d error = %v, want invalid at .capcom/config.yaml", exitCode, failure)
-	}
-	if related := showRelated(t, root, "login-flow"); len(related) != 0 {
-		t.Errorf("login-flow related = %v, want no link written", related)
 	}
 }

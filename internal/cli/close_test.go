@@ -385,24 +385,35 @@ func TestClose_ClosedByAnotherSessionAfterResolve_ReportsAlreadyClosedAndKeepsTh
 	}
 }
 
-func TestClose_IssueHoldingRelatedInAFormatOneStore_RaisesTheFormatAndWarnsOnce(t *testing.T) {
+func TestClose_IssueHoldingRelatedInAFormatOneStore_FailsItAndClosesTheOthers(t *testing.T) {
+	login := readIssue("Login flow", "open", "related: [db-schema]\n", "")
 	root := newIssueStore(t, map[string]string{
 		"build-pipeline.md": readIssue("Build pipeline", "open", "", ""),
 		"db-schema.md":      readIssue("Schema", "open", "", ""),
-		"login-flow.md":     readIssue("Login flow", "open", "related: [db-schema]\n", ""),
+		"login-flow.md":     login,
 	})
-	writeStoreConfig(t, root, "types: [bug, feature, task, chore]\n")
+	const keylessConfig = "types: [bug, feature, task, chore]\n"
+	writeStoreConfig(t, root, keylessConfig)
 
-	stdout, stderr, exitCode := runCLI(t, root, "close", "login-flow", "build-pipeline", "--reason", "done")
+	stdout, _, exitCode := runCLI(t, root, "--json", "close", "login-flow", "build-pipeline", "--reason", "done")
 
-	if exitCode != ExitOK || stderr != "" || strings.Count(stdout, formatRaisedText) != 1 {
-		t.Errorf("exit = %d stderr = %q\nstdout = %q; want the raise warned once", exitCode, stderr, stdout)
+	envelope := decodeEnvelope(t, stdout)
+	failure, _ := envelope["error"].(map[string]any)
+	message, _ := failure["message"].(string)
+	const wantMessage = ".capcom/issues/login-flow.md: related needs store format 2, but the store declares format 1"
+	const wantHint = "ask the user before raising it for everyone: capcom upgrade --format 2"
+	if exitCode != ExitError || failure["code"] != string(CodeInvalid) || message != wantMessage ||
+		failure["hint"] != wantHint {
+		t.Errorf("exit = %d error = %v; want invalid %q hinting %q", exitCode, failure, wantMessage, wantHint)
 	}
-	if config := readStoreConfig(t, root); config != "format: 2\ntypes: [bug, feature, task, chore]\n" {
-		t.Errorf("config.yaml = %q; want format 2 declared", config)
+	if config := readStoreConfig(t, root); config != keylessConfig {
+		t.Errorf("config.yaml = %q; want it unchanged", config)
 	}
-	if login := readStoreFile(t, root, "login-flow.md"); !strings.Contains(login, "related: [db-schema]\n") {
-		t.Errorf("login-flow.md = %q; want its related entry kept", login)
+	if after := readStoreFile(t, root, "login-flow.md"); after != login {
+		t.Errorf("login-flow.md = %q; want it unchanged", after)
+	}
+	if build := readStoreFile(t, root, "build-pipeline.md"); !strings.Contains(build, "status: done\n") {
+		t.Errorf("build-pipeline.md = %q; want it closed", build)
 	}
 }
 

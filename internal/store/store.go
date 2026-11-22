@@ -137,8 +137,9 @@ func (s *Store) ConfigPath() string {
 	return filepath.Join(s.Root, configFile)
 }
 
-// RaiseFormat raises config.yaml to declare at least store format version (ADR 0009) and reports
-// whether it changed the file. The file is written exactly as config.RaiseFormat returns it, which
+// RaiseFormat raises config.yaml to declare at least store format version and reports whether it
+// changed the file; only capcom upgrade calls it, since a store format is raised on request alone
+// (ADR 0019). The file is written exactly as config.RaiseFormat returns it, which
 // keeps every other byte, CRLF line endings included, and it keeps its permission bits. A missing
 // config.yaml means format 1 to the releases before format 2, so it is created holding only the
 // format key. A store already at version or above is left untouched. s.Config is not reloaded. A
@@ -165,6 +166,54 @@ func (s *Store) RaiseFormat(version int) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// FormatError refuses a write of a node file carrying a key line of a newer store format than
+// config.yaml declares (ADR 0019): Key needs format Needed, and the store declares Declared. Path,
+// when set, is the node file the write would have written, relative to the working tree root with
+// forward slashes.
+type FormatError struct {
+	Path     string
+	Key      string
+	Needed   int
+	Declared int
+}
+
+// Message says which key needs which format and what the store declares, without the file.
+func (e *FormatError) Message() string {
+	return fmt.Sprintf(
+		"%s needs store format %d, but the store declares format %d",
+		e.Key, e.Needed, e.Declared,
+	)
+}
+
+// Hint names the command that raises the store to the format the key needs, which every capcom
+// release older than that format then cannot read: a raise is the user's decision.
+func (e *FormatError) Hint() string {
+	return fmt.Sprintf(
+		"ask the user before raising it for everyone: capcom upgrade --format %d",
+		e.Needed,
+	)
+}
+
+// Error is the file, when known, the Message and the Hint, so a caller that shows only the error's
+// text still names capcom upgrade.
+func (e *FormatError) Error() string {
+	text := e.Message() + "; " + e.Hint()
+	if e.Path == "" {
+		return text
+	}
+	return e.Path + ": " + text
+}
+
+// RequireFormat refuses a write of a file carrying the line of key, which needs store format
+// version, with a *FormatError when s.Config, the config.yaml the store was opened with, declares
+// an older format; it returns nil otherwise. It never reads or writes config.yaml.
+func (s *Store) RequireFormat(key string, version int) error {
+	if s.Config.Format >= version {
+		return nil
+	}
+	return &FormatError{Key: key, Needed: version, Declared: s.Config.Format}
 }
 
 // locate resolves the store paths for cwd without touching the store itself.

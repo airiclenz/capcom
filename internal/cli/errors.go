@@ -10,10 +10,12 @@ import (
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/reflist"
+	"github.com/airiclenz/capcom/internal/store"
 	"github.com/airiclenz/capcom/internal/tree"
 )
 
-// kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, a
+// kindFailure types a failure of a nodestore Kind: a node file that cannot be used is invalid, and
+// so is one needing a newer store format than the store declares, hinting capcom upgrade; a
 // stale --if-match, or a file changed between the command's read and its write, a conflict and an
 // id another node answers to exists, each at the file the failure names, relative to the working
 // tree root, and its line when known. A node file that cannot be read or parsed hints capcom check,
@@ -29,6 +31,15 @@ func (a *app) kindFailure(err error, kind idKind) *output.Error {
 			failure.Hint = checkHint
 		}
 		return failure
+	}
+	var format *store.FormatError
+	if errors.As(err, &format) {
+		return &output.Error{
+			Code:    output.CodeInvalid,
+			Path:    format.Path,
+			Message: format.Message(),
+			Hint:    format.Hint(),
+		}
 	}
 	var conflict *nodestore.ConflictError
 	if errors.As(err, &conflict) {

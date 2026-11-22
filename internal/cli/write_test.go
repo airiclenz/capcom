@@ -1112,16 +1112,32 @@ func TestCreate_StandingInTheDoingCategory_IsRefusedAndWritesNothing(t *testing.
 	}
 }
 
-func TestCreate_StandingBelowTheStandingFormat_RaisesTheFormatWithAWarning(t *testing.T) {
+func TestCreate_StandingBelowTheStandingFormat_FailsNamingTheFileAndUpgrade(t *testing.T) {
 	root := newWriteStore(t)
 	writeStoreConfig(t, root, "format: 4\n")
 
-	stdout := mustRun(t, root, "create", "--id", "feature-requests", "--title", "Feature requests", "--standing")
+	_, stderr, exitCode := runCLI(t, root, "create", "--id", "feature-requests", "--title", "Feature requests",
+		"--standing")
 
-	want := "warning: " + fmt.Sprintf(formatRaisedWarning, ".capcom/config.yaml", 5, 4) + "\n"
-	if config := readStoreConfig(t, root); config != "format: 5\n" || strings.Count(stdout, want) != 1 {
-		t.Errorf("config.yaml = %q\nstdout = %q\nwant the warning %q once", config, stdout, want)
+	want := "capcom: .capcom/issues/feature-requests.md: standing needs store format 5, " +
+		"but the store declares format 4\n" +
+		"hint: ask the user before raising it for everyone: capcom upgrade --format 5\n"
+	_, statErr := os.Stat(filepath.Join(root, ".capcom", "issues", "feature-requests.md"))
+	if exitCode != ExitError || stderr != want || !os.IsNotExist(statErr) {
+		t.Errorf("exit = %d stat = %v\nstderr = %q\nwant     %q", exitCode, statErr, stderr, want)
 	}
+	if config := readStoreConfig(t, root); config != "format: 4\n" {
+		t.Errorf("config.yaml = %q, want it unchanged", config)
+	}
+}
+
+func TestUpdate_StandingBelowTheStandingFormat_FailsAndWritesNothing(t *testing.T) {
+	root := newWriteStore(t)
+	writeStoreConfig(t, root, "format: 4\n")
+	commitFixtureStore(t, root, "format 4 store")
+
+	assertFormatRefused(t, root, "standing", 5, 4,
+		"update", "login-flow", "--standing")
 }
 
 func TestUpdate_StandingThenNoStanding_SetsAndClearsTheMark(t *testing.T) {

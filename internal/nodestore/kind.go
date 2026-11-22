@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
@@ -39,14 +38,12 @@ type Kind[T any] struct {
 	// applyRemoval carries out a planned removal, returning its cleanup failures as warnings; a
 	// test swaps it to inject a failure of the rewrites and removals Apply makes.
 	applyRemoval func(removal *tree.Removal) ([]error, error)
-	// raiseFormat raises config.yaml to declare at least store format version and reports whether
-	// it changed the file, as store.Store.RaiseFormat does; WithRaise swaps it.
-	raiseFormat func(version int) (bool, error)
+	// formatGate refuses a write of a file carrying the line of a key that needs a newer store
+	// format than the store declares, as store.Store.RequireFormat does; WithFormatGate swaps it.
+	formatGate FormatGate
 	// fsys is the file system the load, ReadContent, RecoverAliases, Create and Edit read and write
 	// the tree through: nodefile.Disk unless WithFS swaps it.
 	fsys nodefile.FS
-	// configPath is the store's config.yaml, which a failure of raiseFormat names.
-	configPath string
 	// sync is the hook WithSync sets, run once after each write that lands; nil runs none.
 	sync SyncFunc
 }
@@ -55,6 +52,11 @@ type Kind[T any] struct {
 // after a write has landed, and reports whether it changed anything. Its failure never fails the
 // write; the write's Effects carry it.
 type SyncFunc func() (bool, error)
+
+// FormatGate refuses a write of a node file carrying the line of key, which needs store format
+// version (ADR 0019), with an error, typically a *store.FormatError; it returns nil to let the write
+// go ahead. It never raises the format.
+type FormatGate func(key string, version int) error
 
 // Resolver resolves an argument naming an existing node, its id or one of its Aliases, to that
 // node. It fails with an error the caller types itself when no node answers to the argument.
@@ -80,9 +82,8 @@ type Written struct {
 
 // Effects are what a write changed besides the node file.
 type Effects struct {
-	// RaisedFormat is the store format (ADR 0009) the write raised config.yaml to, so that the store
-	// declares the format of every key line the written file carries, whatever the line holds; 0
-	// when config.yaml was left alone.
+	// RaisedFormat is always 0: since ADR 0019 a write never raises the store format, and one whose
+	// file needs a newer format than config.yaml declares fails instead.
 	RaisedFormat int
 	// IsSynced reports whether the Kind's sync hook, run once the write had landed, changed what it
 	// keeps in step with the tree; false when the Kind has no hook, it ran none or it failed.
@@ -129,8 +130,7 @@ func Issues(s *store.Store, resolver Resolver) *Kind[issue.Issue] {
 		resolver:     resolver,
 		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
-		raiseFormat:  s.RaiseFormat,
-		configPath:   s.ConfigPath(),
+		formatGate:   s.RequireFormat,
 		fsys:         nodefile.Disk{},
 	}
 }
@@ -148,8 +148,7 @@ func Notes(s *store.Store, resolver Resolver) *Kind[knowledge.Note] {
 		resolver:     resolver,
 		applyMove:    applyMove,
 		applyRemoval: (*tree.Removal).Apply,
-		raiseFormat:  s.RaiseFormat,
-		configPath:   s.ConfigPath(),
+		formatGate:   s.RequireFormat,
 		fsys:         nodefile.Disk{},
 	}
 }
@@ -185,13 +184,13 @@ func (k *Kind[T]) WithFS(fsys nodefile.FS) *Kind[T] {
 	return &routed
 }
 
-// WithRaise returns a copy of the Kind whose writes raise the store format through raise instead
-// of store.Store.RaiseFormat: raise is handed the format a written file needs and reports whether
-// it raised config.yaml to it, failing as RaiseFormat does. A failure still names config.yaml.
-func (k *Kind[T]) WithRaise(raise func(version int) (bool, error)) *Kind[T] {
-	raising := *k
-	raising.raiseFormat = raise
-	return &raising
+// WithFormatGate returns a copy of the Kind whose Create and Edit ask gate, instead of
+// store.Store.RequireFormat, whether a file they are about to write may carry a key line of a later
+// store format: gate is handed the key and the format it needs, and a refusal fails the write.
+func (k *Kind[T]) WithFormatGate(gate FormatGate) *Kind[T] {
+	gated := *k
+	gated.formatGate = gate
+	return &gated
 }
 
 // runSync runs the Kind's sync hook, when it has one, recording its outcome on effects.
@@ -267,42 +266,28 @@ func (k *Kind[T]) aliasParser(path string) tree.AliasParseFunc {
 	}
 }
 
-// raise raises config.yaml to the store format the node file data, the bytes about to be written to
-// path, needs (Codec.requiredFormat): a key line data carries needs its format whatever the line
-// holds. It returns the format it raised the file to: 0 when data needs no format or the store
-// already declares it or above. data that does not parse fails with a *FileError at path; any other
-// failure is a *FileError at config.yaml: a config.yaml that is not a regular file or is larger than
-// 1 MiB is named by the refusal alone, and a *config.Error, which already names config.yaml, keeps
-// its line and message.
-func (k *Kind[T]) raise(path string, data []byte) (int, error) {
+// gateFormat asks the Kind's FormatGate whether the node file data, the bytes about to be written
+// to path, may be written: of the key lines data carries, the one needing the latest store format
+// (Codec.requiredFormat) is handed to the gate, whatever the line holds. data that needs no format
+// passes without asking. data that does not parse fails with a *FileError at path; a refusal that is
+// a *store.FormatError comes back naming path, and any other refusal comes back as it is.
+func (k *Kind[T]) gateFormat(path string, data []byte) error {
 	written, err := k.codec.Parse(k.relative(path), data)
 	if err != nil {
-		return 0, k.fileError(path, err)
+		return k.fileError(path, err)
 	}
-	version := k.codec.requiredFormat(written)
+	key, version := k.codec.requiredFormat(written)
 	if version == 0 {
-		return 0, nil
+		return nil
 	}
-	isRaised, err := k.raiseFormat(version)
-	if err != nil {
-		path := k.relative(k.configPath)
-		var configErr *config.Error
-		if errors.As(err, &configErr) {
-			return 0, &FileError{Path: path, Line: configErr.Line, Message: configErr.Message}
-		}
-		message := k.relativeText(err.Error())
-		for _, refusal := range []error{tree.ErrNotRegular, tree.ErrTooLarge} {
-			if errors.Is(err, refusal) {
-				// The error already names config.yaml, which the FileError's path names.
-				message = refusal.Error()
-			}
-		}
-		return 0, &FileError{Path: path, Message: message}
+	err = k.formatGate(key, version)
+	var refused *store.FormatError
+	if errors.As(err, &refused) {
+		located := *refused
+		located.Path = k.relative(path)
+		return &located
 	}
-	if !isRaised {
-		return 0, nil
-	}
-	return version, nil
+	return err
 }
 
 // isRefusedRead reports whether err is nodefile.ReadRegularFile refusing a file unread: one that is

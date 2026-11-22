@@ -33,11 +33,10 @@ var beforeRecheck = func(path string) {}
 //  7. the re-check, whether or not ifMatch is set: the node file is read again, a read failure
 //     being a *FileError at it as in step 2, and when its etag is no longer the one step 2 read,
 //     a *ConflictError naming that first-read etag as stale; the newer file is left as it is.
-//  8. the format raise, after every check so an edit an earlier step refuses leaves config.yaml
-//     as it was: when the file about to be written carries a key line of a newer store format than
-//     config.yaml declares, whatever the line holds and whether or not the edit added it,
-//     config.yaml is raised to it (Written.RaisedFormat), so a store never holds such a line while
-//     it declares an older format; a failure is a *FileError at config.yaml.
+//  8. the format gate, after every check: when the file about to be written carries a key line of
+//     a newer store format than the store declares, whatever the line holds and whether or not the
+//     edit added it, the Kind's FormatGate refuses the write, by default with a *store.FormatError
+//     naming the file, and the file is left as it was.
 //  9. the atomic write: a node file removed or moved since the re-check fails with a *FileError at
 //     it and is not recreated; any other failure is returned as it is. An edit landing between the
 //     re-check and this write is still overwritten: the store takes no lock.
@@ -45,7 +44,7 @@ var beforeRecheck = func(path string) {}
 // Once the write has landed, a node file whose frontmatter held a YAML comment, which the
 // canonical form written does not keep, is named on Effects.DroppedComments, and the Kind's sync
 // hook runs (WithSync), its outcome on the Written's Effects. The read, the re-check and the write
-// go through the Kind's FS (WithFS), and the raise through its WithRaise func.
+// go through the Kind's FS (WithFS), and the gate is the Kind's FormatGate (WithFormatGate).
 func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (Written, error) {
 	if k.resolver == nil {
 		return Written{}, errNoResolver
@@ -81,15 +80,13 @@ func (k *Kind[T]) Edit(ref string, ifMatch string, change func(T) (T, error)) (W
 	if err := k.recheck(path, firstETag); err != nil {
 		return located, err
 	}
-	raised, err := k.raise(path, encoded)
-	if err != nil {
+	if err := k.gateFormat(path, encoded); err != nil {
 		return located, err
 	}
 	written, err := k.place(path, target.ID, encoded, replaceFile)
 	if err != nil {
 		return located, err
 	}
-	written.RaisedFormat = raised
 	if hasComments {
 		written.DroppedComments.add(target.Path)
 	}

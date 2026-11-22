@@ -299,60 +299,75 @@ func TestErrors_NameFilesRelativeToTheWorktree(t *testing.T) {
 	}
 }
 
-func TestRaise_UnplaceableFormatKey_FailsAtTheKeyLineNamingTheConfigOnce(t *testing.T) {
-	t.Parallel()
-	issues, path := newEditedIssue(t)
-	const content = "types: [bug, feature, task, chore]\n? format\n: 1\n"
-	configPath := writeStoreConfig(t, path, content)
+// storeAt returns a store opened at store format version, whose FormatGate refuses a file needing
+// a newer one; it holds no files.
+func storeAt(t *testing.T, version int) *store.Store {
+	t.Helper()
+	s := newStore(t)
+	s.Config.Format = version
+	return s
+}
 
-	_, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
-
-	const want = ".capcom/config.yaml:2: format: cannot raise the store format; " +
-		"write the key as `format: <number>` at the start of a line of its own"
-	var failure *FileError
-	if !errors.As(err, &failure) || failure.Path != ".capcom/config.yaml" || failure.Line != 2 ||
-		err.Error() != want {
-		t.Errorf("err = %v, want a *FileError %q", err, want)
-	}
-	if data := readFile(t, configPath); data != content {
-		t.Errorf("config.yaml = %q, want it unchanged", data)
-	}
-	if data := readFile(t, path); data != canonicalIssue {
-		t.Errorf("issue file =\n%s\nwant it unchanged", data)
+// assertFormatRefusal returns a check that err is a *store.FormatError at path refusing key, which
+// needs format needed, in a store declaring declared, and that its text names capcom upgrade.
+func assertFormatRefusal(
+	path string,
+	key string,
+	needed int,
+	declared int,
+) func(t *testing.T, err error) {
+	return func(t *testing.T, err error) {
+		t.Helper()
+		want := store.FormatError{Path: path, Key: key, Needed: needed, Declared: declared}
+		var refused *store.FormatError
+		if !errors.As(err, &refused) || *refused != want {
+			t.Fatalf("err = %#v, want a *store.FormatError %+v", err, want)
+		}
+		upgrade := fmt.Sprintf("capcom upgrade --format %d", needed)
+		if !strings.Contains(err.Error(), upgrade) {
+			t.Errorf("Error() = %q, want it to name %q", err.Error(), upgrade)
+		}
 	}
 }
 
-func TestRaise_WrittenFileCarryingAKeyLine_RaisesToItsFormatWhateverTheEditChanged(t *testing.T) {
+func TestGateFormat_WrittenFileCarryingAKeyLine_RefusedWhateverTheEditChanged(t *testing.T) {
 	t.Parallel()
-	retitleIssue := func(t *testing.T, s *store.Store, content string) (Written, error) {
+	retitleIssue := func(t *testing.T, s *store.Store, content string) (string, error) {
 		t.Helper()
-		writeNodeFile(t, s.IssuesDir(), editedIssueID+".md", content)
+		path := writeNodeFile(t, s.IssuesDir(), editedIssueID+".md", content)
 		issues := Issues(s, fakeResolver{editedIssueID: {ID: editedIssueID, Path: editedIssuePath}})
 		calls := 0
-		return issues.Edit(editedIssueID, "", retitle("Fix the lexer", &calls))
+		_, err := issues.Edit(editedIssueID, "", retitle("Fix the lexer", &calls))
+		return path, err
 	}
-	retitleNote := func(t *testing.T, s *store.Store, content string) (Written, error) {
+	retitleNote := func(t *testing.T, s *store.Store, content string) (string, error) {
 		t.Helper()
-		writeNodeFile(t, s.KnowledgeDir(), "rule.md", content)
+		path := writeNodeFile(t, s.KnowledgeDir(), "rule.md", content)
 		notes := Notes(s, fakeResolver{"rule": {ID: "rule", Path: ".capcom/knowledge/rule.md"}})
-		return notes.Edit("rule", "", func(note knowledge.Note) (knowledge.Note, error) {
+		_, err := notes.Edit("rule", "", func(note knowledge.Note) (knowledge.Note, error) {
 			note.Title = "Quoting"
 			return note, nil
 		})
+		return path, err
 	}
 	withLine := func(content string, line string) string {
 		return strings.Replace(content, "aliases:", line+"\naliases:", 1)
 	}
 	tests := []struct {
-		name       string
-		edit       func(t *testing.T, s *store.Store, content string) (Written, error)
-		content    string
+		name    string
+		edit    func(t *testing.T, s *store.Store, content string) (string, error)
+		content string
+		// wantKey is the key the write is refused for; "" when it is written.
+		wantKey    string
+		wantPath   string
 		wantFormat int
 	}{
 		{
 			name:       "issue holding a related entry",
 			edit:       retitleIssue,
 			content:    withLine(canonicalIssue, "related: [db-schema]"),
+			wantKey:    RefRelated,
+			wantPath:   editedIssuePath,
 			wantFormat: config.FormatRelated,
 		},
 		{name: "issue holding no related key", edit: retitleIssue, content: canonicalIssue},
@@ -362,9 +377,11 @@ func TestRaise_WrittenFileCarryingAKeyLine_RaisesToItsFormatWhateverTheEditChang
 			content: withLine(canonicalIssue, "related: []"),
 		},
 		{
-			name:       "retired note holding a superseded-by entry",
+			name:       "retired note holding a superseded-by entry, named by its first key",
 			edit:       retitleNote,
 			content:    canonicalNote,
+			wantKey:    keyRetired,
+			wantPath:   ".capcom/knowledge/rule.md",
 			wantFormat: config.FormatSupersession,
 		},
 		{
@@ -377,22 +394,23 @@ func TestRaise_WrittenFileCarryingAKeyLine_RaisesToItsFormatWhateverTheEditChang
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			s := newStore(t)
+			s := storeAt(t, config.MissingFormat)
 			configPath := writeNodeFile(t, s.Root, "config.yaml", keylessConfig)
 
-			written, err := test.edit(t, s, test.content)
+			path, err := test.edit(t, s, test.content)
 
-			if err != nil {
-				t.Fatalf("Edit: %v", err)
+			if test.wantKey == "" {
+				if err != nil {
+					t.Fatalf("Edit: %v", err)
+				}
+				return
 			}
-			wantConfig := keylessConfig
-			if test.wantFormat != 0 {
-				wantConfig = fmt.Sprintf("format: %d\n%s", test.wantFormat, keylessConfig)
+			assertFormatRefusal(test.wantPath, test.wantKey, test.wantFormat, config.MissingFormat)(t, err)
+			if content := readFile(t, path); content != test.content {
+				t.Errorf("node file =\n%s\nwant it unchanged", content)
 			}
-			if content := readFile(t, configPath); written.RaisedFormat != test.wantFormat ||
-				content != wantConfig {
-				t.Errorf("RaisedFormat = %d, config.yaml = %q; want %d and %q",
-					written.RaisedFormat, content, test.wantFormat, wantConfig)
+			if content := readFile(t, configPath); content != keylessConfig {
+				t.Errorf("config.yaml = %q, want it unchanged", content)
 			}
 		})
 	}
@@ -517,34 +535,38 @@ func TestWithFS_Create_LoadsAndWritesThroughTheFS(t *testing.T) {
 	}
 }
 
-func TestWithRaise_StandingIssueBelowTheStandingFormat_RaisesThroughTheFunc(t *testing.T) {
+func TestWithFormatGate_StandingIssue_AsksTheGateAndFailsAsItRefuses(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)
-	declared := fmt.Sprintf("format: %d\n", config.FormatAgents)
-	configPath := writeNodeFile(t, s.Root, "config.yaml", declared)
 	node, err := issue.Parse("node.md", []byte(canonicalIssue))
 	if err != nil {
 		t.Fatal(err)
 	}
 	node.Aliases = nil
 	node.IsStanding = true
-	var raised []int
-	raise := func(version int) (bool, error) {
-		raised = append(raised, version)
-		return true, nil
+	errRefused := errors.New("refused")
+	type ask struct {
+		key     string
+		version int
 	}
-	issues := Issues(s, nil).WithFS(newRecordingFS()).WithRaise(raise)
+	var asked []ask
+	gate := func(key string, version int) error {
+		asked = append(asked, ask{key: key, version: version})
+		return errRefused
+	}
+	recording := newRecordingFS()
+	issues := Issues(s, nil).WithFS(recording).WithFormatGate(gate)
 
-	written, _, err := issues.Create(newIssueID, "", func() (issue.Issue, error) { return node, nil })
+	_, _, err = issues.Create(newIssueID, "", func() (issue.Issue, error) { return node, nil })
 
-	if err != nil {
-		t.Fatalf("Create: %v", err)
+	if !errors.Is(err, errRefused) {
+		t.Errorf("err = %v, want the gate's refusal as it is", err)
 	}
-	want := []int{config.FormatStanding}
-	if !slices.Equal(raised, want) || written.RaisedFormat != config.FormatStanding {
-		t.Errorf("raised %v, RaisedFormat %d; want %v", raised, written.RaisedFormat, want)
+	want := []ask{{key: keyStanding, version: config.FormatStanding}}
+	if !slices.Equal(asked, want) {
+		t.Errorf("asked %v, want %v", asked, want)
 	}
-	if content := readFile(t, configPath); content != declared {
-		t.Errorf("config.yaml = %q, want it unchanged", content)
+	if len(recording.writes) != 0 {
+		t.Errorf("writes = %v, want none", recording.writes)
 	}
 }

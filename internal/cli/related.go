@@ -66,8 +66,8 @@ func (a *app) newRelatedCommand() *cobra.Command {
 
 // newRelatedAddCommand links one issue to another by writing the other's id into the first's
 // related list. Linking an issue to itself is refused; a link already there, on either issue, is
-// left as it is and the first issue's file is written unchanged. The first link written in a store
-// below format 2 raises config.yaml to format 2, with a warning.
+// left as it is and the first issue's file is written unchanged. A link written in a store below
+// format 2 fails, writing nothing, and names capcom upgrade (ADR 0019).
 func (a *app) newRelatedAddCommand() *cobra.Command {
 	var ifMatch string
 	cmd := &cobra.Command{

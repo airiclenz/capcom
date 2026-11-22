@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -196,24 +197,58 @@ func TestFormatFixture_LogKeepsFormat(t *testing.T) {
 	}
 }
 
-// TestFormatFixture_StandingRaisesFormat pins today's raise rule on a real store of the format just
-// below config.FormatStanding: creating a standing issue raises the store to FormatStanding,
-// rewriting only the format line, and warns once that older releases can no longer read it.
-func TestFormatFixture_StandingRaisesFormat(t *testing.T) {
+// assertFormatRefused runs the write args with --json in root, a store committed clean, and
+// requires it to fail invalid because key needs store format needed while the store declares
+// declared, its message ending in that and its hint naming capcom upgrade --format needed, with
+// nothing written: git status --porcelain stays empty, config.yaml included.
+func assertFormatRefused(t *testing.T, root string, key string, needed int, declared int, args ...string) {
+	t.Helper()
+	stdout, _, exitCode := runCLI(t, root, append([]string{"--json"}, args...)...)
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	message, _ := failure["message"].(string)
+	wantMessage := fmt.Sprintf("%s needs store format %d, but the store declares format %d", key, needed, declared)
+	wantHint := fmt.Sprintf("ask the user before raising it for everyone: capcom upgrade --format %d", needed)
+	if exitCode != ExitError || failure["code"] != string(CodeInvalid) ||
+		!strings.HasSuffix(message, wantMessage) || failure["hint"] != wantHint {
+		t.Errorf("%v: exit = %d error = %v; want invalid %q hinting %q", args, exitCode, failure, wantMessage, wantHint)
+	}
+	if status := gitOutput(t, root, "status", "--porcelain"); status != "" {
+		t.Errorf("%v: git status --porcelain = %q, want nothing written", args, status)
+	}
+}
+
+// TestFormatFixture_StandingNeedsUpgrade pins ADR 0019 on a real store of the format just below
+// config.FormatStanding: creating a standing issue fails naming capcom upgrade and writes nothing;
+// once capcom upgrade raises the store, the same create succeeds.
+func TestFormatFixture_StandingNeedsUpgrade(t *testing.T) {
 	const fromFormat = config.FormatStanding - 1
 	root := copyFixtureStore(t, fromFormat)
-	before := readStoreConfig(t, root)
+	create := []string{"create", "--id", "feature-requests", "--title", "Feature requests", "--standing"}
 
-	stdout := mustRun(t, root, "create", "--id", "feature-requests", "--title", "Feature requests", "--standing")
+	assertFormatRefused(t, root, "standing", config.FormatStanding, fromFormat, create...)
+	mustRun(t, root, "upgrade", "--format", strconv.Itoa(config.FormatStanding))
+	mustRun(t, root, create...)
 
-	want := "warning: " + fmt.Sprintf(formatRaisedWarning, ".capcom/config.yaml", config.FormatStanding, fromFormat) + "\n"
-	if count := strings.Count(stdout, want); count != 1 {
-		t.Errorf("create stdout = %q, want the warning %q once, got %d", stdout, want, count)
+	if content := readStoreFile(t, root, "feature-requests.md"); !strings.Contains(content, "standing: true") {
+		t.Errorf("feature-requests.md = %q, want it standing", content)
 	}
-	wantConfig := strings.Replace(before, fmt.Sprintf("\nformat: %d\n", fromFormat), fmt.Sprintf("\nformat: %d\n", config.FormatStanding), 1)
-	if after := readStoreConfig(t, root); wantConfig == before || after != wantConfig {
-		t.Errorf("config.yaml after create =\n%s\nwant only its format line raised to %d:\n%s", after, config.FormatStanding, wantConfig)
+}
+
+// TestFormatFixture_ApplyNeedingNewerFormat_WritesNothing proves an apply file is all or none
+// against the store format: on the format-4 fixture, a second operation creating a standing issue
+// fails the whole batch, and the first operation's issue is not written either.
+func TestFormatFixture_ApplyNeedingNewerFormat_WritesNothing(t *testing.T) {
+	const fromFormat = config.FormatStanding - 1
+	root := copyFixtureStore(t, fromFormat)
+	path := filepath.Join(t.TempDir(), "issues.yaml")
+	content := "- op: create\n  id: first-request\n  title: First request\n" +
+		"- op: create\n  id: feature-requests\n  title: Feature requests\n  standing: true\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
 	}
+
+	assertFormatRefused(t, root, "standing", config.FormatStanding, fromFormat, "apply", path)
 }
 
 // TestFormatFixture_NewerFormatRefused proves every command refuses a store one format past

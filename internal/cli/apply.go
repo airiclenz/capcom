@@ -143,7 +143,7 @@ func (a *app) apply(cmd *cobra.Command, path string, isDryRun bool) (output.Resu
 
 	overlay := stage.New(a.store)
 	catalog := overlay.Catalog(a.issueIndex)
-	staged := ops.Staged(a.store, overlay, overlay.RaiseFormat, catalog)
+	staged := ops.Staged(a.store, overlay, a.store.RequireFormat, catalog)
 	outcome, err := batch.Run(staged, overlay, operations, time.Now())
 	if err != nil {
 		return output.Result{}, a.operationFailure(applyFileName(path), operations, catalog, err)

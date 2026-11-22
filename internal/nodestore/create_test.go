@@ -140,7 +140,7 @@ func TestCreate_ParentRemovedBeforeTheWrite_FailsAtTheParentAndCreatesNoDirector
 
 func TestCreate_ParentRemovedBelowFormatTwo_LeavesTheFormatAlone(t *testing.T) {
 	t.Parallel()
-	s := newStore(t)
+	s := storeAt(t, config.MissingFormat)
 	const formatOne = "format: 1\n"
 	configPath := writeNodeFile(t, s.Root, "config.yaml", formatOne)
 	parentPath := writeNodeFile(t, s.IssuesDir(), "parser-epic.md", canonicalIssue)
@@ -157,10 +157,9 @@ func TestCreate_ParentRemovedBelowFormatTwo_LeavesTheFormatAlone(t *testing.T) {
 	written, _, err := Issues(s, nil).Create(newIssueID, "parser-epic", removingBuild)
 
 	var failure *FileError
-	if !errors.As(err, &failure) || failure.Path != ".capcom/issues/parser-epic.md" ||
-		written.RaisedFormat != 0 {
-		t.Errorf("Written = %+v err = %v, want a *FileError at the parent's file and no raise",
-			written, err)
+	if !errors.As(err, &failure) || failure.Path != ".capcom/issues/parser-epic.md" {
+		t.Errorf("Written = %+v err = %v, want a *FileError at the parent's file, the parent re-check "+
+			"refusing first", written, err)
 	}
 	if content := readFile(t, configPath); content != formatOne {
 		t.Errorf("config.yaml = %q, want it unchanged", content)
@@ -474,10 +473,35 @@ func assertExists(path string, holder string, text string) func(t *testing.T, er
 	}
 }
 
-func TestCreate_StandingIssueBelowTheStandingFormat_RaisesTheFormat(t *testing.T) {
+func TestCreate_StandingIssueBelowTheStandingFormat_FailsAndWritesNothing(t *testing.T) {
 	t.Parallel()
-	s := newStore(t)
-	configPath := writeNodeFile(t, s.Root, "config.yaml", fmt.Sprintf("format: %d\n", config.FormatAgents))
+	s := storeAt(t, config.FormatAgents)
+	declared := fmt.Sprintf("format: %d\n", config.FormatAgents)
+	configPath := writeNodeFile(t, s.Root, "config.yaml", declared)
+	node, err := issue.Parse("node.md", []byte(canonicalIssue))
+	if err != nil {
+		t.Fatal(err)
+	}
+	node.Aliases = nil
+	node.IsStanding = true
+
+	_, _, err = Issues(s, nil).Create(newIssueID, "", func() (issue.Issue, error) {
+		return node, nil
+	})
+
+	wantPath := ".capcom/issues/" + newIssueID + ".md"
+	assertFormatRefusal(wantPath, keyStanding, config.FormatStanding, config.FormatAgents)(t, err)
+	if files := nodeFiles(t, s.IssuesDir()); len(files) != 0 {
+		t.Errorf("issues dir holds %v, want nothing", files)
+	}
+	if content := readFile(t, configPath); content != declared {
+		t.Errorf("config.yaml = %q, want it unchanged", content)
+	}
+}
+
+func TestCreate_StandingIssueAtTheStandingFormat_WritesIt(t *testing.T) {
+	t.Parallel()
+	s := storeAt(t, config.FormatStanding)
 	node, err := issue.Parse("node.md", []byte(canonicalIssue))
 	if err != nil {
 		t.Fatal(err)
@@ -492,16 +516,14 @@ func TestCreate_StandingIssueBelowTheStandingFormat_RaisesTheFormat(t *testing.T
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if content := readFile(t, configPath); written.RaisedFormat != config.FormatStanding ||
-		content != fmt.Sprintf("format: %d\n", config.FormatStanding) {
-		t.Errorf("RaisedFormat = %d, config.yaml = %q; want format %d declared",
-			written.RaisedFormat, content, config.FormatStanding)
+	if content := readFile(t, filepath.Join(s.WorktreeRoot, written.Path)); !strings.Contains(content, "standing: true") {
+		t.Errorf("issue file =\n%s\nwant it standing", content)
 	}
 }
 
-func TestCreate_NoteWithSupersededByBelowFormatThree_RaisesTheFormat(t *testing.T) {
+func TestCreate_NoteWithSupersededByBelowFormatThree_FailsAndWritesNothing(t *testing.T) {
 	t.Parallel()
-	s := newStore(t)
+	s := storeAt(t, config.FormatRelated)
 	configPath := writeNodeFile(t, s.Root, "config.yaml", "format: 2\n")
 	note, err := knowledge.Parse("node.md", []byte(canonicalNote))
 	if err != nil {
@@ -509,16 +531,16 @@ func TestCreate_NoteWithSupersededByBelowFormatThree_RaisesTheFormat(t *testing.
 	}
 	note.Aliases = nil
 
-	written, _, err := Notes(s, nil).Create("quoting", "", func() (knowledge.Note, error) {
+	_, _, err = Notes(s, nil).Create("quoting", "", func() (knowledge.Note, error) {
 		return note, nil
 	})
 
-	if err != nil {
-		t.Fatalf("Create: %v", err)
+	assertFormatRefusal(".capcom/knowledge/quoting.md", keyRetired, config.FormatSupersession,
+		config.FormatRelated)(t, err)
+	if files := nodeFiles(t, s.KnowledgeDir()); len(files) != 0 {
+		t.Errorf("knowledge dir holds %v, want nothing", files)
 	}
-	if content := readFile(t, configPath); written.RaisedFormat != config.FormatSupersession ||
-		content != fmt.Sprintf("format: %d\n", config.FormatSupersession) {
-		t.Errorf("RaisedFormat = %d, config.yaml = %q; want format %d declared",
-			written.RaisedFormat, content, config.FormatSupersession)
+	if content := readFile(t, configPath); content != "format: 2\n" {
+		t.Errorf("config.yaml = %q, want it unchanged", content)
 	}
 }

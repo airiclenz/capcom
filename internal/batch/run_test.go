@@ -81,7 +81,7 @@ func newFixture(t *testing.T, files map[string]string) fixture {
 	overlay := stage.New(s)
 	return fixture{
 		store:   s,
-		ops:     ops.Staged(s, overlay, overlay.RaiseFormat, overlay.Catalog(x)),
+		ops:     ops.Staged(s, overlay, s.RequireFormat, overlay.Catalog(x)),
 		overlay: overlay,
 	}
 }

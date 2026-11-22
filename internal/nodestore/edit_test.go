@@ -331,30 +331,32 @@ func linkDBSchema(title string) func(issue.Issue) (issue.Issue, error) {
 	}
 }
 
-func TestEdit_GainsRelatedBelowFormatTwo_RaisesBeforeTheWrite(t *testing.T) {
+func TestEdit_GainsRelatedBelowFormatTwo_FailsAndLeavesTheFileAlone(t *testing.T) {
 	t.Parallel()
 	issues, path := newEditedIssue(t)
+	issues = issues.WithFormatGate(storeAt(t, config.MissingFormat).RequireFormat)
 	configPath := writeStoreConfig(t, path, keylessConfig)
-	issueAtRaise := ""
-	raiseFormat := issues.raiseFormat
-	issues.raiseFormat = func(version int) (bool, error) {
-		issueAtRaise = readFile(t, path)
-		return raiseFormat(version)
-	}
 
-	written, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
+	_, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
+
+	assertFormatRefusal(editedIssuePath, RefRelated, config.FormatRelated, config.MissingFormat)(t, err)
+	if content := readFile(t, path); content != canonicalIssue {
+		t.Errorf("issue file =\n%s\nwant it unchanged", content)
+	}
+	if content := readFile(t, configPath); content != keylessConfig {
+		t.Errorf("config.yaml = %q, want it unchanged", content)
+	}
+}
+
+func TestEdit_GainsRelatedAtFormatTwo_WritesTheLink(t *testing.T) {
+	t.Parallel()
+	issues, path := newEditedIssue(t)
+	issues = issues.WithFormatGate(storeAt(t, config.FormatRelated).RequireFormat)
+
+	_, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
 
 	if err != nil {
 		t.Fatalf("Edit: %v", err)
-	}
-	if issueAtRaise != canonicalIssue {
-		t.Errorf("issue file at the raise =\n%s\nwant it not yet written", issueAtRaise)
-	}
-	wantLine := fmt.Sprintf("format: %d", config.FormatRelated)
-	if content := readFile(t, configPath); written.RaisedFormat != config.FormatRelated ||
-		!strings.Contains(content, wantLine) {
-		t.Errorf("RaisedFormat = %d, config.yaml = %q; want %d and %q",
-			written.RaisedFormat, content, config.FormatRelated, wantLine)
 	}
 	if content := readFile(t, path); !strings.Contains(content, "related: [db-schema]") {
 		t.Errorf("issue file =\n%s\nwant the related link written", content)
@@ -365,6 +367,7 @@ func TestEdit_GainsRelatedBelowFormatTwo_RaisesBeforeTheWrite(t *testing.T) {
 // beforeRecheck hook, which the parallel tests only run after it restores.
 func TestEdit_ConflictBelowFormatTwo_LeavesTheFormatAlone(t *testing.T) {
 	issues, path := newEditedIssue(t)
+	issues = issues.WithFormatGate(storeAt(t, config.MissingFormat).RequireFormat)
 	const formatOne = "format: 1\n"
 	configPath := writeStoreConfig(t, path, formatOne)
 	newer := strings.Replace(canonicalIssue, "title: Fix the parser", "title: Fix the tokenizer", 1)
@@ -375,8 +378,8 @@ func TestEdit_ConflictBelowFormatTwo_LeavesTheFormatAlone(t *testing.T) {
 	written, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
 
 	var conflict *ConflictError
-	if !errors.As(err, &conflict) || written.RaisedFormat != 0 {
-		t.Errorf("Written = %+v err = %v, want a *ConflictError and no raise", written, err)
+	if !errors.As(err, &conflict) {
+		t.Errorf("Written = %+v err = %v, want a *ConflictError, the re-check refusing first", written, err)
 	}
 	if content := readFile(t, configPath); content != formatOne {
 		t.Errorf("config.yaml = %q, want it unchanged", content)
@@ -386,13 +389,15 @@ func TestEdit_ConflictBelowFormatTwo_LeavesTheFormatAlone(t *testing.T) {
 func TestEdit_InvalidResult_LeavesTheFormatAlone(t *testing.T) {
 	t.Parallel()
 	issues, path := newEditedIssue(t)
+	issues = issues.WithFormatGate(storeAt(t, config.MissingFormat).RequireFormat)
 	configPath := writeStoreConfig(t, path, keylessConfig)
 
 	written, err := issues.Edit(editedIssueID, "", linkDBSchema(""))
 
 	var failure *FileError
-	if !errors.As(err, &failure) || failure.Path != editedIssuePath || written.RaisedFormat != 0 {
-		t.Errorf("Written = %+v err = %v, want a *FileError at the issue file and no raise", written, err)
+	if !errors.As(err, &failure) || failure.Path != editedIssuePath {
+		t.Errorf("Written = %+v err = %v, want a *FileError at the issue file, validation refusing first",
+			written, err)
 	}
 	if content := readFile(t, configPath); content != keylessConfig {
 		t.Errorf("config.yaml = %q, want it unchanged", content)
@@ -402,7 +407,7 @@ func TestEdit_InvalidResult_LeavesTheFormatAlone(t *testing.T) {
 	}
 }
 
-func TestEdit_RaiseFails_FailsAtTheConfigAndWritesNothing(t *testing.T) {
+func TestEdit_UnreadableConfig_GatesOnTheOpenedFormatWithoutReadingIt(t *testing.T) {
 	t.Parallel()
 	issues, path := newEditedIssue(t)
 	configPath := filepath.Join(filepath.Dir(filepath.Dir(path)), "config.yaml")
@@ -412,13 +417,11 @@ func TestEdit_RaiseFails_FailsAtTheConfigAndWritesNothing(t *testing.T) {
 
 	_, err := issues.Edit(editedIssueID, "", linkDBSchema("Fix the parser"))
 
-	var failure *FileError
-	if !errors.As(err, &failure) || failure.Path != ".capcom/config.yaml" ||
-		failure.Message != tree.ErrNotRegular.Error() {
-		t.Errorf("err = %v, want a *FileError at .capcom/config.yaml naming the refusal", err)
+	if err != nil {
+		t.Fatalf("Edit: %v, want the store's opened format, which allows related, to decide", err)
 	}
-	if content := readFile(t, path); content != canonicalIssue {
-		t.Errorf("issue file =\n%s\nwant it unchanged", content)
+	if content := readFile(t, path); !strings.Contains(content, "related: [db-schema]") {
+		t.Errorf("issue file =\n%s\nwant the related link written", content)
 	}
 }
 

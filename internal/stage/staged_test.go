@@ -73,7 +73,7 @@ func newIssueStore(t *testing.T, files map[string]string) (*store.Store, *index.
 // Overlay's Catalog over x, and the Overlay.
 func newStaged(s *store.Store, x *index.Index) (*ops.Ops, *stage.Overlay) {
 	overlay := stage.New(s)
-	return ops.Staged(s, overlay, overlay.RaiseFormat, overlay.Catalog(x)), overlay
+	return ops.Staged(s, overlay, s.RequireFormat, overlay.Catalog(x)), overlay
 }
 
 // readStore returns the content of every file below the store root of s, keyed by its path

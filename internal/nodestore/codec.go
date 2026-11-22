@@ -76,16 +76,17 @@ func noteCodec() Codec[knowledge.Note] {
 	}
 }
 
-// requiredFormat returns the store format (ADR 0009) a file holding node, parsed from that file,
-// needs config.yaml to declare: the latest format of the format table whose key has a line in the
-// file, whatever the line holds, or 0 when the file carries none of them. A key line needs its
-// format even when empty, because a release older than the key rejects the file for the key alone.
-func (c Codec[T]) requiredFormat(node T) int {
-	required := 0
+// requiredFormat returns the key whose line in a file holding node, parsed from that file, needs
+// the latest store format (ADR 0009) of the format table, and that format: a key line needs its
+// format whatever the line holds, even when empty, because a release older than the key rejects
+// the file for the key alone. Of keys needing the same format the first in the table is named. It
+// returns "" and 0 when the file carries none of them.
+func (c Codec[T]) requiredFormat(node T) (string, int) {
+	key, required := "", 0
 	for _, row := range c.formats {
-		if row.Line(node) > 0 {
-			required = max(required, row.Format)
+		if row.Line(node) > 0 && row.Format > required {
+			key, required = row.Key, row.Format
 		}
 	}
-	return required
+	return key, required
 }

@@ -20,8 +20,9 @@ const issueExtension = ".md"
 // Overlay's store as the disk holds it: every issue file staged in the issue tree stands in place of
 // the index's entry for it, and every staged create is an issue the index does not know yet. It
 // reads the Overlay on every call, so it sees each write staged before it; x is read, never
-// refreshed. ops.Staged over the Overlay, its RaiseFormat and this Catalog runs the writes as they
-// run on disk, with nothing written until Plan's tree.Plan is applied.
+// refreshed. ops.Staged over the Overlay, the store's format gate (store.Store.RequireFormat) and
+// this Catalog runs the writes as they run on disk, with nothing written until Plan's tree.Plan is
+// applied.
 func (o *Overlay) Catalog(x *index.Index) ops.Catalog {
 	return catalog{overlay: o, index: x}
 }

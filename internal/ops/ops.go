@@ -70,23 +70,23 @@ type Ops struct {
 	catalog Catalog
 	// fsys is the file system every write reads and writes the issue tree through.
 	fsys nodefile.FS
-	// raise raises config.yaml to a store format a written file needs, as store.Store.RaiseFormat
-	// does.
-	raise func(version int) (bool, error)
+	// gate refuses a write of a file carrying a key line of a newer store format than the store
+	// declares, as store.Store.RequireFormat does (nodestore.FormatGate).
+	gate nodestore.FormatGate
 }
 
 // New returns the writes on the issues of s, resolving references through x, reading and writing
-// the disk and raising the store format in s's config.yaml.
+// the disk and refusing a file that needs a newer store format than s's config declares.
 func New(s *store.Store, x Catalog) *Ops {
-	return &Ops{store: s, catalog: x, fsys: nodefile.Disk{}, raise: s.RaiseFormat}
+	return &Ops{store: s, catalog: x, fsys: nodefile.Disk{}, gate: s.RequireFormat}
 }
 
 // Staged returns the writes on the issues of s that read and write the issue tree through fsys,
-// raise the store format through raise and resolve references through c: over a staging overlay
-// (stage.Overlay), with c its Catalog, every write lands in the overlay and nothing reaches the
-// disk until the overlay's plan is applied.
-func Staged(s *store.Store, fsys nodefile.FS, raise func(version int) (bool, error), c Catalog) *Ops {
-	return &Ops{store: s, catalog: c, fsys: fsys, raise: raise}
+// ask gate whether a file may carry a key line of a later store format, and resolve references
+// through c: over a staging overlay (stage.Overlay), with c its Catalog, every write lands in the
+// overlay and nothing reaches the disk until the overlay's plan is applied.
+func Staged(s *store.Store, fsys nodefile.FS, gate nodestore.FormatGate, c Catalog) *Ops {
+	return &Ops{store: s, catalog: c, fsys: fsys, gate: gate}
 }
 
 // Store returns the store whose issues the writes act on: its config and working tree root are
@@ -96,11 +96,11 @@ func (o *Ops) Store() *store.Store {
 }
 
 // issues returns the node store of the issue tree every write goes through: it resolves references
-// through the Ops's Catalog, reads and writes through its FS and raises the format through its
-// raise.
+// through the Ops's Catalog, reads and writes through its FS and asks its gate whether a file may
+// carry a key line of a later store format.
 func (o *Ops) issues() *nodestore.Kind[issue.Issue] {
 	kind := nodestore.Issues(o.store, issueResolver{catalog: o.catalog})
-	return kind.WithFS(o.fsys).WithRaise(o.raise)
+	return kind.WithFS(o.fsys).WithFormatGate(o.gate)
 }
 
 // EditNode changes the node ref names through kind (nodestore.Kind.Edit): it checks ifMatch, applies

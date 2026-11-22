@@ -32,18 +32,17 @@ import (
 //  8. the parent re-check: below a parent, the parent's node file is checked again, and a parent
 //     file another session removed or cannot be checked fails with a *FileError at it, creating
 //     neither the parent's children directory nor the new file.
-//  9. the format raise, after every check so a create an earlier step refuses leaves config.yaml
-//     as it was: when the new file carries a key line of a newer store format than config.yaml
-//     declares, whatever the line holds, config.yaml is raised to it (Written.RaisedFormat); a
-//     failure is a *FileError at config.yaml.
+//  9. the format gate, after every check: when the new file carries a key line of a newer store
+//     format than the store declares, whatever the line holds, the Kind's FormatGate refuses the
+//     write, by default with a *store.FormatError naming the new file, and nothing is written.
 //  10. the exclusive write, which never replaces a file: a file that appeared at the new node's
 //     path since the claim fails with the *ExistsError naming it; any other failure is returned
 //     as it is.
 //
 // Once a node written at the top of the tree has landed, the Kind's sync hook runs (WithSync), its
 // outcome on the Written's Effects; a node written below a parent runs none. The Tree load, the
-// parent re-check and the write go through the Kind's FS (WithFS), and the raise through its
-// WithRaise func.
+// parent re-check and the write go through the Kind's FS (WithFS), and the gate is the Kind's
+// FormatGate (WithFormatGate).
 func (k *Kind[T]) Create(
 	id string,
 	parent string,
@@ -87,8 +86,7 @@ func (k *Kind[T]) Create(
 			return Written{}, nil, k.fileError(parentPath, err)
 		}
 	}
-	raised, err := k.raise(path, encoded)
-	if err != nil {
+	if err := k.gateFormat(path, encoded); err != nil {
 		return Written{}, nil, err
 	}
 	written, err := k.place(path, id, encoded, createFile)
@@ -99,7 +97,6 @@ func (k *Kind[T]) Create(
 	if err != nil {
 		return Written{}, nil, err
 	}
-	written.RaisedFormat = raised
 	if parentPath == "" {
 		k.runSync(&written.Effects)
 	}

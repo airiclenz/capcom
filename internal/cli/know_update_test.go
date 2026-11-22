@@ -417,10 +417,6 @@ func TestKnowUpdate_TangledAgentsMarkers_WarnsAndWritesTheNote(t *testing.T) {
 	}
 }
 
-// knowUpdateFormatRaisedText is the warning line of the know update that raises a store to format 3.
-const knowUpdateFormatRaisedText = "warning: .capcom/config.yaml: store format raised to 3; " +
-	"capcom releases that read only format 2 can no longer read this store\n"
-
 func TestKnowUpdate_RetireAndSupersededBy_WriteThenClearTheKeys(t *testing.T) {
 	root := newKnowStore(t)
 	before := readNoteFile(t, root, "release-flow.md")
@@ -645,66 +641,70 @@ func TestKnowUpdate_UnknownOrSelfSuccessor_IsRefusedAndWritesNothing(t *testing.
 	}
 }
 
-func TestKnowUpdate_FormatTwoStore_RaisedToThreeOnceWithAWarning(t *testing.T) {
+func TestKnowUpdate_FormatTwoStore_RetireFailsUntilUpgrade(t *testing.T) {
 	root := newKnowStore(t)
 	writeStoreConfig(t, root, "format: 2\n")
+	commitFixtureStore(t, root, "format 2 store")
 
-	first := mustRun(t, root, "know", "update", "release-flow", "--retire")
-	second := mustRun(t, root, "know", "update", "cli-tests", "--add-superseded-by", "git-fixtures")
+	assertFormatRefused(t, root, "retired", 3, 2, "know", "update", "release-flow", "--retire")
+	mustRun(t, root, "upgrade", "--format", "3")
+	stdout := mustRun(t, root, "know", "update", "release-flow", "--retire")
 
-	if !strings.Contains(first, knowUpdateFormatRaisedText) || strings.Contains(second, "warning:") {
-		t.Errorf("first = %q\nsecond = %q; want the warning on the first only", first, second)
-	}
-	if config := readStoreConfig(t, root); config != "format: 3\n" {
-		t.Errorf("config.yaml = %q; want format 3", config)
-	}
-}
-
-func TestKnowUpdate_FormatTwoStore_SupersededByAdd_RaisesToThree(t *testing.T) {
-	root := newKnowStore(t)
-	writeStoreConfig(t, root, "format: 2\n")
-
-	stdout := mustRun(t, root, "know", "update", "release-flow", "--add-superseded-by", "cli-tests")
-
-	if config := readStoreConfig(t, root); config != "format: 3\n" || !strings.Contains(stdout, knowUpdateFormatRaisedText) {
-		t.Errorf("config.yaml = %q stdout = %q", config, stdout)
+	if note := readNoteFile(t, root, "release-flow.md"); !strings.Contains(note, "retired: true\n") ||
+		strings.Contains(stdout, "warning:") {
+		t.Errorf("note = %q stdout = %q; want it retired without a warning", note, stdout)
 	}
 }
 
-func TestKnowUpdate_WritesCarryingAKeyLine_RaiseTheConfigOnceWhateverTheyGain(t *testing.T) {
+func TestKnowUpdate_FormatTwoStore_SupersededByAdd_FailsNamingTheKey(t *testing.T) {
 	root := newKnowStore(t)
-	writeNoteFiles(t, root, map[string]string{
-		"release-flow.md": "---\ntitle: Release flow\nretired: true\nsuperseded-by: [cli-tests]\n---\n",
-	})
 	writeStoreConfig(t, root, "format: 2\n")
-	staleETag := "0000000000000000"
+	commitFixtureStore(t, root, "format 2 store")
+
+	assertFormatRefused(t, root, "superseded-by", 3, 2,
+		"know", "update", "release-flow", "--add-superseded-by", "cli-tests")
+}
+
+func TestKnowUpdate_FileCarryingAKeyLine_FailsUnlessTheEditDropsIt(t *testing.T) {
+	const carrying = "---\ntitle: Release flow\nretired: true\nsuperseded-by: [cli-tests]\n---\n"
+	const gateMessage = "retired needs store format 3, but the store declares format 2"
 	cases := []struct {
-		args       []string
-		wantCode   int
-		isWarned   bool
-		wantConfig string
+		name        string
+		args        []string
+		wantCode    string
+		wantMessage string
 	}{
-		// A refused edit writes nothing, so it raises nothing, whatever lines the file carries.
-		{[]string{"--retire", "--if-match", staleETag}, ExitError, false, "format: 2\n"},
-		{[]string{"--retire", "--title", ""}, ExitError, false, "format: 2\n"},
-		// The first write gains no key value, but the file it writes carries both format-3 lines.
-		{[]string{"--retire", "--add-superseded-by", "cli-tests"}, ExitOK, true, "format: 3\n"},
-		{[]string{"--remove-superseded-by", "cli-tests"}, ExitOK, false, "format: 3\n"},
-		{[]string{"--unretire"}, ExitOK, false, "format: 3\n"},
+		// A refused edit is refused before the gate, whatever lines the file carries.
+		{"stale etag", []string{"--retire", "--if-match", "0000000000000000"}, string(CodeConflict), ""},
+		{"empty title", []string{"--title", ""}, string(CodeInvalid), ""},
+		// An edit that gains no key value still writes a file carrying both format-3 lines.
+		{"retitle", []string{"--title", "Release steps"}, string(CodeInvalid), gateMessage},
+		// An edit that drops both lines writes a file a format-2 store may hold.
+		{"unretire", []string{"--unretire", "--remove-superseded-by", "cli-tests"}, "", ""},
 	}
-
 	for _, current := range cases {
-		stdout, stderr, exitCode := runCLI(t, root, append([]string{"know", "update", "release-flow"}, current.args...)...)
+		t.Run(current.name, func(t *testing.T) {
+			root := newKnowStore(t)
+			writeNoteFiles(t, root, map[string]string{"release-flow.md": carrying})
+			writeStoreConfig(t, root, "format: 2\n")
 
-		warnings := strings.Count(stdout, knowUpdateFormatRaisedText)
-		if exitCode != current.wantCode || strings.Contains(stdout, "warning:") != current.isWarned ||
-			(current.isWarned && warnings != 1) {
-			t.Errorf("know update %v = %d\n%s%s; want %d, warned %t once",
-				current.args, exitCode, stdout, stderr, current.wantCode, current.isWarned)
-		}
-		if config := readStoreConfig(t, root); config != current.wantConfig {
-			t.Fatalf("know update %v: config.yaml = %q; want %q", current.args, config, current.wantConfig)
-		}
+			args := append([]string{"--json", "know", "update", "release-flow"}, current.args...)
+			stdout, _, _ := runCLI(t, root, args...)
+
+			failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+			code, _ := failure["code"].(string)
+			message, _ := failure["message"].(string)
+			if code != current.wantCode || !strings.HasSuffix(message, current.wantMessage) {
+				t.Errorf("error = %v; want code %q ending %q", failure, current.wantCode, current.wantMessage)
+			}
+			note := readNoteFile(t, root, "release-flow.md")
+			if isWritten := note != carrying; isWritten != (current.wantCode == "") {
+				t.Errorf("note = %q; want it written only by the edit that succeeds", note)
+			}
+			if config := readStoreConfig(t, root); config != "format: 2\n" {
+				t.Errorf("config.yaml = %q; want it left at format 2", config)
+			}
+		})
 	}
 }
 
