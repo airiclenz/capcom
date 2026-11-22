@@ -1,12 +1,14 @@
 ---
 title: An agent that writes under another session's lock reads the warning as permission
-status: open
+status: done
 type: bug
 priority: 2
 labels: [agent-ergonomics]
 deps: [lock-warns-own-writes]
 plan: 2026-11-22 - 00 - lock-holder-and-agent-guide-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T19:29:03Z
+reason: "resolved by plan \"2026-11-22 - 00 - lock-holder-and-agent-guide-plan\" (bf30b14): items 5, 9 and 10 give the warning and prime a next step and drop 'carry on'"
 ---
 
 The warning of a write made under a held Tree lock ends "; if it is yours, carry on"

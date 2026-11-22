@@ -1,11 +1,13 @@
 ---
 title: Agents run capcom check after nearly every CLI write
-status: open
+status: done
 type: task
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 00 - lock-holder-and-agent-guide-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T19:29:03Z
+reason: "resolved by plan \"2026-11-22 - 00 - lock-holder-and-agent-guide-plan\" (bf30b14): items 8 and 9 say when check is needed and warn on writes check would fail"
 ---
 
 The managed block says "Prefer capcom commands; after a hand edit run `capcom check`"

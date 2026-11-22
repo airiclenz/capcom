@@ -38,3 +38,7 @@ Wanted:
 - A checkout with no matching kept token still fails with the present message and exit
   code.
 - The managed block no longer teaches pasting the token for touch and release.
+
+## Log
+
+- 2026-11-22 Airic Lenz: Plan 2026-11-22 - 00 - lock-holder-and-agent-guide-plan (bf30b14) landed bare lock touch, release and check for the holder process; open: proc.Anchor does not skip a capcom-named wrapper, so under a per-call shim (agenteval's capcom shim, Scoop's capcom.exe) the holder is not recognised and bare touch/release fail.

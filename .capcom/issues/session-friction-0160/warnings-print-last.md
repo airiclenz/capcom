@@ -1,11 +1,13 @@
 ---
 title: Warnings print after the result, where head and tail pipelines hide or split them
-status: open
+status: done
 type: bug
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 00 - lock-holder-and-agent-guide-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T19:29:03Z
+reason: "resolved by plan \"2026-11-22 - 00 - lock-holder-and-agent-guide-plan\" (bf30b14): item 6 prints warnings before the result in text output"
 ---
 
 A command's warnings print below its result (`app.emit`, `internal/cli/root.go`). Agents

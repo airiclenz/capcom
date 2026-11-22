@@ -43,3 +43,7 @@ Note writes target no Issue (`noteWrite` with no ids), so the `plan:` match alon
 - A write from a checkout that did not acquire the lock, or that targets other work, still
   warns.
 - ADR 0017 and the Note `issue-workflow` say what the rule now is; tests cover both sides.
+
+## Log
+
+- 2026-11-22 Airic Lenz: Plan 2026-11-22 - 00 - lock-holder-and-agent-guide-plan (bf30b14) landed holder-process writes staying silent and renewing the heartbeat; open: proc.Anchor does not skip a capcom-named wrapper, so under a per-call shim (agenteval's capcom shim, Scoop's capcom.exe) the holder's later writes still warn.

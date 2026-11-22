@@ -1,11 +1,13 @@
 ---
 title: The AGENTS.md capcom block never names search, so agents grep .capcom instead
-status: open
+status: done
 type: bug
 priority: 1
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 00 - lock-holder-and-agent-guide-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T19:29:03Z
+reason: "resolved by plan \"2026-11-22 - 00 - lock-holder-and-agent-guide-plan\" (bf30b14): item 9 names search and know search in the managed block"
 ---
 
 The managed block (`internal/agents/block.go`) lists next, ready, show, context, start, log,
