@@ -144,3 +144,29 @@ func TestNext_AllReadyHiddenKV_IsOnlyTheWarningLine(t *testing.T) {
 			exitCode, stderr, stdout, output.ExitNothingReady, want)
 	}
 }
+
+// countShowGraphLoads sets afterShowGraphLoad, for the rest of the test, to count the calls of
+// loadShowGraph, and returns the count.
+func countShowGraphLoads(t *testing.T) *int {
+	t.Helper()
+	loads := 0
+	previous := afterShowGraphLoad
+	afterShowGraphLoad = func() { loads++ }
+	t.Cleanup(func() { afterShowGraphLoad = previous })
+	return &loads
+}
+
+func TestNext_ReadyIssue_ShowsItFromTheReadyListsJudgement(t *testing.T) {
+	root := newNextStore(t)
+	loads := countShowGraphLoads(t)
+	want, _, _ := runCLI(t, root, "show", "beta")
+	showLoads := *loads
+
+	stdout, _, exitCode := runCLI(t, root, "next")
+
+	nextLoads := *loads - showLoads
+	if exitCode != ExitOK || stdout != want || showLoads != 1 || nextLoads != 0 {
+		t.Errorf("exit = %d, show loads = %d, next loads = %d, want 1 and 0\nstdout = %q\nwant     %q",
+			exitCode, showLoads, nextLoads, stdout, want)
+	}
+}

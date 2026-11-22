@@ -1,6 +1,7 @@
 // Package briefing composes what capcom tells an agent about the work in front of it: the
 // Briefing capcom prime renders (Compose) and the Ready-list that capcom ready and prime show
-// (ReadyList), and what ready.hide leaves out of it (ReadyHidden).
+// (ReadyList, and ReadyListJudged with the verdicts behind it), and what ready.hide leaves out of
+// it (ReadyHidden).
 package briefing
 
 import (
@@ -50,9 +51,27 @@ type ReadyItem struct {
 // verdict; the label filter is the index's own, and the plan filter resolves each plan against
 // cfg's plans directories under options.Root. It fails only when the index cannot be read.
 func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, error) {
-	candidates, err := judgeFiltered(x, cfg, options)
+	listed, _, err := ReadyListJudged(x, cfg, options)
+	return listed, err
+}
+
+// Judgement is what the ready rules made of every issue of an index: the verdicts and the
+// Dependency graph a Ready-list was judged from, for a caller that needs them for other issues
+// than the listed ones and would otherwise judge the whole tree again.
+type Judgement struct {
+	// Verdicts are issue.Ready's verdicts on the issues of the index, Closed ones and those the
+	// filters leave out included, in tree order.
+	Verdicts []issue.Readiness
+	// Deps is the Dependency graph of every issue of the index.
+	Deps issue.DepGraph
+}
+
+// ReadyListJudged returns what ReadyList returns, given the same arguments, and the Judgement the
+// list was judged from. It fails only when the index cannot be read.
+func ReadyListJudged(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, Judgement, error) {
+	candidates, judgement, err := judgeFiltered(x, cfg, options)
 	if err != nil {
-		return nil, err
+		return nil, Judgement{}, err
 	}
 	var listed []ReadyItem
 	for _, candidate := range candidates {
@@ -70,7 +89,7 @@ func ReadyList(x *index.Index, cfg config.Config, options ReadyOptions) ([]Ready
 	if options.Limit > 0 && len(listed) > options.Limit {
 		listed = listed[:options.Limit]
 	}
-	return listed, nil
+	return listed, judgement, nil
 }
 
 // Hidden is what the ready.hide rule alone leaves out of a Ready-list.
@@ -92,7 +111,7 @@ func ReadyHidden(x *index.Index, cfg config.Config, options ReadyOptions) (Hidde
 	if options.IsHiddenIncluded {
 		return Hidden{}, nil
 	}
-	candidates, err := judgeFiltered(x, cfg, options)
+	candidates, _, err := judgeFiltered(x, cfg, options)
 	if err != nil {
 		return Hidden{}, err
 	}
@@ -116,16 +135,16 @@ func ReadyHidden(x *index.Index, cfg config.Config, options ReadyOptions) (Hidde
 // judgeFiltered judges the todo issues of x against the ready rules and returns, in tree order,
 // every one the label and plan filters of options keep, whatever its verdict and whether or not it
 // is hidden; a Ready item carries what it unblocks. The rules judge every issue, Closed ones and
-// those the filters leave out included, so a filter never changes a verdict. It fails only when
-// the index cannot be read.
-func judgeFiltered(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, error) {
+// those the filters leave out included, so a filter never changes a verdict; it also returns that
+// Judgement. It fails only when the index cannot be read.
+func judgeFiltered(x *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, Judgement, error) {
 	entries, err := x.List(index.Filter{IsClosedIncluded: true})
 	if err != nil {
-		return nil, err
+		return nil, Judgement{}, err
 	}
 	selectedIDs, err := x.ListIDs(options.filter())
 	if err != nil {
-		return nil, err
+		return nil, Judgement{}, err
 	}
 	selected := make(map[string]bool, len(selectedIDs))
 	for _, id := range selectedIDs {
@@ -137,10 +156,10 @@ func judgeFiltered(x *index.Index, cfg config.Config, options ReadyOptions) ([]R
 	for _, entry := range entries {
 		byID[entry.ID] = entry
 	}
-	verdicts := issue.Ready(nodes, cfg)
-	unblocks := unblocksByCloser(verdicts, issue.NewDepGraph(nodes))
+	judgement := Judgement{Verdicts: issue.Ready(nodes, cfg), Deps: issue.NewDepGraph(nodes)}
+	unblocks := unblocksByCloser(judgement.Verdicts, judgement.Deps)
 	var candidates []ReadyItem
-	for _, verdict := range verdicts {
+	for _, verdict := range judgement.Verdicts {
 		entry := byID[verdict.ID]
 		if !selected[verdict.ID] || !options.keepsPlan(cfg, entry) {
 			continue
@@ -151,7 +170,7 @@ func judgeFiltered(x *index.Index, cfg config.Config, options ReadyOptions) ([]R
 		}
 		candidates = append(candidates, item)
 	}
-	return candidates, nil
+	return candidates, judgement, nil
 }
 
 // unblocksByCloser maps the id of each issue to the ids of the todo issues that become Ready when

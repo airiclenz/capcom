@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -285,6 +286,39 @@ func TestReadyList_Unblocks_MatchNewlyReady(t *testing.T) {
 			if want := issue.NewlyReady(nodes, cfg, closed); !slices.Equal(item.Unblocks, want) {
 				t.Errorf("%s: %s Unblocks = %v, want %v", name, item.Entry.ID, item.Unblocks, want)
 			}
+		}
+	}
+}
+
+func TestReadyListJudged_Judgement_IsTheReadyRulesOnEveryIssue(t *testing.T) {
+	t.Parallel()
+	x, cfg, _ := readyFixture(t)
+	entries, err := x.List(index.Filter{IsClosedIncluded: true})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	nodes := index.Nodes(entries)
+	options := ReadyOptions{Labels: []string{"ui"}}
+	wantListed, err := ReadyList(x, cfg, options)
+	if err != nil {
+		t.Fatalf("ReadyList: %v", err)
+	}
+
+	listed, judgement, err := ReadyListJudged(x, cfg, options)
+
+	if err != nil {
+		t.Fatalf("ReadyListJudged: %v", err)
+	}
+	if !slices.Equal(itemIDs(listed), itemIDs(wantListed)) {
+		t.Errorf("listed = %v, want ReadyList's %v", itemIDs(listed), itemIDs(wantListed))
+	}
+	if want := issue.Ready(nodes, cfg); !reflect.DeepEqual(judgement.Verdicts, want) {
+		t.Errorf("Verdicts = %+v\nwant       %+v", judgement.Verdicts, want)
+	}
+	graph := issue.NewDepGraph(nodes)
+	for _, node := range nodes {
+		if got, want := judgement.Deps.Dependents(node.ID), graph.Dependents(node.ID); !slices.Equal(got, want) {
+			t.Errorf("Dependents(%s) = %v, want %v", node.ID, got, want)
 		}
 	}
 }

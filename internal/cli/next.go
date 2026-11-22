@@ -30,7 +30,8 @@ const (
 )
 
 // newNextCommand prints the Issue on the first line of ready, given the same filters, as show
-// prints it. With nothing Ready it prints so and exits with output.ExitNothingReady.
+// prints it, from the verdicts its Ready list was judged from, so the tree is judged once. With
+// nothing Ready it prints so and exits with output.ExitNothingReady.
 func (a *app) newNextCommand() *cobra.Command {
 	options := &readyOptions{limit: nextLimit}
 	cmd := &cobra.Command{
@@ -42,7 +43,7 @@ func (a *app) newNextCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			listOptions := options.listOptions(a.store.WorktreeRoot)
-			listed, err := briefing.ReadyList(a.issueIndex, a.store.Config, listOptions)
+			listed, judgement, err := briefing.ReadyListJudged(a.issueIndex, a.store.Config, listOptions)
 			if err != nil {
 				return err
 			}
@@ -53,7 +54,8 @@ func (a *app) newNextCommand() *cobra.Command {
 				}
 				return a.emitNothingReady(cmd, options.isElsewhereSkipped, hiddenWarnings)
 			}
-			return a.emitShown(cmd, []string{listed[0].Entry.ID}, options.isElsewhereSkipped, bodyView{})
+			graph := newShowGraph(judgement.Verdicts, judgement.Deps)
+			return a.emitShown(cmd, []string{listed[0].Entry.ID}, options.isElsewhereSkipped, bodyView{}, graph)
 		}),
 	}
 	flags := cmd.Flags()

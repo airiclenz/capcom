@@ -63,7 +63,7 @@ func (a *app) newShowCommand() *cobra.Command {
 		ValidArgsFunction: completeIssueIDs(everyArgument),
 		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			return a.emitShown(cmd, args, isElsewhereSkipped, view)
+			return a.emitShown(cmd, args, isElsewhereSkipped, view, nil)
 		}),
 	}
 	flags := cmd.Flags()
@@ -98,9 +98,12 @@ func (v bodyView) body(full string) (string, bool, error) {
 
 // emitShown prints the issues args name as show does, each body as view has it, with the Elsewhere
 // report of their files unless isElsewhereSkipped. show and next both end here; next passes the
-// zero view and prints each issue in full.
-func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bool, view bodyView) error {
-	result, shownPaths, err := a.showResult(cmd, args, view)
+// zero view and prints each issue in full, and the graph its Ready list was judged from, where
+// show passes nil (see showResult).
+func (a *app) emitShown(
+	cmd *cobra.Command, args []string, isElsewhereSkipped bool, view bodyView, graph *showGraph,
+) error {
+	result, shownPaths, err := a.showResult(cmd, args, view, graph)
 	if err != nil {
 		return err
 	}
@@ -115,10 +118,13 @@ func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bo
 // readiness, dependents, child progress and reverse Related links are the index's. Each body is
 // printed and given as view has it; an issue whose body lacks a heading view names fails as its
 // argument does, invalid. Each failed argument's failure names cmd as the command that failed.
-func (a *app) showResult(cmd *cobra.Command, args []string, view bodyView) (output.Result, []string, error) {
+// graph is the whole tree judged already, as next has it from its Ready list; nil judges it here,
+// once, when the first argument resolves.
+func (a *app) showResult(
+	cmd *cobra.Command, args []string, view bodyView, graph *showGraph,
+) (output.Result, []string, error) {
 	result := output.Result{Kind: "issue", KV: []output.KVRecord{}}
 	data := make([]showData, 0, len(args))
-	var graph *showGraph
 	var shownPaths []string
 	var text strings.Builder
 	failures := a.newArgumentFailures(cmd, issueIDs)
@@ -281,22 +287,31 @@ type showGraph struct {
 	deps     issue.DepGraph
 }
 
+// afterShowGraphLoad runs each time loadShowGraph is called. It is nil in production; tests set
+// it to count the loads.
+var afterShowGraphLoad func()
+
 // loadShowGraph judges every issue in the index, Closed ones included, once for all of show's
 // arguments.
 func (a *app) loadShowGraph() (*showGraph, error) {
+	if afterShowGraphLoad != nil {
+		afterShowGraphLoad()
+	}
 	nodes, err := a.issueNodes()
 	if err != nil {
 		return nil, err
 	}
-	verdicts := issue.Ready(nodes, a.store.Config)
-	graph := &showGraph{
-		verdicts: make(map[string]issue.Readiness, len(verdicts)),
-		deps:     issue.NewDepGraph(nodes),
-	}
+	return newShowGraph(issue.Ready(nodes, a.store.Config), issue.NewDepGraph(nodes)), nil
+}
+
+// newShowGraph is the showGraph of verdicts, the ready rules' verdicts on the issue tree, and
+// deps, its Dependency graph.
+func newShowGraph(verdicts []issue.Readiness, deps issue.DepGraph) *showGraph {
+	graph := &showGraph{verdicts: make(map[string]issue.Readiness, len(verdicts)), deps: deps}
 	for _, verdict := range verdicts {
 		graph.verdicts[verdict.ID] = verdict
 	}
-	return graph, nil
+	return graph
 }
 
 // facts gathers what show tells about the issue with id beyond its file; related is its links as

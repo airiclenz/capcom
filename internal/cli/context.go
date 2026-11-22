@@ -125,7 +125,7 @@ func (a *app) newContextCommand() *cobra.Command {
 // plan and its applying Notes, each section in its text and --json form. With isBrief the Issue
 // prints as its list line and no body is printed or given.
 func (a *app) contextResult(cmd *cobra.Command, entry index.Entry, isBrief bool) (output.Result, error) {
-	shownResult, _, err := a.showResult(cmd, []string{entry.ID}, bodyView{})
+	shownResult, _, err := a.showResult(cmd, []string{entry.ID}, bodyView{}, nil)
 	if err != nil {
 		return output.Result{}, err
 	}

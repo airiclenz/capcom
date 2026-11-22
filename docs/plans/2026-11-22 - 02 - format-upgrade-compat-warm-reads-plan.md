@@ -198,7 +198,10 @@ NOTES (2026-11-22): the six-branch order test gives each branch an issue file of
 **Acceptance:** `go vet ./internal/gitx/ ./internal/elsewhere/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/gitx/ ./internal/elsewhere/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Elsewhere|Next|Ready' ./internal/cli/ && ! grep -q 'IsAncestor(options.WorktreeRoot, branch.Ref, head)' internal/elsewhere/elsewhere.go && grep -q 'gitx.UnmergedRefs' internal/elsewhere/elsewhere.go`
 **Commit:** `perf(elsewhere): list unmerged branches once and diff them in parallel`
 
-## 9. `next` loads the issues once
+## 9. `next` loads the issues once — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the briefing test (`TestReadyListJudged_Judgement_IsTheReadyRulesOnEveryIssue`) is in internal/briefing/ready_test.go, beside the ReadyList tests and their fixtures, not in internal/briefing/briefing_test.go as **Files:** names; briefing_test.go is untouched.
+NOTES (2026-11-22): `briefing.ReadyListJudged` returns a `briefing.Judgement` (the full `issue.Ready` verdict slice and the DepGraph) rather than a verdict map; `cli.newShowGraph` builds show's map from it, and `loadShowGraph` now calls `newShowGraph` too. `showResult` and `emitShown` take a `*showGraph` (nil loads it); show, start and context pass nil. The counting seam is the package variable `afterShowGraphLoad` in show.go, nil in production.
 
 **What:**
 **Goal:** When an issue is Ready, `capcom next` does not call `loadShowGraph`: the nodes and Ready verdicts its Ready list computed are reused to show the chosen issue; its text, JSON and KV output are unchanged.
