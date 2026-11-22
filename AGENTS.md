@@ -39,7 +39,7 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 
 - `capcom next`: the most urgent ready issue, in full
 - `capcom ready`: the issues ready to work on, most urgent first
-- `capcom show <id>`: one issue in full, with what blocks it
+- `capcom show <id>`: one issue in full, with what blocks it; `capcom show <id> --section acceptance` reads one section
 - `capcom context <id>`: the issue with its deps, plan and the Notes that apply; run it before you start
 - `capcom start <id>`: claim it and take the Tree lock before you start
 - `capcom log <id> <text>`: note progress as work lands
@@ -49,9 +49,10 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 - `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue
 - `capcom apply <file>`: file a linked set of issues in one call, all or none
 - `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides
+- `capcom list <id>...`: the status of several issues in one call; `not found` means the id is free
 - `capcom list --tree --depth 2`: the outline of the issues
 - `capcom search <word>... --excerpt`: find issues by words in the id, title or body
-- `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>` reads a Note
+- `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>...` reads one Note or several in one call
 - `capcom know search <word>... --excerpt`: find Notes by words in the id, title or body
 
 Each command's flags are in `capcom <cmd> --help`.

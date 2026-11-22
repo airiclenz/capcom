@@ -387,7 +387,9 @@ issueLines, issueListData; internal/index/query.go — Index.Resolve; internal/t
 **Closes:** list-by-ids
 **Commit:** `feat(list): list named ids, with a row for each that is not found`
 
-## 12. The managed block teaches the one-call reads
+## 12. The managed block teaches the one-call reads — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the `list <id>...` line is a new line placed before `list --tree --depth 2` (keeping each search beside its outline); the test file also gained `preOneCallReadsBlock` with a "before the one-call reads" stale case and `TestRender_CommandList_TeachesTheOneCallReads`, following the existing pattern for earlier block changes.
 
 **What:**
 Depends on items 6, 7, 9 and 11.

@@ -945,9 +945,10 @@ the last rule below): the lines from `<!-- BEGIN CAPCOM -->` to
 capcom as the issue register of record,
 an install pointer for an agent without a `capcom` binary (capcom's source and the README's
 install instructions, https://github.com/airiclenz/capcom#install), the commands an agent needs,
-the work loop first in the order it runs (`next`, `ready`, `show`, `start` to claim an issue and
+the work loop first in the order it runs (`next`, `ready`, `show` with `--section acceptance` for
+one section, `start` to claim an issue and
 take the Tree lock, `log`, `close`, `finish` to close it and free the lock, `reopen`), then
-`create` with `--dep`, `apply` to file a linked set of issues all or none, `dep add` and `dep list`, `list --tree --depth 2`, `search`, `know tree` and `know search`, followed by one line pointing to `capcom <cmd> --help` for
+`create` with `--dep`, `apply` to file a linked set of issues all or none, `dep add` and `dep list`, `list <id>...` for the status of several issues or whether an id is free, `list --tree --depth 2`, `search`, `know tree` with `know show <id>...` for one Note or several, and `know search`, followed by one line pointing to `capcom <cmd> --help` for
 each command's flags, a paragraph on what an issue's body holds (what is wrong
 or wanted, why, and an `## Acceptance` section, readable on its own; the how and the order belong
 in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its children in the

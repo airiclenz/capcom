@@ -31,7 +31,7 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 
 - ` + "`capcom next`" + `: the most urgent ready issue, in full
 - ` + "`capcom ready`" + `: the issues ready to work on, most urgent first
-- ` + "`capcom show <id>`" + `: one issue in full, with what blocks it
+- ` + "`capcom show <id>`" + `: one issue in full, with what blocks it; ` + "`capcom show <id> --section acceptance`" + ` reads one section
 - ` + "`capcom context <id>`" + `: the issue with its deps, plan and the Notes that apply; run it before you start
 - ` + "`capcom start <id>`" + `: claim it and take the Tree lock before you start
 - ` + "`capcom log <id> <text>`" + `: note progress as work lands
@@ -41,9 +41,10 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 - ` + "`capcom create --id <slug> --title <title> [--dep <id>]`" + `: file a new issue
 - ` + "`capcom apply <file>`" + `: file a linked set of issues in one call, all or none
 - ` + "`capcom dep add <id> <dep-id>`" + `: make an issue wait for another; ` + "`capcom dep list <id>`" + ` shows both sides
+- ` + "`capcom list <id>...`" + `: the status of several issues in one call; ` + "`not found`" + ` means the id is free
 - ` + "`capcom list --tree --depth 2`" + `: the outline of the issues
 - ` + "`capcom search <word>... --excerpt`" + `: find issues by words in the id, title or body
-- ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+- ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>...`" + ` reads one Note or several in one call
 - ` + "`capcom know search <word>... --excerpt`" + `: find Notes by words in the id, title or body
 
 Each command's flags are in ` + "`capcom <cmd> --help`" + `.
@@ -357,6 +358,14 @@ var preSearchBlock = strings.NewReplacer(
 		"the lock is yours, carry on.\n\n",
 ).Replace(goldenBlock)
 
+// preOneCallReadsBlock is goldenBlock as capcom rendered it before the command list named capcom
+// show --section, capcom list by ids and capcom know show for several Notes.
+var preOneCallReadsBlock = strings.NewReplacer(
+	"; `capcom show <id> --section acceptance` reads one section", "",
+	"- `capcom list <id>...`: the status of several issues in one call; `not found` means the id is free\n", "",
+	"`capcom know show <id>...` reads one Note or several in one call", "`capcom know show <id>` reads a Note",
+).Replace(goldenBlock)
+
 // writeGuide writes content as the AGENTS.md of a new temp working tree and returns the tree.
 func writeGuide(t *testing.T, content string) string {
 	t.Helper()
@@ -420,6 +429,25 @@ func TestRender_CommandList_ListsApplyAfterCreate(t *testing.T) {
 		"- `capcom dep add <id> <dep-id>`"
 	if !strings.Contains(block, want) {
 		t.Errorf("render =\n%s\nwant it to contain %q", block, want)
+	}
+}
+
+func TestRender_CommandList_TeachesTheOneCallReads(t *testing.T) {
+	t.Parallel()
+
+	block := render(goldenNotes, goldenDoing)
+
+	wants := []string{
+		"- `capcom show <id>`: one issue in full, with what blocks it; " +
+			"`capcom show <id> --section acceptance` reads one section\n",
+		"shows both sides\n- `capcom list <id>...`: the status of several issues in one call; " +
+			"`not found` means the id is free\n- `capcom list --tree --depth 2`",
+		"`capcom know show <id>...` reads one Note or several in one call\n",
+	}
+	for _, want := range wants {
+		if !strings.Contains(block, want) {
+			t.Errorf("render =\n%s\nwant it to contain %q", block, want)
+		}
 	}
 }
 
@@ -673,6 +701,7 @@ func TestInspect_States(t *testing.T) {
 		{"before the lock warning", "# Guide\n\n" + preLockWarningBlock + "\n", StateStale},
 		{"before apply", "# Guide\n\n" + preApplyBlock + "\n", StateStale},
 		{"before search and the holder rules", "# Guide\n\n" + preSearchBlock + "\n", StateStale},
+		{"before the one-call reads", "# Guide\n\n" + preOneCallReadsBlock + "\n", StateStale},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

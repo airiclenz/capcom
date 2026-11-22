@@ -64,7 +64,7 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 // needs.
 const loopOpening = "- `capcom next`: the most urgent ready issue, in full\n" +
 	"- `capcom ready`: the issues ready to work on, most urgent first\n" +
-	"- `capcom show <id>`: one issue in full, with what blocks it\n" +
+	"- `capcom show <id>`: one issue in full, with what blocks it; `capcom show <id> --section acceptance` reads one section\n" +
 	"- `capcom context <id>`: the issue with its deps, plan and the Notes that apply; run it before you start\n"
 
 // claimLine is the claim line: capcom start claims the Issue and takes the Tree lock in one step.
@@ -80,9 +80,10 @@ const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" 
 	"- `capcom create --id <slug> --title <title> [--dep <id>]`: file a new issue\n" +
 	"- `capcom apply <file>`: file a linked set of issues in one call, all or none\n" +
 	"- `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides\n" +
+	"- `capcom list <id>...`: the status of several issues in one call; `not found` means the id is free\n" +
 	"- `capcom list --tree --depth 2`: the outline of the issues\n" +
 	"- `capcom search <word>... --excerpt`: find issues by words in the id, title or body\n" +
-	"- `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>` reads a Note\n" +
+	"- `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>...` reads one Note or several in one call\n" +
 	"- `capcom know search <word>... --excerpt`: find Notes by words in the id, title or body\n" +
 	"\n" +
 	"Each command's flags are in `capcom <cmd> --help`.\n" +
