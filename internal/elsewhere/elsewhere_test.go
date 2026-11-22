@@ -1,13 +1,18 @@
 package elsewhere
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/airiclenz/capcom/internal/gitx"
 )
 
 const (
@@ -506,5 +511,137 @@ func TestScan_HiddenAndNonMarkdownFiles_AreNotReported(t *testing.T) {
 	want := []Entry{{ID: "new-work", Branch: "extras", Change: Added, Path: ".capcom/issues/new-work.md"}}
 	if !reflect.DeepEqual(report.Entries, want) || len(report.Warnings) != 0 {
 		t.Errorf("report = %+v\nwant entries %+v and no warnings", report, want)
+	}
+}
+
+// countReadBlobs makes the readBlobs seam count its calls into calls until the test ends.
+func countReadBlobs(t *testing.T, calls *int) {
+	t.Helper()
+	original := readBlobs
+	readBlobs = func(dir string, objects []string, limit int64) (map[string]gitx.Blob, error) {
+		*calls++
+		return original(dir, objects, limit)
+	}
+	t.Cleanup(func() { readBlobs = original })
+}
+
+func TestScan_ThreeBranchesWithTwoModifiedCopiesEach_ReportsThemInOrderFromOneBatch(t *testing.T) {
+	root := newIssueRepo(t)
+	onBranch(t, root, "c-third", map[string]string{
+		"login-flow.md":                 issueFile("done"),
+		"login-flow/session-refresh.md": issueFile("blocked"),
+	})
+	onBranch(t, root, "a-first", map[string]string{
+		"login-flow.md":                 issueFile("in_progress"),
+		"login-flow/session-refresh.md": issueFile("done"),
+	})
+	onBranch(t, root, "b-second", map[string]string{
+		"login-flow.md":                 issueFile("blocked"),
+		"login-flow/session-refresh.md": issueFile("in_progress"),
+	})
+	var calls int
+	countReadBlobs(t, &calls)
+
+	report := scan(root)
+
+	want := []string{
+		"login-flow: in_progress on a-first (unmerged)",
+		"session-refresh: done on a-first (unmerged)",
+		"login-flow: blocked on b-second (unmerged)",
+		"session-refresh: in_progress on b-second (unmerged)",
+		"login-flow: done on c-third (unmerged)",
+		"session-refresh: blocked on c-third (unmerged)",
+	}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) || len(report.Warnings) != 0 {
+		t.Errorf("entries = %q, warnings = %q; want %q and no warnings", lines, report.Warnings, want)
+	}
+	if calls != 1 {
+		t.Errorf("readBlobs ran %d times, want once for 6 copies", calls)
+	}
+}
+
+func TestScan_MoreCopiesThanOneBatch_ReadsThemInTwoBatchesInOrder(t *testing.T) {
+	const issuesPerBranch = 40
+	root := newRepo(t)
+	opened := map[string]string{}
+	closed := map[string]string{}
+	for i := range issuesPerBranch {
+		name := fmt.Sprintf("issue-%02d.md", i)
+		opened[name] = issueFile("open")
+		closed[name] = issueFile("done")
+	}
+	commitIssues(t, root, opened)
+	onBranch(t, root, "a-first", closed)
+	onBranch(t, root, "b-second", closed)
+	var calls int
+	countReadBlobs(t, &calls)
+
+	report := scan(root)
+
+	var want []string
+	for _, branch := range []string{"a-first", "b-second"} {
+		for i := range issuesPerBranch {
+			want = append(want, fmt.Sprintf("issue-%02d: done on %s (unmerged)", i, branch))
+		}
+	}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) || len(report.Warnings) != 0 {
+		t.Errorf("entries = %q, warnings = %q; want %q and no warnings", lines, report.Warnings, want)
+	}
+	if calls != 2 {
+		t.Errorf("readBlobs ran %d times, want twice for %d copies", calls, 2*issuesPerBranch)
+	}
+}
+
+func TestScan_ReadBlobsFails_KeepsEveryCopyModifiedWithAWarning(t *testing.T) {
+	root := newIssueRepo(t)
+	onBranch(t, root, "a-first", map[string]string{"login-flow.md": issueFile("done")})
+	onBranch(t, root, "b-second", map[string]string{
+		"login-flow.md":                 issueFile("done"),
+		"login-flow/session-refresh.md": issueFile("done"),
+	})
+	original := readBlobs
+	readBlobs = func(string, []string, int64) (map[string]gitx.Blob, error) {
+		return nil, errors.New("cat-file failed")
+	}
+	t.Cleanup(func() { readBlobs = original })
+
+	report := scan(root)
+
+	wantEntries := []string{
+		"login-flow: modified on a-first (unmerged)",
+		"login-flow: modified on b-second (unmerged)",
+		"session-refresh: modified on b-second (unmerged)",
+	}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, wantEntries) {
+		t.Errorf("entries = %q, want %q", lines, wantEntries)
+	}
+	wantWarnings := []string{
+		"elsewhere: branch a-first: cat-file failed",
+		"elsewhere: branch b-second: cat-file failed",
+		"elsewhere: branch b-second: cat-file failed",
+	}
+	if !reflect.DeepEqual(report.Warnings, wantWarnings) {
+		t.Errorf("warnings = %q, want %q", report.Warnings, wantWarnings)
+	}
+}
+
+func TestScan_PathWithALineBreak_IsNotReadAndStaysModifiedWithAWarning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows file names cannot hold a line break")
+	}
+	const oddName = "odd\nname.md"
+	root := newRepo(t)
+	commitIssues(t, root, map[string]string{oddName: issueFile("open"), "plain.md": issueFile("open")})
+	onBranch(t, root, "topic", map[string]string{oddName: issueFile("done"), "plain.md": issueFile("done")})
+
+	report := scan(root)
+
+	want := []string{"odd\nname: modified on topic (unmerged)", "plain: done on topic (unmerged)"}
+	if lines := entryLines(report); !reflect.DeepEqual(lines, want) {
+		t.Errorf("entries = %q, want %q", lines, want)
+	}
+	wantWarnings := []string{"elsewhere: branch topic: .capcom/issues/" + oddName + ": " + errLineBreak.Error()}
+	if !reflect.DeepEqual(report.Warnings, wantWarnings) {
+		t.Errorf("warnings = %q, want %q", report.Warnings, wantWarnings)
 	}
 }

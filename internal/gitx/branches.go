@@ -39,8 +39,8 @@ const (
 	changeType     = "T"
 )
 
-// ErrBlobTooLarge reports a blob ShowFile or ReadBlobs refused to read because git reported it
-// larger than the caller's limit.
+// ErrBlobTooLarge reports a blob ReadBlobs refused to read because git reported it larger than
+// the caller's limit.
 var ErrBlobTooLarge = errors.New("blob is larger than the size limit")
 
 // ChangeKind is how a file differs between two revisions.
@@ -185,32 +185,6 @@ func ChangedFiles(dir, base, branch string, pathspecs []string) ([]FileChange, e
 		changes = append(changes, FileChange{Path: fields[i+1], Kind: kind})
 	}
 	return changes, nil
-}
-
-// ShowFile returns the content of the file at path, relative to the worktree root, in revision.
-// It asks git for the blob's size first and reads the blob only when it is at most limit bytes;
-// a larger one fails with an error wrapping ErrBlobTooLarge, so a hostile branch cannot make the
-// caller buffer an arbitrarily large file. Pass a commit's object name as revision, not a ref, so
-// the size probe and the read name the same blob.
-func ShowFile(dir, revision, path string, limit int64) ([]byte, error) {
-	object := revision + ":" + path
-	sizeOutput, err := run(dir, "cat-file", "-s", object)
-	if err != nil {
-		return nil, err
-	}
-	size, err := strconv.ParseInt(strings.TrimSpace(sizeOutput), 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("git cat-file -s %s in %s: %w", object, dir, err)
-	}
-	if size > limit {
-		return nil, fmt.Errorf("%s: %w", object, ErrBlobTooLarge)
-	}
-
-	output, err := run(dir, "cat-file", "blob", object)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(output), nil
 }
 
 // isRemoteHead reports whether ref is refs/remotes/<remote>/HEAD, a remote's default branch

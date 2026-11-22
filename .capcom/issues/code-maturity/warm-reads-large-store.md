@@ -36,3 +36,7 @@ any work starts, is what an adopter with a large repository notices first.
 - `ready`, `next` and `list --all --json` run under 1 s, and `prime` under 1.5 s, at N=10000 on
   the Raspberry Pi 5 host (`GOMEMLIMIT=2GiB go test -run='^$' -bench='Prime|Ready|Next|ListAllJSON' -benchtime=1x ./internal/cli`);
   the new numbers are added to the benchmark baseline doc.
+
+## Log
+
+- 2026-11-22 Airic Lenz: Profile of 2026-11-22 at N=10000: elsewhere.Scan is 71% of ready, 58% in gitx.ShowFile (two git processes per modified branch copy); next loads every issue twice (briefing.ReadyList, then loadShowGraph); prime spends ~45% in check.Run via readHealth.

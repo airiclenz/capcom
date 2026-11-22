@@ -163,7 +163,11 @@ NOTES (2026-11-22): the page adds two test-backed store promises beyond the item
 **Closes:** compat-policy-doc
 **Commit:** `docs(reference): state the compatibility promise`
 
-## 7. The elsewhere scan reads every changed copy through one git process
+## 7. The elsewhere scan reads every changed copy through one git process — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): showFileLimit moved from internal/gitx/branches_test.go into internal/gitx/blobs_test.go, its only remaining user, with its comment naming ReadBlobs.
+NOTES (2026-11-22): a copy whose path holds a line break gets the warning "branch <name>: <path>: path holds a line break; its branch copy is not read" (errLineBreak); its Modified entry is kept with no status.
+NOTES (2026-11-22): the line-break test skips on Windows, whose file names cannot hold a line break.
 
 **What:** Recast at the regression check (2026-11-22).
 **Goal:** `elsewhere.Scan` reads the modified copies of all branches through `gitx.ReadBlobs`, one `git cat-file --batch` per 64 copies; its output (entries, their order, every warning text pinned by `internal/elsewhere/elsewhere_test.go`) is unchanged; `gitx.ShowFile` is gone. The 2026-11-22 profile is recorded on the issue.

@@ -15,6 +15,9 @@ import (
 // unknownObject is an object name no test repository holds.
 const unknownObject = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 
+// showFileLimit is the size limit the tests pass to ReadBlobs when the limit is not under test.
+const showFileLimit = 1 << 20
+
 // blobOf returns the object name of the file at path in HEAD.
 func blobOf(t *testing.T, root, path string) string {
 	t.Helper()

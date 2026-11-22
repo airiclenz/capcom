@@ -8,9 +8,6 @@ import (
 	"testing"
 )
 
-// showFileLimit is the size limit the tests pass to ShowFile when the limit is not under test.
-const showFileLimit = 1 << 20
-
 // commitFile writes content to the slash path name below root and commits it.
 func commitFile(t *testing.T, root, name, content string) {
 	t.Helper()
@@ -195,34 +192,5 @@ func TestChangedFiles_NoChange_ReturnsNone(t *testing.T) {
 
 	if err != nil || len(changes) != 0 {
 		t.Errorf("ChangedFiles = %+v, %v; want none", changes, err)
-	}
-}
-
-func TestShowFile_ReadsTheBranchCopy(t *testing.T) {
-	root := newRepo(t)
-	commitFile(t, root, "issues/note.md", "main copy\n")
-	git(t, root, "checkout", "-q", "-b", "topic")
-	commitFile(t, root, "issues/note.md", "topic copy\n")
-	git(t, root, "checkout", "-q", "-")
-
-	content, err := ShowFile(root, "refs/heads/topic", "issues/note.md", showFileLimit)
-
-	if err != nil || string(content) != "topic copy\n" {
-		t.Errorf("ShowFile = %q, %v; want the topic copy", content, err)
-	}
-	if _, err := ShowFile(root, "refs/heads/topic", "issues/absent.md", showFileLimit); err == nil {
-		t.Error("ShowFile of a missing file succeeded, want an error")
-	}
-}
-
-func TestShowFile_BlobOverTheLimit_FailsWithErrBlobTooLarge(t *testing.T) {
-	const limit = 8
-	root := newRepo(t)
-	commitFile(t, root, "issues/note.md", "longer than eight bytes\n")
-
-	content, err := ShowFile(root, "HEAD", "issues/note.md", limit)
-
-	if !errors.Is(err, ErrBlobTooLarge) || content != nil {
-		t.Errorf("ShowFile = %q, %v; want no content and ErrBlobTooLarge", content, err)
 	}
 }

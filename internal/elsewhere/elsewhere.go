@@ -30,6 +30,21 @@ const (
 	// maxBranchCopySize is the largest branch copy of an issue file the scan reads, in bytes:
 	// 1 MiB, the size the issue tree reads a node file up to.
 	maxBranchCopySize int64 = 1 << 20
+	// copiesPerBatch is how many branch copies one `git cat-file --batch` reads. Each batch's bytes
+	// are dropped before the next is read, so a hostile branch makes the scan hold at most
+	// copiesPerBatch × maxBranchCopySize bytes of copies at once.
+	copiesPerBatch = 64
+)
+
+// errLineBreak reports a branch copy the scan does not read because its path holds a line break,
+// which `git cat-file --batch` cannot be asked for.
+var errLineBreak = errors.New("path holds a line break; its branch copy is not read")
+
+// The git calls the scan makes per branch and per batch of copies, variables so the package's
+// tests can count them and make them fail.
+var (
+	changedFiles = gitx.ChangedFiles
+	readBlobs    = gitx.ReadBlobs
 )
 
 // Change is how a branch changed an issue file relative to its merge base with HEAD.
@@ -123,9 +138,7 @@ func Scan(options Options) Report {
 		report.warn("HEAD has no commit yet; other branches not compared")
 		return report
 	}
-	for _, branch := range report.withoutDuplicates(options.WorktreeRoot, candidates) {
-		report.scanBranch(options, branch)
-	}
+	report.scanBranches(options, report.withoutDuplicates(options.WorktreeRoot, candidates))
 	return report
 }
 
@@ -215,21 +228,55 @@ func (r *Report) redundantRef(worktreeRoot string, local, remote gitx.Branch) st
 	return ""
 }
 
-// scanBranch adds the entries of one branch, or a warning when git fails on it.
-func (r *Report) scanBranch(options Options, branch gitx.Branch) {
+// scanBranches adds the entries and warnings of branches, in their order. It runs in two passes:
+// first the changed files of every branch, then the status of every Modified file's branch copy,
+// read through one `git cat-file --batch` per copiesPerBatch copies.
+func (r *Report) scanBranches(options Options, branches []gitx.Branch) {
+	scans := make([]*branchScan, 0, len(branches))
+	var copies []branchCopy
+	for _, branch := range branches {
+		scan := listChanges(options, branch)
+		scans = append(scans, scan)
+		copies = append(copies, scan.modifiedCopies()...)
+	}
+	for start := 0; start < len(copies); start += copiesPerBatch {
+		readStatuses(options.WorktreeRoot, copies[start:min(start+copiesPerBatch, len(copies))])
+	}
+	for _, scan := range scans {
+		r.Entries = append(r.Entries, scan.keptEntries()...)
+		r.Warnings = append(r.Warnings, scan.found.Warnings...)
+	}
+}
+
+// branchScan is what the scan found on one branch. Its entries and warnings stay apart from the
+// Report until both passes are done, so the Report lists them in branch order.
+type branchScan struct {
+	branch gitx.Branch
+	// found holds the branch's entries and its warnings, each in path order. The second pass sets
+	// the Status of the Modified entries.
+	found Report
+	// isDropped marks, by index in found.Entries, the entries the Report leaves out: those whose
+	// branch copy is larger than maxBranchCopySize.
+	isDropped []bool
+}
+
+// listChanges runs the first pass over branch: the entries of every issue file it changed, with
+// no status yet, or a warning when git fails on it. A branch HEAD has merged has neither.
+func listChanges(options Options, branch gitx.Branch) *branchScan {
+	scan := &branchScan{branch: branch}
 	isMerged, err := gitx.IsAncestor(options.WorktreeRoot, branch.Ref, head)
 	if err != nil {
-		r.warn("branch %s: %v", branch.Name, err)
-		return
+		scan.found.warn("branch %s: %v", branch.Name, err)
+		return scan
 	}
 	if isMerged {
-		return
+		return scan
 	}
 
-	changes, err := gitx.ChangedFiles(options.WorktreeRoot, head, branch.Ref, options.Pathspecs)
+	changes, err := changedFiles(options.WorktreeRoot, head, branch.Ref, options.Pathspecs)
 	if err != nil {
-		r.warn("branch %s: %v", branch.Name, err)
-		return
+		scan.found.warn("branch %s: %v", branch.Name, err)
+		return scan
 	}
 	for _, change := range changes {
 		id, isIssue := issueID(change.Path)
@@ -238,42 +285,102 @@ func (r *Report) scanBranch(options Options, branch gitx.Branch) {
 		}
 		// gitx names its change kinds exactly as Change does.
 		entry := Entry{ID: id, Branch: branch.Name, Change: Change(change.Kind), Path: change.Path}
+		scan.found.Entries = append(scan.found.Entries, entry)
+	}
+	scan.isDropped = make([]bool, len(scan.found.Entries))
+	return scan
+}
+
+// modifiedCopies returns the branch copies of the branch's Modified entries, in path order.
+func (s *branchScan) modifiedCopies() []branchCopy {
+	var copies []branchCopy
+	for index, entry := range s.found.Entries {
 		if entry.Change == Modified {
-			status, isKept := r.branchStatus(options.WorktreeRoot, branch, change.Path)
-			if !isKept {
-				continue
-			}
-			entry.Status = status
+			copies = append(copies, branchCopy{scan: s, index: index})
 		}
-		r.Entries = append(r.Entries, entry)
+	}
+	return copies
+}
+
+// keptEntries returns the branch's entries, less the dropped ones.
+func (s *branchScan) keptEntries() []Entry {
+	kept := make([]Entry, 0, len(s.found.Entries))
+	for index, entry := range s.found.Entries {
+		if !s.isDropped[index] {
+			kept = append(kept, entry)
+		}
+	}
+	return kept
+}
+
+// branchCopy is the branch copy of one Modified entry of a branchScan.
+type branchCopy struct {
+	scan *branchScan
+	// index is the entry's index in scan.found.Entries.
+	index int
+}
+
+// path returns the issue file the copy is of, relative to the worktree root.
+func (c branchCopy) path() string {
+	return c.scan.found.Entries[c.index].Path
+}
+
+// object returns the copy's git object name. It names the copy by the tip commit Branches listed,
+// not by the ref, so the copy read is the one in the commit the first pass compared.
+func (c branchCopy) object() string {
+	return c.scan.branch.Commit + ":" + c.path()
+}
+
+// hasLineBreak reports whether the copy's path holds a line break, which ends an object name in
+// the input of `git cat-file --batch`.
+func (c branchCopy) hasLineBreak() bool {
+	return strings.Contains(c.path(), "\n")
+}
+
+// readStatuses reads copies through one `git cat-file --batch` and sets the status of each. A
+// copy whose path holds a line break is not asked for; when git reads no copy at all, every copy
+// gets git's error.
+func readStatuses(worktreeRoot string, copies []branchCopy) {
+	objects := make([]string, 0, len(copies))
+	for _, branchCopy := range copies {
+		if !branchCopy.hasLineBreak() {
+			objects = append(objects, branchCopy.object())
+		}
+	}
+	blobs, err := readBlobs(worktreeRoot, objects, maxBranchCopySize)
+	for _, branchCopy := range copies {
+		blob := blobs[branchCopy.object()]
+		switch {
+		case branchCopy.hasLineBreak():
+			blob = gitx.Blob{Err: fmt.Errorf("%s: %w", branchCopy.path(), errLineBreak)}
+		case err != nil:
+			blob = gitx.Blob{Err: err}
+		}
+		branchCopy.setStatus(blob)
 	}
 }
 
-// branchStatus reads the status of the branch copy of the issue file at filePath, or "" with a
-// warning when the copy cannot be read or parsed. It reads the copy from branch.Commit, the tip
-// Branches listed, so the size probe and the read see the same blob. A copy larger than
-// maxBranchCopySize is never read: it gets one warning, and isKept is false so the caller reports
-// no entry for the file; every other copy is kept.
-func (r *Report) branchStatus(
-	worktreeRoot string,
-	branch gitx.Branch,
-	filePath string,
-) (status string, isKept bool) {
-	data, err := gitx.ShowFile(worktreeRoot, branch.Commit, filePath, maxBranchCopySize)
-	if errors.Is(err, gitx.ErrBlobTooLarge) {
-		r.warn("branch %s: %s: %v", branch.Name, filePath, tree.ErrTooLarge)
-		return "", false
+// setStatus sets the status of the copy's entry from blob, the copy as git read it, or records a
+// warning when the copy could not be read or parsed. A copy larger than maxBranchCopySize was never
+// read: it gets one warning and its entry is dropped; every other entry is kept, with no status
+// when its copy could not be read or parsed.
+func (c branchCopy) setStatus(blob gitx.Blob) {
+	scan, entry := c.scan, &c.scan.found.Entries[c.index]
+	if errors.Is(blob.Err, gitx.ErrBlobTooLarge) {
+		scan.found.warn("branch %s: %s: %v", scan.branch.Name, entry.Path, tree.ErrTooLarge)
+		scan.isDropped[c.index] = true
+		return
 	}
+	if blob.Err != nil {
+		scan.found.warn("branch %s: %v", scan.branch.Name, blob.Err)
+		return
+	}
+	parsed, err := issue.Parse(scan.branch.Name+":"+entry.Path, blob.Data)
 	if err != nil {
-		r.warn("branch %s: %v", branch.Name, err)
-		return "", true
+		scan.found.warn("branch %s: %v", scan.branch.Name, err)
+		return
 	}
-	parsed, err := issue.Parse(branch.Name+":"+filePath, data)
-	if err != nil {
-		r.warn("branch %s: %v", branch.Name, err)
-		return "", true
-	}
-	return parsed.Status, true
+	entry.Status = parsed.Status
 }
 
 // warn records one warning, prefixed so a reader knows it comes from the Elsewhere scan.
