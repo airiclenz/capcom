@@ -147,7 +147,9 @@ NOTES (2026-11-22): file-format.md Related links now also lists `related rm` amo
 **Closes:** explicit-format-upgrade
 **Commit:** `docs: a write needing a newer format points to capcom upgrade`
 
-## 6. Compatibility page: what capcom keeps stable
+## 6. Compatibility page: what capcom keeps stable — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the page adds two test-backed store promises beyond the item's list: a write needing no newer format keeps config.yaml (`TestFormatFixture_LogKeepsFormat`) and an older capcom refuses a newer store (`TestFormatFixture_NewerFormatRefused`); the upgrade-only raise cites `TestFormatFixture_StandingNeedsUpgrade` and `TestFormatFixture_ApplyNeedingNewerFormat_WritesNothing` beside ADR 0019, and the KV promise also cites `TestGolden_KVCovered`.
 
 **What:** Depends on item 5.
 **Goal:** `docs/site/reference/compatibility.md` (`sidebar: { order: 5 }`) covers four surfaces plus a deprecation rule, each promise naming the test that enforces it: store files (every format ever written is read — `TestFormatFixture_*`, `internal/cli/testdata/stores/format-*`; a format is raised only by `capcom upgrade`, ADR 0019; the CHANGELOG names each format bump); JSON/KV (within `schema: 1` fields are only added — `TestGolden_ReadKinds`, `TestGolden_WriteKinds`, `TestGolden_KV`; a breaking change bumps `schema`); exit codes 0–4 and error codes `not_found exists invalid conflict locked not_initialized` fixed, new ones only added (`TestError_ExitCode_MapsCodes`, `TestDefaultHints_EveryCode_HasOne`, `TestExitCodes`, `TestGolden_Errors`); human text and `capcom ui` may change in any release. Deprecation: anything stable that must go is warned about for at least one minor release first, with a CHANGELOG entry. Linked from `README.md` ("Stable output"), `docs/site/getting-started/faq.md` (a new `##` question), `CONTRIBUTING.md` (a change breaking a promise needs a schema or format bump and a CHANGELOG entry), `llms.txt` and `docs/site/index.md` beside the other reference pages.

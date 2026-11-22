@@ -66,3 +66,5 @@ output, in the [quick start](getting-started/quickstart.md).
 - [Agent setup](agents/agent-setup.md): wire capcom into Claude Code, Codex and other agents.
 - [CLI reference](reference/cli/capcom.md): every command, flag and example.
 - [File format](reference/file-format.md): the files capcom keeps under `.capcom/`.
+- [Compatibility](reference/compatibility.md): what capcom keeps stable from one release to the
+  next.

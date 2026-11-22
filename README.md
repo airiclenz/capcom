@@ -82,7 +82,8 @@ capcom is a plain CLI, so any agent that can run a shell command can use it.
 - **Claude Code, Codex and apogee hooks.** `capcom init --claude-hooks`, `--codex-hooks` or
   `--apogee-hooks` runs `capcom prime` at session start, so every session begins with a briefing.
 - **Stable output.** `--json` and `--kv` are easy to parse; `capcom check` errors are easy to fix
-  in a loop.
+  in a loop. What stays stable from release to release is in
+  [Compatibility](docs/site/reference/compatibility.md).
 
 ## Install
 

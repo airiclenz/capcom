@@ -35,6 +35,7 @@ Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `ai
 - [CLI reference](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/cli/capcom.md): Every command, flag and example, one page per command linked from here
 - [File format](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/file-format.md): The files capcom keeps under .capcom/: issue files, Note files, the tree, config.yaml, the lock record, the Managed block, the two files capcom ui keeps outside the repository: its per-user config.yaml and its state.yaml, and its per-worktree ui-state.yaml under the git directory.
 - [JSON and KV output](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/json-output.md): The versioned --json envelope every command except capcom ui prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer.
+- [Compatibility](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/compatibility.md): What capcom keeps stable from one release to the next: the store files, the --json and --kv output, the exit codes and error codes, and how something stable is retired. Each promise names the test that holds it.
 
 ## Optional
 

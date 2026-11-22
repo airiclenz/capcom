@@ -85,6 +85,11 @@ GOMEMLIMIT=2GiB go test -run='^$' -bench='^BenchmarkLog$' -benchtime=1x ./intern
   [`docs/site/reference/cli/`](docs/site/reference/cli/) is generated: after changing a command,
   a flag or its help text, run `go run ./cmd/gendocs` and commit the result.
   `TestReferenceUpToDate` fails while the committed reference is stale.
+- [`docs/site/reference/compatibility.md`](docs/site/reference/compatibility.md) lists what
+  capcom keeps stable and the test that holds each promise. A change that breaks one of them
+  needs a `schema` bump (`--json` and `--kv` output) or a store format bump, and a CHANGELOG entry
+  that says so; anything stable that has to go is warned about for at least one minor release
+  first.
 - The README's GIF, [`graphics/demo.gif`](graphics/demo.gif), is filmed with
   [photon](https://github.com/airiclenz/photon) from
   [`graphics/demo/`](graphics/demo/). After a visible change to `capcom ui`, record it again on

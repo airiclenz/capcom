@@ -66,6 +66,14 @@ without a conflict. Run `capcom check` after a merge. See
 Yes. `capcom check` reports problems as `path:line: message` and `capcom fmt --check` reports
 files out of canonical form; both exit non-zero on a problem and write nothing.
 
+## Will a capcom upgrade break my scripts or my store?
+
+No. A newer capcom reads every store format an older one wrote, never raises your store's format
+unless you run `capcom upgrade`, and keeps the `--json` and `--kv` fields, exit codes and error
+codes stable: within `schema: 1` fields are only added. Plain-text output and `capcom ui` may
+change in any release. The full promise, each part tied to the test that holds it, is in
+[Compatibility](../reference/compatibility.md).
+
 ## How is capcom different from beads, GitHub Issues or Task Master?
 
 capcom keeps only files in git, with no database to sync, no hosted service and no LLM calls of
