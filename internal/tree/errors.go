@@ -10,7 +10,8 @@ import (
 
 // Sentinel errors, reachable through errors.Is on every error this package returns.
 var (
-	// ErrInvalidID reports an id that is not a 1-4 word kebab slug of at most 40 characters.
+	// ErrInvalidID reports an id that is not a 1-4 word kebab slug of at most 40 characters; the
+	// message names the first rule the id breaks.
 	ErrInvalidID = errors.New("invalid id")
 	// ErrInvalidAlias reports an alias outside [a-z0-9.-]+.
 	ErrInvalidAlias = errors.New("invalid alias")

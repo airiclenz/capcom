@@ -655,7 +655,7 @@ func TestRun_DirectoryProblems_WordedAsTheIndexWarnsThem(t *testing.T) {
 		string(diagnose.OrphanDirectory) + " " + issues +
 			"Bad_Name: directory left out: its node file Bad_Name.md has an invalid id",
 		string(diagnose.InvalidID) + " " + issues + `Bad_Name.md: invalid id "Bad_Name": ` +
-			"must be 1 to 4 words of a-z and 0-9 joined by single hyphens",
+			`upper-case letter "B"; ids are lower-case`,
 		string(diagnose.OrphanDirectory) + " " + issues +
 			"orphan-dir: directory without its node file: no orphan-dir.md beside it; left out",
 	}

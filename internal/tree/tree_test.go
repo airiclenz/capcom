@@ -2,6 +2,7 @@ package tree_test
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -90,35 +91,46 @@ func mustLoad(t *testing.T, dir string, aliases tree.AliasFunc) *tree.Tree {
 func TestValidateID(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		id      string
-		isValid bool
+		id       string
+		wantRule string
 	}{
-		{"login-flow", true},
-		{"login-timeout-race", true},
-		{"fix-login-timeout-race", true},
-		{"v2-api", true},
-		{"2026-plan", true},
-		{strings.Repeat("a", 19) + "-" + strings.Repeat("b", 20), true},
-		{strings.Repeat("a", 20) + "-" + strings.Repeat("b", 20), false},
-		{"login", true},
-		{"fix-the-login-timeout-race", false},
-		{"Login-flow", false},
-		{"login--flow", false},
-		{"-login-flow", false},
-		{"login-flow-", false},
-		{"login_flow", false},
-		{"apogee-kk0.4", false},
-		{"", false},
+		{"login-flow", ""},
+		{"login-timeout-race", ""},
+		{"fix-login-timeout-race", ""},
+		{"v2-api", ""},
+		{"2026-plan", ""},
+		{strings.Repeat("a", 19) + "-" + strings.Repeat("b", 20), ""},
+		{"login", ""},
+		{strings.Repeat("a", 20) + "-" + strings.Repeat("b", 20), "longer than 40 characters"},
+		{"Fix-the-login-timeout-race-" + strings.Repeat("x", 20), "longer than 40 characters"},
+		{"fix-the-login-timeout-race", "5 words, at most 4"},
+		{"a-b-c-d-e-f", "6 words, at most 4"},
+		{"Login-flow", `upper-case letter "L"; ids are lower-case`},
+		{"Bad_Name", `upper-case letter "B"; ids are lower-case`},
+		{"login-a-b-c-D_x", `upper-case letter "D"; ids are lower-case`},
+		{"login_flow", `character "_" not allowed; use a-z, 0-9 and hyphens`},
+		{"apogee-kk0.4", `character "." not allowed; use a-z, 0-9 and hyphens`},
+		{"café-flow", `character "é" not allowed; use a-z, 0-9 and hyphens`},
+		{"a-b-c-d-e_f", `character "_" not allowed; use a-z, 0-9 and hyphens`},
+		{"login--flow", "empty word; join words with single hyphens"},
+		{"-login-flow", "empty word; join words with single hyphens"},
+		{"login-flow-", "empty word; join words with single hyphens"},
+		{"-Login", "empty word; join words with single hyphens"},
+		{"", "empty word; join words with single hyphens"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.id, func(t *testing.T) {
 			err := tree.ValidateID(testCase.id)
 
-			if testCase.isValid && err != nil {
-				t.Fatalf("ValidateID(%q) = %v, want nil", testCase.id, err)
+			if testCase.wantRule == "" {
+				if err != nil {
+					t.Fatalf("ValidateID(%q) = %v, want nil", testCase.id, err)
+				}
+				return
 			}
-			if !testCase.isValid && !errors.Is(err, tree.ErrInvalidID) {
-				t.Fatalf("ValidateID(%q) = %v, want ErrInvalidID", testCase.id, err)
+			want := fmt.Sprintf("invalid id %q: %s", testCase.id, testCase.wantRule)
+			if !errors.Is(err, tree.ErrInvalidID) || err.Error() != want {
+				t.Fatalf("ValidateID(%q) = %v, want %q wrapping ErrInvalidID", testCase.id, err, want)
 			}
 		})
 	}
@@ -254,7 +266,7 @@ func TestWalk_DirectoryProblems_WordedAndLeftOut(t *testing.T) {
 	want := map[string]string{
 		filepath.Join(dir, "Bad_Name"): "directory left out: its node file Bad_Name.md has an invalid id",
 		filepath.Join(dir, "Bad_Name.md"): `invalid id "Bad_Name": ` +
-			"must be 1 to 4 words of a-z and 0-9 joined by single hyphens",
+			`upper-case letter "B"; ids are lower-case`,
 		filepath.Join(dir, "orphan-dir"): "directory without its node file: no orphan-dir.md beside it; left out",
 	}
 	got := map[string]string{}

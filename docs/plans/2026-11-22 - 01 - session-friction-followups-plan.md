@@ -158,7 +158,11 @@ internal/clidoc/reference_test.go — TestReferenceUpToDate; internal/tree/ids.g
 **Closes:** apply-schema-guesses
 **Commit:** `docs(apply): show a complete example file in apply --help`
 
-## 5. A refused id names the rule it broke
+## 5. A refused id names the rule it broke — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): did not run `capcom log id-word-limit ...` (the implementer may not comment on a ticket); the closing agent should log or give as the close reason: "the limit stays at 4 words: older binaries drop five-word ids without a store format raise (ADR 0009); see explicit-format-upgrade", which the issue's Acceptance asks for.
+NOTES (2026-11-22): an empty id ("") is refused as `empty word; join words with single hyphens`, the empty-word rule the item lists, rather than with a message of its own.
+NOTES (2026-11-22): the `a-b-c-d-e` create case is already covered by TestCreate_BadSlug_FailsInvalid in internal/cli/write_test.go (exit code and `invalid id` only), left unchanged as the item's Files do not list it.
 
 **What:**
 Recast at the regression check (2026-11-22, 6fe6719).
