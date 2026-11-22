@@ -308,7 +308,11 @@ internal/cli/write_test.go — TestCreateAndUpdate_MissingPlan_WritesAndWarnsLik
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `docs(cli): say when capcom check is needed`
 
-## 9. The managed block names search and the new lock rules
+## 9. The managed block names search and the new lock rules — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): added a `preSearchBlock` stale case to TestInspect_States (the previous golden block, built by reverting this item's edits) so a block written before this change is pinned as stale; checked byte-equal to the old goldenBlock.
+NOTES (2026-11-22): the Tree lock paragraph now names bare `capcom lock check` only (its `--token` / "while you hold no token" alternative dropped), since check needs no token in the holder process.
+NOTES (2026-11-22): docs/site/concepts/tree-locks.md:28,35 still quote the old warning ending "if it is yours, carry on" (changed by item 5); it is not a description of the block, so left for item 10's docs pass.
 
 **What:** Depends on items 4, 5, 7, 8.
 **Goal:** the block from `capcom agents` lists, in its one-line style,

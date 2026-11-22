@@ -42,7 +42,9 @@ Without a ` + "`capcom`" + ` binary, install it from https://github.com/airiclen
 - ` + "`capcom apply <file>`" + `: file a linked set of issues in one call, all or none
 - ` + "`capcom dep add <id> <dep-id>`" + `: make an issue wait for another; ` + "`capcom dep list <id>`" + ` shows both sides
 - ` + "`capcom list --tree --depth 2`" + `: the outline of the issues
+- ` + "`capcom search <word>... --excerpt`" + `: find issues by words in the id, title or body
 - ` + "`capcom know tree`" + `: the outline of the Knowledge tree; ` + "`capcom know show <id>`" + ` reads a Note
+- ` + "`capcom know search <word>... --excerpt`" + `: find Notes by words in the id, title or body
 
 Each command's flags are in ` + "`capcom <cmd> --help`" + `.
 
@@ -51,7 +53,8 @@ readable on its own; a plan says how and in what order.
 
 Where things are: an issue is ` + "`.capcom/issues/<id>.md`" + `, and its children sit in the directory
 ` + "`.capcom/issues/<id>/`" + ` beside it; Notes follow the same shape under ` + "`.capcom/knowledge/`" + `.
-Prefer capcom commands; after a hand edit run ` + "`capcom check`" + `.
+Prefer capcom commands: a capcom write is already validated, so ` + "`capcom check`" + ` is for after a
+hand edit or a merge.
 
 A standing issue (` + "`standing: true`" + ` in its file) only groups its children: never claim or close it.
 
@@ -60,12 +63,12 @@ worktree with ` + "`capcom lock acquire --purpose <text>`" + `. capcom keeps the
 running the same acquire again resumes the lock after a restart or compaction and prints the token
 again (or pass ` + "`--token <token>`" + `).
 ` + "`capcom start <id>`" + ` takes the lock for an issue, and running the same start again resumes it too.
-` + "`capcom lock touch --token <token>`" + ` renews it during long work,
-` + "`capcom lock release --token <token>`" + ` frees it when done. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
-` + "`capcom lock check`" + ` does while you hold no token, another session holds this worktree: ask the user
-before editing it. The lock is signalled, not enforced: a capcom write is never refused, but it
-warns, naming the holder, while the lock is held for a purpose other than the issue it writes; if
-the lock is yours, carry on.
+Every capcom write you make under the lock renews it, so run ` + "`capcom lock touch`" + ` only when work
+outlasts the lock's TTL (two hours by default) without one, and ` + "`capcom lock release`" + ` when done; in
+the session that holds the lock neither needs a token. When ` + "`capcom lock check`" + ` exits 3, another
+session holds this worktree: ask the user before editing it. The lock is signalled, not enforced: a
+capcom write is never refused, and your own writes under your lock are silent. A write that warns,
+naming the holder, means another session holds this worktree: ask the user before writing more.
 
 Knowledge tree, top level:
 
@@ -335,6 +338,24 @@ var preStartBlock = strings.NewReplacer(
 	"- `capcom finish <id> --reason <text> --token <token>`: close it and free the Tree lock; it names the issue to work on next\n",
 	"",
 ).Replace(keepTheTokenBlock)
+
+// preSearchBlock is goldenBlock as capcom rendered it before the command list named capcom search and
+// capcom know search, the store map said a capcom write is already validated, and the Tree lock
+// paragraph taught the holder's token-less touch and release and its silent writes.
+var preSearchBlock = strings.NewReplacer(
+	"- `capcom search <word>... --excerpt`: find issues by words in the id, title or body\n", "",
+	"- `capcom know search <word>... --excerpt`: find Notes by words in the id, title or body\n", "",
+	"Prefer capcom commands: a capcom write is already validated, so `capcom check` is for after a\n"+
+		"hand edit or a merge.\n",
+	"Prefer capcom commands; after a hand edit run `capcom check`.\n",
+	lockClosing,
+	"`capcom lock touch --token <token>` renews it during long work,\n"+
+		"`capcom lock release --token <token>` frees it when done. When `capcom lock check --token <token>` exits 3, or\n"+
+		"`capcom lock check` does while you hold no token, another session holds this worktree: ask the user\n"+
+		"before editing it. The lock is signalled, not enforced: a capcom write is never refused, but it\n"+
+		"warns, naming the holder, while the lock is held for a purpose other than the issue it writes; if\n"+
+		"the lock is yours, carry on.\n\n",
+).Replace(goldenBlock)
 
 // writeGuide writes content as the AGENTS.md of a new temp working tree and returns the tree.
 func writeGuide(t *testing.T, content string) string {
@@ -651,6 +672,7 @@ func TestInspect_States(t *testing.T) {
 		{"before context", "# Guide\n\n" + preContextBlock + "\n", StateStale},
 		{"before the lock warning", "# Guide\n\n" + preLockWarningBlock + "\n", StateStale},
 		{"before apply", "# Guide\n\n" + preApplyBlock + "\n", StateStale},
+		{"before search and the holder rules", "# Guide\n\n" + preSearchBlock + "\n", StateStale},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

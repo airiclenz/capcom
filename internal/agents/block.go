@@ -71,7 +71,8 @@ const loopOpening = "- `capcom next`: the most urgent ready issue, in full\n" +
 const claimLine = "- `capcom start <id>`: claim it and take the Tree lock before you start\n"
 
 // loopClosing is the command list after the claim line: the rest of the work loop, then the other
-// commands, capcom apply beside capcom create, then where their flags are.
+// commands, capcom apply beside capcom create and each search beside its outline, then where their
+// flags are.
 const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" +
 	"- `capcom close <id> --reason <text>`: close an issue; it names the issues this made ready\n" +
 	"- `capcom finish <id> --reason <text>`: close it and free the Tree lock; it names the issue to work on next\n" +
@@ -80,19 +81,23 @@ const loopClosing = "- `capcom log <id> <text>`: note progress as work lands\n" 
 	"- `capcom apply <file>`: file a linked set of issues in one call, all or none\n" +
 	"- `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides\n" +
 	"- `capcom list --tree --depth 2`: the outline of the issues\n" +
+	"- `capcom search <word>... --excerpt`: find issues by words in the id, title or body\n" +
 	"- `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>` reads a Note\n" +
+	"- `capcom know search <word>... --excerpt`: find Notes by words in the id, title or body\n" +
 	"\n" +
 	"Each command's flags are in `capcom <cmd> --help`.\n" +
 	"\n"
 
 // blockGuidance is the fixed part of the block between the command list and the Tree lock
-// paragraph.
+// paragraph: what an issue's body holds, the map of the store, that a capcom write is already
+// validated and capcom check is for hand edits and merges, and the Standing Parent rule.
 const blockGuidance = `An issue's body says what is wrong or wanted, why, and how to tell it is done (` + "`## Acceptance`" + `),
 readable on its own; a plan says how and in what order.
 
 Where things are: an issue is ` + "`.capcom/issues/<id>.md`" + `, and its children sit in the directory
 ` + "`.capcom/issues/<id>/`" + ` beside it; Notes follow the same shape under ` + "`.capcom/knowledge/`" + `.
-Prefer capcom commands; after a hand edit run ` + "`capcom check`" + `.
+Prefer capcom commands: a capcom write is already validated, so ` + "`capcom check`" + ` is for after a
+hand edit or a merge.
 
 A standing issue (` + "`standing: true`" + ` in its file) only groups its children: never claim or close it.
 
@@ -110,15 +115,16 @@ again (or pass ` + "`--token <token>`" + `).
 // line when the config declares no doing status.
 const lockStartSentence = "`capcom start <id>` takes the lock for an issue, and running the same start again resumes it too.\n"
 
-// lockClosing is the Tree lock paragraph after its capcom start sentence: renewing, releasing and
-// checking the lock, and that a capcom write is warned, never refused, while the lock is held for
-// another purpose (ADR 0017).
-const lockClosing = "`capcom lock touch --token <token>`" + ` renews it during long work,
-` + "`capcom lock release --token <token>`" + ` frees it when done. When ` + "`capcom lock check --token <token>`" + ` exits 3, or
-` + "`capcom lock check`" + ` does while you hold no token, another session holds this worktree: ask the user
-before editing it. The lock is signalled, not enforced: a capcom write is never refused, but it
-warns, naming the holder, while the lock is held for a purpose other than the issue it writes; if
-the lock is yours, carry on.
+// lockClosing is the Tree lock paragraph after its capcom start sentence: the holder's own capcom
+// writes renew the lock, so touch is for work that outlasts the TTL without one; touch, release and
+// check need no token from the holder process; and a capcom write is warned, never refused, while
+// another session holds the lock, the holder's own writes staying silent (ADR 0016, ADR 0017).
+const lockClosing = `Every capcom write you make under the lock renews it, so run ` + "`capcom lock touch`" + ` only when work
+outlasts the lock's TTL (two hours by default) without one, and ` + "`capcom lock release`" + ` when done; in
+the session that holds the lock neither needs a token. When ` + "`capcom lock check`" + ` exits 3, another
+session holds this worktree: ask the user before editing it. The lock is signalled, not enforced: a
+capcom write is never refused, and your own writes under your lock are silent. A write that warns,
+naming the holder, means another session holds this worktree: ask the user before writing more.
 
 `
 

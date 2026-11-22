@@ -173,7 +173,8 @@ func TestCheck_AgentsBlockWithoutStoreMap_IsStaleUntilAgentsRefreshesIt(t *testi
 	mustRun(t, root, "agents")
 	storeMapParagraph := "Where things are: an issue is `.capcom/issues/<id>.md`, and its children sit in the directory\n" +
 		"`.capcom/issues/<id>/` beside it; Notes follow the same shape under `.capcom/knowledge/`.\n" +
-		"Prefer capcom commands; after a hand edit run `capcom check`.\n\n"
+		"Prefer capcom commands: a capcom write is already validated, so `capcom check` is for after a\n" +
+		"hand edit or a merge.\n\n"
 	current := readAgentsGuide(t, root)
 	if !strings.Contains(current, storeMapParagraph) {
 		t.Fatalf("agents wrote a block without the store map:\n%s", current)

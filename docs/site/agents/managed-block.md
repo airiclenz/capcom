@@ -9,11 +9,13 @@ session starts. capcom owns one marked section of it, the **Managed block**: a p
 the work loop as commands in the order an agent runs them (take the most urgent issue in full, or
 find one and read it, read what it needs with `capcom context`, claim it and take the Tree lock with
 `capcom start`, log progress, close it, or close it and free the lock with `capcom finish`, reopen
-it), a few more core commands, a
-pointer to each command's `--help`, a map of the store, a warning never to claim or close a [Standing Parent](../concepts/issues.md#standing-parent), a
+it), a few more core commands, `capcom search` and `capcom know search` among them, a
+pointer to each command's `--help`, a map of the store with the word that a capcom write is already
+validated and `capcom check` is for hand edits and merges, a warning never to claim or close a [Standing Parent](../concepts/issues.md#standing-parent), a
 recommendation to take the [Tree lock](../concepts/tree-locks.md) before an extensive change, with
-the word that a capcom write under another session's lock warns and is never refused, and
-the top level of the [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is
+the word that the holder's own writes renew the lock and stay silent, that the holder touches and
+releases it without a token, and that a capcom write under another session's lock warns and is
+never refused, and the top level of the [Knowledge](../concepts/knowledge.md) Tree. Everything outside the markers is
 your own hand-written guide, and capcom never touches it.
 
 `AGENTS.md` is the block's home unless the `agents.file` key of `config.yaml` names another file
@@ -62,7 +64,9 @@ Without a `capcom` binary, install it from https://github.com/airiclenz/capcom#i
 - `capcom apply <file>`: file a linked set of issues in one call, all or none
 - `capcom dep add <id> <dep-id>`: make an issue wait for another; `capcom dep list <id>` shows both sides
 - `capcom list --tree --depth 2`: the outline of the issues
+- `capcom search <word>... --excerpt`: find issues by words in the id, title or body
 - `capcom know tree`: the outline of the Knowledge tree; `capcom know show <id>` reads a Note
+- `capcom know search <word>... --excerpt`: find Notes by words in the id, title or body
 
 Each command's flags are in `capcom <cmd> --help`.
 
@@ -71,7 +75,8 @@ readable on its own; a plan says how and in what order.
 
 Where things are: an issue is `.capcom/issues/<id>.md`, and its children sit in the directory
 `.capcom/issues/<id>/` beside it; Notes follow the same shape under `.capcom/knowledge/`.
-Prefer capcom commands; after a hand edit run `capcom check`.
+Prefer capcom commands: a capcom write is already validated, so `capcom check` is for after a
+hand edit or a merge.
 
 A standing issue (`standing: true` in its file) only groups its children: never claim or close it.
 
@@ -80,12 +85,12 @@ worktree with `capcom lock acquire --purpose <text>`. capcom keeps the Lock toke
 running the same acquire again resumes the lock after a restart or compaction and prints the token
 again (or pass `--token <token>`).
 `capcom start <id>` takes the lock for an issue, and running the same start again resumes it too.
-`capcom lock touch --token <token>` renews it during long work,
-`capcom lock release --token <token>` frees it when done. When `capcom lock check --token <token>` exits 3, or
-`capcom lock check` does while you hold no token, another session holds this worktree: ask the user
-before editing it. The lock is signalled, not enforced: a capcom write is never refused, but it
-warns, naming the holder, while the lock is held for a purpose other than the issue it writes; if
-the lock is yours, carry on.
+Every capcom write you make under the lock renews it, so run `capcom lock touch` only when work
+outlasts the lock's TTL (two hours by default) without one, and `capcom lock release` when done; in
+the session that holds the lock neither needs a token. When `capcom lock check` exits 3, another
+session holds this worktree: ask the user before editing it. The lock is signalled, not enforced: a
+capcom write is never refused, and your own writes under your lock are silent. A write that warns,
+naming the holder, means another session holds this worktree: ask the user before writing more.
 
 Knowledge tree, top level: no Notes yet.
 <!-- END CAPCOM -->
@@ -99,10 +104,13 @@ again resumes the lock after a restart or compaction, and `capcom finish` frees 
 declares no doing status leaves the claim line and the Tree lock paragraph's `capcom start`
 sentence out; what the doing status is called does not change the block.
 
-The Tree lock paragraph ends on what an agent meets when it writes anyway: the lock is signalled,
-not enforced, so a capcom write while the lock is held for another purpose still runs and adds a
-warning naming the holder, and a write to the issue `capcom start` took the lock for stays silent
-(see [Tree locks](../concepts/tree-locks.md#tree-lock)).
+Every capcom write the holder makes renews the lock, so the block asks for `capcom lock touch` only
+when work outlasts the lock's TTL without one, and the session that holds the lock runs
+`capcom lock touch` and `capcom lock release` without a token. The Tree lock paragraph ends on what
+an agent meets when it writes anyway: the lock is signalled, not enforced, so the holder's own
+writes stay silent, while a capcom write under another session's lock still runs and adds a warning
+naming the holder; that warning means another session holds the worktree, and the agent asks the
+user before it writes more (see [Tree locks](../concepts/tree-locks.md#tree-lock)).
 
 Write anything you want agents to know outside the markers: edits inside them are overwritten on
 the next refresh.

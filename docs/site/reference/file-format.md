@@ -934,18 +934,21 @@ an install pointer for an agent without a `capcom` binary (capcom's source and t
 install instructions, https://github.com/airiclenz/capcom#install), the commands an agent needs,
 the work loop first in the order it runs (`next`, `ready`, `show`, `start` to claim an issue and
 take the Tree lock, `log`, `close`, `finish` to close it and free the lock, `reopen`), then
-`create` with `--dep`, `apply` to file a linked set of issues all or none, `dep add` and `dep list`, `list --tree --depth 2` and `know tree`, followed by one line pointing to `capcom <cmd> --help` for
+`create` with `--dep`, `apply` to file a linked set of issues all or none, `dep add` and `dep list`, `list --tree --depth 2`, `search`, `know tree` and `know search`, followed by one line pointing to `capcom <cmd> --help` for
 each command's flags, a paragraph on what an issue's body holds (what is wrong
 or wanted, why, and an `## Acceptance` section, readable on its own; the how and the order belong
 in a plan), a map of the store (an issue is `.capcom/issues/<id>.md` with its children in the
 directory `.capcom/issues/<id>/` beside it, Notes the same under `.capcom/knowledge/`; prefer capcom
-commands, and run `capcom check` after a hand edit), a paragraph recommending the Tree lock before
+commands, whose writes are already validated, and run `capcom check` after a hand edit or a merge), a
+paragraph recommending the Tree lock before
 a change that spans several files or commits (`capcom lock acquire --purpose <text>`, or
 `capcom start <id>` for an issue; capcom keeps the Lock token for the session, so running the same
-acquire or start again resumes the lock after a restart or compaction and prints the token for
-`touch` and `release`; asking the user when `capcom lock check` reports another session's
-lock; and saying the lock is signalled, not enforced: a capcom write is never refused, but warns
-while the lock is held for a purpose other than the issue it writes), and the top level of the Knowledge tree, one
+acquire or start again resumes the lock after a restart or compaction; every capcom write the
+holder makes renews the lock, so `touch` is for work that outlasts the TTL without one, and the
+holder touches and releases without a token; asking the user when `capcom lock check` reports
+another session's lock; and saying the lock is signalled, not enforced: a capcom write is never
+refused, the holder's own writes are silent, and a write that warns means another session holds
+the worktree, so the agent asks the user), and the top level of the Knowledge tree, one
 `` - `<id>`: <title> `` line per top-level Note in id order, a retired one and one labelled
 `background` left out, and so is one whose file a load problem names (a duplicate id or alias, an
 invalid or repeated alias). The claim line names `capcom start`, and it and the Tree lock
