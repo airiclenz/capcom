@@ -22,6 +22,8 @@ An Issue with children is refused, so no orphan directory is left behind, and so
 
 Every other reference to the Issue is dropped, and its Aliases go with the file.
 
+A Note Ref naming the file is kept, with a warning, as capcom check fails on it.
+
 capcom deletes the file itself and never runs git.
 
 It prints the removed Issue's id and path, and the Issues whose deps entries were dropped.

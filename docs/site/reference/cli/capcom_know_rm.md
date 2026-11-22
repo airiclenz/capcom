@@ -17,6 +17,8 @@ A Note with children is refused, so no orphan directory is left behind.
 
 Every superseded-by entry naming it is dropped, and its Aliases go with the file.
 
+A Note Ref naming the file is kept, with a warning, as capcom check fails on it.
+
 capcom deletes the file itself and never runs git.
 
 It prints the removed Note's id and path, and the Notes whose superseded-by entries were dropped.

@@ -276,7 +276,13 @@ hits; CLI: `search` and `know search` on such a word, text and `--json`; the sea
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/index/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/index/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Search|Golden' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(search): match the words of the id`
 
-## 8. check says when it is needed, and writes that can fail it say so
+## 8. check says when it is needed, and writes that can fail it say so — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): Kind-by-Kind review (each probed with the built binary, then capcom check): invalid-id, invalid-alias, duplicate, repeated-alias — refused by create, mv, know add and know mv (an id held as another node's alias is refused); orphan-directory — rm and know rm refuse a node with children, an emptied parent left in place already warns; not-regular, frontmatter, field, config — writes validate values and write canonical frontmatter, never these; conflict — NOT warned: a body from --body/--body-file/--body-append(-file)/know update/apply wrote marker lines silently (log and close text cannot), warning added; missing-dep, cycle — refused by create --dep and dep add, rm refuses dependents unless --drop-deps; missing-related, missing-superseded-by — refused when added, dropped by rm/know rm, kept resolvable by mv's alias; format-too-old — writes raise the format with a warning; missing-plan — already warned; standing — refused by create, update, close and start; broken-ref, unshared-ref — know add/update already warn, mv/know mv rewrite Refs, but rm/know rm of a file a Note Ref names was silent, warning added; agents-block — Note writes refresh the block, a failed refresh warns; agents-guide — no store write touches a guide.
+NOTES (2026-11-22): the conflict-marker warning reads each written file back (disk, or the apply overlay so --dry-run warns too) and runs on every edit through app.written, so an edit of a file whose body already held markers warns about them as well; the rm/know rm warning names no line ("path: ref ...: message", as know add's ref warnings do) while check cites the Ref's line, and it reads the Notes the index listed outside a retired subtree, as check does. New helper knowledge.RefsNaming reuses movedRef's matching.
+NOTES (2026-11-22): consequential edit — internal/cli/testdata/help/rm.txt: made necessary by the new rm help sentence about Note Refs
+NOTES (2026-11-22): consequential edit — internal/cli/testdata/help/know-rm.txt: made necessary by the new know rm help sentence about Note Refs
+NOTES (2026-11-22): consequential edit — docs/site/concepts/knowledge.md: made necessary by rm/know rm now warning about Refs naming the removed file
 
 **What:** Part of issue `check-after-every-write`.
 **Goal:** `capcom check --help` says a write made through a capcom command is already validated

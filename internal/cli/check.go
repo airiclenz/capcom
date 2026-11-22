@@ -17,7 +17,9 @@ const (
 		"Note file, and the trees they form.\n\n" +
 		"Each problem is listed as path:line: message, and any problem fails the command, exit code " +
 		"1, after the list.\n\n" +
-		"Run it after a hand edit and after every merge.\n\n" +
+		"A write made through a capcom command is already validated: one that leaves a problem check " +
+		"reports warns with check's own words for it. Run check after a hand edit of a store file, " +
+		"after a merge, and before committing hand-edited store files.\n\n" +
 		"The --json data is the list of problems as {path, line, code, message} objects."
 	checkExample = "  capcom check          # validate the whole store\n" +
 		"  capcom check --json   # the problems as a JSON envelope"

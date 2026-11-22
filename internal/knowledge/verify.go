@@ -107,6 +107,19 @@ func RewriteRefs(refs []string, oldFile string, newFile string, oldDir string, n
 	return rewritten, true
 }
 
+// RefsNaming returns the Refs of refs that name a node file, file, its children directory dir or a
+// path below it, matched as RewriteRefs matches them, in order; nil when none does. file and dir are
+// relative to the working tree root with forward slashes.
+func RefsNaming(refs []string, file string, dir string) []string {
+	var naming []string
+	for _, ref := range refs {
+		if _, isNamed := movedRef(ref, file, file, dir, dir); isNamed {
+			naming = append(naming, ref)
+		}
+	}
+	return naming
+}
+
 // movedRef returns ref rewritten as RewriteRefs rewrites it, and whether it names the moved file or
 // directory at all.
 func movedRef(ref string, oldFile string, newFile string, oldDir string, newDir string) (string, bool) {

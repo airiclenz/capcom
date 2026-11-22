@@ -266,3 +266,103 @@ func TestCheck_StandingIssueInDoingStatus_ReportsStandingAndExitsOne(t *testing.
 		t.Errorf("check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
 	}
 }
+
+func TestCheck_Help_SaysWritesAreValidatedAndWhenToRunIt(t *testing.T) {
+	stdout := mustRun(t, "", "check", "--help")
+
+	help := strings.Join(strings.Fields(stdout), " ")
+	for _, want := range []string{
+		"A write made through a capcom command is already validated",
+		"warns with check's own words for it",
+		"Run check after a hand edit of a store file, after a merge, and before committing hand-edited store files.",
+	} {
+		if !strings.Contains(help, want) {
+			t.Errorf("check --help = %q, want it to say %q", stdout, want)
+		}
+	}
+}
+
+// conflictedBody is a body carrying the git conflict markers a merge leaves, as an agent might
+// paste it from a conflicted file.
+const conflictedBody = "Text.\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> other\n"
+
+func TestWrites_BodyWithConflictMarkers_WriteAndWarnLikeCheck(t *testing.T) {
+	commands := map[string]struct {
+		args []string
+		path string
+	}{
+		"create": {
+			[]string{"create", "--id", "new-one", "--title", "New one", "--body-file", "body.md"},
+			".capcom/issues/new-one.md",
+		},
+		"update": {
+			[]string{"update", "release-flow", "--body-append-file", "body.md"},
+			".capcom/issues/release-flow.md",
+		},
+		"know add": {
+			[]string{"know", "add", "--id", "merged-note", "--title", "Merged", "--body-file", "body.md"},
+			".capcom/knowledge/merged-note.md",
+		},
+		"know update": {
+			[]string{"know", "update", "release-flow", "--body-file", "body.md"},
+			".capcom/knowledge/release-flow.md",
+		},
+		"apply": {[]string{"apply", applyFile}, ".capcom/issues/merged.md"},
+	}
+	for name, command := range commands {
+		t.Run(name, func(t *testing.T) {
+			root := newKnowStore(t)
+			if err := os.WriteFile(filepath.Join(root, "body.md"), []byte(conflictedBody), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+			body := "    " + strings.ReplaceAll(strings.TrimSuffix(conflictedBody, "\n"), "\n", "\n    ")
+			writeApplyFile(t, root, "- op: create\n  id: merged\n  title: Merged\n  body: |\n"+body+"\n")
+
+			stdout, stderr, exitCode := runCLI(t, root, append(command.args, "--json")...)
+			checkOut, _, _ := runCLI(t, root, "check")
+
+			var wantWarnings []any
+			for _, line := range strings.Split(strings.TrimSuffix(checkOut, "\n"), "\n") {
+				if strings.HasPrefix(line, command.path+":") {
+					wantWarnings = append(wantWarnings, line)
+				}
+			}
+			warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+			if exitCode != ExitOK || len(wantWarnings) != 3 || !reflect.DeepEqual(warnings, wantWarnings) {
+				t.Errorf("exit = %d stderr = %q warnings = %v, want the three check lines %v",
+					exitCode, stderr, warnings, wantWarnings)
+			}
+		})
+	}
+}
+
+func TestApply_DryRunWithConflictMarkers_WarnsAndWritesNothing(t *testing.T) {
+	root := newKnowStore(t)
+	writeApplyFile(t, root, "- op: create\n  id: merged\n  title: Merged\n  body: |\n    <<<<<<< HEAD\n    ours\n"+
+		"    =======\n    theirs\n    >>>>>>> other\n")
+
+	stdout, stderr, exitCode := runCLI(t, root, "apply", applyFile, "--dry-run", "--json")
+
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	wantFirst := `.capcom/issues/merged.md:9: git conflict marker "<<<<<<< HEAD"; ` +
+		"resolve the conflict and delete the markers"
+	if exitCode != ExitOK || len(warnings) != 3 || warnings[0] != wantFirst {
+		t.Errorf("apply --dry-run = %d stderr = %q warnings = %v, want three conflict marker warnings, the first %q",
+			exitCode, stderr, warnings, wantFirst)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".capcom", "issues", "merged.md")); !os.IsNotExist(err) {
+		t.Errorf("merged.md stat = %v, want it not written", err)
+	}
+}
+
+func TestWrites_BodyWithoutConflictMarkers_DoNotWarn(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "update", "release-flow", "--body-append",
+		"A setext heading\n=======\n\n```\n<<<<<<< HEAD\n```", "--json")
+
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	if exitCode != ExitOK || len(warnings) != 0 {
+		t.Errorf("update = %d stderr = %q warnings = %v, want none", exitCode, stderr, warnings)
+	}
+}

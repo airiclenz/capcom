@@ -15,7 +15,7 @@ Validate the whole store from its files, never the index: the config, every Issu
 
 Each problem is listed as path:line: message, and any problem fails the command, exit code 1, after the list.
 
-Run it after a hand edit and after every merge.
+A write made through a capcom command is already validated: one that leaves a problem check reports warns with check's own words for it. Run check after a hand edit of a store file, after a merge, and before committing hand-edited store files.
 
 The --json data is the list of problems as {path, line, code, message} objects.
 

@@ -9,9 +9,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/ops"
+	"github.com/airiclenz/capcom/internal/rawfm"
 )
 
 const (
@@ -22,6 +25,9 @@ const (
 	// droppedCommentsWarning is the warning of a write that rewrote a file whose frontmatter held a
 	// YAML comment (app.warnDroppedComments): the file, relative to the working tree root.
 	droppedCommentsWarning = "%s: frontmatter comments are not kept; capcom writes frontmatter in canonical form"
+	// conflictsUncheckedWarning is the warning of a written file that could not be read back for
+	// git conflict markers (app.conflictMarkerWarnings): the file and why.
+	conflictsUncheckedWarning = "%s: not checked for git conflict markers: %s"
 )
 
 // ops returns the shared writes (internal/ops) on the issues of the store, resolving references
@@ -60,11 +66,12 @@ func editNode[T any](
 // written types the outcome of an ops write for the command. An edit that raised the store
 // format, because the file it wrote carries a key line config.yaml's format lacks, adds
 // formatRaisedWarning to the warnings the command's result renders, so every edit verb warns of
-// the raise once, and an edit of a file whose frontmatter held a comment adds
-// droppedCommentsWarning (app.warnDroppedComments). The write is noted for the Tree lock warning
-// (app.noteKindWrite), naming the Issue it wrote, or no Issue for a Note's. A failure is typed by
-// writeFailure for kind, the kind of node written, with the id the Written still names when the
-// node resolved, and is not noted.
+// the raise once, an edit of a file whose frontmatter held a comment adds droppedCommentsWarning
+// (app.warnDroppedComments), and a file left holding a git conflict marker, such as one a body
+// brought in, adds the warning capcom check gives for it (app.conflictMarkerWarnings). The write
+// is noted for the Tree lock warning (app.noteKindWrite), naming the Issue it wrote, or no Issue
+// for a Note's. A failure is typed by writeFailure for kind, the kind of node written, with the id
+// the Written still names when the node resolved, and is not noted.
 func (a *app) written(kind idKind, written nodestore.Written, err error) (nodestore.Written, error) {
 	if err != nil {
 		return nodestore.Written{}, a.writeFailure(kind, written.ID, err)
@@ -72,7 +79,34 @@ func (a *app) written(kind idKind, written nodestore.Written, err error) (nodest
 	a.noteKindWrite(kind, written.ID)
 	a.warnRaisedFormat(written.Effects)
 	a.warnDroppedComments(written.Effects)
+	conflicts := a.conflictMarkerWarnings(nodefile.ReadRegularFile, written.Path)
+	a.writeWarnings = append(a.writeWarnings, conflicts...)
 	return written, nil
+}
+
+// conflictMarkerWarnings returns the warning capcom check gives for each git conflict marker in
+// the node file at path, relative to the working tree root, once a write has put it there:
+// "path:line: message". read reads the file by its absolute path: nodefile.ReadRegularFile from
+// disk, or the staged content of a batch. A marker a body brings in is written as it is, since a
+// write never refuses one, so check would fail on it. A file read cannot read gives the one
+// conflictsUncheckedWarning instead.
+func (a *app) conflictMarkerWarnings(read func(string) ([]byte, error), path string) []string {
+	data, err := read(a.absoluteIssuePath(path))
+	if err != nil {
+		return []string{fmt.Sprintf(conflictsUncheckedWarning, path, a.worktreeRelativeText(err.Error()))}
+	}
+	markers := rawfm.ConflictMarkers(data)
+	warnings := make([]string, 0, len(markers))
+	for _, marker := range markers {
+		finding := diagnose.Finding{
+			Path:    path,
+			Line:    marker.Line,
+			Code:    diagnose.Conflict,
+			Message: rawfm.ConflictMessage(marker),
+		}
+		warnings = append(warnings, finding.String())
+	}
+	return warnings
 }
 
 // noteKindWrite notes a write of a node of kind (app.noteWrite): an Issue's names ids, the Issue's

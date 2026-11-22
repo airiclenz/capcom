@@ -5,6 +5,29 @@ import (
 	"testing"
 )
 
+func TestRefsNaming_FileDirectoryAndBelow_ReturnsOnlyThoseRefs(t *testing.T) {
+	t.Parallel()
+	const (
+		file = ".capcom/issues/beta.md"
+		dir  = ".capcom/issues/beta"
+	)
+	refs := []string{
+		"internal/cli/rm.go",
+		file + "#Acceptance",
+		".capcom/issues/beta-new.md",
+		"./" + dir,
+		dir + "/child.md",
+		"#symbol",
+	}
+
+	got := RefsNaming(refs, file, dir)
+
+	want := []string{file + "#Acceptance", "./" + dir, dir + "/child.md"}
+	if !slices.Equal(got, want) {
+		t.Errorf("RefsNaming(%v) = %v, want %v", refs, got, want)
+	}
+}
+
 func TestRewriteRefs_MovedFileAndDirectory_RewritesTheRefsNamingThem(t *testing.T) {
 	t.Parallel()
 	const (

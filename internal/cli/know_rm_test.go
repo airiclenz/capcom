@@ -356,3 +356,20 @@ func TestKnowRm_BlockFile_NamesItInTheRefreshLine(t *testing.T) {
 		t.Errorf("know rm = %q; want the refresh of %s", stdout, customBlockFile)
 	}
 }
+
+func TestKnowRm_FileANoteRefNames_RemovesAndWarnsLikeCheck(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"fixture-refs.md": "---\ntitle: Fixture refs\nrefs: [go.mod, .capcom/knowledge/testing-rules/git-fixtures.md]\n---\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "rm", "git-fixtures", "--json")
+
+	if exitCode != ExitOK || noteFileExists(t, root, "testing-rules/git-fixtures.md") {
+		t.Fatalf("know rm = %d\n%s%s\nwant the Note removed", exitCode, stdout, stderr)
+	}
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	assertWarnedLikeCheck(t, root, warnings, []string{
+		`.capcom/knowledge/fixture-refs.md: ref ".capcom/knowledge/testing-rules/git-fixtures.md": no such file or directory`,
+	})
+}

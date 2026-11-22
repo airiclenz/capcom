@@ -138,7 +138,7 @@ func (a *app) apply(cmd *cobra.Command, path string, isDryRun bool) (output.Resu
 		}
 	}
 	result := applyResult(operations, outcome, isDryRun)
-	result.Warnings = a.batchWarnings(outcome)
+	result.Warnings = a.batchWarnings(overlay, outcome)
 	return result, nil
 }
 
@@ -249,10 +249,11 @@ func (a *app) commitBatch(overlay *stage.Overlay, outcome batch.Outcome) error {
 
 // batchWarnings returns the warnings the batch's writes give, each once, as their commands give
 // them: the tree problems a create found that the index refresh did not already warn about, a
-// create that left its body empty, and a plan set that is in none of the plans directories. It
-// adds the frontmatter comments the writes dropped and the store format the batch raised, once, to
-// the write warnings.
-func (a *app) batchWarnings(outcome batch.Outcome) []string {
+// create that left its body empty, a plan set that is in none of the plans directories, and each
+// git conflict marker a written file holds as overlay stages it (app.conflictMarkerWarnings), so a
+// dry run warns of it too. It adds the frontmatter comments the writes dropped and the store format
+// the batch raised, once, to the write warnings.
+func (a *app) batchWarnings(overlay *stage.Overlay, outcome batch.Outcome) []string {
 	var warnings []string
 	addOnce := func(found ...string) {
 		for _, warning := range found {
@@ -267,6 +268,7 @@ func (a *app) batchWarnings(outcome batch.Outcome) []string {
 			addOnce(fmt.Sprintf(emptyBodyWarning, result.ID, result.ID))
 		}
 		addOnce(missingPlanWarnings(result.Path, result.MissingPlan)...)
+		addOnce(a.conflictMarkerWarnings(overlay.ReadRegularFile, result.Path)...)
 		a.warnDroppedComments(result.Effects)
 	}
 	a.warnRaisedFormat(nodestore.Effects{RaisedFormat: outcome.RaisedFormat})

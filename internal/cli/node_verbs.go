@@ -11,6 +11,7 @@ import (
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/knowledge"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/nodestore"
 )
 
@@ -250,10 +251,11 @@ func newRmCommand[T any](a *app, verbs nodeVerbs[T]) *cobra.Command {
 // before anything changes, see nodestore.Kind.Remove, and, taking the removal back, when a file it
 // rewrites changed while it ran. The result names the removed file and the nodes whose references
 // were dropped, with a warning for every tree problem that concerns neither the node nor its
-// parent, for every node file whose references could not be checked, for an emptied parent
-// directory left in place and for every file it rewrote whose frontmatter comments it dropped
-// (app.warnDroppedComments); verbs.afterWrite then renders the write's Effects. The removal is
-// noted for the Tree lock warning (app.noteKindWrite).
+// parent, for every node file whose references could not be checked, for every Note Ref the
+// removal broke (app.brokenRefWarnings), for an emptied parent directory left in place and for
+// every file it rewrote whose frontmatter comments it dropped (app.warnDroppedComments);
+// verbs.afterWrite then renders the write's Effects. The removal is noted for the Tree lock
+// warning (app.noteKindWrite).
 func remove[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -269,6 +271,7 @@ func remove[T any](
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	unread := unreadWarnings(removed.Unread, verbs.descriptor.RefKeys(), removed.ID)
 	result.Warnings = append(result.Warnings, unread...)
+	result.Warnings = append(result.Warnings, a.brokenRefWarnings(removed)...)
 	result.Warnings = append(result.Warnings, cleanupWarnings(removed.LeftInPlace)...)
 	a.warnDroppedComments(removed.Effects)
 	if verbs.afterWrite != nil {
@@ -334,7 +337,8 @@ func joinKeys(keys []string) string {
 // kind's node store, which refuses before build runs when id is invalid or already named, see
 // nodestore.Kind.Create. The result names the new node's id, path and etag, with a warning for
 // every tree problem that concerns neither the node's path nor its parent, unless the index
-// refresh already warned about it, and the warning of a write that raised the store format
+// refresh already warned about it, one per git conflict marker its body brought in
+// (app.conflictMarkerWarnings), and the warning of a write that raised the store format
 // (app.warnRaisedFormat); verbs.afterWrite then renders the write's Effects. The write is noted for
 // the Tree lock warning (app.noteKindWrite).
 func createNode[T any](
@@ -351,6 +355,7 @@ func createNode[T any](
 	a.noteKindWrite(verbs.idKind, written.ID)
 	result := verbs.writeResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
+	result.Warnings = append(result.Warnings, a.conflictMarkerWarnings(nodefile.ReadRegularFile, written.Path)...)
 	a.warnRaisedFormat(written.Effects)
 	if verbs.afterWrite != nil {
 		verbs.afterWrite(a, &result, written.Effects)

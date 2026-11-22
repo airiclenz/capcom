@@ -498,3 +498,42 @@ func TestRm_DropDeps_WarnsForTheDependentWhoseCommentsItDrops(t *testing.T) {
 		t.Errorf("stdout = %q; want the line %q", stdout, want)
 	}
 }
+
+// assertWarnedLikeCheck fails the test unless warnings, a write's --json warnings, are want and
+// capcom check reports each of them, at its line, in the same words.
+func assertWarnedLikeCheck(t *testing.T, root string, warnings []any, want []string) {
+	t.Helper()
+	got := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		text, _ := warning.(string)
+		got = append(got, text)
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("warnings = %q, want %q", got, want)
+	}
+	checkOut, _, _ := runCLI(t, root, "check")
+	for _, warning := range want {
+		path, message, _ := strings.Cut(warning, ": ")
+		if !strings.Contains(checkOut, path+":") || !strings.Contains(checkOut, ": "+message+"\n") {
+			t.Errorf("check = %q, want it to report %q", checkOut, warning)
+		}
+	}
+}
+
+func TestRm_FileANoteRefNames_RemovesAndWarnsLikeCheck(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"flow-refs.md": "---\ntitle: Flow refs\nrefs:\n  - go.mod\n  - .capcom/issues/release-flow.md#Ship\n" +
+			"  - .capcom/issues/release-flow-other.md\n---\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "rm", "release-flow", "--json")
+
+	if exitCode != ExitOK {
+		t.Fatalf("rm = %d\n%s%s", exitCode, stdout, stderr)
+	}
+	warnings, _ := decodeEnvelope(t, stdout)["warnings"].([]any)
+	assertWarnedLikeCheck(t, root, warnings, []string{
+		`.capcom/knowledge/flow-refs.md: ref ".capcom/issues/release-flow.md#Ship": no such file or directory`,
+	})
+}

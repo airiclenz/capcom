@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags and output of capcom rm and know rm.
@@ -23,6 +25,7 @@ var issueRmHelp = commandHelp{
 		"An Issue with children is refused, so no orphan directory is left behind, and so is an Issue " +
 		"other Issues depend on, unless --drop-deps removes their deps entries naming it.\n\n" +
 		"Every other reference to the Issue is dropped, and its Aliases go with the file.\n\n" +
+		"A Note Ref naming the file is kept, with a warning, as capcom check fails on it.\n\n" +
 		"capcom deletes the file itself and never runs git.\n\n" +
 		"It prints the removed Issue's id and path, and the Issues whose deps entries were dropped.",
 	example: "  capcom rm login-copy                       # refused while it has children or dependents\n" +
@@ -34,6 +37,7 @@ var noteRmHelp = commandHelp{
 	long: "Remove a Note's file.\n\n" +
 		"A Note with children is refused, so no orphan directory is left behind.\n\n" +
 		"Every superseded-by entry naming it is dropped, and its Aliases go with the file.\n\n" +
+		"A Note Ref naming the file is kept, with a warning, as capcom check fails on it.\n\n" +
 		"capcom deletes the file itself and never runs git.\n\n" +
 		"It prints the removed Note's id and path, and the Notes whose superseded-by entries were " +
 		"dropped.\n\n" +
@@ -141,4 +145,46 @@ func cleanupWarnings(leftInPlace []*nodestore.FileError) []string {
 		warnings = append(warnings, failure.Path+": "+flatten(failure.Message)+"; the empty directory was not removed")
 	}
 	return warnings
+}
+
+// brokenRefWarnings returns the warning capcom check gives for each Note Ref that named removed's
+// file, its children directory or a path below it, and so no longer resolves, "path: ref "<ref>":
+// message", as refWarnings words it. The Notes are those the index listed before the removal,
+// outside a retired subtree as check reads them, less the removed Note's own file. When the Notes
+// cannot be listed or their Refs checked, the one warning says the Refs were not checked.
+func (a *app) brokenRefWarnings(removed nodestore.Removed) []string {
+	notes, err := a.issueIndex.Notes(false)
+	if err != nil {
+		return a.refsUncheckedWarnings(removed.ID, err)
+	}
+	childrenDir := tree.ChildrenDir(removed.Path)
+	var files []knowledge.NoteFile
+	for _, entry := range notes {
+		if entry.Path == removed.Path {
+			continue
+		}
+		if refs := knowledge.RefsNaming(entry.Refs, removed.Path, childrenDir); len(refs) > 0 {
+			note := knowledge.Note{Refs: refs}
+			files = append(files, knowledge.NoteFile{ID: entry.ID, Path: entry.Path, Note: note})
+		}
+	}
+	if len(files) == 0 {
+		return nil
+	}
+	findings, err := knowledge.Verify(nodestore.RefRepository(a.store), files)
+	if err != nil {
+		return a.refsUncheckedWarnings(removed.ID, err)
+	}
+	warnings := make([]string, 0, len(findings))
+	for _, finding := range findings {
+		warnings = append(warnings, finding.String())
+	}
+	return warnings
+}
+
+// refsUncheckedWarnings returns the one warning of a removal of the node id whose Note Refs could
+// not be checked for err: the removal has landed, so it is a warning, not a failure.
+func (a *app) refsUncheckedWarnings(id string, err error) []string {
+	knowledgeDir := a.store.Relative(a.store.KnowledgeDir())
+	return []string{unreadWarning(knowledgeDir, []string{refsKey}, id, a.worktreeRelativeText(err.Error()))}
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/issue"
+	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/ops"
 	"github.com/airiclenz/capcom/internal/reflist"
 )
@@ -113,7 +114,8 @@ func (a *app) newCreateCommand() *cobra.Command {
 // create writes the new issue the flags describe through ops.CreateIssue, with a warning for every
 // tree problem that concerns neither the issue's file nor its parent's, unless the index refresh
 // already warned about it, then a warning when the new issue has no body or only whitespace, then
-// one when its --plan is in none of the plans directories. A --dep that resolves to no issue fails
+// one when its --plan is in none of the plans directories, then one per git conflict marker its
+// body brought in (app.conflictMarkerWarnings). A --dep that resolves to no issue fails
 // the create before anything is written.
 func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result, error) {
 	created, err := a.ops().CreateIssue(newIssue(cmd, options))
@@ -128,6 +130,7 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result,
 		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, created.ID, created.ID))
 	}
 	result.Warnings = append(result.Warnings, missingPlanWarnings(created.Path, created.MissingPlan)...)
+	result.Warnings = append(result.Warnings, a.conflictMarkerWarnings(nodefile.ReadRegularFile, created.Path)...)
 	return result, nil
 }
 
