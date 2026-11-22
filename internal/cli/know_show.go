@@ -30,11 +30,19 @@ const (
 		"command then exits with the first failure's code.\n\n" +
 		"--with-children also prints the Notes directly below each, their retired ones only with " +
 		"--retired.\n\n" +
+		"--brief prints the fields only, without the body. --section prints the fields and the body " +
+		"sections under the headings named, in body order, heading lines included; a heading matches " +
+		"case-insensitively, its # marks ignored.\n\n" +
+		"A section runs to the next heading of its level or a higher one. Each Note shown is cut " +
+		"alike, its children too; one whose body lacks a named heading fails, naming the headings it " +
+		"has, and the others still print.\n\n" +
 		"The etag is what --if-match takes on know update, know mv and know rm."
 	knowShowExample = "  capcom know show release-steps                   # one Note in full\n" +
 		"  capcom know show release-steps store-layout      # several at once\n" +
 		"  capcom know show \"Release steps\"                 # by its title\n" +
 		"  capcom know show release-steps --with-children   # and the Notes directly below it\n" +
+		"  capcom know show release-steps --brief           # the fields only, no body\n" +
+		"  capcom know show release-steps --section steps   # the fields and one body section\n" +
 		"  capcom know show release-steps --json            # as a JSON envelope"
 )
 
@@ -43,10 +51,12 @@ const (
 // id, Alias or prefix (index.ResolveNoteByTitle); the Notes found are printed even when
 // another argument fails, and the command then exits with the first failure's code. A named Note
 // resolves even when retired; its retired children, and every child of a retired Note, are shown
-// only with --retired.
+// only with --retired. --brief leaves each body out and --section keeps only the body sections it
+// names; a Note whose body lacks one fails as its argument does, invalid.
 func (a *app) newKnowShowCommand() *cobra.Command {
 	isWithChildren := false
 	isRetiredIncluded := false
+	var view bodyView
 	cmd := &cobra.Command{
 		Use:               "show <id|alias|prefix|title>...",
 		Short:             "Show Notes in full",
@@ -56,41 +66,49 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 		ValidArgsFunction: completeNoteIDs(everyArgument),
 		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			shown, failure, err := a.shownNotes(cmd, args, isWithChildren, isRetiredIncluded)
+			failures := a.newArgumentFailures(cmd, noteIDs)
+			shown, err := a.shownNotes(args, isWithChildren, isRetiredIncluded, failures)
 			if err != nil {
 				return err
 			}
-			result, err := a.noteShowResult(shown)
+			result, invalid, err := a.noteShowResult(shown, view)
 			if err != nil {
 				return err
 			}
-			result.Failure = failure
+			for _, failure := range invalid {
+				failures.addFailure(failure)
+			}
+			result.Failure = failures.failure()
 			return a.emit(cmd, result)
 		}),
 	}
-	cmd.Flags().BoolVar(&isWithChildren, flagWithChildren, false, "also show the Notes directly below each")
-	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
+	flags := cmd.Flags()
+	flags.BoolVar(&isWithChildren, flagWithChildren, false, "also show the Notes directly below each")
+	flags.BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
+	flags.BoolVar(&view.isBrief, flagBrief, false, "print the fields only, without the body")
+	flags.StringArrayVar(&view.sections, flagSection, nil,
+		"print the fields and only the body section under this heading; repeat for more")
+	cmd.MarkFlagsMutuallyExclusive(flagBrief, flagSection)
 	return cmd
 }
 
 // shownNotes resolves every argument to its Note, each followed with isWithChildren by the Notes
 // directly below it, their retired ones only with isRetiredIncluded. It returns the Notes found and
-// the joined failure of the arguments that name none, as show reports them; the error is the index
-// failing, which the command cannot go on from.
+// collects in failures the failure of each argument that names none, as show reports them; the
+// error is the index failing, which the command cannot go on from.
 func (a *app) shownNotes(
-	cmd *cobra.Command,
 	args []string,
 	isWithChildren bool,
 	isRetiredIncluded bool,
-) ([]index.NoteEntry, *output.Error, error) {
-	failures := a.newArgumentFailures(cmd, noteIDs)
+	failures *argumentFailures,
+) ([]index.NoteEntry, error) {
 	var shown []index.NoteEntry
 	var notes *outline.Tree[index.NoteEntry]
 	for _, arg := range args {
 		entry, err := a.issueIndex.ResolveNoteByTitle(arg)
 		if err != nil {
 			if _, fatal := failures.add(err); fatal != nil {
-				return nil, nil, fatal
+				return nil, fatal
 			}
 			continue
 		}
@@ -101,27 +119,38 @@ func (a *app) shownNotes(
 		if notes == nil {
 			entries, err := a.issueIndex.Notes(isRetiredIncluded)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			notes = outline.Notes(entries, true)
 		}
 		shown = append(shown, notes.Children(entry.ID)...)
 	}
-	return shown, failures.failure(), nil
+	return shown, nil
 }
 
-// noteShowResult renders each Note in full, separated by a blank line. Its fields, body and etag
-// come from one read of the Note file, the bytes a later --if-match is checked against.
-func (a *app) noteShowResult(entries []index.NoteEntry) (output.Result, error) {
+// noteShowResult renders each Note, separated by a blank line, its body printed and given as view
+// has it: in full with the zero view. Its fields, body and etag come from one read of the Note file,
+// the bytes a later --if-match is checked against. A Note whose body lacks a heading view names is
+// left out, and its failure, typed invalid and naming its file, is returned in invalid; the zero
+// view returns none.
+func (a *app) noteShowResult(
+	entries []index.NoteEntry,
+	view bodyView,
+) (result output.Result, invalid []*output.Error, err error) {
 	data := make([]noteData, 0, len(entries))
 	var text strings.Builder
 	reader := nodestore.NoteReader()
 	for _, indexed := range entries {
 		reading, err := parseNodeFile(a, reader, indexed.Path)
 		if err != nil {
-			return output.Result{}, err
+			return output.Result{}, nil, err
 		}
-		entry, body := noteFromFile(indexed, reading.Node)
+		entry, fullBody := noteFromFile(indexed, reading.Node)
+		body, hasBody, err := view.body(fullBody)
+		if err != nil {
+			invalid = append(invalid, output.Errorf(output.CodeInvalid, "%s: %s", entry.Path, err))
+			continue
+		}
 		etag := reading.ETag
 		if text.Len() > 0 {
 			text.WriteString("\n")
@@ -129,10 +158,12 @@ func (a *app) noteShowResult(entries []index.NoteEntry) (output.Result, error) {
 		text.WriteString(noteText(entry, etag, body))
 		shown := newNoteData(entry)
 		shown.ETag = etag
-		shown.Body = &body
+		if hasBody {
+			shown.Body = &body
+		}
 		data = append(data, shown)
 	}
-	return output.Result{Kind: "note", Data: data, Text: text.String()}, nil
+	return output.Result{Kind: "note", Data: data, Text: text.String()}, invalid, nil
 }
 
 // noteFromFile returns entry with every frontmatter field taken from note, the Note its file

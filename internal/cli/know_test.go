@@ -198,6 +198,141 @@ func TestKnowShow_WithChildrenOnSeveralNotes_ShowsEachThenItsDirectChildren(t *t
 	}
 }
 
+// sectionedNote is the body of the Note release-steps: an intro, then H2 sections, one with an H3
+// below it and one holding a fenced heading.
+const sectionedNote = "\nIntro.\n\n## Steps\n\nTag it.\n\n### Detail\n\nMore.\n\n" +
+	"## Example\n\n```\n## not a heading\n```\n\n## Risks\n\nNone.\n"
+
+// newSectionedNoteStore creates newKnowStore's store with the Note release-steps, whose body has
+// sections, and its child release-checks, which has a Steps section of its own.
+func newSectionedNoteStore(t *testing.T) string {
+	t.Helper()
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"release-steps.md":                "---\ntitle: Release steps\n---\n" + sectionedNote,
+		"release-steps/release-checks.md": "---\ntitle: Release checks\n---\n\n## Steps\n\nRun the gate.\n",
+	})
+	return root
+}
+
+// releaseStepsFields is the field lines know show prints for the Note release-steps.
+func releaseStepsFields(t *testing.T, root string) string {
+	t.Helper()
+	return "id: release-steps\npath: .capcom/knowledge/release-steps.md\n" +
+		"etag: " + noteFileETag(t, root, "release-steps.md") + "\ntitle: Release steps\n"
+}
+
+func TestKnowShow_Brief_PrintsTheFieldsOnly(t *testing.T) {
+	root := newSectionedNoteStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "show", "release-steps", "--brief")
+	jsonOutput := mustRun(t, root, "know", "show", "release-steps", "--brief", "--json")
+
+	if want := releaseStepsFields(t, root); exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("know show --brief exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	shown := decodeEnvelope(t, jsonOutput)["data"].([]any)[0].(map[string]any)
+	if _, hasBody := shown["body"]; hasBody || shown["id"] != "release-steps" {
+		t.Errorf("know show --brief --json data = %v, want the Note without a body", shown)
+	}
+}
+
+func TestKnowShow_Section_PrintsTheFieldsAndTheChosenSections(t *testing.T) {
+	cases := []struct {
+		name     string
+		sections []string
+		wantBody string
+	}{
+		{
+			name:     "one section with its subsection",
+			sections: []string{"steps"},
+			wantBody: "## Steps\n\nTag it.\n\n### Detail\n\nMore.\n\n",
+		},
+		{
+			name:     "several sections in body order, a fenced heading not ending one",
+			sections: []string{"## Risks", "EXAMPLE"},
+			wantBody: "## Example\n\n```\n## not a heading\n```\n\n## Risks\n\nNone.\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newSectionedNoteStore(t)
+			args := []string{"know", "show", "release-steps"}
+			for _, section := range tc.sections {
+				args = append(args, "--section", section)
+			}
+
+			stdout, stderr, exitCode := runCLI(t, root, args...)
+			jsonOutput := mustRun(t, root, append(args, "--json")...)
+
+			if want := releaseStepsFields(t, root) + "\n" + tc.wantBody; exitCode != ExitOK || stderr != "" ||
+				stdout != want {
+				t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+			}
+			shown := decodeEnvelope(t, jsonOutput)["data"].([]any)[0].(map[string]any)
+			if shown["body"] != tc.wantBody {
+				t.Errorf("--json body = %q, want %q", shown["body"], tc.wantBody)
+			}
+		})
+	}
+}
+
+func TestKnowShow_SectionWithChildren_CutsEachNoteAlike(t *testing.T) {
+	root := newSectionedNoteStore(t)
+
+	stdout := mustRun(t, root, "know", "show", "release-steps", "--with-children", "--section", "steps", "--json")
+
+	data := decodeEnvelope(t, stdout)["data"].([]any)
+	bodies := make([]any, 0, len(data))
+	for _, item := range data {
+		bodies = append(bodies, item.(map[string]any)["body"])
+	}
+	want := []any{"## Steps\n\nTag it.\n\n### Detail\n\nMore.\n\n", "## Steps\n\nRun the gate.\n"}
+	if !slices.Equal(bodies, want) {
+		t.Errorf("--with-children --section bodies = %q, want %q", bodies, want)
+	}
+}
+
+func TestKnowShow_SectionMissing_FailsThatNoteNamingItsHeadings(t *testing.T) {
+	root := newSectionedNoteStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "show", "release-flow", "release-steps", "--section", "risks")
+	jsonOutput, _, _ := runCLI(t, root, "know", "show", "release-flow", "release-steps", "--section", "risks", "--json")
+
+	wantMessage := `.capcom/knowledge/release-flow.md: no section "risks"; the body has no headings`
+	if want := releaseStepsFields(t, root) + "\n## Risks\n\nNone.\n"; exitCode != ExitError || stdout != want ||
+		!strings.HasPrefix(stderr, "capcom: "+wantMessage+"\n") {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	errorBody, _ := decodeEnvelope(t, jsonOutput)["error"].(map[string]any)
+	if got := envelopeIDs(t, jsonOutput); !slices.Equal(got, []string{"release-steps"}) ||
+		errorBody["code"] != string(CodeInvalid) || errorBody["message"] != wantMessage {
+		t.Errorf("--json ids = %v error = %v, want release-steps and the invalid failure", got, errorBody)
+	}
+}
+
+func TestKnowShow_SectionMissing_NamesTheNotesHeadings(t *testing.T) {
+	root := newSectionedNoteStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "know", "show", "release-steps", "--section", "plan")
+
+	want := `capcom: .capcom/knowledge/release-steps.md: no section "plan"; ` +
+		"its headings are Steps, Detail, Example, Risks\n"
+	if exitCode != ExitError || !strings.HasPrefix(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want the prefix %q", exitCode, stderr, want)
+	}
+}
+
+func TestKnowShow_BriefWithSection_ExitsUsage(t *testing.T) {
+	root := newSectionedNoteStore(t)
+
+	_, _, exitCode := runCLI(t, root, "know", "show", "release-steps", "--brief", "--section", "steps")
+
+	if exitCode != ExitUsage {
+		t.Errorf("know show --brief --section exit = %d, want %d", exitCode, ExitUsage)
+	}
+}
+
 func TestKnowShow_Text_PrintsFrontmatterThenBody(t *testing.T) {
 	root := newKnowStore(t)
 

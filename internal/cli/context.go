@@ -290,7 +290,8 @@ func (a *app) contextNotes(applying []applyingNote, isBrief bool) ([]contextNote
 		return notes, text, nil
 	}
 
-	bodies, err := a.noteShowResult(shown)
+	// The zero view prints each body in full and fails no Note.
+	bodies, _, err := a.noteShowResult(shown, bodyView{})
 	if err != nil {
 		return nil, "", err
 	}

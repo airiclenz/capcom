@@ -74,6 +74,10 @@ auth  How sessions and tokens work
 `capcom know show --with-children <id>` prints a Note together with the Notes directly below it,
 for a decision record whose sections are child Notes.
 
+`capcom know show <id> --brief` prints a Note's fields without its body, and
+`--section <heading>` (repeatable) its fields and only the body sections under those headings,
+matched case-insensitively with the `#` marks ignored.
+
 An argument to `know show` that names no id, Alias or id prefix is tried as a title,
 case-insensitive: the whole title, then the part before its first colon, then the argument
 spelled as an id. When several Notes match, it fails naming them all.

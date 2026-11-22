@@ -75,14 +75,15 @@ func (a *app) newShowCommand() *cobra.Command {
 	return a.withKV(cmd)
 }
 
-// bodyView is how much of each issue's body show prints: all of it, the zero value; none, with
-// isBrief; or only the sections under the headings in sections, as issue.Sections selects them.
+// bodyView is how much of each issue's or Note's body show and know show print: all of it, the zero
+// value; none, with isBrief; or only the sections under the headings in sections, as
+// issue.Sections selects them.
 type bodyView struct {
 	isBrief  bool
 	sections []string
 }
 
-// body is the part of an issue's body the view prints, and whether it prints any: false with
+// body is the part of a body the view prints, and whether it prints any: false with
 // isBrief. It fails, as a *issue.SectionsError, when the body lacks a heading the view names.
 func (v bodyView) body(full string) (string, bool, error) {
 	switch {

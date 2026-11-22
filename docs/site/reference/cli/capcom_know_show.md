@@ -19,6 +19,10 @@ The Notes found are printed even when another argument names none, and the comma
 
 --with-children also prints the Notes directly below each, their retired ones only with --retired.
 
+--brief prints the fields only, without the body. --section prints the fields and the body sections under the headings named, in body order, heading lines included; a heading matches case-insensitively, its # marks ignored.
+
+A section runs to the next heading of its level or a higher one. Each Note shown is cut alike, its children too; one whose body lacks a named heading fails, naming the headings it has, and the others still print.
+
 The etag is what --if-match takes on know update, know mv and know rm.
 
 ```
@@ -32,15 +36,19 @@ capcom know show <id|alias|prefix|title>... [flags]
   capcom know show release-steps store-layout      # several at once
   capcom know show "Release steps"                 # by its title
   capcom know show release-steps --with-children   # and the Notes directly below it
+  capcom know show release-steps --brief           # the fields only, no body
+  capcom know show release-steps --section steps   # the fields and one body section
   capcom know show release-steps --json            # as a JSON envelope
 ```
 
 ### Options
 
 ```
-  -h, --help            help for show
-      --retired         include retired Notes and everything below them
-      --with-children   also show the Notes directly below each
+      --brief                 print the fields only, without the body
+  -h, --help                  help for show
+      --retired               include retired Notes and everything below them
+      --section stringArray   print the fields and only the body section under this heading; repeat for more
+      --with-children         also show the Notes directly below each
 ```
 
 ### Options inherited from parent commands

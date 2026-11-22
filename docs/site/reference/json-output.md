@@ -55,6 +55,7 @@ ancestor kept only to place a match, which the text ends `[context]`, carries `"
 
 `capcom show --brief` leaves `body` out of each Issue, and `capcom show --section` puts only the
 chosen sections in `body`, heading lines included; every other member is as without them.
+`capcom know show --brief` and `--section` do the same to each Note.
 
 `capcom context` gives kind `context` with `data` an object: `issue` (the Issue as `show` gives it),
 `deps` and `dependents` (its direct ones, as `dep list` gives them), `plan` (`null` without a plan,

@@ -325,7 +325,19 @@ internal/cli/next.go — emitShown caller
 **Acceptance:** `go vet ./internal/issue/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/issue/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Show|Golden|Context|Start|Next' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(show): print the fields only or chosen body sections`
 
-## 10. know show takes --brief and --section
+## 10. know show takes --brief and --section — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): re-derived from "noteText and noteData apply it": the trim is applied in noteShowResult through item 9's bodyView (show.go), passed as an explicit parameter (context passes bodyView{}); noteText and noteData are unchanged, know.go untouched. noteShowResult also returns the invalid failures, which know show adds to its argumentFailures; shownNotes now takes that collector instead of cmd.
+
+NOTES (2026-11-22): a Note whose body lacks a named heading fails invalid as `<path>: no section "x"; its headings are ...`, the others still print; with --with-children a child lacking it fails alike. Lookup failures are collected before section failures, so with both the exit code is the lookup failure's whatever the argument order (show keeps argument order).
+
+NOTES (2026-11-22): consequential edit — internal/cli/show.go: made necessary by know show reusing bodyView (its doc comments named only issues)
+
+NOTES (2026-11-22): consequential edit — docs/site/reference/json-output.md: made necessary by --brief and --section changing know show's JSON body (one sentence)
+
+NOTES (2026-11-22): consequential edit — docs/site/concepts/knowledge.md: made necessary by know show gaining --brief and --section (the browsing section lists its flags)
+
+NOTES (2026-11-22): TestHelpText_EveryCommand_PrintsExamplesBeforeShortRules/capcom_show fails on item 9's committed showLong (a rule paragraph runs to 5 lines at 100 columns); know show's new help was split into two paragraphs to pass the same rule.
 
 **What:**
 Depends on items 7 and 9.
