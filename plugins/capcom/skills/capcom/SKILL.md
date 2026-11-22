@@ -67,12 +67,13 @@ A standing Issue only groups its children: never claim or close it. Every comman
 `capcom start` and `capcom finish` take and free the lock with an Issue. For a change that spans
 several files or commits outside an Issue, claim the worktree with
 `capcom lock acquire --purpose <text>`; running the same acquire again resumes the lock and
-prints its token again. Renew it with `capcom lock touch --token <token>` and free it with
-`capcom lock release --token <token>`, passing the token acquire printed. When
-`capcom lock check` exits 3, another session holds this worktree: ask the user before editing.
-The lock is signalled, not enforced: a capcom write is never refused, but while the lock is held
-for a purpose other than the Issue it writes it adds a warning naming the holder; if the lock is
-yours, carry on.
+prints its token again. Every capcom write you make under the lock renews it, so run
+`capcom lock touch` only when work outlasts the lock's TTL (two hours by default) without one, and
+`capcom lock release` when done; in the session that holds the lock neither needs a token. When
+`capcom lock check` exits 3, another session holds this worktree: ask the user before editing it.
+The lock is signalled, not enforced: a capcom write is never refused, and your own writes under
+your lock are silent. A write that warns, naming the holder, means another session holds this
+worktree: ask the user before writing more.
 
 The capcom block in `AGENTS.md` is the repository's own word on these commands; when it differs
 from this skill, follow `AGENTS.md`.

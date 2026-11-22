@@ -20,7 +20,7 @@ doing: 1
   login-error-copy  active  P1  Reword the login errors
 locks: 1
   _main: held by claude@devbox for 0m, heartbeat 0m ago: implementing the login rework
-this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> or capcom start <id> again to resume it (or pass --token <token>), otherwise do not edit it
+this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> or capcom start <id> again to resume it (or pass --token <token>), otherwise ask the user before editing it
 broken Note refs: 0
 check: no problems
 elsewhere: rate-limit: active on rate-limit-work (unmerged)
@@ -44,11 +44,14 @@ Section by section:
     that spans several files or commits, or with `capcom start <id>` for an Issue.
   - `held`: a session holds it; if it is yours, run the same `capcom lock acquire --purpose <text>`
     or `capcom start <id>` again to resume it, capcom having kept its Lock token for the session
-    (or pass `--token <token>`); otherwise another session is editing the worktree, so do not edit
-    it.
+    (or pass `--token <token>`); otherwise another session is editing the worktree, so ask the
+    user before editing it.
   - `stale`: its holder stopped sending heartbeats; if it is yours, run the same acquire or start
-    again to resume it (or pass `--token <token>`), otherwise ask the user before taking it over
-    with `--take-stale`.
+    again to resume it (or pass `--token <token>`), otherwise ask the user before editing it.
+  - `held by this session (<purpose>)`: the lock is held, live or stale, and `prime` runs in its
+    [holder process](../concepts/tree-locks.md#the-holder-process), so it is this session's own:
+    its capcom writes stay silent and renew the heartbeat, and `capcom lock touch`, `release` and
+    `check` need no token.
 
   A store whose `config.yaml` declares no doing status leaves `capcom start` out of these lines,
   since `capcom start` cannot claim an Issue there.

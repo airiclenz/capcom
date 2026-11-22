@@ -25,5 +25,5 @@ The records:
 - `adr-0014`: capcom ui remembers its layout in a machine-written state.yaml beside the hand-owned config.yaml
 - `adr-0015`: capcom ui remembers its tab and selections per worktree in a ui-state.yaml under the git dir
 - `adr-0016`: An agent session keeps its Lock token in a token file keyed by worktree and purpose under the git common dir
-- `adr-0017`: A CLI write warns while another session holds the Tree lock, unless it writes the Issue the lock is held for
+- `adr-0017`: A CLI write warns while another session holds the Tree lock; the holder's own writes and writes of the Issue the lock is held for stay silent
 - `adr-0018`: capcom does not serve its operations over MCP for now

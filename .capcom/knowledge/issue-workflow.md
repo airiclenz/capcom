@@ -17,11 +17,15 @@ resumes the lock after a restart or compaction and prints the token again.
 key.
 
 **The lock is signalled, not enforced.** A capcom write while the Tree lock is held is never
-refused: it still runs and adds a warning naming the holder, the purpose and the heartbeat age
-(ADR 0017). A write to the issue whose id is the lock's purpose stays silent, so `log`, `update`
-and `close` of the started issue warn nothing; any other write warns, even the holder's, and the
-warning ends "if it is yours, carry on". To stay out of another session's way, run
-`capcom lock check` before a change and ask the user when it exits 3.
+refused (ADR 0017 and its amendment of 2026-11-22). The lock record names the holder process, the
+nearest non-shell ancestor of the `start` or `acquire` that took it: every write made under it,
+of any issue or Note, stays silent and renews the heartbeat, so `lock touch` is needed only when
+work outlasts the TTL without a capcom write, and `lock touch`, `release` and `check` need no
+`--token` there. Any other session's write adds a warning naming the holder, the purpose and the
+heartbeat age, ending "another session holds this worktree: the write landed, ask the user before
+writing more"; only a write of the issue whose id is the lock's purpose stays silent for it. To
+stay out of another session's way, run `capcom lock check` before a change and ask the user when
+it exits 3, or when a write warns.
 
 **Finishing work.** `capcom finish <id> --reason <text>` closes the issue, frees the Tree lock
 through the token kept for the issue, deletes that kept token and names the Ready issue to work on

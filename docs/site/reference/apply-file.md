@@ -77,8 +77,11 @@ A file that changed on disk while the batch ran fails the batch the same way, wi
 and a file that appeared where the batch creates one fails it with `exists`.
 
 The warnings of the writes come once each, as their commands give them: an Issue created with no
-body, say. A [Tree lock](../concepts/tree-locks.md) held for another purpose warns once for the
-whole batch, and only after the batch is written.
+body, say. A [Tree lock](../concepts/tree-locks.md) held by another session warns once for the
+whole batch, and only after the batch is written, unless every Issue the batch writes is the one
+the lock is held for. A batch applied from the lock's
+[holder process](../concepts/tree-locks.md#the-holder-process) adds no lock warning and renews
+the lock's heartbeat.
 
 ## if-match
 

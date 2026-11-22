@@ -21,18 +21,21 @@ sessions that check it, which is why the [Managed block](../agents/managed-block
 session [briefing](../agents/briefing.md) show it to every agent.
 
 The lock is signalled, not enforced. A capcom command that writes (`create`, `update`, `mv`,
-`know add` and the rest) is never refused while the lock is held, but it adds a warning naming the
-holder, the purpose and the heartbeat age, and says when the lock is stale:
+`know add` and the rest) is never refused while the lock is held. The lock knows its
+[holder process](#the-holder-process), and every write made under it stays silent and renews the
+lock's heartbeat. A write by any other session adds a warning naming the holder, the purpose and
+the heartbeat age, and says what to do:
 
 ```text
-warning: /home/you/your-repo/.git/capcom/locks/_main.json: locked by claude@devbox (implementing the login rework) for 12m0s, heartbeat 1m0s ago; if it is yours, carry on
+warning: /home/you/your-repo/.git/capcom/locks/_main.json: locked by claude@devbox (implementing the login rework) for 12m0s, heartbeat 1m0s ago; another session holds this worktree: the write landed, ask the user before writing more
 ```
 
-The warning comes with the command's other warnings, in its text output and in the `warnings` of
-`--json` and `--kv`, and the command still exits 0. A write to the Issue whose id is the lock's
-purpose stays silent, so the holder's own `capcom log <id>`, `update <id>` and `close <id>` after
-`capcom start <id>` warn nothing; a write of anything else warns, even the holder's, which is why
-the warning ends "if it is yours, carry on". `start`, `finish`, the `lock` commands and the
+A stale lock's warning ends "another session's stale lock holds this worktree: the write landed,
+ask the user before writing more or taking it over". The warning comes with the command's other
+warnings, printed before its result in text output and in the `warnings` of `--json` and `--kv`,
+and the command still exits 0. Outside the holder process, a write to the Issue whose id is the
+lock's purpose stays silent too, so `capcom log <id>`, `update <id>` and `close <id>` after
+`capcom start <id>` warn nothing in any process. `start`, `finish`, the `lock` commands and the
 commands that only read never warn. A lock record that cannot be read warns too, naming
 `capcom lock status`, and never fails the write.
 
@@ -51,7 +54,8 @@ token 6071ae76aab99defb4d17a08f832bf3d
 ```
 
 `_main` names the primary worktree; a linked worktree is `wt-<name>`. The token marks the lock as
-yours: `touch` and `release` take it, and capcom keeps it for you (see
+yours: `touch` and `release` take it outside the [holder process](#the-holder-process), and
+capcom keeps it for you (see
 [The kept token](#the-kept-token)). `status` never shows it. `--holder` defaults to `user@host`.
 
 While the lock is held, a second session's `acquire` fails with exit code 3. Its hint names the
@@ -97,16 +101,43 @@ into a lock taken by an older capcom that kept no token file. Resuming with `--t
 purpose moves the token file to that purpose, so a session naming the old one then fails `locked`.
 
 The token tells different work apart, not who may touch the worktree: any session that names the
-same purpose resumes the lock, and a session naming another purpose fails `locked`. It is a public
-signal between agents, not a secret; the lock stays advisory. `lock release` and `capcom finish`
+same purpose resumes the lock, and a session naming a different purpose fails `locked`. It is a
+public signal between agents, not a secret; the lock stays advisory. `lock release` and `capcom finish`
 delete the kept token they release, and `lock break` deletes all of the worktree's kept tokens.
+
+## The holder process
+
+`lock acquire` and `capcom start` also record the **holder process** in the lock record: the
+nearest ancestor of capcom that is not a shell or a wrapper command (`sh`, `bash`, `env`,
+`timeout` and the like), usually the agent harness the session runs in, by its PID and start
+stamp (ADR 0005, ADR 0017 and their amendments of 2026-11-22). The harness outlives the fresh
+shell it opens for each command, so every capcom the session runs, its sub-agents' included,
+descends from it. Resuming the lock records the resuming caller's process; `touch` keeps it.
+
+A capcom run whose process ancestry holds the holder process is the holder:
+
+- its writes of Issues and Notes add no lock warning, whatever they write, and each renews the
+  lock's heartbeat;
+- `lock touch`, `lock release` and `lock check` need no `--token`: capcom uses the token it keeps
+  for the lock (ADR 0016 and its amendment of 2026-11-22);
+- `capcom prime` says `this worktree: held by this session (<purpose>)`.
+
+The holder process only recognises the holder: the Lock token still decides acquire, resume,
+touch and release, and a lock is live or stale by its heartbeat alone. Any other process passes
+`--token`. A record an older capcom wrote names no holder process and works through the token
+alone. Two shells that share their nearest non-shell ancestor, such as two panes of one tmux
+server, are one holder to capcom.
 
 ## Touch: keep it fresh
 
-A held lock carries a heartbeat. `capcom lock touch --token <token>` renews it; touch more often
-than the lock's TTL while the work goes on:
+A held lock carries a heartbeat. Every capcom write in the holder process renews it, so
+`capcom lock touch` is needed only when the work outlasts the lock's TTL without a capcom write.
+In the holder process it needs no token; from any other process pass `--token <token>`:
 
 ```console
+$ capcom lock touch
+_main: held by claude@devbox since 2026-10-13T18:57:00Z (heartbeat 2026-10-13T18:57:00Z): implementing the login rework
+token 6071ae76aab99defb4d17a08f832bf3d
 $ capcom lock touch --token 6071ae76aab99defb4d17a08f832bf3d
 _main: held by claude@devbox since 2026-10-13T18:57:00Z (heartbeat 2026-10-13T18:57:00Z): implementing the login rework
 token 6071ae76aab99defb4d17a08f832bf3d
@@ -119,8 +150,8 @@ A lock is **Stale** when its holder has not renewed it within the TTL: `lock.ttl
 A heartbeat dated more than one TTL in the future, from a clock that ran fast, is stale too; one
 less than a TTL ahead stays live. A stale lock is still held. It stays held until one of three things happens:
 
-- its holder resumes it by running the same `lock acquire --purpose` again or renews it with
-  `lock touch`;
+- its holder resumes it by running the same `lock acquire --purpose` again, or renews it with
+  `lock touch` or a capcom write in the holder process;
 - another session takes it over on purpose with `lock acquire --take-stale`, which gives it a
   new token;
 - someone breaks it.
@@ -138,8 +169,9 @@ time. Taking one over is a deliberate act.
 
 ## Release and break
 
-`capcom lock release --token <token>` frees the lock you hold and deletes the kept token files
-holding that token. Releasing a lock that is already free succeeds, deleting only those kept token
+`capcom lock release` frees the lock you hold and deletes the kept token files holding that
+token; in the holder process it needs no token, and from any other process it takes
+`--token <token>`. Releasing a lock that is already free succeeds, deleting only those kept token
 files, so it is safe on every exit path:
 
 ```console
@@ -178,11 +210,13 @@ Deleting `<git-dir>/capcom` deletes the id with it, so it orphans a live lock in
 too.
 
 `capcom lock check` is for scripts and hooks that want to refuse to edit a tree someone else
-holds. It exits 0 when the lock is free or held by your `--token`, and 3 when another session holds
-it, stale or not:
+holds. It exits 0 when the lock is free or yours, and 3 when another session holds it, stale or
+not. The lock is yours when `--token` is its Lock token, or, without `--token`, when capcom runs in
+the holder process and keeps the lock's token; any other caller counts a held lock as another's:
 
 ```sh
-capcom lock check --token "$CAPCOM_TOKEN" || exit 1
+capcom lock check || exit 1                          # from the holder process
+capcom lock check --token "$CAPCOM_TOKEN" || exit 1  # from anywhere
 ```
 
 `capcom prime` lists the held locks at the start of every session, then says what to do about the
@@ -192,8 +226,10 @@ or `unreadable` when it cannot be read):
 ```text
 locks: 1
   _main: held by claude@devbox for 0m, heartbeat 0m ago: implementing the login rework
-this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> or capcom start <id> again to resume it (or pass --token <token>), otherwise do not edit it
+this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> or capcom start <id> again to resume it (or pass --token <token>), otherwise ask the user before editing it
 ```
+
+Run from the holder process, the same line says `this worktree: held by this session (<purpose>)`.
 
 ## Start and finish: the lock with an Issue
 
@@ -245,15 +281,18 @@ A bare `capcom start session-refresh` is refused `locked` there, its hint naming
 
 ```sh
 capcom start login-flow
-# ... work, renewing the heartbeat every so often (start again prints the token):
-token=$(capcom start login-flow --kv | sed -n 's/^TOKEN=//p')
-capcom lock touch --token "$token"
+# ... work: every capcom write from this session renews the heartbeat;
+# touch only when the work outlasts the TTL without one:
+capcom lock touch
 # ... and when done:
 capcom finish login-flow --reason "Reworked in 3f2a1c9"
 ```
 
-Outside an Issue, `capcom lock acquire --purpose <text> --kv` resumes the same way and prints the
-same `TOKEN=` line, and `capcom lock release --token "$token"` frees the lock on any exit path.
+From a process that does not descend from the holder process, a script or a hook, take the token
+from `capcom start login-flow --kv` (its `TOKEN=` line) and pass it with `--token`. Outside an
+Issue, `capcom lock acquire --purpose <text> --kv` resumes the same way and prints the same
+`TOKEN=` line, and `capcom lock release` (or `capcom lock release --token "$token"` from another
+process) frees the lock on any exit path.
 
 The `--kv` output prints one `KEY=VALUE` line per field, the token as `TOKEN=`, and ends with
 `STATUS=`; see [JSON and KV output](../reference/json-output.md).

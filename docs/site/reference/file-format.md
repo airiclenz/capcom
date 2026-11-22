@@ -887,7 +887,8 @@ replaces it. A token file is never read as a record: only `*.json` files are.
   "branch": "main",
   "since": "2026-10-11T14:08:52.330264702Z",
   "heartbeat": "2026-10-11T15:02:10.118520331Z",
-  "worktree": "9c41d0e7b25a4f3e8d6c1b0a7e2f5d34"
+  "worktree": "9c41d0e7b25a4f3e8d6c1b0a7e2f5d34",
+  "process": {"pid": 48213, "started": "1874512"}
 }
 ```
 
@@ -906,22 +907,34 @@ replaces it. A token file is never read as a record: only `*.json` files are.
 - **host**, **user**, **branch** — where the lock was acquired: the machine, the user and the
   branch checked out.
 - **since** — when the lock was acquired; resuming it with the token keeps this time.
-- **heartbeat** — when the lock was last acquired, resumed or touched.
+- **heartbeat** — when the lock was last acquired, resumed or touched, or written under by its
+  holder process: each Issue or Note write made there renews it.
 - **worktree** — the id a linked worktree keeps in `<git-dir>/capcom/worktree-id`, when the lock
   was acquired; left out for the primary worktree and in a record an older capcom wrote.
+- **process** — the holder process: the nearest ancestor of the capcom that acquired or last
+  resumed the lock that is not a shell or a wrapper command, usually the agent harness, as its
+  `pid` and `started`, an opaque start stamp whose form differs per operating system, so a reused
+  PID never matches (ADR 0005 and its amendment of 2026-11-22). A capcom whose process ancestry
+  holds both is the holder: its writes add no lock warning and renew the heartbeat, and its
+  `lock touch`, `lock release` and `lock check` need no `--token`. `lock touch` keeps it, and a
+  resume replaces it with the resuming caller's. It is left out when that process was unknown and
+  in a record an older capcom wrote, and an older capcom's touch or resume drops it.
 
 Both times are RFC3339 in UTC. A lock whose heartbeat is older than `lock.ttl` in `config.yaml`
 (2 h by default), or dated more than one `lock.ttl` ahead by a clock that ran fast, is **stale**:
 it is still held, but another session may take it over with `lock acquire --take-stale`, and
 `lock break` frees it whoever holds it. The lock is advisory; capcom installs no git hooks, and
 `lock check` lets a repository opt in to a check of its own. A capcom command that writes is never
-refused while the lock is held: it reads the record and adds a warning naming the holder, unless
-it writes only the Issue whose id is the lock's `purpose` (ADR 0017).
+refused while the lock is held: it reads the record, renews the heartbeat when it runs in the
+holder process, and otherwise adds a warning naming the holder and telling the writer to ask the
+user before writing more; a write of only the Issue whose id is the lock's `purpose` stays silent
+from any process (ADR 0017 and its amendment of 2026-11-22).
 A record that does not parse or carries no token holds no lock: `lock break` discards it with a
 warning, and `lock status --all` and `capcom prime` skip it with a warning naming the file.
 Every change to a record runs under an OS file lock on its `.lck` file, held only for that read and
 write, and the record is replaced atomically. Reading the lock (`lock check`, `lock status`,
-`capcom prime`, and the check a writing command makes) takes no file lock and creates nothing.
+`capcom prime`, and the check a writing command makes) takes no file lock and creates nothing;
+only a holder write's renewal takes the file lock, as `lock touch` does.
 
 ## The Managed block in AGENTS.md
 

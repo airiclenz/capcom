@@ -340,7 +340,13 @@ docs/site/reference/file-format.md — Managed block section
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/agents/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/agents/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Agents' ./internal/cli/ && grep -n "capcom search" AGENTS.md && grep -n "capcom know search" AGENTS.md && ! grep -n "carry on" AGENTS.md && go run ./cmd/capcom check`
 **Commit:** `docs(agents): name search and the holder lock rules in the managed block`
 
-## 10. Record the holder rule in the decisions, glossary and docs
+## 10. Record the holder rule in the decisions, glossary and docs — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): consequential edit — .capcom/knowledge/decisions/adr-0017.md: made necessary by adr-0017-amend-1122 (Status line "amended 2026-11-22", summary and reading order name the amendment; title reworded from "unless it writes the Issue the lock is held for" to "the holder's own writes and writes of the Issue the lock is held for stay silent")
+NOTES (2026-11-22): consequential edit — .capcom/knowledge/decisions.md: made necessary by the adr-0017 retitle; its listing line repeated the old title, and as a file outside the decisions directory it matched the Acceptance grep ("unless it writes") despite --exclude-dir=decisions
+NOTES (2026-11-22): consequential edit — .capcom/knowledge/decisions/adr-0016.md: made necessary by adr-0016-amend-1122 (Status line and reading order name the amendment)
+NOTES (2026-11-22): consequential edit — .capcom/knowledge/decisions/adr-0005.md: made necessary by adr-0005-amend-1122 (Status line and reading order name the amendment)
+NOTES (2026-11-22): tree-locks.md gains a "The holder process" section (linked from briefing.md and apply-file.md) and its prime example lines now quote the current "otherwise ask the user before editing it" wording and the holder's "held by this session (<purpose>)" line; the SKILL.md Tree lock paragraph now follows the managed block's wording (item 9). README.md's `lock touch/release --token <token>` lines stay, as --token still works.
 
 **What:** Depends on items 4, 5, 6. Owns every knowledge and site-doc amendment of this plan
 except the managed block (item 9).
