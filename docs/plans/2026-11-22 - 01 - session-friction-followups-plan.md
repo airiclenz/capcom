@@ -112,7 +112,9 @@ internal/cli/output/errors_test.go — TestStoreFailure_MapsInitAndOpenErrors; i
 **Closes:** apply-not-git-message
 **Commit:** `fix(cli): say to run capcom inside the repository when there is none`
 
-## 3. apply takes the frontmatter key names and shows the shape it wants
+## 3. apply takes the frontmatter key names and shows the shape it wants — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): a value of the wrong shape under an alias is refused naming the alias the file gave (`labels is a mapping; ...`), not the key; the example file shows for any file that is no list (mapping or scalar), since both refusals share one branch in parser.list.
 
 **What:**
 **Goal:** an apply entry accepts `labels` wherever it accepts `label`, and `deps` wherever it

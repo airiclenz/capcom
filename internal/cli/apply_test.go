@@ -91,6 +91,20 @@ func TestApply_ThreeCreatesWithDeps_WritesThemInOneCall(t *testing.T) {
 	}
 }
 
+func TestApply_CreateWithLabels_CarriesBothLabels(t *testing.T) {
+	root := newApplyStore(t)
+	writeApplyFile(t, root, "- op: create\n  id: alpha\n  title: Alpha\n  body: The alpha.\n  labels: [a, b]\n")
+
+	stdout := mustRun(t, root, "apply", applyFile)
+
+	if want := "1  create  alpha  created\n"; stdout != want {
+		t.Errorf("stdout = %q, want %q", stdout, want)
+	}
+	if alpha := readStoreFile(t, root, "alpha.md"); !strings.Contains(alpha, "labels: [a, b]") {
+		t.Errorf("alpha.md = %q, want labels: [a, b]", alpha)
+	}
+}
+
 func TestApply_FailingOperation_LeavesStoreUntouchedAndNamesIt(t *testing.T) {
 	tests := []struct {
 		name    string

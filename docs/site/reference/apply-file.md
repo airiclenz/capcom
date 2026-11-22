@@ -18,7 +18,9 @@ $ capcom apply - < batch.yaml
 
 The file is one YAML list. Each entry is a mapping whose `op` key names the write, and whose other
 keys are the flag names of that write's command, without the leading `--`, plus `id`, `dep` and
-`text` for the command's arguments. There are five operations and no others:
+`text` for the command's arguments. The Issue file's frontmatter names are taken too: `labels`
+wherever `label` is, and `deps` wherever `dep` is, with the same values. There are five operations
+and no others:
 
 | `op` | Does what | Required keys | Other keys |
 | --- | --- | --- | --- |
@@ -40,7 +42,8 @@ the commands:
 - A `close` without `status` moves the Issue to the first status of the `done` category; a `status`
   it gives must be in the `done` or `dropped` category. Closing an Issue that is already Closed
   fails the batch.
-- A key given twice in one entry, or a key the operation does not take, is refused.
+- A key given twice in one entry, or a key the operation does not take, is refused. So is a key
+  given under both its names, `label` with `labels` or `dep` with `deps`: the refusal names both.
 
 An operation sees the writes before it. A `create` can name an Issue an earlier `create` of the
 same file made as its `parent` or `dep`, and a later `update`, `dep add`, `close` or `log` can write
@@ -57,7 +60,7 @@ Each key takes one YAML shape, and a value of another shape is refused:
 - **true or false**: `standing` and `no-standing`.
 - **A string or a list of strings, split on commas**: `dep` and `label` on a `create`, `add-label`
   and `remove-label`. `label: auth, db` and `label: [auth, db]` give the same two labels, as
-  `--label auth,db` and `--label auth --label db` do.
+  `--label auth,db` and `--label auth --label db` do, and so does `labels: [auth, db]`.
 - **A string or a list of strings, each kept whole**: `acceptance`, `body-append`,
   `body-replace-old` and `body-replace-new`. Each string is one value of the repeatable flag, commas
   and all.
@@ -132,6 +135,17 @@ it was about, and the command's own hint; a file that does not parse is `invalid
 ```console
 $ capcom apply - --json < bad.yaml
 {"schema":1,"kind":"error","error":{"code":"invalid","message":"operation 1 (update): body-file is refused: apply files take text inline","path":"stdin","line":3,"hint":"capcom apply --help"},"elsewhere":[],"warnings":[]}
+```
+
+A file that is a mapping, not a list, is refused with the smallest file that applies:
+
+```console
+$ capcom apply batch.yaml
+capcom: batch.yaml:1: the file is a mapping; give a list of operations, such as:
+- op: create
+  id: first-issue
+  title: The first issue
+hint: capcom apply --help
 ```
 
 ## Example

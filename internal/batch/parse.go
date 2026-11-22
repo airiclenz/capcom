@@ -81,7 +81,12 @@ const (
 	keyText           = "text"
 	keyBodyFile       = "body-file"
 	keyBodyAppendFile = "body-append-file"
+	keyLabels         = "labels"
+	keyDeps           = "deps"
 )
+
+// exampleFile is the smallest valid apply file, which the refusal of a file that is no list shows.
+const exampleFile = "- op: create\n  id: first-issue\n  title: The first issue"
 
 // valueKind is the YAML shape the value of a key takes.
 type valueKind int
@@ -126,6 +131,11 @@ var keysOf = map[Kind][]keySpec{
 	KindClose:  {{keyID, textValue}, {keyReason, textValue}, {keyStatus, textValue}, {keyIfMatch, textValue}},
 	KindLog:    {{keyID, textValue}, {keyText, textValue}, {keyIfMatch, textValue}},
 }
+
+// aliasOf maps each issue-file frontmatter name an apply file takes in place of a key to that key.
+// An alias is taken wherever its key is, with the same value forms, and a refusal that lists the keys
+// names only the keys.
+var aliasOf = map[string]string{keyLabels: keyLabel, keyDeps: keyDep}
 
 // requiredOf lists the keys each Kind cannot do without.
 var requiredOf = map[Kind][]string{
@@ -200,7 +210,8 @@ func (e *Error) Error() string {
 // takes. It refuses, as an *Error at the line of the problem, a file that is not YAML, holds more
 // than one document, is no list or an empty one, and an operation that is no mapping, names no op or
 // an unknown one, gives a key its Kind does not take, a file key (body-file, body-append-file), a
-// key twice, standing with no-standing, a value of the wrong YAML shape, or lacks a required key;
+// key twice or under both its name and its alias (labels for label, deps for dep), standing with
+// no-standing, a value of the wrong YAML shape, or lacks a required key;
 // an update must give a key that changes the issue and its body-replace-old and body-replace-new
 // in pairs. Values are not judged here: the ops checks own them.
 func Parse(name string, data []byte) ([]Op, error) {
@@ -254,7 +265,7 @@ func (p parser) list(data []byte) (*yaml.Node, error) {
 	}
 	list := document.Content[0]
 	if list.Kind != yaml.SequenceNode {
-		return nil, p.fail(list.Line, "the file is %s; give a list of operations", describe(list))
+		return nil, p.fail(list.Line, "the file is %s; give a list of operations, such as:\n%s", describe(list), exampleFile)
 	}
 	if len(list.Content) == 0 {
 		return nil, p.fail(list.Line, "the list holds no operations")
@@ -334,10 +345,12 @@ func (r operationReader) readKind(entry *yaml.Node) (Kind, error) {
 }
 
 // values reads every key of entry but op into its value, in file order, refusing the first key
-// that is not a string, given twice, not taken by the Kind, or whose value has the wrong shape.
+// that is not a string, given twice, given under both its name and its alias, not taken by the
+// Kind, or whose value has the wrong shape.
 func (r operationReader) values(entry *yaml.Node) (values, error) {
 	given := values{}
 	isSeen := map[string]bool{}
+	spellingOf := map[string]string{}
 	for index := 0; index+1 < len(entry.Content); index += 2 {
 		key, node := entry.Content[index], entry.Content[index+1]
 		if key.Kind != yaml.ScalarNode {
@@ -354,7 +367,12 @@ func (r operationReader) values(entry *yaml.Node) (values, error) {
 		if err != nil {
 			return nil, err
 		}
-		value, err := r.value(spec, node)
+		if earlier, isGiven := spellingOf[spec.name]; isGiven {
+			return nil, r.fail(key.Line, "%s and %s are one key; give one of them", earlier, key.Value)
+		}
+		spellingOf[spec.name] = key.Value
+		// The value is read under the name the file gives, so a refusal quotes the file back.
+		value, err := r.value(keySpec{name: key.Value, kind: spec.kind}, node)
 		if err != nil {
 			return nil, err
 		}
@@ -363,14 +381,19 @@ func (r operationReader) values(entry *yaml.Node) (values, error) {
 	return given, nil
 }
 
-// spec returns the keySpec of key, refusing a file key, a key the Kind does not take, and standing
-// or no-standing when the other is among the keys isSeen already holds.
+// spec returns the keySpec of key, or of the key it is an alias of, refusing a file key, a key the
+// Kind does not take, and standing or no-standing when the other is among the keys isSeen already
+// holds.
 func (r operationReader) spec(key *yaml.Node, isSeen map[string]bool) (keySpec, error) {
 	if slices.Contains(inlineOnlyKeys, key.Value) {
 		return keySpec{}, r.fail(key.Line, "%s is refused: apply files take text inline", key.Value)
 	}
 	specs := keysOf[r.kind]
-	index := slices.IndexFunc(specs, func(spec keySpec) bool { return spec.name == key.Value })
+	name := key.Value
+	if canonical, isAlias := aliasOf[name]; isAlias {
+		name = canonical
+	}
+	index := slices.IndexFunc(specs, func(spec keySpec) bool { return spec.name == name })
 	if index < 0 {
 		return keySpec{}, r.fail(key.Line, "unknown key %q; %s takes %s", key.Value, r.kind, keyList(specs))
 	}

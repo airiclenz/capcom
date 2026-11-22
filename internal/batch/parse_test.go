@@ -12,6 +12,9 @@ import (
 // testFileName is the apply file name every test parses under.
 const testFileName = "batch.yaml"
 
+// minimalFile is the smallest valid apply file, which the refusal of a file that is no list shows.
+const minimalFile = "- op: create\n  id: first-issue\n  title: The first issue"
+
 // parseOne parses data, which must hold exactly one valid operation, and returns it.
 func parseOne(t *testing.T, data string) batch.Op {
 	t.Helper()
@@ -130,6 +133,57 @@ func TestParse_OneValidFilePerOp_ReturnsTheTypedOperations(t *testing.T) {
 	}
 }
 
+func TestParse_FrontmatterNames_ReadAsTheirKeys(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		data      string
+		canonical string
+	}{
+		{
+			name:      "labels on create",
+			data:      "- op: create\n  id: a\n  title: b\n  labels: [c, \"d,e\"]\n",
+			canonical: "- op: create\n  id: a\n  title: b\n  label: [c, \"d,e\"]\n",
+		},
+		{
+			name:      "deps on create",
+			data:      "- op: create\n  id: a\n  title: b\n  deps: c, d\n",
+			canonical: "- op: create\n  id: a\n  title: b\n  dep: c, d\n",
+		},
+		{
+			name:      "deps on dep add",
+			data:      "- op: dep add\n  id: a\n  deps: b\n",
+			canonical: "- op: dep add\n  id: a\n  dep: b\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := parseOne(t, test.data)
+
+			want := parseOne(t, test.canonical)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("Parse =\n%+v\nwant\n%+v", got, want)
+			}
+		})
+	}
+}
+
+func TestParse_MinimalFileTheMappingRefusalShows_Parses(t *testing.T) {
+	t.Parallel()
+
+	got := parseOne(t, minimalFile)
+
+	want := batch.Op{
+		Kind: batch.KindCreate, Position: 1, Line: 1, ID: "first-issue",
+		Create: ops.NewIssue{ID: "first-issue", Title: "The first issue"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Parse =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
 func TestParse_CreateWithABody_ReturnsTheBodyInline(t *testing.T) {
 	t.Parallel()
 
@@ -199,7 +253,10 @@ func TestParse_InvalidFile_IsRefusedAtThePositionAndLine(t *testing.T) {
 	}{
 		{"empty file", "", "", 0, "batch.yaml:1: the file holds no operations; give a list of them"},
 		{"empty list", "", "[]\n", 0, "batch.yaml:1: the list holds no operations"},
-		{"not a list", "", "op: log\n", 0, "batch.yaml:1: the file is a mapping; give a list of operations"},
+		{
+			"not a list", "", "op: log\n", 0,
+			"batch.yaml:1: the file is a mapping; give a list of operations, such as:\n" + minimalFile,
+		},
 		{
 			"not YAML", "", valid + "- op: log\n  id: a\n   bad: x\n", 0,
 			"batch.yaml:6: invalid YAML: mapping values are not allowed in this context",
@@ -278,6 +335,24 @@ func TestParse_InvalidFile_IsRefusedAtThePositionAndLine(t *testing.T) {
 		{
 			"a repeated key", "", valid + "- op: log\n  id: a\n  text: b\n  text: c\n", 2,
 			"batch.yaml:7: operation 2 (log): text given twice; give it once",
+		},
+		{
+			"label with labels", "", valid + "- op: create\n  id: a\n  title: b\n  label: c\n  labels: d\n", 2,
+			"batch.yaml:8: operation 2 (create): label and labels are one key; give one of them",
+		},
+		{
+			"deps with dep", "", valid + "- op: dep add\n  id: a\n  deps: b\n  dep: c\n", 2,
+			"batch.yaml:7: operation 2 (dep add): deps and dep are one key; give one of them",
+		},
+		{
+			"labels on update", "", valid + "- op: update\n  id: a\n  labels: c\n", 2,
+			`batch.yaml:6: operation 2 (update): unknown key "labels"; update takes op, id, if-match, title, ` +
+				`status, type, priority, plan, standing, no-standing, add-label, remove-label, body-append, ` +
+				`body-replace-old, body-replace-new`,
+		},
+		{
+			"labels a mapping", "", valid + "- op: create\n  id: a\n  title: b\n  labels: {c: d}\n", 2,
+			"batch.yaml:7: operation 2 (create): labels is a mapping; give a string or a list of strings",
 		},
 		{
 			"standing with no-standing", "", valid + "- op: update\n  id: a\n  standing: true\n  no-standing: true\n", 2,
