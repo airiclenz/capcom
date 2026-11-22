@@ -48,7 +48,8 @@ func addKeysFormatTooOld[T any](
 // relative to the working tree root, and returns what could be placed. A repeated id is recorded
 // as the index warns it, through diagnose.NameClashes: one problem for every file of the id, each
 // naming another. noun names one node of the kind, "issue" or "Note", as tree.Load takes it.
-// aliasesLine returns the line of the aliases key in the file at a path aliases parsed, or 0; an
+// aliases is called concurrently, on tree.LoadParallel's goroutines, so it must be safe for that;
+// loadTree records the load problems after it returns. aliasesLine returns the line of the aliases key in the file at a path aliases parsed, or 0; an
 // alias problem cites it, as the index's warning does.
 func (c *checker) loadTree(
 	dir string,
@@ -56,7 +57,7 @@ func (c *checker) loadTree(
 	aliases tree.AliasFunc,
 	aliasesLine func(path string) int,
 ) (*tree.Tree, error) {
-	loaded, err := tree.Load(dir, noun, aliases)
+	loaded, err := tree.LoadParallel(dir, noun, aliases)
 	var problems tree.Errors
 	if !errors.As(err, &problems) {
 		return loaded, err
@@ -116,10 +117,13 @@ func kindCode(kind diagnose.Kind) diagnose.Kind {
 // readFile reads the issue or Note file at path through nodefile.ReadRegularFile. A file it refuses
 // unread, one no longer a regular file or grown past 1 MiB since the walk, is recorded as a
 // not-regular problem, as the walk records one, and isRead is false with no error. Any other
-// failed read is an error naming the file.
+// failed read is an error naming the file. It is safe to call concurrently: the read takes no lock,
+// and recording the refusal holds c.mu.
 func (c *checker) readFile(path string) (data []byte, isRead bool, err error) {
 	data, err = nodefile.ReadRegularFile(path)
 	if refusal := diagnose.ReadRefusal(err); refusal != nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
 		c.add(path, 0, diagnose.NotRegular, refusal.Error())
 		return nil, false, nil
 	}

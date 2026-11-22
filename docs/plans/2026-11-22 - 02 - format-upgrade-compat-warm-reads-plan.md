@@ -231,7 +231,10 @@ NOTES (2026-11-22): on a recovered panic the Failures keep those the panicking s
 **Acceptance:** `go vet ./internal/briefing/ && GOMEMLIMIT=2GiB go test -count=1 -race ./internal/briefing/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Prime' ./internal/cli/`
 **Commit:** `perf(prime): read the briefing sources concurrently`
 
-## 11. `tree.Load` parses files in parallel
+## 11. `tree.Load` parses files in parallel — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the opt-in is a new `tree.LoadParallel` (only `check.loadTree` calls it); `load` gained a workers argument, 1 for Load and LoadContentFS. The pool is `preread` in tree.go: it reads the walked node files on min(NumCPU, files) goroutines into a slice by walk position, then hands `readContentFacts` (claims.go, unchanged and still sequential) a ContentFunc answering from that slice, so the facts, failures and problems are built in walk order. Orphan-directory files and Claimant still call the AliasFunc one at a time.
+NOTES (2026-11-22): internal/tree/claims.go needed no change; internal/tree/export_test.go gained `ReadWorkers` so the overlap test computes the pool's bound; doc.go's file map names LoadParallel. The overlap probe releases every waiter once its timeout fires, so a sequential load fails in ~10 s instead of hanging; confirmed it fails against a sequential LoadParallel (then restored).
 
 **What:** Recast at the regression check (2026-11-22).
 **Goal:** The tree loader `check.Run` opts into parses issue and Note files on at most `runtime.NumCPU()` workers; the loaded tree, its order and every error and problem it reports are identical to a sequential load, so `check` and `prime`'s health section are unchanged.

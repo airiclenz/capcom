@@ -1083,3 +1083,38 @@ func TestCodes_ClosedSet_PinsEveryCodeString(t *testing.T) {
 		t.Errorf("declared codes = %v\nwant exactly %v", declared, want)
 	}
 }
+
+func TestRun_ManyFilesLoadedInParallel_SameProblemsInPathOrderEveryRun(t *testing.T) {
+	root := newRepo(t)
+	files := map[string]string{}
+	for i := range 60 {
+		files[issues+"issue-"+strconv.Itoa(i)+".md"] = issueFile("")
+	}
+	for i := range 30 {
+		files[knowledge+"note-"+strconv.Itoa(i)+".md"] = noteFile("")
+	}
+	files[issues+"issue-17.md"] = issueFile("estimate: 3\n")
+	files[issues+"issue-31.md"] = "---\ntitle: Some issue\n<<<<<<< HEAD\nstatus: done\n=======\n" +
+		"status: active\n>>>>>>> other-branch\ntype: task\ncreated: 2026-10-11T09:00:00Z\n---\n"
+	files[issues+"issue-48.md"] = issueFile("deps: [nothing-here]\n")
+	files[knowledge+"note-12.md"] = "---\ntitle: A Note\nbogus: x\n---\n"
+	writeFiles(t, root, files)
+	want := []string{
+		issues + "issue-17.md:7:" + string(diagnose.Frontmatter),
+		issues + "issue-31.md:3:" + string(diagnose.Conflict),
+		issues + "issue-31.md:5:" + string(diagnose.Conflict),
+		issues + "issue-31.md:7:" + string(diagnose.Conflict),
+		issues + "issue-48.md:7:" + string(diagnose.MissingDep),
+		knowledge + "note-12.md:3:" + string(diagnose.Frontmatter),
+	}
+
+	first := runCheck(t, root)
+	if got := locations(t, first); !reflect.DeepEqual(got, want) {
+		t.Fatalf("problems = %v\nwant %v", got, want)
+	}
+	for run := range 5 {
+		if got := runCheck(t, root); !reflect.DeepEqual(got, first) {
+			t.Fatalf("run %d: problems = %+v\nwant the first run's %+v", run, got, first)
+		}
+	}
+}

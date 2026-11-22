@@ -9,7 +9,10 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/airiclenz/capcom/internal/tree"
 )
@@ -935,5 +938,156 @@ func TestLayout_IDOfAndChildrenDir(t *testing.T) {
 				t.Errorf("ChildrenDir(%s) = %q, want %q", testCase.path, gotChildren, testCase.wantChildren)
 			}
 		})
+	}
+}
+
+// parallelTreeFiles is how many node files writeParallelTree writes.
+const parallelTreeFiles = 200
+
+// overlapTimeout is how long a call of an overlapProbe waits for a second call to be in flight.
+const overlapTimeout = 10 * time.Second
+
+// writeParallelTree writes a tree of parallelTreeFiles node files, 20 parents with 9 children each,
+// every file listing its aliases one per line, and returns its directory. Three files are broken:
+// one lists an alias CheckAliases rejects, one its own id, and one an alias another file lists.
+func writeParallelTree(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	broken := map[string]string{
+		"group-03.md":           "Bad Alias\n",
+		"group-07/item-07-4.md": "alias-item-07-4\nshared-alias\n",
+		"group-15/item-15-2.md": "shared-alias\n",
+		"group-11/item-11-0.md": "item-11-0\n",
+	}
+	for group := range 20 {
+		parent := fmt.Sprintf("group-%02d.md", group)
+		relatives := []string{parent}
+		for item := range 9 {
+			relatives = append(relatives, fmt.Sprintf("group-%02d/item-%02d-%d.md", group, group, item))
+		}
+		for _, relative := range relatives {
+			text, isBroken := broken[relative]
+			if !isBroken {
+				text = "alias-" + strings.TrimSuffix(filepath.Base(relative), ".md") + "\n"
+			}
+			path := filepath.Join(dir, filepath.FromSlash(relative))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatalf("MkdirAll: %v", err)
+			}
+			if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+		}
+	}
+	return dir
+}
+
+// aliasesFromFile is an AliasFunc reading a node's aliases from its file, one per line. It is safe
+// to call concurrently.
+func aliasesFromFile(path string) ([]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.TrimSuffix(string(data), "\n"), "\n"), nil
+}
+
+// loadSummary is what a load gave, in a form two loads compare by: the nodes and the left-out
+// files in order, and every problem's text, which names its file, in order.
+type loadSummary struct {
+	nodes    []tree.Node
+	leftOut  []tree.Node
+	problems []string
+}
+
+// summarize returns the loadSummary of loaded and err, a load's results, failing the test when err
+// is anything but the load's problems.
+func summarize(t *testing.T, loaded *tree.Tree, err error) loadSummary {
+	t.Helper()
+	var problems tree.Errors
+	if !errors.As(err, &problems) {
+		t.Fatalf("load = %v, want tree.Errors", err)
+	}
+	summary := loadSummary{nodes: loaded.Nodes(), leftOut: loaded.LeftOut()}
+	for _, problem := range problems {
+		summary.problems = append(summary.problems, problem.Error())
+	}
+	return summary
+}
+
+// overlapProbe wraps an AliasFunc to count the calls in flight at once. Each call waits, up to
+// overlapTimeout, until a second call is in flight, so a load that reads on two or more goroutines
+// overlaps two calls whatever the scheduling; once the wait times out, no call waits again.
+type overlapProbe struct {
+	inFlight atomic.Int32
+	peak     atomic.Int32
+	second   chan struct{}
+	release  sync.Once
+	// isWaiting is false when the load reads on one goroutine, which no second call can join.
+	isWaiting bool
+}
+
+// newOverlapProbe returns a probe whose calls wait for a second only when bound, the most
+// goroutines the load reads on, is at least 2.
+func newOverlapProbe(bound int) *overlapProbe {
+	return &overlapProbe{second: make(chan struct{}), isWaiting: bound >= 2}
+}
+
+// wrap returns aliases counting its calls on the probe.
+func (p *overlapProbe) wrap(aliases tree.AliasFunc) tree.AliasFunc {
+	return func(path string) ([]string, error) {
+		current := p.inFlight.Add(1)
+		defer p.inFlight.Add(-1)
+		for peak := p.peak.Load(); current > peak && !p.peak.CompareAndSwap(peak, current); {
+			peak = p.peak.Load()
+		}
+		if current >= 2 {
+			p.release.Do(func() { close(p.second) })
+		}
+		if p.isWaiting {
+			select {
+			case <-p.second:
+			case <-time.After(overlapTimeout):
+				// No second call came: release the rest, so a load that reads one file at a time
+				// fails on its peak instead of waiting out every call.
+				p.release.Do(func() { close(p.second) })
+			}
+		}
+		return aliases(path)
+	}
+}
+
+func TestLoadParallel_BrokenFiles_MatchesLoadEveryRun(t *testing.T) {
+	t.Parallel()
+	dir := writeParallelTree(t)
+	sequential, err := tree.Load(dir, "issue", aliasesFromFile)
+	want := summarize(t, sequential, err)
+	if len(want.problems) != 3 {
+		t.Fatalf("Load problems = %q, want the 3 of the broken files", want.problems)
+	}
+
+	for run := range 20 {
+		loaded, err := tree.LoadParallel(dir, "issue", aliasesFromFile)
+		if got := summarize(t, loaded, err); !reflect.DeepEqual(got, want) {
+			t.Fatalf("run %d: LoadParallel = %+v, want Load's %+v", run, got, want)
+		}
+	}
+}
+
+func TestLoadParallel_ReadsOnAtMostNumCPUGoroutines(t *testing.T) {
+	t.Parallel()
+	dir := writeParallelTree(t)
+	bound := min(tree.ReadWorkers(), parallelTreeFiles)
+	probe := newOverlapProbe(bound)
+
+	loaded, err := tree.LoadParallel(dir, "issue", probe.wrap(aliasesFromFile))
+
+	summarize(t, loaded, err)
+	peak := int(probe.peak.Load())
+	if peak > runtime.NumCPU() {
+		t.Errorf("peak concurrent calls = %d, want at most NumCPU %d", peak, runtime.NumCPU())
+	}
+	if bound >= 2 && peak < 2 {
+		t.Errorf("peak concurrent calls = %d, want at least 2 with a bound of %d", peak, bound)
 	}
 }

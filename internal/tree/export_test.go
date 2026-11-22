@@ -59,3 +59,8 @@ func SetReadDir(t *testing.T, fn func(dir string) ([]fs.DirEntry, error)) {
 func SetPlanCreate(plan *Plan, create func(path string, content io.Reader) error) {
 	plan.create = create
 }
+
+// ReadWorkers returns the most goroutines LoadParallel reads node files on at once.
+func ReadWorkers() int {
+	return readWorkers()
+}

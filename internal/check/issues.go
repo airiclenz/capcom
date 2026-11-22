@@ -30,14 +30,18 @@ func (c *checker) issues() error {
 	fields := map[string][]diagnose.Finding{}
 	reader := nodestore.IssueReader(c.store.Config)
 	// Only the reading's Field findings are check's own: its parse finding goes to addParseFailure,
-	// and loadTree reports the alias problems.
+	// and loadTree reports the alias problems. loadTree calls readAliases concurrently: the file is
+	// read and decoded unlocked, and what it records, into c.problems, parsed and fields, is
+	// recorded in one step holding c.mu.
 	readAliases := func(path string) ([]string, error) {
 		data, isRead, err := c.readFile(path)
 		if !isRead {
 			return nil, err
 		}
-		c.checkConflictMarkers(path, data)
 		reading := reader.Decode(c.store.Relative(path), data)
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.checkConflictMarkers(path, data)
 		if !reading.IsParsed() {
 			c.addParseFailure(path, reading.Parse[0])
 			return nil, nil

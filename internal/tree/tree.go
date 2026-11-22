@@ -7,8 +7,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
 )
@@ -115,14 +117,33 @@ type Tree struct {
 // name of a file with an alias CheckAliases rejects, and an alias only a file left out for a
 // repeated id lists.
 func Load(dir string, noun string, aliases AliasFunc) (*Tree, error) {
-	var content ContentFunc
-	if aliases != nil {
-		content = func(path string) (Content, error) {
-			names, err := aliases(path)
-			return Content{Aliases: names, Parse: ParsedFile, IsUsable: true}, err
-		}
+	return load(diskFS{}, dir, noun, aliasContent(aliases), aliases, 1)
+}
+
+// LoadParallel is Load calling aliases for the node files the walk finds on at most
+// runtime.NumCPU() goroutines at once, so aliases must be safe to call concurrently. Every such
+// file is read before any is placed, and the tree is built from the reads in walk order, so the
+// tree, its order and every problem and error it returns are Load's. The node files below an
+// orphan directory, and Claimant later, call aliases one at a time.
+func LoadParallel(dir string, noun string, aliases AliasFunc) (*Tree, error) {
+	return load(diskFS{}, dir, noun, aliasContent(aliases), aliases, readWorkers())
+}
+
+// aliasContent returns the ContentFunc of aliases: every file parses and is usable, with the
+// Aliases aliases reads. A nil aliases gives a nil ContentFunc, which reads no file.
+func aliasContent(aliases AliasFunc) ContentFunc {
+	if aliases == nil {
+		return nil
 	}
-	return load(diskFS{}, dir, noun, content, aliases)
+	return func(path string) (Content, error) {
+		names, err := aliases(path)
+		return Content{Aliases: names, Parse: ParsedFile, IsUsable: true}, err
+	}
+}
+
+// readWorkers is the most goroutines LoadParallel reads node files on at once.
+func readWorkers() int {
+	return runtime.NumCPU()
 }
 
 // LoadContent reads the tree stored in dir as Load does, reading every node file with content
@@ -142,7 +163,7 @@ func LoadContentFS(fsys nodefile.FS, dir string, noun string, content ContentFun
 	if content != nil {
 		aliases = parsedAliases(content)
 	}
-	return load(fsys, dir, noun, content, aliases)
+	return load(fsys, dir, noun, content, aliases, 1)
 }
 
 // parsedAliases returns the AliasFunc of content: the Aliases of a file that parses, none for any
@@ -157,21 +178,23 @@ func parsedAliases(content ContentFunc) AliasFunc {
 	}
 }
 
-// load is Load and LoadContentFS, reading the tree through fsys: noun names one node of the kind in
-// a message, content reads every node file, nil reading none, and aliases is the AliasFunc the tree
-// keeps for Claimant.
+// load is Load, LoadParallel and LoadContentFS, reading the tree through fsys: noun names one node
+// of the kind in a message, content reads every node file, nil reading none, and aliases is the
+// AliasFunc the tree keeps for Claimant. workers is the most goroutines content reads the walked
+// node files on at once; 1 reads them one at a time, in walk order.
 func load(
 	fsys nodefile.FS,
 	dir string,
 	noun string,
 	content ContentFunc,
 	aliases AliasFunc,
+	workers int,
 ) (*Tree, error) {
 	nodes, problems, err := walkTree(fsys, dir)
 	if err != nil {
 		return nil, err
 	}
-	facts, rejected, failures := readContentFacts(nodes, noun, content)
+	facts, rejected, failures := readContentFacts(nodes, noun, preread(nodes, content, workers))
 	facts = append(facts, claimOnlyFacts(fsys, problems, noun, content)...)
 	membership := DecideMembership(facts)
 	dirProblems, err := repeatedIDDirProblems(fsys, membership.RepeatedIDDirs)
@@ -196,6 +219,51 @@ func load(
 		return tree, problems
 	}
 	return tree, nil
+}
+
+// contentRead is what a ContentFunc returned for one node file.
+type contentRead struct {
+	content Content
+	err     error
+}
+
+// preread reads every file of nodes with content on at most workers goroutines at once, and returns
+// a ContentFunc that answers each of their paths with that read and reads any other path with
+// content. readContentFacts, reading through it in walk order, sees what reading the files one at a
+// time gives. With fewer than two workers or two nodes, or a nil content, it returns content as is.
+func preread(nodes []Node, content ContentFunc, workers int) ContentFunc {
+	workers = min(workers, len(nodes))
+	if content == nil || workers < 2 {
+		return content
+	}
+	reads := make([]contentRead, len(nodes))
+	indexes := make(chan int)
+	var readers sync.WaitGroup
+	for range workers {
+		readers.Go(func() {
+			// Each reader writes only the slots of the indexes it receives, so no two share one.
+			for index := range indexes {
+				read, err := content(nodes[index].Path)
+				reads[index] = contentRead{content: read, err: err}
+			}
+		})
+	}
+	for index := range nodes {
+		indexes <- index
+	}
+	close(indexes)
+	readers.Wait()
+
+	byPath := make(map[string]int, len(nodes))
+	for index, node := range nodes {
+		byPath[node.Path] = index
+	}
+	return func(path string) (Content, error) {
+		if index, isRead := byPath[path]; isRead {
+			return reads[index].content, reads[index].err
+		}
+		return content(path)
+	}
 }
 
 // newTree builds the tree of dir from membership, DecideMembership's verdict on facts, which hold

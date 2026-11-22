@@ -19,6 +19,7 @@ import (
 	"cmp"
 	"errors"
 	"slices"
+	"sync"
 
 	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/diagnose"
@@ -65,6 +66,10 @@ func ConfigProblems(err error) []Problem {
 type checker struct {
 	store    *store.Store
 	problems []Problem
+	// mu guards problems, and the maps the issue and Note read callbacks fill, while
+	// tree.LoadParallel calls those callbacks concurrently. Every other step runs on one goroutine,
+	// before or after the load, and takes no lock.
+	mu sync.Mutex
 }
 
 // add records one problem at the absolute or worktree-relative path.
@@ -77,7 +82,8 @@ func (c *checker) add(path string, line int, code diagnose.Kind, message string)
 	})
 }
 
-// checkConflictMarkers records every git conflict marker in the issue or Note file at path.
+// checkConflictMarkers records every git conflict marker in the issue or Note file at path. A read
+// callback calls it holding c.mu.
 func (c *checker) checkConflictMarkers(path string, data []byte) {
 	for _, marker := range rawfm.ConflictMarkers(data) {
 		c.add(path, marker.Line, diagnose.Conflict, rawfm.ConflictMessage(marker))
@@ -87,7 +93,8 @@ func (c *checker) checkConflictMarkers(path string, data []byte) {
 // addParseFailure records failure, the finding that the file at path does not parse, at the line
 // its parser blamed. A parser blames a conflict marker in the frontmatter with the conflict
 // problem's own words, which checkConflictMarkers has already recorded, so that failure is not
-// recorded twice.
+// recorded twice. A read callback calls it holding c.mu, in the same locked step as
+// checkConflictMarkers.
 func (c *checker) addParseFailure(path string, failure diagnose.Finding) {
 	conflict := Problem{Path: c.store.Relative(path), Line: failure.Line, Code: diagnose.Conflict, Message: failure.Message}
 	if slices.Contains(c.problems, conflict) {
