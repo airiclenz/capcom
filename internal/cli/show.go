@@ -81,20 +81,15 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 	var graph *showGraph
 	var shownPaths []string
 	var text strings.Builder
-	var messages []string
+	failures := a.newArgumentFailures(cmd, issueIDs)
 	reader := nodestore.IssueReader(a.store.Config)
 	for _, arg := range args {
 		entry, err := a.issueIndex.Resolve(arg)
 		if err != nil {
-			failure, isArgument := a.resolveFailure(err, issueIDs)
-			if !isArgument {
-				return output.Result{}, nil, failure
+			failure, fatal := failures.add(err)
+			if fatal != nil {
+				return output.Result{}, nil, fatal
 			}
-			failure = failure.WithCommand(cmd.CommandPath())
-			if result.Failure == nil {
-				result.Failure = failure
-			}
-			messages = append(messages, messageWithSuggestions(failure))
 			pairs := []output.KVPair{{Key: "ID", Value: arg}, {Key: output.KVKeyMessage, Value: failure.Message}}
 			result.KV = append(result.KV, output.KVRecord{
 				Pairs:  append(pairs, output.ErrorHintPairs(failure)...),
@@ -134,13 +129,53 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 		result.KV = append(result.KV, issueKV(entry, etag))
 		shownPaths = append(shownPaths, entry.Path)
 	}
-	if len(messages) > 1 {
-		result.Failure.Message = strings.Join(messages, failureSeparator)
-		result.Failure.Suggestions = nil
-	}
+	result.Failure = failures.failure()
 	result.Data = data
 	result.Text = text.String()
 	return result, shownPaths, nil
+}
+
+// argumentFailures collects the failures of the arguments a multi-id command could not resolve,
+// so that the command goes on to the rest: it exits with the first failure's code, and when several
+// fail each message names its own suggestions and the joined failure carries none.
+type argumentFailures struct {
+	app      *app
+	command  string
+	kind     idKind
+	first    *output.Error
+	messages []string
+}
+
+// newArgumentFailures returns an empty collection of the failures of cmd's arguments, each naming
+// a node of kind.
+func (a *app) newArgumentFailures(cmd *cobra.Command, kind idKind) *argumentFailures {
+	return &argumentFailures{app: a, command: cmd.CommandPath(), kind: kind}
+}
+
+// add types err, the failure to resolve one argument, as resolveFailure does, names the command
+// as the one that failed and collects it. It returns the typed failure, or as its error the
+// failure the command cannot go on from: the index failing.
+func (f *argumentFailures) add(err error) (*output.Error, error) {
+	failure, isArgument := f.app.resolveFailure(err, f.kind)
+	if !isArgument {
+		return nil, failure
+	}
+	failure = failure.WithCommand(f.command)
+	if f.first == nil {
+		f.first = failure
+	}
+	f.messages = append(f.messages, messageWithSuggestions(failure))
+	return failure, nil
+}
+
+// failure is the failure the command exits with: nil when every argument resolved, else the first
+// failure, its message every failure's message joined when several failed.
+func (f *argumentFailures) failure() *output.Error {
+	if len(f.messages) > 1 {
+		f.first.Message = strings.Join(f.messages, failureSeparator)
+		f.first.Suggestions = nil
+	}
+	return f.first
 }
 
 // messageWithSuggestions is failure's message ending in its own suggestions, as in

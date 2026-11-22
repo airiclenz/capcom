@@ -217,7 +217,13 @@ internal/cli/know_test.go — TestKnowAdd_RefusedInputs_FailWithoutWriting
 **Closes:** know-add-body-flag
 **Commit:** `feat(know): take --body on know add and know update`
 
-## 7. know show prints several Notes
+## 7. know show prints several Notes — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the failure collection of showResult moved into argumentFailures (show.go), called by showResult and by the new shownNotes (know_show.go); resolveNote and know.go are unchanged (know tree still calls resolveNote), and context.go is untouched, with noteShowResult keeping its entries parameter.
+
+NOTES (2026-11-22): consequential edit — docs/site/reference/json-output.md: made necessary by know show joining several unknown-id messages as show does (the paragraph named show alone).
+
+NOTES (2026-11-22): consequential edit — docs/site/concepts/knowledge.md: made necessary by know show taking several arguments (one example line added to the browsing block).
 
 **What:**
 **Goal:** `capcom know show <arg>...` takes one or more arguments and prints each Note in turn,

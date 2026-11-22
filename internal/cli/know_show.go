@@ -19,55 +19,89 @@ const (
 
 // Help text of capcom know show.
 const (
-	knowShowLong = "Print one Note in full: its id, path, etag, parent, title, Labels, Refs, retirement, " +
-		"superseded-by entries, Aliases and body.\n\n" +
-		"The argument may be an id, an Alias or a unique id prefix, and a retired Note still " +
-		"resolves.\n\n" +
-		"--with-children also prints the Notes directly below it, their retired ones only with " +
+	knowShowLong = "Print each named Note in full: its id, path, etag, parent, title, Labels, Refs, " +
+		"retirement, superseded-by entries, Aliases and body.\n\n" +
+		"Each argument may be an id, an Alias or a unique id prefix, and a retired Note still " +
+		"resolves. The Notes found are printed even when another argument names none, and the " +
+		"command then exits with the first failure's code.\n\n" +
+		"--with-children also prints the Notes directly below each, their retired ones only with " +
 		"--retired.\n\n" +
 		"The etag is what --if-match takes on know update, know mv and know rm."
 	knowShowExample = "  capcom know show release-steps                   # one Note in full\n" +
+		"  capcom know show release-steps store-layout      # several at once\n" +
 		"  capcom know show release-steps --with-children   # and the Notes directly below it\n" +
 		"  capcom know show release-steps --json            # as a JSON envelope"
 )
 
-// newKnowShowCommand prints one Note in full, and with --with-children the Notes directly below
-// it after it. The named Note resolves even when retired; its retired children, and every child of
-// a retired Note, are shown only with --retired.
+// newKnowShowCommand prints each named Note in full, and with --with-children the Notes directly
+// below each after it. Every argument is resolved on its own; the Notes found are printed even when
+// another argument fails, and the command then exits with the first failure's code. A named Note
+// resolves even when retired; its retired children, and every child of a retired Note, are shown
+// only with --retired.
 func (a *app) newKnowShowCommand() *cobra.Command {
 	isWithChildren := false
 	isRetiredIncluded := false
 	cmd := &cobra.Command{
-		Use:               "show <id|alias|prefix>",
-		Short:             "Show a Note in full",
+		Use:               "show <id|alias|prefix>...",
+		Short:             "Show Notes in full",
 		Long:              knowShowLong,
 		Example:           knowShowExample,
-		Args:              cobra.ExactArgs(1),
-		ValidArgsFunction: completeNoteIDs(1),
+		Args:              cobra.MinimumNArgs(1),
+		ValidArgsFunction: completeNoteIDs(everyArgument),
 		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			entry, err := a.resolveNote(args[0])
+			shown, failure, err := a.shownNotes(cmd, args, isWithChildren, isRetiredIncluded)
 			if err != nil {
 				return err
-			}
-			shown := []index.NoteEntry{entry}
-			if isWithChildren {
-				notes, err := a.issueIndex.Notes(isRetiredIncluded)
-				if err != nil {
-					return err
-				}
-				shown = append(shown, outline.Notes(notes, true).Children(entry.ID)...)
 			}
 			result, err := a.noteShowResult(shown)
 			if err != nil {
 				return err
 			}
+			result.Failure = failure
 			return a.emit(cmd, result)
 		}),
 	}
-	cmd.Flags().BoolVar(&isWithChildren, flagWithChildren, false, "also show the Notes directly below it")
+	cmd.Flags().BoolVar(&isWithChildren, flagWithChildren, false, "also show the Notes directly below each")
 	cmd.Flags().BoolVar(&isRetiredIncluded, flagRetired, false, retiredFlagUsage)
 	return cmd
+}
+
+// shownNotes resolves every argument to its Note, each followed with isWithChildren by the Notes
+// directly below it, their retired ones only with isRetiredIncluded. It returns the Notes found and
+// the joined failure of the arguments that name none, as show reports them; the error is the index
+// failing, which the command cannot go on from.
+func (a *app) shownNotes(
+	cmd *cobra.Command,
+	args []string,
+	isWithChildren bool,
+	isRetiredIncluded bool,
+) ([]index.NoteEntry, *output.Error, error) {
+	failures := a.newArgumentFailures(cmd, noteIDs)
+	var shown []index.NoteEntry
+	var notes *outline.Tree[index.NoteEntry]
+	for _, arg := range args {
+		entry, err := a.issueIndex.ResolveNote(arg)
+		if err != nil {
+			if _, fatal := failures.add(err); fatal != nil {
+				return nil, nil, fatal
+			}
+			continue
+		}
+		shown = append(shown, entry)
+		if !isWithChildren {
+			continue
+		}
+		if notes == nil {
+			entries, err := a.issueIndex.Notes(isRetiredIncluded)
+			if err != nil {
+				return nil, nil, err
+			}
+			notes = outline.Notes(entries, true)
+		}
+		shown = append(shown, notes.Children(entry.ID)...)
+	}
+	return shown, failures.failure(), nil
 }
 
 // noteShowResult renders each Note in full, separated by a blank line. Its fields, body and etag

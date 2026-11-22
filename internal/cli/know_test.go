@@ -134,6 +134,70 @@ func TestKnowShow_WithChildren_ShowsTheNoteThenItsDirectChildren(t *testing.T) {
 	}
 }
 
+func TestKnowShow_SeveralNotes_PrintsEachInTurn(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "show", "release-flow", "no-parallel")
+	jsonOut, _, jsonExit := runCLI(t, root, "know", "show", "release-flow", "no-parallel", "--json")
+
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, "id: release-flow\n") ||
+		!strings.Contains(stdout, "Tag, then publish.\n\nid: no-parallel\n") {
+		t.Errorf("know show exit = %d\n%s", exitCode, stdout)
+	}
+	if got := strings.Join(envelopeIDs(t, jsonOut), ","); jsonExit != ExitOK || got != "release-flow,no-parallel" {
+		t.Errorf("know show --json exit = %d, ids = %s", jsonExit, got)
+	}
+}
+
+func TestKnowShow_OneOfSeveralMissing_PrintsFoundAndExitsNotFound(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "show", "release-flow", "absent", "no-parallel")
+
+	if exitCode != ExitNotFound || !strings.HasPrefix(stdout, "id: release-flow\n") ||
+		!strings.Contains(stdout, "\nid: no-parallel\n") ||
+		stderr != "capcom: id \"absent\" not found\nhint: capcom know search <text>\n" {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q", exitCode, stderr, stdout)
+	}
+}
+
+func TestKnowShow_OneOfSeveralMissingJSON_CarriesDataAndError(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "show", "--json", "release-flow", "absent")
+
+	envelope := decodeEnvelope(t, stdout)
+	errorBody, _ := envelope["error"].(map[string]any)
+	data, _ := envelope["data"].([]any)
+	if exitCode != ExitNotFound || envelope["kind"] != "note" || errorBody["code"] != string(CodeNotFound) ||
+		len(data) != 1 || data[0].(map[string]any)["body"] != "\nTag, then publish.\n" {
+		t.Errorf("exit = %d envelope = %v, want release-flow with its body and a not_found error", exitCode, envelope)
+	}
+}
+
+func TestKnowShow_SeveralMissing_JoinsEachMessageWithItsSuggestions(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "show", "cli-testz", "release-flow", "git-setup")
+
+	want := "capcom: id \"cli-testz\" not found, did you mean cli-tests?; " +
+		"id \"git-setup\" not found, did you mean git-fixtures?\nhint: capcom know search <text>\n"
+	if exitCode != ExitNotFound || !strings.HasPrefix(stdout, "id: release-flow\n") || stderr != want {
+		t.Errorf("exit = %d stderr = %q, want %q\nstdout = %q", exitCode, stderr, want, stdout)
+	}
+}
+
+func TestKnowShow_WithChildrenOnSeveralNotes_ShowsEachThenItsDirectChildren(t *testing.T) {
+	root := newKnowStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "show", "cli-tests", "testing-rules", "--with-children", "--json")
+
+	got := strings.Join(envelopeIDs(t, stdout), ",")
+	if exitCode != ExitOK || got != "cli-tests,no-parallel,testing-rules,cli-tests,git-fixtures" {
+		t.Errorf("know show exit = %d, shown ids = %s", exitCode, got)
+	}
+}
+
 func TestKnowShow_Text_PrintsFrontmatterThenBody(t *testing.T) {
 	root := newKnowStore(t)
 

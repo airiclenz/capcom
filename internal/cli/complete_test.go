@@ -156,7 +156,7 @@ func TestComplete_NoteArguments_ListNotRetiredNoteIDsWithTitles(t *testing.T) {
 		{"know mv first argument", []string{"know", "mv", "st"}, []string{"store-layout\tStore layout"}},
 		{"know mv new id", []string{"know", "mv", "store-layout", ""}, nil},
 		{"know rm prefix", []string{"know", "rm", "st"}, []string{"store-layout\tStore layout"}},
-		{"know show second argument", []string{"know", "show", "store-layout", ""}, nil},
+		{"know show second argument", []string{"know", "show", "store-layout", ""}, []string{"store-layout\tStore layout"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
