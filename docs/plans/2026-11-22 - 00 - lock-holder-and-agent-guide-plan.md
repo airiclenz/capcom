@@ -45,7 +45,11 @@ holder, warnings print first, and the managed block teaches search and when `che
 - 9: guard folded
 - 10: guard folded; amends ADR 0005 "session, not a process" (adr-0005-decision.md:6-9) in Note adr-0005-amend-1122
 
-## 1. Read a process's ancestry and its harness anchor
+## 1. Read a process's ancestry and its harness anchor — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): go.mod unchanged: golang.org/x/sys v0.46.0 is already a direct require, as the item's Read first line says.
+NOTES (2026-11-22): the "parent started after its child" stop is applied on every OS through one shared walk, not on Windows only; on Linux and macOS the parent PID is always the live parent, so it never fires there.
+NOTES (2026-11-22): added internal/proc/proc_linux_test.go (not in Files) to pin the /proc stat parse for a comm holding spaces and parentheses, which only builds on Linux.
 
 **What:**
 **Goal:** a new package `internal/proc` exposes `Process{PID int; Started string; Name string}`,
