@@ -467,9 +467,9 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 			name:  "outside git",
 			setup: func(t *testing.T) string { return outsideGitDir(t) },
 			wantFail: func(dir string) string {
-				return "capcom: " + dir + ": " + store.ErrNotGitRepository.Error() + "\n"
+				return "capcom: working directory " + dir + " is not inside a git repository\n"
 			},
-			wantHint: commandHelpHint,
+			wantHint: func(string) string { return "run capcom from inside the repository" },
 		},
 		{
 			name:  "no store",
@@ -506,9 +506,26 @@ func TestStoreCommands_OutsideAStore_FailAsBefore(t *testing.T) {
 				if exitCode != ExitError || stdout != "" || stderr != want {
 					t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and %q", exitCode, stdout, stderr, ExitError, want)
 				}
+				if test.name == "outside git" && strings.Contains(stderr, "--help") {
+					t.Errorf("stderr = %q, want no --help hint outside git", stderr)
+				}
 			})
 		}
 	}
+
+	t.Run("outside git/apply <file>", func(t *testing.T) {
+		dir := outsideGitDir(t)
+		if err := os.WriteFile(filepath.Join(dir, "ops.yaml"), []byte("- op: create\n  id: alpha\n  title: Alpha\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		stdout, stderr, exitCode := runCLI(t, dir, "apply", "ops.yaml")
+
+		want := "capcom: working directory " + dir + " is not inside a git repository\nhint: run capcom from inside the repository\n"
+		if exitCode != ExitError || stdout != "" || stderr != want {
+			t.Errorf("exit = %d stdout = %q stderr = %q, want %d, no stdout and %q", exitCode, stdout, stderr, ExitError, want)
+		}
+	})
 
 	t.Run("lock acquire without --purpose outside a store", func(t *testing.T) {
 		dir := outsideGitDir(t)

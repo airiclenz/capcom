@@ -86,7 +86,9 @@ internal/cli/testharness_test.go — withAncestry
 **Closes:** anchor-skips-capcom-shim; lock-warns-own-writes; lock-touch-kept-token
 **Commit:** `fix(proc): skip a capcom shim when anchoring the lock holder`
 
-## 2. Outside a git repository, the failure says where to run capcom
+## 2. Outside a git repository, the failure says where to run capcom — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): `apply <file>` outside git is its own subtest of TestStoreCommands_OutsideAStore_FailAsBefore rather than a row of its command table, since the table builds each hint's command path from all args (the file name would land in the `--help` hint of the bad-config row).
 
 **What:**
 **Goal:** every store-backed command run outside a git repository fails with

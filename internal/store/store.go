@@ -34,8 +34,9 @@ const (
 // ErrNotInitialized reports a git working tree without a store; `capcom init` creates one.
 var ErrNotInitialized = errors.New("no capcom store here; run capcom init")
 
-// ErrNotGitRepository reports a directory outside any git working tree; capcom requires one.
-var ErrNotGitRepository = errors.New("capcom requires a git repository")
+// ErrNotGitRepository reports a directory outside any git working tree; capcom requires one. Open
+// and Init wrap it as "working directory <cwd> is not inside a git repository".
+var ErrNotGitRepository = errors.New("not inside a git repository")
 
 // Store is an opened capcom store. Every path is absolute.
 type Store struct {
@@ -170,7 +171,7 @@ func (s *Store) RaiseFormat(version int) (bool, error) {
 func locate(cwd string) (*Store, error) {
 	paths, err := gitx.Discover(cwd)
 	if errors.Is(err, gitx.ErrNotWorkTree) {
-		return nil, fmt.Errorf("%s: %w", cwd, ErrNotGitRepository)
+		return nil, fmt.Errorf("working directory %s is %w", cwd, ErrNotGitRepository)
 	}
 	if err != nil {
 		return nil, err

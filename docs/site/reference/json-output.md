@@ -119,7 +119,8 @@ file is worded and located is described under
 ### Errors
 
 A command that fails sets `error`, with a `code`, a `message`, a `hint` naming the command to run
-next and, when a file is to blame, its `path` and `line`:
+next (outside a git repository, where to run capcom instead) and, when a file is to blame, its
+`path` and `line`:
 
 ```console
 $ capcom dep add login-flow write-docs --json
@@ -180,7 +181,9 @@ $ capcom update login-flow --type bugg --json
 `code` is one of a closed set. Each code has a default `hint`, which a failure with a more specific
 next step replaces. A hint names the values capcom knows, such as the command that failed in place
 of `<command>`; any other `<placeholder>`, such as `<text>`, is yours to fill in. Text output prints
-the hint as a last line, `hint: <command>`, after the `capcom:` line.
+the hint as a last line, `hint: <command>`, after the `capcom:` line. The one hint that names no
+command is the failure outside a git repository: `capcom: working directory <cwd> is not inside a
+git repository` is followed by `hint: run capcom from inside the repository`.
 
 | Code | Meaning | Default hint | Exit code |
 | --- | --- | --- | --- |

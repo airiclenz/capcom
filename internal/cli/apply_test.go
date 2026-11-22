@@ -285,3 +285,23 @@ func TestApply_LockHeldForTheOnlyIssueOfTheBatch_IsSilent(t *testing.T) {
 		t.Errorf("stdout = %q, want no lock warning", stdout)
 	}
 }
+
+func TestApply_OutsideGitJSON_SaysToRunCapcomInsideTheRepository(t *testing.T) {
+	dir := outsideGitDir(t)
+	writeApplyFile(t, dir, threeCreates)
+
+	stdout, _, exitCode := runCLI(t, dir, "--json", "apply", applyFile)
+
+	failure, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	want := map[string]any{
+		"code":    string(CodeInvalid),
+		"message": "working directory " + dir + " is not inside a git repository",
+		"hint":    "run capcom from inside the repository",
+	}
+	if exitCode != ExitError || !reflect.DeepEqual(failure, want) {
+		t.Errorf("exit = %d error = %v, want %d and %v", exitCode, failure, ExitError, want)
+	}
+	if strings.Contains(stdout, "--help") {
+		t.Errorf("stdout = %q, want no --help hint outside git", stdout)
+	}
+}

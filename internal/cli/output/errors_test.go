@@ -121,11 +121,12 @@ func TestStoreFailure_MapsInitAndOpenErrors(t *testing.T) {
 		err      error
 		wantCode Code
 		wantLine int
+		wantHint string
 	}{
-		{"not initialized", fmt.Errorf("/repo/.capcom: %w", store.ErrNotInitialized), CodeNotInitialized, 0},
-		{"outside git", fmt.Errorf("/tmp: %w", store.ErrNotGitRepository), CodeInvalid, 0},
-		{"bad config", &config.Error{Path: ".capcom/config.yaml", Line: 5, Message: "bad"}, CodeInvalid, 5},
-		{"other", errors.New("disk full"), CodeInvalid, 0},
+		{"not initialized", fmt.Errorf("/repo/.capcom: %w", store.ErrNotInitialized), CodeNotInitialized, 0, "capcom init"},
+		{"outside git", fmt.Errorf("working directory /tmp is %w", store.ErrNotGitRepository), CodeInvalid, 0, "run capcom from inside the repository"},
+		{"bad config", &config.Error{Path: ".capcom/config.yaml", Line: 5, Message: "bad"}, CodeInvalid, 5, "capcom --help"},
+		{"other", errors.New("disk full"), CodeInvalid, 0, "capcom --help"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -134,7 +135,21 @@ func TestStoreFailure_MapsInitAndOpenErrors(t *testing.T) {
 			if failure.Code != testCase.wantCode || failure.Line != testCase.wantLine {
 				t.Errorf("failure = %+v, want code %s line %d", failure, testCase.wantCode, testCase.wantLine)
 			}
+			if hint := failure.hintText(); hint != testCase.wantHint {
+				t.Errorf("hint = %q, want %q", hint, testCase.wantHint)
+			}
 		})
+	}
+}
+
+func TestStoreFailure_OutsideGit_KeepsTheMessageAndExitsOne(t *testing.T) {
+	failure := StoreFailure(fmt.Errorf("working directory /tmp is %w", store.ErrNotGitRepository))
+
+	if want := "working directory /tmp is not inside a git repository"; failure.Message != want {
+		t.Errorf("message = %q, want %q", failure.Message, want)
+	}
+	if exitCode := failure.ExitCode(); exitCode != ExitError {
+		t.Errorf("exit code = %d, want %d", exitCode, ExitError)
 	}
 }
 

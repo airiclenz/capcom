@@ -289,6 +289,9 @@ func TestOpen_OutsideGit_FailsNotGitRepository(t *testing.T) {
 	if !errors.Is(err, ErrNotGitRepository) {
 		t.Errorf("err = %v, want ErrNotGitRepository", err)
 	}
+	if want := "working directory " + outside + " is not inside a git repository"; err == nil || err.Error() != want {
+		t.Errorf("err = %v, want %q", err, want)
+	}
 }
 
 func TestOpen_FromSubdirectory_ResolvesAbsolutePaths(t *testing.T) {
