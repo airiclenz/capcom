@@ -63,10 +63,8 @@ func editNode[T any](
 	return a.written(idKind, edited, err)
 }
 
-// written types the outcome of an ops write for the command. An edit that raised the store
-// format, because the file it wrote carries a key line config.yaml's format lacks, adds
-// formatRaisedWarning to the warnings the command's result renders, so every edit verb warns of
-// the raise once, an edit of a file whose frontmatter held a comment adds droppedCommentsWarning
+// written types the outcome of an ops write for the command. An edit of a file whose frontmatter
+// held a comment adds droppedCommentsWarning to the warnings the command's result renders
 // (app.warnDroppedComments), and a file left holding a git conflict marker, such as one a body
 // brought in, adds the warning capcom check gives for it (app.conflictMarkerWarnings). The write
 // is noted for the Tree lock warning (app.noteKindWrite), naming the Issue it wrote, or no Issue
@@ -77,7 +75,6 @@ func (a *app) written(kind idKind, written nodestore.Written, err error) (nodest
 		return nodestore.Written{}, a.writeFailure(kind, written.ID, err)
 	}
 	a.noteKindWrite(kind, written.ID)
-	a.warnRaisedFormat(written.Effects)
 	a.warnDroppedComments(written.Effects)
 	conflicts := a.conflictMarkerWarnings(nodefile.ReadRegularFile, written.Path)
 	a.writeWarnings = append(a.writeWarnings, conflicts...)

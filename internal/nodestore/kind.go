@@ -82,9 +82,6 @@ type Written struct {
 
 // Effects are what a write changed besides the node file.
 type Effects struct {
-	// RaisedFormat is always 0: since ADR 0019 a write never raises the store format, and one whose
-	// file needs a newer format than config.yaml declares fails instead.
-	RaisedFormat int
 	// IsSynced reports whether the Kind's sync hook, run once the write had landed, changed what it
 	// keeps in step with the tree; false when the Kind has no hook, it ran none or it failed.
 	IsSynced bool

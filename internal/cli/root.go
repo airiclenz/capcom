@@ -115,8 +115,9 @@ type app struct {
 	issueIndex    *index.Index
 	indexReport   index.Report
 	indexWarnings []diagnose.Finding
-	// writeWarnings are the warnings of the writes the command made, such as the store format an
-	// edit raised (app.written); emit renders them after the index warnings and before the result's.
+	// writeWarnings are the warnings of the writes the command made, such as the frontmatter comments
+	// an edit dropped (app.written); emit renders them after the index warnings and before the
+	// result's.
 	writeWarnings []string
 	// writes are the writes the command made, each as the ids of the Issues it targets (noteWrite),
 	// and isLockExempt is set by a command that acts on the Tree lock itself, finish, so emit warns

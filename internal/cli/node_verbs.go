@@ -338,9 +338,8 @@ func joinKeys(keys []string) string {
 // nodestore.Kind.Create. The result names the new node's id, path and etag, with a warning for
 // every tree problem that concerns neither the node's path nor its parent, unless the index
 // refresh already warned about it, one per git conflict marker its body brought in
-// (app.conflictMarkerWarnings), and the warning of a write that raised the store format
-// (app.warnRaisedFormat); verbs.afterWrite then renders the write's Effects. The write is noted for
-// the Tree lock warning (app.noteKindWrite).
+// (app.conflictMarkerWarnings); verbs.afterWrite then renders the write's Effects. The write is
+// noted for the Tree lock warning (app.noteKindWrite).
 func createNode[T any](
 	a *app,
 	verbs nodeVerbs[T],
@@ -356,7 +355,6 @@ func createNode[T any](
 	result := verbs.writeResult(written.ID, written.Path, written.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(problems)...)
 	result.Warnings = append(result.Warnings, a.conflictMarkerWarnings(nodefile.ReadRegularFile, written.Path)...)
-	a.warnRaisedFormat(written.Effects)
 	if verbs.afterWrite != nil {
 		verbs.afterWrite(a, &result, written.Effects)
 	}

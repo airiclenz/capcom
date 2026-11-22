@@ -84,12 +84,10 @@ type Result struct {
 
 // Outcome is what a batch did: one Result per operation, in file order; NowReady, the issues that
 // existed before the batch, were not Ready then and are Ready after it, in tree order and never
-// nil; and RaisedFormat, the store format the batch raised config.yaml to, reported once for the
-// whole batch, 0 when it raised none.
+// nil.
 type Outcome struct {
-	Results      []Result
-	NowReady     []string
-	RaisedFormat int
+	Results  []Result
+	NowReady []string
 }
 
 // Run runs operations in order through o, the staged ops over ov (ops.Staged with ov's Catalog),
@@ -118,7 +116,6 @@ func Run(o *ops.Ops, ov *stage.Overlay, operations []Op, at time.Time) (Outcome,
 		}
 		result.Position = op.Position
 		result.Kind = op.Kind
-		outcome.RaisedFormat = max(outcome.RaisedFormat, result.RaisedFormat)
 		outcome.Results = append(outcome.Results, result)
 	}
 	after, err := o.IssueNodes()

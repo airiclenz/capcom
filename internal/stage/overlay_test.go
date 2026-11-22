@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -25,13 +24,12 @@ const (
 
 // fixture is a store directory holding one issue file, with an Overlay over it.
 type fixture struct {
-	overlay    *stage.Overlay
-	store      *store.Store
-	issuesDir  string
-	existing   string
-	newDir     string
-	newFile    string
-	configPath string
+	overlay   *stage.Overlay
+	store     *store.Store
+	issuesDir string
+	existing  string
+	newDir    string
+	newFile   string
 }
 
 // newFixture creates a store directory holding the issue file existing-node.md and returns an
@@ -48,13 +46,12 @@ func newFixture(t *testing.T) fixture {
 	writeFile(t, existing, existingContent)
 	newDir := filepath.Join(issuesDir, "existing-node")
 	return fixture{
-		overlay:    stage.New(s),
-		store:      s,
-		issuesDir:  issuesDir,
-		existing:   existing,
-		newDir:     newDir,
-		newFile:    filepath.Join(newDir, "new-node.md"),
-		configPath: s.ConfigPath(),
+		overlay:   stage.New(s),
+		store:     s,
+		issuesDir: issuesDir,
+		existing:  existing,
+		newDir:    newDir,
+		newFile:   filepath.Join(newDir, "new-node.md"),
 	}
 }
 
@@ -234,82 +231,6 @@ func TestOverlay_OriginalETag_IsTheFileAsTheBatchFoundIt(t *testing.T) {
 	if !errors.Is(newErr, fs.ErrNotExist) {
 		t.Errorf("OriginalETag(created) err = %v, want fs.ErrNotExist", newErr)
 	}
-}
-
-func TestOverlay_StagedRaise_WritesNothingUntilApply(t *testing.T) {
-	f := newFixture(t)
-	original := "types: [bug]\r\nformat: 1\r\nplans: [epic]\r\n"
-	writeFile(t, f.configPath, original)
-	if err := os.Chmod(f.configPath, 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	isRaised, err := f.overlay.RaiseFormat(2)
-
-	if err != nil || !isRaised {
-		t.Fatalf("RaiseFormat = %v %v, want true, nil", isRaised, err)
-	}
-	assertFile(t, f.configPath, original)
-	if _, err := f.overlay.Plan().Apply(); err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	assertFile(t, f.configPath, "types: [bug]\r\nformat: 2\r\nplans: [epic]\r\n")
-	if info, err := os.Stat(f.configPath); runtime.GOOS != "windows" && (err != nil || info.Mode().Perm() != 0o600) {
-		t.Errorf("config.yaml mode = %v (%v), want 0600 kept", info.Mode().Perm(), err)
-	}
-}
-
-func TestOverlay_StagedRaise_MissingConfigIsCreated(t *testing.T) {
-	f := newFixture(t)
-
-	isRaised, err := f.overlay.RaiseFormat(2)
-
-	if err != nil || !isRaised {
-		t.Fatalf("RaiseFormat = %v %v, want true, nil", isRaised, err)
-	}
-	if _, err := os.Lstat(f.configPath); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("config.yaml before Apply: Lstat err = %v, want it missing", err)
-	}
-	if _, err := f.overlay.Plan().Apply(); err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	assertFile(t, f.configPath, "format: 2\n")
-}
-
-func TestOverlay_StagedRaise_ReportsOnlyARaiseItStages(t *testing.T) {
-	f := newFixture(t)
-	writeFile(t, f.configPath, "format: 3\n")
-
-	alreadyThere, err := f.overlay.RaiseFormat(2)
-	if err != nil || alreadyThere {
-		t.Fatalf("RaiseFormat(2) over format 3 = %v %v, want false, nil", alreadyThere, err)
-	}
-	raised, err := f.overlay.RaiseFormat(4)
-	if err != nil || !raised {
-		t.Fatalf("RaiseFormat(4) = %v %v, want true, nil", raised, err)
-	}
-	again, err := f.overlay.RaiseFormat(4)
-	if err != nil || again {
-		t.Fatalf("RaiseFormat(4) again = %v %v, want false, nil", again, err)
-	}
-}
-
-func TestOverlay_StagedRaise_ConfigChangedBeforeApply_FailsChangedAndTakesBackTheBatch(t *testing.T) {
-	f := newFixture(t)
-	writeFile(t, f.configPath, "format: 1\n")
-	f.stageCreateAndEdit(t)
-	if _, err := f.overlay.RaiseFormat(2); err != nil {
-		t.Fatalf("RaiseFormat: %v", err)
-	}
-	writeFile(t, f.configPath, "format: 1\n# changed\n")
-
-	_, err := f.overlay.Plan().Apply()
-
-	if !errors.Is(err, tree.ErrChanged) || !strings.Contains(err.Error(), f.configPath) {
-		t.Fatalf("Apply err = %v, want tree.ErrChanged naming config.yaml", err)
-	}
-	assertFile(t, f.existing, existingContent)
-	assertFile(t, f.configPath, "format: 1\n# changed\n")
 }
 
 // writeFile writes content to path, failing the test on any error.

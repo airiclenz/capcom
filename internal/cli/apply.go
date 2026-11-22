@@ -267,8 +267,8 @@ func (a *app) commitBatch(overlay *stage.Overlay, outcome batch.Outcome) error {
 // them: the tree problems a create found that the index refresh did not already warn about, a
 // create that left its body empty, a plan set that is in none of the plans directories, and each
 // git conflict marker a written file holds as overlay stages it (app.conflictMarkerWarnings), so a
-// dry run warns of it too. It adds the frontmatter comments the writes dropped and the store format
-// the batch raised, once, to the write warnings.
+// dry run warns of it too. It adds the frontmatter comments the writes dropped to the write
+// warnings.
 func (a *app) batchWarnings(overlay *stage.Overlay, outcome batch.Outcome) []string {
 	var warnings []string
 	addOnce := func(found ...string) {
@@ -287,7 +287,6 @@ func (a *app) batchWarnings(overlay *stage.Overlay, outcome batch.Outcome) []str
 		addOnce(a.conflictMarkerWarnings(overlay.ReadRegularFile, result.Path)...)
 		a.warnDroppedComments(result.Effects)
 	}
-	a.warnRaisedFormat(nodestore.Effects{RaisedFormat: outcome.RaisedFormat})
 	return warnings
 }
 

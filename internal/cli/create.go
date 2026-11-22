@@ -125,7 +125,6 @@ func (a *app) create(cmd *cobra.Command, options *createOptions) (output.Result,
 	a.noteKindWrite(issueIDs, created.ID)
 	result := writeResult(created.ID, created.Path, created.ETag)
 	result.Warnings = append(result.Warnings, a.unwarnedTreeProblems(created.Problems)...)
-	a.warnRaisedFormat(created.Effects)
 	if created.IsBodyEmpty {
 		result.Warnings = append(result.Warnings, fmt.Sprintf(emptyBodyWarning, created.ID, created.ID))
 	}

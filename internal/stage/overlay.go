@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/airiclenz/capcom/internal/config"
 	"github.com/airiclenz/capcom/internal/nodefile"
 	"github.com/airiclenz/capcom/internal/store"
 )
@@ -49,17 +48,13 @@ var errNotDirectory = errors.New("not a directory")
 // Overlay is a nodefile.FS over the disk with every write kept in memory. Reads see the staged
 // files first and the disk below them; ReplaceFile and CreateFile change nothing on disk, and a
 // create records the directories it would make, which Stat, Lstat and ReadDir then report. The
-// first disk read of each file is kept as its Original, the file as the batch found it. RaiseFormat
-// stands in for store.Store.RaiseFormat and writes nothing either. Plan returns the tree.Plan that
-// makes every staged write on disk at once. An Overlay is not safe for concurrent use.
+// first disk read of each file is kept as its Original, the file as the batch found it. Plan returns
+// the tree.Plan that makes every staged write on disk at once. An Overlay is not safe for
+// concurrent use.
 type Overlay struct {
 	// store is the store whose files the Overlay stages: its Catalog reads the issue tree's
 	// directory, working tree root and config from it.
 	store *store.Store
-	// configPath is the store's config.yaml; configName names it relative to the working tree
-	// root, as store.Store names it in its errors.
-	configPath string
-	configName string
 	// files holds the staged files by clean absolute path, and order their paths in the order
 	// each was first written.
 	files map[string]*stagedFile
@@ -68,12 +63,6 @@ type Overlay struct {
 	originals map[string][]byte
 	// dirs holds the directories the staged creates make, missing on disk, by clean absolute path.
 	dirs map[string]bool
-	// config is config.yaml as the first RaiseFormat read it from disk.
-	config stagedConfig
-	// format is the highest store format RaiseFormat staged, 0 when none; raisedConfig is
-	// config.yaml raised to it.
-	format       int
-	raisedConfig []byte
 }
 
 // stagedFile is one file a staged write left in memory.
@@ -84,25 +73,13 @@ type stagedFile struct {
 	isNew bool
 }
 
-// stagedConfig is config.yaml as the Overlay first read it from disk.
-type stagedConfig struct {
-	isRead    bool
-	isMissing bool
-	data      []byte
-}
-
-// New returns an empty Overlay over the disk whose RaiseFormat stages a raise of the config.yaml
-// of s.
+// New returns an empty Overlay over the disk that stages the writes to the files of s.
 func New(s *store.Store) *Overlay {
-	configPath := s.ConfigPath()
-	configName, _ := store.RelativePath(s.WorktreeRoot, configPath)
 	return &Overlay{
-		store:      s,
-		configPath: configPath,
-		configName: configName,
-		files:      map[string]*stagedFile{},
-		originals:  map[string][]byte{},
-		dirs:       map[string]bool{},
+		store:     s,
+		files:     map[string]*stagedFile{},
+		originals: map[string][]byte{},
+		dirs:      map[string]bool{},
 	}
 }
 
@@ -241,48 +218,6 @@ func (o *Overlay) OriginalETag(path string) (string, error) {
 		return "", err
 	}
 	return nodefile.ETag(data), nil
-}
-
-// RaiseFormat stages a raise of config.yaml to declare at least store format version, as
-// store.Store.RaiseFormat makes it, and reports whether it staged one: false when config.yaml on
-// disk already declares version or above, or an earlier call staged version or above. It reads
-// config.yaml from disk once and fails as store.Store.RaiseFormat fails on it, a *config.Error for
-// a file config.RaiseFormat cannot raise; it writes nothing; Plan makes the raise.
-func (o *Overlay) RaiseFormat(version int) (bool, error) {
-	if version <= o.format {
-		return false, nil
-	}
-	if err := o.readConfig(); err != nil {
-		return false, err
-	}
-	raised, isChanged, err := config.RaiseFormat(o.configName, o.config.data, version)
-	if err != nil || !isChanged {
-		return false, err
-	}
-	o.format = version
-	o.raisedConfig = raised
-	return true, nil
-}
-
-// readConfig reads config.yaml from disk into o.config unless an earlier call did, failing as
-// store.Store's own read does: a refusal or any other failure, but a missing file, names the file
-// relative to the working tree root.
-func (o *Overlay) readConfig() error {
-	if o.config.isRead {
-		return nil
-	}
-	data, err := nodefile.ReadRegularFile(o.configPath)
-	isMissing := errors.Is(err, fs.ErrNotExist)
-	if err != nil && !isMissing {
-		for _, refusal := range []error{nodefile.ErrNotRegular, nodefile.ErrTooLarge} {
-			if errors.Is(err, refusal) {
-				return fmt.Errorf("%s: %w", o.configName, refusal)
-			}
-		}
-		return fmt.Errorf("%s: %w", o.configName, err)
-	}
-	o.config = stagedConfig{isRead: true, isMissing: isMissing, data: data}
-	return nil
 }
 
 // original returns the Original of the file at path, reading it from disk with

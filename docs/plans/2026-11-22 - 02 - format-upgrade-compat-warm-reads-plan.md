@@ -106,7 +106,14 @@ NOTES (2026-11-22): consequential edit — internal/cli/related.go: made necessa
 **Acceptance:** `go vet ./internal/nodestore/ ./internal/ops/ ./internal/store/ ./internal/stage/ ./internal/batch/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/ ./internal/ops/ ./internal/store/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Format|Standing|Related|Close|KnowUpdate|Apply|Golden' ./internal/cli/`
 **Commit:** `feat(store): fail a write that needs a newer store format`
 
-## 4. Remove the implicit-raise plumbing
+## 4. Remove the implicit-raise plumbing — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): re-derived from the assumption that `Kind.configPath`, the nodestore raise tests and the raise wiring in `nodestore/create.go`, `nodestore/edit.go` and `stage/catalog.go` still existed: item 3 had already removed them, so those listed files needed no change; `Effects.RaisedFormat` (nodestore/kind.go) was the only nodestore leftover
+NOTES (2026-11-22): `stage/plan.go` keeps only `Overlay.Plan` (`addVerbatimRewrite`, `checkUnchanged`, `rewriteOp` deleted); `stage/overlay.go` loses `RaiseFormat`, `readConfig`, `stagedConfig` and the `configPath`/`configName`/`config`/`format`/`raisedConfig` fields; the four `TestOverlay_StagedRaise_*` tests and the test fixture's `configPath` went with them
+NOTES (2026-11-22): consequential edit — internal/cli/root.go: made necessary by removing warnRaisedFormat (the `writeWarnings` field comment named "the store format an edit raised" as its example)
+NOTES (2026-11-22): consequential edit — internal/cli/doc.go: made necessary by removing the raise (the package map said related.go is "raising the store format")
+NOTES (2026-11-22): `make lint`: staticcheck passes clean; govulncheck exits 3 on GO-2026-6859 in net/http of this host's go1.26.10 (fixed in go1.26.11), a standard-library finding independent of this change
+NOTES (2026-11-22): help text still promising a raise (`create.go`, `update.go`, `related.go` Long texts) and the `check` advice in `internal/check/problem.go` are left for item 5
 
 **What:** Depends on item 3.
 **Goal:** No code path raises the store format except `capcom upgrade`: `Effects.RaisedFormat`, `formatRaisedWarning`, `app.warnRaisedFormat`, `stage.Overlay.RaiseFormat` and the batch aggregation of raised formats are gone, along with their tests; `config.RaiseFormat` / `store.Store.RaiseFormat` remain, used only by `upgrade`.

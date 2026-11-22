@@ -48,7 +48,7 @@
 //   - `ready.go` — capcom ready: the issues ready to work on, most urgent first
 //   - `recap.go` — capcom recap: what changed in .capcom since a date or a commit, group by group
 //   - `reindex.go` — capcom reindex: rebuilds the index from the issue and Note files
-//   - `related.go` — capcom related add and rm: the related links between issues, raising the store format
+//   - `related.go` — capcom related add and rm: the related links between issues
 //   - `reopen.go` — capcom reopen: moves a closed issue back to an open status, logging why
 //   - `rm.go` — the results, failure typing and warnings of rm and know rm, which node_verbs.go builds
 //   - `root.go` — Run, Command, the root command, capcom version and the index lifecycle of every command

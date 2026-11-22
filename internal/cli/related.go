@@ -8,17 +8,12 @@ import (
 
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/nodestore"
 	"github.com/airiclenz/capcom/internal/ops"
 	"github.com/airiclenz/capcom/internal/reflist"
 )
 
 // relatedSelfFormat refuses linking an issue, the format's one argument, to itself.
 const relatedSelfFormat = "%s cannot be related to itself"
-
-// formatRaisedWarning is the warning of the edit that raises the store format (app.written): the
-// config file, the new format, and the format older releases read.
-const formatRaisedWarning = "%s: store format raised to %d; capcom releases that read only format %d can no longer read this store"
 
 // The help text of capcom related, related add and related rm.
 const (
@@ -191,18 +186,4 @@ func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.E
 		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, first.Path, notRelated)
 	}
 	return other, reverse, nil
-}
-
-// warnRaisedFormat adds the warning of a write whose effects raised the store format
-// (formatRaisedWarning) to the command's write warnings, and nothing when the write left
-// config.yaml alone.
-func (a *app) warnRaisedFormat(effects nodestore.Effects) {
-	if effects.RaisedFormat == 0 {
-		return
-	}
-	displayPath := a.store.Relative(a.store.ConfigPath())
-	a.writeWarnings = append(
-		a.writeWarnings,
-		fmt.Sprintf(formatRaisedWarning, displayPath, effects.RaisedFormat, effects.RaisedFormat-1),
-	)
 }
