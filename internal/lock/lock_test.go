@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/airiclenz/capcom/internal/proc"
 )
 
 const (
@@ -643,5 +645,172 @@ func TestAcquire_RacingAcquirers_ExactlyOneWins(t *testing.T) {
 	}
 	if winners != 1 {
 		t.Errorf("winners = %d, want exactly 1", winners)
+	}
+}
+
+// claimFrom returns testClaim made from process.
+func claimFrom(process *proc.Process) Claim {
+	claim := testClaim
+	claim.Process = process
+	return claim
+}
+
+var (
+	agentProcess = proc.Process{PID: 4242, Started: "1700000000", Name: "claude"}
+	otherProcess = proc.Process{PID: 5151, Started: "1700000099", Name: "codex"}
+)
+
+func TestAcquire_ClaimWithProcess_RecordsIt(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+
+	status, _, err := locks.Acquire(MainWorktreeKey, claimFrom(&agentProcess), "", false)
+
+	if err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+	want := HolderProcess{PID: agentProcess.PID, Started: agentProcess.Started}
+	if status.Record.Process == nil || *status.Record.Process != want {
+		t.Errorf("status process = %+v, want %+v", status.Record.Process, want)
+	}
+	data, record := readRecordFile(t, locks, MainWorktreeKey)
+	if record.Process == nil || *record.Process != want {
+		t.Errorf("record process = %+v, want %+v", record.Process, want)
+	}
+	if !bytes.Contains(data, []byte(`"process": {`)) {
+		t.Errorf("record names no process:\n%s", data)
+	}
+}
+
+func TestAcquire_ClaimWithoutProcess_RecordsNone(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+
+	mustAcquire(t, locks, MainWorktreeKey)
+
+	data, record := readRecordFile(t, locks, MainWorktreeKey)
+	if record.Process != nil || bytes.Contains(data, []byte(`"process"`)) {
+		t.Errorf("record names a process:\n%s", data)
+	}
+}
+
+func TestAcquire_Resume_ReplacesTheProcessWithTheClaims(t *testing.T) {
+	tests := []struct {
+		name    string
+		process *proc.Process
+		want    *HolderProcess
+	}{
+		{"another process", &otherProcess, &HolderProcess{PID: otherProcess.PID, Started: otherProcess.Started}},
+		{"no process", nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			locks, _ := openTest(t)
+			acquired, _, err := locks.Acquire(MainWorktreeKey, claimFrom(&agentProcess), "", false)
+			if err != nil {
+				t.Fatalf("Acquire: %v", err)
+			}
+
+			resumed, isResumed, err := locks.Acquire(MainWorktreeKey, claimFrom(tt.process), acquired.Token, false)
+
+			if err != nil || !isResumed {
+				t.Fatalf("resume = resumed %v, err %v", isResumed, err)
+			}
+			_, record := readRecordFile(t, locks, MainWorktreeKey)
+			for _, got := range []*HolderProcess{resumed.Record.Process, record.Process} {
+				if (got == nil) != (tt.want == nil) || (got != nil && *got != *tt.want) {
+					t.Errorf("process = %+v, want %+v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestAcquire_TakeStale_RecordsTheTakersProcess(t *testing.T) {
+	t.Parallel()
+	locks, commonDir := openTest(t)
+	if _, _, err := locks.Acquire(MainWorktreeKey, claimFrom(&agentProcess), "", false); err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+
+	taken, _, err := Open(commonDir, staleTTL).Acquire(MainWorktreeKey, claimFrom(&otherProcess), "", true)
+
+	if err != nil {
+		t.Fatalf("take-stale Acquire: %v", err)
+	}
+	if !taken.HeldBy([]proc.Process{otherProcess}) || taken.HeldBy([]proc.Process{agentProcess}) {
+		t.Errorf("process = %+v, want the taker's", taken.Record.Process)
+	}
+}
+
+func TestTouch_KeepsTheHolderProcess(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	acquired, _, err := locks.Acquire(MainWorktreeKey, claimFrom(&agentProcess), "", false)
+	if err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+
+	touched, err := locks.Touch(MainWorktreeKey, acquired.Token)
+
+	if err != nil {
+		t.Fatalf("Touch: %v", err)
+	}
+	_, record := readRecordFile(t, locks, MainWorktreeKey)
+	want := HolderProcess{PID: agentProcess.PID, Started: agentProcess.Started}
+	for _, got := range []*HolderProcess{touched.Record.Process, record.Process} {
+		if got == nil || *got != want {
+			t.Errorf("process = %+v, want %+v", got, want)
+		}
+	}
+}
+
+func TestStatus_HeldBy(t *testing.T) {
+	t.Parallel()
+	holder := &HolderProcess{PID: agentProcess.PID, Started: agentProcess.Started}
+	reusedPID := proc.Process{PID: agentProcess.PID, Started: "1700009999", Name: "claude"}
+	shell := proc.Process{PID: 7000, Started: "1700000500", Name: "bash"}
+	tests := []struct {
+		name    string
+		process *HolderProcess
+		chain   []proc.Process
+		want    bool
+	}{
+		{"chain containing the holder process", holder, []proc.Process{shell, agentProcess}, true},
+		{"PID match with a different stamp", holder, []proc.Process{shell, reusedPID}, false},
+		{"chain without the holder process", holder, []proc.Process{shell, otherProcess}, false},
+		{"empty chain", holder, nil, false},
+		{"record without a process", nil, []proc.Process{shell, agentProcess}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			status := Status{Key: MainWorktreeKey, IsHeld: true, Record: Record{Token: "sha256:00", Process: tt.process}}
+
+			if got := status.HeldBy(tt.chain); got != tt.want {
+				t.Errorf("HeldBy = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRead_RecordWithoutProcess_ParsesAsHeldWithNone(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	writeRecord(t, locks, MainWorktreeKey, `{"token": "sha256:00", "purpose": "old capcom", "holder": "agent-a",`+
+		`"host": "pi", "user": "airic", "branch": "main", "since": "`+now+`", "heartbeat": "`+now+`"}`)
+
+	status, err := locks.Read(MainWorktreeKey)
+
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if !status.IsHeld || status.Record.Purpose != "old capcom" || status.Record.Process != nil {
+		t.Errorf("status = %+v, want held with no process", status)
+	}
+	if status.HeldBy([]proc.Process{agentProcess}) {
+		t.Error("HeldBy = true for a record without a process")
 	}
 }

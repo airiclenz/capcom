@@ -13,8 +13,9 @@ var userVariables = []string{"USER", "USERNAME"}
 
 // CurrentClaim describes the calling session for a lock on the worktree at worktreeRoot: purpose,
 // holder (user@host, or the host alone with no user, unless given), and the host, user and
-// checked-out branch of that worktree. The branch is empty on a detached HEAD. It fails when the
-// host name cannot be read or git cannot report the branch.
+// checked-out branch of that worktree. The branch is empty on a detached HEAD. It leaves the
+// holder process unset: the caller sets Claim.Process. It fails when the host name cannot be read
+// or git cannot report the branch.
 func CurrentClaim(worktreeRoot, purpose, holder string) (Claim, error) {
 	host, err := os.Hostname()
 	if err != nil {

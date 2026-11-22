@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/proc"
 )
 
 // Layout of the lock directory under the git common dir.
@@ -80,6 +81,18 @@ type Record struct {
 	// Worktree is the id a linked worktree keeps in `<git-dir>/capcom/worktree-id` when the lock
 	// was acquired; empty for the primary worktree and in a record an older capcom wrote.
 	Worktree string `json:"worktree,omitempty"`
+	// Process is the holder process, the nearest non-shell ancestor of the capcom that acquired or
+	// last resumed the lock. It is nil when that process was unknown and in a record an older
+	// capcom wrote; an older capcom's touch or resume drops it, as its Record has no such field.
+	Process *HolderProcess `json:"process,omitempty"`
+}
+
+// HolderProcess names a holder process by PID and start stamp, so a reused PID never matches it.
+type HolderProcess struct {
+	// PID is the process id.
+	PID int `json:"pid"`
+	// Started is proc.Process's opaque start stamp, only ever compared.
+	Started string `json:"started"`
 }
 
 // Claim describes a session asking for a lock.
@@ -89,6 +102,9 @@ type Claim struct {
 	Host    string
 	User    string
 	Branch  string
+	// Process is the holder process the claim is made from, which Acquire records; nil when
+	// unknown, and the record then names none.
+	Process *proc.Process
 }
 
 // Status is the state of one worktree's lock.
@@ -112,6 +128,29 @@ type Status struct {
 	// git dir is gone, or the id it keeps is not the record's Worktree. The lock reads as free,
 	// IsHeld is false and Record is the orphaned record; a primary worktree's is never orphaned.
 	IsOrphaned bool
+}
+
+// HeldBy reports whether chain, a process ancestry, holds the lock's holder process: true only
+// when the record names one and an entry of chain equals it on both PID and start stamp.
+func (s Status) HeldBy(chain []proc.Process) bool {
+	holder := s.Record.Process
+	if holder == nil {
+		return false
+	}
+	for _, candidate := range chain {
+		if candidate.PID == holder.PID && candidate.Started == holder.Started {
+			return true
+		}
+	}
+	return false
+}
+
+// holderProcessOf returns the record form of process, nil when process is nil.
+func holderProcessOf(process *proc.Process) *HolderProcess {
+	if process == nil {
+		return nil
+	}
+	return &HolderProcess{PID: process.PID, Started: process.Started}
 }
 
 // NotHeldError reports a touch of a free lock; it matches ErrNotHeld under errors.Is.
@@ -199,8 +238,8 @@ func (l *Locks) RecordPath(key string) string {
 
 // Acquire takes key's lock for claim. A free lock gets a new token; an orphaned one is taken over
 // with a new token, and every token file of key is deleted first. When token matches the
-// holder's, the lock is resumed, even a stale one: its heartbeat is refreshed, its purpose and
-// holder replaced by claim's, a record holding the token in the clear is rewritten to hold its
+// holder's, the lock is resumed, even a stale one: its heartbeat is refreshed, its purpose,
+// holder and holder process replaced by claim's, a record holding the token in the clear is rewritten to hold its
 // digest, and isResumed is true. A lock another session holds fails with a
 // *HeldError, unless isTakeStale is set and that lock is stale, in which case it is taken over
 // with a new token. The lock's token is kept in the token file for claim's purpose, written before
@@ -236,6 +275,7 @@ func (l *Locks) Acquire(key string, claim Claim, token string, isTakeStale bool)
 			Since:     now,
 			Heartbeat: now,
 			Worktree:  worktreeID,
+			Process:   holderProcessOf(claim.Process),
 		}
 		if isResume {
 			record.Since = current.Record.Since
@@ -290,8 +330,8 @@ func (l *Locks) keepToken(key string, current Status, cleartext, purpose string,
 	return l.removeTokenFiles(key, cleartext, l.keptTokenPath(key, purpose))
 }
 
-// Touch refreshes the heartbeat of key's lock for the holder of token, and rewrites a record
-// holding the token in the clear to hold its digest. It fails with a
+// Touch refreshes the heartbeat of key's lock for the holder of token, keeping its holder process,
+// and rewrites a record holding the token in the clear to hold its digest. It fails with a
 // *NotHeldError, returning the free lock, when nobody holds it, and with a *HeldError when another
 // session holds it.
 func (l *Locks) Touch(key, token string) (Status, error) {

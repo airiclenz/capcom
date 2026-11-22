@@ -76,7 +76,10 @@ is `os.Getppid()` with a non-empty `Started`; two calls return equal chains.
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/proc/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/proc/ && GOOS=windows go vet ./internal/proc/ && GOOS=darwin go vet ./internal/proc/ && GOOS=freebsd go vet ./internal/proc/`
 **Commit:** `feat(proc): read the process ancestry and its harness anchor`
 
-## 2. The lock record names the holder process
+## 2. The lock record names the holder process — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the record stores the process as a lock-local `HolderProcess{PID, Started}` (`json:"pid"`, `json:"started"`) rather than `proc.Process`, so the on-disk shape holds only PID and start stamp, not the executable name; `Claim.Process` is `*proc.Process` as the approach says.
+NOTES (2026-11-22): a resume with a claim that has no process clears the stored one ("none when the claim has none"); `HeldBy` does not consult IsHeld, matching the Goal's definition exactly.
 
 **What:** Depends on item 1.
 **Goal:** `lock.Record` carries an optional holder process (`json:"process,omitempty"`, PID and
