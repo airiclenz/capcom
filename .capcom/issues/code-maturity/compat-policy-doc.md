@@ -5,6 +5,7 @@ type: task
 priority: 2
 labels: [maturity, docs, compat]
 deps: [json-golden-tests, format-fixture-tests]
+plan: 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan
 created: 2026-11-04T18:27:23Z
 ---
 

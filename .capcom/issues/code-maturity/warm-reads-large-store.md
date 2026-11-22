@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 2
 labels: [maturity, performance]
+plan: 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan
 created: 2026-11-05T10:50:43Z
 ---
 
