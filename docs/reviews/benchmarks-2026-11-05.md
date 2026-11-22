@@ -143,3 +143,30 @@ told apart from it.
 | `BenchmarkReindex` | 0.27 s | 2.47 s |
 | `BenchmarkColdFirstCommand` | 0.65 s | 3.79 s |
 | `BenchmarkLog` | 0.054 s | 0.41 s |
+
+## 2026-11-22 — warm reads after `warm-reads-large-store`
+
+The elsewhere scan now reads every changed copy through one `git cat-file --batch` process and
+lists the unmerged branches once, diffing them in parallel; `next` reuses the ready list's load to
+show the issue; `prime` reads its briefing sources concurrently; the tree parses store files in
+parallel; and the index loads every usable issue without an id list. All four warm reads now run
+under their targets at N = 10000: 1 s for `ready`, `next` and `list --all --json`, 1.5 s for
+`prime`. The baseline rows above stand as measured.
+
+- **Command:** `GOMEMLIMIT=2GiB go test -run='^$' -bench='Prime|Ready|Next|ListAllJSON' -benchtime=1x -count=3 -timeout=0 ./internal/cli`
+- **Commit:** `b654550` with the change `perf(index): load all usable issues without an id list`
+- **Run:** 2026-11-22, 22:47 to 22:48 UTC (58 s), with no other test process running, on the same
+  host as the baseline (Linux 6.18.59 arm64, go1.26.10, git 2.47.3).
+- **Values:** the mean time per command over the three counts. The three N = 10000 counts of
+  every row lie within 5% of each other; one N = 1000 `prime` count took 0.12 s against 0.10 s
+  for the other two.
+
+| Command | Benchmark | N = 1000 | N = 10000 | N = 10000 baseline | Target |
+| --- | --- | ---: | ---: | ---: | ---: |
+| `prime` (warm index) | `BenchmarkPrime` | 0.11 s | 0.68 s | 2.51 s | 1.5 s |
+| `ready` | `BenchmarkReady` | 0.078 s | 0.55 s | 1.62 s | 1 s |
+| `next` | `BenchmarkNext` | 0.072 s | 0.52 s | 1.25 s | 1 s |
+| `list --all --json` | `BenchmarkListAllJSON` | 0.084 s | 0.53 s | 1.59 s | 1 s |
+
+At N = 10000 `prime` runs 3.7× faster than the baseline, `ready` and `list --all --json` 3.0×,
+and `next` 2.4×. At N = 1000 all four run 2.5× to 4.7× faster.

@@ -264,7 +264,9 @@ NOTES (2026-11-22): the all-issues path is taken when IsClosedIncluded is set an
 **Acceptance:** `go vet ./internal/index/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/index/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Ready|List|Prime' ./internal/cli/`
 **Commit:** `perf(index): load all usable issues without an id list`
 
-## 13. Measure the warm reads at N=10000 and record them
+## 13. Measure the warm reads at N=10000 and record them — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): ran the Acceptance command with `-count=3` added, so the recorded values are a mean over three counts like the earlier sections'; N=10000 means: prime 0.68 s, ready 0.55 s, next 0.52 s, list --all --json 0.53 s, all under target, so no profiling was needed.
 
 **What:** Depends on items 7–12.
 **Goal:** On the Raspberry Pi 5 host, with no other test process running, `BenchmarkReady`, `BenchmarkNext` and `BenchmarkListAllJSON` run under 1 s and `BenchmarkPrime` under 1.5 s at N=10000, and `docs/reviews/benchmarks-2026-11-05.md` gains a dated section with the new numbers beside the baseline.
