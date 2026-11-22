@@ -61,6 +61,7 @@ capcom know tree --depth 2      # the top level and its direct children
 capcom know tree auth           # one branch, from the Note auth down
 capcom know show token-refresh  # one Note in full
 capcom know show auth token-refresh  # several Notes in one call
+capcom know show "Token refresh"     # a Note by its title
 capcom know search refresh      # Notes whose id, title or body contains every word, else some
 ```
 
@@ -72,6 +73,10 @@ auth  How sessions and tokens work
 
 `capcom know show --with-children <id>` prints a Note together with the Notes directly below it,
 for a decision record whose sections are child Notes.
+
+An argument to `know show` that names no id, Alias or id prefix is tried as a title,
+case-insensitive: the whole title, then the part before its first colon, then the argument
+spelled as an id. When several Notes match, it fails naming them all.
 
 ## Label
 

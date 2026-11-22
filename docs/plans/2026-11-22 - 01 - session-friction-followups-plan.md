@@ -248,7 +248,15 @@ TestComplete_NoteArguments_ListNotRetiredNoteIDsWithTitles; internal/cli/read_te
 **Closes:** know-show-several
 **Commit:** `feat(know): show several Notes in one call`
 
-## 8. know show resolves a Note by its title
+## 8. know show resolves a Note by its title — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): ResolveNoteByTitle calls ResolveNote itself and falls back only on a *tree.NotFoundError, so know show makes one call per argument; the title lookup runs in its own read snapshot after ResolveNote's.
+
+NOTES (2026-11-22): several matches fail with a new *index.TitleMatchesError (errors.Is tree.ErrNotFound) naming the ids in its message (`id "<arg>" not found: it matches several Notes: a, b`); it carries no Suggestions. In step (c) an ambiguous slug prefix counts as several matches; a not-found, unusable or duplicate slug counts as no match.
+
+NOTES (2026-11-22): know show's usage line now reads `show <id|alias|prefix|title>...` and its help gains a by-title example.
+
+NOTES (2026-11-22): consequential edit — docs/site/concepts/knowledge.md: made necessary by know show resolving Notes by title (browsing section example and one paragraph)
 
 **What:**
 Recast at the regression check (2026-11-22, 6fe6719).

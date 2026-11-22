@@ -120,6 +120,107 @@ func TestNotes_ResolveNote_CitationSpelling(t *testing.T) {
 	}
 }
 
+func TestNotes_ResolveNoteByTitle_EachStepResolves(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "rel-flow.md", "---\ntitle: \"Release steps: tag then publish\"\n---\n")
+	writeNote(t, s, "store-layout.md", "---\ntitle: Where Things Live\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+	cases := map[string]string{
+		"where things live":               "store-layout",
+		"RELEASE STEPS: tag then publish": "rel-flow",
+		" release steps ":                 "rel-flow",
+		"rel flow!":                       "rel-flow",
+		"rel-flow":                        "rel-flow",
+	}
+
+	for arg, want := range cases {
+		entry, err := x.ResolveNoteByTitle(arg)
+
+		if err != nil || entry.ID != want {
+			t.Errorf("ResolveNoteByTitle(%q) = %q, %v; want %q", arg, entry.ID, err, want)
+		}
+	}
+}
+
+func TestNotes_ResolveNoteByTitle_SeveralMatches_NotFoundNamingEach(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "steps-one.md", "---\ntitle: Release steps\n---\n")
+	writeNote(t, s, "steps-two.md", "---\ntitle: release steps\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	_, err := x.ResolveNoteByTitle("Release Steps")
+
+	var several *TitleMatchesError
+	if !errors.Is(err, tree.ErrNotFound) || !errors.As(err, &several) ||
+		!slices.Equal(several.IDs, []string{"steps-one", "steps-two"}) {
+		t.Errorf("ResolveNoteByTitle = %v, want not found naming steps-one and steps-two", err)
+	}
+}
+
+func TestNotes_ResolveNoteByTitle_IDWinsOverTitle(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "release-flow.md", "---\ntitle: Release flow\n---\n")
+	writeNote(t, s, "other.md", "---\ntitle: release-flow\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	entry, err := x.ResolveNoteByTitle("release-flow")
+
+	if err != nil || entry.ID != "release-flow" {
+		t.Errorf("ResolveNoteByTitle(release-flow) = %q, %v; want the Note with that id", entry.ID, err)
+	}
+}
+
+func TestNotes_ResolveNoteByTitle_NoMatch_ReturnsTheOriginalError(t *testing.T) {
+	t.Parallel()
+	_, x := noteFixture(t)
+
+	_, want := x.ResolveNote("ADR 9999!")
+	_, err := x.ResolveNoteByTitle("ADR 9999!")
+
+	var notFound *tree.NotFoundError
+	if !errors.As(err, &notFound) || err.Error() != want.Error() || err.Error() != `id "ADR 9999!" not found` {
+		t.Errorf("ResolveNoteByTitle = %v, want ResolveNote's error %v", err, want)
+	}
+}
+
+func TestNotes_ResolveNoteByTitle_AmbiguousPrefix_NeverFallsBack(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "adr-0001.md", "---\ntitle: ADR\n---\n")
+	writeNote(t, s, "adr-0002.md", "---\ntitle: ADR 0002\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	_, err := x.ResolveNoteByTitle("adr")
+
+	if !errors.Is(err, tree.ErrAmbiguous) {
+		t.Errorf("ResolveNoteByTitle(adr) = %v, want the ambiguous prefix error", err)
+	}
+}
+
+func TestNotes_ResolveNoteByTitle_ExcludedDuplicateTitle_DoesNotResolve(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeNote(t, s, "a.md", "---\ntitle: A\n---\n")
+	writeNote(t, s, "a/x.md", "---\ntitle: X one\n---\n")
+	writeNote(t, s, "b.md", "---\ntitle: B\n---\n")
+	writeNote(t, s, "b/x.md", "---\ntitle: X two\n---\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	_, err := x.ResolveNoteByTitle("X one")
+
+	if !errors.Is(err, tree.ErrNotFound) {
+		t.Errorf("ResolveNoteByTitle(X one) = %v, want not found", err)
+	}
+}
+
 func TestResolve_CitationSpelling_FindsTheIssue(t *testing.T) {
 	t.Parallel()
 	_, x := noteFixture(t)

@@ -222,6 +222,52 @@ func TestKnowShow_CitationSpelling_Resolves(t *testing.T) {
 	}
 }
 
+func TestKnowShow_ByTitle_ResolvesTheNote(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{"rel-flow.md": "---\ntitle: \"Release steps: tag then publish\"\n---\n"})
+	for _, arg := range []string{"Release steps", "rel flow!"} {
+		t.Run(arg, func(t *testing.T) {
+			stdout, stderr, exitCode := runCLI(t, root, "know", "show", arg)
+
+			if exitCode != ExitOK || !strings.HasPrefix(stdout, "id: rel-flow\n") {
+				t.Errorf("know show %q = %d\n%s%s", arg, exitCode, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestKnowShow_TitleOfSeveralNotesJSON_NotFoundNamingBoth(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"steps-one.md": "---\ntitle: Release steps\n---\n",
+		"steps-two.md": "---\ntitle: release steps\n---\n",
+	})
+
+	stdout, _, exitCode := runCLI(t, root, "know", "show", "--json", "Release steps")
+
+	errorBody, _ := decodeEnvelope(t, stdout)["error"].(map[string]any)
+	message, _ := errorBody["message"].(string)
+	if exitCode != ExitNotFound || errorBody["code"] != string(CodeNotFound) ||
+		!strings.Contains(message, "steps-one") || !strings.Contains(message, "steps-two") {
+		t.Errorf("exit = %d error = %v, want not_found naming steps-one and steps-two", exitCode, errorBody)
+	}
+}
+
+func TestKnowShow_AmbiguousPrefix_FailsAsBefore(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"adr-0001.md": "---\ntitle: adr\n---\n",
+		"adr-0002.md": "---\ntitle: ADR 0002\n---\n",
+	})
+
+	_, stderr, exitCode := runCLI(t, root, "know", "show", "adr")
+
+	want := "capcom: ambiguous id prefix \"adr\": matches adr-0001, adr-0002\nhint: capcom know show --help\n"
+	if exitCode != ExitError || stderr != want {
+		t.Errorf("exit = %d stderr = %q, want %d and %q", exitCode, stderr, ExitError, want)
+	}
+}
+
 func TestKnowShow_UnknownID_SuggestsTheClosestNoteIDs(t *testing.T) {
 	root := newKnowStore(t)
 	cases := []struct {

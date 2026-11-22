@@ -139,6 +139,154 @@ func (x *Index) ResolveNote(arg string) (entry NoteEntry, err error) {
 	return entry, err
 }
 
+// ResolveNoteByTitle finds the usable Note an argument names as ResolveNote does and, only when
+// that fails with a *tree.NotFoundError, by its title. It tries in order: the whole title, then
+// the part of the title before its first colon, both trimmed and case-insensitive, then the
+// argument turned into a slug (noteSlug) resolved as an id, Alias or prefix when the slug is not
+// already the name ResolveNote tried. The first step with any match decides: one match resolves,
+// and several fail with a *TitleMatchesError naming them all. Titles are read from usable Notes
+// only, never from a file left out as a duplicate. When no step matches, the error is
+// ResolveNote's, unchanged; an ambiguous, unusable or duplicate failure never falls back. Each
+// lookup reads from one read snapshot.
+func (x *Index) ResolveNoteByTitle(arg string) (NoteEntry, error) {
+	entry, resolveErr := x.ResolveNote(arg)
+	var notFound *tree.NotFoundError
+	if !errors.As(resolveErr, &notFound) {
+		return entry, resolveErr
+	}
+	err := x.snapshot(func(q querier) error {
+		ids, err := x.noteTitleMatches(q, arg)
+		if err != nil {
+			return err
+		}
+		switch {
+		case len(ids) == 0:
+			return resolveErr
+		case len(ids) > 1:
+			return &TitleMatchesError{Arg: arg, IDs: ids}
+		}
+		entries, err := x.noteList(q, ids)
+		if err != nil {
+			return err
+		}
+		entry = entries[0]
+		return nil
+	})
+	return entry, err
+}
+
+// TitleMatchesError reports an argument that resolves to no Note by id, Alias or prefix but to
+// several by title (see ResolveNoteByTitle). It matches tree.ErrNotFound under errors.Is.
+type TitleMatchesError struct {
+	// Arg is the argument as given.
+	Arg string
+	// IDs are the ids of the Notes it matches, in order.
+	IDs []string
+}
+
+// Error renders the argument and every matched id.
+func (e *TitleMatchesError) Error() string {
+	return fmt.Sprintf("id %q %v: it matches several Notes: %s", e.Arg, tree.ErrNotFound, strings.Join(e.IDs, ", "))
+}
+
+// Is reports whether target is tree.ErrNotFound.
+func (e *TitleMatchesError) Is(target error) bool {
+	return target == tree.ErrNotFound
+}
+
+// noteTitleMatches returns the ids of the usable Notes the first matching step of
+// ResolveNoteByTitle finds for arg, in id order; none when no step matches.
+func (x *Index) noteTitleMatches(q querier, arg string) ([]string, error) {
+	typed := strings.TrimSpace(arg)
+	if typed != "" {
+		titles, err := x.noteTitles(q)
+		if err != nil {
+			return nil, err
+		}
+		steps := []func(title string) bool{
+			func(title string) bool { return strings.EqualFold(strings.TrimSpace(title), typed) },
+			func(title string) bool {
+				head, _, _ := strings.Cut(title, ":")
+				return strings.EqualFold(strings.TrimSpace(head), typed)
+			},
+		}
+		for _, matches := range steps {
+			var ids []string
+			for _, title := range titles {
+				if matches(title.title) {
+					ids = append(ids, title.id)
+				}
+			}
+			if len(ids) > 0 {
+				return ids, nil
+			}
+		}
+	}
+	slug := noteSlug(arg)
+	if slug == "" || slug == tree.NormalizeArg(arg) {
+		return nil, nil
+	}
+	id, err := x.resolveID(q, noteNodes, slug)
+	var ambiguous *tree.AmbiguousError
+	switch {
+	case err == nil:
+		return []string{id}, nil
+	case errors.As(err, &ambiguous):
+		return ambiguous.Candidates, nil
+	case errors.Is(err, tree.ErrNotFound), errors.Is(err, tree.ErrDuplicate):
+		return nil, nil
+	}
+	return nil, err
+}
+
+// noteTitle is the id and title of one usable Note.
+type noteTitle struct {
+	id    string
+	title string
+}
+
+// noteTitles reads the id and title of every usable Note through q, in id order. A Note left out
+// as a duplicate has none.
+func (x *Index) noteTitles(q querier) ([]noteTitle, error) {
+	rows, err := q.QueryContext(context.Background(), `SELECT id, title FROM notes WHERE excluded = 0 ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("%s: read Note titles: %w", Path(x.store), err)
+	}
+	defer rows.Close()
+	var titles []noteTitle
+	for rows.Next() {
+		var title noteTitle
+		if err := rows.Scan(&title.id, &title.title); err != nil {
+			return nil, fmt.Errorf("%s: read Note titles: %w", Path(x.store), err)
+		}
+		titles = append(titles, title)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%s: read Note titles: %w", Path(x.store), err)
+	}
+	return titles, nil
+}
+
+// noteSlug turns an argument into the id it spells: lower-cased, each run of characters other
+// than a-z and 0-9 turned into one hyphen, and leading and trailing hyphens dropped, so
+// "rel flow!" spells rel-flow.
+func noteSlug(arg string) string {
+	var slug strings.Builder
+	isHyphenDue := false
+	for _, r := range strings.ToLower(arg) {
+		if ('a' <= r && r <= 'z') || ('0' <= r && r <= '9') {
+			if isHyphenDue && slug.Len() > 0 {
+				slug.WriteByte('-')
+			}
+			isHyphenDue = false
+			slug.WriteRune(r)
+			continue
+		}
+		isHyphenDue = true
+	}
+	return slug.String()
+}
+
 // Notes returns every usable Note in tree order: by path, so every Note comes before its
 // children. Unless isRetiredIncluded is set, it leaves out every Note that is retired or has a
 // retired ancestor. Every row comes from one read snapshot.

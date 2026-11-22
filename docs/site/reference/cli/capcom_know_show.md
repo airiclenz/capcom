@@ -13,14 +13,16 @@ Show Notes in full
 
 Print each named Note in full: its id, path, etag, parent, title, Labels, Refs, retirement, superseded-by entries, Aliases and body.
 
-Each argument may be an id, an Alias or a unique id prefix, and a retired Note still resolves. The Notes found are printed even when another argument names none, and the command then exits with the first failure's code.
+Each argument may be an id, an Alias or a unique id prefix, and a retired Note still resolves. An argument that names none of those is tried as a title, case-insensitive: the whole title, then the part before its first colon, then the argument spelled as an id ("Release steps!" spells release-steps). When several Notes match, it fails naming them all.
+
+The Notes found are printed even when another argument names none, and the command then exits with the first failure's code.
 
 --with-children also prints the Notes directly below each, their retired ones only with --retired.
 
 The etag is what --if-match takes on know update, know mv and know rm.
 
 ```
-capcom know show <id|alias|prefix>... [flags]
+capcom know show <id|alias|prefix|title>... [flags]
 ```
 
 ### Examples
@@ -28,6 +30,7 @@ capcom know show <id|alias|prefix>... [flags]
 ```
   capcom know show release-steps                   # one Note in full
   capcom know show release-steps store-layout      # several at once
+  capcom know show "Release steps"                 # by its title
   capcom know show release-steps --with-children   # and the Notes directly below it
   capcom know show release-steps --json            # as a JSON envelope
 ```

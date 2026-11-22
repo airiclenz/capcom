@@ -22,19 +22,25 @@ const (
 	knowShowLong = "Print each named Note in full: its id, path, etag, parent, title, Labels, Refs, " +
 		"retirement, superseded-by entries, Aliases and body.\n\n" +
 		"Each argument may be an id, an Alias or a unique id prefix, and a retired Note still " +
-		"resolves. The Notes found are printed even when another argument names none, and the " +
+		"resolves. An argument that names none of those is tried as a title, case-insensitive: " +
+		"the whole title, then the part before its first colon, then the argument spelled as an " +
+		"id (\"Release steps!\" spells release-steps). When several Notes match, it fails naming " +
+		"them all.\n\n" +
+		"The Notes found are printed even when another argument names none, and the " +
 		"command then exits with the first failure's code.\n\n" +
 		"--with-children also prints the Notes directly below each, their retired ones only with " +
 		"--retired.\n\n" +
 		"The etag is what --if-match takes on know update, know mv and know rm."
 	knowShowExample = "  capcom know show release-steps                   # one Note in full\n" +
 		"  capcom know show release-steps store-layout      # several at once\n" +
+		"  capcom know show \"Release steps\"                 # by its title\n" +
 		"  capcom know show release-steps --with-children   # and the Notes directly below it\n" +
 		"  capcom know show release-steps --json            # as a JSON envelope"
 )
 
 // newKnowShowCommand prints each named Note in full, and with --with-children the Notes directly
-// below each after it. Every argument is resolved on its own; the Notes found are printed even when
+// below each after it. Every argument is resolved on its own, by its title too when it names no
+// id, Alias or prefix (index.ResolveNoteByTitle); the Notes found are printed even when
 // another argument fails, and the command then exits with the first failure's code. A named Note
 // resolves even when retired; its retired children, and every child of a retired Note, are shown
 // only with --retired.
@@ -42,7 +48,7 @@ func (a *app) newKnowShowCommand() *cobra.Command {
 	isWithChildren := false
 	isRetiredIncluded := false
 	cmd := &cobra.Command{
-		Use:               "show <id|alias|prefix>...",
+		Use:               "show <id|alias|prefix|title>...",
 		Short:             "Show Notes in full",
 		Long:              knowShowLong,
 		Example:           knowShowExample,
@@ -81,7 +87,7 @@ func (a *app) shownNotes(
 	var shown []index.NoteEntry
 	var notes *outline.Tree[index.NoteEntry]
 	for _, arg := range args {
-		entry, err := a.issueIndex.ResolveNote(arg)
+		entry, err := a.issueIndex.ResolveNoteByTitle(arg)
 		if err != nil {
 			if _, fatal := failures.add(err); fatal != nil {
 				return nil, nil, fatal
