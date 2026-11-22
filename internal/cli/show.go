@@ -33,9 +33,9 @@ const (
 		"The etag printed is the value --if-match takes on update, mv and rm.\n\n" +
 		"--brief prints the fields only, without the body and its Log. --section prints the fields and the " +
 		"body sections under the headings named, in body order, heading lines included; a heading matches " +
-		"case-insensitively, its # marks ignored, so --section log selects ## Log. A section runs to the " +
-		"next heading of its level or a higher one. An Issue whose body lacks a named heading fails, " +
-		"naming the headings it has; the others still print.\n\n" +
+		"case-insensitively, its # marks ignored, so --section log selects ## Log.\n\n" +
+		"A section runs to the next heading of its level or a higher one. An Issue whose body lacks a " +
+		"named heading fails, naming the headings it has; the others still print.\n\n" +
 		"Changes to these Issues on other branches are reported as Elsewhere unless --no-elsewhere is " +
 		"given."
 	showExample = "  capcom show login-timeout-race\n" +
