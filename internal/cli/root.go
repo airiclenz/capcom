@@ -472,6 +472,10 @@ const foreignLockAdvice = "; if it is yours, carry on"
 // read: the record file, then why, and capcom lock status, which shows the record.
 const unreadableLockWarning = "%s: the lock record cannot be read: %s; see " + lockStatusHint
 
+// unrenewedLockWarning is the warning of a write by the holder process whose renewal of the lock's
+// heartbeat failed: the record file, then why. The write itself stands.
+const unrenewedLockWarning = "%s: the lock's heartbeat was not renewed: %s"
+
 // noteWrite records a write the command made, for the warning emit adds when another session holds
 // the Tree lock (app.lockWarning). ids are the Issues the write targets, any one of which may be
 // the lock's purpose: a move passes the old id and the new. A write of no Issue, a Note's, fmt's or
@@ -485,9 +489,11 @@ func (a *app) noteWrite(ids ...string) {
 // the caller does not descend from the record's holder process: the holder, purpose and heartbeat
 // age as lock.HeldError words them, then foreignLockAdvice. A record that cannot be read gives
 // unreadableLockWarning. It returns "" when the command noted no write or is exempt
-// (isLockExempt), and when the lock is free or orphaned. The record is read without the guard, so
-// the check creates nothing under the lock directory and never fails the write; the caller's
-// ancestry is read only for a record that names a holder process.
+// (isLockExempt), and when the lock is free or orphaned. A caller that descends from the holder
+// process renews the lock's heartbeat instead (renewHolderLock), whatever the writes target. The
+// record is first read without the guard, so the check creates nothing under the lock directory
+// and never fails the write; only the holder's renewal takes the guard. The caller's ancestry is
+// read only for a record that names a holder process.
 func (a *app) lockWarning() string {
 	if len(a.writes) == 0 || a.isLockExempt || a.store == nil {
 		return ""
@@ -502,13 +508,36 @@ func (a *app) lockWarning() string {
 		recordPath := worktree.RecordPath()
 		return fmt.Sprintf(unreadableLockWarning, recordPath, strings.TrimPrefix(err.Error(), recordPath+": "))
 	}
+	if held.Status.Record.Process != nil && held.Status.HeldBy(a.callerAncestry()) {
+		renewed, failure := a.renewHolderLock(worktree)
+		if renewed == nil {
+			return failure
+		}
+		held = renewed
+	}
 	if a.writesOnly(held.Status.Record.Purpose) {
 		return ""
 	}
-	if held.Status.Record.Process != nil && held.Status.HeldBy(a.callerAncestry()) {
-		return ""
-	}
 	return held.Error() + foreignLockAdvice
+}
+
+// renewHolderLock refreshes the heartbeat of worktree's lock for the caller, the holder process,
+// after a write. It returns no *lock.HeldError and the warning of a renewal that failed, "" when
+// the lock was renewed or has been freed since it was read. When another session has taken the
+// lock over since, it returns that session's *lock.HeldError, which the write is judged against
+// as any other caller's.
+func (a *app) renewHolderLock(worktree lock.Worktree) (*lock.HeldError, string) {
+	_, err := worktree.TouchHolder(a.callerAncestry())
+	var held *lock.HeldError
+	var notHeld *lock.NotHeldError
+	switch {
+	case err == nil, errors.As(err, &notHeld):
+		return nil, ""
+	case errors.As(err, &held):
+		return held, ""
+	}
+	recordPath := worktree.RecordPath()
+	return nil, fmt.Sprintf(unrenewedLockWarning, recordPath, strings.TrimPrefix(err.Error(), recordPath+": "))
 }
 
 // callerAncestry returns the calling process's ancestry (processAncestry), read on the first call

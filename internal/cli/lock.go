@@ -79,16 +79,21 @@ const (
 	lockLong = "Manage this worktree's Tree lock: the advisory claim one agent session holds on one working " +
 		"tree while it edits.\n\n" +
 		"acquire claims it, prints a Lock token and keeps that token for the session in a token file " +
-		"under the git directory; touch renews its heartbeat with that token, and release frees it.\n\n" +
+		"under the git directory; touch renews its heartbeat, and release frees it.\n\n" +
+		"The lock records its holder process, the agent session's process that acquired or last " +
+		"resumed it. Every capcom write made under that process renews the heartbeat, and touch, " +
+		"release and check made under it need no --token; any other caller passes the Lock token " +
+		"with --token.\n\n" +
 		"A lock whose heartbeat is older than the TTL (lock.ttl in config.yaml, two hours by default), " +
 		"or dated more than one TTL ahead by a clock that ran fast, is stale: it stays held until its holder resumes it, another session takes it over with " +
 		"acquire --take-stale, or someone breaks it.\n\n" +
 		"Each git worktree has a lock of its own, and capcom installs no git hooks: the lock binds " +
 		"only the sessions that check it."
 	lockExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints and keeps the token\n" +
-		"  capcom lock touch --token <token>     # renew the heartbeat\n" +
+		"  capcom lock touch                     # renew the heartbeat, from the holder process\n" +
+		"  capcom lock touch --token <token>     # renew it from any other process\n" +
 		"  capcom lock status --all              # every worktree's lock\n" +
-		"  capcom lock release --token <token>   # free it when the work is done"
+		"  capcom lock release                   # free it when the work is done"
 	lockAcquireLong = "Claim this worktree's Tree lock for --purpose, which is required.\n\n" +
 		"A free lock gets a new Lock token, printed on a token line; touch and release need it.\n\n" +
 		"capcom keeps the Lock token for the session in a token file under the git directory: " +
@@ -101,22 +106,26 @@ const (
 	lockAcquireExample = "  capcom lock acquire --purpose \"implementing the release plan\"   # prints and keeps the token\n" +
 		"  capcom lock acquire --purpose \"implementing the release plan\"   # again: resume after a restart\n" +
 		"  capcom lock acquire --purpose \"finishing the release\" --take-stale   # take over a stale lock"
-	lockTouchLong = "Refresh the heartbeat of the Tree lock you hold, so that it does not go stale; --token, the " +
-		"Lock token acquire printed, is required.\n\n" +
-		"Touch it more often than the lock TTL while the work goes on.\n\n" +
+	lockTouchLong = "Refresh the heartbeat of the Tree lock you hold, so that it does not go stale.\n\n" +
+		holderRenewsHelp + "\n\n" +
+		holderTokenHelp + "\n\n" +
 		"It prints the lock as it now stands.\n\n" +
 		"It fails not_found when nobody holds the lock and locked when another session holds it, both " +
 		"with exit code 3."
-	lockTouchExample = "  capcom lock touch --token <token>\n" +
+	lockTouchExample = "  capcom lock touch                   # from the holder process\n" +
+		"  capcom lock touch --token <token>\n" +
 		"  capcom lock touch --token <token> --kv   # KEY=VALUE lines ending in STATUS="
-	lockReleaseLong = "Free the Tree lock you hold; --token, the Lock token acquire printed, is required.\n\n" +
+	lockReleaseLong = "Free the Tree lock you hold.\n\n" +
+		holderTokenHelp + "\n\n" +
 		"It also deletes the kept token files holding that token.\n\n" +
 		"Releasing a lock that is already free succeeds and only deletes those token files, so it is " +
 		"safe on every exit path.\n\n" +
 		"It prints the worktree and released, or free when there was nothing to release.\n\n" +
 		"A lock another session holds fails locked, exit code 3, and deletes nothing; break frees a " +
-		"lock whose holder is gone."
-	lockReleaseExample = "  capcom lock release --token <token>\n" +
+		"lock whose holder is gone.\n\n" +
+		holderRenewsHelp
+	lockReleaseExample = "  capcom lock release                   # from the holder process\n" +
+		"  capcom lock release --token <token>\n" +
 		"  capcom lock release --token <token> --kv   # KEY=VALUE lines ending in STATUS="
 	lockBreakLong = "Free this worktree's Tree lock whoever holds it, without its Lock token, and delete this " +
 		"worktree's kept token files, so no session resumes the lock from one.\n\n" +
@@ -126,13 +135,16 @@ const (
 		"It prints the worktree and released, or free when nobody held the lock."
 	lockBreakExample = "  capcom lock break        # free the lock whoever holds it\n" +
 		"  capcom lock break --kv   # KEY=VALUE lines ending in STATUS="
-	lockCheckLong = "Exit 0 when this worktree's Tree lock is free or held by your --token, and fail locked, " +
-		"exit code 3, when another session holds it, stale or not.\n\n" +
-		"Without --token any held lock counts as another's.\n\n" +
+	lockCheckLong = "Exit 0 when this worktree's Tree lock is free or yours, and fail locked, exit code 3, when " +
+		"another session holds it, stale or not.\n\n" +
+		"The lock is yours when --token is its Lock token. Without --token it is yours when capcom runs " +
+		"under the holder process and keeps the lock's token, and any other caller counts a held lock " +
+		"as another's.\n\n" +
 		"It prints the lock's state, free, held or stale, with the holder, purpose, since time and " +
 		"heartbeat of a held lock.\n\n" +
-		"A script or hook runs it before it edits the working tree."
-	lockCheckExample = "  capcom lock check                   # exit 3 when any session holds the lock\n" +
+		"A script or hook runs it before it edits the working tree.\n\n" +
+		holderRenewsHelp
+	lockCheckExample = "  capcom lock check                   # exit 3 unless the lock is free or held from this process\n" +
 		"  capcom lock check --token <token>   # exit 0 when the lock is free or yours"
 	lockStatusLong = "Show this worktree's Tree lock: free, or held or stale with its holder, purpose, since " +
 		"time and heartbeat.\n\n" +
@@ -147,6 +159,18 @@ const (
 		"It only reads the lock, and it never prints a Lock token."
 	lockStatusExample = "  capcom lock status         # this worktree's lock\n" +
 		"  capcom lock status --all   # every worktree's lock"
+)
+
+// The help text the lock touch, release and check commands share.
+const (
+	// holderRenewsHelp says when a touch is needed at all.
+	holderRenewsHelp = "Every capcom write of an Issue or a Note made under the holder process, the agent " +
+		"session's process that acquired or last resumed the lock, renews its heartbeat, so a touch is " +
+		"needed only when the work outlasts the lock TTL without a capcom write."
+	// holderTokenHelp says when --token may be left out.
+	holderTokenHelp = "Under the holder process --token may be left out: capcom uses the Lock token it keeps " +
+		"for the lock. Any other caller passes --token, the Lock token acquire printed, and without it " +
+		"fails locked, exit code 3, when the lock is held."
 )
 
 // newLockCommand groups the Tree lock commands.
@@ -214,12 +238,15 @@ func (a *app) newLockTouchCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			target := a.openLockTarget()
-			status, err := target.lock.Touch(token)
-			return a.emitLock(cmd, lockHeld, status, token, err, "")
+			presented, err := a.presentedToken(target.lock, token)
+			if err != nil {
+				return err
+			}
+			status, err := target.lock.Touch(presented)
+			return a.emitLock(cmd, lockHeld, status, presented, err, "")
 		}),
 	}
-	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned")
-	_ = cmd.MarkFlagRequired(flagToken) // fails only for an undefined flag
+	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned; not needed under the holder process")
 	return a.withKV(cmd)
 }
 
@@ -234,12 +261,15 @@ func (a *app) newLockReleaseCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			target := a.openLockTarget()
-			status, err := target.lock.Release(token)
-			return a.emitLock(cmd, endedState(status), status, token, err, "")
+			presented, err := a.presentedToken(target.lock, token)
+			if err != nil {
+				return err
+			}
+			status, err := target.lock.Release(presented)
+			return a.emitLock(cmd, endedState(status), status, presented, err, "")
 		}),
 	}
-	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned")
-	_ = cmd.MarkFlagRequired(flagToken) // fails only for an undefined flag
+	cmd.Flags().StringVar(&token, flagToken, "", "the token acquire returned; not needed under the holder process")
 	return a.withKV(cmd)
 }
 
@@ -273,15 +303,24 @@ func (a *app) newLockCheckCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			target := a.openLockTarget()
-			status, err := target.lock.Check(token)
+			presented, err := a.presentedToken(target.lock, token)
+			if err != nil {
+				return err
+			}
+			status, err := target.lock.Check(presented)
 			ownToken := ""
 			if status.IsHeld {
-				ownToken = token
+				ownToken = presented
 			}
 			return a.emitLock(cmd, lockStateName(status.State()), status, ownToken, err, checkTakeOverPurpose)
 		}),
 	}
-	cmd.Flags().StringVar(&token, flagToken, "", "your token; the lock counts as free when you hold it")
+	cmd.Flags().StringVar(
+		&token,
+		flagToken,
+		"",
+		"your token; the lock counts as free when you hold it; not needed under the holder process",
+	)
 	return a.withKV(cmd)
 }
 
@@ -312,6 +351,31 @@ func (a *app) newLockStatusCommand() *cobra.Command {
 // lockStatusHint is the hint of a lock command refused by the lock's state: capcom lock status shows
 // who holds this worktree's lock, if anyone.
 const lockStatusHint = "capcom lock status"
+
+// tokenLockHint is the hint of a touch or release presented with no Lock token and refused by a lock
+// another session holds: the caller is not the holder process, or keeps no token for the lock, so
+// it passes the token itself.
+const tokenLockHint = lockStatusHint + "; pass --" + flagToken + " <token> if the lock is yours"
+
+// presentedToken returns the Lock token a touch, release or check acts with: token when given,
+// else the token kept for worktree's lock (lock.Worktree.KeptToken) when the caller descends from
+// the lock's holder process, else "", which holds no lock. A record that cannot be read gives "",
+// as the command's own read of it reports the problem; a kept token file that cannot be read
+// fails.
+func (a *app) presentedToken(worktree lock.Worktree, token string) (string, error) {
+	if token != "" {
+		return token, nil
+	}
+	status, err := worktree.Read()
+	if err != nil {
+		// The command reads the record again and fails on it there, with its own rendering.
+		return "", nil
+	}
+	if !status.IsHeld || status.Record.Process == nil || !status.HeldBy(a.callerAncestry()) {
+		return "", nil
+	}
+	return worktree.KeptToken(status)
+}
 
 // checkTakeOverPurpose stands for the --purpose a capcom lock check refusal names for a take-over:
 // check is run without one.
@@ -389,7 +453,8 @@ func (a *app) openLockTarget() lockTarget {
 // the lock as found, so --kv keeps its LOCK= record and closes it with the failure's code. The
 // locked failure hints as heldLockHint does for takeOverPurpose, the --purpose argument a take-over
 // names (acquire and check); an empty takeOverPurpose (touch, release, break), like not_found,
-// hints capcom lock status. A record that holds no valid lock fails invalid (corruptLockFailure).
+// hints capcom lock status, and adds --token when the command acted with no token
+// (tokenLockHint). A record that holds no valid lock fails invalid (corruptLockFailure).
 func (a *app) emitLock(
 	cmd *cobra.Command,
 	state string,
@@ -403,8 +468,11 @@ func (a *app) emitLock(
 	switch {
 	case errors.As(err, &held):
 		hint := lockStatusHint
-		if takeOverPurpose != "" {
+		switch {
+		case takeOverPurpose != "":
 			hint = heldLockHint(a.openLockTarget().lock, held, takeOverPurpose)
+		case token == "":
+			hint = tokenLockHint
 		}
 		failure := &output.Error{Code: output.CodeLocked, Message: held.Message(), Path: held.Path, Hint: hint}
 		return a.emit(cmd, failedLockResult(lockStateName(held.Status.State()), held.Status, failure))

@@ -335,29 +335,49 @@ func (l *Locks) keepToken(key string, current Status, cleartext, purpose string,
 // *NotHeldError, returning the free lock, when nobody holds it, and with a *HeldError when another
 // session holds it.
 func (l *Locks) Touch(key, token string) (Status, error) {
-	var touched Status
+	isHolder := func(current Status) bool { return tokenMatches(current.Record.Token, token) }
+	return l.renew(key, isHolder, token)
+}
+
+// TouchHolder refreshes the heartbeat of key's lock for a caller whose process ancestry, chain,
+// holds the lock's holder process (Status.HeldBy), without its token; the rest of the record is
+// kept as it is. It fails with a *NotHeldError, returning the free lock, when nobody holds it, and
+// with a *HeldError when chain does not hold its holder process, both judged under the guard.
+func (l *Locks) TouchHolder(key string, chain []proc.Process) (Status, error) {
+	isHolder := func(current Status) bool { return current.HeldBy(chain) }
+	return l.renew(key, isHolder, "")
+}
+
+// renew refreshes the heartbeat of key's lock when isHolder accepts the lock as found under the
+// guard, and makes the record keep token's digest when token is not empty. It fails with a
+// *NotHeldError, returning the free lock, when nobody holds it, and with a *HeldError when isHolder
+// refuses it.
+func (l *Locks) renew(key string, isHolder func(current Status) bool, token string) (Status, error) {
+	var renewed Status
 	err := l.withGuard(key, func(now time.Time) error {
 		current, err := l.read(key, now)
 		if err != nil {
 			return err
 		}
 		if !current.IsHeld {
-			touched = current
+			renewed = current
 			return &NotHeldError{Path: l.RecordPath(key)}
 		}
-		if !tokenMatches(current.Record.Token, token) {
+		if !isHolder(current) {
 			return l.heldError(current, now)
 		}
 
-		current.Record.Token = digestToken(token)
+		if token != "" {
+			current.Record.Token = digestToken(token)
+		}
 		current.Record.Heartbeat = now
 		if err := l.write(key, current.Record); err != nil {
 			return err
 		}
-		touched = Status{Key: key, Record: current.Record, IsHeld: true}
+		renewed = Status{Key: key, Record: current.Record, IsHeld: true}
 		return nil
 	})
-	return touched, err
+	return renewed, err
 }
 
 // Release frees key's lock for the holder of token and returns the lock as it was, then deletes

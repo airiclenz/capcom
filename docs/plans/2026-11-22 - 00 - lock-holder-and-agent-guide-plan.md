@@ -146,7 +146,14 @@ is not in the agent's ancestry, or the seed's capcom runs through the helper pat
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/ ./cmd/agenteval/ && GOMEMLIMIT=2GiB go test -count=1 -run 'LockWarn|Lock|Start' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./cmd/agenteval/`
 **Commit:** `fix(cli): keep the lock holder's own writes silent`
 
-## 4. The holder renews by writing, and touches, releases and checks without a token
+## 4. The holder renews by writing, and touches, releases and checks without a token — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): `KeptToken` takes the Status a caller read (`KeptToken(current Status)`) rather than a bare key, so the holder check and the token lookup judge the same record and a lock taken over between them is never acted on with the new holder's token; the CLI's `presentedToken` reads the record once, checks `HeldBy`, then asks for the kept token of that record.
+NOTES (2026-11-22): `Touch` and `TouchHolder` share a private `renew` helper in internal/lock/lock.go; Touch's behaviour is unchanged.
+NOTES (2026-11-22): a holder write whose renewal finds the lock taken over by another session since it was read is judged against that session's lock (purpose rule, then the foreign-lock warning); a renewal that finds the lock freed is silent; any other renewal failure warns `<record>: the lock's heartbeat was not renewed: <why>`.
+NOTES (2026-11-22): the `--token` hint (`capcom lock status; pass --token <token> if the lock is yours`) applies only when touch or release acted with no token (none given and none kept for the holder); a wrong `--token` keeps the plain `capcom lock status` hint.
+NOTES (2026-11-22): bare `lock check` and `lock touch` by the holder print the kept token on their token line, as they do for a given `--token`.
+NOTES (2026-11-22): docs/site/concepts/tree-locks.md and README.md still show `lock touch/release --token <token>` only; those lines stay true (`--token` still works) and the concepts page is item 10's.
 
 **What:** Depends on item 3.
 **Goal:** a write by the holder process renews the lock's heartbeat (a failed renewal is a

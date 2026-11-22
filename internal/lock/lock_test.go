@@ -814,3 +814,81 @@ func TestRead_RecordWithoutProcess_ParsesAsHeldWithNone(t *testing.T) {
 		t.Error("HeldBy = true for a record without a process")
 	}
 }
+
+// backdateHeartbeat moves the heartbeat of key's record an hour into the past and returns it.
+func backdateHeartbeat(t *testing.T, locks *Locks, key string) time.Time {
+	t.Helper()
+	_, record := readRecordFile(t, locks, key)
+	record.Heartbeat = record.Heartbeat.Add(-time.Hour)
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	writeRecord(t, locks, key, string(data))
+	return record.Heartbeat
+}
+
+func TestTouchHolder_ChainHoldingTheHolderProcess_RenewsTheHeartbeat(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	if _, _, err := locks.Acquire(MainWorktreeKey, claimFrom(&agentProcess), "", false); err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
+	before := backdateHeartbeat(t, locks, MainWorktreeKey)
+	_, backdated := readRecordFile(t, locks, MainWorktreeKey)
+	shell := proc.Process{PID: 4243, Started: "1700000001", Name: "bash"}
+
+	touched, err := locks.TouchHolder(MainWorktreeKey, []proc.Process{shell, agentProcess})
+
+	if err != nil {
+		t.Fatalf("TouchHolder: %v", err)
+	}
+	_, record := readRecordFile(t, locks, MainWorktreeKey)
+	if !record.Heartbeat.After(before) || !touched.Record.Heartbeat.Equal(record.Heartbeat) {
+		t.Errorf("heartbeat = %v (returned %v), want one after %v", record.Heartbeat, touched.Record.Heartbeat, before)
+	}
+	record.Heartbeat = backdated.Heartbeat
+	if record.Token != backdated.Token || record.Process == nil || *record.Process != *backdated.Process {
+		t.Errorf("record = %+v, want %+v with only the heartbeat moved", record, backdated)
+	}
+}
+
+func TestTouchHolder_OtherCallers_AreRefusedAndLeaveTheRecord(t *testing.T) {
+	tests := []struct {
+		name    string
+		process *proc.Process
+		chain   []proc.Process
+	}{
+		{"another process", &agentProcess, []proc.Process{otherProcess}},
+		{"no chain", &agentProcess, nil},
+		{"a record naming no process", nil, []proc.Process{agentProcess}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			locks, _ := openTest(t)
+			if _, _, err := locks.Acquire(MainWorktreeKey, claimFrom(tt.process), "", false); err != nil {
+				t.Fatalf("Acquire: %v", err)
+			}
+			before, _ := readRecordFile(t, locks, MainWorktreeKey)
+
+			_, err := locks.TouchHolder(MainWorktreeKey, tt.chain)
+
+			asHeldError(t, err)
+			if after, _ := readRecordFile(t, locks, MainWorktreeKey); !bytes.Equal(after, before) {
+				t.Errorf("record = %s, want it unchanged:\n%s", after, before)
+			}
+		})
+	}
+}
+
+func TestTouchHolder_FreeLock_FailsNotHeld(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+
+	status, err := locks.TouchHolder(MainWorktreeKey, []proc.Process{agentProcess})
+
+	if !errors.Is(err, ErrNotHeld) || status.IsHeld {
+		t.Errorf("TouchHolder = %+v, %v; want a free lock and ErrNotHeld", status, err)
+	}
+}

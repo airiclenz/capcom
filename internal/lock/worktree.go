@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/proc"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -62,6 +63,18 @@ func (w Worktree) SessionToken(token, purpose string) (string, error) {
 // does.
 func (w Worktree) Touch(token string) (Status, error) {
 	return w.locks.Touch(w.key, token)
+}
+
+// TouchHolder refreshes the heartbeat of this worktree's lock for a caller whose ancestry, chain,
+// holds its holder process, as Locks.TouchHolder does.
+func (w Worktree) TouchHolder(chain []proc.Process) (Status, error) {
+	return w.locks.TouchHolder(w.key, chain)
+}
+
+// KeptToken returns the Lock token a token file of this worktree keeps for current's record, as
+// Locks.KeptToken does.
+func (w Worktree) KeptToken(current Status) (string, error) {
+	return w.locks.KeptToken(current)
 }
 
 // Release frees this worktree's lock for the holder of token, as Locks.Release does.

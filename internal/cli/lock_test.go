@@ -1007,3 +1007,148 @@ func TestPrime_OrphanedLockRecord_IsListedButNotCounted(t *testing.T) {
 		t.Errorf("prime locks = %v, want wt-feature free and orphaned", entries)
 	}
 }
+
+// tokenLockHintWant is the hint of a touch or release made without --token by a caller that is not
+// the holder process.
+const tokenLockHintWant = "capcom lock status; pass --token <token> if the lock is yours"
+
+// lockHeartbeat returns the heartbeat lock status reports for root's lock.
+func lockHeartbeat(t *testing.T, root string) time.Time {
+	t.Helper()
+	value := kvValue(t, mustRun(t, root, "lock", "status", "--kv"), "HEARTBEAT")
+	heartbeat, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t.Fatalf("HEARTBEAT = %q: %v", value, err)
+	}
+	return heartbeat
+}
+
+// assertHeartbeatRenewed fails the test unless root's lock heartbeat is within a minute of now:
+// the lock was aged an hour before the command that should renew it.
+func assertHeartbeatRenewed(t *testing.T, root string) {
+	t.Helper()
+	if heartbeat := lockHeartbeat(t, root); time.Since(heartbeat) > time.Minute {
+		t.Errorf("heartbeat = %v, want it renewed to now", heartbeat)
+	}
+}
+
+func TestLockTouch_HolderProcessWithoutToken_RenewsTheHeartbeat(t *testing.T) {
+	root := newLockStore(t)
+	withAncestry(t, holderChain...)
+	token := acquireToken(t, root, "agent-a")
+	ageLockRecord(t, lockRecordPath(root), time.Hour)
+
+	stdout := mustRun(t, root, "lock", "touch", "--kv")
+
+	if kvValue(t, stdout, "LOCK") != "held" || kvValue(t, stdout, "TOKEN") != token {
+		t.Errorf("touch = %q, want the lock held with the kept token", stdout)
+	}
+	assertHeartbeatRenewed(t, root)
+}
+
+func TestLockRelease_HolderProcessWithoutToken_FreesItAndDeletesTheTokenFile(t *testing.T) {
+	root := newLockStore(t)
+	withAncestry(t, holderChain...)
+	acquireToken(t, root, "agent-a")
+
+	stdout := mustRun(t, root, "lock", "release", "--kv")
+
+	if kvValue(t, stdout, "LOCK") != "released" {
+		t.Errorf("release = %q, want released", stdout)
+	}
+	if state := kvValue(t, mustRun(t, root, "lock", "status", "--kv"), "LOCK"); state != "free" {
+		t.Errorf("lock after release = %s, want free", state)
+	}
+	if files := keptTokenFiles(t, root); len(files) != 0 {
+		t.Errorf("token files = %v, want none", files)
+	}
+}
+
+func TestLockCheck_HolderProcessWithoutToken_ExitsZero(t *testing.T) {
+	root := newLockStore(t)
+	withAncestry(t, holderChain...)
+	acquireToken(t, root, "agent-a")
+
+	stdout, stderr, exitCode := runCLI(t, root, "lock", "check")
+
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, "_main: held by agent-a") {
+		t.Errorf("exit = %d stdout = %q stderr = %q, want 0 and the held lock", exitCode, stdout, stderr)
+	}
+}
+
+func TestLockVerbs_OtherProcessWithoutToken_FailLocked(t *testing.T) {
+	tests := []struct {
+		verb string
+		hint string
+	}{
+		{"touch", tokenLockHintWant},
+		{"release", tokenLockHintWant},
+		{"check", heldLiveHint},
+	}
+	for _, test := range tests {
+		t.Run(test.verb, func(t *testing.T) {
+			root := newLockStore(t)
+			withAncestry(t, holderChain...)
+			acquireToken(t, root, "agent-a")
+			withAncestry(t, otherChain...)
+
+			assertFailureHint(t, root, test.hint, "lock", test.verb)
+			stdout, _, exitCode := runCLI(t, root, "lock", test.verb, "--kv")
+
+			if exitCode != ExitNotFound || lastLine(stdout) != "STATUS=locked" {
+				t.Errorf("exit = %d stdout = %q, want %d and STATUS=locked", exitCode, stdout, ExitNotFound)
+			}
+			if state := kvValue(t, mustRun(t, root, "lock", "status", "--kv"), "LOCK"); state != "held" {
+				t.Errorf("lock after %s = %s, want still held", test.verb, state)
+			}
+		})
+	}
+}
+
+func TestLockTouch_HolderProcessWithoutKeptToken_FailsNamingToken(t *testing.T) {
+	root := newLockStore(t)
+	withAncestry(t, holderChain...)
+	acquireToken(t, root, "agent-a")
+	removeKeptTokens(t, root)
+
+	assertFailureHint(t, root, tokenLockHintWant, "lock", "touch")
+}
+
+func TestLockRelease_FreeLockWithoutToken_Succeeds(t *testing.T) {
+	root := newLockStore(t)
+
+	stdout := mustRun(t, root, "lock", "release", "--kv")
+
+	if kvValue(t, stdout, "LOCK") != "free" {
+		t.Errorf("release = %q, want free", stdout)
+	}
+}
+
+func TestLockWarn_HolderWriteOfThePurposeIssue_RenewsTheHeartbeat(t *testing.T) {
+	root := newStartStore(t, nil)
+	withAncestry(t, holderChain...)
+	mustRun(t, root, "start", startIssue)
+	ageLockRecord(t, lockRecordPath(root), time.Hour)
+
+	stdout := mustRun(t, root, "log", startIssue, "progress")
+
+	if strings.Contains(stdout, "warning: ") {
+		t.Errorf("log = %q, want no warning", stdout)
+	}
+	assertHeartbeatRenewed(t, root)
+}
+
+func TestLockWarn_OtherProcessWriteOfThePurposeIssue_LeavesTheHeartbeat(t *testing.T) {
+	root := newStartStore(t, nil)
+	withAncestry(t, holderChain...)
+	mustRun(t, root, "start", startIssue)
+	ageLockRecord(t, lockRecordPath(root), time.Hour)
+	before := lockHeartbeat(t, root)
+	withAncestry(t, otherChain...)
+
+	mustRun(t, root, "log", startIssue, "progress")
+
+	if after := lockHeartbeat(t, root); !after.Equal(before) {
+		t.Errorf("heartbeat = %v, want it left at %v", after, before)
+	}
+}

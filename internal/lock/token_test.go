@@ -308,3 +308,70 @@ func TestBreak_DeletesEveryTokenFileOfTheKeyOnly(t *testing.T) {
 		})
 	}
 }
+
+func TestKeptToken_Cases(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	acquired := mustAcquire(t, locks, MainWorktreeKey)
+	writeTokenFileContent(t, locks, MainWorktreeKey, "item 13", "fedcba9876543210fedcba9876543210\nitem 13\n")
+	held, err := locks.Read(MainWorktreeKey)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	tests := []struct {
+		name    string
+		current Status
+		want    string
+	}{
+		{"the held lock", held, acquired.Token},
+		{"a free lock", Status{Key: MainWorktreeKey}, ""},
+		{"another worktree's lock", Status{Key: foreignKey, Record: held.Record, IsHeld: true}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kept, err := locks.KeptToken(tt.current)
+
+			if err != nil || kept != tt.want {
+				t.Errorf("KeptToken = %q, %v; want %q", kept, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestKeptToken_NoFileKeepsTheRecordsToken_GivesNone(t *testing.T) {
+	t.Parallel()
+	locks, _ := openTest(t)
+	mustAcquire(t, locks, MainWorktreeKey)
+	writeTokenFileContent(t, locks, MainWorktreeKey, testClaim.Purpose, "fedcba9876543210fedcba9876543210\nitem 12\n")
+	held, err := locks.Read(MainWorktreeKey)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	kept, err := locks.KeptToken(held)
+
+	if err != nil || kept != "" {
+		t.Errorf("KeptToken = %q, %v; want none", kept, err)
+	}
+}
+
+func TestKeptToken_UnreadableFile_FailsNamingIt(t *testing.T) {
+	t.Parallel()
+	skipUnlessPermissionsBind(t)
+	locks, _ := openTest(t)
+	mustAcquire(t, locks, MainWorktreeKey)
+	path := locks.tokenPath(MainWorktreeKey, testClaim.Purpose)
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	held, err := locks.Read(MainWorktreeKey)
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+
+	_, err = locks.KeptToken(held)
+
+	if err == nil || !strings.Contains(err.Error(), path) {
+		t.Errorf("err = %v, want one naming %s", err, path)
+	}
+}

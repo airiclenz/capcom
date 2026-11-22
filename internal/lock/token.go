@@ -49,6 +49,37 @@ func (l *Locks) SessionToken(key, token, purpose string) (string, error) {
 	return kept, nil
 }
 
+// KeptToken returns the Lock token a token file of current's key keeps for current's record, or ""
+// when current holds no lock or no token file keeps its token. A token file that cannot be read
+// fails, naming its path, unless another one keeps the token. It reads without the guard, as token
+// files are replaced atomically, and creates nothing.
+func (l *Locks) KeptToken(current Status) (string, error) {
+	if !current.IsHeld {
+		return "", nil
+	}
+	paths, err := l.tokenFilePaths(current.Key)
+	if err != nil {
+		return "", err
+	}
+
+	var errs []error
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", path, err))
+			continue
+		}
+		kept, _, isWellFormed := parseTokenFile(data)
+		if isWellFormed && tokenMatches(current.Record.Token, kept) {
+			return kept, nil
+		}
+	}
+	return "", errors.Join(errs...)
+}
+
 // tokenPath returns the token file that keeps key's Lock token for purpose.
 func (l *Locks) tokenPath(key, purpose string) string {
 	digest := sha256.Sum256([]byte(purpose))
