@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"errors"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/config"
@@ -11,6 +14,7 @@ import (
 	"github.com/airiclenz/capcom/internal/ops"
 	"github.com/airiclenz/capcom/internal/outline"
 	"github.com/airiclenz/capcom/internal/store"
+	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags of capcom list.
@@ -59,8 +63,14 @@ const (
 		"the matching Issues and their ancestors, an ancestor that does not match ending in [context]; " +
 		"--status and --category decide by themselves whether closed Issues match, the other " +
 		"filters follow --all.\n\n" +
+		"Given ids, it prints one line per id, in the order given: the Issue whose exact id or Alias it is, " +
+		"closed ones included, or the id marked not found, so one call answers each id's status and whether " +
+		"an id is still free; the exit code is 0 either way.\n\n" +
+		"A prefix of an id is not found here; an id only an invalid file claims is marked unusable with " +
+		"that file's path, and one that two files claim duplicate. Ids take no flag but --no-elsewhere.\n\n" +
 		"Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given."
 	listExample = "  capcom list                     # every issue that is not closed\n" +
+		"  capcom list login-flow new-idea # each id's status, or not found\n" +
 		"  capcom list --label owner-run   # open issues carrying a label\n" +
 		"  capcom list --all --type bug    # every bug, closed ones included\n" +
 		"  capcom list --tree --depth 2    # the outline, two levels deep\n" +
@@ -74,17 +84,21 @@ const (
 func (a *app) newListCommand() *cobra.Command {
 	options := &listOptions{depth: unlimitedDepth}
 	cmd := &cobra.Command{
-		Use:         "list",
-		Short:       "List issues; without flags, every issue that is not closed",
-		Long:        listLong,
-		Example:     listExample,
-		Args:        cobra.NoArgs,
-		Annotations: map[string]string{annotationIndex: indexRefresh},
-		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			if err := checkTreeFlags(cmd, options); err != nil {
-				return err
+		Use:               "list [<id>...]",
+		Short:             "List issues; without flags, every issue that is not closed",
+		Long:              listLong,
+		Example:           listExample,
+		Args:              cobra.ArbitraryArgs,
+		ValidArgsFunction: completeIssueIDs(everyArgument),
+		Annotations:       map[string]string{annotationIndex: indexRefresh},
+		RunE: runE(func(cmd *cobra.Command, args []string) error {
+			var result output.Result
+			var err error
+			if len(args) > 0 {
+				result, err = a.listNamedResult(cmd, args)
+			} else {
+				result, err = a.listFlaggedResult(cmd, options)
 			}
-			result, err := a.listResult(options)
 			if err != nil {
 				return err
 			}
@@ -117,6 +131,14 @@ func (a *app) newListCommand() *cobra.Command {
 		"with --tree, levels below the top (or below --parent) to print; 0 prints every level")
 	cmd.MarkFlagsMutuallyExclusive(flagPlanned, flagUnplanned)
 	return cmd
+}
+
+// listFlaggedResult lists the issues the flags select, after checkTreeFlags.
+func (a *app) listFlaggedResult(cmd *cobra.Command, options *listOptions) (output.Result, error) {
+	if err := checkTreeFlags(cmd, options); err != nil {
+		return output.Result{}, err
+	}
+	return a.listResult(options)
 }
 
 // checkTreeFlags rejects --depth without --tree, a negative --depth, and --limit with --tree.
@@ -159,6 +181,72 @@ func (a *app) listResult(options *listOptions) (output.Result, error) {
 		Data: issueListData(entries),
 		Text: issueLines(entries, issuesPrefix),
 	}, nil
+}
+
+// listNamedResult lists the issues args name, one row per argument in argument order: the usual
+// issue row, unindented, for the usable issue whose exact id or Alias the argument is, Closed ones
+// included, and a missingIssueData row otherwise (see lookupNamedIssue). A name no issue answers to
+// is a row, never a failure. Every flag but --no-elsewhere is refused alongside ids.
+func (a *app) listNamedResult(cmd *cobra.Command, args []string) (output.Result, error) {
+	if err := checkNamedFlags(cmd); err != nil {
+		return output.Result{}, err
+	}
+	data := make([]any, 0, len(args))
+	var text strings.Builder
+	for _, arg := range args {
+		entry, missing, err := a.lookupNamedIssue(arg)
+		if err != nil {
+			return output.Result{}, err
+		}
+		if missing != nil {
+			data = append(data, *missing)
+			text.WriteString(missingIssueLine(*missing))
+			continue
+		}
+		data = append(data, newIssueData(entry))
+		text.WriteString(issueLines([]index.Entry{entry}, ""))
+	}
+	return output.Result{Kind: "issue-list", Data: data, Text: text.String()}, nil
+}
+
+// checkNamedFlags rejects every flag of capcom list but --no-elsewhere given alongside ids.
+func checkNamedFlags(cmd *cobra.Command) error {
+	var refused string
+	cmd.LocalNonPersistentFlags().VisitAll(func(flag *pflag.Flag) {
+		if refused == "" && flag.Changed && flag.Name != flagNoElsewhere {
+			refused = flag.Name
+		}
+	})
+	if refused != "" {
+		return output.UsageErrorf("--%s cannot be combined with ids", refused)
+	}
+	return nil
+}
+
+// lookupNamedIssue finds the usable issue whose id or one of whose Aliases is exactly arg, once
+// tree.NormalizeArg has turned a citation spelling into a name; a prefix of an id does not match.
+// Otherwise it returns the row that says why: duplicate when two files claim the name or it stands
+// for a repeated id, unusable naming the file when only an unusable file claims it, and not found
+// when nothing does.
+func (a *app) lookupNamedIssue(arg string) (index.Entry, *missingIssueData, error) {
+	entry, err := a.issueIndex.Resolve(arg)
+	var unusable *tree.UnusableError
+	switch {
+	case err == nil:
+		name := tree.NormalizeArg(arg)
+		if entry.ID == name || slices.Contains(entry.Aliases, name) {
+			return entry, nil, nil
+		}
+		return index.Entry{}, &missingIssueData{ID: arg, Status: missingNotFound}, nil
+	case errors.As(err, &unusable):
+		return index.Entry{}, &missingIssueData{ID: arg, Status: missingUnusable, Path: unusable.Path}, nil
+	case errors.Is(err, tree.ErrDuplicate):
+		return index.Entry{}, &missingIssueData{ID: arg, Status: missingDuplicate}, nil
+	case errors.Is(err, tree.ErrNotFound), errors.Is(err, tree.ErrAmbiguous):
+		return index.Entry{}, &missingIssueData{ID: arg, Status: missingNotFound}, nil
+	default:
+		return index.Entry{}, nil, err
+	}
 }
 
 // listFilter checks the flags against the config and turns them into an index filter: the row

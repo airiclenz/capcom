@@ -90,6 +90,38 @@ func issueLines(entries []index.Entry, issuesPrefix string) string {
 	return text.String()
 }
 
+// The statuses of a row of list <id>... whose argument no usable issue answers to.
+const (
+	// missingNotFound: nothing claims the name.
+	missingNotFound = "not_found"
+	// missingUnusable: only an unusable file claims the name.
+	missingUnusable = "unusable"
+	// missingDuplicate: two files claim the name, or it stands for a repeated id.
+	missingDuplicate = "duplicate"
+)
+
+// missingIssueData is one row of list <id>... in --json whose argument no usable issue answers
+// to: the argument as given, why (one of the missing statuses) and, when unusable, the file that
+// claims it.
+type missingIssueData struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Path   string `json:"path,omitempty"`
+}
+
+// missingIssueLine renders a missing row: `<arg>  not found`, `<arg>  unusable <path>` or
+// `<arg>  duplicate`.
+func missingIssueLine(missing missingIssueData) string {
+	switch missing.Status {
+	case missingUnusable:
+		return missing.ID + "  unusable " + missing.Path + "\n"
+	case missingNotFound:
+		return missing.ID + "  not found\n"
+	default:
+		return missing.ID + "  " + missing.Status + "\n"
+	}
+}
+
 // showData is one issue in the --json data of show: the shared form, plus its Related links as
 // showLinks lists them, whether it is Ready (todo category only) and what blocks it, the ids of
 // the issues that depend on it, and how many of its direct children are Closed (left out when it has

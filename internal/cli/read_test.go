@@ -301,6 +301,125 @@ func TestList_UnknownParent_IsNotFound(t *testing.T) {
 	}
 }
 
+func TestList_IDs_PrintOneRowPerIDInArgumentOrder(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "list", "old-idea", "absent", "login-flow")
+
+	want := "old-idea  dropped  P2  Old idea\n" +
+		"absent  not found\n" +
+		"login-flow  open  P2  Login flow\n"
+	if exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+}
+
+func TestList_IDsJSON_CarriesIssuesAndNotFoundRows(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "list", "--json", "session-refresh", "absent")
+
+	envelope := decodeEnvelope(t, stdout)
+	rows, _ := envelope["data"].([]any)
+	if exitCode != ExitOK || envelope["kind"] != "issue-list" || len(rows) != 2 {
+		t.Fatalf("exit = %d envelope = %v, want an issue-list of 2 rows", exitCode, envelope)
+	}
+	found, missing := rows[0].(map[string]any), rows[1].(map[string]any)
+	if found["id"] != "session-refresh" || found["status"] != "parked" || found["path"] == nil {
+		t.Errorf("row 0 = %v, want session-refresh with its issue fields", found)
+	}
+	if len(missing) != 2 || missing["id"] != "absent" || missing["status"] != "not_found" {
+		t.Errorf("row 1 = %v, want {id: absent, status: not_found}", missing)
+	}
+}
+
+func TestList_IDs_AliasPrintsTheCurrentID(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "list", "apogee-kk0.4")
+
+	if want := "old-idea  dropped  P2  Old idea\n"; exitCode != ExitOK || stdout != want {
+		t.Errorf("exit = %d stdout = %q, want %q", exitCode, stdout, want)
+	}
+}
+
+func TestList_IDs_PrefixIsNotFound(t *testing.T) {
+	root := newReadStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "list", "release", "login")
+
+	if want := "release  not found\nlogin  not found\n"; exitCode != ExitOK || stdout != want {
+		t.Errorf("exit = %d stdout = %q, want %q", exitCode, stdout, want)
+	}
+}
+
+func TestList_IDs_ClaimedButUnusableNamesTheReason(t *testing.T) {
+	cases := []struct {
+		name     string
+		files    map[string]string
+		arg      string
+		wantLine string
+		wantJSON map[string]any
+	}{
+		{
+			"a broken issue file",
+			map[string]string{"broken-one.md": "no frontmatter here\n"},
+			"broken-one",
+			"broken-one  unusable .capcom/issues/broken-one.md\n",
+			map[string]any{"id": "broken-one", "status": "unusable", "path": ".capcom/issues/broken-one.md"},
+		},
+		{
+			"a repeated id",
+			map[string]string{"release-checklist/login-flow.md": validIssue},
+			"login-flow",
+			"login-flow  duplicate\n",
+			map[string]any{"id": "login-flow", "status": "duplicate"},
+		},
+	}
+
+	for _, current := range cases {
+		root := newReadStore(t)
+		writeIssueFiles(t, root, current.files)
+
+		stdout, _, exitCode := runCLI(t, root, "list", current.arg)
+		jsonOut, _, _ := runCLI(t, root, "list", "--json", current.arg)
+
+		// The file's warning precedes the row.
+		if exitCode != ExitOK || !strings.HasSuffix(stdout, "\n"+current.wantLine) {
+			t.Errorf("%s: exit = %d stdout = %q, want a row %q", current.name, exitCode, stdout, current.wantLine)
+		}
+		rows, _ := decodeEnvelope(t, jsonOut)["data"].([]any)
+		if len(rows) != 1 || !maps.Equal(rows[0].(map[string]any), current.wantJSON) {
+			t.Errorf("%s: data = %v, want [%v]", current.name, rows, current.wantJSON)
+		}
+	}
+}
+
+func TestList_IDsWithFlags_ExitUsage(t *testing.T) {
+	root := newReadStore(t)
+	invocations := [][]string{
+		{"--status", "open"},
+		{"--all"},
+		{"--limit", "1"},
+		{"--tree"},
+		{"--depth", "1"},
+		{"--parent", "login-flow"},
+	}
+
+	for _, flags := range invocations {
+		stdout, stderr, exitCode := runCLI(t, root, append([]string{"list", "login-flow"}, flags...)...)
+
+		if exitCode != ExitUsage || !strings.Contains(stderr, flags[0]+" cannot be combined with ids") {
+			t.Errorf("list login-flow %v exit = %d stdout = %q stderr = %q, want a usage failure naming %s",
+				flags, exitCode, stdout, stderr, flags[0])
+		}
+	}
+	stdout, _, exitCode := runCLI(t, root, "list", "--no-elsewhere", "login-flow")
+	if exitCode != ExitOK || stdout != "login-flow  open  P2  Login flow\n" {
+		t.Errorf("list --no-elsewhere login-flow exit = %d stdout = %q, want the issue row", exitCode, stdout)
+	}
+}
+
 // readStoreTree is the --tree outline of newReadStore without --all: the dropped old-idea is left
 // out, login-flow carries its one open child.
 var readStoreTree = "login-flow  open  P2  Login flow  (0/1 closed)\n" +

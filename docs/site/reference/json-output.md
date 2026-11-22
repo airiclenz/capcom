@@ -48,6 +48,12 @@ direct children as the text's `(<closed>/<total> closed)` counts them, and an Is
 `--depth` cut carries `more`, the count of the text's `... <n> more` line. Under a row filter an
 ancestor kept only to place a match, which the text ends `[context]`, carries `"context": true`;
 `context` is left out on a matching Issue and on every row of an unfiltered outline.
+
+`capcom list <id>... --json` gives one item per id, in the order given: the Issue whose exact id or
+Alias it is, as `list` gives it, or, for an id no usable Issue answers to, `{"id": "<id>",
+"status": "<why>"}`. `status` is `not_found` when nothing claims the id (a prefix of an id
+included), `duplicate` when two files claim it, and `unusable` when only an invalid file does;
+that item also carries `path`, the file. The exit code is 0 either way.
 `capcom dep list --json` gives one item per Issue line of each section, each with `depth` and
 `via` (the Issue it hangs under, `""` at depth 1). An Issue the section already printed, which the text shows as
 `(see above)`, carries `"repeat": true`, and one whose branch `--depth` cut carries `more`, as in

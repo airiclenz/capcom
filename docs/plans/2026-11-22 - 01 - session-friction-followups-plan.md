@@ -356,7 +356,13 @@ item 9's splitter; internal/cli/know_test.go — TestKnowShow_WithChildren_Shows
 **Closes:** show-brief-section
 **Commit:** `feat(know): print a Note's fields only or chosen sections`
 
-## 11. list takes ids and answers status and existence in one call
+## 11. list takes ids and answers status and existence in one call — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): Index.Resolve's prefix step can refuse a unique prefix of an unusable or duplicate id with the same error as the exact name, and the guard forbids a new Index method, so such a prefix prints the unusable/duplicate row rather than not found (conservative: never reports a claimed name as free).
+
+NOTES (2026-11-22): the unusable JSON row also carries `path` (the claiming file), mirroring the text row's path; documented in json-output.md.
+
+NOTES (2026-11-22): the Help acceptance run fails on TestHelpText_EveryCommand_PrintsExamplesBeforeShortRules/capcom_show (5-line rule from the --brief/--section text in know_show.go, commit d73d0e1, item 10); it fails identically without this item's changes; capcom_list passes.
 
 **What:**
 **Goal:** `capcom list <id>...` prints one row per argument in argument order — the usual

@@ -17,16 +17,21 @@ Without flags it lists every Issue that is not closed; --all includes closed one
 
 --tree prints the Issue outline instead: each Parent with its closed/total children, --depth levels deep. With --tree the filters but --limit and --parent (which starts the outline) keep the matching Issues and their ancestors, an ancestor that does not match ending in [context]; --status and --category decide by themselves whether closed Issues match, the other filters follow --all.
 
+Given ids, it prints one line per id, in the order given: the Issue whose exact id or Alias it is, closed ones included, or the id marked not found, so one call answers each id's status and whether an id is still free; the exit code is 0 either way.
+
+A prefix of an id is not found here; an id only an invalid file claims is marked unusable with that file's path, and one that two files claim duplicate. Ids take no flag but --no-elsewhere.
+
 Changes to Issues on other branches are reported as Elsewhere unless --no-elsewhere is given.
 
 ```
-capcom list [flags]
+capcom list [<id>...] [flags]
 ```
 
 ### Examples
 
 ```
   capcom list                     # every issue that is not closed
+  capcom list login-flow new-idea # each id's status, or not found
   capcom list --label owner-run   # open issues carrying a label
   capcom list --all --type bug    # every bug, closed ones included
   capcom list --tree --depth 2    # the outline, two levels deep
