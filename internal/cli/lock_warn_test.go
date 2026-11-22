@@ -9,8 +9,14 @@ import (
 	"github.com/airiclenz/capcom/internal/proc"
 )
 
-// lockWarnAdvice ends the warning of a write made while another session holds the Tree lock.
-const lockWarnAdvice = "; if it is yours, carry on"
+// lockWarnAdvice ends the warning of a write made while another session holds the Tree lock, and
+// lockWarnStaleAdvice the warning of one made while another session's stale lock holds it.
+const (
+	lockWarnAdvice = "; another session holds this worktree: the write landed, " +
+		"ask the user before writing more"
+	lockWarnStaleAdvice = "; another session's stale lock holds this worktree: the write landed, " +
+		"ask the user before writing more or taking it over"
+)
 
 // newLockWarnStore creates a store whose Issues and Note every write command of the lock warning
 // tests can act on: login-flow and other open, shipped-fix done, dependent depending on other,
@@ -47,11 +53,12 @@ func readRootFile(t *testing.T, root string, name string) (string, bool) {
 	return string(data), true
 }
 
-// lockWarning returns the warning line of stdout that ends in lockWarnAdvice, or "" when there is
-// none.
+// lockWarning returns the warning line of stdout that ends in lockWarnAdvice or
+// lockWarnStaleAdvice, or "" when there is none.
 func lockWarning(stdout string) string {
 	for _, line := range strings.Split(stdout, "\n") {
-		if strings.HasPrefix(line, "warning: ") && strings.HasSuffix(line, lockWarnAdvice) {
+		isAdvised := strings.HasSuffix(line, lockWarnAdvice) || strings.HasSuffix(line, lockWarnStaleAdvice)
+		if strings.HasPrefix(line, "warning: ") && isAdvised {
 			return line
 		}
 	}
@@ -215,8 +222,19 @@ func TestLockWarn_StaleLock_SaysItIsStale(t *testing.T) {
 
 	stdout := mustRun(t, root, "update", "login-flow", "--priority", "1")
 
-	if !strings.HasSuffix(lockWarning(stdout), ", stale"+lockWarnAdvice) {
-		t.Errorf("stdout = %q, want the lock warning marked stale", stdout)
+	if !strings.HasSuffix(lockWarning(stdout), ", stale"+lockWarnStaleAdvice) {
+		t.Errorf("stdout = %q, want the stale lock warning", stdout)
+	}
+}
+
+func TestLockWarn_LiveLock_SaysAnotherSessionHoldsIt(t *testing.T) {
+	root := newLockWarnStore(t)
+	acquireToken(t, root, "other-session")
+
+	stdout := mustRun(t, root, "update", "login-flow", "--priority", "1")
+
+	if !strings.HasSuffix(lockWarning(stdout), " ago"+lockWarnAdvice) {
+		t.Errorf("stdout = %q, want the live lock warning", stdout)
 	}
 }
 

@@ -463,10 +463,15 @@ func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 	return output.Rendered(result.Failure)
 }
 
-// foreignLockAdvice follows the warning of a write made while the Tree lock is held for another
-// purpose by a process the writer does not descend from: the holder may still be the writer
-// itself, run under another process than the one that took the lock.
-const foreignLockAdvice = "; if it is yours, carry on"
+// The advice that follows the warning of a write made while the Tree lock is held for another
+// purpose by a process the writer does not descend from, one for a live lock and one for a stale
+// lock: the write stands, and the writer asks the user before it writes more.
+const (
+	foreignLockAdvice = "; another session holds this worktree: the write landed, " +
+		"ask the user before writing more"
+	foreignStaleLockAdvice = "; another session's stale lock holds this worktree: the write landed, " +
+		"ask the user before writing more or taking it over"
+)
 
 // unreadableLockWarning is the warning of a write made while this worktree's lock record cannot be
 // read: the record file, then why, and capcom lock status, which shows the record.
@@ -487,13 +492,13 @@ func (a *app) noteWrite(ids ...string) {
 // lockWarning returns the warning of the writes the command noted (noteWrite) when this worktree's
 // Tree lock is held, live or stale, a write targets no Issue whose id is the lock's purpose, and
 // the caller does not descend from the record's holder process: the holder, purpose and heartbeat
-// age as lock.HeldError words them, then foreignLockAdvice. A record that cannot be read gives
-// unreadableLockWarning. It returns "" when the command noted no write or is exempt
-// (isLockExempt), and when the lock is free or orphaned. A caller that descends from the holder
-// process renews the lock's heartbeat instead (renewHolderLock), whatever the writes target. The
-// record is first read without the guard, so the check creates nothing under the lock directory
-// and never fails the write; only the holder's renewal takes the guard. The caller's ancestry is
-// read only for a record that names a holder process.
+// age as lock.HeldError words them, then foreignLockAdvice, or foreignStaleLockAdvice for a stale
+// lock. A record that cannot be read gives unreadableLockWarning. It returns "" when the command
+// noted no write or is exempt (isLockExempt), and when the lock is free or orphaned. A caller that
+// descends from the holder process renews the lock's heartbeat instead (renewHolderLock), whatever
+// the writes target. The record is first read without the guard, so the check creates nothing
+// under the lock directory and never fails the write; only the holder's renewal takes the guard.
+// The caller's ancestry is read only for a record that names a holder process.
 func (a *app) lockWarning() string {
 	if len(a.writes) == 0 || a.isLockExempt || a.store == nil {
 		return ""
@@ -517,6 +522,9 @@ func (a *app) lockWarning() string {
 	}
 	if a.writesOnly(held.Status.Record.Purpose) {
 		return ""
+	}
+	if held.Status.IsStale {
+		return held.Error() + foreignStaleLockAdvice
 	}
 	return held.Error() + foreignLockAdvice
 }

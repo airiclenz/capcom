@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/airiclenz/capcom/internal/briefing"
+	"github.com/airiclenz/capcom/internal/proc"
 )
 
 // primeConfig declares a doing status, so the Briefing has issues in progress to list.
@@ -255,7 +256,7 @@ func TestPrime_Locks_ShowAgeAndStaleFlag(t *testing.T) {
 		t.Errorf("prime = %d, stdout:\n%s\nwant a stale lock line matching %s", exitCode, stdout, pattern)
 	}
 	wantAdvice := "this worktree: stale; if it is yours, run the same acquire or start again to resume it " +
-		"(or pass --token <token>), otherwise ask the user before taking it over with --take-stale"
+		"(or pass --token <token>), otherwise ask the user before editing it"
 	if !strings.Contains(stdout, " (stale)\n"+wantAdvice+"\n") {
 		t.Errorf("prime stdout:\n%s\nwant the stale advice after the locks list", stdout)
 	}
@@ -268,11 +269,55 @@ func TestPrime_FreshLock_AdvisesItIsHeld(t *testing.T) {
 	stdout, _, exitCode := runCLI(t, root, "prime")
 
 	wantAdvice := "this worktree: held; if it is yours, run the same capcom lock acquire --purpose <text> " +
-		"or capcom start <id> again to resume it (or pass --token <token>), otherwise do not edit it"
+		"or capcom start <id> again to resume it (or pass --token <token>), otherwise ask the user before editing it"
 	pattern := regexp.MustCompile(`(?m)^  _main: held by bob for [^\n]*: refactor the parser\n` +
 		regexp.QuoteMeta(wantAdvice) + `$`)
 	if exitCode != ExitOK || !pattern.MatchString(stdout) {
 		t.Errorf("prime = %d, stdout:\n%s\nwant the held advice after the locks list", exitCode, stdout)
+	}
+}
+
+// The holder process of this worktree's lock, live or stale, reads it as its own; a process outside
+// it reads the advice of a lock held by another session.
+func TestPrime_LockOfTheHolderProcess_SaysThisSessionHoldsIt(t *testing.T) {
+	ownAdvice := "this worktree: held by this session (refactor the parser)"
+	cases := []struct {
+		name       string
+		chain      []proc.Process
+		lockAge    time.Duration
+		wantAdvice string
+	}{
+		{"held, under the holder process", holderChain, 0, ownAdvice},
+		{"stale, under the holder process", holderChain, 3 * time.Hour, ownAdvice},
+		{"held, under another process", otherChain, 0, "this worktree: held; if it is yours, run the same " +
+			"capcom lock acquire --purpose <text> or capcom start <id> again to resume it " +
+			"(or pass --token <token>), otherwise ask the user before editing it"},
+		{"stale, under another process", otherChain, 3 * time.Hour, "this worktree: stale; if it is yours, " +
+			"run the same acquire or start again to resume it (or pass --token <token>), " +
+			"otherwise ask the user before editing it"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newIssueStore(t, nil)
+			withAncestry(t, holderChain...)
+			mustRun(t, root, "lock", "acquire", "--purpose", "refactor the parser", "--holder", "bob")
+			if testCase.lockAge > 0 {
+				ageLockRecord(t, filepath.Join(root, ".git", "capcom", "locks", "_main.json"), testCase.lockAge)
+			}
+			withAncestry(t, testCase.chain...)
+
+			stdout, _, exitCode := runCLI(t, root, "prime")
+			envelope := decodeEnvelope(t, mustRun(t, root, "prime", "--json"))
+
+			if exitCode != ExitOK || !strings.Contains(stdout, "\n"+testCase.wantAdvice+"\n") {
+				t.Errorf("prime = %d, stdout:\n%s\nwant the advice %q", exitCode, stdout, testCase.wantAdvice)
+			}
+			data, _ := envelope["data"].(map[string]any)
+			worktree, _ := data["worktree"].(map[string]any)
+			if worktree["advice"] != testCase.wantAdvice {
+				t.Errorf("data.worktree = %v, want the advice %q", worktree, testCase.wantAdvice)
+			}
+		})
 	}
 }
 
@@ -368,9 +413,9 @@ func TestPrime_NoDoingStatus_AdvisesAcquireWithoutStart(t *testing.T) {
 			"capcom lock acquire --purpose <text>"},
 		{"held", 0, true, "this worktree: held; if it is yours, run the same " +
 			"capcom lock acquire --purpose <text> again to resume it (or pass --token <token>), " +
-			"otherwise do not edit it"},
+			"otherwise ask the user before editing it"},
 		{"stale", 3 * time.Hour, true, "this worktree: stale; if it is yours, run the same acquire again to " +
-			"resume it (or pass --token <token>), otherwise ask the user before taking it over with --take-stale"},
+			"resume it (or pass --token <token>), otherwise ask the user before editing it"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -452,7 +497,7 @@ func TestPrime_JSONWorktree_MatchesTheTextAdvice(t *testing.T) {
 
 // A Briefing whose lock section failed has no worktree state in its data.
 func TestPrime_WithoutLockOverview_LeavesTheWorktreeOut(t *testing.T) {
-	result := renderBriefing(briefing.Briefing{}, time.Now())
+	result := renderBriefing(briefing.Briefing{}, time.Now(), func() []proc.Process { return nil })
 
 	data, isPrimeData := result.Data.(primeData)
 	if !isPrimeData || data.Worktree != nil {

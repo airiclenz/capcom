@@ -187,7 +187,11 @@ under a free lock creates nothing under the lock directory (`TestLockWarn_FreshR
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/lock/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Lock' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(lock): let the holder renew, release and check without a token`
 
-## 5. The warning to another session says what to do
+## 5. The warning to another session says what to do — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the holder's prime line applies to a live or a stale lock alike, since the Goal names the holder process without a state; the prime stale lines no longer name --take-stale, as the Goal fixes their ending (the stale write warning still says "or taking it over").
+NOTES (2026-11-22): primeResult, renderBriefing and addLocks take the caller's ancestry as a func (a.callerAncestry), read only when the own lock's record names a holder process, as lockWarning does.
+NOTES (2026-11-22): the old wording still stands in AGENTS.md, internal/agents/block.go, docs/site/agents/managed-block.md (item 9) and docs/site/concepts/tree-locks.md, docs/site/agents/briefing.md, .capcom/knowledge/issue-workflow.md, ADR 0017 decision, plugins/capcom/skills/capcom/SKILL.md (item 10); left to those items.
 
 **What:** Depends on item 3. Issue `lock-warning-ignored`.
 **Goal:** the lock warning ends, for a live lock, `; another session holds this worktree: the write

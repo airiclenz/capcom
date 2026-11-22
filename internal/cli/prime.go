@@ -13,32 +13,35 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/lock"
+	"github.com/airiclenz/capcom/internal/proc"
 )
 
 const kindPrime = "prime"
 
 // The advice the Briefing gives on this worktree's Tree lock, one line per state. A free, held or
 // stale lock has a second form, WithStart, for a store whose config.yaml declares a doing status:
-// it also names capcom start, which takes the lock for an Issue and resumes it when run again.
+// it also names capcom start, which takes the lock for an Issue and resumes it when run again. A
+// held or stale lock whose holder process the caller descends from gets worktreeLockOwn instead,
+// with the lock's purpose.
 const (
 	worktreeLockFree = "this worktree: free; before a multi-file change run " +
 		"capcom lock acquire --purpose <text>"
 	worktreeLockFreeWithStart = worktreeLockFree + ", or capcom start <id> for an issue"
 	worktreeLockHeld          = "this worktree: held; if it is yours, run the same " +
 		"capcom lock acquire --purpose <text> again to resume it (or pass --token <token>), " +
-		"otherwise do not edit it"
+		"otherwise ask the user before editing it"
 	worktreeLockHeldWithStart = "this worktree: held; if it is yours, run the same " +
 		"capcom lock acquire --purpose <text> or capcom start <id> again to resume it " +
-		"(or pass --token <token>), otherwise do not edit it"
+		"(or pass --token <token>), otherwise ask the user before editing it"
 	worktreeLockStale = "this worktree: stale; if it is yours, run the same acquire again to " +
-		"resume it (or pass --token <token>), otherwise ask the user before taking it over with --take-stale"
+		"resume it (or pass --token <token>), otherwise ask the user before editing it"
 	worktreeLockStaleWithStart = "this worktree: stale; if it is yours, run the same acquire or start " +
-		"again to resume it (or pass --token <token>), otherwise ask the user before taking it over " +
-		"with --take-stale"
+		"again to resume it (or pass --token <token>), otherwise ask the user before editing it"
 	worktreeLockInvalid = "this worktree: invalid; its lock record does not parse, so acquire fails; " +
 		"ask the user before capcom lock break frees it"
 	worktreeLockUnreadable = "this worktree: unreadable; its lock record cannot be read; " +
 		"ask the user before editing it"
+	worktreeLockOwn = "this worktree: held by this session (%s)"
 )
 
 // primeListCap is how many issues each Ready list of the Briefing shows; the count covers all.
@@ -98,27 +101,31 @@ func (a *app) newPrimeCommand() *cobra.Command {
 		Example: primeExample,
 		Args:    cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			return a.emit(cmd, primeResult())
+			return a.emit(cmd, primeResult(a.callerAncestry))
 		}),
 	}
 }
 
-// primeResult composes the Briefing of the working directory and renders it. It opens the store
-// and the index through briefing.Compose, rather than through the shared annotationIndex, so that
-// their failures are warnings too.
-func primeResult() output.Result {
+// primeResult composes the Briefing of the working directory and renders it, telling the holder
+// process of this worktree's lock apart through ancestry, the caller's. It opens the store and the
+// index through briefing.Compose, rather than through the shared annotationIndex, so that their
+// failures are warnings too.
+func primeResult(ancestry func() []proc.Process) output.Result {
 	now := time.Now()
 	cwd, err := os.Getwd()
 	if err != nil {
 		failure := briefing.Failure{Section: briefing.SectionStore, Err: err}
-		return renderBriefing(briefing.Briefing{Failures: []briefing.Failure{failure}}, now)
+		return renderBriefing(briefing.Briefing{Failures: []briefing.Failure{failure}}, now, ancestry)
 	}
-	return renderBriefing(briefing.Compose(cwd, now), now)
+	return renderBriefing(briefing.Compose(cwd, now), now, ancestry)
 }
 
-// renderBriefing renders composed as prime's result, with lock ages measured back from now. A
-// section composed left out is left out of the text and the data, and each failure is one warning.
-func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Result) {
+// renderBriefing renders composed as prime's result, with lock ages measured back from now and the
+// holder process of this worktree's lock told apart through ancestry, the caller's. A section
+// composed left out is left out of the text and the data, and each failure is one warning.
+func renderBriefing(
+	composed briefing.Briefing, now time.Time, ancestry func() []proc.Process,
+) (result output.Result) {
 	warnings := primeWarnings(composed.Failures)
 	defer func() {
 		// A Briefing must never cost the session its start: even a defect becomes a warning.
@@ -138,7 +145,7 @@ func renderBriefing(composed briefing.Briefing, now time.Time) (result output.Re
 		text.WriteString(indentLines(issueLines(work.Doing, "")))
 	}
 	if overview := composed.LockOverview; overview != nil {
-		data.Locks, data.Worktree = addLocks(&text, *overview, composed.HasDoingStatus, now)
+		data.Locks, data.Worktree = addLocks(&text, *overview, composed.HasDoingStatus, now, ancestry)
 	}
 	if health := composed.Health; health != nil {
 		data.BrokenRefs = append([]check.Problem{}, health.BrokenRefs...)
@@ -188,10 +195,11 @@ func addCappedList(text *strings.Builder, heading string, entries []index.Entry)
 
 // addLocks writes the Tree lock of every worktree that has one, with its age and stale flag, then
 // every orphaned record as free, uncounted, then the advice on the lock of the overview's own
-// worktree, naming capcom start when hasDoingStatus. It returns the data of every lock and orphaned
-// record and that worktree's state with the same advice.
+// worktree (worktreeLockLine), naming capcom start when hasDoingStatus. It returns the data of
+// every lock and orphaned record and that worktree's state with the same advice.
 func addLocks(
 	text *strings.Builder, overview lock.Overview, hasDoingStatus bool, now time.Time,
+	ancestry func() []proc.Process,
 ) ([]lockData, *primeWorktree) {
 	held := overview.Locks
 	data := make([]lockData, 0, len(held)+len(overview.Orphans))
@@ -216,10 +224,23 @@ func addLocks(
 		data = append(data, entry)
 		text.WriteString("  " + lockText(entry))
 	}
-	advice := worktreeLockAdvice(overview.State, hasDoingStatus)
+	advice := worktreeLockLine(overview, hasDoingStatus, ancestry)
 	text.WriteString(advice + "\n")
 	worktree := &primeWorktree{Key: overview.Key, State: lockStateName(overview.State), Advice: advice}
 	return data, worktree
+}
+
+// worktreeLockLine returns the advice on the lock of overview's own worktree: worktreeLockOwn when
+// that lock is held, live or stale, by a holder process the caller descends from, and
+// worktreeLockAdvice otherwise. The caller's ancestry is read only for a record that names a holder
+// process.
+func worktreeLockLine(overview lock.Overview, hasDoingStatus bool, ancestry func() []proc.Process) string {
+	own := overview.Own
+	isLocked := overview.State == lock.StateHeld || overview.State == lock.StateStale
+	if isLocked && own.Record.Process != nil && own.HeldBy(ancestry()) {
+		return fmt.Sprintf(worktreeLockOwn, flatten(own.Record.Purpose))
+	}
+	return worktreeLockAdvice(overview.State, hasDoingStatus)
 }
 
 // worktreeLockAdvice returns the advice on a worktree's lock in state, one line per state; a free,
