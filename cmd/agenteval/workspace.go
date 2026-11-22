@@ -38,6 +38,10 @@ const (
 // processGroupsFileMode is the permission the process group ledger is created with.
 const processGroupsFileMode = 0o644
 
+// seedHelperArg, as the first argument, starts this executable as the seed helper
+// (runSeedHelper) instead of its command tree: `agenteval __seed-capcom <capcom> <args…>`.
+const seedHelperArg = "__seed-capcom"
+
 // agentWaitDelay bounds how long the harness waits for the agent's process to be gone after it
 // was killed at the timeout, so an agent whose child ignores the kill cannot hang the run.
 const agentWaitDelay = 5 * time.Second
@@ -99,8 +103,10 @@ func (w workspace) populate(capcomPath string, task scenario) error {
 		}
 	}
 	env := seedEnv{
-		repo:   w.repo,
-		capcom: func(args ...string) (string, error) { return runIn(w.repo, capcomPath, args...) },
+		repo: w.repo,
+		capcom: func(args ...string) (string, error) {
+			return runSeedCapcom(w.repo, capcomPath, args...)
+		},
 	}
 	for _, args := range [][]string{{"init"}, {"agents"}} {
 		if _, err := env.capcom(args...); err != nil {
@@ -210,6 +216,49 @@ func executableName(name string) string {
 		return name + windowsExecutableSuffix
 	}
 	return name
+}
+
+// runSeedCapcom runs the build at capcomPath with args in dir, as runIn does, under this executable
+// started as the seed helper. capcom records the nearest ancestor of a lock acquire or start that
+// is not a shell as the lock's holder process, whose descendants write without a lock warning.
+// Run straight from the harness, that would be the harness itself, an ancestor of every agent
+// call; the helper is that ancestor instead, and it exits with the call, so a lock the seed takes
+// stays another session's lock to the agent.
+func runSeedCapcom(dir, capcomPath string, args ...string) (string, error) {
+	executable, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("find this executable: %w", err)
+	}
+	return runIn(dir, executable, append([]string{seedHelperArg, capcomPath}, args...)...)
+}
+
+// isSeedHelper reports whether args, a program's arguments without its name, start it as the
+// seed helper.
+func isSeedHelper(args []string) bool {
+	return len(args) > 0 && args[0] == seedHelperArg
+}
+
+// runSeedHelper runs the capcom build that args[1] names with the arguments after it and the given
+// streams, waits for it, and returns its exit code. args[0] is seedHelperArg. It returns 1 when no
+// build is named, or the build cannot be started or is killed by a signal, with the failure on
+// stderr.
+func runSeedHelper(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) < 2 {
+		fmt.Fprintln(stderr, "agenteval seed helper: no capcom build named")
+		return exitRunFailed
+	}
+	command := exec.Command(args[1], args[2:]...)
+	command.Stdin, command.Stdout, command.Stderr = stdin, stdout, stderr
+	err := command.Run()
+	if err == nil {
+		return 0
+	}
+	var exited *exec.ExitError
+	if errors.As(err, &exited) && exited.ExitCode() >= 0 {
+		return exited.ExitCode()
+	}
+	fmt.Fprintf(stderr, "agenteval seed helper: %s: %v\n", args[1], err)
+	return exitRunFailed
 }
 
 // runIn runs program with args in dir and returns its stdout. A failure is an error naming the

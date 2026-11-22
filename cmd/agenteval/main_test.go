@@ -48,7 +48,8 @@ const (
 const executableFileMode = 0o755
 
 // TestMain runs the test binary as the program its basename names (shim, real capcom, fake agent
-// or agenteval itself), and runs the tests otherwise.
+// or agenteval itself), and as the seed helper when its first argument is seedHelperArg, which is
+// how a workspace a test prepares in process re-executes it. It runs the tests otherwise.
 func TestMain(m *testing.M) {
 	switch programName(os.Args[0]) {
 	case shimName:
@@ -60,6 +61,9 @@ func TestMain(m *testing.M) {
 	case agentevalName:
 		main()
 		os.Exit(0)
+	}
+	if isSeedHelper(os.Args[1:]) {
+		os.Exit(runSeedHelper(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	if err := os.Setenv(raceOptionsVariable, withoutRaceExitSleep(os.Getenv(raceOptionsVariable))); err != nil {
 		fmt.Fprintf(os.Stderr, "set %s: %v\n", raceOptionsVariable, err)

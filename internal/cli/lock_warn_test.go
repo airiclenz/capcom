@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/proc"
 )
 
 // lockWarnAdvice ends the warning of a write made while another session holds the Tree lock.
@@ -55,6 +57,27 @@ func lockWarning(stdout string) string {
 	}
 	return ""
 }
+
+// holderChain is the ancestry of the session that takes the lock in the holder process tests: a
+// shell under its harness, claude, under a terminal multiplexer. claude is its anchor, the process
+// the lock records.
+var holderChain = []proc.Process{
+	{PID: 2001, Started: "2001-start", Name: "bash"},
+	{PID: 2000, Started: "2000-start", Name: "claude"},
+	{PID: 1000, Started: "1000-start", Name: "tmux"},
+}
+
+// otherChain is the ancestry of a second session under the same multiplexer: it shares tmux with
+// holderChain but not the anchor claude.
+var otherChain = []proc.Process{
+	{PID: 3001, Started: "3001-start", Name: "zsh"},
+	{PID: 3000, Started: "3000-start", Name: "claude"},
+	{PID: 1000, Started: "1000-start", Name: "tmux"},
+}
+
+// lockWarnApply is the apply file of the holder process tests: one log op on other, an Issue that
+// is not the lock's purpose.
+const lockWarnApply = "- op: log\n  id: other\n  text: progress\n"
 
 func TestLockWarn_WriteUnderAForeignLock_WarnsAndWrites(t *testing.T) {
 	tests := []struct {
@@ -238,5 +261,84 @@ func TestLockWarn_FreshRepo_CreatesNoLockFile(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(root, ".git", "capcom", "locks")); !os.IsNotExist(err) {
 		t.Errorf("Stat(locks dir) err = %v, want not exist", err)
+	}
+}
+
+func TestLockWarn_WriteUnderTheHolderProcess_IsSilentAndOtherProcessesWarn(t *testing.T) {
+	writes := []struct {
+		name string
+		args []string
+	}{
+		{"create", []string{"create", "--id", "fresh", "--title", "Fresh"}},
+		{"log", []string{"log", "login-flow", "progress"}},
+		{"update", []string{"update", "login-flow", "--priority", "1"}},
+		{"close", []string{"close", "login-flow", "--reason", "done"}},
+		{"apply", []string{"apply", applyFile}},
+		{"know add", []string{"know", "add", "--id", "fresh-note", "--title", "Fresh note"}},
+		{"know update", []string{"know", "update", "guide", "--title", "New guide"}},
+	}
+	callers := []struct {
+		name     string
+		chain    []proc.Process
+		isWarned bool
+	}{
+		{"under the holder process", holderChain, false},
+		{"under another process", otherChain, true},
+	}
+	for _, caller := range callers {
+		for _, write := range writes {
+			t.Run(caller.name+"/"+write.name, func(t *testing.T) {
+				root := newLockWarnStore(t)
+				writeApplyFile(t, root, lockWarnApply)
+				withAncestry(t, holderChain...)
+				mustRun(t, root, "lock", "acquire", "--purpose", "batch")
+				withAncestry(t, caller.chain...)
+
+				stdout := mustRun(t, root, write.args...)
+
+				if isWarned := lockWarning(stdout) != ""; isWarned != caller.isWarned {
+					t.Errorf("stdout = %q, want a lock warning %t", stdout, caller.isWarned)
+				}
+			})
+		}
+	}
+}
+
+func TestLockWarn_WriteUnderTheProcessThatStarted_IsSilent(t *testing.T) {
+	root := newLockWarnStore(t)
+	withAncestry(t, holderChain...)
+	mustRun(t, root, "start", "login-flow")
+
+	holderStdout := mustRun(t, root, "update", "other", "--priority", "1")
+	withAncestry(t, otherChain...)
+	otherStdout := mustRun(t, root, "update", "other", "--priority", "2")
+
+	if strings.Contains(holderStdout, lockWarnAdvice) {
+		t.Errorf("stdout under the holder process = %q, want no lock warning", holderStdout)
+	}
+	if lockWarning(otherStdout) == "" {
+		t.Errorf("stdout under another process = %q, want the lock warning", otherStdout)
+	}
+}
+
+func TestLockWarn_ResumeUnderAnotherProcess_MovesTheHolder(t *testing.T) {
+	root := newLockWarnStore(t)
+	withAncestry(t, holderChain...)
+	mustRun(t, root, "lock", "acquire", "--purpose", "batch")
+	withAncestry(t, otherChain...)
+	resumed := mustRun(t, root, "lock", "acquire", "--purpose", "batch", "--kv")
+
+	resumerStdout := mustRun(t, root, "update", "login-flow", "--priority", "1")
+	withAncestry(t, holderChain...)
+	formerStdout := mustRun(t, root, "update", "login-flow", "--priority", "2")
+
+	if state := kvValue(t, resumed, "LOCK"); state != "resumed" {
+		t.Fatalf("LOCK = %q, want resumed", state)
+	}
+	if strings.Contains(resumerStdout, lockWarnAdvice) {
+		t.Errorf("stdout under the resuming process = %q, want no lock warning", resumerStdout)
+	}
+	if lockWarning(formerStdout) == "" {
+		t.Errorf("stdout under the former holder process = %q, want the lock warning", formerStdout)
 	}
 }

@@ -182,6 +182,7 @@ func (a *app) newLockAcquireCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			claim.Process = a.holderProcess()
 			sessionToken, err := target.lock.SessionToken(token, purpose)
 			if err != nil {
 				return err

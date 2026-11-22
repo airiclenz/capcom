@@ -5,7 +5,26 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/airiclenz/capcom/internal/proc"
 )
+
+// init stands an empty process ancestry in for the real one, so no lock a test acquires records a
+// holder process and every test's writes meet a held lock as a caller outside it; withAncestry
+// gives one test a fake ancestry. It covers runCLI, runCLIWith and the benchmarks' direct Run
+// calls alike.
+func init() {
+	processAncestry = func() []proc.Process { return nil }
+}
+
+// withAncestry makes chain the calling process's ancestry, parent first, for the rest of the test,
+// and restores the previous one when it ends.
+func withAncestry(t testing.TB, chain ...proc.Process) {
+	t.Helper()
+	previous := processAncestry
+	processAncestry = func() []proc.Process { return chain }
+	t.Cleanup(func() { processAncestry = previous })
+}
 
 // runCLI runs capcom in process with dir as the working directory (skipped when dir is empty)
 // and returns its stdout, stderr and exit code. It sets the hermetic git environment of ADR 0007,

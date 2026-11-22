@@ -104,7 +104,12 @@ false for a record without one; a record JSON without `process` parses.
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/lock/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/`
 **Commit:** `feat(lock): record the holder process in the lock record`
 
-## 3. A write from under the holder process stays silent
+## 3. A write from under the holder process stays silent — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): cmd/agenteval/main_test.go is not in Files: its TestMain dispatches the seed helper too, since a workspace a test prepares in process re-executes the test binary itself (os.Executable), which would otherwise run the whole test suite as the seed's capcom.
+NOTES (2026-11-22): the seed helper is a hidden first argument, `agenteval __seed-capcom <capcom> <args…>`, dispatched in main() after the shim check (no cobra command, so it stays out of help); the helper runs capcom as its child and exits with its code.
+NOTES (2026-11-22): consequential edit — cmd/agenteval/doc.go: made necessary by the seed helper mode added to main.go and workspace.go (package doc and file map lines for main.go and workspace.go)
+NOTES (2026-11-22): consequential edit — docs/agent-eval.md: made necessary by seeding no longer running the build directly but under the seed helper
 
 **What:** Depends on item 2. Regression from ADR 0017's purpose-only rule: issue `lock-warns-own-writes`.
 **Goal:** `capcom lock acquire` and `capcom start` record the anchor of the caller's ancestry; a

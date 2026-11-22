@@ -86,7 +86,9 @@ tree) and `cmd/agenteval/scenario_find.go` (finding issues and Notes, and record
 
 The harness seeds each task's repo with the capcom build under test: a git repo with its own git
 identity, a capcom store, the `AGENTS.md` block and the task's starting state, all in one commit.
-Seeding runs that build directly, so its calls are never counted as the agent's.
+Seeding runs that build outside the shim, so its calls are never counted as the agent's, and as
+the child of a short-lived agenteval helper process that exits with each call, so a lock the seed
+takes records that helper as its holder process, never a process the agent descends from.
 
 A task passes or fails on what the agent left behind, never on its transcript: the scenario's check
 reads the repo's `.capcom/` files, the Tree lock state under the git directory and the task's call

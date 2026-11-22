@@ -14,6 +14,11 @@
 // log. The harness puts a copy of itself under that name first on the agent's PATH, which is
 // how every capcom call the agent makes is counted.
 //
+// The harness seeds a workspace through a hidden helper mode, `agenteval __seed-capcom <capcom>
+// <args…>`, which runs the build under test as its child and exits with it: capcom records the
+// nearest non-shell ancestor of a lock acquire as the lock's holder process, and the helper, gone
+// before the agent starts, is that ancestor, so a seeded lock is never the agent's own.
+//
 //	AGENTEVAL_CAPCOM=/path/to/capcom AGENTEVAL_CALL_LOG=/path/to/calls.jsonl capcom <args>
 //
 // Each call log line reads {"args":[…],"exit":n,"ms":n}: the arguments, the exit code and the
@@ -41,7 +46,8 @@
 //   - `agent_other.go` — the shell and the process kills outside Unix: cmd /C, the one process alone
 //   - `agent_unix.go` — the shell and the process kills on Unix: sh -c, the whole process group and the loop's group ledger
 //   - `doc.go` — the package comment and this file map
-//   - `main.go` — main, the shim-or-command dispatch, the root command and the exit codes
+//   - `main.go` — main, the shim, seed helper or command dispatch, the root command and the exit
+//     codes
 //   - `report.go` — renders a run's task results as the markdown report
 //   - `run.go` — the run verb: resolves the build and the agent, runs each task, writes the report
 //   - `scenario.go` — the scenario type, the scenario list and the seed and check helpers they
@@ -55,5 +61,6 @@
 //   - `score.go` — reads a task's call log and scores it to calls, failed and repeated failures
 //   - `shim.go` — the capcom call shim: runs the build under test and appends each call to the call log
 //   - `store.go` — reads what the agent left: issue and Note files, Log entries, the Tree lock
-//   - `workspace.go` — seeds a task's throwaway git repo and runs the agent in it behind the shim
+//   - `workspace.go` — seeds a task's throwaway git repo through the seed helper and runs the agent
+//     in it behind the shim
 package main

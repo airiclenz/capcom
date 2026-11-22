@@ -15,6 +15,7 @@ import (
 	"github.com/airiclenz/capcom/internal/diagnose"
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/lock"
+	"github.com/airiclenz/capcom/internal/proc"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -91,6 +92,10 @@ const (
 	storeOnly       = "store"
 )
 
+// processAncestry reads the calling process's ancestry, parent first. It is a seam: the CLI tests
+// stand a fake ancestry in for the real one.
+var processAncestry = proc.Ancestry
+
 // app carries one invocation's output streams and the renderer its output flags select. Run builds a
 // fresh app per call so invocations share no state.
 type app struct {
@@ -115,9 +120,14 @@ type app struct {
 	writeWarnings []string
 	// writes are the writes the command made, each as the ids of the Issues it targets (noteWrite),
 	// and isLockExempt is set by a command that acts on the Tree lock itself, finish, so emit warns
-	// of another session's lock (app.lockWarning) after the writes of every other command only.
+	// of a lock held by another session (app.lockWarning) after the writes of every other command
+	// only.
 	writes       [][]string
 	isLockExempt bool
+	// ancestry is the calling process's ancestry once isAncestryRead is set: callerAncestry reads
+	// it at most once per invocation, and only when a lock acquire or a lock warning needs it.
+	ancestry       []proc.Process
+	isAncestryRead bool
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and
@@ -454,7 +464,8 @@ func (a *app) emit(cmd *cobra.Command, result output.Result) error {
 }
 
 // foreignLockAdvice follows the warning of a write made while the Tree lock is held for another
-// purpose: the holder may be the writer itself, which ADR 0017 tells by the purpose alone.
+// purpose by a process the writer does not descend from: the holder may still be the writer
+// itself, run under another process than the one that took the lock.
 const foreignLockAdvice = "; if it is yours, carry on"
 
 // unreadableLockWarning is the warning of a write made while this worktree's lock record cannot be
@@ -464,18 +475,19 @@ const unreadableLockWarning = "%s: the lock record cannot be read: %s; see " + l
 // noteWrite records a write the command made, for the warning emit adds when another session holds
 // the Tree lock (app.lockWarning). ids are the Issues the write targets, any one of which may be
 // the lock's purpose: a move passes the old id and the new. A write of no Issue, a Note's, fmt's or
-// agents', passes none and so meets every held lock as another session's.
+// agents', passes none, so the purpose never silences its warning; only the holder process does.
 func (a *app) noteWrite(ids ...string) {
 	a.writes = append(a.writes, ids)
 }
 
 // lockWarning returns the warning of the writes the command noted (noteWrite) when this worktree's
-// Tree lock is held, live or stale, and a write targets no Issue whose id is the lock's purpose:
-// the holder, purpose and heartbeat age as lock.HeldError words them, then foreignLockAdvice. A
-// record that cannot be read gives unreadableLockWarning. It returns "" when the command noted no
-// write or is exempt (isLockExempt), and when the lock is free or orphaned. The record is read
-// without the guard, so the check creates nothing under the lock directory and never fails the
-// write.
+// Tree lock is held, live or stale, a write targets no Issue whose id is the lock's purpose, and
+// the caller does not descend from the record's holder process: the holder, purpose and heartbeat
+// age as lock.HeldError words them, then foreignLockAdvice. A record that cannot be read gives
+// unreadableLockWarning. It returns "" when the command noted no write or is exempt
+// (isLockExempt), and when the lock is free or orphaned. The record is read without the guard, so
+// the check creates nothing under the lock directory and never fails the write; the caller's
+// ancestry is read only for a record that names a holder process.
 func (a *app) lockWarning() string {
 	if len(a.writes) == 0 || a.isLockExempt || a.store == nil {
 		return ""
@@ -493,7 +505,30 @@ func (a *app) lockWarning() string {
 	if a.writesOnly(held.Status.Record.Purpose) {
 		return ""
 	}
+	if held.Status.Record.Process != nil && held.Status.HeldBy(a.callerAncestry()) {
+		return ""
+	}
 	return held.Error() + foreignLockAdvice
+}
+
+// callerAncestry returns the calling process's ancestry (processAncestry), read on the first call
+// of the invocation only.
+func (a *app) callerAncestry() []proc.Process {
+	if !a.isAncestryRead {
+		a.ancestry = processAncestry()
+		a.isAncestryRead = true
+	}
+	return a.ancestry
+}
+
+// holderProcess returns the process a lock the caller acquires records as its holder: the anchor
+// of the caller's ancestry (proc.Anchor), nil when the ancestry has none.
+func (a *app) holderProcess() *proc.Process {
+	anchor, isFound := proc.Anchor(a.callerAncestry())
+	if !isFound {
+		return nil
+	}
+	return &anchor
 }
 
 // writesOnly reports whether every write the command noted targets the Issue whose id is purpose.

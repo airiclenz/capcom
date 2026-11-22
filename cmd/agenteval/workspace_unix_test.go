@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/airiclenz/capcom/internal/proc"
 )
 
 // notExecutableFileMode is the mode of an agent file that exists but cannot be executed.
@@ -179,5 +181,28 @@ func TestProcessGroupLedger_LiveGroupsSkipsWhatTheSweepMustNotKill(t *testing.T)
 				t.Errorf("liveGroups = %v, %v; want %v, nil", groups, err, test.want)
 			}
 		})
+	}
+}
+
+func TestPrepareWorkspace_TheSeededLockHolderIsNoAncestorOfTheAgent(t *testing.T) {
+	ancestry := proc.Ancestry()
+	if len(ancestry) == 0 {
+		t.Skip("this system reports no process ancestry, so no lock records a holder process")
+	}
+	_, seeded, _ := seedScenario(t, t.TempDir(), "resume-lost-token")
+
+	state, err := lockState(seeded.repo)
+
+	if err != nil {
+		t.Fatalf("read the seeded lock: %v", err)
+	}
+	holder := state.Record.Process
+	if holder == nil {
+		t.Fatalf("record = %+v, want the seed helper as its holder process", state.Record)
+	}
+	// Every agent call descends from this process: the shim, the agent's shell and the agent run
+	// under it.
+	if holder.PID == os.Getpid() || state.HeldBy(ancestry) {
+		t.Errorf("holder process = %+v, want none of the harness and its ancestors", *holder)
 	}
 }

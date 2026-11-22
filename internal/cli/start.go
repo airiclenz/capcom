@@ -100,6 +100,7 @@ func (a *app) start(cmd *cobra.Command, arg string, token string) error {
 	if err != nil {
 		return err
 	}
+	claim.Process = a.holderProcess()
 	acquired, isResumed, err := target.lock.Acquire(claim, token, false)
 	if err != nil {
 		return startLockFailure(target.lock.RecordPath(), entry.ID, err)
