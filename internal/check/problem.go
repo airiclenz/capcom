@@ -49,8 +49,9 @@ func addKeysFormatTooOld[T any](
 // as the index warns it, through diagnose.NameClashes: one problem for every file of the id, each
 // naming another. noun names one node of the kind, "issue" or "Note", as tree.Load takes it.
 // aliases is called concurrently, on tree.LoadParallel's goroutines, so it must be safe for that;
-// loadTree records the load problems after it returns. aliasesLine returns the line of the aliases key in the file at a path aliases parsed, or 0; an
-// alias problem cites it, as the index's warning does.
+// loadTree records the load problems after it returns. aliasesLine returns the line of the aliases
+// key in the file at a path aliases parsed, or 0; an alias problem cites it, as the index's
+// warning does.
 func (c *checker) loadTree(
 	dir string,
 	noun string,

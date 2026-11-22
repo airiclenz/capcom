@@ -26,4 +26,4 @@ refs: [docs/site/reference/file-format.md, internal/config/config.go#FormatVersi
   format this capcom reads is `FormatVersion`.
 
 `docs/site/reference/file-format.md` `## Config` is the reference: the file `init` writes, the
-allowed values and the format raises.
+allowed values and the keys each format adds.
