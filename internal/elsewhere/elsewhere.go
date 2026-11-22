@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/airiclenz/capcom/internal/gitx"
@@ -41,7 +43,7 @@ const (
 var errLineBreak = errors.New("path holds a line break; its branch copy is not read")
 
 // The git calls the scan makes per branch and per batch of copies, variables so the package's
-// tests can count them and make them fail.
+// tests can count them, watch them overlap and make them fail.
 var (
 	changedFiles = gitx.ChangedFiles
 	readBlobs    = gitx.ReadBlobs
@@ -138,8 +140,35 @@ func Scan(options Options) Report {
 		report.warn("HEAD has no commit yet; other branches not compared")
 		return report
 	}
-	report.scanBranches(options, report.withoutDuplicates(options.WorktreeRoot, candidates))
+
+	unmerged, err := unmergedBranches(options.WorktreeRoot, candidates)
+	if err != nil {
+		report.warn("list unmerged branches: %v", err)
+		return report
+	}
+	report.scanBranches(options, report.withoutDuplicates(options.WorktreeRoot, unmerged))
 	return report
+}
+
+// unmergedBranches returns those of branches that hold commits HEAD lacks, in their order, from
+// one `git for-each-ref --no-merged` over every branch.
+func unmergedBranches(worktreeRoot string, branches []gitx.Branch) ([]gitx.Branch, error) {
+	refs, err := gitx.UnmergedRefs(worktreeRoot, head)
+	if err != nil {
+		return nil, err
+	}
+
+	isUnmerged := make(map[string]bool, len(refs))
+	for _, ref := range refs {
+		isUnmerged[ref] = true
+	}
+	var unmerged []gitx.Branch
+	for _, branch := range branches {
+		if isUnmerged[branch.Ref] {
+			unmerged = append(unmerged, branch)
+		}
+	}
+	return unmerged, nil
 }
 
 // otherRecentBranches returns the branches a scan compares with HEAD: every branch whose tip is
@@ -228,15 +257,14 @@ func (r *Report) redundantRef(worktreeRoot string, local, remote gitx.Branch) st
 	return ""
 }
 
-// scanBranches adds the entries and warnings of branches, in their order. It runs in two passes:
-// first the changed files of every branch, then the status of every Modified file's branch copy,
-// read through one `git cat-file --batch` per copiesPerBatch copies.
+// scanBranches adds the entries and warnings of branches, each of which HEAD has not merged, in
+// their order. It runs in two passes: first the changed files of every branch, then the status of
+// every Modified file's branch copy, read through one `git cat-file --batch` per copiesPerBatch
+// copies.
 func (r *Report) scanBranches(options Options, branches []gitx.Branch) {
-	scans := make([]*branchScan, 0, len(branches))
+	scans := listAllChanges(options, branches)
 	var copies []branchCopy
-	for _, branch := range branches {
-		scan := listChanges(options, branch)
-		scans = append(scans, scan)
+	for _, scan := range scans {
 		copies = append(copies, scan.modifiedCopies()...)
 	}
 	for start := 0; start < len(copies); start += copiesPerBatch {
@@ -260,19 +288,32 @@ type branchScan struct {
 	isDropped []bool
 }
 
-// listChanges runs the first pass over branch: the entries of every issue file it changed, with
-// no status yet, or a warning when git fails on it. A branch HEAD has merged has neither.
+// listAllChanges runs listChanges over branches, on at most runtime.NumCPU() workers at once since
+// each runs its own git process, and returns the scans in branch order.
+func listAllChanges(options Options, branches []gitx.Branch) []*branchScan {
+	scans := make([]*branchScan, len(branches))
+	indexes := make(chan int)
+	var workers sync.WaitGroup
+	for range min(runtime.NumCPU(), len(branches)) {
+		workers.Go(func() {
+			// Each worker writes only the slots of the indexes it receives, so no two share one.
+			for index := range indexes {
+				scans[index] = listChanges(options, branches[index])
+			}
+		})
+	}
+	for index := range branches {
+		indexes <- index
+	}
+	close(indexes)
+	workers.Wait()
+	return scans
+}
+
+// listChanges runs the first pass over branch, one HEAD has not merged: the entries of every issue
+// file it changed, with no status yet, or a warning when git fails on it.
 func listChanges(options Options, branch gitx.Branch) *branchScan {
 	scan := &branchScan{branch: branch}
-	isMerged, err := gitx.IsAncestor(options.WorktreeRoot, branch.Ref, head)
-	if err != nil {
-		scan.found.warn("branch %s: %v", branch.Name, err)
-		return scan
-	}
-	if isMerged {
-		return scan
-	}
-
 	changes, err := changedFiles(options.WorktreeRoot, head, branch.Ref, options.Pathspecs)
 	if err != nil {
 		scan.found.warn("branch %s: %v", branch.Name, err)

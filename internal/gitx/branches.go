@@ -125,6 +125,26 @@ func Branches(dir string) ([]Branch, error) {
 	return branches, nil
 }
 
+// UnmergedRefs returns the full refs of the local and remote-tracking branches of the repository
+// containing dir whose tip base cannot reach (`git for-each-ref --no-merged=<base>`), sorted by
+// ref. It never fetches, and it lists every such ref, refs/remotes/<remote>/HEAD included: filter
+// the branches Branches lists with it. base must name a commit; see HasCommit.
+func UnmergedRefs(dir, base string) ([]string, error) {
+	output, err := run(dir, "for-each-ref", "--no-merged="+base, "--format=%(refname)",
+		branchRefPrefix, remoteRefPrefix)
+	if err != nil {
+		return nil, err
+	}
+
+	var refs []string
+	for _, line := range strings.Split(strings.TrimRight(output, "\r\n"), "\n") {
+		if ref := strings.TrimRight(line, "\r"); ref != "" {
+			refs = append(refs, ref)
+		}
+	}
+	return refs, nil
+}
+
 // CurrentBranch returns the short name of the branch checked out in the worktree containing dir,
 // as `git branch --show-current` prints it: the unborn branch's name in a repository with no
 // commit yet, and "" with no error on a detached HEAD.

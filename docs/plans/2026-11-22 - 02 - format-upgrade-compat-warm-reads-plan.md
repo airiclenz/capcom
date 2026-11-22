@@ -181,7 +181,11 @@ NOTES (2026-11-22): the line-break test skips on Windows, whose file names canno
 **Acceptance:** `go vet ./internal/elsewhere/ ./internal/gitx/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/elsewhere/ ./internal/gitx/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Elsewhere|Prime|Ready' ./internal/cli/ && ! grep -rn "ShowFile" internal && grep -q 'gitx.ReadBlobs' internal/elsewhere/elsewhere.go && capcom show warm-reads-large-store | grep -q '71%'`
 **Commit:** `perf(elsewhere): read changed copies through one cat-file batch`
 
-## 8. The elsewhere scan starts fewer git processes per branch
+## 8. The elsewhere scan starts fewer git processes per branch — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the unmerged filter runs on the candidates before withoutDuplicates (after HasCommit(HEAD)), so merged branches no longer cost the local/remote pair comparison; the reported entries are the same, since a branch dropped as merged could only have been dropped as redundant or yielded nothing.
+NOTES (2026-11-22): a failing `git for-each-ref --no-merged` gives one new warning, "elsewhere: list unmerged branches: <git error>", and ends the scan, as a failing branch listing does; before, a merge-base failure warned per branch ("branch <name>: ...").
+NOTES (2026-11-22): the six-branch order test gives each branch an issue file of its own, since branches with identical content committed in the same second share one commit and tree, and removing that tree would break two branches.
 
 **What:** Recast at the regression check (2026-11-22). Depends on item 7.
 **Goal:** `elsewhere.Scan` finds the branches not merged into HEAD with one `gitx.UnmergedRefs` call (`git for-each-ref --no-merged`), and runs the per-branch `ChangedFiles` diffs on a bounded worker pool, results kept in branch order; output and warnings unchanged.

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -643,5 +644,93 @@ func TestScan_PathWithALineBreak_IsNotReadAndStaysModifiedWithAWarning(t *testin
 	wantWarnings := []string{"elsewhere: branch topic: .capcom/issues/" + oddName + ": " + errLineBreak.Error()}
 	if !reflect.DeepEqual(report.Warnings, wantWarnings) {
 		t.Errorf("warnings = %q, want %q", report.Warnings, wantWarnings)
+	}
+}
+
+// removeTree deletes the loose object of the tree at the tip of branch, so git fails to diff it.
+func removeTree(t *testing.T, root, branch string) {
+	t.Helper()
+	tree := gitOutput(t, root, "rev-parse", branch+"^{tree}")
+	object := filepath.Join(root, ".git", "objects", tree[:2], tree[2:])
+	// git writes loose objects read-only, which Windows refuses to remove.
+	if err := os.Chmod(object, 0o644); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+	if err := os.Remove(object); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+}
+
+func TestScan_SixBranchesOneFailing_ReportsTheSameInBranchOrderEveryRun(t *testing.T) {
+	const runs = 20
+	root := newIssueRepo(t)
+	statuses := []string{"done", "blocked", "in_progress", "done", "blocked", "in_progress"}
+	var wantEntries []string
+	for i, status := range statuses {
+		// An issue of its own per branch gives each branch a tree of its own to remove.
+		branch, id := fmt.Sprintf("branch-%d", i), fmt.Sprintf("issue-%d", i)
+		onBranch(t, root, branch, map[string]string{
+			"login-flow.md": issueFile(status),
+			id + ".md":      issueFile("open"),
+		})
+		if branch != "branch-3" {
+			wantEntries = append(wantEntries,
+				id+": added on "+branch+" (unmerged)", "login-flow: "+status+" on "+branch+" (unmerged)")
+		}
+	}
+	removeTree(t, root, "branch-3")
+
+	for run := range runs {
+		report := scan(root)
+
+		if lines := entryLines(report); !reflect.DeepEqual(lines, wantEntries) {
+			t.Fatalf("run %d: entries = %q, want %q", run, lines, wantEntries)
+		}
+		if len(report.Warnings) != 1 || !strings.HasPrefix(report.Warnings[0], "elsewhere: branch branch-3: ") {
+			t.Fatalf("run %d: warnings = %q, want one for branch branch-3", run, report.Warnings)
+		}
+	}
+}
+
+// recordPeakChangedFiles makes the changedFiles seam record into peak the most calls it ever ran
+// at once, each held long enough for concurrent ones to overlap, until the test ends.
+func recordPeakChangedFiles(t *testing.T, peak *int) {
+	t.Helper()
+	original := changedFiles
+	var mutex sync.Mutex
+	var running int
+	changedFiles = func(dir, base, branch string, pathspecs []string) ([]gitx.FileChange, error) {
+		mutex.Lock()
+		running++
+		*peak = max(*peak, running)
+		mutex.Unlock()
+		defer func() {
+			mutex.Lock()
+			running--
+			mutex.Unlock()
+		}()
+		time.Sleep(10 * time.Millisecond)
+		return original(dir, base, branch, pathspecs)
+	}
+	t.Cleanup(func() { changedFiles = original })
+}
+
+func TestScan_MoreBranchesThanCPUs_DiffsAtMostOnePerCPUAtOnce(t *testing.T) {
+	branchCount := runtime.NumCPU() + 2
+	root := newIssueRepo(t)
+	onBranch(t, root, "work", map[string]string{"login-flow.md": issueFile("done")})
+	for i := range branchCount - 1 {
+		git(t, root, "branch", fmt.Sprintf("work-%02d", i), "work")
+	}
+	var peak int
+	recordPeakChangedFiles(t, &peak)
+
+	report := scan(root)
+
+	if len(report.Entries) != branchCount || len(report.Warnings) != 0 {
+		t.Errorf("report = %+v, want %d entries and no warnings", report, branchCount)
+	}
+	if peak < 1 || peak > runtime.NumCPU() {
+		t.Errorf("changedFiles ran %d at once, want 1 to %d (one per CPU)", peak, runtime.NumCPU())
 	}
 }

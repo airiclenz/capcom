@@ -136,6 +136,44 @@ func TestHasCommit_UnbornHead_IsFalseWithoutError(t *testing.T) {
 	}
 }
 
+func TestUnmergedRefs_ListsUnmergedLocalAndRemoteBranchesOnly(t *testing.T) {
+	origin := newRepo(t)
+	git(t, origin, "checkout", "-q", "-b", "remote-work")
+	commitFile(t, origin, "remote.md", "remote\n")
+	git(t, origin, "checkout", "-q", "-")
+	clone, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	git(t, origin, "clone", "-q", origin, clone)
+	git(t, clone, "branch", "merged")
+	git(t, clone, "checkout", "-q", "-b", "local-work")
+	commitFile(t, clone, "local.md", "local\n")
+	git(t, clone, "checkout", "-q", "-")
+
+	refs, err := UnmergedRefs(clone, "HEAD")
+
+	want := []string{"refs/heads/local-work", "refs/remotes/origin/remote-work"}
+	if err != nil || !reflect.DeepEqual(refs, want) {
+		t.Errorf("UnmergedRefs = %q, %v; want %q", refs, err, want)
+	}
+}
+
+func TestUnmergedRefs_NotARepository_ReturnsTheGitError(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
+	setHermeticGitEnv(t, root)
+
+	refs, err := UnmergedRefs(root, "HEAD")
+
+	var gitFailure *Error
+	if refs != nil || !errors.As(err, &gitFailure) {
+		t.Errorf("UnmergedRefs outside a repository = %q, %v; want none and the git error", refs, err)
+	}
+}
+
 func TestIsAncestor_MergedAndDivergedBranches(t *testing.T) {
 	root := newRepo(t)
 	git(t, root, "branch", "merged")
