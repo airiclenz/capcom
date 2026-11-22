@@ -208,6 +208,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newStartCommand())
 	root.AddCommand(a.newUICommand())
 	root.AddCommand(a.newUpdateCommand())
+	root.AddCommand(a.newUpgradeCommand())
 	root.AddCommand(a.newVersionCommand())
 	guardSingleValueFlags(root)
 	return withSubcommandDispatch(root)

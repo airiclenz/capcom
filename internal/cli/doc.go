@@ -58,4 +58,5 @@
 //   - `suggest.go` — the closest flag named for an unknown flag and the closest ids for an unknown id, beside the command suggestions root.go makes
 //   - `ui.go` — capcom ui: checks for a terminal and hands the opened store and index to internal/ui
 //   - `update.go` — capcom update: changes an issue's fields or body
+//   - `upgrade.go` — capcom upgrade: raises the store format config.yaml declares, on request
 package cli

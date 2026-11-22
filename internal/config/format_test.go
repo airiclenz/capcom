@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -96,5 +97,52 @@ func TestRaiseFormat_ContentThatFailsToParse_ReturnsTheParseError(t *testing.T) 
 	want := testPath + `:2: unknown key "bogus"`
 	if err == nil || err.Error() != want || isChanged || raised != nil {
 		t.Errorf("RaiseFormat = %q, %v, %v; want nil, false and %q", raised, isChanged, err, want)
+	}
+}
+
+func TestFormatAdditions_EveryFormatAboveTheMissingOne_SaysWhatItAdds(t *testing.T) {
+	t.Parallel()
+
+	additions := FormatAdditions(MissingFormat, FormatVersion)
+
+	if len(additions) != FormatVersion-MissingFormat {
+		t.Fatalf("FormatAdditions(%d, %d) = %d entries, want one per format above %d: %v",
+			MissingFormat, FormatVersion, len(additions), MissingFormat, additions)
+	}
+	for index, addition := range additions {
+		if want := MissingFormat + 1 + index; addition.Format != want || addition.Adds == "" {
+			t.Errorf("addition %d = %+v, want format %d with what it adds", index, addition, want)
+		}
+	}
+}
+
+func TestFormatAdditions_Range_ListsTheFormatsAboveFromUpToTo(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		from    int
+		to      int
+		formats []int
+	}{
+		{"one format", FormatAgents, FormatStanding, []int{FormatStanding}},
+		{"several formats", FormatSupersession, FormatBlockFile, []int{FormatAgents, FormatStanding, FormatBlockFile}},
+		{"same format", FormatStanding, FormatStanding, []int{}},
+		{"lower target", FormatBlockFile, FormatRelated, []int{}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			additions := FormatAdditions(testCase.from, testCase.to)
+
+			formats := []int{}
+			for _, addition := range additions {
+				formats = append(formats, addition.Format)
+			}
+			if !slices.Equal(formats, testCase.formats) {
+				t.Errorf("FormatAdditions(%d, %d) formats = %v, want %v",
+					testCase.from, testCase.to, formats, testCase.formats)
+			}
+		})
 	}
 }

@@ -21,6 +21,37 @@ var (
 // byteOrderMark is the UTF-8 byte order mark a config.yaml may open with.
 const byteOrderMark = "\xef\xbb\xbf"
 
+// FormatAddition is what one store format adds to the format before it.
+type FormatAddition struct {
+	// Format is the store format that adds it.
+	Format int
+	// Adds says what the format allows that the one before it does not, naming the keys.
+	Adds string
+}
+
+// formatAdditions holds what each store format above MissingFormat adds, one entry per format from
+// FormatRelated up to FormatVersion, in order.
+var formatAdditions = []FormatAddition{
+	{Format: FormatRelated, Adds: "issue files may link related issues (related)"},
+	{Format: FormatSupersession, Adds: "Notes may be retired or superseded (retired, superseded-by)"},
+	{Format: FormatAgents, Adds: "config.yaml may list agent guides (agents.guides)"},
+	{Format: FormatStanding, Adds: "issues may be standing, grouping their children (standing)"},
+	{Format: FormatBlockFile, Adds: "config.yaml may name the Managed block's file (agents.file)"},
+}
+
+// FormatAdditions returns what each store format above from, up to and including to, adds, in
+// format order: what a store raised from format from to format to gains. It returns none when
+// from is to or above.
+func FormatAdditions(from, to int) []FormatAddition {
+	additions := []FormatAddition{}
+	for _, addition := range formatAdditions {
+		if addition.Format > from && addition.Format <= to {
+			additions = append(additions, addition)
+		}
+	}
+	return additions
+}
+
 // RaiseFormat returns config.yaml content that declares at least the given store format, every
 // other byte kept, and whether it changed anything. path names the file in every error, as Parse
 // does. The content is parsed first: content that fails to parse returns Parse's error, and content

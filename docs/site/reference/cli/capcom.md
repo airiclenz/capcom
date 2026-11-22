@@ -69,5 +69,6 @@ capcom [flags]
 * [capcom start](capcom_start.md)	 - Claim a Ready Issue and this worktree's Tree lock
 * [capcom ui](capcom_ui.md)	 - Open the terminal UI
 * [capcom update](capcom_update.md)	 - Change an issue's fields or body
+* [capcom upgrade](capcom_upgrade.md)	 - Raise the store format on request
 * [capcom version](capcom_version.md)	 - Print the capcom version
 

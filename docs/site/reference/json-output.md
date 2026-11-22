@@ -25,7 +25,7 @@ $ capcom show session-refresh --json
 | Member | Always present | Value |
 | --- | --- | --- |
 | `schema` | yes | The envelope's version, currently `1`. |
-| `kind` | yes | What `data` holds: `issue`, `issue-list`, `issue-write`, `issue-remove`, `close`, `apply`, `ready`, `next`, `start`, `finish`, `lock`, `context`, `deps`, `dep-graph`, `search`, `prime`, `recap`, `check`, `fmt`, `merge`, `reindex`, `init`, `agents`, `version`, `note`, `note-write`, `note-remove`, `know-tree`, `know-search`, `know-verify`, or `error`. |
+| `kind` | yes | What `data` holds: `issue`, `issue-list`, `issue-write`, `issue-remove`, `close`, `apply`, `ready`, `next`, `start`, `finish`, `lock`, `context`, `deps`, `dep-graph`, `search`, `prime`, `recap`, `check`, `fmt`, `merge`, `reindex`, `init`, `agents`, `upgrade`, `version`, `note`, `note-write`, `note-remove`, `know-tree`, `know-search`, `know-verify`, or `error`. |
 | `match` | no | Only on kinds `search` and `know-search`: `all` when every hit holds every word searched for, `any` when no item held them all and the hits hold some of them. |
 | `data` | no | The command's result. Left out when a command fails before it has one. `null` when `capcom next` finds nothing Ready (kind `next`, exit code 4). |
 | `error` | no | Present only when the command failed; see Errors below. |
@@ -74,6 +74,11 @@ Unlike the text, nothing in it is cut; `--brief` leaves out every `body`.
 one list per group: `closed`, `filed`, `status_changed`, `log`, `notes_added`, `notes_changed` and
 `notes_retired`, each `[]` when empty. An entry holds `id` and `title`, plus `status` in `closed` and
 `status_changed`, `reason` in `closed` when the Issue gives one, and `entry` (one Log entry) in `log`.
+
+`capcom upgrade` gives kind `upgrade` with `data` an object: `from` and `to` (the store format
+config.yaml declared before and after the run, the same when it changed nothing), `changed` (`true`
+when it raised the format) and `adds`, one item per format it added, each with `format` and `adds`
+(what that format brings), `[]` when it changed nothing.
 
 `--json` is a global flag, so it may stand before or after the command name.
 

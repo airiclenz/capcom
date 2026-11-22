@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
+	"github.com/airiclenz/capcom/internal/config"
 )
 
 // goldenApplyFile is the relative name the apply goldens write their apply file under, in the
@@ -97,6 +98,16 @@ func TestGolden_Fmt_PinsTheRewrittenPaths(t *testing.T) {
 	stdout := mustRun(t, root, "fmt", "--json")
 
 	assertGoldenJSON(t, "fmt", root, stdout)
+}
+
+// TestGolden_Upgrade_PinsTheAddedFormats raises the format-4 fixture store to the newest format,
+// so the golden pins a non-empty adds list.
+func TestGolden_Upgrade_PinsTheAddedFormats(t *testing.T) {
+	root := copyFixtureStore(t, config.FormatAgents)
+
+	stdout := mustRun(t, root, "upgrade", "--json")
+
+	assertGoldenJSON(t, "upgrade", root, stdout)
 }
 
 func TestGolden_Apply_PinsTheAppliedBatch(t *testing.T) {

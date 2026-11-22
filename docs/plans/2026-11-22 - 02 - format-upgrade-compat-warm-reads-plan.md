@@ -69,7 +69,10 @@ NOTES (2026-11-22): `adr-0009`'s summary also says what still holds after ADR 00
 **Acceptance:** `capcom know show adr-0019 adr-0019-decision && grep -n "0019" ".capcom/knowledge/decisions/adr-0009/adr-0009-decision.md" && capcom check`
 **Commit:** `docs(decisions): ADR 0019 raises the store format only on request`
 
-## 2. `capcom upgrade` raises the store format on request
+## 2. `capcom upgrade` raises the store format on request — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): consequential edit — internal/cli/doc.go: made necessary by the new internal/cli/upgrade.go (TestDocFileMap_MatchesDirectory enumerates every file)
+NOTES (2026-11-22): the format table (`config.FormatAddition`, `config.FormatAdditions(from, to)`) lives in internal/config/format.go as the item's Files line names, not config.go beside the constants; the --json `to` of an unchanged run is the store's own format (equal to `from`), not the requested lower target; no KV golden, since upgrade registers no --kv; json-output.md also gains a paragraph describing the upgrade data
 
 **What:**
 **Goal:** `capcom upgrade [--format <n>]` (default `config.FormatVersion`) raises `format:` in `.capcom/config.yaml` to n, creating the file when absent; prints `store format <from> → <n>`, one line per format added (`  <k>: <what it adds>`), and `capcom releases that read at most format <n-1> can no longer read this store`. A store at format ≥ n exits 0, writes nothing and prints `store is already at format <m>`. n outside 1..`config.FormatVersion` is a usage error (exit 2). `--json` emits kind `upgrade` with `from`, `to`, `changed` (bool) and `adds` (`[{"format": k, "adds": "<text>"}]`, empty when unchanged).
