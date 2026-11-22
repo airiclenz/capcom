@@ -358,6 +358,88 @@ func TestCompose_PanickingSource_IsOneInternalFailureAndNoSection(t *testing.T) 
 	}
 }
 
+func TestCompose_SourcePanicsAfterAFailure_KeepsTheFailuresBeforeIt(t *testing.T) {
+	original := runCheck
+	t.Cleanup(func() { runCheck = original })
+	runCheck = func(*store.Store) ([]check.Problem, error) { panic("check exploded") }
+	files := briefingStore()
+	files[".git/capcom/locks"] = "a file where the locks directory belongs\n"
+	files[".git/refs/heads/ghost"] = strings.Repeat("0123456789", 4) + "\n"
+	root := newBriefingRepo(t, files)
+
+	got := Compose(root, time.Now())
+
+	if sections := failedSections(got.Failures); !slices.Equal(sections, []Section{SectionLocks, SectionInternal}) {
+		t.Errorf("failed sections = %v (failures %v), want [locks prime]", sections, got.Failures)
+	}
+	if got.Work != nil || got.LockOverview != nil || got.Health != nil || got.Elsewhere != nil {
+		t.Errorf("Compose = %+v; want every section left out", got)
+	}
+}
+
+func TestCompose_EverySourceFails_FailsInSourceOrder(t *testing.T) {
+	originalIndex, originalCheck := openIndex, runCheck
+	t.Cleanup(func() { openIndex, runCheck = originalIndex, originalCheck })
+	openIndex = func(*store.Store, index.Mode, ...index.Option) (*index.Index, error) {
+		return nil, errors.New("index exploded")
+	}
+	runCheck = func(*store.Store) ([]check.Problem, error) { return nil, errors.New("check exploded") }
+	files := briefingStore()
+	files[".git/capcom/locks"] = "a file where the locks directory belongs\n"
+	files[".git/refs/heads/ghost"] = strings.Repeat("0123456789", 4) + "\n"
+	root := newBriefingRepo(t, files)
+
+	got := Compose(root, time.Now())
+
+	want := []Section{SectionIndex, SectionLocks, SectionCheck, SectionElsewhere}
+	if sections := failedSections(got.Failures); !slices.Equal(sections, want) {
+		t.Errorf("failed sections = %v (failures %v), want %v", sections, got.Failures, want)
+	}
+	if got.Work != nil || got.LockOverview != nil || got.Health != nil || got.Elsewhere != nil {
+		t.Errorf("Compose = %+v; want every section left out", got)
+	}
+}
+
+func TestCompose_ReadyListAndCheck_RunAtTheSameTime(t *testing.T) {
+	originalReady, originalCheck := readyList, runCheck
+	t.Cleanup(func() { readyList, runCheck = originalReady, originalCheck })
+	readyStarted, checkStarted := make(chan struct{}), make(chan struct{})
+	// awaitOther fails unless the other source starts within the timeout, which a sequential
+	// Compose never lets it do.
+	awaitOther := func(other <-chan struct{}, name string) error {
+		select {
+		case <-other:
+			return nil
+		case <-time.After(5 * time.Second):
+			return fmt.Errorf("%s never started alongside", name)
+		}
+	}
+	readyList = func(opened *index.Index, cfg config.Config, options ReadyOptions) ([]ReadyItem, error) {
+		close(readyStarted)
+		if err := awaitOther(checkStarted, "check"); err != nil {
+			return nil, err
+		}
+		return originalReady(opened, cfg, options)
+	}
+	runCheck = func(s *store.Store) ([]check.Problem, error) {
+		close(checkStarted)
+		if err := awaitOther(readyStarted, "the Ready-list"); err != nil {
+			return nil, err
+		}
+		return originalCheck(s)
+	}
+	root := newBriefingRepo(t, briefingStore())
+
+	got := Compose(root, time.Now())
+
+	if len(got.Failures) != 0 {
+		t.Errorf("Failures = %v; want none, the Ready-list and check read at the same time", got.Failures)
+	}
+	if got.Work == nil || got.Health == nil {
+		t.Errorf("Compose = %+v; want Work and Health kept", got)
+	}
+}
+
 func TestCompose_IssueChangedOnAnotherBranch_ReportsItElsewhere(t *testing.T) {
 	root := newBriefingRepo(t, briefingStore())
 	runGit(t, root, "add", "-A")

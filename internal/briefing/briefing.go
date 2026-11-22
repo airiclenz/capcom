@@ -3,6 +3,7 @@ package briefing
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/airiclenz/capcom/internal/check"
@@ -95,13 +96,15 @@ type Health struct {
 // measured back from now. It never fails: a source that cannot be read leaves its section out and
 // becomes one Failure, and a store that cannot be opened leaves every section out. Even a defect
 // becomes a Failure of SectionInternal, so a Briefing never costs a session its start.
+//
+// Once the store is open, its sources are read concurrently, each into its own part, and the parts
+// are joined in source order, so the Briefing is the one a sequential read would compose. A
+// source that panics leaves every section out: the Failures are those of the sources before it and
+// its own, then the one of SectionInternal.
 func Compose(cwd string, now time.Time) (composed Briefing) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			composed = Briefing{Failures: append(composed.Failures, Failure{
-				Section: SectionInternal,
-				Err:     fmt.Errorf("internal error: %v", recovered),
-			})}
+			composed = internalFailure(composed.Failures, recovered)
 		}
 	}()
 
@@ -111,11 +114,69 @@ func Compose(cwd string, now time.Time) (composed Briefing) {
 		return composed
 	}
 	_, composed.HasDoingStatus = s.Config.DefaultStatus(config.CategoryDoing)
-	composed.readWork(s)
-	composed.readLocks(s)
-	composed.readHealth(s)
-	composed.scanElsewhere(s, now)
+	parts := readSources(
+		func(part *Briefing) { part.readWork(s) },
+		func(part *Briefing) { part.readLocks(s) },
+		func(part *Briefing) { part.readHealth(s) },
+		func(part *Briefing) { part.scanElsewhere(s, now) },
+	)
+	for _, part := range parts {
+		composed.Failures = append(composed.Failures, part.Failures...)
+		if part.recovered != nil {
+			return internalFailure(composed.Failures, part.recovered)
+		}
+		composed.absorb(part.Briefing)
+	}
 	return composed
+}
+
+// sourcePart is what one source of the Briefing read, with the value of the panic it was
+// recovered from, nil when it did not panic.
+type sourcePart struct {
+	Briefing
+	recovered any
+}
+
+// readSources runs every source at once, each into its own part, and returns the parts in the
+// order of sources once every source is done. A source that panics leaves the recovered value on
+// its part.
+func readSources(sources ...func(part *Briefing)) []sourcePart {
+	parts := make([]sourcePart, len(sources))
+	var readers sync.WaitGroup
+	for i, read := range sources {
+		readers.Go(func() {
+			// Each reader writes only its own part, so no two share one.
+			defer func() { parts[i].recovered = recover() }()
+			read(&parts[i].Briefing)
+		})
+	}
+	readers.Wait()
+	return parts
+}
+
+// absorb sets b's sections from the ones part read, leaving the sections part left out.
+func (b *Briefing) absorb(part Briefing) {
+	if part.Work != nil {
+		b.Work = part.Work
+	}
+	if part.LockOverview != nil {
+		b.LockOverview = part.LockOverview
+	}
+	if part.Health != nil {
+		b.Health = part.Health
+	}
+	if part.Elsewhere != nil {
+		b.Elsewhere = part.Elsewhere
+	}
+}
+
+// internalFailure returns the Briefing of a defect recovered as recovered: every section left
+// out, failures followed by one of SectionInternal.
+func internalFailure(failures []Failure, recovered any) Briefing {
+	return Briefing{Failures: append(failures, Failure{
+		Section: SectionInternal,
+		Err:     fmt.Errorf("internal error: %v", recovered),
+	})}
 }
 
 // fail records that section's source failed with err.

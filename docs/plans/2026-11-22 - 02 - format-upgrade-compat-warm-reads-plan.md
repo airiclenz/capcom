@@ -214,7 +214,10 @@ NOTES (2026-11-22): `briefing.ReadyListJudged` returns a `briefing.Judgement` (t
 **Acceptance:** `go vet ./internal/briefing/ ./internal/cli/ ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/briefing/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Next|Show|Golden' ./internal/cli/`
 **Commit:** `perf(next): reuse the ready list's load to show the issue`
 
-## 10. `prime` reads its sources concurrently
+## 10. `prime` reads its sources concurrently — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): readLocks runs concurrently too, alongside readWork, readHealth and scanElsewhere, so all four sources share one readSources path; the join still appends failures in source order (store, index/ready/doing, locks, check, elsewhere).
+NOTES (2026-11-22): on a recovered panic the Failures keep those the panicking source recorded before it panicked (then the SectionInternal one), exactly as the sequential Compose did; the regression guard named only the sources before it. Added TestCompose_SourcePanicsAfterAFailure_KeepsTheFailuresBeforeIt ([locks prime]) to pin the guard. The overlap test was confirmed to fail against a sequential readSources (then restored).
 
 **What:**
 **Goal:** `briefing.Compose` runs `readWork`, `readHealth` and `scanElsewhere` concurrently; its sections, their order and the order of `Failures` are the same as a sequential run (the order Compose reads its sources).
