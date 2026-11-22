@@ -1,11 +1,13 @@
 ---
 title: No one-call way to get the status of several issues or learn whether an id exists
-status: open
+status: done
 type: feature
 priority: 2
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 11: list <id>... prints one row per id, not found ones included, exiting 0, in text and --json."
 ---
 
 To learn the status of a set of issues, or whether a slug is free before `create`, agents

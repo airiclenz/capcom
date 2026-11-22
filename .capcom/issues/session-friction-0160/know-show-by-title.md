@@ -1,11 +1,13 @@
 ---
 title: know show does not resolve a Note by its title
-status: open
+status: done
 type: feature
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 8: know show falls back to the title, the part before a colon, and the slugged argument; several matches fail naming each."
 ---
 
 `capcom know show` takes an id, an alias or a unique id prefix. Agents that know a term or

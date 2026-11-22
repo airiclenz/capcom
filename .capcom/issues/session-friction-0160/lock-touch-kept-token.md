@@ -1,11 +1,13 @@
 ---
 title: lock touch and release demand the token capcom already keeps, and touch is the most-run command
-status: open
+status: done
 type: feature
 priority: 2
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 1: bare lock touch and release now succeed for the holder behind a capcom shim too; completes bf30b14."
 ---
 
 `capcom lock acquire` keeps the Lock token in a token file (ADR 0016), and `start` and

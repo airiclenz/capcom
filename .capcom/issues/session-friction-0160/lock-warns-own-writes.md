@@ -1,11 +1,13 @@
 ---
 title: The lock warning fires on the holder's own writes when the lock is held for a plan
-status: open
+status: done
 type: bug
 priority: 1
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 1: with the capcom shim skipped, the holder process's own writes stay silent behind a per-call shim too; completes bf30b14."
 ---
 
 A capcom write warns "locked by <holder> (<purpose>) ...; if it is yours, carry on" unless it

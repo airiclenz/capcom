@@ -1,11 +1,13 @@
 ---
 title: apply outside a repository blames the wrong path and hints at apply --help
-status: open
+status: done
 type: bug
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 2: outside a git repository every store command says the working directory is not inside one and to run capcom from the repository, with no --help hint."
 ---
 
 Run from a directory that is not in a git repository, `capcom apply <file>` printed:

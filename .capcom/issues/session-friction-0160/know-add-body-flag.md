@@ -1,11 +1,13 @@
 ---
 title: know add has no --body, so every Note body goes through a temp file
-status: open
+status: done
 type: feature
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 6: know add and know update take --body, refused with the other body flags."
 ---
 
 `capcom create` takes `--body` and `--body-file`; `capcom know add` takes only

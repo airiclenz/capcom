@@ -1,11 +1,13 @@
 ---
 title: show and know show print everything, so agents cut the output with head and sed
-status: open
+status: done
 type: feature
 priority: 2
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), items 9 and 10: show and know show take --brief and --section, in text and --json."
 ---
 
 `capcom show` and `capcom know show` print the fields, the whole body and, for an issue,

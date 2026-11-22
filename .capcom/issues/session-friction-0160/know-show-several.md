@@ -1,11 +1,13 @@
 ---
 title: know show takes one Note while show takes several issues
-status: open
+status: done
 type: feature
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 7: know show prints several Notes and reports a missing one as show does."
 ---
 
 `capcom show <id>...` prints several issues; `capcom know show` accepts one Note.

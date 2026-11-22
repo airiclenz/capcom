@@ -1,11 +1,13 @@
 ---
 title: Five-word ids are refused, and the error does not say how many words it counted
-status: open
+status: done
 type: bug
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), item 5: a refused id names the rule it broke (e.g. '5 words, at most 4'). The limit stays at 4 words: older binaries drop five-word ids without a store format raise (ADR 0009); see explicit-format-upgrade."
 ---
 
 An id is 1 to 4 kebab words (`internal/tree/ids.go:25`). Agents regularly pick five.

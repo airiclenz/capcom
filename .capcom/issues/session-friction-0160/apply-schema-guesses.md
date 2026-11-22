@@ -1,11 +1,13 @@
 ---
 title: A first apply file fails on shape and key guesses the error could have answered
-status: open
+status: done
 type: feature
 priority: 3
 labels: [agent-ergonomics]
 plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
+closed: 2026-11-22T21:02:25Z
+reason: "Resolved by plan 2026-11-22 - 01 - session-friction-followups-plan (daf400a), items 3 and 4: apply takes the frontmatter key names (labels), the mapping error shows the expected shape, and apply --help carries an example file that applies as printed."
 ---
 
 Writing a first apply file takes several tries.
