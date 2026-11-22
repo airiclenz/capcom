@@ -15,6 +15,27 @@ Apply an apply file: a YAML list of Issue writes, run in order and written all o
 
 Each entry is a map whose op key names the write (create, update, dep add, close or log) and whose other keys are that command's flag names without the leading --, plus id, dep and text. Values are inline: body-file and body-append-file are refused.
 
+This apply file creates two Issues, the second waiting for the first, then logs on the first:
+
+    - op: create
+      id: parse-config
+      title: Parse the config file
+      body: capcom ignores its config file.
+
+    - op: create
+      id: load-plugins
+      title: Load the plugins the config names
+      dep: parse-config
+      body: |
+        Plugins the config names are never loaded.
+
+        ## Acceptance
+        - capcom starts with every plugin the config names loaded.
+
+    - op: log
+      id: parse-config
+      text: load-plugins now waits for this Issue.
+
 update, dep add, close and log take if-match, compared with the Issue's file as it was before the batch; it is refused on an Issue an earlier operation created.
 
 The writes are staged in memory and land together once every one has passed. The first that fails stops the batch, naming its operation and line, and nothing is written. Closing an Issue already Closed fails the batch.

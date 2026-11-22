@@ -105,6 +105,47 @@ func TestApply_CreateWithLabels_CarriesBothLabels(t *testing.T) {
 	}
 }
 
+func TestApply_HelpExample_Applies(t *testing.T) {
+	root := newIssueStore(t, nil)
+	example := helpApplyFile(t, mustRun(t, root, "apply", "--help"))
+	writeApplyFile(t, root, example)
+
+	stdout := mustRun(t, root, "apply", applyFile)
+
+	want := "1  create  parse-config  created\n2  create  load-plugins  created\n3  log  parse-config  logged\n"
+	if stdout != want {
+		t.Errorf("stdout = %q, want %q", stdout, want)
+	}
+	plugins := readStoreFile(t, root, "load-plugins.md")
+	if !strings.Contains(plugins, "deps: [parse-config]") || !strings.Contains(plugins, "## Acceptance") {
+		t.Errorf("load-plugins.md = %q, want deps: [parse-config] and an Acceptance section", plugins)
+	}
+	if config := readStoreFile(t, root, "parse-config.md"); !strings.Contains(config, "load-plugins now waits") {
+		t.Errorf("parse-config.md = %q, want the log line", config)
+	}
+}
+
+// helpApplyFile cuts the example apply file out of the apply --help output: the block of lines
+// indented four spaces that starts at the first "    - op: " line, with that indent removed.
+func helpApplyFile(t *testing.T, help string) string {
+	t.Helper()
+	const indent = "    "
+	var lines []string
+	for _, line := range strings.Split(help, "\n") {
+		switch {
+		case lines == nil && !strings.HasPrefix(line, indent+"- op: "):
+		case line == "" || strings.HasPrefix(line, indent):
+			lines = append(lines, strings.TrimPrefix(line, indent))
+		default:
+			return strings.TrimRight(strings.Join(lines, "\n"), "\n") + "\n"
+		}
+	}
+	if lines == nil {
+		t.Fatalf("apply --help shows no example apply file:\n%s", help)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func TestApply_FailingOperation_LeavesStoreUntouchedAndNamesIt(t *testing.T) {
 	tests := []struct {
 		name    string

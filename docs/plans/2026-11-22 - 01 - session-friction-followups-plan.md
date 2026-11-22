@@ -135,7 +135,9 @@ TestParse_InvalidFile_IsRefusedAtThePositionAndLine; internal/cli/apply.go — a
 **Acceptance:** `go vet ./internal/batch/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/batch/ && GOMEMLIMIT=2GiB go test -count=1 -run Apply ./internal/cli/`
 **Commit:** `feat(apply): accept labels and deps, and show the expected shape`
 
-## 4. apply --help carries an example file that applies as printed
+## 4. apply --help carries an example file that applies as printed — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the first create carries a one-line `body` too, so the example applies without the "has no body" warning; the test asserts stdout exactly, which keeps it warning-free.
 
 **What:**
 **Goal:** `capcom apply --help` shows a complete small apply file: two `create` entries, one with a

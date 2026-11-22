@@ -47,6 +47,22 @@ const (
 		"Each entry is a map whose op key names the write (create, update, dep add, close or log) and " +
 		"whose other keys are that command's flag names without the leading --, plus id, dep and text. " +
 		"Values are inline: body-file and body-append-file are refused.\n\n" +
+		"This apply file creates two Issues, the second waiting for the first, then logs on the first:\n\n" +
+		"    - op: create\n" +
+		"      id: parse-config\n" +
+		"      title: Parse the config file\n" +
+		"      body: capcom ignores its config file.\n\n" +
+		"    - op: create\n" +
+		"      id: load-plugins\n" +
+		"      title: Load the plugins the config names\n" +
+		"      dep: parse-config\n" +
+		"      body: |\n" +
+		"        Plugins the config names are never loaded.\n\n" +
+		"        ## Acceptance\n" +
+		"        - capcom starts with every plugin the config names loaded.\n\n" +
+		"    - op: log\n" +
+		"      id: parse-config\n" +
+		"      text: load-plugins now waits for this Issue.\n\n" +
 		"update, dep add, close and log take if-match, compared with the Issue's file as it was before " +
 		"the batch; it is refused on an Issue an earlier operation created.\n\n" +
 		"The writes are staged in memory and land together once every one has passed. The first that " +
