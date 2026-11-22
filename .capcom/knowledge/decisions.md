@@ -27,3 +27,4 @@ The records:
 - `adr-0016`: An agent session keeps its Lock token in a token file keyed by worktree and purpose under the git common dir
 - `adr-0017`: A CLI write warns while another session holds the Tree lock; the holder's own writes and writes of the Issue the lock is held for stay silent
 - `adr-0018`: capcom does not serve its operations over MCP for now
+- `adr-0019`: A store format is raised only by capcom upgrade

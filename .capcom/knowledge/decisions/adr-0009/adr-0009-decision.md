@@ -39,4 +39,5 @@ nothing reads as format 1 to every binary. The first release that raises the for
 for real, and from then on `init` writes the current format into a store it creates. Into an
 existing store without `config.yaml`, `init` writes the template with the key still a comment, so
 it never raises a store's format: the store stays at format 1 until a write verb that needs a newer
-key raises it.
+key raises it. Superseded by ADR 0019: that implicit raise is withdrawn; a write that needs a newer
+format now fails, and only `capcom upgrade` raises the format.

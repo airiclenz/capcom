@@ -53,7 +53,11 @@ keeps stable, each promise tied to a test. `ready`, `next` and `list --all --jso
 - 8 (re-check): guard folded (decision: pool calls the `changedFiles` seam); Acceptance checks `gitx.UnmergedRefs`
 - 11 (re-check): guard folded; mutex scope over `c.problems`, deterministic overlap test, `internal/check/problem.go` added to Files
 
-## 1. ADR 0019: a store format is raised only by `capcom upgrade`
+## 1. ADR 0019: a store format is raised only by `capcom upgrade` — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the installed `capcom` (/home/linuxbrew/.linuxbrew/bin, 0.16.0) predates HEAD: its `know update` rewrote AGENTS.md's capcom block to an older shape (restored with git restore) and its `know show` takes one id only, so the Acceptance ran with a binary built from HEAD (`go build ./cmd/capcom`).
+NOTES (2026-11-22): the rejected alternative (keep the implicit raise behind a config key) is recorded as a short "Not chosen" paragraph in `adr-0019-decision` rather than a separate `adr-0019-rejected` Note, since the item's Files name no rejected child.
+NOTES (2026-11-22): `adr-0009`'s summary also says what still holds after ADR 0019 (ADR 0010: a record replaced in part names its successor and says what still holds).
 
 **What:**
 **Goal:** The `decisions` Knowledge branch holds `adr-0019` (summary) with an `adr-0019-decision` child recording the three format calls in the header (fail with `invalid` and the hint; `capcom upgrade [--format <n>]`, default the newest format, idempotent, never lowers), and `adr-0009-decision` says its implicit-raise clause is superseded by ADR 0019.
