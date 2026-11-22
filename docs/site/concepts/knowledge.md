@@ -197,7 +197,8 @@ auth  How sessions and tokens work
 
 `capcom know show <id>` always prints the Note it names, retired or not, so a citation of the old
 id leads straight to its replacement. `know verify`, `check` and `prime` skip the Refs of Retired
-Notes. Retiring a Note in an older store raises its format version; see
+Notes. Retiring a Note in a store below format 3 fails, writing nothing, and names
+`capcom upgrade --format 3`, which raises the store for everyone only when the user agrees; see
 [Supersession](../reference/file-format.md#supersession).
 
 ## Next

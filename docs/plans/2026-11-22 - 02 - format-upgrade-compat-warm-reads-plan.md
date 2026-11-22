@@ -126,7 +126,14 @@ NOTES (2026-11-22): help text still promising a raise (`create.go`, `update.go`,
 **Acceptance:** `go vet ./internal/... && GOMEMLIMIT=2GiB go test -count=1 ./internal/nodestore/ ./internal/stage/ ./internal/batch/ ./internal/ops/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ && ! grep -rn "RaisedFormat\|warnRaisedFormat\|formatRaisedWarning\|Overlay) RaiseFormat" internal && make lint`
 **Commit:** `refactor(store): remove the implicit store format raise`
 
-## 5. Help texts and docs no longer promise an implicit raise
+## 5. Help texts and docs no longer promise an implicit raise — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): internal/cli/know_update.go needed no change: its help no longer mentioned a raise (item 4 had already reworded its comment), so it is not in FILES.
+NOTES (2026-11-22): consequential edit — internal/cli/doc.go: comment reworded ("raises config.yaml's store format") so the Acceptance grep `raises (the|its) (store )?format` over internal/cli/*.go passes; it describes capcom upgrade, which still raises the format.
+NOTES (2026-11-22): consequential edit — internal/cli/upgrade.go: newUpgradeCommand comment reworded for the same Acceptance grep; meaning unchanged.
+NOTES (2026-11-22): consequential edit — internal/cli/golden_write_test.go: TestGolden_Upgrade_PinsTheAddedFormats comment reworded for the same Acceptance grep; meaning unchanged.
+NOTES (2026-11-22): file-format.md Config "any new key ... raises the format" (ADR 0009's release rule, also caught by the Acceptance grep) now reads "each new key ... comes with a new format"; the Notes format-version and store-config got the same rewording plus "only capcom upgrade raises a store's" (ADR 0019), via capcom know update, capcom check clean.
+NOTES (2026-11-22): file-format.md Related links now also lists `related rm` among the writes that fail on an issue already holding a related line (pinned by TestRelatedRm_FormatOneStoreHoldingRelated_FailsAndWritesNothing).
 
 **What:** Depends on item 3.
 **Goal:** No help text, generated reference page or doc says a write raises the store format; each says the write fails and names `capcom upgrade --format <n>`, and `file-format.md`'s config format rules say the format is raised only by `capcom upgrade`.

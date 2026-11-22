@@ -72,8 +72,9 @@ related: [write-docs]
 ```
 
 `capcom related rm <a> <b>` removes the link from whichever Issue holds it. Use a Related link for
-"look at this one too"; use a Dependency only when the order of the work matters. The first
-Related link in an older store raises its format version; see
+"look at this one too"; use a Dependency only when the order of the work matters. A Related
+link in a store below format 2 fails, writing nothing, and names `capcom upgrade --format 2`,
+which raises the store for everyone only when the user agrees; see
 [Related links](../reference/file-format.md#related-links) in the file format reference.
 
 ## How `capcom ready` orders work

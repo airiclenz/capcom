@@ -244,7 +244,7 @@ func TestCheck_RelatedInFormatOneStore_ReportsFormatTooOld(t *testing.T) {
 	stdout, stderr, exitCode := runCLI(t, root, "check")
 
 	want := ".capcom/issues/valid-issue.md:6: related needs store format 2, but the store declares format 1: " +
-		"set format: 2 in .capcom/config.yaml, or run a capcom write verb that raises it\n"
+		"ask the user before raising it for everyone: capcom upgrade --format 2\n"
 	if exitCode != ExitError || stdout != want || stderr != "" {
 		t.Errorf("check = %d, stdout %q, stderr %q; want 1 and %q", exitCode, stdout, stderr, want)
 	}

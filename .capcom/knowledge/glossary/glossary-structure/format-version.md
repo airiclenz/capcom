@@ -4,8 +4,9 @@ title: "Format version: the integer in config.yaml that names the file format a 
 
 The integer a repository's capcom files declare in the `format:` key of `config.yaml`, saying which
 file format they are written in; a missing key means 1. A binary refuses a store whose **Format
-version** is above the highest it reads, and adding any key to the files raises it: format 2 added
-**Related links**, format 3 added the Note keys `retired` and `superseded-by`, format 4 added the
+version** is above the highest it reads. Each key added to the files comes with a new **Format
+version**, and only `capcom upgrade` raises a store's (ADR 0019): format 2 added **Related links**,
+format 3 added the Note keys `retired` and `superseded-by`, format 4 added the
 `config.yaml` key `agents.guides`, format 5 added the issue key `standing`, and format 6 added the
 `config.yaml` key `agents.file`.
 _Avoid_: schema version, store version, config version

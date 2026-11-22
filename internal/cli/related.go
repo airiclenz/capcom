@@ -30,8 +30,8 @@ const (
 		"it is.\n\n" +
 		"--if-match writes only when the first Issue's etag still matches.\n\n" +
 		"It prints the id, path and etag of the first Issue.\n\n" +
-		"The first link in a store below format 2 raises the store format to 2, with a warning that " +
-		"older capcom releases can no longer read the store."
+		"In a store below format 2, the link fails, writes nothing and names capcom upgrade --format " +
+		"2: whether to raise the store's format for everyone is the user's decision."
 	relatedAddExample = "  capcom related add login-timeout-race session-refresh-bug   # shown on both; blocks neither\n" +
 		"  capcom related add login-timeout-race session-refresh-bug --if-match <etag>   # etag from show"
 	relatedRmLong = "Remove the Related link between two Issues from whichever of them holds it, so the " +

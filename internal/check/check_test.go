@@ -447,7 +447,7 @@ func TestRun_RelatedBelowFormatTwo_ReportsFormatTooOldAtTheRelatedLine(t *testin
 			for _, problem := range problems {
 				got = append(got, string(problem.Code)+" "+problem.String())
 			}
-			const advice = ": set format: 2 in .capcom/config.yaml, or run a capcom write verb that raises it"
+			const advice = ": ask the user before raising it for everyone: capcom upgrade --format 2"
 			want := []string{
 				string(diagnose.FormatTooOld) + " " + issues +
 					"login-flow.md:8: related needs store format 2, but the store declares format 1" + advice,
@@ -476,7 +476,7 @@ func TestRun_SupersessionKeysWithoutConfig_ReportFormatTooOldAtEachKey(t *testin
 	for _, problem := range problems {
 		got = append(got, string(problem.Code)+" "+problem.String())
 	}
-	const advice = ": set format: 3 in .capcom/config.yaml, or run a capcom write verb that raises it"
+	const advice = ": ask the user before raising it for everyone: capcom upgrade --format 3"
 	want := []string{
 		string(diagnose.FormatTooOld) + " " + knowledge +
 			"kept-flow.md:3: retired needs store format 3, but the store declares format 1" + advice,

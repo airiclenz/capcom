@@ -21,8 +21,9 @@ refs: [docs/site/reference/file-format.md, internal/config/config.go#FormatVersi
   `agents.guides`. The key needs format 6.
 - `format`: the store format version, a missing key meaning 1 (ADR 0009). A binary refuses a store
   whose format is newer than it reads (`prime` only warns), and any new key in an issue, a Note or
-  `config.yaml` raises the format by one; format 6 added the `config.yaml` key `agents.file`, so
-  `init` writes `format: 6`. The highest format this capcom reads is `FormatVersion`.
+  `config.yaml` comes with a new format, which only `capcom upgrade` raises a store to (ADR 0019);
+  format 6 added the `config.yaml` key `agents.file`, so `init` writes `format: 6`. The highest
+  format this capcom reads is `FormatVersion`.
 
 `docs/site/reference/file-format.md` `## Config` is the reference: the file `init` writes, the
 allowed values and the format raises.

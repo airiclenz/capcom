@@ -21,7 +21,7 @@ Linking an Issue to itself is refused, and a link already there, on either Issue
 
 It prints the id, path and etag of the first Issue.
 
-The first link in a store below format 2 raises the store format to 2, with a warning that older capcom releases can no longer read the store.
+In a store below format 2, the link fails, writes nothing and names capcom upgrade --format 2: whether to raise the store's format for everyone is the user's decision.
 
 ```
 capcom related add <id|alias|prefix> <related-id|alias|prefix> [flags]

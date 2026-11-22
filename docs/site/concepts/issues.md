@@ -86,7 +86,8 @@ hint: capcom update feature-requests --no-standing
 Issue that is Closed or in the `doing` category cannot be marked. `capcom show` prints a
 `standing: true` line for a marked Issue, `capcom ready --all` lists it as held back by
 `standing: holds children`, and `capcom check` reports a Standing Parent whose Status was moved
-into the `doing` category or a closed one by hand. The `standing` key needs store format 5 (see
+into the `doing` category or a closed one by hand. The `standing` key needs store format 5: in an
+older store marking an Issue fails, writing nothing, and names `capcom upgrade --format 5` (see
 [Fields](../reference/file-format.md#fields)).
 
 ## Id

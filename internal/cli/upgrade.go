@@ -45,7 +45,7 @@ const (
 		"  capcom upgrade --json       # {from, to, changed, adds} in a JSON envelope"
 )
 
-// newUpgradeCommand raises the format config.yaml declares to --format, config.FormatVersion by
+// newUpgradeCommand raises config.yaml's declared format to --format, config.FormatVersion by
 // default, through store.Store.RaiseFormat, which creates a missing config.yaml (ADR 0019). A
 // --format outside 1 to config.FormatVersion is a usage error. A store already at that format or
 // above is left untouched and the run exits 0. Only a run that changed config.yaml is noted as a

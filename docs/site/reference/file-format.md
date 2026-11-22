@@ -156,8 +156,9 @@ mark a close and a move into the `doing` category are refused: `capcom close` an
 never claimed or closed` and the hint `capcom update <id> --no-standing`, and `capcom ui` shows the
 refusal with that command as a notice. `capcom create --standing` and `capcom update --standing` write the key
 and refuse an issue that is Closed or in the `doing` category; `capcom update --no-standing`
-removes it, before any `--status` of the same call. In a store below format 5, a write that leaves
-a `standing` line in the issue file raises `config.yaml` to `format: 5` (see Config). `capcom check` reports a standing issue whose status is in the
+removes it, before any `--status` of the same call. In a store below format 5, a write that would
+leave a `standing` line in the issue file fails, writing nothing, and names
+`capcom upgrade --format 5` (see Config). `capcom check` reports a standing issue whose status is in the
 `doing` category or a closed one (`standing`), and a `standing` key in a store declaring a format
 below 5 (`format-too-old`), at the `standing` line, whatever it holds: `standing: false` included.
 
@@ -180,12 +181,14 @@ A **Related link** ties two issues together without either depending on the othe
 affects `ready`, `dep` or blocking. `capcom related add <a> <b>` writes the canonical id of `b`
 into the `related` list of `a`, and only there; the other issue's file is not touched. Linking an
 issue to itself is refused, and a link already held by either issue changes nothing. In a store
-below format 2, any write that leaves a `related` line in the issue file raises `config.yaml` to
-`format: 2` (see Config) and warns: the first link, and also an `update`, `close`, `reopen`, `log`
-or `dep` of an issue that already holds one:
+below format 2, any write that would leave a `related` line in the issue file fails with code
+`invalid`, writing nothing: the first link, and also an `update`, `close`, `reopen`, `log`, `dep`
+or `related rm` of an issue that already holds one. The error names the file and the hint names
+`capcom upgrade` (see Config):
 
 ```text
-warning: .capcom/config.yaml: store format raised to 2; capcom releases that read only format 1 can no longer read this store
+capcom: .capcom/issues/login-flow.md: related needs store format 2, but the store declares format 1
+hint: ask the user before raising it for everyone: capcom upgrade --format 2
 ```
 
 `capcom related rm <a> <b>` removes the link from whichever issue holds it: the entries of `a`
@@ -521,11 +524,12 @@ still holds. Neither key implies the other.
   claim is refused naming both files, as `capcom dep rm` refuses them; nothing is written. Both
   repeat, and the removals apply after the additions. An update that leaves a `retired` or
   `superseded-by` line in the Note file in a store below format 3, whether or not the update
-  added it, first raises `config.yaml` to `format: 3`, as `capcom related add` raises it to 2
-  (see Config), and warns:
+  added it, fails with code `invalid` and writes nothing, as `capcom related add` fails below
+  format 2 (see Config):
 
 ```text
-warning: .capcom/config.yaml: store format raised to 3; capcom releases that read only format 2 can no longer read this store
+capcom: .capcom/knowledge/old-flow.md: retired needs store format 3, but the store declares format 2
+hint: ask the user before raising it for everyone: capcom upgrade --format 3
 ```
 
 A `superseded-by` entry is spelled as an id or alias, appears once and never names the Note
@@ -625,7 +629,7 @@ elsewhere:
   key: a store whose format is newer than the binary reads fails every command with
   `.capcom/config.yaml:<line>: store format <n> is newer than this capcom reads (up to <max>); upgrade capcom`,
   except `capcom prime`, which reports it as one `warning: store:` line and exits 0. Unknown keys
-  stay errors, and any new key in an issue, a Note or this file raises the format. Format 2 adds
+  stay errors, and each new key in an issue, a Note or this file comes with a new format. Format 2 adds
   the `related` key to issue files; format 3 adds the Note keys `retired` and `superseded-by`;
   format 4 adds the `agents.guides` key to `config.yaml`; format 5 adds the `standing` key to
   issue files; format 6 adds the `agents.file` key to `config.yaml`.
@@ -634,15 +638,14 @@ elsewhere:
   `# format: 1`, so the store stays at format 1. A key line needs its format whatever it holds,
   an empty list or `retired: false` included, because a release older than the key rejects the
   file for the key alone. So a write that creates or edits an issue or a Note file carrying a key
-  line of a newer format than the store declares raises the store to that format: a `related`
-  line raises a store below format 2 to `format: 2`, replacing the `format:` line, or the
-  format-1 template's commented `# format: 1` line, keeping every other byte, and creating
-  `config.yaml` holding only that line when the store has none; a `retired` or `superseded-by`
-  line raises a store below format 3 to `format: 3` the same way, and a `standing` line a store
-  below format 5 to `format: 5` (see Related links, Fields and Supersession). Each raise warns that capcom releases reading only the older format can no
-  longer read the store. `capcom mv`, `rm`, `know mv`, `know rm` and `fmt` never raise it;
-  `capcom check` reports the key line instead. Nothing raises it for `config.yaml`'s own keys:
-  an `agents` key in a store declaring a format below 4 is an error at its line naming
+  line of a newer format than the store declares fails with code `invalid`, writing nothing, and
+  its hint reads `ask the user before raising it for everyone: capcom upgrade --format <n>`: a
+  `related` line needs format 2, a `retired` or `superseded-by` line format 3, and a `standing`
+  line format 5 (see Related links, Fields and Supersession). The format is raised only by
+  `capcom upgrade [--format <n>]` ([ADR 0019](../../../.capcom/knowledge/decisions/adr-0019.md)),
+  never by another write, and never lowered. `capcom mv`, `rm`, `know mv`, `know rm` and `fmt`
+  neither fail on such a key line nor touch `config.yaml`; `capcom check` reports the key line,
+  with the same advice. For `config.yaml`'s own keys, an `agents` key in a store declaring a format below 4 is an error at its line naming
   `format: 4` as the fix, and an `agents.file` key below format 6 likewise names `format: 6`:
   `.capcom/config.yaml:<line>: agents.file needs store format 6, but the store declares format <n>: set format: 6`.
 - **statuses** — an ordered mapping of status name to Status category. Every rule in capcom reads

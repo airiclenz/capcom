@@ -19,7 +19,7 @@ The body comes from --body, or --body-file (- reads stdin); --why adds a "## Why
 
 --standing marks it a standing Parent that only groups its children: it is never Ready, and it is not claimed or closed while marked, so it cannot be created in the doing category.
 
-The first standing Issue in a store below format 5 raises the store format to 5, with a warning that older capcom releases can no longer read the store.
+In a store below format 5, --standing fails, writes nothing and names capcom upgrade --format 5: whether to raise the store's format for everyone is the user's decision.
 
 It prints the new Issue's id, path and etag.
 

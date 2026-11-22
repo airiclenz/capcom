@@ -14,16 +14,16 @@ import (
 type Problem = diagnose.Finding
 
 // addFormatTooOld records a format-too-old problem at line, the line of key, a key that needs
-// store format needed in a store declaring format declared.
+// store format needed in a store declaring format declared. Its advice names capcom upgrade, the
+// one command that raises the format, as a write's refusal does (ADR 0019).
 func (c *checker) addFormatTooOld(path string, line int, key string, needed int, declared int) {
 	c.add(path, line, diagnose.FormatTooOld, fmt.Sprintf(
-		"%s needs store format %d, but the store declares format %d: set format: %d in %s, "+
-			"or run a capcom write verb that raises it",
+		"%s needs store format %d, but the store declares format %d: "+
+			"ask the user before raising it for everyone: capcom upgrade --format %d",
 		key,
 		needed,
 		declared,
 		needed,
-		c.store.Relative(c.store.ConfigPath()),
 	))
 }
 

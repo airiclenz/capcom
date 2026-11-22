@@ -100,7 +100,7 @@ func TestGolden_Fmt_PinsTheRewrittenPaths(t *testing.T) {
 	assertGoldenJSON(t, "fmt", root, stdout)
 }
 
-// TestGolden_Upgrade_PinsTheAddedFormats raises the format-4 fixture store to the newest format,
+// TestGolden_Upgrade_PinsTheAddedFormats raises the store of the format-4 fixture to the newest format,
 // so the golden pins a non-empty adds list.
 func TestGolden_Upgrade_PinsTheAddedFormats(t *testing.T) {
 	root := copyFixtureStore(t, config.FormatAgents)

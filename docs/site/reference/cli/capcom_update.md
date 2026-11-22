@@ -25,7 +25,7 @@ An Issue that is closed or in the doing category cannot be marked.
 
 --no-standing clears the mark, and is applied before --status, so one call can clear it and claim the Issue.
 
-The first standing Issue in a store below format 5 raises the store format to 5, with a warning that older capcom releases can no longer read the store.
+In a store below format 5, an update that leaves a standing line in the Issue fails, writes nothing and names capcom upgrade --format 5: whether to raise the store's format for everyone is the user's decision.
 
 --if-match refuses the write when the file no longer has the etag show printed.
 

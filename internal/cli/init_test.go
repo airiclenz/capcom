@@ -113,8 +113,8 @@ func TestInit_ExistingStoreWithoutConfig_StaysAtFormatOne(t *testing.T) {
 		t.Errorf("init stdout:\n%s\nwant it to report created .capcom/config.yaml", initOut)
 	}
 	wantProblem := ".capcom/knowledge/old-flow.md:3: retired needs store format 3, " +
-		"but the store declares format 1: set format: 3 in .capcom/config.yaml, " +
-		"or run a capcom write verb that raises it"
+		"but the store declares format 1: " +
+		"ask the user before raising it for everyone: capcom upgrade --format 3"
 	if !strings.Contains("\n"+checkOut+"\n", "\n"+wantProblem+"\n") {
 		t.Errorf("check stdout:\n%s\nwant the line:\n%s", checkOut, wantProblem)
 	}
