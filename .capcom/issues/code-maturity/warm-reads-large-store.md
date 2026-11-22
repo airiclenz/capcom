@@ -1,11 +1,13 @@
 ---
 title: prime, ready, next and list take over a second on a 10000-issue store
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, performance]
 plan: 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan
 created: 2026-11-05T10:50:43Z
+closed: 2026-11-22T22:52:20Z
+reason: "Resolved by plan 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan (archived at ad76061): N=10000 prime 0.68 s, ready 0.55 s, next 0.52 s, list --all --json 0.53 s, recorded in docs/reviews/benchmarks-2026-11-05.md."
 ---
 
 With a warm index, the read commands an agent runs most take over a second on a store of 10000

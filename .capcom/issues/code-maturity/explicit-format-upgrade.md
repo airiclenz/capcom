@@ -1,12 +1,14 @@
 ---
 title: An ordinary write silently raises the store format and locks out older capcom
-status: open
+status: done
 type: feature
 priority: 2
 labels: [maturity, compat, needs-decision]
 deps: [format-fixture-tests]
 plan: 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-22T22:52:20Z
+reason: "Resolved by plan 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan (archived at ad76061): ADR 0019, capcom upgrade, writes needing a newer format fail, help/docs updated."
 ---
 
 The first write that needs a newer store format raises `format:` in `.capcom/config.yaml` on

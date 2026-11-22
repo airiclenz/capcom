@@ -1,12 +1,14 @@
 ---
 title: No written compatibility promise for files, JSON output and exit codes
-status: open
+status: done
 type: task
 priority: 2
 labels: [maturity, docs, compat]
 deps: [json-golden-tests, format-fixture-tests]
 plan: 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-22T22:52:20Z
+reason: "Resolved by plan 2026-11-22 - 02 - format-upgrade-compat-warm-reads-plan (archived at ad76061): docs/site/reference/compatibility.md with test-backed promises, linked from README, FAQ, CONTRIBUTING, llms.txt, site index."
 ---
 
 capcom is at 0.x with frequent releases, and nothing tells an adopter what may change under
