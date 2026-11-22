@@ -167,6 +167,44 @@ func TestKnowUpdate_BodyFileFromStdin_ReplacesTheWholeBody(t *testing.T) {
 	}
 }
 
+func TestKnowUpdate_Body_ReplacesTheWholeBodyVerbatim(t *testing.T) {
+	root := newKnowStore(t)
+	body := "Costs $5 with `make gate`.\nSecond line"
+
+	_, stderr, exitCode := runCLI(t, root, "know", "update", "cli-tests", "--body", body)
+
+	want := "---\ntitle: CLI tests\n---\n\n" + body + "\n"
+	if got := readNoteFile(t, root, "testing-rules/cli-tests.md"); exitCode != ExitOK || got != want {
+		t.Errorf("know update --body = %d %q, note file = %q; want %q", exitCode, stderr, got, want)
+	}
+}
+
+func TestKnowUpdate_BodyWithAnotherBodyFlag_IsAUsageErrorWithoutWriting(t *testing.T) {
+	root := newKnowStore(t)
+	before := readNoteFile(t, root, "release-flow.md")
+	cases := []struct {
+		args  []string
+		group string
+	}{
+		{[]string{"--body-file", writeInputFile(t, "from a file")}, "[body body-file]"},
+		{[]string{"--body-append", "more"}, "[body body-append]"},
+		{[]string{"--body-append-file", writeInputFile(t, "more")}, "[body body-append-file]"},
+		{[]string{"--body-replace-old", "Tag", "--body-replace-new", "Sign"}, "[body body-replace-old]"},
+	}
+
+	for _, current := range cases {
+		args := append([]string{"know", "update", "release-flow", "--body", "inline"}, current.args...)
+		_, stderr, exitCode := runCLI(t, root, args...)
+
+		if exitCode != ExitUsage || !strings.Contains(stderr, current.group) {
+			t.Errorf("know update --body %v = %d, stderr %q; want usage naming %s", current.args, exitCode, stderr, current.group)
+		}
+	}
+	if got := readNoteFile(t, root, "release-flow.md"); got != before {
+		t.Errorf("release-flow.md = %q; want it unchanged %q", got, before)
+	}
+}
+
 func TestKnowUpdate_BlankBodyFile_LeavesNoBody(t *testing.T) {
 	root := newKnowStore(t)
 

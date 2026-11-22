@@ -13,7 +13,7 @@ Add a Note with a chosen id
 
 Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never generates, and the title given by --title; both are required.
 
---parent files it below another Note, --label and --ref set its Labels and Refs, and --body-file reads its markdown body from a file, - for stdin.
+--parent files it below another Note, and --label and --ref set its Labels and Refs. Its markdown body comes from --body, taken literally, or --body-file, which reads a file, - for stdin; the two exclude each other.
 
 A --ref inside the git directory is refused, since a clone never has it; one that does not resolve here, or that git ignores, is written with a warning, as capcom check fails on it.
 
@@ -28,12 +28,14 @@ capcom know add --id <slug> --title <title> [flags]
 ```
   capcom know add --id release-steps --title "How a release is cut" --ref docs/releasing.md   # a Note that depends on a file
   capcom know add --id release-tags --parent release-steps --title "Tagging a release" --label release   # below release-steps
+  capcom know add --id release-gate --title "The release gate" --body "Run the gate before tagging."   # body inline
   capcom know add --id adr-0031 --title "ADR 0031: one index per worktree" --body-file -   # body from stdin
 ```
 
 ### Options
 
 ```
+      --body string        the markdown body, taken literally
       --body-file string   file holding the markdown body; - reads stdin
   -h, --help               help for add
       --id string          the new Note's id: a kebab slug of 1 to 4 words (required)

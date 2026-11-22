@@ -22,14 +22,16 @@ const (
 const (
 	knowAddLong = "Add a Note with the id given by --id, a kebab slug of 1 to 4 words that capcom never " +
 		"generates, and the title given by --title; both are required.\n\n" +
-		"--parent files it below another Note, --label and --ref set its Labels and Refs, and " +
-		"--body-file reads its markdown body from a file, - for stdin.\n\n" +
+		"--parent files it below another Note, and --label and --ref set its Labels and Refs. Its " +
+		"markdown body comes from --body, taken literally, or --body-file, which reads a file, - for " +
+		"stdin; the two exclude each other.\n\n" +
 		"A --ref inside the git directory is refused, since a clone never has it; one that does not " +
 		"resolve here, or that git ignores, is written with a warning, as capcom check fails on it.\n\n" +
 		"It prints the new Note's id, path and etag, and a refreshed line when it rewrote the capcom " +
 		"block in the file agents.file names (AGENTS.md by default)."
 	knowAddExample = "  capcom know add --id release-steps --title \"How a release is cut\" --ref docs/releasing.md   # a Note that depends on a file\n" +
 		"  capcom know add --id release-tags --parent release-steps --title \"Tagging a release\" --label release   # below release-steps\n" +
+		"  capcom know add --id release-gate --title \"The release gate\" --body \"Run the gate before tagging.\"   # body inline\n" +
 		"  capcom know add --id adr-0031 --title \"ADR 0031: one index per worktree\" --body-file -   # body from stdin"
 )
 
@@ -43,6 +45,7 @@ type knowAddOptions struct {
 	parent   string
 	labels   []string
 	refs     []string
+	body     string
 	bodyFile string
 }
 
@@ -71,9 +74,11 @@ func (a *app) newKnowAddCommand() *cobra.Command {
 	a.completeFlag(cmd, flagParent, completeIDValue(noteIDs))
 	flags.StringSliceVar(&options.labels, flagLabel, nil, "labels; repeat or separate with commas")
 	flags.StringArrayVar(&options.refs, flagRef, nil, "a path or path#symbol the Note depends on; repeat for more")
+	flags.StringVar(&options.body, flagBody, "", "the markdown body, taken literally")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the markdown body; - reads stdin")
 	_ = cmd.MarkFlagRequired(flagID)    // fails only for an undefined flag
 	_ = cmd.MarkFlagRequired(flagTitle) // fails only for an undefined flag
+	cmd.MarkFlagsMutuallyExclusive(flagBody, flagBodyFile)
 	return cmd
 }
 
@@ -190,19 +195,19 @@ func (a *app) addSyncEffects(result *output.Result, effects nodestore.Effects) {
 }
 
 // newNote builds the Note the flags describe: labels without repeats or empty entries, and the
-// body file's text as noteBody shapes it.
+// text of --body, or of the --body-file, as noteBody shapes it.
 func newNote(cmd *cobra.Command, options *knowAddOptions) (knowledge.Note, error) {
 	note := knowledge.Note{
 		Title:  options.title,
 		Labels: edit.List(nil, options.labels, nil),
 		Refs:   options.refs,
 	}
-	if options.bodyFile == "" {
-		return note, nil
-	}
-	body, err := readTextInput(cmd, flagBodyFile, options.bodyFile)
-	if err != nil {
-		return knowledge.Note{}, err
+	body := options.body
+	if options.bodyFile != "" {
+		var err error
+		if body, err = readTextInput(cmd, flagBodyFile, options.bodyFile); err != nil {
+			return knowledge.Note{}, err
+		}
 	}
 	note.Body = noteBody(body)
 	return note, nil

@@ -195,7 +195,9 @@ internal/cli/fmt_test.go — TestFmt_InvalidFiles_WarnedAboutAndUntouchedWhileOt
 **Closes:** id-word-limit
 **Commit:** `feat(tree): name the rule a refused id breaks`
 
-## 6. know add and know update take --body
+## 6. know add and know update take --body — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): internal/cli/testdata/help/know-add.txt is not refreshed by the package's -update flag (that flag rewrites only the json/kv goldens); it was rewritten from the built binary's `capcom know add --help` output and read before handing over.
 
 **What:**
 **Goal:** `capcom know add --id x --title T --body "text"` writes the Note with that body, taken

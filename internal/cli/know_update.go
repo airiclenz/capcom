@@ -35,6 +35,7 @@ type knowUpdateOptions struct {
 	isUnretiring     bool
 	addSuccessors    []string
 	removeSuccessors []string
+	body             string
 	bodyFile         string
 	bodyAppend       []string
 	bodyAppendFile   string
@@ -52,7 +53,8 @@ const (
 		"it.\n\n" +
 		"--retire marks it retired, so it and its subtree leave browsing, --unretire clears that, and " +
 		"--add-superseded-by names the Notes that replace it.\n\n" +
-		"--body-file replaces the whole body, --body-append and --body-append-file add to it, and " +
+		"--body, taken literally, or --body-file replaces the whole body, --body-append and " +
+		"--body-append-file add to it, and " +
 		"--body-replace-old with --body-replace-new replaces text that occurs exactly once.\n\n" +
 		"--body-append and the --body-replace-old/--body-replace-new pair repeat: every pair applies " +
 		"in order, each against the body the pairs before it left, then every append in order, and " +
@@ -62,11 +64,12 @@ const (
 		"  capcom know update adr-0012 --retire --add-superseded-by adr-0031   # replaced in whole\n" +
 		"  capcom know update release-steps --body-append \"Run the gate first.\"   # add to the body\n" +
 		"  capcom know update release-steps --body-replace-old \"v1\" --body-replace-new \"v2\" --body-replace-old \"draft\" --body-replace-new \"final\"   # pairs apply in order\n" +
-		"  capcom know update release-steps --body-file notes.md   # replace the whole body"
+		"  capcom know update release-steps --body \"Tag only after the gate passes.\"   # replace the whole body\n" +
+		"  capcom know update release-steps --body-file notes.md   # the whole body from a file"
 )
 
 // noteInputs is what know update reads and resolves before it touches the Note: the whole new body
-// of --body-file, the text of --body-append-file, and the superseded-by list whose lookups decide
+// of --body or --body-file, the text of --body-append-file, and the superseded-by list whose lookups decide
 // the --add-superseded-by and --remove-superseded-by edits, its Entries left for the Note as read.
 type noteInputs struct {
 	body       string
@@ -78,8 +81,8 @@ type noteInputs struct {
 var successorWords = refusalWords{self: "%s cannot be superseded by itself"}
 
 // newKnowUpdateCommand changes the title, labels, refs, retired flag, superseded-by list and body
-// of one Note. Only the flags given change anything. --body-file replaces the whole body and so
-// excludes the flags that edit it; --retire excludes --unretire.
+// of one Note. Only the flags given change anything. --body and --body-file each replace the whole
+// body and so exclude each other and the flags that edit it; --retire excludes --unretire.
 func (a *app) newKnowUpdateCommand() *cobra.Command {
 	options := &knowUpdateOptions{}
 	cmd := &cobra.Command{
@@ -93,7 +96,7 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			if !hasAnyFlag(cmd, flagTitle, flagAddLabel, flagRemoveLabel, flagAddRef, flagRemoveRef,
 				flagRetire, flagUnretire, flagAddSupersededBy, flagRemoveSupersededBy,
-				flagBodyFile, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld) {
+				flagBody, flagBodyFile, flagBodyAppend, flagBodyAppendFile, flagBodyReplaceOld) {
 				return output.UsageErrorf("know update needs at least one flag that changes the Note")
 			}
 			if err := options.bodyEdits().checkPairs(); err != nil {
@@ -129,6 +132,7 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 		"the id, alias or prefix of a superseded-by entry to remove; repeat for more")
 	a.completeFlag(cmd, flagAddSupersededBy, completeIDValue(noteIDs))
 	a.completeFlag(cmd, flagRemoveSupersededBy, completeIDValue(noteIDs))
+	flags.StringVar(&options.body, flagBody, "", "the whole new markdown body, taken literally")
 	flags.StringVar(&options.bodyFile, flagBodyFile, "", "file holding the whole new markdown body; - reads stdin")
 	flags.StringArrayVar(&options.bodyAppend, flagBodyAppend, nil,
 		"text to append to the body, taken literally; repeat to append several in order")
@@ -142,15 +146,23 @@ func (a *app) newKnowUpdateCommand() *cobra.Command {
 	cmd.MarkFlagsMutuallyExclusive(flagBodyFile, flagBodyAppend)
 	cmd.MarkFlagsMutuallyExclusive(flagBodyFile, flagBodyAppendFile)
 	cmd.MarkFlagsMutuallyExclusive(flagBodyFile, flagBodyReplaceOld)
+	cmd.MarkFlagsMutuallyExclusive(flagBody, flagBodyFile)
+	cmd.MarkFlagsMutuallyExclusive(flagBody, flagBodyAppend)
+	cmd.MarkFlagsMutuallyExclusive(flagBody, flagBodyAppendFile)
+	cmd.MarkFlagsMutuallyExclusive(flagBody, flagBodyReplaceOld)
 	cmd.MarkFlagsRequiredTogether(flagBodyReplaceOld, flagBodyReplaceNew)
 	cmd.MarkFlagsMutuallyExclusive(flagRetire, flagUnretire)
 	return cmd
 }
 
-// readNoteInputs reads the files --body-file and --body-append-file name, each only when given.
+// readNoteInputs takes the text of --body and reads the files --body-file and --body-append-file
+// name, each only when given.
 func readNoteInputs(cmd *cobra.Command, options *knowUpdateOptions) (noteInputs, error) {
 	var inputs noteInputs
 	var err error
+	if cmd.Flags().Changed(flagBody) {
+		inputs.body = options.body
+	}
 	if cmd.Flags().Changed(flagBodyFile) {
 		if inputs.body, err = readTextInput(cmd, flagBodyFile, options.bodyFile); err != nil {
 			return noteInputs{}, err
@@ -344,7 +356,7 @@ func (a *app) applyNoteUpdate(
 		}
 		note.SupersededBy = successors
 	}
-	if flags.Changed(flagBodyFile) {
+	if flags.Changed(flagBody) || flags.Changed(flagBodyFile) {
 		note.Body = noteBody(inputs.body)
 	}
 	body, err := options.bodyEdits().apply(note.Body)

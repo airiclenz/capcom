@@ -616,6 +616,32 @@ func TestKnowAdd_RefusedInputs_FailWithoutWriting(t *testing.T) {
 	}
 }
 
+func TestKnowAdd_Body_WritesTheTextVerbatim(t *testing.T) {
+	root := newKnowStore(t)
+	body := "Costs $5 with `make gate`.\nSecond line"
+
+	_, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "gate-cost", "--title", "Gate cost", "--body", body)
+
+	want := "---\ntitle: Gate cost\n---\n\n" + body + "\n"
+	if got := readNoteFile(t, root, "gate-cost.md"); exitCode != ExitOK || got != want {
+		t.Errorf("know add --body = %d %q, note file = %q; want %q", exitCode, stderr, got, want)
+	}
+}
+
+func TestKnowAdd_BodyWithBodyFile_IsAUsageErrorWithoutWriting(t *testing.T) {
+	root := newKnowStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "know", "add", "--id", "two-bodies", "--title", "Two bodies",
+		"--body", "inline", "--body-file", writeInputFile(t, "from a file"))
+
+	if exitCode != ExitUsage || !strings.Contains(stderr, "[body body-file]") {
+		t.Errorf("know add --body --body-file = %d, stderr %q; want usage naming both flags", exitCode, stderr)
+	}
+	if noteFileExists(t, root, "two-bodies.md") {
+		t.Error("two-bodies.md was written although --body and --body-file clash")
+	}
+}
+
 func TestKnowAdd_BlankTitle_FailsInvalidWithoutWriting(t *testing.T) {
 	root := newKnowStore(t)
 
