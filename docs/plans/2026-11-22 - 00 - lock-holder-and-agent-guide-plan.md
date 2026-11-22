@@ -211,7 +211,12 @@ and under another chain pinned in `prime_test.go`; `grep -rn "carry on" internal
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 -run 'LockWarn|Prime' ./internal/cli/ && ! grep -rn "carry on" internal/cli --include=*.go`
 **Commit:** `fix(cli): tell another session what to do when it writes under a held lock`
 
-## 6. Warnings print before the result in text output
+## 6. Warnings print before the result in text output — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): lock_test.go and related_test.go also pinned a text warning after the result (TestLockStatus_CorruptOwnRecord_ReportsInvalidWithAWarning, TestRelatedAdd_KeylessConfig_RaisesTheFormatOnceWithAWarning, TestRelatedAdd_MissingConfig_CreatesItAtFormatTwo); updated per the item's "every internal/cli test" rule (Files list is a floor)
+NOTES (2026-11-22): renamed TestTextRenderer_Render_WritesWarningsAfterResult to ...WritesWarningsBeforeResult and TestReindex_BrokenFile_WarnsAfterResultAndIndexesTheRest to ...WarnsBeforeResult..., whose names the change made false; added TestTextRenderer_Render_KeepsElsewhereAndFailureAfterResult to pin the Goal's Elsewhere/failure placement
+NOTES (2026-11-22): consequential edit — docs/site/agents/managed-block.md: made necessary by warnings-first rendering (the capcom agents example showed the warning after the result)
+NOTES (2026-11-22): consequential edit — docs/site/reference/file-format.md: made necessary by warnings-first rendering ("prints each warning: line after the command's result" became false)
 
 **What:** Issue `warnings-print-last`.
 **Goal:** a text-mode result writes every `warning: ` line before its result text; Elsewhere

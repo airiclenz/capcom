@@ -333,7 +333,7 @@ func TestRelatedAdd_KeylessConfig_RaisesTheFormatOnceWithAWarning(t *testing.T) 
 	first := mustRun(t, root, "related", "add", "login-flow", "db-schema")
 	second := mustRun(t, root, "related", "add", "login-flow", "build-pipeline")
 
-	if !strings.HasSuffix(first, formatRaisedText) || strings.Contains(second, "warning:") {
+	if !strings.HasPrefix(first, formatRaisedText) || strings.Contains(second, "warning:") {
 		t.Errorf("first = %q\nsecond = %q, want the warning on the first only", first, second)
 	}
 	if config := readStoreConfig(t, root); config != "format: 2\ntypes: [bug, feature, task, chore]\n" {
@@ -366,7 +366,7 @@ func TestRelatedAdd_MissingConfig_CreatesItAtFormatTwo(t *testing.T) {
 
 	stdout := mustRun(t, root, "related", "add", "login-flow", "db-schema")
 
-	if config := readStoreConfig(t, root); config != "format: 2\n" || !strings.HasSuffix(stdout, formatRaisedText) {
+	if config := readStoreConfig(t, root); config != "format: 2\n" || !strings.HasPrefix(stdout, formatRaisedText) {
 		t.Errorf("config.yaml = %q stdout = %q", config, stdout)
 	}
 }

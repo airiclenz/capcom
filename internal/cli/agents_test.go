@@ -579,8 +579,8 @@ func TestAgents_BlockFileWithoutAgentsMD_WarnsAndCreatesNoAgentsMD(t *testing.T)
 	stdout, stderr, exitCode := runCLI(t, root, "agents")
 	jsonOut := mustRun(t, root, "agents", "--json")
 
-	want := "the capcom block of " + customBlockFile + " is current\nwarning: " +
-		missingAgentsMDProblem + "; " + missingAgentsMDHint + "\n"
+	want := "warning: " + missingAgentsMDProblem + "; " + missingAgentsMDHint +
+		"\nthe capcom block of " + customBlockFile + " is current\n"
 	if exitCode != ExitOK || stderr != "" || stdout != want {
 		t.Errorf("agents = %d, stdout %q, stderr %q; want 0 and %q", exitCode, stdout, stderr, want)
 	}

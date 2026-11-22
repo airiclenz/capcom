@@ -434,7 +434,7 @@ func TestLockStatus_CorruptOwnRecord_ReportsInvalidWithAWarning(t *testing.T) {
 	kv, _, kvExit := runCLI(t, root, "lock", "status", "--kv")
 	jsonOut, _, jsonExit := runCLI(t, root, "lock", "status", "--json")
 
-	if textExit != ExitOK || !strings.HasPrefix(text, "_main: invalid\n") || !strings.Contains(text, warning) {
+	if textExit != ExitOK || !strings.HasSuffix(text, "\n_main: invalid\n") || !strings.Contains(text, warning) {
 		t.Errorf("text: exit = %d stdout = %q stderr = %q, want the invalid state and the warning", textExit, text, textStderr)
 	}
 	if kvExit != ExitOK || kvValue(t, kv, "LOCK") != "invalid" || !strings.Contains(kv, warning) || lastLine(kv) != "STATUS=ok" {

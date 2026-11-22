@@ -33,10 +33,10 @@ Create a child with `--parent`, and move an Issue anywhere in the Tree with `cap
 
 ```console
 $ capcom create --id login-copy --title "Reword the login errors" --parent login-flow --priority 1
+warning: login-copy has no body: add what, why and acceptance with capcom update login-copy --body-append <text>; create takes --body, --why and --acceptance
 id: login-copy
 path: .capcom/issues/login-flow/login-copy.md
 etag: ee3c737826bc9fb6
-warning: login-copy has no body: add what, why and acceptance with capcom update login-copy --body-append <text>; create takes --body, --why and --acceptance
 ```
 
 `capcom list --tree` shows the outline, with how many of each Parent's children are closed:

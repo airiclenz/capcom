@@ -238,6 +238,18 @@ func TestLockWarn_LiveLock_SaysAnotherSessionHoldsIt(t *testing.T) {
 	}
 }
 
+func TestLockWarn_CreateUnderAForeignLock_PrintsTheWarningFirst(t *testing.T) {
+	root := newLockWarnStore(t)
+	acquireToken(t, root, "other-session")
+
+	stdout := mustRun(t, root, "create", "--id", "fresh", "--title", "Fresh")
+
+	firstLine, _, _ := strings.Cut(stdout, "\n")
+	if warning := lockWarning(stdout); warning == "" || firstLine != warning {
+		t.Errorf("stdout = %q, want the lock warning on line 1", stdout)
+	}
+}
+
 func TestLockWarn_InvalidRecord_WarnsNamingLockStatus(t *testing.T) {
 	root := newLockWarnStore(t)
 	writeLockRecord(t, root, "_main", "{")

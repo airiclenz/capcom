@@ -286,7 +286,7 @@ func TestKnowUpdate_MissingAndIgnoredRefs_WarnAndWrite(t *testing.T) {
 
 	wantWarnings := "warning: .capcom/knowledge/release-flow.md: ref \"gone.go\": no such file or directory\n" +
 		"warning: .capcom/knowledge/release-flow.md: ref \"build.log\": is ignored by git, so a clone does not have it\n"
-	if exitCode != ExitOK || !strings.HasSuffix(stdout, wantWarnings) {
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, wantWarnings) {
 		t.Errorf("know update = %d\n%s%s\nwant the warnings\n%s", exitCode, stdout, stderr, wantWarnings)
 	}
 	want := "---\ntitle: Release flow\nlabels: [process]\nrefs: [go.mod, gone.go, build.log]\n---\n\nTag, then publish.\n"

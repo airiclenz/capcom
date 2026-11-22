@@ -113,7 +113,7 @@ func TestNext_AllReadyHidden_WarnsAndExitsNothingReady(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "next")
 
-	want := nothingReadyMessage + "\nwarning: " + allHiddenWarningText + "\n"
+	want := "warning: " + allHiddenWarningText + "\n" + nothingReadyMessage + "\n"
 	if exitCode != output.ExitNothingReady || stderr != "" || stdout != want {
 		t.Errorf("exit = %d stderr = %q stdout = %q, want exit %d stdout %q",
 			exitCode, stderr, stdout, output.ExitNothingReady, want)

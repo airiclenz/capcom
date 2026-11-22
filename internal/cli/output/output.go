@@ -60,7 +60,8 @@ const (
 // branches, reported apart from the result: text writes one line each after it, --json puts them
 // in the envelope's elsewhere member, and --kv leaves them out. Match, set only by the search
 // commands, tells --json whether the hits hold every query word (MatchAll) or some (MatchAny);
-// text and --kv leave it out.
+// text and --kv leave it out. Warnings are written in text mode as one warning: line each,
+// before the result.
 type Result struct {
 	Kind      string
 	Match     string
@@ -144,7 +145,7 @@ func NewRenderer(format OutputFormat, stdout, stderr io.Writer) Renderer {
 	}
 }
 
-// textRenderer writes plain text: the result and any warnings to stdout, failures to stderr.
+// textRenderer writes plain text: any warnings, then the result, to stdout; failures to stderr.
 type textRenderer struct {
 	stdout io.Writer
 	stderr io.Writer
@@ -152,12 +153,12 @@ type textRenderer struct {
 
 func (r textRenderer) Render(result Result) error {
 	var out strings.Builder
+	for _, warning := range result.Warnings {
+		out.WriteString(textWarnLabel + warning + "\n")
+	}
 	out.WriteString(result.Text)
 	for _, entry := range result.Elsewhere {
 		out.WriteString(textElsewhereLabel + entry.String() + "\n")
-	}
-	for _, warning := range result.Warnings {
-		out.WriteString(textWarnLabel + warning + "\n")
 	}
 	if _, err := io.WriteString(r.stdout, termsafe.Escape(out.String())); err != nil {
 		return err

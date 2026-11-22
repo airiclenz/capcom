@@ -206,14 +206,14 @@ func TestReady_Text_ListsReadyLinesAndReasonsUnderAll(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "ready", "--all", "--no-label", "auth")
 
-	want := "api-tokens  open  P0  API tokens\n" +
+	want := "warning: .capcom/issues/api-tokens.md: dep \"old-api\" is dropped; counted as satisfied\n" +
+		"api-tokens  open  P0  API tokens\n" +
 		"invoice-run  open  P2  Invoice  -- not ready: open children: invoice-pdf; held by billing-system\n" +
 		"invoice-pdf  open  P2  Invoice PDF  -- not ready: held by billing-system\n" +
 		"login-flow  open  P2  Login flow  -- not ready: open children: session-refresh\n" +
 		"needs-gone  open  P2  Needs gone  -- not ready: blocked by nothing-here (missing)\n" +
 		"triage-me  triage  P2  Triage me\n" +
-		"uses-alias  open  P2  Uses alias\n" +
-		"warning: .capcom/issues/api-tokens.md: dep \"old-api\" is dropped; counted as satisfied\n"
+		"uses-alias  open  P2  Uses alias\n"
 	if exitCode != ExitOK || stderr != "" || stdout != want {
 		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
 	}
@@ -224,12 +224,12 @@ func TestReady_Text_ReadyLineEndsWithWhatItUnblocks(t *testing.T) {
 
 	stdout, stderr, exitCode := runCLI(t, root, "ready", "--show-hidden")
 
-	want := "api-tokens  open  P0  API tokens\n" +
+	want := "warning: .capcom/issues/api-tokens.md: dep \"old-api\" is dropped; counted as satisfied\n" +
+		"api-tokens  open  P0  API tokens\n" +
 		"session-refresh  open  P2  Session refresh  -- unblocks 1\n" +
 		"deploy-prod  open  P2  Deploy\n" +
 		"triage-me  triage  P2  Triage me\n" +
-		"uses-alias  open  P2  Uses alias\n" +
-		"warning: .capcom/issues/api-tokens.md: dep \"old-api\" is dropped; counted as satisfied\n"
+		"uses-alias  open  P2  Uses alias\n"
 	if exitCode != ExitOK || stderr != "" || stdout != want {
 		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
 	}

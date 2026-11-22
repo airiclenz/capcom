@@ -49,7 +49,7 @@ func TestReindex_AfterDeletingIndex_RebuildsIt(t *testing.T) {
 	}
 }
 
-func TestReindex_BrokenFile_WarnsAfterResultAndIndexesTheRest(t *testing.T) {
+func TestReindex_BrokenFile_WarnsBeforeResultAndIndexesTheRest(t *testing.T) {
 	root := newIssueStore(t, map[string]string{
 		"valid-issue.md":  validIssue,
 		"broken-issue.md": "no frontmatter\n",
@@ -62,8 +62,8 @@ func TestReindex_BrokenFile_WarnsAfterResultAndIndexesTheRest(t *testing.T) {
 	}
 	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
 	want := "warning: .capcom/issues/broken-issue.md:1: an issue file must start with a --- line"
-	if len(lines) != 2 || !strings.HasPrefix(lines[0], "reindexed 1 issues into ") || lines[1] != want {
-		t.Errorf("stdout = %q, want the result line then %q", stdout, want)
+	if len(lines) != 2 || lines[0] != want || !strings.HasPrefix(lines[1], "reindexed 1 issues into ") {
+		t.Errorf("stdout = %q, want %q then the result line", stdout, want)
 	}
 }
 

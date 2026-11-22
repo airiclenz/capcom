@@ -62,7 +62,7 @@ func TestKVRenderer_Render_ClosesEveryRecordWithStatus(t *testing.T) {
 	}
 }
 
-func TestTextRenderer_Render_WritesWarningsAfterResult(t *testing.T) {
+func TestTextRenderer_Render_WritesWarningsBeforeResult(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 
 	err := NewRenderer(FormatText, &stdout, &stderr).Render(Result{Text: "done\n", Warnings: []string{"a.md:3: bad"}})
@@ -70,8 +70,30 @@ func TestTextRenderer_Render_WritesWarningsAfterResult(t *testing.T) {
 	if err != nil || stderr.Len() != 0 {
 		t.Fatalf("err = %v stderr = %q", err, stderr.String())
 	}
-	if want := "done\nwarning: a.md:3: bad\n"; stdout.String() != want {
+	if want := "warning: a.md:3: bad\ndone\n"; stdout.String() != want {
 		t.Errorf("stdout = %q, want %q", stdout.String(), want)
+	}
+}
+
+func TestTextRenderer_Render_KeepsElsewhereAndFailureAfterResult(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	result := Result{
+		Text:      "done\n",
+		Elsewhere: []elsewhere.Entry{{ID: "login", Branch: "feature", Change: elsewhere.Added}},
+		Warnings:  []string{"a.md:3: bad"},
+		Failure:   &Error{Code: CodeNotFound, Message: "issue gone not found"},
+	}
+
+	err := NewRenderer(FormatText, &stdout, &stderr).Render(result)
+
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if want := "warning: a.md:3: bad\ndone\nelsewhere: login: added on feature (unmerged)\n"; stdout.String() != want {
+		t.Errorf("stdout = %q, want %q", stdout.String(), want)
+	}
+	if want := "capcom: issue gone not found\nhint: capcom search <text>\n"; stderr.String() != want {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
 	}
 }
 

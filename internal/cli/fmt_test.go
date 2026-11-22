@@ -109,7 +109,7 @@ func TestFmt_BrokenFile_WarnsAndLeavesItUntouched(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "fmt")
 
-	want := "formatted 0 files\nwarning: .capcom/issues/broken-issue.md:1: an issue file must start with a --- line\n"
+	want := "warning: .capcom/issues/broken-issue.md:1: an issue file must start with a --- line\nformatted 0 files\n"
 	if exitCode != ExitOK || stdout != want {
 		t.Fatalf("fmt = %d, stdout:\n%s\nwant 0 and\n%s", exitCode, stdout, want)
 	}
@@ -128,7 +128,7 @@ func TestFmt_InvalidFiles_WarnedAboutAndUntouchedWhileOthersAreFormatted(t *test
 
 	stdout, _, exitCode := runCLI(t, root, "fmt")
 
-	if exitCode != ExitOK || !strings.HasPrefix(stdout, ".capcom/issues/plan-issue.md\nformatted 1 files\n") {
+	if exitCode != ExitOK || !strings.HasSuffix(stdout, "\n.capcom/issues/plan-issue.md\nformatted 1 files\n") {
 		t.Fatalf("fmt = %d, stdout:\n%s\nwant 0, formatting only plan-issue.md", exitCode, stdout)
 	}
 	for _, warning := range []string{

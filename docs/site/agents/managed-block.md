@@ -249,8 +249,8 @@ guide then reaches the block:
 
 ```console
 $ capcom agents
-wrote the capcom block to docs/capcom.md
 warning: AGENTS.md: is missing, so no agent guide reaches the capcom block in docs/capcom.md; create AGENTS.md holding the line @docs/capcom.md
+wrote the capcom block to docs/capcom.md
 ```
 
 For an `AGENTS.md` that capcom must not write, add the import line to it once, by hand or through

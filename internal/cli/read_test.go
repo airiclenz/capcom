@@ -380,11 +380,11 @@ func TestListTree_ChildOfUnparseableParent_PrintsAsRoot(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "list", "--tree")
 
-	// The unusable file's warning follows the outline.
-	want := "session-refresh  parked  P2  " + longTitle + "\n" +
-		"release-checklist  open  P0  Release checklist\nwarning: "
-	if exitCode != ExitOK || !strings.HasPrefix(stdout, want) {
-		t.Errorf("list --tree exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, want)
+	// The unusable file's warning precedes the outline.
+	want := "\nsession-refresh  parked  P2  " + longTitle + "\n" +
+		"release-checklist  open  P0  Release checklist\n"
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, "warning: ") || !strings.HasSuffix(stdout, want) {
+		t.Errorf("list --tree exit = %d\nstdout = %q\nwant     %q", exitCode, stdout, "warning: ..."+want)
 	}
 }
 
@@ -418,11 +418,11 @@ func TestListTree_ChildOfLeftOutParent_LeftOutWithWarning(t *testing.T) {
 
 		stdout, stderr, exitCode := runCLI(t, root, "list", "--tree")
 
-		// The warnings follow the outline, path-sorted, so the directory's may not be the first.
-		if exitCode != ExitOK || !strings.HasPrefix(stdout, current.want+"warning: ") ||
+		// The warnings precede the outline, path-sorted, so the directory's may not be the first.
+		if exitCode != ExitOK || !strings.HasPrefix(stdout, "warning: ") || !strings.HasSuffix(stdout, "\n"+current.want) ||
 			!strings.Contains(stdout, current.warning) {
 			t.Errorf("%s: list --tree = %d\nstdout = %q\nstderr = %q\nwant %q\nand %q",
-				current.name, exitCode, stdout, stderr, current.want+"warning: ...", current.warning)
+				current.name, exitCode, stdout, stderr, "warning: ...\n"+current.want, current.warning)
 		}
 	}
 }
@@ -1358,8 +1358,8 @@ func TestReady_UnbornHead_WarnsAndPrintsTheResult(t *testing.T) {
 
 	stdout, _, exitCode := runCLI(t, root, "ready")
 
-	if exitCode != ExitOK || !strings.HasPrefix(stdout, "release-checklist  open  P0") ||
-		!strings.Contains(stdout, "warning: elsewhere: HEAD has no commit yet") {
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, "warning: elsewhere: HEAD has no commit yet") ||
+		!strings.Contains(stdout, "\nrelease-checklist  open  P0") {
 		t.Errorf("exit = %d stdout = %q, want the ready list and a warning about HEAD", exitCode, stdout)
 	}
 }

@@ -325,7 +325,7 @@ allow (an undeclared status or type, a priority out of range) cites its key's li
 A command does not fail on a bad issue file, except when it writes or moves an id the file may hold,
 as below. The index (`<git-dir>/capcom/index.db`) leaves the file out and every command that reads
 it reports the file as a warning until the file is fixed; the other issues stay usable. Plain text
-prints each `warning:` line after the command's result; `--kv` output puts every `WARNING=` line
+prints each `warning:` line before the command's result; `--kv` output puts every `WARNING=` line
 before its first record, so that `STATUS=` is always the last line. `create`, `mv` and `rm` fail on
 a problem with the tree only
 when it concerns the issue they write, move or remove, its new path or the parent they resolve; any

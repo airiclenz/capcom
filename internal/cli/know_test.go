@@ -406,9 +406,9 @@ func TestKnowTree_ChildOfUnparseableParent_PrintsAsRoot(t *testing.T) {
 
 		stdout, stderr, exitCode := runCLI(t, root, "know", "tree")
 
-		// The unusable file's warning follows the outline.
-		if exitCode != ExitOK || !strings.HasPrefix(stdout, current.want+"warning: ") {
-			t.Errorf("%s: know tree = %d\n%s%s\nwant\n%swarning: ...", current.name, exitCode, stdout, stderr, current.want)
+		// The unusable file's warning precedes the outline.
+		if exitCode != ExitOK || !strings.HasPrefix(stdout, "warning: ") || !strings.HasSuffix(stdout, "\n"+current.want) {
+			t.Errorf("%s: know tree = %d\n%s%s\nwant\nwarning: ...\n%s", current.name, exitCode, stdout, stderr, current.want)
 		}
 	}
 }
@@ -444,10 +444,10 @@ func TestKnowTree_ChildOfLeftOutParent_LeftOutWithWarning(t *testing.T) {
 
 		stdout, stderr, exitCode := runCLI(t, root, "know", "tree")
 
-		// The warnings follow the outline, path-sorted, so the directory's may not be the first.
-		if exitCode != ExitOK || !strings.HasPrefix(stdout, current.want+"warning: ") ||
+		// The warnings precede the outline, path-sorted, so the directory's may not be the first.
+		if exitCode != ExitOK || !strings.HasPrefix(stdout, "warning: ") || !strings.HasSuffix(stdout, "\n"+current.want) ||
 			!strings.Contains(stdout, current.warning) {
-			t.Errorf("%s: know tree = %d\n%s%s\nwant\n%swarning: ...\nand %q",
+			t.Errorf("%s: know tree = %d\n%s%s\nwant\nwarning: ...\n%sand %q",
 				current.name, exitCode, stdout, stderr, current.want, current.warning)
 		}
 	}
@@ -672,7 +672,7 @@ func TestKnowAdd_MissingAndIgnoredRefs_WarnAndWrite(t *testing.T) {
 
 	wantWarnings := "warning: .capcom/knowledge/build-notes.md: ref \"gone.go\": no such file or directory\n" +
 		"warning: .capcom/knowledge/build-notes.md: ref \"build.log\": is ignored by git, so a clone does not have it\n"
-	if exitCode != ExitOK || !strings.HasSuffix(stdout, wantWarnings) {
+	if exitCode != ExitOK || !strings.HasPrefix(stdout, wantWarnings) {
 		t.Errorf("know add = %d\n%s%s\nwant the warnings\n%s", exitCode, stdout, stderr, wantWarnings)
 	}
 	if got, want := readNoteFile(t, root, "build-notes.md"), "---\ntitle: Build notes\nrefs: [go.mod, gone.go, build.log]\n---\n"; got != want {
