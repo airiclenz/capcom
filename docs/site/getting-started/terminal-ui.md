@@ -218,7 +218,7 @@ and `d` or Esc returns to the detail pane. Moving the sidebar's selection closes
 `/` opens a filter line over the current tab's sidebar. Enter keeps the filter, Esc on the line
 clears it, and Esc from the sidebar clears a kept one. The words of the line all have to match:
 
-- free text matches the title and body, as `capcom search` (or `capcom know search` on the
+- free text matches the id, title and body, as `capcom search` (or `capcom know search` on the
   Knowledge tab) finds them when an item holds every word; the filter does not fall back to items
   holding only some of the words;
 - `status:<name>` keeps the Issues in that Status; the Status must be declared in

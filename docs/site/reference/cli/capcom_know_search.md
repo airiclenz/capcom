@@ -1,17 +1,17 @@
 ---
 title: "capcom know search"
-description: "Find Notes whose title or body contains every word, else some of them"
+description: "Find Notes whose id, title or body contains every word, else some of them"
 sidebar:
   order: 1
 ---
 
 ## capcom know search
 
-Find Notes whose title or body contains every word, else some of them
+Find Notes whose id, title or body contains every word, else some of them
 
 ### Synopsis
 
-Find the Notes whose title or body contains every word given, each as a whole word, and list them best match first, one line each with the id and title.
+Find the Notes whose id, title or body contains every word given, each as a whole word, and list them best match first, one line each with the id and title. The words of an id are its parts between hyphens, and a Note found only by its id ranks after those found by title or body.
 
 A run of CJK characters with no spaces counts as one word, so 登录超时问题 is found by 登录超时问题, not by 登录.
 

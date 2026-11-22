@@ -678,6 +678,42 @@ func TestSearch_BodyWord_FindsTheIssue(t *testing.T) {
 	}
 }
 
+func TestSearch_WordOnlyInAnID_FindsTheIssueAndNoteAfterTitleAndBodyHits(t *testing.T) {
+	t.Parallel()
+	s := newStore(t)
+	writeIssue(t, s, "lock-kept-token.md", issueText("Keep the lock", "open", "Nothing else.\n"))
+	writeIssue(t, s, "title-hit.md", issueText("Token renewal", "open", "Nothing else.\n"))
+	writeIssue(t, s, "body-hit.md", issueText("Renewal", "open", "The token expires.\n"))
+	writeNote(t, s, "note-kept-token.md", "---\ntitle: Keep the lock\n---\nNothing else.\n")
+	writeNote(t, s, "note-title-hit.md", "---\ntitle: Token renewal\n---\nNothing else.\n")
+	writeNote(t, s, "note-body-hit.md", "---\ntitle: Renewal\n---\nThe token expires.\n")
+	x := openIndex(t, s)
+	refresh(t, x)
+
+	issues, issueErr := x.Search("token")
+	anyIssues, anyIssueErr := x.SearchIssuesAnyWord("token absent")
+	notes, noteErr := x.SearchNotes("token", nil, false)
+	anyNotes, anyNoteErr := x.SearchNotesAnyWord("token absent", nil, false)
+	phrase, phraseErr := x.Search("lock-kept-token")
+
+	for name, got := range map[string][]string{
+		"Search(token)":              issues,
+		"SearchIssuesAnyWord(token)": ids(anyIssues),
+		"SearchNotes(token)":         noteIDs(notes),
+		"SearchNotesAnyWord(token)":  noteIDs(anyNotes),
+	} {
+		if len(got) != 3 || !strings.HasSuffix(got[2], "kept-token") {
+			t.Errorf("%s = %v; want the title and body hits, then the id-only hit last", name, got)
+		}
+	}
+	if err := errors.Join(issueErr, anyIssueErr, noteErr, anyNoteErr, phraseErr); err != nil {
+		t.Errorf("search: %v", err)
+	}
+	if !slices.Equal(phrase, []string{"lock-kept-token"}) {
+		t.Errorf("Search(lock-kept-token) = %v, want lock-kept-token", phrase)
+	}
+}
+
 func TestRebuild_ExistingIndex_ReparsesEverything(t *testing.T) {
 	t.Parallel()
 	s := newStore(t)

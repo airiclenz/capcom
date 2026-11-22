@@ -40,7 +40,7 @@ With `--excerpt`, each hit of `search` and `know search` carries `excerpt`: the 
 hold a word searched for, as a list of strings. It holds the first 3 such lines with 1 line of
 context either side, a `"…"` line between parts of the body kept apart, at most 8 lines, each cut
 at 120 characters. The member is left out without `--excerpt`, and on a hit whose body holds no
-word searched for, as when only its title matched.
+word searched for, as when only its id or title matched.
 
 `capcom list --tree --json` gives one Issue per line of the outline, each with `depth`, its
 indentation level. A parent also carries `children`, `{"total": <n>, "closed": <n>}` over all its

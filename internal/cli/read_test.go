@@ -1083,6 +1083,25 @@ func TestSearch_Words_RankTheBestMatchFirst(t *testing.T) {
 	}
 }
 
+func TestSearch_WordOnlyInTheID_FindsTheIssue(t *testing.T) {
+	root := newReadStore(t)
+	writeIssueFiles(t, root, map[string]string{
+		"lock-quokka-token.md": readIssue("Keep the lock", "open", "", "\nNothing else.\n"),
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "search", "quokka")
+	jsonOut, _, jsonExit := runCLI(t, root, "search", "--json", "quokka")
+
+	if want := "lock-quokka-token  open  P2  Keep the lock\n"; exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	envelope := decodeEnvelope(t, jsonOut)
+	if got := envelopeIDs(t, jsonOut); jsonExit != ExitOK || envelope["match"] != "all" ||
+		!slices.Equal(got, []string{"lock-quokka-token"}) {
+		t.Errorf("search --json exit = %d envelope = %v, want match all and lock-quokka-token", jsonExit, envelope)
+	}
+}
+
 func TestSearch_Punctuation_FindsTheIssue(t *testing.T) {
 	root := newReadStore(t)
 

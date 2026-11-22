@@ -20,7 +20,7 @@ const keyFilter = "/"
 // The filter's terms, and its texts.
 const (
 	// statusTermPrefix and labelTermPrefix open the terms that narrow by field; every other word
-	// matches title and body.
+	// matches id, title and body.
 	statusTermPrefix = "status:"
 	labelTermPrefix  = "label:"
 	// filterPrompt opens the filter line, filterStatusPrefix the status bar's account of the
@@ -51,7 +51,7 @@ var noMatchTexts = [...]string{
 }
 
 // filterTerms are the terms of one filter line: the statuses and labels it narrows by and the
-// words that match title and body. Every term must hold for an issue or Note to match.
+// words that match id, title and body. Every term must hold for an issue or Note to match.
 type filterTerms struct {
 	statuses []string
 	labels   []string

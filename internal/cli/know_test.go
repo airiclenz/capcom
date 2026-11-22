@@ -816,6 +816,25 @@ func TestKnowSearch_WordsAndLabel_FindNotesOnly(t *testing.T) {
 	}
 }
 
+func TestKnowSearch_WordOnlyInTheID_FindsTheNote(t *testing.T) {
+	root := newKnowStore(t)
+	writeNoteFiles(t, root, map[string]string{
+		"lock-quokka-token.md": "---\ntitle: Keep the lock\n---\n\nNothing else.\n",
+	})
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "search", "quokka")
+	jsonOut, _, jsonExit := runCLI(t, root, "know", "search", "--json", "quokka")
+
+	if want := "lock-quokka-token  Keep the lock\n"; exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	envelope := decodeEnvelope(t, jsonOut)
+	if got := envelopeIDs(t, jsonOut); jsonExit != ExitOK || envelope["match"] != "all" ||
+		!slices.Equal(got, []string{"lock-quokka-token"}) {
+		t.Errorf("know search --json exit = %d envelope = %v, want match all and lock-quokka-token", jsonExit, envelope)
+	}
+}
+
 func TestKnowSearch_OneWordInNoNote_ListsAnyWordHitsUnderTheHeading(t *testing.T) {
 	root := newKnowStore(t)
 

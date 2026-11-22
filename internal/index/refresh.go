@@ -619,8 +619,8 @@ func (r *refresher) insertIssue(file foundFile, parsed issue.Issue) error {
 			parsed.Reason, parsed.Title, parsed.IsStanding,
 		},
 	}, {
-		`INSERT INTO fts (path, kind, title, body) VALUES (?, ?, ?, ?)`,
-		[]any{file.path, kindIssue, parsed.Title, parsed.Body},
+		`INSERT INTO fts (path, kind, id, title, body) VALUES (?, ?, ?, ?, ?)`,
+		[]any{file.path, kindIssue, file.id, parsed.Title, parsed.Body},
 	}}
 	statements = append(statements, sharedListStatements(file, parsed.Labels, parsed.Aliases)...)
 	for _, dep := range parsed.Deps {

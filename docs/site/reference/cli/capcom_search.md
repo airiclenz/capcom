@@ -1,17 +1,17 @@
 ---
 title: "capcom search"
-description: "Find issues whose title or body contains every word, else some of them"
+description: "Find issues whose id, title or body contains every word, else some of them"
 sidebar:
   order: 1
 ---
 
 ## capcom search
 
-Find issues whose title or body contains every word, else some of them
+Find issues whose id, title or body contains every word, else some of them
 
 ### Synopsis
 
-Find the Issues whose title or body contains every word given, matched as whole words and case-insensitively, best match first; closed Issues are searched too.
+Find the Issues whose id, title or body contains every word given, matched as whole words and case-insensitively, best match first; closed Issues are searched too. The words of an id are its parts between hyphens, and an Issue found only by its id ranks after those found by title or body.
 
 A run of CJK characters with no spaces counts as one word, so 登录超时问题 is found by 登录超时问题, not by 登录.
 

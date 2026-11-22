@@ -486,9 +486,10 @@ func (x *Index) RelatedBy(id string) ([]string, error) {
 	)
 }
 
-// Search returns the ids of the usable issues whose title or body contains every word of text,
-// best match first. Words are matched as whole tokens, case-insensitively; FTS5 operators in
-// text are taken literally.
+// Search returns the ids of the usable issues whose id, title or body contains every word of text,
+// best match first; an issue matched only through its id ranks after every title or body match.
+// Words are matched as whole tokens, case-insensitively, and the hyphens of an id split its words;
+// FTS5 operators in text are taken literally.
 func (x *Index) Search(text string) ([]string, error) {
 	return x.searchIDs(x.db, text, matchExpression)
 }

@@ -361,7 +361,7 @@ func (x *Index) SearchIssues(text string) ([]Entry, error) {
 	return x.searchIssues(text, matchExpression)
 }
 
-// SearchIssuesAnyWord returns the usable issues whose title or body contains at least one word
+// SearchIssuesAnyWord returns the usable issues whose id, title or body contains at least one word
 // of text, ranked by FTS5 rank then id. Words match as Search's do, FTS5 operators included.
 // Every row comes from one read snapshot.
 func (x *Index) SearchIssuesAnyWord(text string) ([]Entry, error) {

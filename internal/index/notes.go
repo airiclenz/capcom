@@ -51,8 +51,8 @@ func (r *refresher) insertNote(file foundFile, note knowledge.Note) error {
 		`INSERT INTO notes (path, id, parent, title, retired) VALUES (?, ?, ?, ?, ?)`,
 		[]any{file.path, file.id, file.parentID, note.Title, note.IsRetired},
 	}, {
-		`INSERT INTO fts (path, kind, title, body) VALUES (?, ?, ?, ?)`,
-		[]any{file.path, kindNote, note.Title, note.Body},
+		`INSERT INTO fts (path, kind, id, title, body) VALUES (?, ?, ?, ?, ?)`,
+		[]any{file.path, kindNote, file.id, note.Title, note.Body},
 	}}
 	statements = append(statements, sharedListStatements(file, note.Labels, note.Aliases)...)
 	for _, ref := range note.Refs {
@@ -159,7 +159,7 @@ func (x *Index) Notes(isRetiredIncluded bool) (entries []NoteEntry, err error) {
 	return entries, err
 }
 
-// SearchNotes returns the usable Notes whose title or body contains every word of text and that
+// SearchNotes returns the usable Notes whose id, title or body contains every word of text and that
 // carry every one of labels, best match first. Words match as Search's do. Unless
 // isRetiredIncluded is set, it leaves out every Note that is retired or has a retired ancestor.
 // Every row comes from one read snapshot.
@@ -167,7 +167,7 @@ func (x *Index) SearchNotes(text string, labels []string, isRetiredIncluded bool
 	return x.searchNotes(text, labels, isRetiredIncluded, matchExpression)
 }
 
-// SearchNotesAnyWord returns the usable Notes whose title or body contains at least one word of
+// SearchNotesAnyWord returns the usable Notes whose id, title or body contains at least one word of
 // text, filtered by labels and isRetiredIncluded as SearchNotes filters them, ranked by FTS5
 // rank then id. Words match as Search's do. Every row comes from one read snapshot.
 func (x *Index) SearchNotesAnyWord(text string, labels []string, isRetiredIncluded bool) ([]NoteEntry, error) {

@@ -14,7 +14,7 @@ import (
 
 // schemaVersion identifies the table layout below. Bump it whenever the layout or the meaning of a
 // column changes: an index recorded under another version is dropped and rebuilt.
-const schemaVersion = 12
+const schemaVersion = 13
 
 // Keys of the meta table.
 const (
@@ -46,12 +46,13 @@ var (
 // parsed node that a repeated id keeps out of every query, as file_verdicts records it;
 // issues.standing is the issue's own standing mark; notes.retired is the Note's own
 // retired flag, never its ancestors'. labels, aliases and fts are shared by issues and Notes and
-// carry the kind of the file each row came from; related holds the related links of issues as
-// written, in file order; refs holds the Refs of Notes in file order; supersedes holds the
-// superseded-by ids of Notes as written, in file order; claims holds, by kind, every name a file
-// with problems, a file the walk leaves out unread, or a node file under a directory the walk
-// leaves out claims (its id and its aliases), in file order, for the membership verdicts to decide
-// from, each row with the file's parse state as tree reads it (one of parseStateNames).
+// carry the kind of the file each row came from; fts holds the id, title and body of each node for
+// full-text search; related holds the related links of issues as written, in file order; refs
+// holds the Refs of Notes in file order; supersedes holds the superseded-by ids of Notes as
+// written, in file order; claims holds, by kind, every name a file with problems, a file the walk
+// leaves out unread, or a node file under a directory the walk leaves out claims (its id and its
+// aliases), in file order, for the membership verdicts to decide from, each row with the file's
+// parse state as tree reads it (one of parseStateNames).
 // file_verdicts and name_verdicts hold the membership verdicts of the latest refresh that wrote,
 // rebuilt whole by each refresh with changes to write; a refresh that finds nothing to write, its
 // decided verdicts the stored ones included, leaves them as they are. file_verdicts holds, by
@@ -130,7 +131,10 @@ var schemaStatements = []string{
 		is_other_alias INTEGER NOT NULL,
 		PRIMARY KEY (kind, name)
 	)`,
-	`CREATE VIRTUAL TABLE fts USING fts5 (path UNINDEXED, kind UNINDEXED, title, body)`,
+	`CREATE VIRTUAL TABLE fts USING fts5 (path UNINDEXED, kind UNINDEXED, id, title, body)`,
+	// The id column weighs nothing in the rank, so a hit found only by a word of its id is found
+	// and ranked after every hit on the title or body.
+	`INSERT INTO fts (fts, rank) VALUES ('rank', 'bm25(0.0, 0.0, 0.0, 1.0, 1.0)')`,
 }
 
 // rowTables are the tables holding one file's rows, cleared by path when the file changes or goes.

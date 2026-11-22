@@ -11,8 +11,10 @@ import (
 
 // Help text of capcom know search.
 const (
-	knowSearchLong = "Find the Notes whose title or body contains every word given, each as a whole word, and " +
-		"list them best match first, one line each with the id and title.\n\n" +
+	knowSearchLong = "Find the Notes whose id, title or body contains every word given, each as a " +
+		"whole word, and list them best match first, one line each with the id and title. The words " +
+		"of an id are its parts between hyphens, and a Note found only by its id ranks after those " +
+		"found by title or body.\n\n" +
 		"A run of CJK characters with no spaces counts as one word, so 登录超时问题 is found by " +
 		"登录超时问题, not by 登录.\n\n" +
 		"When no Note holds every word, it lists the Notes holding some of them under the line \"" +
@@ -28,18 +30,18 @@ const (
 		"  capcom know search release --excerpt         # with the body lines that mention release"
 )
 
-// newKnowSearchCommand finds Notes by full text, every word as a whole word in the title or body,
-// optionally only those carrying every --label; when no Note holds them all, the Notes holding some
-// of them are listed under anyWordHeadingLine. Hits are listed best match first; no hit is
-// not_found. Retired subtrees are left out unless --retired is given. --excerpt adds under each hit
-// the body lines it matches on.
+// newKnowSearchCommand finds Notes by full text, every word as a whole word in the id, title or
+// body, optionally only those carrying every --label; when no Note holds them all, the Notes
+// holding some of them are listed under anyWordHeadingLine. Hits are listed best match first; no
+// hit is not_found. Retired subtrees are left out unless --retired is given. --excerpt adds under
+// each hit the body lines it matches on.
 func (a *app) newKnowSearchCommand() *cobra.Command {
 	var labels []string
 	isRetiredIncluded := false
 	isExcerptShown := false
 	cmd := &cobra.Command{
 		Use:         "search <word>...",
-		Short:       "Find Notes whose title or body contains every word, else some of them",
+		Short:       "Find Notes whose id, title or body contains every word, else some of them",
 		Long:        knowSearchLong,
 		Example:     knowSearchExample,
 		Args:        cobra.MinimumNArgs(1),

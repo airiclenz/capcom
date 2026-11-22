@@ -11,8 +11,10 @@ import (
 
 // The help text of capcom search.
 const (
-	searchLong = "Find the Issues whose title or body contains every word given, matched as whole words and " +
-		"case-insensitively, best match first; closed Issues are searched too.\n\n" +
+	searchLong = "Find the Issues whose id, title or body contains every word given, matched as " +
+		"whole words and case-insensitively, best match first; closed Issues are searched too. The " +
+		"words of an id are its parts between hyphens, and an Issue found only by its id ranks after " +
+		"those found by title or body.\n\n" +
 		"A run of CJK characters with no spaces counts as one word, so 登录超时问题 is found by " +
 		"登录超时问题, not by 登录.\n\n" +
 		"It prints one line per Issue with its id, status, priority and title.\n\n" +
@@ -37,7 +39,7 @@ const excerptIndent = "    "
 // holding some of them.
 const anyWordHeadingLine = "No item holds every word; these hold some of them:"
 
-// newSearchCommand finds issues by full text: every word must appear in the title or body, as a
+// newSearchCommand finds issues by full text: every word must appear in the id, title or body, as a
 // whole word, case-insensitively; when no issue holds them all, the issues holding some of them
 // are listed under anyWordHeadingLine. Hits are listed best match first; no hit is not_found.
 // --excerpt adds under each hit the body lines it matches on.
@@ -45,7 +47,7 @@ func (a *app) newSearchCommand() *cobra.Command {
 	isExcerptShown := false
 	cmd := &cobra.Command{
 		Use:         "search <word>...",
-		Short:       "Find issues whose title or body contains every word, else some of them",
+		Short:       "Find issues whose id, title or body contains every word, else some of them",
 		Long:        searchLong,
 		Example:     searchExample,
 		Args:        cobra.MinimumNArgs(1),

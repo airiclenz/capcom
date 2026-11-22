@@ -243,7 +243,11 @@ line after the result is updated to warnings-first.
 **Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/... && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/output/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`
 **Commit:** `fix(output): print warnings before the result in text output`
 
-## 7. search and know search match the words of the id
+## 7. search and know search match the words of the id — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): widened rather than limited: `capcom context`'s searched Notes and the `capcom ui` filter now match id words too (id-only hits rank last, so context's ref and title/body hits keep their places); every line describing search as title/body only now says id, title or body.
+NOTES (2026-11-22): CLI tests went to internal/cli/read_test.go and internal/cli/know_test.go (where the search tests live, per the item's Read first), not internal/cli/search_test.go.
+NOTES (2026-11-22): consequential edit — docs/site/reference/json-output.md: made necessary by the id column; an empty excerpt now also follows a hit on the id alone ("as when only its id or title matched").
 
 **What:**
 **Goal:** `capcom search token` lists an Issue whose id is `lock-touch-kept-token` even when its
