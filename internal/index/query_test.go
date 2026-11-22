@@ -105,6 +105,107 @@ func TestList_RowsDeletedMidRead_ReturnsOneSnapshot(t *testing.T) {
 	}
 }
 
+// countAllIssuesReads swaps the package's beforeAllIssuesRead seam for one counting the times
+// List reads every usable issue without an id list. Its callers never run in parallel.
+func countAllIssuesReads(t *testing.T) *int {
+	t.Helper()
+	original := beforeAllIssuesRead
+	t.Cleanup(func() { beforeAllIssuesRead = original })
+	reads := 0
+	beforeAllIssuesRead = func() { reads++ }
+	return &reads
+}
+
+// everyIssueFixture indexes issues with every list field set, a Closed one, and two files
+// repeating one id, which leaves both out of the usable issues.
+func everyIssueFixture(t *testing.T) (*store.Store, *Index) {
+	t.Helper()
+	s := newStore(t)
+	writeIssue(t, s, "login-flow.md", issueWith("Login flow", "open",
+		"labels: [epic, auth]\ndeps: [token-store, db-schema]\nrelated: [release-notes]\naliases: [old-login]\n"))
+	writeIssue(t, s, "login-flow/token-store.md", issueWith("Token store", "done", "labels: [auth]\ndeps: [db-schema]\n"))
+	writeIssue(t, s, "db-schema.md", issueWith("Schema", "open", "related: [login-flow, token-store]\n"))
+	writeIssue(t, s, "release-notes.md", issueWith("Release notes", "parked", "aliases: [notes]\n"))
+	writeIssue(t, s, "twin.md", issueWith("Twin A", "open", "labels: [auth]\n"))
+	writeIssue(t, s, "login-flow/twin.md", issueWith("Twin B", "open", "deps: [db-schema]\n"))
+	x := openIndex(t, s)
+	refresh(t, x)
+	return s, x
+}
+
+// TestList_EveryUsableIssue_MatchesTheIDListPath swaps the package's beforeAllIssuesRead seam, so
+// it never runs in parallel.
+func TestList_EveryUsableIssue_MatchesTheIDListPath(t *testing.T) {
+	_, x := everyIssueFixture(t)
+	cases := []struct {
+		name            string
+		filter          Filter
+		isAllIssuesRead bool
+	}{
+		{"closed included", Filter{IsClosedIncluded: true}, true},
+		{"empty lists", Filter{IsClosedIncluded: true, Statuses: []string{}, Labels: []string{}}, true},
+		{"closed left out", Filter{}, false},
+		{"limit", Filter{IsClosedIncluded: true, Limit: 2}, false},
+		{"label", Filter{IsClosedIncluded: true, Labels: []string{"auth"}}, false},
+	}
+
+	for _, current := range cases {
+		t.Run(current.name, func(t *testing.T) {
+			reads := countAllIssuesReads(t)
+			ids, err := x.ListIDs(current.filter)
+			if err != nil {
+				t.Fatalf("ListIDs: %v", err)
+			}
+			want, err := x.issues(x.db, ids)
+			if err != nil {
+				t.Fatalf("issues: %v", err)
+			}
+
+			got, err := x.List(current.filter)
+
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Errorf("List = %+v, %v; want %+v", got, err, want)
+			}
+			if isAllIssuesRead := *reads == 1; isAllIssuesRead != current.isAllIssuesRead {
+				t.Errorf("all-issues reads = %d, want the all-issues path %v", *reads, current.isAllIssuesRead)
+			}
+		})
+	}
+}
+
+func TestList_EveryUsableIssue_LeavesExcludedOut(t *testing.T) {
+	t.Parallel()
+	_, x := everyIssueFixture(t)
+
+	got, err := x.List(Filter{IsClosedIncluded: true})
+
+	want := []string{"db-schema", "login-flow", "token-store", "release-notes"}
+	if err != nil || !slices.Equal(ids(got), want) {
+		t.Errorf("List = %v, %v; want %v", ids(got), err, want)
+	}
+}
+
+// TestList_EveryUsableIssueRowsDeletedMidRead_ReturnsOneSnapshot swaps the package's
+// beforeEntryRead seam, so it never runs in parallel.
+func TestList_EveryUsableIssueRowsDeletedMidRead_ReturnsOneSnapshot(t *testing.T) {
+	s, x := everyIssueFixture(t)
+	filter := Filter{IsClosedIncluded: true}
+	want, err := x.List(filter)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	deleteOnFirstEntryRead(t, s, "issues", "login-flow")
+
+	got, err := x.List(filter)
+
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("List = %+v, %v; want %+v", got, err, want)
+	}
+	if after, err := x.List(filter); err != nil || slices.Contains(ids(after), "login-flow") {
+		t.Errorf("List after the read = %v, %v; want login-flow deleted", ids(after), err)
+	}
+}
+
 func TestList_Filters_SelectMatchingIssuesInTreeOrder(t *testing.T) {
 	t.Parallel()
 	x := listFixture(t)

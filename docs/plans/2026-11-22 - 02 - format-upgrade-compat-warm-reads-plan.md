@@ -248,7 +248,10 @@ NOTES (2026-11-22): internal/tree/claims.go needed no change; internal/tree/expo
 **Acceptance:** `go vet ./internal/tree/ ./internal/check/ && GOMEMLIMIT=2GiB go test -count=1 -race ./internal/tree/ ./internal/check/ ./internal/briefing/`
 **Commit:** `perf(tree): parse store files in parallel`
 
-## 12. The index loads every usable issue without an id list
+## 12. The index loads every usable issue without an id list — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): internal/index/index_test.go named in Files needed no change; the tests went to internal/index/query_test.go beside the existing List tests.
+NOTES (2026-11-22): the all-issues path is taken when IsClosedIncluded is set and every other field is empty by length (an empty non-nil slice counts as empty), via Filter.isEveryUsableIssue; the test seam is beforeAllIssuesRead, and loadAllIssues runs beforeEntryRead between its row read and its list reads, covered by the new TestList_EveryUsableIssueRowsDeletedMidRead_ReturnsOneSnapshot.
 
 **What:**
 **Goal:** `index.List` with a Filter that selects every usable issue reads its rows and list columns with `excluded = 0` joins, no id list; results equal the id-list path.

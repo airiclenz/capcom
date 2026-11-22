@@ -365,6 +365,10 @@ var issueLists = []struct {
 	{"aliases", "alias", func(entry *Entry) *[]string { return &entry.Aliases }},
 }
 
+// issueRowsQuery selects the issue row columns scanIssues reads; a WHERE clause follows it.
+const issueRowsQuery = `SELECT id, path, parent, status, category, type, priority,
+	plan, created, closed, reason, title, standing FROM issues`
+
 // loadIssues reads the usable issue of each of ids through q, keyed by id, in one row query plus
 // one query per list field, however many ids there are. The ids go in as one JSON array, so no
 // bound-variable limit caps them. An id no usable issue has is absent from the map.
@@ -374,34 +378,23 @@ func (x *Index) loadIssues(q querier, ids []string) (map[string]Entry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
 	}
-	rows, err := q.QueryContext(ctx, `SELECT id, path, parent, status, category, type, priority,
-		plan, created, closed, reason, title, standing FROM issues
+	rows, err := q.QueryContext(ctx, issueRowsQuery+`
 		WHERE excluded = 0 AND id IN (SELECT value FROM json_each(?))`, string(idsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
 	}
-	byPath, err := x.scanIssues(rows)
+	byPath, paths, err := x.scanIssues(rows)
 	if err != nil {
 		return nil, err
 	}
 
-	paths := make([]string, 0, len(byPath))
-	for path := range byPath {
-		paths = append(paths, path)
-	}
 	pathsJSON, err := json.Marshal(paths)
 	if err != nil {
 		return nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
 	}
-	for _, list := range issueLists {
-		values, err := x.pathValues(ctx, q, `SELECT path, `+list.column+` FROM `+list.table+`
-			WHERE path IN (SELECT value FROM json_each(?)) ORDER BY rowid`, string(pathsJSON))
-		if err != nil {
-			return nil, err
-		}
-		for path, entry := range byPath {
-			*list.target(entry) = values[path]
-		}
+	err = x.readIssueLists(ctx, q, byPath, `WHERE list.path IN (SELECT value FROM json_each(?))`, string(pathsJSON))
+	if err != nil {
+		return nil, err
 	}
 
 	byID := make(map[string]Entry, len(byPath))
@@ -411,10 +404,59 @@ func (x *Index) loadIssues(q querier, ids []string) (map[string]Entry, error) {
 	return byID, nil
 }
 
-// scanIssues reads the issue rows loadIssues selects, keyed by path, and closes rows.
-func (x *Index) scanIssues(rows *sql.Rows) (map[string]*Entry, error) {
+// loadAllIssues reads every usable issue through q, in tree order, in one row query plus one
+// query per list field. The list rows are joined on the usable issue rows, so no id list goes in
+// and the read costs the same however many issues the store holds. It runs beforeEntryRead with
+// the first id between the read of the rows and the read of their lists.
+func (x *Index) loadAllIssues(q querier) ([]Entry, error) {
+	ctx := context.Background()
+	rows, err := q.QueryContext(ctx, issueRowsQuery+` WHERE excluded = 0 ORDER BY path`)
+	if err != nil {
+		return nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
+	}
+	byPath, paths, err := x.scanIssues(rows)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]Entry, 0, len(paths))
+	if len(paths) == 0 {
+		return entries, nil
+	}
+
+	beforeEntryRead(byPath[paths[0]].ID)
+	err = x.readIssueLists(ctx, q, byPath, `JOIN issues ON issues.path = list.path WHERE issues.excluded = 0`)
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range paths {
+		entries = append(entries, *byPath[path])
+	}
+	return entries, nil
+}
+
+// readIssueLists fills in every list field of the issues in byPath, keyed by path, through q: one
+// query per field, each selecting from the field's table, aliased list, the rows that selection
+// (a WHERE clause, or a join and its WHERE clause) keeps, with args bound to it.
+func (x *Index) readIssueLists(ctx context.Context, q querier, byPath map[string]*Entry, selection string, args ...any) error {
+	for _, list := range issueLists {
+		values, err := x.pathValues(ctx, q, `SELECT list.path, list.`+list.column+` FROM `+list.table+` AS list
+			`+selection+` ORDER BY list.rowid`, args...)
+		if err != nil {
+			return err
+		}
+		for path, entry := range byPath {
+			*list.target(entry) = values[path]
+		}
+	}
+	return nil
+}
+
+// scanIssues reads the issue rows loadIssues or loadAllIssues selects, keyed by path, with their
+// paths in the order the rows come, and closes rows.
+func (x *Index) scanIssues(rows *sql.Rows) (map[string]*Entry, []string, error) {
 	defer rows.Close()
 	byPath := make(map[string]*Entry)
+	paths := []string{}
 	for rows.Next() {
 		entry := &Entry{}
 		var created, closed string
@@ -423,21 +465,22 @@ func (x *Index) scanIssues(rows *sql.Rows) (map[string]*Entry, error) {
 			&entry.Priority, &entry.Plan, &created, &closed, &entry.Reason, &entry.Title,
 			&entry.IsStanding,
 		); err != nil {
-			return nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
+			return nil, nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
 		}
 		var err error
 		if entry.Created, err = parseTime(created); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if entry.Closed, err = parseTime(closed); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		byPath[entry.Path] = entry
+		paths = append(paths, entry.Path)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
+		return nil, nil, fmt.Errorf("%s: read issues: %w", Path(x.store), err)
 	}
-	return byPath, nil
+	return byPath, paths, nil
 }
 
 // pathValues runs a query selecting a path and one text column through q, and returns the values

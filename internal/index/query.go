@@ -53,9 +53,15 @@ type Filter struct {
 }
 
 // List returns the usable issues filter selects, in tree order: by path, so every issue comes
-// right before its children. Every row comes from one read snapshot.
+// right before its children. Every row comes from one read snapshot. A filter that selects every
+// usable issue reads them without first reading their ids.
 func (x *Index) List(filter Filter) (entries []Entry, err error) {
 	err = x.snapshot(func(q querier) error {
+		if filter.isEveryUsableIssue() {
+			beforeAllIssuesRead()
+			entries, err = x.loadAllIssues(q)
+			return err
+		}
 		ids, err := x.listIDs(q, filter)
 		if err != nil {
 			return err
@@ -64,6 +70,14 @@ func (x *Index) List(filter Filter) (entries []Entry, err error) {
 		return err
 	})
 	return entries, err
+}
+
+// isEveryUsableIssue reports whether f selects every usable issue: Closed ones included, and
+// every other field empty. A field added to Filter must be checked here too.
+func (f Filter) isEveryUsableIssue() bool {
+	return f.IsClosedIncluded && len(f.Statuses) == 0 && len(f.Categories) == 0 &&
+		len(f.Labels) == 0 && len(f.NoLabels) == 0 && len(f.Types) == 0 && len(f.Priorities) == 0 &&
+		f.ParentID == "" && f.PlanContains == "" && f.Plan == PlanAny && f.Limit == 0
 }
 
 // ListIDs returns the ids of the issues List returns for filter, in the same order, without
@@ -382,10 +396,15 @@ func (x *Index) searchIssues(text string, expression func(words []string) string
 	return entries, err
 }
 
-// beforeEntryRead runs once before issues reads its entries, with the first id, and before noteList
-// reads each entry; tests swap it to change the index between the read of the ids and the read of
-// the entries.
+// beforeEntryRead runs once before issues reads its entries, with the first id, once before
+// loadAllIssues reads the lists of the rows it read, with the first id, and before noteList reads
+// each entry; tests swap it to change the index between the read of the ids and the read of the
+// entries.
 var beforeEntryRead = func(id string) {}
+
+// beforeAllIssuesRead runs when List reads every usable issue without an id list, before it
+// reads; tests swap it to see which path List took.
+var beforeAllIssuesRead = func() {}
 
 // issues reads the indexed issue of each id through q, in order, in a fixed number of queries
 // however many ids there are. An id no usable issue has, gone only if the index changed
