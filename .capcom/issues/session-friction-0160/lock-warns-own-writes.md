@@ -4,7 +4,7 @@ status: open
 type: bug
 priority: 1
 labels: [agent-ergonomics]
-plan: 2026-11-22 - 00 - lock-holder-and-agent-guide-plan
+plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T17:47:25Z
 ---
 

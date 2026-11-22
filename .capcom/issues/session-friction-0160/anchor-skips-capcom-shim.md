@@ -4,6 +4,7 @@ status: open
 type: bug
 priority: 3
 labels: [agent-ergonomics]
+plan: 2026-11-22 - 01 - session-friction-followups-plan
 created: 2026-11-22T19:26:45Z
 ---
 
