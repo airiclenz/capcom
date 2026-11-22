@@ -22,26 +22,38 @@ const failureSeparator = "; "
 // lookups fail and their messages are joined.
 const idSuggestionFormat = "%s, did you mean %s?"
 
+// flagSection makes capcom show print only the body sections under the headings it names.
+const flagSection = "section"
+
 // The help text of capcom show.
 const (
 	showLong = "Print one or more Issues in full: their fields, readiness, dependencies and dependents, child " +
 		"progress, Related links, body and Log.\n\n" +
 		"Name an Issue by its id, an Alias or a unique id prefix.\n\n" +
 		"The etag printed is the value --if-match takes on update, mv and rm.\n\n" +
+		"--brief prints the fields only, without the body and its Log. --section prints the fields and the " +
+		"body sections under the headings named, in body order, heading lines included; a heading matches " +
+		"case-insensitively, its # marks ignored, so --section log selects ## Log. A section runs to the " +
+		"next heading of its level or a higher one. An Issue whose body lacks a named heading fails, " +
+		"naming the headings it has; the others still print.\n\n" +
 		"Changes to these Issues on other branches are reported as Elsewhere unless --no-elsewhere is " +
 		"given."
 	showExample = "  capcom show login-timeout-race\n" +
 		"  capcom show login-timeout-race refresh-retry   # several at once\n" +
 		"  capcom show login-ti                           # a unique id prefix\n" +
+		"  capcom show login-timeout-race --brief         # the fields only, no body\n" +
+		"  capcom show login-timeout-race --section acceptance --section log\n" +
 		"  capcom show login-timeout-race --json          # the versioned JSON envelope"
 )
 
 // newShowCommand prints each named issue in full. Every argument is resolved on its own; the
 // issues found are printed even when another argument fails, and the command then exits with the
 // first failure's code. Changes to the shown issues on other local and remote-tracking branches
-// are reported apart from them (Elsewhere).
+// are reported apart from them (Elsewhere). --brief leaves each body out and --section keeps only
+// the body sections it names.
 func (a *app) newShowCommand() *cobra.Command {
 	var isElsewhereSkipped bool
+	var view bodyView
 	cmd := &cobra.Command{
 		Use:               "show <id|alias|prefix>...",
 		Short:             "Show issues in full",
@@ -51,17 +63,43 @@ func (a *app) newShowCommand() *cobra.Command {
 		ValidArgsFunction: completeIssueIDs(everyArgument),
 		Annotations:       map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			return a.emitShown(cmd, args, isElsewhereSkipped)
+			return a.emitShown(cmd, args, isElsewhereSkipped, view)
 		}),
 	}
-	cmd.Flags().BoolVar(&isElsewhereSkipped, flagNoElsewhere, false, "skip the report of changes to these issues on other branches")
+	flags := cmd.Flags()
+	flags.BoolVar(&isElsewhereSkipped, flagNoElsewhere, false, "skip the report of changes to these issues on other branches")
+	flags.BoolVar(&view.isBrief, flagBrief, false, "print the fields only, without the body and its Log")
+	flags.StringArrayVar(&view.sections, flagSection, nil,
+		"print the fields and only the body section under this heading; repeat for more")
+	cmd.MarkFlagsMutuallyExclusive(flagBrief, flagSection)
 	return a.withKV(cmd)
 }
 
-// emitShown prints the issues args name in full, as show does, with the Elsewhere report of their
-// files unless isElsewhereSkipped. show and next both end here.
-func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bool) error {
-	result, shownPaths, err := a.showResult(cmd, args)
+// bodyView is how much of each issue's body show prints: all of it, the zero value; none, with
+// isBrief; or only the sections under the headings in sections, as issue.Sections selects them.
+type bodyView struct {
+	isBrief  bool
+	sections []string
+}
+
+// body is the part of an issue's body the view prints, and whether it prints any: false with
+// isBrief. It fails, as a *issue.SectionsError, when the body lacks a heading the view names.
+func (v bodyView) body(full string) (string, bool, error) {
+	switch {
+	case v.isBrief:
+		return "", false, nil
+	case len(v.sections) == 0:
+		return full, true, nil
+	}
+	selected, err := issue.Sections(full, v.sections)
+	return selected, err == nil, err
+}
+
+// emitShown prints the issues args name as show does, each body as view has it, with the Elsewhere
+// report of their files unless isElsewhereSkipped. show and next both end here; next passes the
+// zero view and prints each issue in full.
+func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bool, view bodyView) error {
+	result, shownPaths, err := a.showResult(cmd, args, view)
 	if err != nil {
 		return err
 	}
@@ -73,9 +111,10 @@ func (a *app) emitShown(cmd *cobra.Command, args []string, isElsewhereSkipped bo
 // several fail, each message names its own suggestions and the joined failure carries none. It also
 // returns the paths of the issues found, relative to the worktree root. Each issue's fields, body
 // and etag come from one read of its file, the bytes a later --if-match is checked against;
-// readiness, dependents, child progress and reverse Related links are the index's. Each failed
-// argument's failure names cmd as the command that failed.
-func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []string, error) {
+// readiness, dependents, child progress and reverse Related links are the index's. Each body is
+// printed and given as view has it; an issue whose body lacks a heading view names fails as its
+// argument does, invalid. Each failed argument's failure names cmd as the command that failed.
+func (a *app) showResult(cmd *cobra.Command, args []string, view bodyView) (output.Result, []string, error) {
 	result := output.Result{Kind: "issue", KV: []output.KVRecord{}}
 	data := make([]showData, 0, len(args))
 	var graph *showGraph
@@ -90,11 +129,7 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 			if fatal != nil {
 				return output.Result{}, nil, fatal
 			}
-			pairs := []output.KVPair{{Key: "ID", Value: arg}, {Key: output.KVKeyMessage, Value: failure.Message}}
-			result.KV = append(result.KV, output.KVRecord{
-				Pairs:  append(pairs, output.ErrorHintPairs(failure)...),
-				Status: string(failure.Code),
-			})
+			result.KV = append(result.KV, failureKV(arg, failure))
 			continue
 		}
 
@@ -102,7 +137,13 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 		if err != nil {
 			return output.Result{}, nil, err
 		}
-		entry, body := a.issueFromFile(entry, reading.Node)
+		entry, fullBody := a.issueFromFile(entry, reading.Node)
+		body, hasBody, err := view.body(fullBody)
+		if err != nil {
+			failure := failures.addFailure(output.Errorf(output.CodeInvalid, "%s: %s", entry.Path, err))
+			result.KV = append(result.KV, failureKV(entry.ID, failure))
+			continue
+		}
 		related, err := a.showLinks(entry)
 		if err != nil {
 			return output.Result{}, nil, err
@@ -124,7 +165,9 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 		text.WriteString(issueText(entry, etag, facts, body))
 		shown := newShowData(entry, facts)
 		shown.ETag = etag
-		shown.Body = &body
+		if hasBody {
+			shown.Body = &body
+		}
 		data = append(data, shown)
 		result.KV = append(result.KV, issueKV(entry, etag))
 		shownPaths = append(shownPaths, entry.Path)
@@ -133,6 +176,16 @@ func (a *app) showResult(cmd *cobra.Command, args []string) (output.Result, []st
 	result.Data = data
 	result.Text = text.String()
 	return result, shownPaths, nil
+}
+
+// failureKV is the --kv record of the argument arg that failed: its id, the failure's message and
+// hint, closed by the failure's code as its STATUS.
+func failureKV(arg string, failure *output.Error) output.KVRecord {
+	pairs := []output.KVPair{{Key: "ID", Value: arg}, {Key: output.KVKeyMessage, Value: failure.Message}}
+	return output.KVRecord{
+		Pairs:  append(pairs, output.ErrorHintPairs(failure)...),
+		Status: string(failure.Code),
+	}
 }
 
 // argumentFailures collects the failures of the arguments a multi-id command could not resolve,
@@ -160,12 +213,18 @@ func (f *argumentFailures) add(err error) (*output.Error, error) {
 	if !isArgument {
 		return nil, failure
 	}
+	return f.addFailure(failure), nil
+}
+
+// addFailure names the command as the one that failed in failure, the typed failure of one
+// argument, collects it and returns it.
+func (f *argumentFailures) addFailure(failure *output.Error) *output.Error {
 	failure = failure.WithCommand(f.command)
 	if f.first == nil {
 		f.first = failure
 	}
 	f.messages = append(f.messages, messageWithSuggestions(failure))
-	return failure, nil
+	return failure
 }
 
 // failure is the failure the command exits with: nil when every argument resolved, else the first

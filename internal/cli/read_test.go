@@ -1661,3 +1661,133 @@ func TestShow_IDAnUnusableFileAlsoClaims_FailsNamingBothFiles(t *testing.T) {
 		})
 	}
 }
+
+// sectionedBody is the body of an issue with several sections, for show --brief and --section.
+const sectionedBody = "\nThe race.\n\n## Acceptance\n\n- it holds\n\n### Detail\n\nMore.\n\n## Risks\n\nNone.\n\n" +
+	"## Log\n\n- 2026-10-11 airic: seen\n"
+
+// sectionedFields is what show prints of the sectioned issue ahead of its body.
+func sectionedFields(t *testing.T, root string) string {
+	t.Helper()
+	return "id: login-timeout-race\n" +
+		"path: .capcom/issues/login-timeout-race.md\n" +
+		"etag: " + fileETag(t, root, "login-timeout-race.md") + "\n" +
+		"title: Login timeout race\nstatus: open\ncategory: todo\nready: yes\ntype: task\npriority: 2\n" +
+		"created: 2026-10-11T09:00:00Z\n"
+}
+
+// newSectionedStore returns a store holding the sectioned issue login-timeout-race and the
+// issue other-race, whose body has no headings.
+func newSectionedStore(t *testing.T) string {
+	t.Helper()
+	return newIssueStore(t, map[string]string{
+		"login-timeout-race.md": readIssue("Login timeout race", "open", "", sectionedBody),
+		"other-race.md":         readIssue("Other race", "open", "", "\nNo sections.\n"),
+	})
+}
+
+func TestShow_Brief_PrintsTheFieldsOnly(t *testing.T) {
+	root := newSectionedStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "login-timeout-race", "--brief")
+	jsonOutput := mustRun(t, root, "show", "login-timeout-race", "--brief", "--json")
+
+	if want := sectionedFields(t, root); exitCode != ExitOK || stderr != "" || stdout != want {
+		t.Errorf("show --brief exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	shown := decodeEnvelope(t, jsonOutput)["data"].([]any)[0].(map[string]any)
+	if _, hasBody := shown["body"]; hasBody || shown["id"] != "login-timeout-race" {
+		t.Errorf("show --brief --json data = %v, want the issue without a body", shown)
+	}
+}
+
+func TestShow_Section_PrintsTheFieldsAndTheChosenSections(t *testing.T) {
+	cases := []struct {
+		name     string
+		sections []string
+		wantBody string
+	}{
+		{
+			name:     "one section with its subsections",
+			sections: []string{"acceptance"},
+			wantBody: "## Acceptance\n\n- it holds\n\n### Detail\n\nMore.\n\n",
+		},
+		{
+			name:     "several sections in body order, the Log by its name",
+			sections: []string{"log", "## Acceptance"},
+			wantBody: "## Acceptance\n\n- it holds\n\n### Detail\n\nMore.\n\n## Log\n\n- 2026-10-11 airic: seen\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := newSectionedStore(t)
+			args := []string{"show", "login-timeout-race"}
+			for _, section := range tc.sections {
+				args = append(args, "--section", section)
+			}
+
+			stdout, stderr, exitCode := runCLI(t, root, args...)
+			jsonOutput := mustRun(t, root, append(args, "--json")...)
+
+			if want := sectionedFields(t, root) + "\n" + tc.wantBody; exitCode != ExitOK || stderr != "" || stdout != want {
+				t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+			}
+			shown := decodeEnvelope(t, jsonOutput)["data"].([]any)[0].(map[string]any)
+			if shown["body"] != tc.wantBody {
+				t.Errorf("--json body = %q, want %q", shown["body"], tc.wantBody)
+			}
+		})
+	}
+}
+
+func TestShow_SectionMissing_FailsThatIssueNamingItsHeadings(t *testing.T) {
+	root := newSectionedStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "show", "other-race", "login-timeout-race", "--section", "risks")
+	jsonOutput, _, _ := runCLI(t, root, "show", "other-race", "login-timeout-race", "--section", "risks", "--json")
+
+	wantMessage := `.capcom/issues/other-race.md: no section "risks"; the body has no headings`
+	if want := sectionedFields(t, root) + "\n## Risks\n\nNone.\n\n"; exitCode != ExitError || stdout != want ||
+		!strings.HasPrefix(stderr, "capcom: "+wantMessage+"\n") {
+		t.Errorf("exit = %d stderr = %q\nstdout = %q\nwant     %q", exitCode, stderr, stdout, want)
+	}
+	envelope := decodeEnvelope(t, jsonOutput)
+	errorBody, _ := envelope["error"].(map[string]any)
+	if got := envelopeIDs(t, jsonOutput); !slices.Equal(got, []string{"login-timeout-race"}) ||
+		errorBody["code"] != string(CodeInvalid) || errorBody["message"] != wantMessage {
+		t.Errorf("--json ids = %v error = %v, want login-timeout-race and the invalid failure", got, errorBody)
+	}
+}
+
+func TestShow_SectionMissing_NamesTheBodysHeadings(t *testing.T) {
+	root := newSectionedStore(t)
+
+	_, stderr, exitCode := runCLI(t, root, "show", "login-timeout-race", "--section", "plan")
+
+	want := `capcom: .capcom/issues/login-timeout-race.md: no section "plan"; ` +
+		"its headings are Acceptance, Detail, Risks, Log\n"
+	if exitCode != ExitError || !strings.HasPrefix(stderr, want) {
+		t.Errorf("exit = %d stderr = %q, want the prefix %q", exitCode, stderr, want)
+	}
+}
+
+func TestShow_KVSectionMissing_RecordClosesInvalid(t *testing.T) {
+	root := newSectionedStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "show", "other-race", "--section", "risks", "--kv")
+
+	if exitCode != ExitError || !strings.Contains(stdout, "ID=other-race\n") ||
+		!strings.HasSuffix(stdout, "STATUS="+string(CodeInvalid)+"\n") {
+		t.Errorf("exit = %d stdout = %q, want the record of other-race closed by STATUS=invalid", exitCode, stdout)
+	}
+}
+
+func TestShow_BriefWithSection_ExitsUsage(t *testing.T) {
+	root := newSectionedStore(t)
+
+	_, _, exitCode := runCLI(t, root, "show", "login-timeout-race", "--brief", "--section", "log")
+
+	if exitCode != ExitUsage {
+		t.Errorf("show --brief --section exit = %d, want %d", exitCode, ExitUsage)
+	}
+}

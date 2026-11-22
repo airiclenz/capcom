@@ -53,6 +53,9 @@ ancestor kept only to place a match, which the text ends `[context]`, carries `"
 `(see above)`, carries `"repeat": true`, and one whose branch `--depth` cut carries `more`, as in
 `list --tree`. `children`, `more` and `repeat` are left out when the text prints none of them.
 
+`capcom show --brief` leaves `body` out of each Issue, and `capcom show --section` puts only the
+chosen sections in `body`, heading lines included; every other member is as without them.
+
 `capcom context` gives kind `context` with `data` an object: `issue` (the Issue as `show` gives it),
 `deps` and `dependents` (its direct ones, as `dep list` gives them), `plan` (`null` without a plan,
 else `name` and `path`, the path empty when no plans directory holds the file) and `notes` (the Notes

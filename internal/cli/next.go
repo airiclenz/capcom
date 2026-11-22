@@ -53,7 +53,7 @@ func (a *app) newNextCommand() *cobra.Command {
 				}
 				return a.emitNothingReady(cmd, options.isElsewhereSkipped, hiddenWarnings)
 			}
-			return a.emitShown(cmd, []string{listed[0].Entry.ID}, options.isElsewhereSkipped)
+			return a.emitShown(cmd, []string{listed[0].Entry.ID}, options.isElsewhereSkipped, bodyView{})
 		}),
 	}
 	flags := cmd.Flags()

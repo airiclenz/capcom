@@ -11,7 +11,8 @@ import (
 	"github.com/airiclenz/capcom/internal/index"
 )
 
-// flagBrief makes capcom context print the Issue as one line and leave out the Note bodies.
+// flagBrief makes capcom context print the Issue as one line and leave out the Note bodies, and
+// capcom show print the fields of each Issue without its body.
 const flagBrief = "brief"
 
 // The caps of capcom context's text, which --help states.
@@ -124,7 +125,7 @@ func (a *app) newContextCommand() *cobra.Command {
 // plan and its applying Notes, each section in its text and --json form. With isBrief the Issue
 // prints as its list line and no body is printed or given.
 func (a *app) contextResult(cmd *cobra.Command, entry index.Entry, isBrief bool) (output.Result, error) {
-	shownResult, _, err := a.showResult(cmd, []string{entry.ID})
+	shownResult, _, err := a.showResult(cmd, []string{entry.ID}, bodyView{})
 	if err != nil {
 		return output.Result{}, err
 	}

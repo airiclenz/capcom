@@ -566,3 +566,103 @@ func TestIssue_SplitLog_CutsTheLogSectionOut(t *testing.T) {
 		})
 	}
 }
+
+func TestSections_SelectsTheNamedSections(t *testing.T) {
+	body := "Intro.\n\n# Goal\n\nWhy.\n\n## Acceptance\n\n- it works\n\n### Detail\n\nMore.\n\n" +
+		"```\n## Not a heading\n```\n\n## Risks ##\n\nNone.\n\n## Log\n\n- 2026-10-11 bob: one\n"
+	cases := []struct {
+		name     string
+		headings []string
+		want     string
+	}{
+		{
+			name:     "a section runs past deeper headings and fenced ones to the next of its level",
+			headings: []string{"acceptance"},
+			want:     "## Acceptance\n\n- it works\n\n### Detail\n\nMore.\n\n```\n## Not a heading\n```\n\n",
+		},
+		{
+			name:     "a deeper section ends at a higher heading",
+			headings: []string{"Detail"},
+			want:     "### Detail\n\nMore.\n\n```\n## Not a heading\n```\n\n",
+		},
+		{
+			name:     "a level-one section holds the level-two ones under it",
+			headings: []string{"goal"},
+			want:     body[strings.Index(body, "# Goal"):],
+		},
+		{
+			name:     "the Log last runs to the body's end",
+			headings: []string{"log"},
+			want:     "## Log\n\n- 2026-10-11 bob: one\n",
+		},
+		{
+			name:     "marks and space are ignored on both sides",
+			headings: []string{" ## RISKS "},
+			want:     "## Risks ##\n\nNone.\n\n",
+		},
+		{
+			name:     "several sections come in body order, a nested one once",
+			headings: []string{"log", "detail", "acceptance"},
+			want: "## Acceptance\n\n- it works\n\n### Detail\n\nMore.\n\n```\n## Not a heading\n```\n\n" +
+				"## Log\n\n- 2026-10-11 bob: one\n",
+		},
+		{
+			name:     "no headings asked for selects nothing",
+			headings: nil,
+			want:     "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := issue.Sections(body, tc.headings)
+
+			if err != nil || got != tc.want {
+				t.Errorf("Sections(%q) = %q, %v, want %q", tc.headings, got, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestSections_MissingHeading_NamesItAndTheBodysHeadings(t *testing.T) {
+	cases := []struct {
+		name        string
+		body        string
+		headings    []string
+		wantMissing []string
+		wantMessage string
+	}{
+		{
+			name:        "one missing",
+			body:        "## Goal\n\nWhy.\n\n```\n## Fenced\n```\n\n## Log\n",
+			headings:    []string{"goal", "fenced"},
+			wantMissing: []string{"fenced"},
+			wantMessage: `no section "fenced"; its headings are Goal, Log`,
+		},
+		{
+			name:        "several missing, one asked twice",
+			body:        "## Goal\n",
+			headings:    []string{"risks", "plan", "risks"},
+			wantMissing: []string{"risks", "plan"},
+			wantMessage: `no sections "risks", "plan"; its headings are Goal`,
+		},
+		{
+			name:        "a body without headings",
+			body:        "Just text.\n#hashtag\n",
+			headings:    []string{"log"},
+			wantMissing: []string{"log"},
+			wantMessage: `no section "log"; the body has no headings`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := issue.Sections(tc.body, tc.headings)
+
+			var sectionsErr *issue.SectionsError
+			if got != "" || !errors.As(err, &sectionsErr) || !reflect.DeepEqual(sectionsErr.Missing, tc.wantMissing) ||
+				err.Error() != tc.wantMessage {
+				t.Fatalf("Sections() = %q, %v, want the missing %q and the message %q",
+					got, err, tc.wantMissing, tc.wantMessage)
+			}
+		})
+	}
+}

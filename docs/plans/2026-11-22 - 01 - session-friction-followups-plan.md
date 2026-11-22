@@ -291,7 +291,15 @@ internal/cli/know_test.go — TestKnowShow_CitationSpelling_Resolves
 **Closes:** know-show-by-title
 **Commit:** `feat(know): resolve a Note by its title`
 
-## 9. show takes --brief and --section
+## 9. show takes --brief and --section — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): issue_render.go needed no change: showResult passes issueText the selected body ("" with --brief); the splitter is issue.Sections(body, headings) with a *issue.SectionsError, a plain function on the body (not an Issue method) so a Note body can use it too; SplitLog is untouched.
+
+NOTES (2026-11-22): a missing heading fails as `<path>: no section "x"; its headings are A, B` (or `; the body has no headings`), the path in the message rather than the Error's Path field so that several joined failures each name their own file; argumentFailures gains addFailure for failures that are not lookup failures, and failureKV now builds the --kv record of every failed argument.
+
+NOTES (2026-11-22): consequential edit — internal/cli/context.go: made necessary by show reusing flagBrief (its doc comment named only context)
+
+NOTES (2026-11-22): consequential edit — docs/site/reference/json-output.md: made necessary by --brief and --section changing show's JSON body (one paragraph)
 
 **What:**
 **Goal:** `capcom show <id>... --brief` prints the fields only, no body and no Log;

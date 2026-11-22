@@ -3,6 +3,7 @@ package issue
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -90,6 +91,117 @@ func isSectionBoundary(line string) bool {
 		}
 	}
 	return false
+}
+
+// maxHeadingLevel is the deepest ATX heading level: a run of more `#` marks opens no heading.
+const maxHeadingLevel = 6
+
+// SectionsError is the failure of Sections: the headings asked for that the body has no section
+// under, and the text of every heading the body has, in body order.
+type SectionsError struct {
+	Missing  []string
+	Headings []string
+}
+
+// Error names the missing headings and the headings the body has, as in
+// `no section "risks"; its headings are Goal, Acceptance, Log`.
+func (e *SectionsError) Error() string {
+	quoted := make([]string, 0, len(e.Missing))
+	for _, heading := range e.Missing {
+		quoted = append(quoted, fmt.Sprintf("%q", heading))
+	}
+	noun := "section"
+	if len(e.Missing) > 1 {
+		noun = "sections"
+	}
+	if len(e.Headings) == 0 {
+		return fmt.Sprintf("no %s %s; the body has no headings", noun, strings.Join(quoted, ", "))
+	}
+	return fmt.Sprintf("no %s %s; its headings are %s", noun, strings.Join(quoted, ", "),
+		strings.Join(e.Headings, ", "))
+}
+
+// Sections returns the sections of body whose heading text matches one of headings, in body order
+// and byte for byte, each from its heading line up to the next heading of the same or a higher
+// level, or the body's end. A heading is an ATX heading of any level; one inside a fenced code
+// block, as rawfm.ClosedCodeLines finds them, is not. Heading text matches case-insensitively,
+// with the `#` marks and the space around the text ignored on both sides, so "log" and "## Log"
+// both select the Log section. A section nested in another selected one appears once. When a
+// heading matches no section, Sections returns a *SectionsError naming every such heading; with no
+// headings asked for it returns "".
+func Sections(body string, headings []string) (string, error) {
+	lines := strings.SplitAfter(body, "\n")
+	texts := make([]string, 0, len(lines))
+	for _, line := range lines {
+		texts = append(texts, strings.TrimRight(line, "\r\n"))
+	}
+	isCode := rawfm.ClosedCodeLines(texts, 0)
+	levels := make([]int, len(texts))
+	var present []string
+	for index, text := range texts {
+		if isCode[index] {
+			continue
+		}
+		if levels[index] = headingLevel(text); levels[index] > 0 {
+			present = append(present, headingText(text))
+		}
+	}
+
+	isSelected := make([]bool, len(lines))
+	var missing []string
+	for _, wanted := range headings {
+		isFound := false
+		for start, level := range levels {
+			if level == 0 || !strings.EqualFold(headingText(texts[start]), headingText(wanted)) {
+				continue
+			}
+			isFound = true
+			for index := start; index < len(lines); index++ {
+				if index > start && levels[index] > 0 && levels[index] <= level {
+					break
+				}
+				isSelected[index] = true
+			}
+		}
+		if !isFound && !slices.Contains(missing, wanted) {
+			missing = append(missing, wanted)
+		}
+	}
+	if len(missing) > 0 {
+		return "", &SectionsError{Missing: missing, Headings: present}
+	}
+
+	var selected strings.Builder
+	for index, line := range lines {
+		if isSelected[index] {
+			selected.WriteString(line)
+		}
+	}
+	return selected.String(), nil
+}
+
+// headingLevel is the level of the ATX heading line opens, 1 to maxHeadingLevel, or 0 when line
+// is no heading: a run of `#` marks at the line's start followed by a space, a tab or nothing.
+func headingLevel(line string) int {
+	level := len(line) - len(strings.TrimLeft(line, "#"))
+	if level == 0 || level > maxHeadingLevel {
+		return 0
+	}
+	if rest := line[level:]; rest != "" && rest[0] != ' ' && rest[0] != '\t' {
+		return 0
+	}
+	return level
+}
+
+// headingText is a heading's text without its `#` marks and the space around it: the opening run
+// of marks, and a closing run when space parts it from the text or it is all there is.
+func headingText(heading string) string {
+	text := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(heading), "#"))
+	unclosed := strings.TrimRight(text, "#")
+	if unclosed == "" || strings.HasSuffix(unclosed, " ") || strings.HasSuffix(unclosed, "\t") {
+		return strings.TrimSpace(unclosed)
+	}
+	return text
 }
 
 // logBounds returns the index of the line that opens the Log section of lines, each without its
