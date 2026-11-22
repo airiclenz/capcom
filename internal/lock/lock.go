@@ -81,9 +81,10 @@ type Record struct {
 	// Worktree is the id a linked worktree keeps in `<git-dir>/capcom/worktree-id` when the lock
 	// was acquired; empty for the primary worktree and in a record an older capcom wrote.
 	Worktree string `json:"worktree,omitempty"`
-	// Process is the holder process, the nearest non-shell ancestor of the capcom that acquired or
-	// last resumed the lock. It is nil when that process was unknown and in a record an older
-	// capcom wrote; an older capcom's touch or resume drops it, as its Record has no such field.
+	// Process is the holder process, the nearest ancestor of the capcom that acquired or last
+	// resumed the lock that is not a shell, a wrapper command or a capcom shim. It is nil when that
+	// process was unknown and in a record an older capcom wrote; an older capcom's touch or resume
+	// drops it, as its Record has no such field.
 	Process *HolderProcess `json:"process,omitempty"`
 }
 

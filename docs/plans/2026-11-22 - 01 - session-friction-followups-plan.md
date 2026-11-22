@@ -53,7 +53,11 @@ shim, apply and the git-repo failure guide a first try, a refused id names the r
 - 9 (re-check): guard folded (Airic's decision: brief/section passed explicitly; context, start and next keep full output)
 - 10 (re-check): guard folded (Airic's decision: the trim passed explicitly to `noteShowResult`, zero for context)
 
-## 1. A capcom shim is not the lock's holder process
+## 1. A capcom shim is not the lock's holder process — ✅ DONE (2026-11-22)
+
+NOTES (2026-11-22): the shim definition sentence ("a process named `capcom` that runs capcom once per call") was added to docs/site/concepts/tree-locks.md and the holder-process glossary Note, beyond the bare "or a capcom shim", so the term is defined where the holder process is.
+NOTES (2026-11-22): the four Notes were changed with `capcom know update --body-replace-old/--body-replace-new` (a build of this tree), then their touched paragraphs reflowed to 100 columns by hand; `capcom check` (tree build) passes. The installed capcom 0.16.0's `capcom check` exits 1 on `AGENTS.md:31: the capcom block is out of date`, a version skew with the unreleased block, not from this item.
+NOTES (2026-11-22): the first `## [Unreleased]` CHANGELOG entry still says "the nearest non-shell ancestor of capcom"; the closeout may want to add "or capcom shim" there when it applies this item's entry.
 
 **What:**
 Fix for the residual of plan `2026-11-22 - 00 - lock-holder-and-agent-guide-plan` (bf30b14): under

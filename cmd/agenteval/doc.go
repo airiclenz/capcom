@@ -16,8 +16,9 @@
 //
 // The harness seeds a workspace through a hidden helper mode, `agenteval __seed-capcom <capcom>
 // <args…>`, which runs the build under test as its child and exits with it: capcom records the
-// nearest non-shell ancestor of a lock acquire as the lock's holder process, and the helper, gone
-// before the agent starts, is that ancestor, so a seeded lock is never the agent's own.
+// nearest ancestor of a lock acquire that is not a shell or a capcom shim as the lock's holder
+// process, and the helper, gone before the agent starts, is that ancestor, so a seeded lock is
+// never the agent's own.
 //
 //	AGENTEVAL_CAPCOM=/path/to/capcom AGENTEVAL_CALL_LOG=/path/to/calls.jsonl capcom <args>
 //

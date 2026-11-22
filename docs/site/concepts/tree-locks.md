@@ -108,10 +108,12 @@ delete the kept token they release, and `lock break` deletes all of the worktree
 ## The holder process
 
 `lock acquire` and `capcom start` also record the **holder process** in the lock record: the
-nearest ancestor of capcom that is not a shell or a wrapper command (`sh`, `bash`, `env`,
-`timeout` and the like), usually the agent harness the session runs in, by its PID and start
-stamp (ADR 0005, ADR 0017 and their amendments of 2026-11-22). The harness outlives the fresh
-shell it opens for each command, so every capcom the session runs, its sub-agents' included,
+nearest ancestor of capcom that is not a shell, a wrapper command (`sh`, `bash`, `env`,
+`timeout` and the like) or a capcom shim, usually the agent harness the session runs in, by its
+PID and start stamp (ADR 0005, ADR 0017 and their amendments of 2026-11-22). A capcom shim is a
+process named `capcom` that runs capcom once per call, such as a script that logs each call:
+every call starts a fresh one, so the harness above it is the holder. The harness outlives the
+fresh shell it opens for each command, so every capcom the session runs, its sub-agents' included,
 descends from it. Resuming the lock records the resuming caller's process; `touch` keeps it.
 
 A capcom run whose process ancestry holds the holder process is the holder:
@@ -125,8 +127,8 @@ A capcom run whose process ancestry holds the holder process is the holder:
 The holder process only recognises the holder: the Lock token still decides acquire, resume,
 touch and release, and a lock is live or stale by its heartbeat alone. Any other process passes
 `--token`. A record an older capcom wrote names no holder process and works through the token
-alone. Two shells that share their nearest non-shell ancestor, such as two panes of one tmux
-server, are one holder to capcom.
+alone. Two shells that share their nearest ancestor that is not a shell or a capcom shim, such
+as two panes of one tmux server, are one holder to capcom.
 
 ## Touch: keep it fresh
 

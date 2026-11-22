@@ -55,6 +55,8 @@ func TestAnchor_Chains(t *testing.T) {
 		{"an empty chain has no anchor", nil, "", false},
 		{"case and .exe are ignored", []string{"BASH.EXE", "Pwsh.exe", "Code.exe"}, "Code.exe", true},
 		{"a path is matched on its base name", []string{`C:\Windows\System32\cmd.exe`, "/usr/bin/env", "agent"}, "agent", true},
+		{"a capcom shim is skipped", []string{"capcom", "claude"}, "claude", true},
+		{"a capcom shim is skipped whatever its case and .exe", []string{"CAPCOM.EXE", "bash", "claude"}, "claude", true},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

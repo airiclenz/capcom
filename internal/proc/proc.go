@@ -1,6 +1,6 @@
 // Package proc reads the calling process's ancestry and picks its harness anchor: the nearest
-// ancestor that is not a shell or a wrapper command. Callers never see how an operating system
-// names or stamps a process.
+// ancestor that is not a shell, a wrapper command or a capcom shim. Callers never see how an
+// operating system names or stamps a process.
 package proc
 
 import (
@@ -37,12 +37,14 @@ type entry struct {
 // unreadable.
 type reader func(pid int) (entry, error)
 
-// wrapperNames are the shells and wrapper commands Anchor skips, lowercased and without `.exe`.
+// wrapperNames are the shells, wrapper commands and capcom shims Anchor skips, lowercased and
+// without `.exe`. A capcom ancestor is a shim that runs capcom once per call, so it never outlives
+// the call; the calling capcom itself is never in the chain, which starts at its parent.
 var wrapperNames = map[string]bool{
 	"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "mksh": true, "ash": true,
 	"fish": true, "tcsh": true, "csh": true, "busybox": true, "pwsh": true, "powershell": true,
 	"cmd": true, "env": true, "timeout": true, "nice": true, "nohup": true, "xargs": true,
-	"stdbuf": true, "time": true, "sudo": true, "doas": true,
+	"stdbuf": true, "time": true, "sudo": true, "doas": true, "capcom": true,
 }
 
 // Ancestry returns the calling process's ancestors, its parent first. The walk stops before
@@ -78,9 +80,9 @@ func walk(pid int, read reader) []Process {
 	return chain
 }
 
-// Anchor returns the first Process of chain that is not a shell or a wrapper command, matched
-// on its lowercased base name with any `.exe` suffix removed; false when every Process of chain
-// is one, or chain is empty.
+// Anchor returns the first Process of chain that is not a shell, a wrapper command or a capcom
+// shim, matched on its lowercased base name with any `.exe` suffix removed; false when every
+// Process of chain is one, or chain is empty.
 func Anchor(chain []Process) (Process, bool) {
 	for _, candidate := range chain {
 		if !isWrapper(candidate.Name) {
@@ -90,8 +92,8 @@ func Anchor(chain []Process) (Process, bool) {
 	return Process{}, false
 }
 
-// isWrapper reports whether name, a bare name or a path with either separator, names a shell
-// or a wrapper command.
+// isWrapper reports whether name, a bare name or a path with either separator, names a shell,
+// a wrapper command or a capcom shim.
 func isWrapper(name string) bool {
 	base := strings.ToLower(name[strings.LastIndexAny(name, `/\`)+1:])
 	return wrapperNames[strings.TrimSuffix(base, ".exe")]

@@ -911,14 +911,14 @@ replaces it. A token file is never read as a record: only `*.json` files are.
   holder process: each Issue or Note write made there renews it.
 - **worktree** — the id a linked worktree keeps in `<git-dir>/capcom/worktree-id`, when the lock
   was acquired; left out for the primary worktree and in a record an older capcom wrote.
-- **process** — the holder process: the nearest ancestor of the capcom that acquired or last
-  resumed the lock that is not a shell or a wrapper command, usually the agent harness, as its
-  `pid` and `started`, an opaque start stamp whose form differs per operating system, so a reused
-  PID never matches (ADR 0005 and its amendment of 2026-11-22). A capcom whose process ancestry
-  holds both is the holder: its writes add no lock warning and renew the heartbeat, and its
+- **process** — the holder process: the nearest ancestor of the capcom that acquired or last resumed
+  the lock that is not a shell, a wrapper command or a capcom shim, usually the agent harness, as
+  its `pid` and `started`, an opaque start stamp whose form differs per operating system, so a
+  reused PID never matches (ADR 0005 and its amendment of 2026-11-22). A capcom whose process
+  ancestry holds both is the holder: its writes add no lock warning and renew the heartbeat, and its
   `lock touch`, `lock release` and `lock check` need no `--token`. `lock touch` keeps it, and a
-  resume replaces it with the resuming caller's. It is left out when that process was unknown and
-  in a record an older capcom wrote, and an older capcom's touch or resume drops it.
+  resume replaces it with the resuming caller's. It is left out when that process was unknown and in
+  a record an older capcom wrote, and an older capcom's touch or resume drops it.
 
 Both times are RFC3339 in UTC. A lock whose heartbeat is older than `lock.ttl` in `config.yaml`
 (2 h by default), or dated more than one `lock.ttl` ahead by a clock that ran fast, is **stale**:

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -370,5 +371,37 @@ func TestLockWarn_ResumeUnderAnotherProcess_MovesTheHolder(t *testing.T) {
 	}
 	if lockWarning(formerStdout) == "" {
 		t.Errorf("stdout under the former holder process = %q, want the lock warning", formerStdout)
+	}
+}
+
+// shimChain returns the ancestry of a capcom shim with the given PID, a process that runs capcom
+// once per call, under anchor.
+func shimChain(shimPID int, anchor proc.Process) []proc.Process {
+	shim := proc.Process{PID: shimPID, Started: fmt.Sprintf("%d-start", shimPID), Name: "capcom"}
+	return []proc.Process{shim, anchor}
+}
+
+func TestLockWarn_WriteThroughAnotherCapcomShim_IsSilentUnderTheSameHarness(t *testing.T) {
+	harness := proc.Process{PID: 2000, Started: "2000-start", Name: "claude"}
+	otherHarness := proc.Process{PID: 3000, Started: "3000-start", Name: "other-harness"}
+	root := newLockWarnStore(t)
+	withAncestry(t, shimChain(4001, harness)...)
+	token := acquireToken(t, root, "agent-a")
+
+	withAncestry(t, shimChain(4002, harness)...)
+	createStdout := mustRun(t, root, "create", "--id", "fresh", "--title", "Fresh")
+	touchStdout := mustRun(t, root, "lock", "touch", "--kv")
+	withAncestry(t, shimChain(4003, otherHarness)...)
+	otherStdout := mustRun(t, root, "update", "login-flow", "--priority", "1")
+
+	if lockWarning(createStdout) != "" {
+		t.Errorf("stdout of a write through another shim = %q, want no lock warning", createStdout)
+	}
+	if kvValue(t, touchStdout, "LOCK") != "held" || kvValue(t, touchStdout, "TOKEN") != token {
+		t.Errorf("touch = %q, want the lock held with the kept token", touchStdout)
+	}
+	if lockWarning(otherStdout) == "" {
+		t.Errorf("stdout of a write through a shim under another harness = %q, want the lock warning",
+			otherStdout)
 	}
 }

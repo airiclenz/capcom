@@ -220,7 +220,8 @@ func executableName(name string) string {
 
 // runSeedCapcom runs the build at capcomPath with args in dir, as runIn does, under this executable
 // started as the seed helper. capcom records the nearest ancestor of a lock acquire or start that
-// is not a shell as the lock's holder process, whose descendants write without a lock warning.
+// is not a shell or a capcom shim as the lock's holder process, whose descendants write without a
+// lock warning.
 // Run straight from the harness, that would be the harness itself, an ancestor of every agent
 // call; the helper is that ancestor instead, and it exits with the call, so a lock the seed takes
 // stays another session's lock to the agent.
