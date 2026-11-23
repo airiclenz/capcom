@@ -112,7 +112,7 @@ item that takes it.
 prefix of the items leaves the tree green. Items 1 and 4 both edit `root.go`, and items 2 and 6 both
 edit `context.go`: they run in plan order, never in one wave. Each item closes its own move Issue.
 
-## 1. Move name suggestion ranking to internal/nearest
+## 1. Move name suggestion ranking to internal/nearest — ✅ DONE (2026-11-23)
 
 **What:**
 **Goal:** a new leaf package `internal/nearest` holds the edit distance and the ranking of the names
