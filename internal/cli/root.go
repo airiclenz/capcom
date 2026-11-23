@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -452,63 +451,36 @@ func (a *app) noteWrite(ids ...string) {
 	a.writes = append(a.writes, ids)
 }
 
-// lockWarning returns the warning of the writes the command noted (noteWrite) when this worktree's
-// Tree lock is held, live or stale, a write targets no Issue whose id is the lock's purpose, and
-// the caller does not descend from the record's holder process: the holder, purpose and heartbeat
-// age as lock.HeldError words them, then foreignLockAdvice, or foreignStaleLockAdvice for a stale
-// lock. A record that cannot be read gives unreadableLockWarning. It returns "" when the command
-// noted no write or is exempt (isLockExempt), and when the lock is free or orphaned. A caller that
-// descends from the holder process renews the lock's heartbeat instead (renewHolderLock), whatever
-// the writes target. The record is first read without the guard, so the check creates nothing
-// under the lock directory and never fails the write; only the holder's renewal takes the guard.
-// The caller's ancestry is read only for a record that names a holder process.
+// lockWarning returns the warning of the writes the command noted (noteWrite) when
+// lock.Worktree.CheckWrites decides they must warn of this worktree's Tree lock: the holder,
+// purpose and heartbeat age as lock.HeldError words them, then foreignLockAdvice, or
+// foreignStaleLockAdvice for a stale lock. A record that cannot be read gives
+// unreadableLockWarning, and a failed renewal of the heartbeat by the holder process
+// (lock.RenewalError) gives unrenewedLockWarning. It returns "" when the command noted no write or
+// is exempt (isLockExempt), and when the writes stay silent. The caller's ancestry is read only for
+// a record that names a holder process.
 func (a *app) lockWarning() string {
 	if len(a.writes) == 0 || a.isLockExempt || a.store == nil {
 		return ""
 	}
 	worktree := lock.ForWorktree(a.store)
-	_, err := worktree.Check("")
-	if err == nil {
-		return ""
-	}
-	var held *lock.HeldError
-	if !errors.As(err, &held) {
+	held, err := worktree.CheckWrites(a.callerAncestry, a.writes)
+	if err != nil {
 		recordPath := worktree.RecordPath()
-		return fmt.Sprintf(unreadableLockWarning, recordPath, strings.TrimPrefix(err.Error(), recordPath+": "))
-	}
-	if held.Status.Record.Process != nil && held.Status.HeldBy(a.callerAncestry()) {
-		renewed, failure := a.renewHolderLock(worktree)
-		if renewed == nil {
-			return failure
+		why := strings.TrimPrefix(err.Error(), recordPath+": ")
+		var renewal *lock.RenewalError
+		if errors.As(err, &renewal) {
+			return fmt.Sprintf(unrenewedLockWarning, recordPath, why)
 		}
-		held = renewed
+		return fmt.Sprintf(unreadableLockWarning, recordPath, why)
 	}
-	if a.writesOnly(held.Status.Record.Purpose) {
+	if held == nil {
 		return ""
 	}
 	if held.Status.IsStale {
 		return held.Error() + foreignStaleLockAdvice
 	}
 	return held.Error() + foreignLockAdvice
-}
-
-// renewHolderLock refreshes the heartbeat of worktree's lock for the caller, the holder process,
-// after a write. It returns no *lock.HeldError and the warning of a renewal that failed, "" when
-// the lock was renewed or has been freed since it was read. When another session has taken the
-// lock over since, it returns that session's *lock.HeldError, which the write is judged against
-// as any other caller's.
-func (a *app) renewHolderLock(worktree lock.Worktree) (*lock.HeldError, string) {
-	_, err := worktree.TouchHolder(a.callerAncestry())
-	var held *lock.HeldError
-	var notHeld *lock.NotHeldError
-	switch {
-	case err == nil, errors.As(err, &notHeld):
-		return nil, ""
-	case errors.As(err, &held):
-		return held, ""
-	}
-	recordPath := worktree.RecordPath()
-	return nil, fmt.Sprintf(unrenewedLockWarning, recordPath, strings.TrimPrefix(err.Error(), recordPath+": "))
 }
 
 // callerAncestry returns the calling process's ancestry (processAncestry), read on the first call
@@ -529,16 +501,6 @@ func (a *app) holderProcess() *proc.Process {
 		return nil
 	}
 	return &anchor
-}
-
-// writesOnly reports whether every write the command noted targets the Issue whose id is purpose.
-func (a *app) writesOnly(purpose string) bool {
-	for _, ids := range a.writes {
-		if !slices.Contains(ids, purpose) {
-			return false
-		}
-	}
-	return true
 }
 
 // newVersionCommand reports the embedded release version.

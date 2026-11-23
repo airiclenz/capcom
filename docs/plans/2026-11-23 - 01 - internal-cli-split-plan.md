@@ -215,7 +215,11 @@ Stay runCLI: `TestRecap_UnknownSince_IsInvalidWithTheGitLogHint` and the other `
 **Closes:** cli-split-recap-boundary
 **Commit:** `refactor(recap): move the --since boundary out of internal/cli`
 
-## 4. Move the foreign-lock write decision to internal/lock
+## 4. Move the foreign-lock write decision to internal/lock — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the decision is `lock.Worktree.CheckWrites(chain func() []proc.Process, writes [][]string) (*HeldError, error)`; a failed renewal comes back as the new `*lock.RenewalError` (Error gives TouchHolder's text, Unwrap returns it), any other error is Check's read error unchanged; the chain func is called at most once and its result reused for TouchHolder, matching cli's cached callerAncestry. `renewHolderLock` became the unexported `Worktree.renewForHolder`; `writesOnly` the unexported `lock.writesOnly`.
+
+NOTES (2026-11-23): `lockWarnApply` in internal/cli/lock_warn_test.go was used only by the deleted `TestLockWarn_WriteUnderTheHolderProcess_IsSilentAndOtherProcessesWarn` and is removed with it (staticcheck U1000); the renewal-failure test masks the random `.tmp-N` suffix of the record's temp file when comparing with TouchHolder's error text, as two failed writes never name the same temp file.
 
 **What:** Recast at the regression check (2026-11-23).
 **Goal:** `internal/lock` decides whether a command's writes must warn of another session's Tree lock

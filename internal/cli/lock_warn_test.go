@@ -83,10 +83,6 @@ var otherChain = []proc.Process{
 	{PID: 1000, Started: "1000-start", Name: "tmux"},
 }
 
-// lockWarnApply is the apply file of the holder process tests: one log op on other, an Issue that
-// is not the lock's purpose.
-const lockWarnApply = "- op: log\n  id: other\n  text: progress\n"
-
 func TestLockWarn_WriteUnderAForeignLock_WarnsAndWrites(t *testing.T) {
 	tests := []struct {
 		name string
@@ -292,46 +288,6 @@ func TestLockWarn_FreshRepo_CreatesNoLockFile(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(root, ".git", "capcom", "locks")); !os.IsNotExist(err) {
 		t.Errorf("Stat(locks dir) err = %v, want not exist", err)
-	}
-}
-
-func TestLockWarn_WriteUnderTheHolderProcess_IsSilentAndOtherProcessesWarn(t *testing.T) {
-	writes := []struct {
-		name string
-		args []string
-	}{
-		{"create", []string{"create", "--id", "fresh", "--title", "Fresh"}},
-		{"log", []string{"log", "login-flow", "progress"}},
-		{"update", []string{"update", "login-flow", "--priority", "1"}},
-		{"close", []string{"close", "login-flow", "--reason", "done"}},
-		{"apply", []string{"apply", applyFile}},
-		{"know add", []string{"know", "add", "--id", "fresh-note", "--title", "Fresh note"}},
-		{"know update", []string{"know", "update", "guide", "--title", "New guide"}},
-	}
-	callers := []struct {
-		name     string
-		chain    []proc.Process
-		isWarned bool
-	}{
-		{"under the holder process", holderChain, false},
-		{"under another process", otherChain, true},
-	}
-	for _, caller := range callers {
-		for _, write := range writes {
-			t.Run(caller.name+"/"+write.name, func(t *testing.T) {
-				root := newLockWarnStore(t)
-				writeApplyFile(t, root, lockWarnApply)
-				withAncestry(t, holderChain...)
-				mustRun(t, root, "lock", "acquire", "--purpose", "batch")
-				withAncestry(t, caller.chain...)
-
-				stdout := mustRun(t, root, write.args...)
-
-				if isWarned := lockWarning(stdout) != ""; isWarned != caller.isWarned {
-					t.Errorf("stdout = %q, want a lock warning %t", stdout, caller.isWarned)
-				}
-			})
-		}
 	}
 }
 
