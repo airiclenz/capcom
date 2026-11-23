@@ -92,7 +92,8 @@ const (
 		"init --claude-hooks and init --codex-hooks run it at session start and before compaction; " +
 		"init --apogee-hooks runs it at session start and after compaction.\n\n" +
 		"With --additional-context it prints the same text as the additionalContext string of one " +
-		"JSON object, which a GitHub Copilot sessionStart hook reads."
+		"JSON object, which a GitHub Copilot sessionStart hook reads; init --copilot-hooks runs it " +
+		"that way at session start."
 	primeExample = "  capcom prime          # the session-start Briefing\n" +
 		"  capcom prime --json   # the same Briefing as a JSON envelope"
 )

@@ -119,7 +119,9 @@ entry with `bash` equal to the command → `Present`; `version: 2`, `hooks: []`,
 
 **Commit:** `feat(hooks): merge a capcom prime sessionStart hook into .github/hooks/capcom.json`
 
-## 3. capcom init --copilot-hooks
+## 3. capcom init --copilot-hooks — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the no-Copilot test checks plain and other-hook-flag init output for ".github/hooks", "GitHub Copilot CLI", "--additional-context" and the version line rather than the bare word "Copilot", which plain init's existing text already contains.
 
 Depends on items 1 and 2.
 

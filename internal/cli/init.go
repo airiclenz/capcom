@@ -24,6 +24,8 @@ type initData struct {
 	CodexHooks string `json:"codex_hooks,omitempty"`
 	// ApogeeHooks is what --apogee-hooks did to the apogee project config: added or present.
 	ApogeeHooks string `json:"apogee_hooks,omitempty"`
+	// CopilotHooks is what --copilot-hooks did to the GitHub Copilot hooks file: added or present.
+	CopilotHooks string `json:"copilot_hooks,omitempty"`
 	// MergeDriver is what --merge-driver did to .gitattributes: added or present.
 	MergeDriver string `json:"merge_driver,omitempty"`
 	// GitConfig lists the git config commands --merge-driver leaves for the user to run.
@@ -31,13 +33,15 @@ type initData struct {
 }
 
 // Flags of init: add the capcom prime hooks to the Claude Code settings or to the Codex hooks, add
-// the capcom prime reaction to the apogee project config, or hand issue files to the capcom-log
-// merge driver in .gitattributes.
+// the capcom prime reaction to the apogee project config, add the capcom prime sessionStart hook to
+// the GitHub Copilot hooks file, or hand issue files to the capcom-log merge driver in
+// .gitattributes.
 const (
-	flagClaudeHooks = "claude-hooks"
-	flagCodexHooks  = "codex-hooks"
-	flagApogeeHooks = "apogee-hooks"
-	flagMergeDriver = "merge-driver"
+	flagClaudeHooks  = "claude-hooks"
+	flagCodexHooks   = "codex-hooks"
+	flagApogeeHooks  = "apogee-hooks"
+	flagCopilotHooks = "copilot-hooks"
+	flagMergeDriver  = "merge-driver"
 )
 
 // Help text of capcom init.
@@ -51,6 +55,9 @@ const (
 		"--apogee-hooks adds a reaction running capcom prime on apogee's session-started and " +
 		"compaction-finished to .apogee/config.yaml, which apogee asks each user to adopt once; it " +
 		"needs apogee v0.28.0 or later.\n\n" +
+		"--copilot-hooks adds a sessionStart hook running capcom prime --additional-context to " +
+		".github/hooks/capcom.json, which GitHub Copilot CLI, VS Code and the Copilot cloud agent " +
+		"read; it needs GitHub Copilot CLI 1.0.22 or later.\n\n" +
 		"--merge-driver hands issue files to the capcom-log merge driver in .gitattributes and " +
 		"prints the two git config commands that define it.\n\n" +
 		"The flags are independent and can be combined."
@@ -58,6 +65,7 @@ const (
 		"  capcom init --claude-hooks   # ...and run capcom prime from Claude Code's session hooks\n" +
 		"  capcom init --codex-hooks    # ...and from Codex's, which needs [features] hooks = true\n" +
 		"  capcom init --apogee-hooks   # ...and from apogee's session-started and compaction-finished reaction\n" +
+		"  capcom init --copilot-hooks  # ...and from GitHub Copilot's sessionStart hook\n" +
 		"  capcom init --merge-driver   # ...and merge issue Logs by entry (prints two git config lines)"
 )
 
@@ -73,7 +81,11 @@ const (
 	apogeeVersionNote = "needs apogee v0.28.0 or later; an older apogee ignores the capcom-prime entry\n"
 )
 
-// ClaudeHooks, CodexHooks, ApogeeHooks and MergeDriver values of initData.
+// copilotVersionNote is what init --copilot-hooks prints in text mode after its added or present
+// line: GitHub Copilot CLI fires sessionStart once per session from 1.0.22 on.
+const copilotVersionNote = "needs GitHub Copilot CLI 1.0.22 or later\n"
+
+// ClaudeHooks, CodexHooks, ApogeeHooks, CopilotHooks and MergeDriver values of initData.
 const (
 	claudeHooksAdded   = string(hooks.Added)
 	claudeHooksPresent = string(hooks.Present)
@@ -84,12 +96,15 @@ const (
 // .claude/settings.json; without it, text mode prints those hooks for the user to add. With
 // --codex-hooks it merges the same hooks into .codex/hooks.json. With --apogee-hooks it adds the
 // reaction running capcom prime on session-started and compaction-finished to .apogee/config.yaml.
-// With --merge-driver it adds the capcom-log merge driver line to .gitattributes and prints the git
-// config commands that define the driver. The four flags are independent.
+// With --copilot-hooks it adds the sessionStart hook running capcom prime --additional-context to
+// .github/hooks/capcom.json. With --merge-driver it adds the capcom-log merge driver line to
+// .gitattributes and prints the git config commands that define the driver. The five flags are
+// independent.
 func (a *app) newInitCommand() *cobra.Command {
 	isClaudeHooks := false
 	isCodexHooks := false
 	isApogeeHooks := false
+	isCopilotHooks := false
 	isMergeDriver := false
 	cmd := &cobra.Command{
 		Use:     "init",
@@ -134,6 +149,13 @@ func (a *app) newInitCommand() *cobra.Command {
 				}
 				text += line + apogeeAdoptNote + apogeeVersionNote
 			}
+			if isCopilotHooks {
+				var line string
+				if data.CopilotHooks, line, err = installCopilotHooks(opened.WorktreeRoot); err != nil {
+					return err
+				}
+				text += line + copilotVersionNote
+			}
 			if isMergeDriver {
 				var line string
 				if data.MergeDriver, line, err = installMergeDriver(opened.WorktreeRoot); err != nil {
@@ -151,6 +173,8 @@ func (a *app) newInitCommand() *cobra.Command {
 		"also add SessionStart and PreCompact hooks running capcom prime to "+codexHooksPath)
 	cmd.Flags().BoolVar(&isApogeeHooks, flagApogeeHooks, false,
 		"also add a reaction running capcom prime at session start and after compaction to "+hooks.ApogeePath)
+	cmd.Flags().BoolVar(&isCopilotHooks, flagCopilotHooks, false,
+		"also add a sessionStart hook running "+hooks.CopilotPrimeCommand+" to "+hooks.CopilotPath)
 	cmd.Flags().BoolVar(&isMergeDriver, flagMergeDriver, false,
 		"also hand issue files to the capcom-log merge driver in "+hooks.GitattributesPath)
 	return cmd
@@ -183,6 +207,21 @@ func installApogeeHooks(worktreeRoot string) (status string, line string, err er
 		return claudeHooksAdded, "added the " + primeCommand + " reaction to " + hooks.ApogeePath + "\n", nil
 	default:
 		return claudeHooksPresent, hooks.ApogeePath + " already runs " + primeCommand + "\n", nil
+	}
+}
+
+// installCopilotHooks adds the capcom prime sessionStart hook to the GitHub Copilot hooks file and
+// returns the initData value and the text line saying what it did. A hooks file hooks refuses is
+// invalid at its path (hooksFailure).
+func installCopilotHooks(worktreeRoot string) (status string, line string, err error) {
+	installed, err := hooks.InstallCopilot(worktreeRoot)
+	switch {
+	case err != nil:
+		return "", "", hooksFailure(err)
+	case installed == hooks.Added:
+		return claudeHooksAdded, "added the " + primeCommand + " hook to " + hooks.CopilotPath + "\n", nil
+	default:
+		return claudeHooksPresent, hooks.CopilotPath + " already runs " + hooks.CopilotPrimeCommand + "\n", nil
 	}
 }
 

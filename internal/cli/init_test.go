@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -807,6 +808,258 @@ func TestInit_WithoutApogeeHooks_NamesNothingOfApogee(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// wantCopilotVersion is the line init --copilot-hooks prints after its added or present line,
+// exactly as the user reads it.
+const wantCopilotVersion = "needs GitHub Copilot CLI 1.0.22 or later\n"
+
+// copilotHooksNew is the .github/hooks/capcom.json init --copilot-hooks creates.
+const copilotHooksNew = `{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "capcom prime --additional-context"
+      }
+    ]
+  }
+}
+`
+
+// copilotHooksBefore is a GitHub Copilot hooks file with a sessionStart hook of its own and another
+// event.
+const copilotHooksBefore = `{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "./scripts/setup.sh"
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "./scripts/log.sh"
+      }
+    ]
+  }
+}
+`
+
+// copilotHooksAfter is copilotHooksBefore once init --copilot-hooks added the capcom prime hook.
+const copilotHooksAfter = `{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "./scripts/setup.sh"
+      },
+      {
+        "type": "command",
+        "command": "capcom prime --additional-context"
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "./scripts/log.sh"
+      }
+    ]
+  }
+}
+`
+
+// writeCopilotHooks writes content as the .github/hooks/capcom.json of root.
+func writeCopilotHooks(t *testing.T, root string, content string) string {
+	t.Helper()
+	path := filepath.Join(root, ".github", "hooks", "capcom.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	return path
+}
+
+func TestInitCopilotHooks_NoHooksFile_CreatesIt(t *testing.T) {
+	root := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--copilot-hooks", "--json")
+
+	content, err := os.ReadFile(filepath.Join(root, ".github", "hooks", "capcom.json"))
+	if err != nil || string(content) != copilotHooksNew {
+		t.Errorf("capcom.json = %v\n%s\nwant\n%s", err, content, copilotHooksNew)
+	}
+	data := decodeEnvelope(t, stdout)["data"].(map[string]any)
+	_, isClaude := data["claude_hooks"]
+	_, isCodex := data["codex_hooks"]
+	_, isApogee := data["apogee_hooks"]
+	if data["copilot_hooks"] != claudeHooksAdded || isClaude || isCodex || isApogee {
+		t.Errorf("data = %v, want copilot_hooks %s and no claude_hooks, codex_hooks or apogee_hooks", data, claudeHooksAdded)
+	}
+	for _, dir := range []string{".claude", ".codex", ".apogee"} {
+		if _, err := os.Stat(filepath.Join(root, dir)); !os.IsNotExist(err) {
+			t.Errorf("init --copilot-hooks created %s: %v", dir, err)
+		}
+	}
+}
+
+func TestInitCopilotHooks_ExistingHooksFile_KeepsItsEntriesAndIsIdempotent(t *testing.T) {
+	root := newGitRepo(t)
+	path := writeCopilotHooks(t, root, copilotHooksBefore)
+
+	first := mustRun(t, root, "init", "--copilot-hooks")
+	merged, err := os.ReadFile(path)
+	second := mustRun(t, root, "init", "--copilot-hooks")
+	secondJSON := mustRun(t, root, "init", "--copilot-hooks", "--json")
+	again, againErr := os.ReadFile(path)
+
+	if err != nil || string(merged) != copilotHooksAfter {
+		t.Fatalf("capcom.json = %v\n%s\nwant\n%s", err, merged, copilotHooksAfter)
+	}
+	if againErr != nil || string(again) != copilotHooksAfter {
+		t.Errorf("a second init --copilot-hooks changed capcom.json:\n%s", again)
+	}
+	wantFirst := "added the capcom prime hook to .github/hooks/capcom.json\n" + wantCopilotVersion
+	if !strings.Contains(first, wantFirst) {
+		t.Errorf("init --copilot-hooks output = %q, want it to contain %q", first, wantFirst)
+	}
+	wantSecond := ".github/hooks/capcom.json already runs capcom prime --additional-context\n" + wantCopilotVersion
+	if !strings.Contains(second, wantSecond) {
+		t.Errorf("re-run output = %q, want it to contain %q", second, wantSecond)
+	}
+	if data := decodeEnvelope(t, secondJSON)["data"].(map[string]any); data["copilot_hooks"] != claudeHooksPresent {
+		t.Errorf("re-run copilot_hooks = %v, want %s", data["copilot_hooks"], claudeHooksPresent)
+	}
+}
+
+func TestInitCopilotHooks_UnusableHooksFile_FailsWithPath(t *testing.T) {
+	cases := []struct {
+		name       string
+		content    string
+		wantPrefix string
+	}{
+		{"syntax error", "{\n  \"version\": 1,\n  oops\n}\n", "capcom: .github/hooks/capcom.json:3: "},
+		{"version 2", "{\"version\": 2, \"hooks\": {}}\n", "capcom: .github/hooks/capcom.json: version must be 1"},
+		{"hooks not an object", "{\"version\": 1, \"hooks\": []}\n", "capcom: .github/hooks/capcom.json: hooks "},
+		{"sessionStart not an array", "{\"version\": 1, \"hooks\": {\"sessionStart\": {}}}\n",
+			"capcom: .github/hooks/capcom.json: hooks.sessionStart "},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newGitRepo(t)
+			path := writeCopilotHooks(t, root, testCase.content)
+
+			_, stderr, exitCode := runCLI(t, root, "init", "--copilot-hooks")
+
+			content, _ := os.ReadFile(path)
+			if exitCode != ExitError || !strings.HasPrefix(stderr, testCase.wantPrefix) || string(content) != testCase.content {
+				t.Errorf("init --copilot-hooks = %d, stderr %q, file %q; want 1, %q and the file untouched",
+					exitCode, stderr, content, testCase.wantPrefix)
+			}
+		})
+	}
+}
+
+func TestInitCopilotHooks_WithoutClaudeHooks_StillPrintsTheClaudeSnippet(t *testing.T) {
+	root := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--copilot-hooks")
+
+	if !strings.HasSuffix(stdout, wantCopilotVersion+"\n"+claudeHooksSnippet()) {
+		t.Errorf("init --copilot-hooks stdout:\n%s\nwant the Copilot lines, then the Claude snippet as plain init prints it", stdout)
+	}
+}
+
+func TestInitCopilotHooks_WithTheOtherHookFlags_WritesAllFourFiles(t *testing.T) {
+	root := newGitRepo(t)
+
+	stdout := mustRun(t, root, "init", "--claude-hooks", "--codex-hooks", "--apogee-hooks", "--copilot-hooks", "--json")
+
+	data := decodeEnvelope(t, stdout)["data"].(map[string]any)
+	for _, key := range []string{"claude_hooks", "codex_hooks", "apogee_hooks", "copilot_hooks"} {
+		if data[key] != claudeHooksAdded {
+			t.Errorf("data[%s] = %v, want %s", key, data[key], claudeHooksAdded)
+		}
+	}
+	for _, path := range []string{".claude/settings.json", ".codex/hooks.json", ".apogee/config.yaml", ".github/hooks/capcom.json"} {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(path))); err != nil {
+			t.Errorf("init with all four hook flags wrote no %s: %v", path, err)
+		}
+	}
+}
+
+func TestInit_WithoutCopilotHooks_NamesNothingOfCopilot(t *testing.T) {
+	cases := []struct {
+		name  string
+		flags []string
+	}{
+		{"plain", nil},
+		{"claude hooks", []string{"--claude-hooks"}},
+		{"codex hooks", []string{"--codex-hooks"}},
+		{"apogee hooks", []string{"--apogee-hooks"}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := newGitRepo(t)
+			jsonRoot := newGitRepo(t)
+
+			text := mustRun(t, root, append([]string{"init"}, testCase.flags...)...)
+			jsonOut := mustRun(t, jsonRoot, append([]string{"init", "--json"}, testCase.flags...)...)
+
+			for _, copilotText := range []string{".github/hooks", "GitHub Copilot CLI", "--additional-context", wantCopilotVersion} {
+				if strings.Contains(text, copilotText) {
+					t.Errorf("init %v stdout names %q:\n%s", testCase.flags, copilotText, text)
+				}
+			}
+			if _, isCopilot := decodeEnvelope(t, jsonOut)["data"].(map[string]any)["copilot_hooks"]; isCopilot {
+				t.Errorf("init %v --json data carries copilot_hooks: %s", testCase.flags, jsonOut)
+			}
+			for _, dir := range []string{root, jsonRoot} {
+				if _, err := os.Stat(filepath.Join(dir, ".github")); !os.IsNotExist(err) {
+					t.Errorf("init %v created .github: %v", testCase.flags, err)
+				}
+			}
+		})
+	}
+}
+
+func TestInitCopilotHooks_WrittenHookCommand_PrintsTheAdditionalContext(t *testing.T) {
+	root := newGitRepo(t)
+	mustRun(t, root, "init", "--copilot-hooks")
+	content, err := os.ReadFile(filepath.Join(root, ".github", "hooks", "capcom.json"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var hooksFile struct {
+		Hooks struct {
+			SessionStart []struct {
+				Command string `json:"command"`
+			} `json:"sessionStart"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(content, &hooksFile); err != nil || len(hooksFile.Hooks.SessionStart) != 1 {
+		t.Fatalf("capcom.json = %v\n%s\nwant one sessionStart hook", err, content)
+	}
+	words := strings.Fields(hooksFile.Hooks.SessionStart[0].Command)
+	if len(words) == 0 || words[0] != "capcom" {
+		t.Fatalf("sessionStart command = %q, want it to start with capcom", hooksFile.Hooks.SessionStart[0].Command)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, words[1:]...)
+
+	var briefing struct {
+		AdditionalContext string `json:"additionalContext"`
+	}
+	if exitCode != ExitOK || json.Unmarshal([]byte(stdout), &briefing) != nil || briefing.AdditionalContext == "" {
+		t.Errorf("capcom %v = %d, stdout %q, stderr %q; want 0 and a non-empty additionalContext",
+			words[1:], exitCode, stdout, stderr)
 	}
 }
 
