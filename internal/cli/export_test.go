@@ -115,7 +115,14 @@ func TestExport_RefusedDir_FailsAndWritesNothing(t *testing.T) {
 			if !filepath.IsAbs(target) {
 				target = filepath.Join(root, target)
 			}
-			before := readSite(t, filepath.Dir(target))
+			// Watch the directory the export would write into, or its parent when it does not
+			// exist yet. Never a directory holding the git dir: the index and lock files there
+			// change on every run, which made this test flaky.
+			watched := filepath.Dir(target)
+			if info, err := os.Stat(target); err == nil && info.IsDir() {
+				watched = target
+			}
+			before := readSite(t, watched)
 
 			stdout, stderr, exitCode := runCLI(t, root, "export", "--html", dir)
 
@@ -123,10 +130,15 @@ func TestExport_RefusedDir_FailsAndWritesNothing(t *testing.T) {
 				t.Fatalf("exit = %d stdout = %q stderr = %q, want %d and %q", exitCode, stdout, stderr,
 					ExitError, test.message)
 			}
-			after := readSite(t, filepath.Dir(target))
+			after := readSite(t, watched)
 			if len(after) != len(before) {
-				t.Errorf("the refused export changed %s: %d files, want %d", filepath.Dir(target),
-					len(after), len(before))
+				t.Errorf("the refused export changed %s: %d files, want %d", watched, len(after),
+					len(before))
+			}
+			for path, content := range before {
+				if !bytes.Equal(after[path], content) {
+					t.Errorf("the refused export changed %s", filepath.Join(watched, path))
+				}
 			}
 			if _, err := os.Stat(filepath.Join(target, ".capcom-export")); !errors.Is(err, fs.ErrNotExist) {
 				t.Errorf("the refused export wrote its marker: %v", err)
