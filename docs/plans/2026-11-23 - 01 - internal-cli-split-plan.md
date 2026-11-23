@@ -349,7 +349,9 @@ runCLI: every `TestDepList_*`, `TestDepGraph_NoID_*`, `TestDepGraph_JSON_*` and 
 **Closes:** cli-split-dep-graph
 **Commit:** `refactor(index): move the indexed Dependency graph out of internal/cli`
 
-## 7. Move Note successor-list edits to internal/ops
+## 7. Move Note successor-list edits to internal/ops — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the moved names are `ops.NoteNames` and `ops.EditSuccessors` (plain functions, not `Ops` methods: neither reads the Catalog); `applyNoteUpdate` calls `ops.EditSuccessors` directly and wraps its error with `refusalFailure(err, noteIDs, "", successorWords)`, so no cli wrapper keeps the old name.
 
 **What:**
 **Goal:** `internal/ops` resolves Note names (an id, or an alias exactly one Note claims) and applies

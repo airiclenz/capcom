@@ -555,32 +555,6 @@ func TestKnowUpdate_RemoveSupersededByAmbiguousPrefix_IsRefusedNamingTheCandidat
 	}
 }
 
-func TestKnowUpdate_AddThenRemoveTheSameSuccessor_RemovesIt(t *testing.T) {
-	cases := []struct {
-		name   string
-		stored string
-	}{
-		{name: "not stored", stored: "[cli-tests]"},
-		{name: "already stored", stored: "[git-fixtures, cli-tests]"},
-	}
-
-	for _, current := range cases {
-		t.Run(current.name, func(t *testing.T) {
-			root := newKnowStore(t)
-			writeNoteFiles(t, root, map[string]string{
-				"release-flow.md": "---\ntitle: Release flow\nsuperseded-by: " + current.stored + "\n---\n",
-			})
-
-			mustRun(t, root, "know", "update", "release-flow",
-				"--add-superseded-by", "git-fixtures", "--remove-superseded-by", "git-fixtures")
-
-			if got := readNoteFile(t, root, "release-flow.md"); !strings.Contains(got, "superseded-by: [cli-tests]\n") {
-				t.Errorf("note file = %q; want superseded-by: [cli-tests]", got)
-			}
-		})
-	}
-}
-
 func TestKnowUpdate_RemoveSupersededByDuplicatedName_FailsNamingBothFilesAndWritesNothing(t *testing.T) {
 	root := newKnowStore(t)
 	writeNoteFiles(t, root, map[string]string{
@@ -595,21 +569,6 @@ func TestKnowUpdate_RemoveSupersededByDuplicatedName_FailsNamingBothFilesAndWrit
 	assertDuplicateRefusal(t, root, stderr, exitCode, ".capcom/knowledge/foo.md", ".capcom/knowledge/testing-rules/foo.md")
 	if after := readNoteFile(t, root, "release-flow.md"); after != before {
 		t.Errorf("note file changed to %q", after)
-	}
-}
-
-func TestKnowUpdate_AddSupersededByBesideItsAliasSpelling_AddsNothing(t *testing.T) {
-	root := newKnowStore(t)
-	writeNoteFiles(t, root, map[string]string{
-		"testing-rules/git-fixtures.md": "---\ntitle: Git fixtures\naliases: [fixtures]\n---\n",
-		"release-flow.md":               "---\ntitle: Release flow\nsuperseded-by: [fixtures]\n---\n",
-	})
-	before := readNoteFile(t, root, "release-flow.md")
-
-	mustRun(t, root, "know", "update", "release-flow", "--add-superseded-by", "git-fixtures")
-
-	if after := readNoteFile(t, root, "release-flow.md"); after != before {
-		t.Errorf("note file = %q; want it unchanged, %q", after, before)
 	}
 }
 
