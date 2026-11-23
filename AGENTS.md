@@ -82,6 +82,7 @@ naming the holder, means another session holds this worktree: ask the user befor
 Knowledge tree, top level:
 
 - `agent-eval`: Before changing or running the agent eval harness: cmd/agenteval and docs/agent-eval.md
+- `baseline`: Before your first change in a session: rules for every repository on secrets, destructive and outward actions, guards, untrusted text, dependencies and done
 - `cli-test-harness`: CLI tests run through runCLI, hermetic and never parallel
 - `coding-conventions`: Before writing code: house conventions, gofmt and capcom-specific rules
 - `decisions`: Decision records: why capcom works the way it does, one Note per record with its sections as children
