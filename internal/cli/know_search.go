@@ -48,7 +48,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			text := strings.Join(args, " ")
-			entries, match, err := searchEveryWordFirst(
+			entries, isEveryWord, err := index.SearchEveryWordFirst(
 				func() ([]index.NoteEntry, error) {
 					return a.issueIndex.SearchNotes(text, labels, isRetiredIncluded)
 				},
@@ -59,6 +59,7 @@ func (a *app) newKnowSearchCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			match := searchMatch(isEveryWord)
 			if len(entries) == 0 {
 				return output.Errorf(output.CodeNotFound, "no Note matches %q", text)
 			}

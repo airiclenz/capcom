@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/airiclenz/capcom/internal/briefing"
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/index"
 )
@@ -85,13 +86,6 @@ type contextNoteData struct {
 	Ref    string `json:"ref,omitempty"`
 }
 
-// applyingNote is a Note that applies to an Issue, with the ref that made it apply; ref is empty
-// for a Note the title search found.
-type applyingNote struct {
-	entry index.NoteEntry
-	ref   string
-}
-
 // newContextCommand prints an Issue with what it takes to work on it: the Issue as show prints
 // it, its direct deps and dependents, its plan and the Notes that apply, each capped as --help
 // states. --brief prints the Issue as one line and leaves out the Note bodies.
@@ -146,7 +140,7 @@ func (a *app) contextResult(cmd *cobra.Command, entry index.Entry, isBrief bool)
 	if err != nil {
 		return output.Result{}, err
 	}
-	applying, err := a.applyingNotes(shownIssue.Title, body)
+	applying, err := briefing.ApplyingNotes(a.issueIndex, shownIssue.Title, body, contextNoteLimit)
 	if err != nil {
 		return output.Result{}, err
 	}
@@ -219,70 +213,25 @@ func (a *app) contextPlan(plan string) (*contextPlanData, string, error) {
 	return &contextPlanData{Name: plan, Path: relative}, contextPlanHeading + " " + relative + "\n", nil
 }
 
-// applyingNotes lists the Notes that apply to an Issue with title and body, at most
-// contextNoteLimit: first, in Note path order, each Note with a ref whose path part body
-// mentions, then the Notes a search on title finds, every word first, else any word, best match
-// first. Retired Notes and Notes under one are left out, and each Note appears once.
-func (a *app) applyingNotes(title string, body string) ([]applyingNote, error) {
-	notes, err := a.issueIndex.Notes(false)
-	if err != nil {
-		return nil, err
-	}
-	byID := make(map[string]index.NoteEntry, len(notes))
-	for _, note := range notes {
-		byID[note.ID] = note
-	}
-	refs, err := a.issueIndex.NoteRefs()
-	if err != nil {
-		return nil, err
-	}
-	hits, _, err := searchEveryWordFirst(
-		func() ([]index.NoteEntry, error) { return a.issueIndex.SearchNotes(title, nil, false) },
-		func() ([]index.NoteEntry, error) { return a.issueIndex.SearchNotesAnyWord(title, nil, false) },
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	applying := make([]applyingNote, 0, contextNoteLimit)
-	isListed := map[string]bool{}
-	add := func(note applyingNote) {
-		if len(applying) < contextNoteLimit && !isListed[note.entry.ID] {
-			isListed[note.entry.ID] = true
-			applying = append(applying, note)
-		}
-	}
-	for _, ref := range refs {
-		refPath, _, _ := strings.Cut(ref.Ref, "#")
-		if note, isUsable := byID[ref.NoteID]; isUsable && mentionsPath(body, refPath) {
-			add(applyingNote{entry: note, ref: ref.Ref})
-		}
-	}
-	for _, hit := range hits {
-		add(applyingNote{entry: hit})
-	}
-	return applying, nil
-}
-
 // contextNotes renders the applying Notes: the --json form and the notes section, one
 // `<id>  <title>  (ref <ref>)` or `<id>  <title>  (search)` line each, followed, unless isBrief,
 // by the bodies of the first contextBodyLimit, each under `--- <id>: <title>` and cut after
 // contextBodyLineLimit lines. The bodies come from the Note files, as know show reads them.
-func (a *app) contextNotes(applying []applyingNote, isBrief bool) ([]contextNoteData, string, error) {
+func (a *app) contextNotes(applying []briefing.ApplyingNote, isBrief bool) ([]contextNoteData, string, error) {
 	notes := make([]contextNoteData, 0, len(applying))
 	rows := make([]string, 0, len(applying))
 	shown := make([]index.NoteEntry, 0, contextBodyLimit)
 	for _, note := range applying {
-		data := contextNoteData{noteData: newNoteData(note.entry), Source: contextSourceSearch, Ref: note.ref}
+		data := contextNoteData{noteData: newNoteData(note.Entry), Source: contextSourceSearch, Ref: note.Ref}
 		found := contextSourceSearch
-		if note.ref != "" {
+		if note.Ref != "" {
 			data.Source = contextSourceRef
-			found = contextSourceRef + " " + note.ref
+			found = contextSourceRef + " " + note.Ref
 		}
 		notes = append(notes, data)
-		rows = append(rows, fmt.Sprintf("%s%s  %s  (%s)", textIndent, note.entry.ID, flatten(note.entry.Title), found))
+		rows = append(rows, fmt.Sprintf("%s%s  %s  (%s)", textIndent, note.Entry.ID, flatten(note.Entry.Title), found))
 		if !isBrief && len(shown) < contextBodyLimit {
-			shown = append(shown, note.entry)
+			shown = append(shown, note.Entry)
 		}
 	}
 	text := contextSection(contextNotesHeading, rows, contextNoteLimit, "")
@@ -317,54 +266,4 @@ func noteBodyText(note noteData) string {
 		text.WriteString("... cut: capcom know show " + note.ID + "\n")
 	}
 	return text.String()
-}
-
-// mentionsPath reports whether text mentions path, a slash path without a trailing slash
-// counting: whole, between characters that cannot belong to a path, or as a directory, followed
-// by a slash. A path ending a sentence before its full stop still counts. An empty path is never
-// mentioned.
-func mentionsPath(text string, path string) bool {
-	path = strings.TrimSuffix(path, "/")
-	if path == "" {
-		return false
-	}
-	for offset := 0; ; {
-		at := strings.Index(text[offset:], path)
-		if at < 0 {
-			return false
-		}
-		start := offset + at
-		end := start + len(path)
-		if (start == 0 || !isPathByte(text[start-1])) && endsPath(text[end:]) {
-			return true
-		}
-		offset = start + 1
-	}
-}
-
-// endsPath reports whether rest, the text after a path mention, ends the path there: it is empty,
-// starts with a slash (the path is a directory) or with a byte that cannot belong to a path, or
-// with a full stop that ends the text or comes before such a byte.
-func endsPath(rest string) bool {
-	switch {
-	case rest == "", rest[0] == '/', !isPathByte(rest[0]):
-		return true
-	case rest[0] == '.':
-		return len(rest) == 1 || !isPathByte(rest[1])
-	default:
-		return false
-	}
-}
-
-// isPathByte reports whether b can belong to a path as Note refs write them: an ASCII letter or
-// digit, one of `_-./`, or a byte of a non-ASCII character.
-func isPathByte(b byte) bool {
-	switch {
-	case b >= 'a' && b <= 'z', b >= 'A' && b <= 'Z', b >= '0' && b <= '9':
-		return true
-	case b == '_', b == '-', b == '.', b == '/':
-		return true
-	default:
-		return b >= 0x80
-	}
 }

@@ -160,29 +160,3 @@ func TestContext_UnknownID_FailsNotFound(t *testing.T) {
 		t.Errorf("exit = %d stderr = %q", exitCode, stderr)
 	}
 }
-
-func TestMentionsPath_WholePathOrDirectory_Counts(t *testing.T) {
-	cases := []struct {
-		text string
-		path string
-		want bool
-	}{
-		{"edit internal/auth/token.go now", "internal/auth/token.go", true},
-		{"edit internal/auth/token.go.", "internal/auth/token.go", true},
-		{"(internal/auth/token.go)", "internal/auth/token.go", true},
-		{"under internal/store/ops.go", "internal/store", true},
-		{"under internal/store/", "internal/store/", true},
-		{"edit internal/auth/token.go.bak", "internal/auth/token.go", false},
-		{"edit vendor/internal/store/x.go", "internal/store", false},
-		{"edit internal/storefront", "internal/store", false},
-		{"anything", "", false},
-	}
-
-	for _, current := range cases {
-		got := mentionsPath(current.text, current.path)
-
-		if got != current.want {
-			t.Errorf("mentionsPath(%q, %q) = %v, want %v", current.text, current.path, got, current.want)
-		}
-	}
-}

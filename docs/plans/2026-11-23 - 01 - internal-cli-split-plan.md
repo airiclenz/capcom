@@ -145,7 +145,11 @@ move from `suggest_test.go` to `internal/nearest`. Become direct: none. Stay run
 **Closes:** cli-split-closest-names
 **Commit:** `refactor(nearest): move name suggestion ranking out of internal/cli`
 
-## 2. Move the selection of an Issue's Notes to internal/briefing
+## 2. Move the selection of an Issue's Notes to internal/briefing — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): search and know search map index.SearchEveryWordFirst's bool to output.MatchAll/MatchAny through one small cli helper, searchMatch in search.go, rather than repeating the if at each caller; the Notes selection ignores the bool as before.
+
+NOTES (2026-11-23): the briefing tests index Notes through a new indexNoteFiles helper that reuses indexIssueFiles' store and refreshes after writing the Note files; the direct ApplyingNotes tests cover ref-then-title order, the limit, a Note found by both ref and title, and the any-word fallback.
 
 **What:**
 **Goal:** `internal/briefing` decides which Notes apply to an Issue — the Notes whose refs name a path

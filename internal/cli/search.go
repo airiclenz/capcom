@@ -54,13 +54,14 @@ func (a *app) newSearchCommand() *cobra.Command {
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			text := strings.Join(args, " ")
-			entries, match, err := searchEveryWordFirst(
+			entries, isEveryWord, err := index.SearchEveryWordFirst(
 				func() ([]index.Entry, error) { return a.issueIndex.SearchIssues(text) },
 				func() ([]index.Entry, error) { return a.issueIndex.SearchIssuesAnyWord(text) },
 			)
 			if err != nil {
 				return err
 			}
+			match := searchMatch(isEveryWord)
 			if len(entries) == 0 {
 				return output.Errorf(output.CodeNotFound, "no issue matches %q", text)
 			}
@@ -90,15 +91,13 @@ func (a *app) newSearchCommand() *cobra.Command {
 	return cmd
 }
 
-// searchEveryWordFirst returns the hits of everyWord with output.MatchAll when it finds any, else
-// the hits of anyWord with output.MatchAny. Either search's error is returned as it is.
-func searchEveryWordFirst[E any](everyWord, anyWord func() ([]E, error)) ([]E, string, error) {
-	entries, err := everyWord()
-	if err != nil || len(entries) > 0 {
-		return entries, output.MatchAll, err
+// searchMatch words how index.SearchEveryWordFirst matched: output.MatchAll when isEveryWord is
+// set, output.MatchAny otherwise.
+func searchMatch(isEveryWord bool) string {
+	if isEveryWord {
+		return output.MatchAll
 	}
-	entries, err = anyWord()
-	return entries, output.MatchAny, err
+	return output.MatchAny
 }
 
 // searchText is the text of a search's hit lines: under anyWordHeadingLine when match is

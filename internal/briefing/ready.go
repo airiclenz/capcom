@@ -1,7 +1,7 @@
 // Package briefing composes what capcom tells an agent about the work in front of it: the
-// Briefing capcom prime renders (Compose) and the Ready-list that capcom ready and prime show
-// (ReadyList, and ReadyListJudged with the verdicts behind it), and what ready.hide leaves out of
-// it (ReadyHidden).
+// Briefing capcom prime renders (Compose), the Ready-list that capcom ready and prime show
+// (ReadyList, and ReadyListJudged with the verdicts behind it), what ready.hide leaves out of it
+// (ReadyHidden), and the Notes that apply to an Issue, which capcom context lists (ApplyingNotes).
 package briefing
 
 import (
