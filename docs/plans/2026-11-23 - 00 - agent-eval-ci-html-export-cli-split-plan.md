@@ -254,7 +254,10 @@ internal/cli/golden_read_test.go — TestGolden_ReadKinds; internal/cli/golden_t
 - `go run ./cmd/capcom export --html "$(mktemp -d)/site"` in this repo exits 0
 **Commit:** `feat(cli): capcom export --html writes a static site`
 
-## 7. Plan the internal/cli split and file its move Issues
+## 7. Plan the internal/cli split and file its move Issues — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the package measured 51 files / 10,822 non-test lines / 367 functions at f09536a, of which only 25 functions (431 lines) are domain logic, so the plan has 8 small move items; the classification lists every function with its line count in one table row per file.
+NOTES (2026-11-23): the new plan's header names its package and test choices "Design calls" made by this analysis, not ratified by Airic; they need confirming at review, and the plan exceeds write.md's ~25 KB guide (28.6 KB) because the table must list every function.
 
 **What:**
 **Goal:** a plan in this skill's house format under `docs/plans/` classifies every non-test file
