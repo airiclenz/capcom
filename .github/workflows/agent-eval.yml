@@ -1,0 +1,186 @@
+name: Agent eval
+
+# Runs the agent eval (cmd/agenteval, docs/agent-eval.md) weekly and on demand, one job per model
+# the repository variable AGENT_EVAL_MODELS lists and one for Claude Code when the secret
+# ANTHROPIC_API_KEY is set; with neither it runs no eval job and passes. A job fails when its
+# model passes fewer tasks than its threshold in cmd/agenteval/thresholds.yaml. Each job uploads
+# its report and transcripts as an artifact and writes the report's Total row to the run summary;
+# reports are never committed. It lives apart from ci.yml so an eval failure never blocks a
+# release: the release gate reads ci.yml's runs only (Note adr-0008, HasGreenRun in cmd/release).
+#
+# AGENT_EVAL_MODELS is a JSON list of {name, base_url, model, key_secret}: name labels the job, the
+# report and the artifact and is the model's key in thresholds.yaml; base_url and model go to
+# `agenteval agent`; key_secret names the repository secret holding the endpoint's API key.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+# A run waits for the one before it to finish, so two never share an endpoint's rate limit.
+concurrency:
+  group: agent-eval
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # An explicit bash runs with -o pipefail.
+    shell: bash
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.models.outputs.matrix }}
+      has-models: ${{ steps.models.outputs.has-models }}
+      has-claude: ${{ steps.claude.outputs.has-claude }}
+    steps:
+      - name: Read AGENT_EVAL_MODELS
+        id: models
+        env:
+          AGENT_EVAL_MODELS: ${{ vars.AGENT_EVAL_MODELS }}
+        # A name becomes a file name and an artifact name, so it is held to letters, digits, '.',
+        # '_' and '-', and no two entries share one.
+        run: |
+          if ! matrix=$(jq -ce '
+            if type != "array" then error("AGENT_EVAL_MODELS must be a JSON list")
+            else
+              map(
+                if type == "object"
+                  and (.name | type == "string" and test("^[A-Za-z0-9._-]+$"))
+                  and (.base_url | type == "string" and length > 0)
+                  and (.model | type == "string" and length > 0)
+                  and (.key_secret | type == "string" and test("^[A-Za-z_][A-Za-z0-9_]*$"))
+                then {name, base_url, model, key_secret}
+                else error("each AGENT_EVAL_MODELS entry needs a name of letters, digits, ., _ or -, a base_url, a model and a key_secret naming a secret; got \(tojson)")
+                end
+              )
+              | if (map(.name) | unique | length) == length then .
+                else error("AGENT_EVAL_MODELS names a model twice") end
+            end
+          ' <<<"${AGENT_EVAL_MODELS:-[]}"); then
+            echo "::error::AGENT_EVAL_MODELS is not a valid list of models"
+            exit 1
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          if [ "$matrix" = "[]" ]; then
+            echo "::notice::AGENT_EVAL_MODELS is unset or empty; no model is evaluated"
+            echo "has-models=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-models=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Look for ANTHROPIC_API_KEY
+        id: claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has-claude=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::the secret ANTHROPIC_API_KEY is not set; Claude Code is not evaluated"
+            echo "has-claude=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  model:
+    name: eval ${{ matrix.name }}
+    needs: setup
+    if: needs.setup.outputs.has-models == 'true'
+    runs-on: ubuntu-latest
+    # 12 tasks at agenteval's default --timeout of 15m each is 180 minutes; the rest covers the
+    # builds.
+    timeout-minutes: 195
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    env:
+      MODEL_NAME: ${{ matrix.name }}
+      MODEL_BASE_URL: ${{ matrix.base_url }}
+      MODEL: ${{ matrix.model }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build agenteval
+        run: go build -o agenteval ./cmd/agenteval
+      - name: Run the eval
+        env:
+          AGENT_EVAL_API_KEY: ${{ secrets[matrix.key_secret] }}
+        run: |
+          ./agenteval run --out "eval/$MODEL_NAME.md" \
+            --thresholds cmd/agenteval/thresholds.yaml --name "$MODEL_NAME" -- \
+            ./agenteval agent --base-url "$MODEL_BASE_URL" --model "$MODEL" --api-key-env AGENT_EVAL_API_KEY
+      - name: Upload the report and transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-eval-${{ matrix.name }}
+          path: eval/
+          if-no-files-found: ignore
+      - name: Summarise
+        if: always()
+        run: |
+          report="eval/$MODEL_NAME.md"
+          {
+            echo "### Agent eval: $MODEL_NAME"
+            echo
+            if [ -f "$report" ]; then
+              grep -m 2 '^| ' "$report"
+              grep -F '| **Total** |' "$report"
+            else
+              echo "no report"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  claude:
+    name: eval claude
+    needs: setup
+    if: needs.setup.outputs.has-claude == 'true'
+    runs-on: ubuntu-latest
+    # 12 tasks at agenteval's default --timeout of 15m each is 180 minutes; the rest covers the
+    # builds and the install.
+    timeout-minutes: 195
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build agenteval
+        run: go build -o agenteval ./cmd/agenteval
+      # Unpinned on purpose: the eval measures the Claude Code CLI as it ships.
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run the eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # In print mode no one answers a permission prompt, so the shell tool is allowed up front.
+        run: |
+          ./agenteval run --out eval/claude.md \
+            --thresholds cmd/agenteval/thresholds.yaml --name claude -- \
+            claude -p --allowedTools Bash
+      - name: Upload the report and transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-eval-claude
+          path: eval/
+          if-no-files-found: ignore
+      - name: Summarise
+        if: always()
+        run: |
+          report=eval/claude.md
+          {
+            echo "### Agent eval: claude"
+            echo
+            if [ -f "$report" ]; then
+              grep -m 2 '^| ' "$report"
+              grep -F '| **Total** |' "$report"
+            else
+              echo "no report"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

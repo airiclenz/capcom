@@ -82,7 +82,12 @@ cmd/agenteval/run_test.go — executeCommand, runNextClaimClose; cmd/agenteval/m
 - `go vet ./cmd/agenteval/`
 **Commit:** `feat(agenteval): fail a run below the model's pass threshold`
 
-## 2. Scheduled agent-eval workflow
+## 2. Scheduled agent-eval workflow — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the setup job also validates AGENT_EVAL_MODELS with jq and fails naming the problem when it is not a JSON list, an entry lacks a name (letters, digits, '.', '_', '-'), base_url, model or key_secret (a secret name), or two entries share a name (a name becomes a file and artifact name); unset, empty or `[]` runs no model job.
+NOTES (2026-11-23): matrix values reach the run scripts through job env vars (MODEL_NAME, MODEL_BASE_URL, MODEL), never interpolated into `run:` text; the summary also prints the report's table header and alignment rows above the Total row so it renders as a table (`grep -m 2 '^| '`, safe under pipefail).
+NOTES (2026-11-23): timeout-minutes is 195 per eval job (12 tasks x 15m = 180m plus builds); concurrency group agent-eval with cancel-in-progress false; weekly cron Monday 04:00 UTC; Claude Code installed unpinned with npm, commented as deliberate.
+NOTES (2026-11-23): python3 has no yaml module on this host, so the parse acceptance ran with go.yaml.in/yaml/v3 v3.0.6 (go.mod's version) from a scratch module instead; actionlint v1.7.7 (installed into the scratchpad) reports nothing.
 
 **What:**
 **Goal:** `.github/workflows/agent-eval.yml` runs on `workflow_dispatch` and weekly; with neither
