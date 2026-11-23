@@ -4,6 +4,7 @@ status: open
 type: task
 priority: 3
 labels: [maturity, refactor]
+plan: 2026-11-23 - 00 - agent-eval-ci-html-export-cli-split-plan
 created: 2026-11-04T18:27:23Z
 ---
 

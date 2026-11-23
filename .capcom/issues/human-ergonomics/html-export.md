@@ -3,6 +3,7 @@ title: No way to share the issue and Note state as static pages
 status: open
 type: feature
 priority: 3
+plan: 2026-11-23 - 00 - agent-eval-ci-html-export-cli-split-plan
 created: 2026-10-19T14:54:45Z
 ---
 
