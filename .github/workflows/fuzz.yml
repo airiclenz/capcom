@@ -36,12 +36,27 @@ jobs:
           - package: internal/batch
             target: FuzzParseApply
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+      # Go's fuzzer sometimes ends a clean run with "context deadline exceeded" when -fuzztime
+      # runs out, writing no failing input (seen on FuzzDecode and FuzzParseConfig). That run is a
+      # pass with a warning; a run that writes a failing input still fails.
       - name: Fuzz
-        run: go test -run='^$' -fuzz='^${{ matrix.target }}$' -fuzztime=30s ./${{ matrix.package }}
+        env:
+          TARGET: ${{ matrix.target }}
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          set -o pipefail
+          if go test -run='^$' -fuzz="^${TARGET}\$" -fuzztime=30s "./${PACKAGE}" 2>&1 | tee "$RUNNER_TEMP/fuzz.log"; then
+            exit 0
+          fi
+          if grep -q 'Failing input written to' "$RUNNER_TEMP/fuzz.log" \
+            || ! tail -n 8 "$RUNNER_TEMP/fuzz.log" | grep -qx '    context deadline exceeded'; then
+            exit 1
+          fi
+          echo "::warning title=${TARGET}::fuzzing ended with context deadline exceeded and wrote no failing input; treated as a pass"
       # A crash leaves its input under the package's testdata/fuzz/<Target>/; commit it with the
       # fix so it runs as a regression case in every plain `go test`.
       - name: Upload the crasher
