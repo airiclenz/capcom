@@ -187,6 +187,7 @@ func (a *app) newRootCommand() *cobra.Command {
 	root.AddCommand(a.newContextCommand())
 	root.AddCommand(a.newCreateCommand())
 	root.AddCommand(a.newDepCommand())
+	root.AddCommand(a.newExportCommand())
 	root.AddCommand(a.newFinishCommand())
 	root.AddCommand(a.newFmtCommand())
 	root.AddCommand(a.newInitCommand())

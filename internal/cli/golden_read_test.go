@@ -27,6 +27,7 @@ func TestGolden_ReadKinds(t *testing.T) {
 		{golden: "check", args: []string{"check"}},
 		{golden: "version", args: []string{"version"}},
 		{golden: "reindex", args: []string{"reindex"}},
+		{golden: "export", args: []string{"export", "--html", "site"}},
 		{golden: "agents", args: []string{"agents"}},
 	}
 	for _, test := range tests {

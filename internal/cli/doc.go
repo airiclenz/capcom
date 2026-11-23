@@ -21,6 +21,7 @@
 //   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — kindFailure, which types a nodestore failure, and the tree-problem warnings
+//   - `export.go` — capcom export: writes the Issues and Notes as a static HTML site through internal/export
 //   - `finish.go` — capcom finish: closes an Issue, frees this worktree's Tree lock and names the next Ready Issue
 //   - `flag_once.go` — refuses a single-value flag given more than once
 //   - `flags.go` — the flag names two or more commands share, unlimitedDepth, and valueFailure, which words an ops.ValueError with the valid values

@@ -224,7 +224,11 @@ internal/knowledge/note.go — Note, IsBackground; internal/briefing/ready_test.
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/export/`
 **Commit:** `feat(export): write the Knowledge tree and Note pages`
 
-## 6. capcom export --html command
+## 6. capcom export --html command — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): re-derived from export.WriteHTML returning only an error (item 4's interface): the page count the command prints needs it, so WriteHTML now returns (int, error), the number of pages written, the marker not counted; its three test call sites in internal/export/export_test.go take the extra value, and TestWriteHTML_ReturnsPageCount pins the count.
+NOTES (2026-11-23): the command passes WriteHTML the directory made absolute (filepath.Abs) and prints that path, in text and as the JSON `dir`; a missing --html is cobra's required-flag usage error (as create's --id), and a blank --html is a usage error too; a refused directory fails with code invalid (exit 1), its message naming the directory.
+NOTES (2026-11-23): docs/site/reference/json-output.md lists `export` in the kind list and gains a paragraph describing its data; docs/site/reference/cli/ regenerated with go run ./cmd/gendocs (capcom.md gains the export link, capcom_export.md is new).
 
 **What:**
 **Goal:** `capcom export --html <dir>` calls `export.WriteHTML`, prints the dir and page count,

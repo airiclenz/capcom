@@ -47,6 +47,7 @@ capcom [flags]
 * [capcom context](capcom_context.md)	 - Show an issue with its deps, plan and the Notes that apply
 * [capcom create](capcom_create.md)	 - Create an issue with a chosen id
 * [capcom dep](capcom_dep.md)	 - Manage dependencies between issues
+* [capcom export](capcom_export.md)	 - Write the Issues and Notes as a static HTML site
 * [capcom finish](capcom_finish.md)	 - Close an Issue and free this worktree's Tree lock
 * [capcom fmt](capcom_fmt.md)	 - Rewrite every issue and Note file in canonical form
 * [capcom init](capcom_init.md)	 - Create the capcom store (.capcom/) in this git repository

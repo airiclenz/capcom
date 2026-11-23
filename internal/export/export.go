@@ -66,28 +66,29 @@ type page struct {
 // lies inside it, with ErrHoldsStore when it holds st.Root, and with ErrForeignDir when it exists,
 // is not empty and holds no marker file. A missing dir is created. Every page is rendered before dir is touched; then the marker file is written, every
 // other entry of dir is removed and the pages are written, each atomically. A failure after the
-// marker leaves a directory the next export accepts. Errors name the path they concern.
-func WriteHTML(dir string, st *store.Store, ix *index.Index) error {
+// marker leaves a directory the next export accepts. It returns the number of pages written, the
+// marker file not counted. Errors name the path they concern.
+func WriteHTML(dir string, st *store.Store, ix *index.Index) (int, error) {
 	pages, err := issuePages(st, ix)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	notes, err := notePages(st, ix)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	pages = append(pages, notes...)
 	target, err := prepareDir(dir, st.Root)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	for _, written := range pages {
 		path := filepath.Join(target, filepath.FromSlash(written.path))
 		if err := nodefile.WriteFileAtomic(path, bytes.NewReader(written.content)); err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return nil
+	return len(pages), nil
 }
 
 // prepareDir resolves dir, checks it against the directory rules WriteHTML documents, writes the

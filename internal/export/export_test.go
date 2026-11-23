@@ -90,7 +90,7 @@ func exportFixture(t *testing.T) (*store.Store, *index.Index) {
 // writeExport exports the fixture into dir and fails the test when the export fails.
 func writeExport(t *testing.T, dir string, st *store.Store, ix *index.Index) {
 	t.Helper()
-	if err := export.WriteHTML(dir, st, ix); err != nil {
+	if _, err := export.WriteHTML(dir, st, ix); err != nil {
 		t.Fatalf("WriteHTML: %v", err)
 	}
 }
@@ -155,6 +155,20 @@ func TestWriteHTML_PageSet(t *testing.T) {
 	}
 	if !slices.Equal(names, want) {
 		t.Errorf("files = %v, want %v", names, want)
+	}
+}
+
+func TestWriteHTML_ReturnsPageCount(t *testing.T) {
+	st, ix := exportFixture(t)
+	dir := filepath.Join(t.TempDir(), "site")
+
+	pages, err := export.WriteHTML(dir, st, ix)
+
+	if err != nil {
+		t.Fatalf("WriteHTML: %v", err)
+	}
+	if want := len(readTree(t, dir)) - 1; pages != want {
+		t.Errorf("WriteHTML = %d pages, want %d: every file but the marker", pages, want)
 	}
 }
 
@@ -304,7 +318,7 @@ func TestWriteHTML_RefusesStoreDirs(t *testing.T) {
 				t.Skipf("symlinks unavailable on %s", runtime.GOOS)
 			}
 
-			err := export.WriteHTML(tc.dir, st, ix)
+			_, err := export.WriteHTML(tc.dir, st, ix)
 
 			if !errors.Is(err, tc.want) {
 				t.Fatalf("WriteHTML(%s) = %v, want %v", tc.dir, err, tc.want)
@@ -327,7 +341,7 @@ func TestWriteHTML_RefusesForeignDir(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	err := export.WriteHTML(dir, st, ix)
+	_, err := export.WriteHTML(dir, st, ix)
 
 	if !errors.Is(err, export.ErrForeignDir) {
 		t.Fatalf("WriteHTML = %v, want ErrForeignDir", err)
