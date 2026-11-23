@@ -80,7 +80,9 @@ and `--json`.
 
 **Commit:** `feat(prime): print the Briefing as Copilot sessionStart JSON with --additional-context`
 
-## 2. Merge the capcom sessionStart hook into .github/hooks/capcom.json
+## 2. Merge the capcom sessionStart hook into .github/hooks/capcom.json — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): MergeCopilot returns (merged, Status, error) as the plan's signature says, like MergeApogee; the version check accepts any JSON number equal to 1 (1 or 1.0) and refuses anything else, a string "1" included; a file whose sessionStart already runs the hook is Present and left as it is even without a version member; a sessionStart that is not an array is refused as "hooks.sessionStart must be an array of hooks", worded after Merge's "hooks.<event> must be an array of hook groups".
 
 **What:**
 **Goal:** package `hooks` can add a `sessionStart` entry

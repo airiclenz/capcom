@@ -6,7 +6,10 @@
 // pure line edit, InstallMergeAttribute reads, appends and writes it in a working tree. The project
 // apogee config, .apogee/config.yaml, gains a reaction running capcom prime: MergeApogee is the
 // YAML edit, made on lines so every other byte is kept, and InstallApogee reads, merges and writes
-// it in a working tree.
+// it in a working tree. The GitHub Copilot hooks file, .github/hooks/capcom.json, gains a
+// sessionStart hook running capcom prime --additional-context: MergeCopilot is the JSON edit, which
+// adds a missing version member and keeps every other member as Merge does, and InstallCopilot
+// reads, merges and writes it in a working tree.
 package hooks
 
 import (
@@ -23,7 +26,8 @@ import (
 	"github.com/airiclenz/capcom/internal/nodefile"
 )
 
-// PrimeCommand is the command the Claude Code and Codex hooks and the apogee reaction run.
+// PrimeCommand is the command the Claude Code and Codex hooks and the apogee reaction run; the
+// GitHub Copilot hook runs it with --additional-context, as CopilotPrimeCommand.
 const PrimeCommand = "capcom prime"
 
 // Keys and layout of the settings files capcom writes.
@@ -34,21 +38,22 @@ const (
 	settingsSeparator = ","
 )
 
-// Status is what Install, InstallMergeAttribute or InstallApogee did to its file.
+// Status is what Install, InstallMergeAttribute, InstallApogee or InstallCopilot did to its file.
 type Status string
 
 // Status values of the installers.
 const (
 	// Added means the file was written: at least one settings event gained the capcom prime group,
-	// or the .gitattributes line or the apogee reaction was added.
+	// or the .gitattributes line, the apogee reaction or the Copilot sessionStart hook was added.
 	Added Status = "added"
-	// Present means every settings event already ran capcom prime, or the .gitattributes line or
-	// the apogee reaction was already there; the file was left as it is.
+	// Present means every settings event already ran capcom prime, or the .gitattributes line, the
+	// apogee reaction or the Copilot sessionStart hook was already there; the file was left as it is.
 	Present Status = "present"
 )
 
 // Error is a file that cannot be read, a .gitattributes that cannot be replaced, a settings file
-// that is not shaped as Claude Code and Codex read it, or an apogee config MergeApogee cannot edit.
+// that is not shaped as Claude Code and Codex read it, an apogee config MergeApogee cannot edit, or
+// a Copilot hooks file MergeCopilot refuses.
 // Path is the file relative to the working tree root, slash-separated; Line is the 1-based line of
 // a JSON or YAML syntax error or of the YAML node at fault, or 0 when no single line is to blame.
 type Error struct {
