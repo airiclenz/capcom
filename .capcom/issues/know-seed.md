@@ -1,10 +1,12 @@
 ---
 title: No command seeds a repo with a base set of Knowledge Notes
-status: open
+status: done
 type: feature
 priority: 2
 plan: 2026-11-23 - 03 - know-seed-plan
 created: 2026-11-23T16:39:03Z
+closed: 2026-11-23T17:41:20Z
+reason: "Delivered by plan 2026-11-23 - 03 - know-seed-plan (archived in 2595679): capcom know seed with --dry-run and --show, the base set embedded as markdown files, glossary Note knowledge amended to cover rules the repository adopts. --update supersedes 'No update logic', as the plan ratified."
 ---
 
 A fresh store has an empty Knowledge tree. Rules that hold in any repository (secret hygiene,

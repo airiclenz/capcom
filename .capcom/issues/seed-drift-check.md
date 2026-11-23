@@ -1,11 +1,13 @@
 ---
 title: Nothing tells a seeded repo that capcom ships a corrected base Note
-status: open
+status: done
 type: feature
 priority: 3
 deps: [know-seed]
 plan: 2026-11-23 - 03 - know-seed-plan
 created: 2026-11-23T16:39:03Z
+closed: 2026-11-23T17:41:20Z
+reason: "Delivered by plan 2026-11-23 - 03 - know-seed-plan (archived in 2595679): capcom check warns of an outdated seeded Note via the seed-text hash Label, never of an edited one, and capcom know seed --update takes the new text."
 ---
 
 `capcom know seed` never overwrites a Note. A base Note corrected in a newer capcom reaches a
