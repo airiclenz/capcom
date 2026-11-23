@@ -380,7 +380,7 @@ internal/ops/deps.go — namesIssue, ReferenceList, WithoutEntries; internal/ref
 **Closes:** cli-split-note-successors
 **Commit:** `refactor(ops): move Note successor-list edits out of internal/cli`
 
-## 8. Move the refs a removal breaks to internal/knowledge
+## 8. Move the refs a removal breaks to internal/knowledge — ✅ DONE (2026-11-23)
 
 **What:**
 **Goal:** `internal/knowledge` selects, from a set of Notes, the refs that name a removed file or its

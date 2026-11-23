@@ -7,7 +7,6 @@ import (
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/nodestore"
-	"github.com/airiclenz/capcom/internal/tree"
 )
 
 // Flags and output of capcom rm and know rm.
@@ -157,17 +156,11 @@ func (a *app) brokenRefWarnings(removed nodestore.Removed) []string {
 	if err != nil {
 		return a.refsUncheckedWarnings(removed.ID, err)
 	}
-	childrenDir := tree.ChildrenDir(removed.Path)
-	var files []knowledge.NoteFile
+	files := make([]knowledge.NoteFile, 0, len(notes))
 	for _, entry := range notes {
-		if entry.Path == removed.Path {
-			continue
-		}
-		if refs := knowledge.RefsNaming(entry.Refs, removed.Path, childrenDir); len(refs) > 0 {
-			note := knowledge.Note{Refs: refs}
-			files = append(files, knowledge.NoteFile{ID: entry.ID, Path: entry.Path, Note: note})
-		}
+		files = append(files, knowledge.NoteFile{ID: entry.ID, Path: entry.Path, Note: knowledge.Note{Refs: entry.Refs}})
 	}
+	files = knowledge.RefsBrokenByRemoval(files, removed.Path)
 	if len(files) == 0 {
 		return nil
 	}
