@@ -26,15 +26,16 @@ Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `ai
 
 ## Agents
 
-- [Agent setup](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/agent-setup.md): Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code, Codex and apogee, and the Claude Code plugin.
-- [The session briefing](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/briefing.md): What capcom prime prints at the start of an agent session (Ready work, Issues in progress, Tree locks, broken Note refs, store health, Elsewhere) and when to run it.
+- [Agent setup](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/agent-setup.md): Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code, Codex, apogee and GitHub Copilot, and the Claude Code plugin.
+- [The session briefing](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/briefing.md): What capcom prime prints at the start of an agent session (Ready work, Issues in progress, Tree locks, broken and unshared Note refs, store health, Elsewhere) and when to run it.
 - [The Managed block](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/agents/managed-block.md): capcom agents writes and refreshes a marked section of AGENTS.md telling agents how to use capcom and listing the top of the Knowledge tree; the rest of the file stays yours.
 
 ## Reference
 
 - [CLI reference](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/cli/capcom.md): Every command, flag and example, one page per command linked from here
 - [File format](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/file-format.md): The files capcom keeps under .capcom/: issue files, Note files, the tree, config.yaml, the lock record, the Managed block, the two files capcom ui keeps outside the repository: its per-user config.yaml and its state.yaml, and its per-worktree ui-state.yaml under the git directory.
-- [JSON and KV output](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/json-output.md): The versioned --json envelope every command except capcom ui prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer.
+- [Apply file](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/apply-file.md): The YAML file capcom apply reads: a list of Issue writes (create, update, dep add, close and log), run in order and written all or none, with its keys, values, if-match rule, dry run and errors.
+- [JSON and KV output](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/json-output.md): The versioned --json envelope every command except capcom ui and the bare command groups prints, its error codes and exit codes, and the KEY=VALUE --kv format some commands offer.
 - [Compatibility](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/reference/compatibility.md): What capcom keeps stable from one release to the next: the store files, the --json and --kv output, the exit codes and error codes, and how something stable is retired. Each promise names the test that holds it.
 
 ## Optional

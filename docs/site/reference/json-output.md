@@ -130,6 +130,10 @@ $ capcom create --id audit-log2 --title "Log failed logins" --json
 {"schema":1,"kind":"issue-write","data":{"etag":"58756f0fb416f617","id":"audit-log2","path":".capcom/issues/audit-log2.md"},"elsewhere":[],"warnings":["audit-log2 has no body: add what, why and acceptance with capcom update audit-log2 --body-append <text>; create takes --body, --why and --acceptance"]}
 ```
 
+In plain text each warning is a `warning:` line printed before the command's result, so a
+`head` or `tail` pipeline neither hides nor splits it; `elsewhere:` lines and a partial result's
+failure come after the result.
+
 A file capcom cannot read (a bad issue file, say) is reported as a warning by every command that
 reads the store, until it is fixed; the rest of the store stays usable. How each problem with a
 file is worded and located is described under

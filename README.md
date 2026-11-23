@@ -45,6 +45,8 @@ branch, merge and show up in code review, just like the code they describe.
   instructions file. `capcom know verify` flags Notes whose files or symbols are gone.
 - **Session briefing.** `capcom prime` shows ready work, work in progress, locks, unmerged
   changes on other branches and store health.
+- **Static HTML export.** `capcom export --html <dir>` writes the Issues and Notes as a static
+  site that opens from the file system, with no JavaScript and no external resources.
 - **Validator and formatter.** `capcom check` reports problems as `path:line: message`;
   `capcom fmt` keeps files in canonical form. Both work in CI.
 - **Machine-readable output.** Every command except `capcom ui` prints plain text, or JSON with
@@ -135,8 +137,12 @@ git commit -m "chore: track issues with capcom"
 # Issues
 capcom create --id login-timeout-race --title "Login times out during refresh" --type bug
 capcom ready                    # open, unblocked issues, most urgent first
+capcom next                     # the most urgent ready issue, in full
 capcom list --tree              # the issue outline
+capcom list login-timeout-race token-store-rework   # the status of several ids, or "not found"
 capcom show login-timeout-race
+capcom show login-timeout-race --section acceptance   # one section of the body
+capcom context login-timeout-race   # the issue with its deps, plan and the Notes that apply
 capcom search refresh timeout
 capcom update login-timeout-race --priority 1
 capcom start login-timeout-race   # claim it and the Tree lock; again to resume
@@ -146,17 +152,18 @@ capcom related add login-timeout-race session-bug      # link without blocking
 capcom mv login-timeout-race --parent login-flow       # the old id stays an alias
 capcom finish login-timeout-race --reason "Fixed in 3f2a1c9"   # close, free the lock
 capcom reopen login-timeout-race --reason "Came back on Safari"
+capcom apply issues.yaml        # file a linked set of issues in one call, all or none
 
 # Tree lock
 capcom lock acquire --purpose "implementing the release plan"   # outside an Issue; again to resume
-capcom lock touch --token <token>
-capcom lock release --token <token>
+capcom lock touch               # only when work outlasts the lock's TTL without a capcom write
+capcom lock release             # the holder needs no --token; another session passes it
 capcom lock status --all
 
 # Knowledge
 capcom know add --id release-steps --title "How a release is cut" --ref docs/releasing.md
 capcom know tree
-capcom know show release-steps
+capcom know show release-steps code-style   # one Note or several
 capcom know search release
 capcom know verify              # Notes whose files or symbols are gone
 
@@ -166,6 +173,8 @@ capcom prime                    # the session-start briefing
 capcom agents                   # write or refresh the capcom block of AGENTS.md
 capcom check                    # validate every file
 capcom fmt                      # rewrite files in canonical form
+capcom upgrade                  # raise the store format, on purpose and never on its own
+capcom export --html site/      # the Issues and Notes as a static HTML site
 ```
 
 `capcom <command> --help` lists every flag. The full manual is at
