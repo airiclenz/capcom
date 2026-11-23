@@ -312,7 +312,9 @@ and `merge_property_test.go`.
 **Closes:** cli-split-merge-driver
 **Commit:** `refactor(mergedriver): move the Issue-file merge out of internal/cli`
 
-## 6. Move the indexed Dependency graph to internal/index
+## 6. Move the indexed Dependency graph to internal/index — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the type is `index.EntryGraph` (built by the `(*Index).EntryGraph` method, with accessors `DepGraph`, `Entry`, `Entries` and methods `Names`, `ShownBy`) and `depBranches` is `index.DepBranches`; `flowchartResult` and `listResult` stay in cli as functions taking the graph.
 
 **What:** Recast at the regression check (2026-11-23).
 **Goal:** `internal/index` holds the Dependency graph of the indexed Issues — each

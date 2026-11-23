@@ -17,7 +17,7 @@
 //   - `context.go` — capcom context: an issue with its deps and dependents, plan and the Notes that apply
 //   - `create.go` — capcom create: writes a new issue file under the caller's id through internal/ops
 //   - `dep.go` — capcom dep add and rm: adds and removes the dependencies between issues through internal/ops
-//   - `dep_graph.go` — capcom dep graph and the Dependency graph that dep list and related load from the index
+//   - `dep_graph.go` — capcom dep graph: the Mermaid flowchart of the Dependency graph that internal/index builds from the indexed Issues
 //   - `dep_list.go` — capcom dep list: an issue's deps and dependents as indented trees
 //   - `doc.go` — the package comment and this file map
 //   - `errors.go` — kindFailure, which types a nodestore failure, and the tree-problem warnings

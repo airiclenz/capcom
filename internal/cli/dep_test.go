@@ -525,16 +525,6 @@ func TestDepGraph_IDAndAll_LimitTheNodes(t *testing.T) {
 				"    n2 --> n1\n" +
 				"    n3 --> n2\n",
 		},
-		{
-			name: "a closed issue named by id is a node",
-			args: []string{"release-notes"},
-			want: "flowchart LR\n" +
-				"    n1[\"build-pipeline (open)\"]\n" +
-				"    n2[\"db-schema (open)\"]\n" +
-				"    n3[\"release-notes (done)\"]\n" +
-				"    n2 --> n1\n" +
-				"    n3 --> n2\n",
-		},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

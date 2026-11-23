@@ -42,14 +42,6 @@ type depGraphEdge struct {
 	Dependency string `json:"dependency"`
 }
 
-// depGraph is the Dependency graph of every usable issue, with each issue's index entry by id and
-// in tree order.
-type depGraph struct {
-	graph   issue.DepGraph
-	entries map[string]index.Entry
-	ordered []index.Entry
-}
-
 // The help text of capcom dep graph.
 const (
 	depGraphLong = "Print the Dependency graph as a Mermaid flowchart: one node per Issue, labelled with its id and " +
@@ -87,71 +79,28 @@ func (a *app) newDepGraphCommand() *cobra.Command {
 				}
 				start = entry.ID
 			}
-			graph, err := a.loadDepGraph()
+			graph, err := a.issueIndex.EntryGraph()
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, graph.flowchartResult(graph.shownBy(start, isAll)))
+			return a.emit(cmd, flowchartResult(graph, graph.ShownBy(start, isAll)))
 		}),
 	}
 	cmd.Flags().BoolVar(&isAll, flagAll, false, "include closed issues")
 	return cmd
 }
 
-// loadDepGraph builds the Dependency graph of every usable issue in the index, Closed ones
-// included, with each issue's index entry, for the commands that read it; dep add and dep rm
-// decide their edits on the graph of ops.DepGraph instead.
-func (a *app) loadDepGraph() (depGraph, error) {
-	entries, err := a.issueIndex.List(index.Filter{IsClosedIncluded: true})
-	if err != nil {
-		return depGraph{}, err
-	}
-	byID := make(map[string]index.Entry, len(entries))
-	for _, entry := range entries {
-		byID[entry.ID] = entry
-	}
-	return depGraph{graph: issue.NewDepGraph(index.Nodes(entries)), entries: byID, ordered: entries}, nil
-}
-
-// names returns a test of whether a dep, as a file writes it, names the issue with id.
-func (g depGraph) names(id string) func(string) bool {
-	return func(dep string) bool {
-		resolved, isFound := g.graph.Resolve(dep)
-		return isFound && resolved == id
-	}
-}
-
-// shownBy returns the test of whether an issue is a node of dep graph. With start "" every issue
-// that is not closed is; otherwise only start and the issues its deps and dependents reach, walked
-// through closed issues too. Closed issues are nodes only with isAll, start always is.
-func (g depGraph) shownBy(start string, isAll bool) func(index.Entry) bool {
-	isOpenOrAll := func(entry index.Entry) bool { return isAll || !entry.Category.IsClosed() }
-	if start == "" {
-		return isOpenOrAll
-	}
-
-	isReached := map[string]bool{start: true}
-	for _, direction := range []issue.WalkDirection{issue.WalkDeps, issue.WalkDependents} {
-		for _, step := range g.graph.Walk(start, direction, issue.UnlimitedDepth) {
-			isReached[step.ID] = true
-		}
-	}
-	return func(entry index.Entry) bool {
-		return entry.ID == start || (isReached[entry.ID] && isOpenOrAll(entry))
-	}
-}
-
-// flowchartResult is the result of dep graph over the issues isShown keeps: `flowchart LR`, a node
-// `n<k>["<id> (<status>)"]` per issue in tree order, then an edge `n<a> --> n<b>` from each
-// dependency to its dependent, by dependent in tree order and then in the file's order of its
-// deps, each edge once. An edge whose either end is not shown is left out.
-func (g depGraph) flowchartResult(isShown func(index.Entry) bool) output.Result {
+// flowchartResult is the result of dep graph over the issues of graph that isShown keeps:
+// `flowchart LR`, a node `n<k>["<id> (<status>)"]` per issue in tree order, then an edge
+// `n<a> --> n<b>` from each dependency to its dependent, by dependent in tree order and then in the
+// file's order of its deps, each edge once. An edge whose either end is not shown is left out.
+func flowchartResult(graph index.EntryGraph, isShown func(index.Entry) bool) output.Result {
 	data := depGraphData{Nodes: []depGraphNode{}, Edges: []depGraphEdge{}}
 	var text strings.Builder
 	text.WriteString(mermaidHeading + "\n")
 
 	nodeNames := map[string]string{}
-	for _, entry := range g.ordered {
+	for _, entry := range graph.Entries() {
 		if !isShown(entry) {
 			continue
 		}
@@ -168,7 +117,7 @@ func (g depGraph) flowchartResult(isShown func(index.Entry) bool) output.Result 
 
 	for _, node := range data.Nodes {
 		// The direct walk yields each resolved dep of the node once, in the file's order.
-		for _, step := range g.graph.Walk(node.ID, issue.WalkDeps, directDepth) {
+		for _, step := range graph.DepGraph().Walk(node.ID, issue.WalkDeps, directDepth) {
 			dependencyName, isNode := nodeNames[step.ID]
 			if !isNode {
 				continue

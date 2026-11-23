@@ -80,11 +80,11 @@ func (a *app) newDepListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			graph, err := a.loadDepGraph()
+			graph, err := a.issueIndex.EntryGraph()
 			if err != nil {
 				return err
 			}
-			return a.emit(cmd, graph.listResult(entry, depth, cmd.Flags().Changed(flagDepth)))
+			return a.emit(cmd, listResult(graph, entry, depth, cmd.Flags().Changed(flagDepth)))
 		}),
 	}
 	cmd.Flags().IntVar(&depth, flagDepth, defaultDepListDepth,
@@ -92,21 +92,21 @@ func (a *app) newDepListCommand() *cobra.Command {
 	return cmd
 }
 
-// listResult is the result of dep list for entry, each section walked maxDepth levels deep
-// (issue.UnlimitedDepth for all), every level indented one step further. The deps section starts
-// with the file's deps verbatim, in its order: a dep naming no issue is marked missing, and only
-// the first of a repeated dep carries its branch. The dependents section follows in tree order.
+// listResult is the result of dep list for entry over graph, each section walked maxDepth levels
+// deep (issue.UnlimitedDepth for all), every level indented one step further. The deps section
+// starts with the file's deps verbatim, in its order: a dep naming no issue is marked missing, and
+// only the first of a repeated dep carries its branch. The dependents section follows in tree order.
 // An issue already printed in its section prints again as `<id>  (see above)` without its branch;
 // entry itself, met again on a cycle, prints in full but without a branch. With isCutShown each
 // issue whose branch maxDepth cut is followed by the outline's `... <n> more` line.
-func (g depGraph) listResult(entry index.Entry, maxDepth int, isCutShown bool) output.Result {
+func listResult(graph index.EntryGraph, entry index.Entry, maxDepth int, isCutShown bool) output.Result {
 	data := depListData{ID: entry.ID, Missing: []string{}}
-	deps := newDepSection(g, entry.ID, isCutShown)
-	dependents := newDepSection(g, entry.ID, isCutShown)
+	deps := newDepSection(graph, entry.ID, isCutShown)
+	dependents := newDepSection(graph, entry.ID, isCutShown)
 
-	branches := depBranches(g.graph.Walk(entry.ID, issue.WalkDeps, maxDepth))
+	branches := index.DepBranches(graph.DepGraph().Walk(entry.ID, issue.WalkDeps, maxDepth))
 	for _, dep := range entry.Deps {
-		id, isFound := g.graph.Resolve(dep)
+		id, isFound := graph.DepGraph().Resolve(dep)
 		if !isFound {
 			data.Missing = append(data.Missing, dep)
 			deps.rows = append(deps.rows, outlineRow{depth: 1, text: flatten(dep) + "  " + depMissingLabel})
@@ -124,7 +124,7 @@ func (g depGraph) listResult(entry index.Entry, maxDepth int, isCutShown bool) o
 		}
 	}
 
-	for _, step := range g.graph.Walk(entry.ID, issue.WalkDependents, maxDepth) {
+	for _, step := range graph.DepGraph().Walk(entry.ID, issue.WalkDependents, maxDepth) {
 		dependents.add(step)
 	}
 
@@ -133,23 +133,9 @@ func (g depGraph) listResult(entry index.Entry, maxDepth int, isCutShown bool) o
 	return output.Result{Kind: "deps", Data: data, Text: text}
 }
 
-// depBranches splits the steps of a walk at its depth-1 steps: each depth-1 issue's id maps to
-// its step followed by the steps of its branch, in walk order.
-func depBranches(steps []issue.WalkStep) map[string][]issue.WalkStep {
-	branches := map[string][]issue.WalkStep{}
-	var current string
-	for _, step := range steps {
-		if step.Depth == 1 {
-			current = step.ID
-		}
-		branches[current] = append(branches[current], step)
-	}
-	return branches
-}
-
 // depSection collects the outline rows and --json items of one dep list section.
 type depSection struct {
-	graph depGraph
+	graph index.EntryGraph
 	// start is the id of the listed issue.
 	start      string
 	isCutShown bool
@@ -158,14 +144,14 @@ type depSection struct {
 }
 
 // newDepSection returns an empty section of the dep list of start.
-func newDepSection(graph depGraph, start string, isCutShown bool) *depSection {
+func newDepSection(graph index.EntryGraph, start string, isCutShown bool) *depSection {
 	return &depSection{graph: graph, start: start, isCutShown: isCutShown, items: []depListItem{}}
 }
 
 // add appends the line of one walk step: the issue line at the step's depth, or `<id>  (see
 // above)` for an issue the section already printed, and its cut line when the section shows them.
 func (s *depSection) add(step issue.WalkStep) {
-	entry := s.graph.entries[step.ID]
+	entry := s.graph.Entry(step.ID)
 	via := step.Via
 	if step.Depth == 1 {
 		via = ""

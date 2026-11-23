@@ -129,11 +129,11 @@ func (a *app) contextResult(cmd *cobra.Command, entry index.Entry, isBrief bool)
 	shownIssue := shownResult.Data.([]showData)[0]
 	body := *shownIssue.Body
 
-	graph, err := a.loadDepGraph()
+	graph, err := a.issueIndex.EntryGraph()
 	if err != nil {
 		return output.Result{}, err
 	}
-	deps := graph.listResult(entry, defaultDepListDepth, false)
+	deps := listResult(graph, entry, defaultDepListDepth, false)
 	depData := deps.Data.(depListData)
 
 	plan, planText, err := a.contextPlan(shownIssue.Plan)

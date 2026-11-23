@@ -78,16 +78,16 @@ func (a *app) newRelatedAddCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			graph, err := a.loadDepGraph()
+			graph, err := a.issueIndex.EntryGraph()
 			if err != nil {
 				return err
 			}
-			addition, err := a.ops().ReferenceList(graph.graph, holder.ID, holder.Related).Add(args[1])
+			addition, err := a.ops().ReferenceList(graph.DepGraph(), holder.ID, holder.Related).Add(args[1])
 			if err != nil {
 				return a.refusalFailure(err, issueIDs, holder.Path, refusalWords{self: relatedSelfFormat})
 			}
 			isLinked := addition.IsPresent ||
-				slices.ContainsFunc(graph.entries[addition.ID].Related, graph.names(holder.ID))
+				slices.ContainsFunc(graph.Entry(addition.ID).Related, graph.Names(holder.ID))
 			written, err := a.editIssue(holder.ID, ifMatch, func(target issue.Issue) (issue.Issue, error) {
 				if isLinked {
 					return target, nil
@@ -125,7 +125,7 @@ func (a *app) newRelatedRmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			graph, err := a.loadDepGraph()
+			graph, err := a.issueIndex.EntryGraph()
 			if err != nil {
 				return err
 			}
@@ -165,16 +165,16 @@ func relatedListHint(id string) string {
 // removal of the link from it. first holds it when arg is matched by its text or one of first's
 // entries names that issue, else that issue holds it when one of its entries names first; neither
 // is not_found at first's file.
-func (a *app) linkHolder(graph depGraph, first index.Entry, arg string) (index.Entry, reflist.Removal, error) {
-	removal, err := a.ops().ReferenceList(graph.graph, first.ID, first.Related).Remove(arg)
+func (a *app) linkHolder(graph index.EntryGraph, first index.Entry, arg string) (index.Entry, reflist.Removal, error) {
+	removal, err := a.ops().ReferenceList(graph.DepGraph(), first.ID, first.Related).Remove(arg)
 	if err != nil {
 		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, "", refusalWords{})
 	}
 	if _, err := removal.Drop(first.Related); removal.ID == "" || err == nil {
 		return first, removal, nil
 	}
-	other := graph.entries[removal.ID]
-	reverse, err := a.ops().ReferenceList(graph.graph, other.ID, other.Related).Remove(first.ID)
+	other := graph.Entry(removal.ID)
+	reverse, err := a.ops().ReferenceList(graph.DepGraph(), other.ID, other.Related).Remove(first.ID)
 	if err != nil {
 		return index.Entry{}, reflist.Removal{}, a.refusalFailure(err, issueIDs, "", refusalWords{})
 	}
