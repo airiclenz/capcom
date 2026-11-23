@@ -50,7 +50,12 @@ warning let a seeded repository take a Note that a newer capcom corrected.
 - Seeding from a path or URL; any change to `capcom init`.
 - All-or-none staging of Note writes.
 
-## 1. Embed the base set as markdown files
+## 1. Embed the base set as markdown files — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): `seed.LoadFS` also refuses, naming the file, a file that carries `superseded-by` and a file whose name does not end in `.md`; the item lists neither. The embed uses `all:`, so a dot or underscore file reaches the loader and must fail there, and a `superseded-by` entry is as foreign to a set Note as `retired`.
+NOTES (2026-11-23): "carries `retired`" is read as the key being present: `retired: false` is refused too.
+NOTES (2026-11-23): with no Note file at the top of the file system there is no file to name; the error names the directory `.`.
+NOTES (2026-11-23): the eleven Note files were written by a throwaway program (deleted, not in the tree) that copied title and body from `.capcom/issues/know-seed.md` and wrote each with `knowledge.Note.Serialize`; a title with a colon is therefore double-quoted in the YAML, and each body follows one blank line after the frontmatter, as `capcom know add` writes it.
 
 **What**
 **Goal:** package `internal/seed` holds the base set as markdown files and loads them from the
