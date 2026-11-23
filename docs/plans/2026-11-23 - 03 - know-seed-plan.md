@@ -302,7 +302,12 @@ built from `seed.Load()`, `Set.Labels` and `seed.Hash`.
 
 **Commit:** `feat(check): warn of a seeded Note that capcom ships a newer text for`
 
-## 7. Test that the base Notes name only commands and flags that exist
+## 7. Test that the base Notes name only commands and flags that exist — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): a bare `--flag` span is checked against the command the nearest earlier `capcom ` span of the same block names, where a block is a list item with its continuation lines or a paragraph; the check does not split a block into sentences. With no such span before it in the block the flag is not checked, and after a `capcom ` span that failed to resolve it is not checked either.
+NOTES (2026-11-23): "resolved up to the placeholder" applies to the command path only: every `--flag` of the span is checked, also one after a placeholder (`capcom <cmd> <id> --flag`). A word that starts with `<`, `[` or `...` is a placeholder; a word after a flag is taken as its value and not checked.
+NOTES (2026-11-23): the Note's title is checked together with its body, and a span that wraps over a line break is read as one span. The table cases resolve made-up Note text against the real command tree (`capcom show`, `capcom know tree`, `capcom list`), not against a made-up tree.
+NOTES (2026-11-23): the test over the shipped set does not assert that it found any span, since no test may hold a count of the Notes or their text; a set without a `capcom ` span passes.
 
 **What** A test-only item. `internal/cli/know_seed_notes_test.go` reads every Note of
 `seed.Load()`, finds each backtick span that starts with `capcom `, resolves its words against the
