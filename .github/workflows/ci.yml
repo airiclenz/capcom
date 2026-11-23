@@ -23,7 +23,7 @@ jobs:
       # windows-latest on 2026-11-05 (229 s on Linux, 217 s on macOS) and timed out at 600 s.
       TEST_TIMEOUT: 20m
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -57,7 +57,7 @@ jobs:
       STATICCHECK_VERSION: '2026.2.2'
       GOVULNCHECK_VERSION: 'v1.9.0'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -81,7 +81,7 @@ jobs:
       GOARCH: ${{ matrix.goarch }}
       CGO_ENABLED: '0'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
