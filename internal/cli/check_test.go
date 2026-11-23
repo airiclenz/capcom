@@ -275,10 +275,107 @@ func TestCheck_Help_SaysWritesAreValidatedAndWhenToRunIt(t *testing.T) {
 		"A write made through a capcom command is already validated",
 		"warns with check's own words for it",
 		"Run check after a hand edit of a store file, after a merge, and before committing hand-edited store files.",
+		"check prints a warning: line for it, naming capcom know seed --update, and the exit code stays as it is without it.",
 	} {
 		if !strings.Contains(help, want) {
 			t.Errorf("check --help = %q, want it to say %q", stdout, want)
 		}
+	}
+}
+
+// outdatedSeedStore returns the root of a store seeded with the base set in which one Note is as
+// an earlier capcom seeded it, and the warning capcom check gives for that Note.
+func outdatedSeedStore(t *testing.T) (root string, warning string) {
+	t.Helper()
+	root = newSeedStore(t)
+	set := shippedSeed(t)
+	outdated := seedChildren(t, set)[0]
+	mustRun(t, root, "know", "seed")
+	outdateSeededNote(t, root, set, outdated)
+	warning = fmt.Sprintf(
+		".capcom/knowledge/%s: seeded Note %s is outdated: capcom know seed --update replaces it, "+
+			"capcom know seed --show %s prints the new text",
+		seededChildFile(set, outdated), outdated.ID, outdated.ID,
+	)
+	return root, warning
+}
+
+func TestCheck_SeededStore_ExitsZeroWithNoOutput(t *testing.T) {
+	root := newSeedStore(t)
+	mustRun(t, root, "know", "seed")
+
+	stdout, stderr, exitCode := runCLI(t, root, "check")
+
+	if exitCode != ExitOK || stdout != "" || stderr != "" {
+		t.Fatalf("check = %d, stdout %q, stderr %q; want 0 and no output", exitCode, stdout, stderr)
+	}
+}
+
+func TestCheck_OutdatedSeededNote_WarnsOnStdoutAndExitsZero(t *testing.T) {
+	root, warning := outdatedSeedStore(t)
+
+	stdout, stderr, exitCode := runCLI(t, root, "check")
+
+	if want := "warning: " + warning + "\n"; exitCode != ExitOK || stdout != want || stderr != "" {
+		t.Fatalf("check = %d, stdout:\n%s\nstderr %q; want 0 and\n%s", exitCode, stdout, stderr, want)
+	}
+}
+
+func TestCheck_JSONWithOutdatedSeededNote_CarriesTheWarningAndNoProblem(t *testing.T) {
+	root, warning := outdatedSeedStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "check", "--json")
+
+	var envelope struct {
+		Kind     string            `json:"kind"`
+		Data     []json.RawMessage `json:"data"`
+		Error    json.RawMessage   `json:"error"`
+		Warnings []string          `json:"warnings"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatalf("Unmarshal: %v\n%s", err, stdout)
+	}
+	if exitCode != ExitOK || envelope.Kind != "check" || len(envelope.Data) != 0 || envelope.Error != nil {
+		t.Errorf("check --json = %d: %s\nwant 0, kind check, no problem and no error", exitCode, stdout)
+	}
+	if want := []string{warning}; !reflect.DeepEqual(envelope.Warnings, want) {
+		t.Errorf("warnings = %q, want %q", envelope.Warnings, want)
+	}
+}
+
+func TestCheck_ProblemAndOutdatedSeededNote_KeepsTheProblemListAndExitOne(t *testing.T) {
+	root := newSeedStore(t)
+	mustRun(t, root, "know", "seed")
+	writeNoteFile(t, root, "broken-note.md", "---\ntitle: [unclosed\n---\n")
+	problemLines, _, problemExit := runCLI(t, root, "check")
+	if problemExit != ExitError || problemLines == "" {
+		t.Fatalf("check = %d, stdout %q; want 1 and the problem of the unparseable Note", problemExit, problemLines)
+	}
+	set := shippedSeed(t)
+	outdated := seedChildren(t, set)[0]
+	outdateSeededNote(t, root, set, outdated)
+
+	stdout, stderr, exitCode := runCLI(t, root, "check")
+
+	wantWarning := "warning: .capcom/knowledge/" + seededChildFile(set, outdated) + ": seeded Note " + outdated.ID + " is outdated: "
+	if exitCode != ExitError || stderr != "" ||
+		!strings.HasPrefix(stdout, wantWarning) || !strings.HasSuffix(stdout, "\n"+problemLines) ||
+		strings.Count(stdout, "\n") != strings.Count(problemLines, "\n")+1 {
+		t.Fatalf("check = %d, stdout:\n%s\nstderr %q; want 1, the warning line, then\n%s",
+			exitCode, stdout, stderr, problemLines)
+	}
+}
+
+func TestPrime_OutdatedSeededNote_CountsNoCheckProblem(t *testing.T) {
+	root, _ := outdatedSeedStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "prime")
+
+	if exitCode != ExitOK || !strings.Contains(stdout, "check: no problems\n") {
+		t.Errorf("prime = %d, stdout:\n%s\nwant 0 and \"check: no problems\"", exitCode, stdout)
+	}
+	if strings.Contains(stdout, "is outdated") {
+		t.Errorf("prime stdout:\n%s\nwant no mention of the outdated seeded Note", stdout)
 	}
 }
 

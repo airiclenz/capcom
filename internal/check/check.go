@@ -13,6 +13,9 @@
 // cannot be read. When the block file carries the block, it reports each agent guide config.yaml
 // lists under agents.guides that neither resolves to AGENTS.md nor imports it, and one that cannot
 // be read; a missing guide, or one that links outside the working tree, is no problem.
+//
+// Apart from the problems, SeedWarnings lists the seeded Notes the base set of this binary holds a
+// newer text for, as warnings: such a Note is valid, and Run never reports it.
 package check
 
 import (

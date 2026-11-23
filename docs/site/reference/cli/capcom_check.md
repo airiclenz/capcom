@@ -17,7 +17,9 @@ Each problem is listed as path:line: message, and any problem fails the command,
 
 A write made through a capcom command is already validated: one that leaves a problem check reports warns with check's own words for it. Run check after a hand edit of a store file, after a merge, and before committing hand-edited store files.
 
-The --json data is the list of problems as {path, line, code, message} objects.
+A Note that capcom know seed added, that is still as it was seeded and that this capcom ships a newer text for is no problem: check prints a warning: line for it, naming capcom know seed --update, and the exit code stays as it is without it.
+
+The --json data is the list of problems as {path, line, code, message} objects; the warnings are in the envelope's warnings member.
 
 ```
 capcom check [flags]

@@ -256,7 +256,14 @@ A golden case this item adds or changes runs against the made-up set of item 3.
 
 **Commit:** `feat(cli): replace outdated seeded Notes with capcom know seed --update`
 
-## 6. capcom check warns of an outdated seeded Note
+## 6. capcom check warns of an outdated seeded Note — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): consequential edit — internal/check/check.go: made necessary by `check.SeedWarnings`; the package comment said what the package reports and now names the warnings beside the problems. `check.Run` and `check.Problem` are unchanged.
+NOTES (2026-11-23): the warning follows `Set.State` alone, as `capcom know seed --update` does (item 5): a Note that lost its `seed:<root id>` Label but kept a matching `seed-text` Label is warned of, and `--update` replaces it.
+NOTES (2026-11-23): "retired Notes are left out" covers a Note below a retired Note too (`retiredSubtrees`), as `capcom know seed` reports such a Note `skipped (retired)`.
+NOTES (2026-11-23): `checkLong` gained a paragraph on the warning and the `--json` sentence now names the `warnings` member; `docs/site/reference/cli/capcom_check.md` is regenerated from it, and `TestCheck_Help_SaysWritesAreValidatedAndWhenToRunIt` pins the new sentence.
+NOTES (2026-11-23): `checkProblems` now returns the warnings beside the problems; a store whose config.yaml cannot be used gives no warning. `SeedWarnings` loads the Knowledge tree itself, so `capcom check` reads the Note files twice.
+NOTES (2026-11-23): tests beyond the item's list: an outdated Note below a retired root gives no warning, `check.Run` reports no problem for an outdated Note, `capcom check` on a freshly seeded store prints nothing, and `capcom prime` does not mention the outdated Note.
 
 **What**
 **Goal:** `capcom check` prints one warning per seeded Note in state outdated, naming its file and
