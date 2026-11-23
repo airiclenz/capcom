@@ -1,0 +1,1 @@
+{"schema":1,"kind":"know-seed","data":{"dry_run":false,"notes":[{"id":"house","path":".capcom/knowledge/house.md","outcome":"added"},{"id":"house-commits","path":".capcom/knowledge/house/house-commits.md","outcome":"added"},{"id":"house-tests","path":".capcom/knowledge/house/house-tests.md","outcome":"added"}]},"elsewhere":[],"warnings":[]}

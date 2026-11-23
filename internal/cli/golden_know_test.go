@@ -40,3 +40,16 @@ func TestGolden_KnowVerifyFindings_PinsTheFindingList(t *testing.T) {
 	}
 	assertGoldenJSON(t, "know-verify-findings", root, stdout)
 }
+
+// TestGolden_KnowSeed pins the --json envelope of kind know-seed against a base set made up for
+// the tests, never the set the binary embeds, so the golden file holds no shipped Note.
+func TestGolden_KnowSeed(t *testing.T) {
+	root := newGoldenStore(t)
+
+	stdout, stderr, exitCode := runSeedCLI(t, root, loadMadeUpSeed, "know", "seed", "--json")
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("exit = %d stderr = %q, want %d and no stderr", exitCode, stderr, ExitOK)
+	}
+	assertGoldenJSON(t, kindKnowSeed, root, stdout)
+}

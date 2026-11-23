@@ -124,7 +124,16 @@ an edited Note is `Differs`; a Note whose Labels were removed is `Differs`; a ma
 
 **Commit:** `feat(seed): hash a seeded Note and tell same, outdated and edited apart`
 
-## 3. capcom know seed, with --dry-run
+## 3. capcom know seed, with --dry-run — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the `--json` data names the dry-run member `dry_run`, not `dryRun` as the item writes it: every other member of the JSON output is snake case, and `capcom apply` already documents `dry_run` for the same meaning.
+NOTES (2026-11-23): the app's loader field `loadSeed` is nil by default and `app.seedSet` then calls `seed.Load`; so a test can set it, the body of `Run` moved into the method `(*app).run`, which `Run` calls. `Run` behaves as before.
+NOTES (2026-11-23): the root check runs on the Note the root id resolves to, as an id or as an Alias, and before the retired check: a retired root without the `seed:<root id>` Label fails, it is not reported `skipped (retired)`.
+NOTES (2026-11-23): `path` in the `--json` data of a Note that is not added and that no file holds (below a retired root) is the file an add would write; on a dry run the `path` of an `added` Note is that predicted file too.
+NOTES (2026-11-23): the text ends in `refreshed: AGENTS.md` when adding the root Note refreshed the capcom block, as `capcom know add` reports it; the `--json` data carries no `agents` member, since the item fixes the data as the dry-run flag and `notes`.
+NOTES (2026-11-23): the Notes are weighed and written by depth below the root, then in the order of `Set.Notes()`, so a parent is written before its children also in a set more than two levels deep; for a two-level set this is the order of `Set.Notes()`.
+NOTES (2026-11-23): the Short of the `know` group is unchanged ("Read, search, add, update, move, remove and verify Knowledge Notes"): adding seed to it would regenerate nine reference pages outside this item's files.
+NOTES (2026-11-23): tests beyond the item's list: a retired root, a failed write (an id claimed by a file in an orphan directory), `--kv` refused before any write, and the loader field with the made-up set.
 
 **What**
 **Goal:** `capcom know seed` adds every Note of the base set that the store lacks, each carrying

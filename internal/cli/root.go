@@ -16,6 +16,7 @@ import (
 	"github.com/airiclenz/capcom/internal/lock"
 	"github.com/airiclenz/capcom/internal/nearest"
 	"github.com/airiclenz/capcom/internal/proc"
+	"github.com/airiclenz/capcom/internal/seed"
 	"github.com/airiclenz/capcom/internal/store"
 )
 
@@ -129,6 +130,9 @@ type app struct {
 	// it at most once per invocation, and only when a lock acquire or a lock warning needs it.
 	ancestry       []proc.Process
 	isAncestryRead bool
+	// loadSeed loads the base set of Notes for capcom know seed; nil loads the set the binary
+	// embeds, seed.Load (app.seedSet). A test sets it to run against a set of its own.
+	loadSeed func() (seed.Set, error)
 }
 
 // Run executes capcom with args (the program name excluded) against the given streams and
@@ -138,20 +142,27 @@ type app struct {
 // failed, so its hint can name that command.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	application := &app{stdout: stdout, stderr: stderr, isCompleting: isCompletionRequest(args)}
-	root := application.newRootCommand()
+	return application.run(args, stdin)
+}
+
+// run executes capcom with args against stdin and the app's streams, as Run describes, and returns
+// the process exit code.
+func (a *app) run(args []string, stdin io.Reader) int {
+	stdout, stderr := a.stdout, a.stderr
+	root := a.newRootCommand()
 	root.SetArgs(args)
 	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 
 	executed, err := root.ExecuteC()
-	if closeErr := application.closeIndex(); closeErr != nil && err == nil {
+	if closeErr := a.closeIndex(); closeErr != nil && err == nil {
 		err = output.AsError(closeErr)
 	}
 	if executed != nil {
 		err = output.InCommand(err, executed.CommandPath())
 	}
-	renderer := application.renderer
+	renderer := a.renderer
 	if renderer == nil {
 		// Parsing failed before the output flags were applied, so read them from args.
 		renderer = output.NewRenderer(scanFormat(args), stdout, stderr)

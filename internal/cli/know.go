@@ -43,7 +43,7 @@ type noteData struct {
 	Excerpt []string `json:"excerpt,omitempty"`
 }
 
-// newKnowCommand groups the commands that read, add, change, move and remove Knowledge Notes.
+// newKnowCommand groups the commands that read, add, seed, change, move and remove Knowledge Notes.
 func (a *app) newKnowCommand() *cobra.Command {
 	know := &cobra.Command{
 		Use:     "know",
@@ -55,6 +55,7 @@ func (a *app) newKnowCommand() *cobra.Command {
 	know.AddCommand(newMvCommand(a, noteVerbs))
 	know.AddCommand(newRmCommand(a, noteVerbs))
 	know.AddCommand(a.newKnowSearchCommand())
+	know.AddCommand(a.newKnowSeedCommand())
 	know.AddCommand(a.newKnowShowCommand())
 	know.AddCommand(a.newKnowTreeCommand())
 	know.AddCommand(a.newKnowUpdateCommand())
