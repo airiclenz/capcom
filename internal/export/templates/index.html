@@ -1,0 +1,10 @@
+{{template "head" .}}<h1>Ready</h1>
+<p>The issues ready to work on, most urgent first. <a href="issues.html">Every issue</a> sits in the tree.</p>
+{{if .Ready}}<table>
+<thead><tr><th>Priority</th><th>Issue</th><th>Type</th><th>Status</th></tr></thead>
+<tbody>
+{{range .Ready}}<tr><td>{{.Priority}}</td><td><a href="{{.Href}}">{{.ID}}</a> {{.Title}}</td><td>{{.Type}}</td><td>{{.Status}}</td></tr>
+{{end}}</tbody>
+</table>
+{{else}}<p>No issue is ready.</p>
+{{end}}{{template "foot" .}}

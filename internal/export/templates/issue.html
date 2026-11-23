@@ -1,0 +1,14 @@
+{{template "head" .}}<h1>{{.Title}}</h1>
+<dl class="fields">
+<dt>Id</dt><dd>{{.ID}}</dd>
+<dt>Status</dt><dd{{if .IsClosed}} class="closed"{{end}}>{{.Status}}</dd>
+{{if .Reason}}<dt>Reason</dt><dd>{{.Reason}}</dd>
+{{end}}<dt>Type</dt><dd>{{.Type}}</dd>
+<dt>Priority</dt><dd>{{.Priority}}</dd>
+<dt>Labels</dt><dd>{{range $position, $label := .Labels}}{{if $position}}, {{end}}{{$label}}{{else}}none{{end}}</dd>
+<dt>Depends on</dt><dd>{{template "links" .Deps}}</dd>
+<dt>Dependents</dt><dd>{{template "links" .Dependents}}</dd>
+</dl>
+<pre class="body">{{.Body}}</pre>
+{{template "foot" .}}
+{{define "links"}}{{range $position, $target := .}}{{if $position}}, {{end}}{{if $target.Href}}<a href="{{$target.Href}}">{{$target.Text}}</a>{{else}}{{$target.Text}}{{end}}{{else}}none{{end}}{{end}}

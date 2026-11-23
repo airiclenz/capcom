@@ -154,7 +154,12 @@ failed; 1 …; 2 …") gains exit 3: the passed count is below the --name model'
 - `capcom know show agent-eval` names `agent-eval.yml`; `capcom check` reports no new problem
 **Commit:** `docs(agent-eval): document the scheduled workflow and the thresholds`
 
-## 4. internal/export: Issue pages, Issue tree and Ready list
+## 4. internal/export: Issue pages, Issue tree and Ready list — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): besides WriteHTML the package exports three sentinel errors (ErrInsideStore, ErrForeignDir, ErrHoldsStore) so item 6 and the tests can tell the refusals apart with errors.Is.
+NOTES (2026-11-23): added a refusal the item does not name: a target that holds the store directory (e.g. the worktree root carrying a stray .capcom-export) fails with ErrHoldsStore, since clearing it would delete .capcom.
+NOTES (2026-11-23): Ready list from briefing.ReadyList (default options, so ready.hide issues are left out, as capcom ready does) and dep/dependent links from issue.NewDepGraph(index.Nodes(entries)) over the same entries the pages are written for, the second of the two sources the item allows; every page is rendered before the target directory is touched.
+NOTES (2026-11-23): the Issue page also shows the close Reason when one is set; an alias dep prints as "<id> (as <alias>)" linked to <id>, an unresolved one as "<dep> (no such issue)" in plain text.
 
 **What:**
 Recast at the regression check (2026-11-23).

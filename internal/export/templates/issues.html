@@ -1,0 +1,8 @@
+{{template "head" .}}<h1>Issues</h1>
+{{if .Roots}}{{template "tree" .Roots}}{{else}}<p>There are no issues.</p>
+{{end}}{{template "foot" .}}
+{{define "tree"}}<ul class="tree">
+{{range .}}<li{{if .IsClosed}} class="closed"{{end}}><a href="{{.Href}}">{{.ID}}</a> {{.Title}} <span class="meta">{{.Status}} · {{.Type}}</span>
+{{if .Children}}{{template "tree" .Children}}{{end}}</li>
+{{end}}</ul>
+{{end}}

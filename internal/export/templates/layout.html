@@ -1,0 +1,62 @@
+{{define "head"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.PageTitle}}</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --background: #ffffff;
+  --text: #1f2328;
+  --muted: #59636e;
+  --rule: #d1d9e0;
+  --link: #0969da;
+  --panel: #f6f8fa;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d1117;
+    --text: #e6edf3;
+    --muted: #9198a1;
+    --rule: #3d444d;
+    --link: #4493f8;
+    --panel: #151b23;
+  }
+}
+body {
+  margin: 0 auto;
+  max-width: 60rem;
+  padding: 1rem;
+  background: var(--background);
+  color: var(--text);
+  font: 16px/1.5 system-ui, sans-serif;
+}
+a { color: var(--link); }
+nav { border-bottom: 1px solid var(--rule); padding-bottom: 0.5rem; }
+nav a { margin-right: 1rem; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid var(--rule); padding: 0.25rem 0.5rem; text-align: left; vertical-align: top; }
+ul.tree { list-style: none; padding-left: 1.25rem; }
+body > ul.tree { padding-left: 0; }
+.meta { color: var(--muted); font-size: 0.875rem; }
+.closed, .closed a { color: var(--muted); }
+dl.fields { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+dl.fields dt { color: var(--muted); }
+dl.fields dd { margin: 0; }
+pre.body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: 0.75rem;
+  font: 14px/1.45 ui-monospace, monospace;
+}
+</style>
+</head>
+<body>
+<nav><a href="{{.Root}}index.html">Ready</a><a href="{{.Root}}issues.html">Issues</a></nav>
+{{end}}
+{{define "foot"}}</body>
+</html>
+{{end}}
