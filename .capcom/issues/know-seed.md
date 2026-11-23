@@ -3,6 +3,7 @@ title: No command seeds a repo with a base set of Knowledge Notes
 status: open
 type: feature
 priority: 2
+plan: 2026-11-23 - 03 - know-seed-plan
 created: 2026-11-23T16:39:03Z
 ---
 

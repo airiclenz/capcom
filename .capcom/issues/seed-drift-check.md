@@ -4,6 +4,7 @@ status: open
 type: feature
 priority: 3
 deps: [know-seed]
+plan: 2026-11-23 - 03 - know-seed-plan
 created: 2026-11-23T16:39:03Z
 ---
 
