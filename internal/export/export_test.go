@@ -335,13 +335,18 @@ func TestWriteHTML_RefusesStoreDirs(t *testing.T) {
 
 func TestWriteHTML_RefusesForeignDir(t *testing.T) {
 	st, ix := exportFixture(t)
-	dir := t.TempDir()
+	// The error names the resolved directory: on Windows resolving expands an 8.3 short name in
+	// the temp path, so the check below compares against the resolved form.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatalf("EvalSymlinks: %v", err)
+	}
 	foreign := filepath.Join(dir, "notes.txt")
 	if err := os.WriteFile(foreign, []byte("mine"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	_, err := export.WriteHTML(dir, st, ix)
+	_, err = export.WriteHTML(dir, st, ix)
 
 	if !errors.Is(err, export.ErrForeignDir) {
 		t.Fatalf("WriteHTML = %v, want ErrForeignDir", err)
