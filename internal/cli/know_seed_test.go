@@ -12,6 +12,8 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/airiclenz/capcom"
+	"github.com/airiclenz/capcom/internal/knowledge"
 	"github.com/airiclenz/capcom/internal/seed"
 )
 
@@ -567,5 +569,178 @@ func TestKnowSeed_ShowCompletion_ListsTheIDsOfTheSetWithTitles(t *testing.T) {
 				t.Errorf("__complete know seed --show %q =\n%q\nwant\n%q", test.prefix, got, want)
 			}
 		})
+	}
+}
+
+// earlierSeedLine is a body line of the text an earlier capcom seeded a Note with.
+const earlierSeedLine = "An earlier capcom shipped this line.\n"
+
+// outdateSeededNote rewrites the file of child, a Note of set directly below its root that capcom
+// know seed added, into the file an earlier capcom would have seeded: its body gains
+// earlierSeedLine and its seed-text Label carries the hash of that text. It returns the new
+// content of the file.
+func outdateSeededNote(t *testing.T, root string, set seed.Set, child seed.Note) string {
+	t.Helper()
+	name := seededChildFile(set, child)
+	earlier := readNoteFile(t, root, name) + earlierSeedLine
+	note, err := knowledge.Parse(name, []byte(earlier))
+	if err != nil {
+		t.Fatalf("knowledge.Parse: %v", err)
+	}
+	seededHash := seed.Hash(child.Title, child.Body)
+	if strings.Count(earlier, seededHash) != 1 {
+		t.Fatalf("the seeded file names the hash %s %d times, want once:\n%s",
+			seededHash, strings.Count(earlier, seededHash), earlier)
+	}
+	earlier = strings.Replace(earlier, seededHash, seed.Hash(note.Title, note.Body), 1)
+	writeNoteFile(t, root, name, earlier)
+	return earlier
+}
+
+func TestKnowSeed_OutdatedNote_IsSkippedAsOutdatedAndStaysAsItIs(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	child := seedChildren(t, set)[0]
+	mustRun(t, root, "know", "seed")
+	outdateSeededNote(t, root, set, child)
+	before := knowledgeFiles(t, root)
+
+	stdout := mustRun(t, root, "know", "seed")
+
+	assertSeedOutcomes(t, set, stdout, seedSkippedSame, map[string]string{child.ID: seedSkippedOutdated})
+	if !maps.Equal(before, knowledgeFiles(t, root)) {
+		t.Errorf("know seed without --update changed a Note file")
+	}
+}
+
+func TestKnowSeed_Update_RewritesAnOutdatedNoteAndKeepsTheUsersLabelAndRef(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	children := seedChildren(t, set)
+	child, other := children[0], children[1]
+	name := seededChildFile(set, child)
+	const ownLabel, ownRef = "house-rule", "RULES.txt"
+	if err := os.WriteFile(filepath.Join(root, ownRef), []byte("The rules of this repository.\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	mustRun(t, root, "know", "seed")
+	mustRun(t, root, "know", "update", child.ID, "--add-label", ownLabel, "--add-ref", ownRef)
+	earlier := outdateSeededNote(t, root, set, child)
+	earlierNote, err := knowledge.Parse(name, []byte(earlier))
+	if err != nil {
+		t.Fatalf("knowledge.Parse: %v", err)
+	}
+	untouched := readNoteFile(t, root, seededChildFile(set, other))
+
+	stdout := mustRun(t, root, "know", "seed", "--update")
+
+	assertSeedOutcomes(t, set, stdout, seedSkippedSame, map[string]string{child.ID: seedUpdated})
+	updated, err := knowledge.Parse(name, []byte(readNoteFile(t, root, name)))
+	if err != nil {
+		t.Fatalf("knowledge.Parse: %v", err)
+	}
+	if updated.Title != child.Title || updated.Body != child.Body {
+		t.Errorf("the updated Note = %q, %q; want the set's title and body %q, %q",
+			updated.Title, updated.Body, child.Title, child.Body)
+	}
+	wantLabels := set.Relabel(earlierNote.Labels, child, capcom.Version())
+	if !slices.Equal(updated.Labels, wantLabels) || !slices.Contains(updated.Labels, ownLabel) {
+		t.Errorf("Labels of the updated Note = %q, want %q with %q kept", updated.Labels, wantLabels, ownLabel)
+	}
+	if !slices.Equal(updated.Refs, []string{ownRef}) {
+		t.Errorf("Refs of the updated Note = %q, want %q kept", updated.Refs, ownRef)
+	}
+	if got := readNoteFile(t, root, seededChildFile(set, other)); got != untouched {
+		t.Errorf("know seed --update rewrote a Note that was the same")
+	}
+	again := mustRun(t, root, "know", "seed", "--update")
+	assertSeedOutcomes(t, set, again, seedSkippedSame, nil)
+	if checked, stderr, exitCode := runCLI(t, root, "check"); exitCode != ExitOK {
+		t.Errorf("check after know seed --update = %d\n%s%s", exitCode, checked, stderr)
+	}
+}
+
+func TestKnowSeed_UpdateOfAnEditedNote_KeepsItsEditAndSkipsAsDiffers(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	child := seedChildren(t, set)[0]
+	name := seededChildFile(set, child)
+	mustRun(t, root, "know", "seed")
+	edited := readNoteFile(t, root, name) + "\nThis repository adds a line of its own.\n"
+	writeNoteFile(t, root, name, edited)
+
+	stdout := mustRun(t, root, "know", "seed", "--update")
+
+	assertSeedOutcomes(t, set, stdout, seedSkippedSame, map[string]string{child.ID: seedSkippedDiffers})
+	if got := readNoteFile(t, root, name); got != edited {
+		t.Errorf("the edited Note = %q, want the edit kept", got)
+	}
+}
+
+func TestKnowSeed_UpdateOfARetiredOutdatedNote_LeavesItAsItIs(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	child := seedChildren(t, set)[0]
+	mustRun(t, root, "know", "seed")
+	mustRun(t, root, "know", "update", child.ID, "--retire")
+	retired := outdateSeededNote(t, root, set, child)
+
+	stdout := mustRun(t, root, "know", "seed", "--update")
+
+	assertSeedOutcomes(t, set, stdout, seedSkippedSame, map[string]string{child.ID: seedSkippedRetired})
+	if got := readNoteFile(t, root, seededChildFile(set, child)); got != retired {
+		t.Errorf("the retired Note = %q, want it untouched", got)
+	}
+}
+
+func TestKnowSeed_UpdateDryRun_ReportsTheUpdateAndWritesNothing(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	child := seedChildren(t, set)[0]
+	mustRun(t, root, "know", "seed")
+	outdateSeededNote(t, root, set, child)
+	before := knowledgeFiles(t, root)
+
+	stdout := mustRun(t, root, "know", "seed", "--update", "--dry-run")
+
+	assertSeedOutcomes(t, set, stdout, seedSkippedSame, map[string]string{child.ID: seedUpdated})
+	if !strings.HasSuffix(stdout, dryRunLine+"\n") {
+		t.Errorf("know seed --update --dry-run = %q, want it to end in %q", stdout, dryRunLine)
+	}
+	if !maps.Equal(before, knowledgeFiles(t, root)) {
+		t.Errorf("know seed --update --dry-run changed a Note file")
+	}
+}
+
+func TestKnowSeed_UpdateInAStoreThatLacksNotes_AddsThemAsPlainSeedDoes(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	children := seedChildren(t, set)
+	outdated, removed := children[0], children[1]
+	mustRun(t, root, "know", "seed")
+	outdateSeededNote(t, root, set, outdated)
+	mustRun(t, root, "know", "rm", removed.ID)
+
+	stdout := mustRun(t, root, "know", "seed", "--update")
+
+	assertSeedOutcomes(t, set, stdout, seedSkippedSame, map[string]string{
+		outdated.ID: seedUpdated,
+		removed.ID:  seedAdded,
+	})
+	again := mustRun(t, root, "know", "seed")
+	assertSeedOutcomes(t, set, again, seedSkippedSame, nil)
+}
+
+func TestKnowSeed_UpdateWithShow_IsAUsageError(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "seed", "--show", set.Root().ID, "--update")
+
+	if exitCode != ExitUsage || stdout != "" {
+		t.Errorf("know seed --show --update = %d stdout %q, want a usage error and no stdout", exitCode, stdout)
+	}
+	if files := knowledgeFiles(t, root); len(files) != 0 {
+		t.Errorf("know seed --show --update wrote %d files", len(files))
 	}
 }

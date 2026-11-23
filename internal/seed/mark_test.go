@@ -118,6 +118,48 @@ func TestSet_Labels_MarkTheSetAndTheSeededText(t *testing.T) {
 	}
 }
 
+func TestSet_Relabel_ReplacesTheSeedTextLabelAndKeepsTheRest(t *testing.T) {
+	t.Parallel()
+	set, note := loadMadeUpSet(t)
+	const laterVersion = "2.0.0"
+	earlier := earlierSeededNote(set, note).Labels
+	later := set.Labels(note, laterVersion)
+
+	tests := []struct {
+		name   string
+		labels []string
+		want   []string
+	}{
+		{"the Labels of a Note seeded with an earlier text", earlier, later},
+		{
+			"the user's own Labels around the seed-text Label",
+			[]string{"conventions", earlier[0], earlier[1], "process"},
+			[]string{"conventions", later[0], later[1], "process"},
+		},
+		{
+			"a second seed-text Label",
+			[]string{earlier[1], earlier[0], earlier[1] + "0"},
+			[]string{later[1], later[0]},
+		},
+		{"no seed-text Label", []string{"conventions"}, []string{"conventions", later[1]}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			given := slices.Clone(tt.labels)
+
+			got := set.Relabel(tt.labels, note, laterVersion)
+
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("Relabel(%q) = %q, want %q", tt.labels, got, tt.want)
+			}
+			if !slices.Equal(tt.labels, given) {
+				t.Errorf("Relabel changed its argument to %q, want %q", tt.labels, given)
+			}
+		})
+	}
+}
+
 func TestSet_IsSeeded_ReportsTheSeedLabelOfThisSet(t *testing.T) {
 	t.Parallel()
 	set, note := loadMadeUpSet(t)

@@ -53,10 +53,38 @@ func Hash(title, body string) string {
 // text of note: `seed:<root id>`, which marks it as seeded from this set, and
 // `seed-text:<version>:<hash>`, which records the Hash of that text.
 func (s Set) Labels(note Note, version string) []string {
-	return []string{
-		s.seedLabel(),
-		seedTextLabelPrefix + version + labelFieldSeparator + Hash(note.Title, note.Body),
+	return []string{s.seedLabel(), textLabel(note, version)}
+}
+
+// textLabel returns the seed-text Label of the text of note, seeded by capcom of the given
+// version.
+func textLabel(note Note, version string) string {
+	return seedTextLabelPrefix + version + labelFieldSeparator + Hash(note.Title, note.Body)
+}
+
+// Relabel returns labels, the Labels of a Note seeded with an earlier text, as they stand once
+// capcom of the given version has replaced that text with the text of note: the first seed-text
+// Label gives its place to the seed-text Label of note's text and every further one is dropped,
+// so the Note records one text. Every other Label keeps its place. Without a seed-text Label
+// among labels the new one is added at the end. labels itself is left as it is.
+func (s Set) Relabel(labels []string, note Note, version string) []string {
+	newLabel := textLabel(note, version)
+	relabelled := make([]string, 0, len(labels)+1)
+	isPlaced := false
+	for _, label := range labels {
+		if !strings.HasPrefix(label, seedTextLabelPrefix) {
+			relabelled = append(relabelled, label)
+			continue
+		}
+		if !isPlaced {
+			relabelled = append(relabelled, newLabel)
+			isPlaced = true
+		}
 	}
+	if !isPlaced {
+		relabelled = append(relabelled, newLabel)
+	}
+	return relabelled
 }
 
 // IsSeeded reports whether labels, a Note's Labels, include the `seed:<root id>` Label of this

@@ -88,7 +88,8 @@ file not counted).
 `--dry-run`, when nothing was written) and `notes`, one item per Note of the base set, a parent
 before its children. An item holds `id`, `path` (the Note's file; for a Note that was not added, the
 file that holds the id or, when none does, the file an add would write) and `outcome`: `added`,
-`skipped (same)`, `skipped (differs)`, `skipped (retired)` or `skipped (alias of <id>)`. When a
+`updated` (only under `--update`), `skipped (same)`, `skipped (outdated)`, `skipped (differs)`,
+`skipped (retired)` or `skipped (alias of <id>)`. When a
 write fails, `notes` holds the Notes up to that write and the envelope carries the `error` next to
 `data`.
 

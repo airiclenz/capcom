@@ -209,7 +209,18 @@ that set.
 
 **Commit:** `feat(cli): print a base Note's embedded text with capcom know seed --show`
 
-## 5. capcom know seed --update
+## 5. capcom know seed --update — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): `internal/seed` gains `Set.Relabel(labels, note, version)`, with its test in `mark_test.go` and a sentence in the package's `doc.go`; the item lists none of the three files. Replacing the `seed-text` Label needs the Label's prefix, which `internal/seed` owns and does not export; the alternative was a second copy of the prefix in `internal/cli`. `Relabel` puts the new Label where the first `seed-text` Label stood and drops every further one; it never adds the `seed:<root id>` Label.
+NOTES (2026-11-23): `internal/cli/golden_know_test.go` and `internal/cli/testdata/json/know-seed.golden.json` are unchanged: the `--json` data keeps its two members, `dry_run` and `notes`, and gains only the outcome values `updated` and `skipped (outdated)`, so no golden case was added or changed.
+NOTES (2026-11-23): the Short of `capcom know seed` now reads "Add the base set of Notes capcom ships; only --update changes a Note that exists": "never changing a Note that exists" no longer holds.
+NOTES (2026-11-23): consequential edit — docs/site/reference/cli/capcom_know.md: made necessary by the new Short of `capcom know seed`, which `go run ./cmd/gendocs` writes into the command list of the group.
+NOTES (2026-11-23): consequential edit — docs/site/reference/json-output.md: made necessary by the outcomes `updated` and `skipped (outdated)`, which its list of `outcome` values lacked.
+NOTES (2026-11-23): consequential edit — internal/cli/doc.go: made necessary by `--update`; the map line of `know_seed.go` said "never changing a Note".
+NOTES (2026-11-23): `--update --dry-run` prints `updated` for an outdated Note, as `--dry-run` prints `added` for a missing one. The Use line is `seed [[--update] [--dry-run] | --show <id>]`.
+NOTES (2026-11-23): the outcome follows `Set.State` alone, so a Note below the root that lost its `seed:<root id>` Label but kept a matching `seed-text` Label is `Outdated` and is updated; the update does not restore the `seed:<root id>` Label.
+NOTES (2026-11-23): the retired-root rule moved out of `seedOutcome` into `planSeed`, so `seedOutcome` takes `isUpdating` without a seventh parameter; the behaviour is the same.
+NOTES (2026-11-23): tests beyond the item's list: `--update` in a store that also lacks a Note, `--update` with `--show` as a usage error, `capcom check` after an update, and `Set.Relabel`. `internal/cli/know_seed.go` is now 486 lines, past the ~400 the coding standards aim for; a split by concern would move code between files and need a `doc.go` map entry, which this item does not ask for.
 
 **What**
 **Goal:** `capcom know seed --update` replaces the title and body of every seeded Note whose text

@@ -31,7 +31,7 @@
 //   - `know.go` — capcom know and the Note data and resolution its subcommands share
 //   - `know_add.go` — capcom know add: writes a new Note, and the Note write result and block file refresh
 //   - `know_search.go` — capcom know search: finds Notes whose id, title or body contains every word, else some
-//   - `know_seed.go` — capcom know seed: adds the Notes of the base set the store lacks, never changing a Note
+//   - `know_seed.go` — capcom know seed: adds the Notes of the base set the store lacks; --update replaces outdated ones
 //   - `know_show.go` — capcom know show: prints a Note in full, optionally with its children
 //   - `know_tree.go` — capcom know tree: the outline of Note ids and titles
 //   - `know_update.go` — capcom know update: changes a Note through internal/ops and the node store

@@ -12,5 +12,6 @@
 // seeded, which Set.IsSeeded reports, and `seed-text:<version>:<hash>` records the Hash of the
 // title and body it was seeded with. Set.State holds the store's Note of an id against the set's:
 // Same when the text is the set's, Outdated when it is still the text an earlier set seeded, and
-// Differs when it was edited or was never seeded.
+// Differs when it was edited or was never seeded. Set.Relabel gives the Labels of an Outdated Note
+// once its text is replaced by the set's.
 package seed
