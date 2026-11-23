@@ -13,8 +13,6 @@ Ask the user before any of these:
 - Deleting files you did not create in this session that git does not track, or anything
   outside the repository that you did not create. `git clean -x` also deletes ignored files
   such as `.env`.
-- Dropping or overwriting data you did not create: a database, a table, a storage bucket, or
-  running a migration that drops data. A throwaway local or test instance is not meant.
 
 Look first: run `git status`, and list what the command would delete. Uncommitted changes you
 did not make are someone else's work: leave them, never revert or stash them to get a clean

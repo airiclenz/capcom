@@ -3,9 +3,9 @@ title: "Before your first change in a session: rules for every repository on sec
 labels: [seed:baseline, seed-text:0.17.0:5a0e74ef41a0]
 ---
 
-The child Notes are rules that hold in any repository. Run `capcom know tree baseline` once
-per session: each title states its rule. Read a Note in full before you do what its title
-names.
+The child Notes are rules that hold in any repository. `capcom know tree --depth 2` lists
+them with the rest of the tree, and each title states its rule. Read a Note in full before you
+do what its title names.
 
 `capcom know seed` added them; they belong to this repository now. The user may edit or
 retire any of them; do not do so on your own. Where a Note here contradicts this repository's
