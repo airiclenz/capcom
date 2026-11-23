@@ -7,19 +7,28 @@ Each moved piece gets direct unit tests in its new package; `internal/cli` keeps
 **Status:** unexecuted
 **sized for:** ~200k-context host
 **base:** f09536a
-**Regression check:** not run — run implement-plan Write mode step 3 before executing
+**Regression check (2026-11-23, f09536a):**
+- 1: guard folded (ratified design calls; `idWordSeparator` moves too, `suggestionDistance` stays referenced from root.go; staticcheck and the -w grep in Acceptance)
+- 2: guard folded (briefing's package comment updated, ready.go in Files; staticcheck and the -w grep)
+- 3: guard folded (staticcheck and the -w grep)
+- 4: recast (the caller chain read lazily; three runCLI journey cases kept); yields to root.go:128-129 and root.go:504 ("The caller's ancestry is read only for a record that names a holder process") and the archived plan `2026-11-22 - 00 - lock-holder-and-agent-guide-plan` ("Read the chain lazily"); guard folded (Acceptance greps root.go for `HeldBy|TouchHolder|.Check(`; a failed renewal carries TouchHolder's error unchanged, with a direct test)
+- 5: guard folded (the two failure tests kept as runCLI journey cases; a failed `issue.MergeFile` returns no path and cli words it with `args[mergeArgPath]`; staticcheck and the -w grep)
+- 6: recast (the indexed Dependency graph moves into `internal/index`, not a new `internal/depgraph`; reviewer 2's guard folded: case 1 kept in cli, `dep_test.go` in Files)
+- 7: guard folded (cli comments naming the moved names restated; staticcheck and the -w grep)
+- 8: guard folded (staticcheck and the -w grep)
 
 **Sources:**
 - Issue `split-cli-package` (the analysis brief) and its move Issues `cli-split-*` under `code-maturity`
 - Notes `adr-0012`, `cli-test-harness`, `coding-conventions`, `docs-layout`
 - `internal/cli/doc.go` — the file map `TestDocFileMap_MatchesDirectory` checks
 
-**Design calls** (made by the analysis, 2026-11-23, under `split-cli-package`; confirm when reviewing):
+**Ratified design calls** (Airic, 2026-11-23):
+- **Scope:** all 8 moves go ahead (only 431 of 10,822 lines are domain logic; the issue's 26k figure was stale).
 - **Behaviour:** pure moves; every message, hint, exit code, `--json`/`--kv` field and help text stays byte-identical; no CHANGELOG entry.
 - **Wording stays:** failure wording (`output.Error`, `output.Match*`), rendering and their constants stay in `internal/cli`; a moved function returns data or a plain error that cli words.
 - **Adapters stay:** a function under ~20 lines that only adapts store config or an index entry to an existing domain API is wiring (`reachingGuides`, `syncAgentsBlock`, `checkNewRefs`, `readiness`, `progressOf`, `finishLock`).
-- **New packages:** `internal/nearest`, `internal/mergedriver`, `internal/depgraph`; every other move extends `index`, `briefing`, `recap`, `lock`, `ops` or `knowledge`.
-- **Tests:** a moved function's direct tests move with it; a runCLI test an item names under "become direct" is replaced by a direct unit test in the target package and deleted from `internal/cli`, unless the item names the journey case it keeps.
+- **New packages:** `internal/nearest` and `internal/mergedriver` only; the indexed Dependency graph extends `internal/index` (no `internal/depgraph`); every other move extends `index`, `briefing`, `recap`, `lock`, `ops` or `knowledge`.
+- **Tests:** a moved function's direct tests move with it; a runCLI test replaced by a direct test is deleted, except a runCLI test that is the only check of wiring staying in cli, which stays as a journey case.
 
 **Standing requirements:**
 - skills: coding-standards
@@ -27,6 +36,8 @@ Each moved piece gets direct unit tests in its new package; `internal/cli` keeps
 - CLI tests go through `runCLI`; never `t.Parallel()` (Note `cli-test-harness`); domain tests use real temp files and git (ADR 0007).
 - A new package opens with a `// Package` comment; a file added to or removed from `internal/cli` updates the `doc.go` file map.
 - Any deviation from item text lands as a dated NOTES line under the item.
+- (a) Every item's Acceptance runs staticcheck at the version `.github/workflows/ci.yml` pins (`go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> <the item's packages>`), since CI's U1000 fails an orphaned const or helper left in cli.
+- (b) Every comment in `internal/cli` naming a moved symbol is restated, and each item's grep uses `grep -nwE '<moved names>' internal/cli/*.go` (word match, comments included) rather than only `^func`.
 
 **Out of scope:**
 - `internal/ui` and `internal/cli/output` (the output contract, 568 non-test lines): both stay as they are.
@@ -115,17 +126,22 @@ capcom prints stays byte-identical.
 is exported too, since `unknownCommandError` also hands it to cobra. The callers
 stay in cli and call the package: `unknownCommandError`, `closestFlagName`, `nearFlagNames`,
 `closestIDs`. The package imports only the standard library.
+**Regression guard.** `idWordSeparator` (suggest.go:119), which the moved `sharedWordCount` reads, moves to
+`internal/nearest` too and is deleted from `suggest.go`; `suggestionDistance` comes from `root.go:221`, not
+`suggest.go`, and stays referenced there by `unknownCommandError`. Acceptance gains staticcheck on
+`./internal/cli/ ./internal/nearest/` and the -w grep (standing requirements (a) and (b)).
 **Files:** internal/nearest/nearest.go, internal/nearest/nearest_test.go, internal/cli/root.go, internal/cli/suggest.go, internal/cli/suggest_test.go
-**Read first:** internal/cli/suggest.go — closestNames, isNearName, closestIDs, nearFlagNames;
-internal/cli/root.go — closestName, editDistance, unknownCommandError
+**Read first:** internal/cli/suggest.go — closestNames, sharedWordCount, idWordSeparator, closestIDs;
+internal/cli/root.go — editDistance, closestName, suggestionDistance; .github/workflows/ci.yml — staticcheck
 **Tests:** `TestEditDistance_CountsEditsIgnoringCase` and `TestClosestNames_SuggestsCloseNamesInRankOrder`
 move from `suggest_test.go` to `internal/nearest`. Become direct: none. Stay runCLI: every
 `TestSuggest_*`; `TestClosestFlagName_PicksTheClosestVisibleFlag` stays in cli.
 **Acceptance:**
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/nearest/` passes
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Suggest|ClosestFlag|Unknown'` passes
-- `grep -nE '^func (editDistance|closestName|closestNames|sharedWordCount|letterCount|isNearName)\(' internal/cli/*.go` prints nothing
+- `grep -nwE 'editDistance|closestName|closestNames|sharedWordCount|letterCount|isNearName|nameCandidate|suggestionDistance|maxIDSuggestions|minSharedWordLetters|idWordSeparator' internal/cli/*.go` prints nothing
 - `go vet ./internal/nearest/ ./internal/cli/` is clean
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/nearest/` is clean
 **Closes:** cli-split-closest-names
 **Commit:** `refactor(nearest): move name suggestion ranking out of internal/cli`
 
@@ -144,9 +160,12 @@ cli callers (`search.go`, `know_search.go`, the moved Notes selection) map that 
 `endsPath`, `isPathByte` and `applyingNote` moves to `briefing` as a function taking the
 `*index.Index`, the title, the body and the limit, returning an exported entry-and-ref pair;
 `contextNoteLimit`, `contextNotes`, `contextPlan` and the rendering stay in `context.go`.
-**Files:** internal/index/search.go, internal/index/search_test.go, internal/briefing/context.go, internal/briefing/context_test.go, internal/cli/context.go, internal/cli/context_test.go, internal/cli/search.go, internal/cli/know_search.go
-**Read first:** internal/cli/context.go — applyingNotes, mentionsPath, contextNotes;
-internal/cli/search.go — searchEveryWordFirst; internal/index/notes.go — SearchNotes, NoteRefs
+**Regression guard.** Also update `internal/briefing`'s package comment (`internal/briefing/ready.go:1-4`,
+which enumerates its API) to name the Notes selection. Acceptance gains staticcheck on
+`./internal/cli/ ./internal/briefing/ ./internal/index/` and the -w grep over the moved names.
+**Files:** internal/index/search.go, internal/index/search_test.go, internal/briefing/context.go, internal/briefing/context_test.go, internal/briefing/ready.go, internal/cli/context.go, internal/cli/context_test.go, internal/cli/search.go, internal/cli/know_search.go
+**Read first:** internal/cli/context.go — applyingNotes, applyingNote, contextNotes, mentionsPath; internal/cli/search.go — searchEveryWordFirst;
+internal/index/notes.go — SearchNotes, NoteRefs; internal/briefing/ready_test.go — indexIssueFiles
 **Tests:** `TestMentionsPath_WholePathOrDirectory_Counts` moves to `internal/briefing`. Become direct: the
 Notes selection that `TestContext_FullIssue_PrintsShowThenEverySection` sets up (ref-named, prefix-only,
 title hit) gains a direct test in `briefing`; the runCLI test stays whole as the journey. New: a
@@ -154,7 +173,8 @@ direct test of the index fallback (every word first, else any word).
 **Acceptance:**
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/briefing/` and `./internal/index/` pass
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Context|Search'` passes
-- `grep -nE '^func (\(a \*app\) )?(applyingNotes|mentionsPath|endsPath|isPathByte|searchEveryWordFirst)[\[(]' internal/cli/*.go` prints nothing
+- `grep -nwE 'applyingNotes|applyingNote|mentionsPath|endsPath|isPathByte|searchEveryWordFirst' internal/cli/*.go` prints nothing
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/briefing/ ./internal/index/` is clean
 **Closes:** cli-split-applying-notes
 **Commit:** `refactor(briefing): move the selection of an Issue's Notes out of internal/cli`
 
@@ -169,9 +189,10 @@ unknown `--since` still fails with the same message and hint.
 root, the value and the current time; where `recapBoundary` returns `unknownSinceError`, the moved
 function returns an exported sentinel error, which cli maps to `unknownSinceError` (its wording
 stays). `withEmptyGroups`, `recapResult` and the group rendering stay: they shape output.
+**Regression guard.** Acceptance gains staticcheck on `./internal/cli/ ./internal/recap/` and the -w grep.
 **Files:** internal/recap/boundary.go, internal/recap/boundary_test.go, internal/cli/recap.go, internal/cli/recap_test.go
-**Read first:** internal/cli/recap.go — recapBoundary, sinceTime, unknownSinceError, newRecapCommand;
-internal/recap/recap_test.go — its temp-repo helpers
+**Read first:** internal/cli/recap.go — recapBoundary, sinceTime, unknownSinceError; internal/recap/recap.go — Compute, ErrUnknownBoundary;
+internal/gitx/history.go — CommitBefore, ResolveCommit; internal/recap/recap_test.go — newStore
 **Tests:** Become direct: the `days`, `date` and `ref` cases of
 `TestRecap_EachSinceForm_ListsTheChangesAfterTheBoundary` become a table test of the moved function
 in `internal/recap` (a real temp git repo); the runCLI test keeps its `default` and `days` cases.
@@ -179,13 +200,14 @@ Stay runCLI: `TestRecap_UnknownSince_IsInvalidWithTheGitLogHint` and the other `
 **Acceptance:**
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/recap/` passes
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run Recap` passes
-- `grep -nE '^func (\(a \*app\) )?(recapBoundary|sinceTime)\(' internal/cli/*.go` prints nothing
+- `grep -nwE 'recapBoundary|sinceTime|sinceDaysPattern|sinceDateLayout|sinceOptionPrefix' internal/cli/*.go` prints nothing
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/recap/` is clean
 **Closes:** cli-split-recap-boundary
 **Commit:** `refactor(recap): move the --since boundary out of internal/cli`
 
 ## 4. Move the foreign-lock write decision to internal/lock
 
-**What:**
+**What:** Recast at the regression check (2026-11-23).
 **Goal:** `internal/lock` decides whether a command's writes must warn of another session's Tree lock
 (ADR 0017: the holder's own process chain renews the lock and stays silent, writes of only the
 lock's purpose Issue stay silent, a stale lock is reported stale), with direct unit tests; no file of
@@ -193,22 +215,43 @@ lock's purpose Issue stay silent, a stale lock is reported stale), with direct u
 and every warning text stays byte-identical.
 **Approach (assumed at the header base):** the body of `app.lockWarning` after its early returns —
 `Check`, `HeldBy` over the caller ancestry, `renewHolderLock`'s `TouchHolder` handling, `writesOnly` —
-moves to a method of `lock.Worktree` taking the caller chain (`[]proc.Process`) and the writes
+moves to a method of `lock.Worktree` taking the caller chain lazily (`func() []proc.Process`) and the writes
 (`[][]string`), returning the foreign `*HeldError` (nil when silent) and an error that tells an
 unreadable record from a failed renewal. The early returns (no writes, `isLockExempt`, no store),
 `callerAncestry`, `holderProcess` and the texts `unreadableLockWarning`, `unrenewedLockWarning`,
 `foreignLockAdvice`, `foreignStaleLockAdvice` stay in `root.go`.
+**Regression guard.** Take the caller chain lazily as `func() []proc.Process` (cli passes `a.callerAncestry`,
+as `primeResult` does), called only when the lock record names a holder process, so the ancestry is never
+read for a free lock or a holder-less record (root.go's "The caller's ancestry is read only for a record
+that names a holder process" and the archived plan `2026-11-22 - 00 - lock-holder-and-agent-guide-plan`'s
+"Read the chain lazily" stand; this item yields to them). A direct test in `internal/lock` proves the chain
+func is not called when the record names no holder process. Keep `TestLockWarn_WriteOfThePurposeIssue_IsSilent`,
+`TestLockWarn_NoteWhoseIDIsThePurpose_Warns` and `TestLockWarn_ResumeUnderAnotherProcess_MovesTheHolder` in cli
+as journey cases (they are the only checks of mv noting old+new id, Note writes noting no id, and acquire's
+resume recording the new holder); the decision table becomes new direct tests in `internal/lock`; only
+`TestLockWarn_WriteUnderTheHolderProcess_IsSilentAndOtherProcessesWarn` is deleted once covered. Acceptance
+gains staticcheck on `./internal/cli/ ./internal/lock/` and the -w grep. `Check`, `HeldBy` and `TouchHolder` leave
+`root.go` (lines 510, 519, 541 today; `cli/lock.go:374`'s `HeldBy` is acquire's and stays), so `lockWarning` only
+words the decision. The failed-renewal error carries `TouchHolder`'s error unchanged (unwrappable, same text), so
+`unrenewedLockWarning`'s `TrimPrefix(err.Error(), recordPath+": ")` still strips; a direct test proves it.
 **Files:** internal/lock/write.go, internal/lock/write_test.go, internal/cli/root.go, internal/cli/lock_warn_test.go
-**Read first:** internal/cli/root.go — lockWarning, renewHolderLock, writesOnly, noteWrite;
-internal/lock/worktree.go — Check, TouchHolder; internal/lock/lock.go — Status.HeldBy
+**Read first:** internal/cli/root.go — app.lockWarning, renewHolderLock, writesOnly, callerAncestry, unrenewedLockWarning;
+internal/lock/worktree.go — Worktree.Check, Worktree.TouchHolder; internal/lock/lock_test.go — TestReadCheck_RecordWithNoGuardInReadOnlyDir_Succeed
 **Tests:** Become direct (deleted from cli once covered in `internal/lock`):
-`TestLockWarn_WriteOfThePurposeIssue_IsSilent`, `TestLockWarn_NoteWhoseIDIsThePurpose_Warns`,
-`TestLockWarn_WriteUnderTheHolderProcess_IsSilentAndOtherProcessesWarn`,
-`TestLockWarn_ResumeUnderAnotherProcess_MovesTheHolder`. Stay runCLI: every other `TestLockWarn_*`.
+`TestLockWarn_WriteUnderTheHolderProcess_IsSilentAndOtherProcessesWarn`. New in `internal/lock`: the decision
+table as direct tests, a test that the chain func is not called when the record names no holder process, and a
+test of the renewal-failure branch (lock dir made read-only after acquire, as
+`TestReadCheck_RecordWithNoGuardInReadOnlyDir_Succeed` sets up) asserting the error's kind and that it
+`errors.Is` / matches `TouchHolder`'s error text.
+Stay runCLI as journey cases: `TestLockWarn_WriteOfThePurposeIssue_IsSilent`,
+`TestLockWarn_NoteWhoseIDIsThePurpose_Warns`, `TestLockWarn_ResumeUnderAnotherProcess_MovesTheHolder`, and every
+other `TestLockWarn_*`.
 **Acceptance:**
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/` passes
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'LockWarn|Lock'` passes
-- `grep -nE '^func \(a \*app\) (renewHolderLock|writesOnly)\(' internal/cli/*.go` prints nothing
+- `grep -nwE 'renewHolderLock|writesOnly' internal/cli/*.go` prints nothing
+- `grep -nE 'HeldBy|TouchHolder|\.Check\(' internal/cli/root.go` prints nothing
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/lock/` is clean
 **Closes:** cli-split-lock-warning
 **Commit:** `refactor(lock): move the foreign-lock write decision out of internal/cli`
 
@@ -225,48 +268,66 @@ a conflict or the path that failed, with direct unit tests; no file of `internal
 paths and a `gitx.MergeLabels`, returning whether it conflicted, the path of a failed read or write,
 and the error. cli keeps the argument positions, `mergeLabelsFrom`, `mergeLabel`, `failedMerge`,
 `conflictMessage` and builds the same `output.Error`s from what the function returns.
+**Regression guard.** Keep `TestMergeDriver_MissingInput_FailsNamingItAndKeepsOurs` and
+`TestMergeDriver_OursInReadOnlyDirectory_FailsInvalidAndKeepsOurs` in cli as journey cases (cli still words those
+failures from the returned path); their direct counterparts in `internal/mergedriver` assert the returned path and
+error. Only the success-path tests (BothAppendOutsideAnyStore, CRLFInputs_KeepCRLF) are deleted once covered.
+Acceptance gains staticcheck on `./internal/cli/ ./internal/mergedriver/` and the -w grep. A failed
+`issue.MergeFile` returns no path, so cli keeps wording that failure with `args[mergeArgPath]`; the moved
+function's return must let cli tell a read/write failure (with its path) from a merge failure (no path), and the
+kept runCLI journey cases stay byte-identical.
 **Files:** internal/mergedriver/mergedriver.go, internal/mergedriver/mergedriver_test.go, internal/cli/merge_driver.go, internal/cli/merge_driver_test.go
-**Read first:** internal/cli/merge_driver.go — mergeIssueFile, gitTextMerge, mergeLabelsFrom;
-internal/issue/merge.go — MergeFile, TextMerge; internal/gitx — MergeFile, MergeLabels
+**Read first:** internal/cli/merge_driver.go — mergeIssueFile, gitTextMerge, failedMerge; internal/issue/merge.go — MergeFile, TextMerge;
+internal/gitx/merge.go — MergeLabels; internal/nodefile/atomic.go — ReplaceFileVerbatim; internal/cli/merge_driver_test.go — writeDriverInputs
 **Tests:** Become direct (deleted from cli once covered in `mergedriver`):
-`TestMergeDriver_BothAppendOutsideAnyStore_WritesBothEntriesToOurs`, `TestMergeDriver_CRLFInputs_KeepCRLF`,
-`TestMergeDriver_MissingInput_FailsNamingItAndKeepsOurs`,
+`TestMergeDriver_BothAppendOutsideAnyStore_WritesBothEntriesToOurs`, `TestMergeDriver_CRLFInputs_KeepCRLF`.
+Stay runCLI as journey cases, each with a direct counterpart in `mergedriver` asserting the returned path and
+error: `TestMergeDriver_MissingInput_FailsNamingItAndKeepsOurs`,
 `TestMergeDriver_OursInReadOnlyDirectory_FailsInvalidAndKeepsOurs` (with its platform skip). Stay
 runCLI: `TestMergeDriver_ConflictingTitles_*`, `TestMergeDriver_LabelsAbsentOrUnexpanded_FallBackToPath`
 and `merge_property_test.go`.
 **Acceptance:**
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/mergedriver/` passes
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run MergeDriver` passes
-- `grep -nE '^func (mergeIssueFile|gitTextMerge)\(' internal/cli/*.go` prints nothing
+- `grep -nwE 'mergeIssueFile|gitTextMerge|mergeTempDirPattern|mergeInputPermissions' internal/cli/*.go` prints nothing
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/mergedriver/` is clean
 **Closes:** cli-split-merge-driver
 **Commit:** `refactor(mergedriver): move the Issue-file merge out of internal/cli`
 
-## 6. Move the indexed Dependency graph to internal/depgraph
+## 6. Move the indexed Dependency graph to internal/index
 
-**What:**
-**Goal:** a new package `internal/depgraph` holds the Dependency graph of the indexed Issues — each
+**What:** Recast at the regression check (2026-11-23).
+**Goal:** `internal/index` holds the Dependency graph of the indexed Issues — each
 Issue's index entry by id and in tree order, whether a dep entry names an id, which Issues `dep graph`
 shows from a start, and `dep list`'s branches by first step — with direct unit tests; no file of
 `internal/cli` defines the `depGraph` type, `loadDepGraph` or `depBranches`; `dep graph`, `dep list`,
 `related` and `context` print byte-identical output.
 **Approach (assumed at the header base):** the `depGraph` struct (`graph`, `entries`, `ordered`) becomes
-an exported type with accessors; `loadDepGraph` becomes a constructor over `*index.Index`; `names` and
+an exported type in `internal/index` with accessors; `loadDepGraph` becomes a constructor over `*index.Index`; `names` and
 `shownBy` become its methods; `depBranches` moves beside it. `flowchartResult` and `listResult` return
 `output.Result`, so they stay in cli as functions taking the graph; `depSection`, `linkHolder` and
 `showGraph` stay. Callers to update: `dep_graph.go`, `dep_list.go`, `related.go`, `context.go`.
-**Files:** internal/depgraph/depgraph.go, internal/depgraph/depgraph_test.go, internal/cli/dep_graph.go, internal/cli/dep_list.go, internal/cli/related.go, internal/cli/context.go, internal/cli/doc.go
-**Read first:** internal/cli/dep_graph.go — depGraph, loadDepGraph, shownBy, names;
-internal/cli/dep_list.go — depBranches, depSection; internal/cli/related.go — linkHolder
-**Tests:** Become direct: the node-selection cases of `TestDepGraph_IDAndAll_LimitTheNodes` become a
-direct test of the shown-by method; the runCLI test keeps one case with an id and `--all`. Stay
+**Regression guard.** Recast to the ratified home: the indexed Dependency graph moves into `internal/index`,
+not a new `internal/depgraph` package: an exported type in `index` (its name must not be confused with
+`issue.DepGraph`; the implementer picks a clear name) with a constructor over `*Index`, the names and shown-by
+methods, and `depBranches` beside it. Keep case 1 of `TestDepGraph_IDAndAll_LimitTheNodes` (an id without
+`--all`: the closed dependency hidden and its edge left out, the only check of `flowchartResult` dropping that
+edge) in the runCLI test beside the id-and-`--all` case; only the closed-named-by-id case becomes direct.
+**Files:** internal/index/depgraph.go, internal/index/depgraph_test.go, internal/cli/dep_graph.go, internal/cli/dep_list.go, internal/cli/related.go, internal/cli/context.go, internal/cli/doc.go, internal/cli/dep_test.go
+**Read first:** internal/cli/dep_graph.go — depGraph, loadDepGraph, depGraph.shownBy, flowchartResult; internal/cli/dep_list.go — depBranches;
+internal/index/query.go — Index.List; internal/index/index_test.go — newStore; internal/cli/dep_test.go — TestDepGraph_IDAndAll_LimitTheNodes
+**Tests:** Become direct: the closed-named-by-id case of `TestDepGraph_IDAndAll_LimitTheNodes` becomes a
+direct test of the shown-by method in `internal/index`; the runCLI test keeps case 1 (an id without `--all`,
+the closed dependency's edge left out) and the case with an id and `--all`. Stay
 runCLI: every `TestDepList_*`, `TestDepGraph_NoID_*`, `TestDepGraph_JSON_*` and `related_test.go`.
 **Acceptance:**
-- `GOMEMLIMIT=2GiB go test -count=1 ./internal/depgraph/` passes
+- `GOMEMLIMIT=2GiB go test -count=1 ./internal/index/` passes
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Dep|Related|Context|DocFileMap'` passes
-- `grep -nE '^type depGraph struct|^func (\(a \*app\) )?(loadDepGraph|depBranches)\(' internal/cli/*.go` prints nothing
-- the `doc.go` line for `dep_graph.go` names `internal/depgraph` as the home of the Dependency graph
+- `grep -nwE 'depGraph|loadDepGraph|depBranches' internal/cli/*.go` prints nothing
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/index/` is clean
+- the `doc.go` line for `dep_graph.go` names `internal/index` as the home of the Dependency graph
 **Closes:** cli-split-dep-graph
-**Commit:** `refactor(depgraph): move the indexed Dependency graph out of internal/cli`
+**Commit:** `refactor(index): move the indexed Dependency graph out of internal/cli`
 
 ## 7. Move Note successor-list edits to internal/ops
 
@@ -280,9 +341,11 @@ the add and remove edits to a Note's superseded-by list, beside the Issue-side `
 (`reflist.List.Add`, `Remove`, `Removal.Drop`, `ops.WithoutEntries`) moves to `ops`, returning the
 raw `reflist` error so cli keeps wrapping it with `refusalFailure(err, noteIDs, "", successorWords)`.
 `successorList` stays in cli (its resolution failure is wording) and calls the moved `noteNames`.
+**Regression guard.** Restate the cli comments naming `noteNames`/`editSuccessors` (`know_update.go:181,314`).
+Acceptance gains staticcheck on `./internal/cli/ ./internal/ops/` and the -w grep.
 **Files:** internal/ops/notes.go, internal/ops/notes_test.go, internal/cli/know_update.go, internal/cli/know_update_test.go
-**Read first:** internal/cli/know_update.go — noteNames, editSuccessors, successorList;
-internal/ops/deps.go — namesIssue, ReferenceList, WithoutEntries; internal/reflist — List, Removal
+**Read first:** internal/cli/know_update.go — editSuccessors, noteNames, successorList, applyNoteUpdate;
+internal/ops/deps.go — namesIssue, ReferenceList, WithoutEntries; internal/reflist — NamesFunc
 **Tests:** Become direct (deleted from cli once covered in `ops`):
 `TestKnowUpdate_AddThenRemoveTheSameSuccessor_RemovesIt`,
 `TestKnowUpdate_AddSupersededByBesideItsAliasSpelling_AddsNothing`. Stay runCLI:
@@ -290,7 +353,8 @@ internal/ops/deps.go — namesIssue, ReferenceList, WithoutEntries; internal/ref
 **Acceptance:**
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/ops/` passes
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run KnowUpdate` passes
-- `grep -nE '^func (\(a \*app\) )?(noteNames|editSuccessors)\(' internal/cli/*.go` prints nothing
+- `grep -nwE 'noteNames|editSuccessors' internal/cli/*.go` prints nothing
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/ops/` is clean
 **Closes:** cli-split-note-successors
 **Commit:** `refactor(ops): move Note successor-list edits out of internal/cli`
 
@@ -305,15 +369,19 @@ and `knowledge.Verify`, and words the warnings; `rm` and `know rm` warnings stay
 (skip the removed path, `tree.ChildrenDir`, `knowledge.RefsNaming`, build a `knowledge.NoteFile`) moves
 to `knowledge` as a function over `[]knowledge.NoteFile` and the removed path; cli turns each
 `index.NoteEntry` into a `NoteFile` first. `refsUncheckedWarnings` and the wording stay in `rm.go`.
+**Regression guard.** Acceptance gains staticcheck on `./internal/cli/ ./internal/knowledge/` and the -w grep
+over the moved names.
 **Files:** internal/knowledge/removal.go, internal/knowledge/removal_test.go, internal/cli/rm.go
-**Read first:** internal/cli/rm.go — brokenRefWarnings, refsUncheckedWarnings;
-internal/knowledge/verify.go — Verify, RefsNaming, NoteFile
+**Read first:** internal/cli/rm.go — brokenRefWarnings, refsUncheckedWarnings; internal/knowledge/verify.go — RefsNaming, NoteFile, Verify;
+internal/tree — ChildrenDir; internal/cli/node_verbs.go — caller of brokenRefWarnings;
+internal/knowledge/verify_test.go — TestRefsNaming_FileDirectoryAndBelow_ReturnsOnlyThoseRefs
 **Tests:** Become direct: none; a new direct test covers the selection (a ref to the file, one to its
 children directory, one to a sibling, the removed Note's own ref). Stay runCLI:
 `TestRm_FileANoteRefNames_RemovesAndWarnsLikeCheck`, `TestKnowRm_FileANoteRefNames_RemovesAndWarnsLikeCheck`.
 **Acceptance:**
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/knowledge/` passes
 - `GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ -run 'Rm|KnowRm'` passes
-- `grep -n 'RefsNaming' internal/cli/*.go` prints nothing
+- `grep -nwE 'RefsNaming' internal/cli/*.go` prints nothing
+- `go run honnef.co/go/tools/cmd/staticcheck@<STATICCHECK_VERSION> ./internal/cli/ ./internal/knowledge/` is clean
 **Closes:** cli-split-removal-refs
 **Commit:** `refactor(knowledge): move the refs a removal breaks out of internal/cli`
