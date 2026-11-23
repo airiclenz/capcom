@@ -1,7 +1,7 @@
 ---
 title: "Before changing or running the agent eval harness: cmd/agenteval and docs/agent-eval.md"
 labels: [agenteval]
-refs: [cmd/agenteval/doc.go, docs/agent-eval.md]
+refs: [cmd/agenteval/doc.go, docs/agent-eval.md, .github/workflows/agent-eval.yml, cmd/agenteval/thresholds.yaml]
 ---
 
 `cmd/agenteval` is the agent eval harness: it runs 12 seeded capcom tasks against an agent command
@@ -18,3 +18,11 @@ It is a dev tool, never shipped. Unlike `cmd/release` it imports `internal/`, so
 files with capcom's own parsers. A scenario's check judges only the repo's `.capcom/` files, the
 lock state and the call log, never the transcript; a prompt names ids and goals, never a capcom
 command. Its tests never reach a network or a model.
+
+`.github/workflows/agent-eval.yml` runs it weekly and on demand: one job per model in the
+repository variable `AGENT_EVAL_MODELS`, and one for `claude -p` when the secret
+`ANTHROPIC_API_KEY` is set. Each job passes `--thresholds cmd/agenteval/thresholds.yaml --name
+<model>` and goes red when the model passes fewer tasks than its entry there (exit 3); a model
+with no entry fails before any task runs (exit 2), so add the entry with the model. Reports are
+uploaded as artifacts, never committed; the workflow stays out of `ci.yml` so an eval failure
+never blocks a release. `docs/agent-eval.md` (## In CI) has the details.

@@ -24,10 +24,18 @@ looked up on the harness's own `PATH` and made absolute before the run starts.
 | `--capcom <path>` | build `./cmd/capcom` | the capcom build under test; without it, `./cmd/capcom` of the working directory is built into a temp dir first |
 | `--only <id,…>` | every scenario | run only these scenario ids; repeat the flag or separate with commas |
 | `--timeout <d>` | `15m` | how long each task's agent may run before it is killed and the task fails |
+| `--thresholds <file>` | none | the YAML file of each model's pass threshold, a map `models: {<name>: <min passed>}`; needs `--name` |
+| `--name <model>` | none | the model whose threshold in `--thresholds` the run must meet; needs `--thresholds` |
 
 The exit code is 0 once the report is written, whichever tasks failed; 1 when the run itself
 failed (the build, a seed, a file it could not write); 2 for a bad command line, such as a missing
-agent command or an unknown `--only` id.
+agent command, an unknown `--only` id, or a `--name` the `--thresholds` file has no entry for,
+refused before any task runs; 3 when the passed count is below the `--name` model's threshold,
+once the report is written. A run that meets its threshold prints a line saying so.
+
+```sh
+./agenteval run --out eval.md --thresholds cmd/agenteval/thresholds.yaml --name qwen -- ./my-agent
+```
 
 ### With Claude Code
 
@@ -131,3 +139,47 @@ run:
 
 Each task's seeded repo lives in a temp dir that is removed when the task ends, so the transcript
 and the call log are what is left to read when a task fails.
+
+## In CI
+
+`.github/workflows/agent-eval.yml` runs the eval every Monday at 04:00 UTC and on demand from the
+Actions tab (`workflow_dispatch`). It lives apart from `ci.yml`, so a failing eval never blocks a
+release: the release gate reads `ci.yml`'s runs only. Runs never overlap; one waits for the one
+before it to finish.
+
+It runs one job per model the repository variable `AGENT_EVAL_MODELS` lists, and one for Claude
+Code when the secret `ANTHROPIC_API_KEY` is set. With neither, it runs no eval job and passes.
+`AGENT_EVAL_MODELS` is a JSON list of `{name, base_url, model, key_secret}`:
+
+```json
+[
+  {"name": "qwen", "base_url": "https://llm.example.com/v1", "model": "qwen3-coder", "key_secret": "QWEN_API_KEY"}
+]
+```
+
+- `name` labels the job, the report and the artifact, and is the model's key in the thresholds
+  file. It is letters, digits, `.`, `_` and `-` only, and no two entries share one.
+- `base_url` and `model` go to `agenteval agent` as `--base-url` and `--model`.
+- `key_secret` names the repository secret that holds the endpoint's API key; the job hands its
+  value to `agenteval agent` as the bearer token.
+
+A list that is not valid JSON, or an entry missing a field, fails the run before any eval job
+starts. The Claude Code job installs the current `@anthropic-ai/claude-code` and runs
+`claude -p --allowedTools Bash` with `ANTHROPIC_API_KEY`, under the name `claude`.
+
+Every job runs with `--thresholds cmd/agenteval/thresholds.yaml --name <name>`, so each model in
+`AGENT_EVAL_MODELS`, and `claude` when its job runs, needs an entry in that file: the fewest tasks
+its run must pass. A job whose model passes fewer goes red (exit 3); a model with no entry fails
+the job before any task runs (exit 2). Add the entry in the same change that adds the model, and
+raise it as the model gets better. The file starts with no entries; for example:
+
+```yaml
+models:
+  qwen: 9
+  claude: 11
+```
+
+Each job uploads its report and transcripts (the `eval/` directory) as the artifact
+`agent-eval-<name>`, also when the run failed, and writes the report table's heading and Total row
+to the run's summary. Reports from CI are never committed: to keep one, download the artifact and
+copy the report into `docs/reviews/`.

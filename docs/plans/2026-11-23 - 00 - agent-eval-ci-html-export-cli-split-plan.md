@@ -126,7 +126,11 @@ cmd/agenteval/report.go — renderReport Total row
 - `actionlint .github/workflows/agent-eval.yml` when `actionlint` is installed
 **Commit:** `ci(agent-eval): run the agent eval weekly against configured models`
 
-## 3. Document the eval workflow and thresholds
+## 3. Document the eval workflow and thresholds — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): no CHANGELOG entry — items 1 and 2 already carry entries for the flags and the workflow; this item is docs only.
+NOTES (2026-11-23): every `capcom know update` rewrites the stale capcom block in AGENTS.md ("refreshed: AGENTS.md"); restored with `git restore AGENTS.md` each time, as that block is out of scope for this plan. `capcom check` still reports only that pre-existing AGENTS.md:31 problem.
+NOTES (2026-11-23): `cmd/agenteval/thresholds.yaml` ships `models: {}`, so any model added to AGENT_EVAL_MODELS (and `claude` once ANTHROPIC_API_KEY is set) fails exit 2 until it gets an entry; docs/agent-eval.md says so and shows an illustrative example, without adding entries.
 
 **What:**
 **Goal:** `docs/agent-eval.md` documents the `--thresholds`/`--name` flags, the workflow's
