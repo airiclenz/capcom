@@ -49,27 +49,6 @@ func readDriverFile(t *testing.T, path string) string {
 	return string(content)
 }
 
-func TestMergeDriver_BothAppendOutsideAnyStore_WritesBothEntriesToOurs(t *testing.T) {
-	dir := outsideGitDir(t)
-	basePath, oursPath, theirsPath := writeDriverInputs(
-		t,
-		dir,
-		driverIssueFile("Login", driverEntryBase),
-		driverIssueFile("Login", driverEntryBase, driverEntryOurs),
-		driverIssueFile("Login", driverEntryBase, driverEntryTheirs),
-	)
-
-	stdout, stderr, exitCode := runCLI(t, dir, "merge-driver", basePath, oursPath, theirsPath, mergeDriverPath)
-
-	if exitCode != ExitOK || stdout != "" || stderr != "" {
-		t.Fatalf("exit %d, stdout %q, stderr %q; want 0 and no output", exitCode, stdout, stderr)
-	}
-	want := driverIssueFile("Login", driverEntryBase, driverEntryOurs, driverEntryTheirs)
-	if got := readDriverFile(t, oursPath); got != want {
-		t.Errorf("ours = %q, want %q", got, want)
-	}
-}
-
 func TestMergeDriver_ConflictingTitles_LabelsMarkersAndExitsOne(t *testing.T) {
 	// git merge-file reads merge.conflictStyle only inside a repository, as when git runs the
 	// driver; the diff3 style shows the base label too.
@@ -153,28 +132,6 @@ func TestMergeDriver_LabelsAbsentOrUnexpanded_FallBackToPath(t *testing.T) {
 				t.Errorf("exit %d, ours = %q; want 1 and the markers %q and %q", exitCode, got, wantOurs, wantTheirs)
 			}
 		})
-	}
-}
-
-func TestMergeDriver_CRLFInputs_KeepCRLF(t *testing.T) {
-	dir := outsideGitDir(t)
-	toCRLF := strings.NewReplacer("\n", "\r\n").Replace
-	basePath, oursPath, theirsPath := writeDriverInputs(
-		t,
-		dir,
-		toCRLF(driverIssueFile("Login", driverEntryBase)),
-		toCRLF(driverIssueFile("Login", driverEntryBase, driverEntryOurs)),
-		toCRLF(driverIssueFile("Login form", driverEntryBase, driverEntryTheirs)),
-	)
-
-	_, stderr, exitCode := runCLI(t, dir, "merge-driver", basePath, oursPath, theirsPath, mergeDriverPath)
-
-	if exitCode != ExitOK {
-		t.Fatalf("exit %d, stderr %q; want 0", exitCode, stderr)
-	}
-	want := toCRLF(driverIssueFile("Login form", driverEntryBase, driverEntryOurs, driverEntryTheirs))
-	if got := readDriverFile(t, oursPath); got != want {
-		t.Errorf("ours = %q, want %q", got, want)
 	}
 }
 

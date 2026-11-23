@@ -1,19 +1,13 @@
 package cli
 
 import (
-	"bytes"
-	"errors"
-	"os"
-	"path/filepath"
 	"slices"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
 	"github.com/airiclenz/capcom/internal/gitx"
-	"github.com/airiclenz/capcom/internal/issue"
-	"github.com/airiclenz/capcom/internal/nodefile"
+	"github.com/airiclenz/capcom/internal/mergedriver"
 )
 
 // Arguments and output of capcom merge-driver.
@@ -22,13 +16,9 @@ const (
 	// mergeDriverMinArgs are base, ours, theirs and path; up to three labels may follow.
 	mergeDriverMinArgs = 4
 	mergeDriverMaxArgs = 7
-	// mergeTempDirPattern names the temp directory that holds the text merge's inputs.
-	mergeTempDirPattern = "capcom-merge-*"
 	// conflictMessage is the failure of a merge that leaves conflict markers in ours; its hint
 	// stages the file once they are resolved.
 	conflictMessage = "conflict markers remain; resolve them"
-	// mergeInputPermissions are the permissions of the text merge's temp input files.
-	mergeInputPermissions = 0o600
 )
 
 // Positions of the merge driver's arguments: git's %O %A %B %P %S %X %Y.
@@ -75,39 +65,29 @@ func (a *app) newMergeDriverCommand() *cobra.Command {
 		Example: mergeDriverExample,
 		Args:    cobra.RangeArgs(mergeDriverMinArgs, mergeDriverMaxArgs),
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
-			return a.emit(cmd, mergeIssueFile(args))
+			return a.emit(cmd, mergeDriverResult(args))
 		}),
 	}
 }
 
-// mergeIssueFile runs one merge-driver invocation on args and returns its result: a failure when
-// an input cannot be read, the merge fails or ours cannot be written (ours is then left as it was),
-// and a conflict failure, with ours written and a hint of git add for path, when conflict markers
-// remain.
-func mergeIssueFile(args []string) output.Result {
+// mergeDriverResult runs one merge-driver invocation on args through mergedriver.Merge and returns
+// its result: a failure when an input cannot be read, the merge fails or ours cannot be written
+// (ours is then left as it was), and a conflict failure, with ours written and a hint of git add
+// for path, when conflict markers remain. A failure names the file that failed, or path when the
+// merge itself failed.
+func mergeDriverResult(args []string) output.Result {
 	path := args[mergeArgPath]
-	inputs := args[:mergeArgPath]
-	versions := make([][]byte, 0, len(inputs))
-	for _, input := range inputs {
-		content, err := os.ReadFile(input)
-		if err != nil {
-			return failedMerge(&output.Error{Code: output.CodeInvalid, Path: input, Message: err.Error()})
-		}
-		versions = append(versions, content)
-	}
-
-	textMerge := gitTextMerge(mergeLabelsFrom(args))
-	merged, hasConflict, err := issue.MergeFile(
-		versions[mergeArgBase],
-		versions[mergeArgOurs],
-		versions[mergeArgTheirs],
-		textMerge,
+	hasConflict, failedPath, err := mergedriver.Merge(
+		args[mergeArgBase],
+		args[mergeArgOurs],
+		args[mergeArgTheirs],
+		mergeLabelsFrom(args),
 	)
 	if err != nil {
-		return failedMerge(&output.Error{Code: output.CodeInvalid, Path: path, Message: err.Error()})
-	}
-	if err := nodefile.ReplaceFileVerbatim(args[mergeArgOurs], bytes.NewReader(merged)); err != nil {
-		return failedMerge(&output.Error{Code: output.CodeInvalid, Path: args[mergeArgOurs], Message: err.Error()})
+		if failedPath == "" {
+			failedPath = path
+		}
+		return failedMerge(&output.Error{Code: output.CodeInvalid, Path: failedPath, Message: err.Error()})
 	}
 
 	result := output.Result{Kind: kindMerge, Data: mergeDriverData{Path: path}}
@@ -140,30 +120,4 @@ func mergeLabel(args []string, position int, fallback string) string {
 		return fallback
 	}
 	return args[position]
-}
-
-// gitTextMerge returns the text merge issue.MergeFile runs on everything outside the Log: it
-// writes the three versions to a temp directory, merges them with git merge-file under labels and
-// removes the directory again.
-func gitTextMerge(labels gitx.MergeLabels) issue.TextMerge {
-	return func(base []byte, ours []byte, theirs []byte) (merged []byte, hasConflict bool, err error) {
-		dir, err := os.MkdirTemp("", mergeTempDirPattern)
-		if err != nil {
-			return nil, false, err
-		}
-		defer func() {
-			err = errors.Join(err, os.RemoveAll(dir))
-		}()
-
-		versions := [][]byte{base, ours, theirs}
-		paths := make([]string, 0, len(versions))
-		for index, content := range versions {
-			path := filepath.Join(dir, strconv.Itoa(index))
-			if err := os.WriteFile(path, content, mergeInputPermissions); err != nil {
-				return nil, false, err
-			}
-			paths = append(paths, path)
-		}
-		return gitx.MergeFile(paths[mergeArgBase], paths[mergeArgOurs], paths[mergeArgTheirs], labels)
-	}
 }

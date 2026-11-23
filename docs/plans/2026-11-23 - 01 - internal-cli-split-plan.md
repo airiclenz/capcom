@@ -269,7 +269,11 @@ other `TestLockWarn_*`.
 **Closes:** cli-split-lock-warning
 **Commit:** `refactor(lock): move the foreign-lock write decision out of internal/cli`
 
-## 5. Move the Issue-file merge to internal/mergedriver
+## 5. Move the Issue-file merge to internal/mergedriver — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the cli wrapper that turns mergedriver.Merge's (hasConflict, failedPath, err) into the output.Result is renamed mergeIssueFile → mergeDriverResult, since the Acceptance grep forbids the old name in internal/cli; mergeTempDirPattern and mergeInputPermissions live on in mergedriver as tempDirPattern and inputPermissions.
+
+NOTES (2026-11-23): mergedriver_test.go adds two direct cases beyond the moved ones: the text merge removes its temp inputs, and a failed text merge (unusable temp directory) returns no failed path and keeps ours.
 
 **What:**
 **Goal:** a new package `internal/mergedriver` merges an Issue file's base, ours and theirs versions
