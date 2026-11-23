@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-23
+
 - A write made from under the process that acquired or started the Tree lock (the nearest non-shell ancestor of capcom, such as the agent harness) no longer warns that the lock is held; a write from any other process still warns, and a write of the lock's purpose Issue stays silent as before.
 - A capcom write made under the process that holds the Tree lock now renews the lock's heartbeat, so `capcom lock touch` is needed only when work outlasts the lock TTL without a write; a failed renewal is a warning, never a failed write.
 - `capcom lock touch`, `lock release` and `lock check` no longer need `--token` when run under the holder process: capcom uses the token it keeps for the lock. Any other caller without `--token` fails locked (exit 3), and touch and release then hint to pass `--token`. `--token` works as before and wins when given.
