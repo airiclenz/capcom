@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-23
+
 - `capcom know seed` adds the base set of Knowledge Notes that capcom ships, a root Note and the rules below it, to the store. It adds every Note of the set the store lacks and never changes a Note that exists. Each added Note carries the Labels `seed:<root id>` and `seed-text:<version>:<hash>`. It prints one line per Note, `<id>  <outcome>`: `added`, `skipped (same)`, `skipped (differs)`, `skipped (retired)` or `skipped (alias of <id>)`. A root Note that exists without the `seed:<root id>` Label fails the command and nothing is written. `--dry-run` prints the same lines and writes nothing; `--json` gives kind `know-seed`.
 - `capcom know seed --show <id>` prints one Note of the base set as capcom ships it, `id: <id>`, `title: <title>`, a blank line and the body, and writes nothing. An id the set does not hold fails with `not_found` (exit code 3) and names the ids of the set. `--show` cannot be combined with `--dry-run`; `--json` gives kind `know-seed-show`, and shell completion of the flag value lists the ids of the set.
 - `capcom know seed --update` replaces the title and body of every seeded Note whose text is still the text it was added with, when capcom now ships another text for it, and prints `updated` for it. It puts the new `seed-text` Label in place of the old one, keeps every other Label, Ref and Alias, adds the Notes the store lacks as plain `capcom know seed` does, and never changes an edited or a retired Note. Without `--update` such a Note prints `skipped (outdated)`. `--update --dry-run` prints the same lines and writes nothing; `--update` cannot be combined with `--show`.
