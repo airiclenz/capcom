@@ -201,7 +201,11 @@ internal/nodefile/atomic.go — WriteFileAtomic; internal/briefing/ready_test.go
 - `go vet ./internal/export/`
 **Commit:** `feat(export): write Issue pages, the Issue tree and the Ready list as static HTML`
 
-## 5. internal/export: the Knowledge tree and Note pages
+## 5. internal/export: the Knowledge tree and Note pages — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): consequential edit — internal/export/export_test.go: made necessary by knowledge.html joining every export (TestWriteHTML_PageSet lists it; TestWriteHTML_AcceptsPartialExport counts 10 files, not 9).
+NOTES (2026-11-23): the shared nav (layout.html) gains a Knowledge link beside Ready and Issues, so every page reaches knowledge.html as well as index.html; refs print as plain <code> text, not links, since the files they name are not part of the export.
+NOTES (2026-11-23): the Note body is read by readNoteBody in knowledge.go, a Note twin of issues.go's readBody, instead of making readBody generic, to leave item 4's code untouched.
 
 **What:**
 Recast at the regression check (2026-11-23).

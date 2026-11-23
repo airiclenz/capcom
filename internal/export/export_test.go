@@ -151,6 +151,7 @@ func TestWriteHTML_PageSet(t *testing.T) {
 		"issues/dep-task.html",
 		"issues/epic-task.html",
 		"issues/renamed-task.html",
+		"knowledge.html",
 	}
 	if !slices.Equal(names, want) {
 		t.Errorf("files = %v, want %v", names, want)
@@ -377,7 +378,7 @@ func TestWriteHTML_AcceptsPartialExport(t *testing.T) {
 	writeExport(t, dir, st, ix)
 
 	files := readTree(t, dir)
-	if len(files) != 9 || string(files["index.html"]) == "half" {
+	if len(files) != 10 || string(files["index.html"]) == "half" {
 		t.Errorf("the export did not complete the partial page set: %d files", len(files))
 	}
 }

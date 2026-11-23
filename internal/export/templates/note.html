@@ -1,0 +1,8 @@
+{{template "head" .}}<h1>{{.Title}}</h1>
+<dl class="fields">
+<dt>Id</dt><dd>{{.ID}}</dd>
+<dt>Labels</dt><dd>{{range $position, $label := .Labels}}{{if $position}}, {{end}}{{$label}}{{else}}none{{end}}</dd>
+<dt>Refs</dt><dd>{{range $position, $ref := .Refs}}{{if $position}}, {{end}}<code>{{$ref}}</code>{{else}}none{{end}}</dd>
+</dl>
+<pre class="body">{{.Body}}</pre>
+{{template "foot" .}}

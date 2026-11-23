@@ -1,8 +1,10 @@
-// Package export writes capcom's static HTML export: a self-contained site of a store's Issues that
-// opens from the file system, with no JavaScript and no external resource, every link relative.
-// WriteHTML is the whole interface. The site holds index.html (the Ready list), issues.html (every
-// Issue as a tree) and issues/<id>.html (one page per Issue); the same tree always writes the same
-// bytes, since no page carries a generation time or an absolute path.
+// Package export writes capcom's static HTML export: a self-contained site of a store's Issues and
+// Notes that opens from the file system, with no JavaScript and no external resource, every link
+// relative. WriteHTML is the whole interface. The site holds index.html (the Ready list),
+// issues.html (every Issue as a tree), issues/<id>.html (one page per Issue), knowledge.html (the
+// Knowledge tree) and knowledge/<id>.html (one page per Note in it); every page links back to
+// index.html. The same tree always writes the same bytes, since no page carries a generation time
+// or an absolute path.
 package export
 
 import (
@@ -56,12 +58,13 @@ type page struct {
 	content []byte
 }
 
-// WriteHTML writes the HTML export of the Issues ix indexes for st into dir: index.html,
-// issues.html and issues/<id>.html for every Issue, closed and dropped ones included. dir is made
-// absolute and resolved through the symlinks of its nearest existing ancestor; it fails with
-// ErrInsideStore when it is st.Root or lies inside it, with ErrHoldsStore when it holds st.Root,
-// and with ErrForeignDir when it exists, is not empty and holds no marker file. A missing dir is
-// created. Every page is rendered before dir is touched; then the marker file is written, every
+// WriteHTML writes the HTML export of the Issues and Notes ix indexes for st into dir: index.html,
+// issues.html and issues/<id>.html for every Issue, closed and dropped ones included, then
+// knowledge.html and knowledge/<id>.html for every Note `capcom know tree` prints by default, so
+// none in a retired or background subtree. dir is made absolute and resolved through the
+// symlinks of its nearest existing ancestor; it fails with ErrInsideStore when it is st.Root or
+// lies inside it, with ErrHoldsStore when it holds st.Root, and with ErrForeignDir when it exists,
+// is not empty and holds no marker file. A missing dir is created. Every page is rendered before dir is touched; then the marker file is written, every
 // other entry of dir is removed and the pages are written, each atomically. A failure after the
 // marker leaves a directory the next export accepts. Errors name the path they concern.
 func WriteHTML(dir string, st *store.Store, ix *index.Index) error {
@@ -69,6 +72,11 @@ func WriteHTML(dir string, st *store.Store, ix *index.Index) error {
 	if err != nil {
 		return err
 	}
+	notes, err := notePages(st, ix)
+	if err != nil {
+		return err
+	}
+	pages = append(pages, notes...)
 	target, err := prepareDir(dir, st.Root)
 	if err != nil {
 		return err

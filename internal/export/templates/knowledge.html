@@ -1,0 +1,8 @@
+{{template "head" .}}<h1>Knowledge</h1>
+{{if .Roots}}{{template "noteTree" .Roots}}{{else}}<p>There are no Notes.</p>
+{{end}}{{template "foot" .}}
+{{define "noteTree"}}<ul class="tree">
+{{range .}}<li><a href="{{.Href}}">{{.ID}}</a> {{.Title}}
+{{if .Children}}{{template "noteTree" .Children}}{{end}}</li>
+{{end}}</ul>
+{{end}}
