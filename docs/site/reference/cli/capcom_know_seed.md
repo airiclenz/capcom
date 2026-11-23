@@ -21,8 +21,10 @@ A root Note that exists without the seed:<root id> Label is the repository's own
 
 --dry-run prints the same lines and writes nothing.
 
+--show <id> prints one Note of the set as this capcom ships it, its id, its title and its body, and writes nothing: the text to compare with the Note the store holds. An id the set does not hold fails with not_found and names the ids it holds. It excludes --dry-run.
+
 ```
-capcom know seed [--dry-run] [flags]
+capcom know seed [--dry-run | --show <id>] [flags]
 ```
 
 ### Examples
@@ -30,13 +32,15 @@ capcom know seed [--dry-run] [flags]
 ```
   capcom know seed             # add the Notes of the base set the store lacks
   capcom know seed --dry-run   # print what it would add, and write nothing
+  capcom know seed --show <id> # print the text capcom ships for one Note of the set
 ```
 
 ### Options
 
 ```
-      --dry-run   print each Note's outcome and write nothing
-  -h, --help      help for seed
+      --dry-run       print each Note's outcome and write nothing
+  -h, --help          help for seed
+      --show string   print the embedded title and body of this Note of the base set, and write nothing
 ```
 
 ### Options inherited from parent commands

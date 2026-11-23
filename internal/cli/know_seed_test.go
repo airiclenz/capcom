@@ -2,10 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -443,5 +445,127 @@ func TestKnowSeed_KV_IsRefusedBeforeAnyWrite(t *testing.T) {
 	}
 	if files := knowledgeFiles(t, root); len(files) != 0 {
 		t.Errorf("know seed --kv wrote %d files before it was refused", len(files))
+	}
+}
+
+// wantSeedShowText is the text capcom know seed --show prints for note: its id, its title, a
+// blank line, then the body.
+func wantSeedShowText(note seed.Note) string {
+	return fmt.Sprintf("id: %s\ntitle: %s\n\n%s\n", note.ID, note.Title, strings.Trim(note.Body, "\n"))
+}
+
+func TestKnowSeed_Show_PrintsTheEmbeddedTextAndLeavesTheStoreUntouched(t *testing.T) {
+	set := shippedSeed(t)
+	stores := []struct {
+		name     string
+		isSeeded bool
+	}{
+		{"a store that was never seeded", false},
+		{"a seeded store", true},
+	}
+	notes := map[string]seed.Note{"the root": set.Root(), "a child": seedChildren(t, set)[0]}
+	for _, store := range stores {
+		for noteName, note := range notes {
+			t.Run(noteName+" in "+store.name, func(t *testing.T) {
+				root := newSeedStore(t)
+				if store.isSeeded {
+					mustRun(t, root, "know", "seed")
+				}
+				before := knowledgeFiles(t, root)
+
+				stdout := mustRun(t, root, "know", "seed", "--show", note.ID)
+
+				if want := wantSeedShowText(note); stdout != want {
+					t.Errorf("know seed --show %s =\n%q\nwant\n%q", note.ID, stdout, want)
+				}
+				if after := knowledgeFiles(t, root); !maps.Equal(before, after) {
+					t.Errorf("know seed --show changed the Knowledge files")
+				}
+			})
+		}
+	}
+}
+
+func TestKnowSeed_ShowJSON_GivesTheNoteAsItIsEmbedded(t *testing.T) {
+	root := newSeedStore(t)
+	child := seedChildren(t, shippedSeed(t))[0]
+
+	stdout := mustRun(t, root, "know", "seed", "--show", child.ID, "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	want := map[string]any{"id": child.ID, "parent": child.ParentID, "title": child.Title, "body": child.Body}
+	data, _ := envelope["data"].(map[string]any)
+	if envelope["kind"] != kindKnowSeedShow || !maps.Equal(data, want) {
+		t.Errorf("know seed --show --json = kind %v data %v, want kind %s data %v",
+			envelope["kind"], data, kindKnowSeedShow, want)
+	}
+}
+
+func TestKnowSeed_ShowOfAnUnknownID_ExitsNotFoundNamingEveryIDOfTheSet(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	unknownID := set.Root().ID + "-is-not-held"
+
+	stdout, stderr, exitCode := runCLI(t, root, "know", "seed", "--show", unknownID)
+
+	if exitCode != ExitNotFound || stdout != "" {
+		t.Fatalf("know seed --show %s = %d stdout %q, want %d and no stdout", unknownID, exitCode, stdout, ExitNotFound)
+	}
+	message, hint, _ := strings.Cut(stderr, "\n")
+	_, held, _ := strings.Cut(message, "it holds ")
+	heldIDs := strings.Split(held, ", ")
+	for _, note := range set.Notes() {
+		if !slices.Contains(heldIDs, note.ID) {
+			t.Errorf("stderr = %q, want it to name %s", stderr, note.ID)
+		}
+	}
+	if !strings.Contains(message, unknownID) {
+		t.Errorf("stderr = %q, want it to name the id asked for", stderr)
+	}
+	if want := "hint: " + seedShowHint + "\n"; hint != want {
+		t.Errorf("hint = %q, want %q", hint, want)
+	}
+}
+
+func TestKnowSeed_ShowWithDryRun_IsAUsageError(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+
+	stdout, _, exitCode := runCLI(t, root, "know", "seed", "--show", set.Root().ID, "--dry-run")
+
+	if exitCode != ExitUsage || stdout != "" {
+		t.Errorf("know seed --show --dry-run = %d stdout %q, want a usage error and no stdout", exitCode, stdout)
+	}
+	if files := knowledgeFiles(t, root); len(files) != 0 {
+		t.Errorf("know seed --show --dry-run wrote %d files", len(files))
+	}
+}
+
+func TestKnowSeed_ShowCompletion_ListsTheIDsOfTheSetWithTitles(t *testing.T) {
+	root := newSeedStore(t)
+	set := shippedSeed(t)
+	child := seedChildren(t, set)[0]
+	every := make([]string, 0, len(set.Notes()))
+	for _, note := range set.Notes() {
+		every = append(every, note.ID+"\t"+note.Title)
+	}
+	tests := []struct {
+		name   string
+		prefix string
+		want   []string
+	}{
+		{"an empty prefix lists every id", "", every},
+		{"a whole id lists that Note", child.ID, []string{child.ID + "\t" + child.Title}},
+		{"a prefix no id starts with lists none", set.Root().ID + "-is-not-held", nil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := runComplete(t, root, "know", "seed", "--show", test.prefix)
+
+			want := append(slices.Clone(test.want), completeDirective)
+			if !slices.Equal(got, want) {
+				t.Errorf("__complete know seed --show %q =\n%q\nwant\n%q", test.prefix, got, want)
+			}
+		})
 	}
 }

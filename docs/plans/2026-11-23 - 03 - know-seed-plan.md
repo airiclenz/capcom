@@ -175,7 +175,13 @@ set (`seed.LoadFS` over a `testing/fstest.MapFS`) put in the `app`'s loader fiel
 
 **Commit:** `feat(cli): add capcom know seed`
 
-## 4. capcom know seed --show
+## 4. capcom know seed --show — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the `not_found` failure of `--show` carries its own hint, `capcom know seed --show <id>`; without one the default hint of `not_found`, `capcom search <text>`, would send the caller to the Issues.
+NOTES (2026-11-23): the text prints the body without the blank lines at its start and end, so exactly one blank line stands between the title line and the body; the `body` of `--json` is the embedded body byte for byte, the blank line after the frontmatter included.
+NOTES (2026-11-23): `--show` counts as given when the flag is on the command line, also with an empty value: `--show ""` fails with `not_found` and names the ids. The command keeps its `indexRefresh` annotation, so `--show` needs a store as plain seed does; the completion of the flag value reads the binary only.
+NOTES (2026-11-23): the completion candidates carry each Note's title as description, as the id completions of the other commands do. Its test runs through `runComplete` against the shipped set with every expected id and title read from `seed.Load()`: `runSeedCLI` does not mark its app as completing, so the made-up set cannot drive `__complete`.
+NOTES (2026-11-23): tests beyond the item's list: the `--json` data of `--show`, and completion by prefix. `internal/cli/know_seed.go` is now 423 lines, past the ~400 the coding standards aim for; item 5 extends it further, a split by concern would need a `doc.go` map entry.
 
 **What**
 **Goal:** `capcom know seed --show <id>` prints the embedded title and body of one Note of the base

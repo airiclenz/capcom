@@ -31,13 +31,24 @@ const (
 		"A root Note that exists without the seed:<root id> Label is the repository's own: the " +
 		"command fails and writes nothing. A write that fails stops the run; the Notes added before " +
 		"it stay, and running the command again adds the rest.\n\n" +
-		"--dry-run prints the same lines and writes nothing."
+		"--dry-run prints the same lines and writes nothing.\n\n" +
+		"--show <id> prints one Note of the set as this capcom ships it, its id, its title and its " +
+		"body, and writes nothing: the text to compare with the Note the store holds. An id the set " +
+		"does not hold fails with not_found and names the ids it holds. It excludes --dry-run."
 	knowSeedExample = "  capcom know seed             # add the Notes of the base set the store lacks\n" +
-		"  capcom know seed --dry-run   # print what it would add, and write nothing"
+		"  capcom know seed --dry-run   # print what it would add, and write nothing\n" +
+		"  capcom know seed --show <id> # print the text capcom ships for one Note of the set"
 )
 
-// kindKnowSeed is the --json kind of capcom know seed.
-const kindKnowSeed = "know-seed"
+// flagShow prints one Note of the base set as it is embedded, in place of seeding.
+const flagShow = "show"
+
+// The --json kinds of capcom know seed.
+const (
+	kindKnowSeed = "know-seed"
+	// kindKnowSeedShow is the kind under --show.
+	kindKnowSeedShow = "know-seed-show"
+)
 
 // The outcomes capcom know seed reports for a Note of the base set.
 const (
@@ -52,6 +63,20 @@ const (
 // unseededRootFormat is the failure for a root Note that exists without the seed Label: the root
 // id, then the Label.
 const unseededRootFormat = "Note %s was not seeded: it has no Label %s, so capcom know seed writes nothing"
+
+// unknownSeedNoteFormat is the failure of --show for an id the base set does not hold: the id,
+// then the ids of the set.
+const unknownSeedNoteFormat = "no Note %s in the base set: it holds %s"
+
+// seedShowHint is the hint of that failure, in place of the default of not_found, which searches
+// the Issues.
+const seedShowHint = "capcom know seed --" + flagShow + " <id>"
+
+// seedShowFormat is the text of --show: the id, the title, a blank line, then the body.
+const seedShowFormat = "id: %s\ntitle: %s\n\n%s\n"
+
+// seedIDSeparator stands between the ids of the base set in a message.
+const seedIDSeparator = ", "
 
 // noteFileExtension ends the name of a Note file.
 const noteFileExtension = ".md"
@@ -76,25 +101,45 @@ type seedNoteData struct {
 	Outcome string `json:"outcome"`
 }
 
+// seedShowData is the --json data of capcom know seed --show: one Note of the base set as it is
+// embedded.
+type seedShowData struct {
+	ID string `json:"id"`
+	// ParentID is empty for the root Note.
+	ParentID string `json:"parent"`
+	Title    string `json:"title"`
+	// Body is the embedded body byte for byte; it keeps the blank line that follows the
+	// frontmatter.
+	Body string `json:"body"`
+}
+
 // seedStep is what capcom know seed does with one Note of the base set.
 type seedStep struct {
 	note seed.Note
 	data seedNoteData
 }
 
-// newKnowSeedCommand adds the Notes of the base set the store lacks. Every id is the set's own, a
-// slug read from the Note's file name: none is generated, derived or renamed.
+// newKnowSeedCommand adds the Notes of the base set the store lacks, or with --show prints one of
+// them as it is embedded. Every id is the set's own, a slug read from the Note's file name: none
+// is generated, derived or renamed.
 func (a *app) newKnowSeedCommand() *cobra.Command {
 	var isDryRun bool
+	var shownID string
 	cmd := &cobra.Command{
-		Use:         "seed [--dry-run]",
+		Use:         "seed [--dry-run | --show <id>]",
 		Short:       "Add the base set of Notes capcom ships, never changing a Note that exists",
 		Long:        knowSeedLong,
 		Example:     knowSeedExample,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: indexRefresh},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			result, err := a.seedNotes(isDryRun)
+			var result output.Result
+			var err error
+			if cmd.Flags().Changed(flagShow) {
+				result, err = a.showSeedNote(shownID)
+			} else {
+				result, err = a.seedNotes(isDryRun)
+			}
 			if err != nil {
 				return err
 			}
@@ -102,6 +147,10 @@ func (a *app) newKnowSeedCommand() *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&isDryRun, flagDryRun, false, "print each Note's outcome and write nothing")
+	cmd.Flags().StringVar(&shownID, flagShow, "",
+		"print the embedded title and body of this Note of the base set, and write nothing")
+	cmd.MarkFlagsMutuallyExclusive(flagShow, flagDryRun)
+	a.completeFlag(cmd, flagShow, a.completeSeedNoteIDs)
 	return cmd
 }
 
@@ -111,6 +160,61 @@ func (a *app) seedSet() (seed.Set, error) {
 		return seed.Load()
 	}
 	return a.loadSeed()
+}
+
+// showSeedNote returns the Note id of the base set as it is embedded: its id, parent, title and
+// body. It reads nothing of the store and writes nothing. An id the set does not hold fails with
+// not_found, naming the ids the set holds.
+func (a *app) showSeedNote(id string) (output.Result, error) {
+	set, err := a.seedSet()
+	if err != nil {
+		return output.Result{}, output.AsError(err)
+	}
+	note, isHeld := set.Note(id)
+	if !isHeld {
+		ids := strings.Join(seedNoteIDs(set), seedIDSeparator)
+		return output.Result{}, &output.Error{
+			Code:    output.CodeNotFound,
+			Message: fmt.Sprintf(unknownSeedNoteFormat, id, ids),
+			Hint:    seedShowHint,
+		}
+	}
+	return output.Result{
+		Kind: kindKnowSeedShow,
+		Data: seedShowData{ID: note.ID, ParentID: note.ParentID, Title: note.Title, Body: note.Body},
+		Text: fmt.Sprintf(seedShowFormat, note.ID, note.Title, strings.Trim(note.Body, "\n")),
+	}, nil
+}
+
+// seedNoteIDs returns the ids of the Notes of set, the root first.
+func seedNoteIDs(set seed.Set) []string {
+	notes := set.Notes()
+	ids := make([]string, 0, len(notes))
+	for _, note := range notes {
+		ids = append(ids, note.ID)
+	}
+	return ids
+}
+
+// completeSeedNoteIDs completes the value of --show: the ids of the base set that start with
+// toComplete, the root first, each described by its title. They come from the binary, so they
+// complete outside a store too. A set that does not load leaves no candidates; the failure is
+// written to cobra's completion debug log, as the shell shows no errors.
+func (a *app) completeSeedNoteIDs(
+	_ *cobra.Command, _ []string, toComplete string,
+) ([]cobra.Completion, cobra.ShellCompDirective) {
+	set, err := a.seedSet()
+	if err != nil {
+		cobra.CompDebugln(err.Error(), false)
+		return nil, completionDirective
+	}
+	var completions []cobra.Completion
+	for _, note := range set.Notes() {
+		if strings.HasPrefix(note.ID, toComplete) {
+			completions = append(completions, cobra.CompletionWithDesc(note.ID, note.Title))
+		}
+	}
+	return completions, completionDirective
 }
 
 // seedNotes weighs every Note of the base set against the Knowledge tree (planSeed), then adds the

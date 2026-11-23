@@ -53,3 +53,21 @@ func TestGolden_KnowSeed(t *testing.T) {
 	}
 	assertGoldenJSON(t, kindKnowSeed, root, stdout)
 }
+
+// TestGolden_KnowSeedShow pins the --json envelope of kind know-seed-show against a Note of the
+// base set made up for the tests, its id read from that set, never a Note the binary embeds.
+func TestGolden_KnowSeedShow(t *testing.T) {
+	root := newGoldenStore(t)
+	set, err := loadMadeUpSeed()
+	if err != nil {
+		t.Fatalf("seed.LoadFS: %v", err)
+	}
+	child := seedChildren(t, set)[0]
+
+	stdout, stderr, exitCode := runSeedCLI(t, root, loadMadeUpSeed, "know", "seed", "--show", child.ID, "--json")
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("exit = %d stderr = %q, want %d and no stderr", exitCode, stderr, ExitOK)
+	}
+	assertGoldenJSON(t, kindKnowSeedShow, root, stdout)
+}

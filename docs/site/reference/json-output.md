@@ -25,7 +25,7 @@ $ capcom show session-refresh --json
 | Member | Always present | Value |
 | --- | --- | --- |
 | `schema` | yes | The envelope's version, currently `1`. |
-| `kind` | yes | What `data` holds: `issue`, `issue-list`, `issue-write`, `issue-remove`, `close`, `apply`, `ready`, `next`, `start`, `finish`, `lock`, `context`, `deps`, `dep-graph`, `search`, `prime`, `recap`, `check`, `fmt`, `merge`, `reindex`, `export`, `init`, `agents`, `upgrade`, `version`, `note`, `note-write`, `note-remove`, `know-tree`, `know-search`, `know-verify`, `know-seed`, or `error`. |
+| `kind` | yes | What `data` holds: `issue`, `issue-list`, `issue-write`, `issue-remove`, `close`, `apply`, `ready`, `next`, `start`, `finish`, `lock`, `context`, `deps`, `dep-graph`, `search`, `prime`, `recap`, `check`, `fmt`, `merge`, `reindex`, `export`, `init`, `agents`, `upgrade`, `version`, `note`, `note-write`, `note-remove`, `know-tree`, `know-search`, `know-verify`, `know-seed`, `know-seed-show`, or `error`. |
 | `match` | no | Only on kinds `search` and `know-search`: `all` when every hit holds every word searched for, `any` when no item held them all and the hits hold some of them. |
 | `data` | no | The command's result. Left out when a command fails before it has one. `null` when `capcom next` finds nothing Ready (kind `next`, exit code 4). |
 | `error` | no | Present only when the command failed; see Errors below. |
@@ -91,6 +91,11 @@ file that holds the id or, when none does, the file an add would write) and `out
 `skipped (same)`, `skipped (differs)`, `skipped (retired)` or `skipped (alias of <id>)`. When a
 write fails, `notes` holds the Notes up to that write and the envelope carries the `error` next to
 `data`.
+
+`capcom know seed --show <id>` gives kind `know-seed-show` with `data` one Note of the base set as
+capcom ships it: `id`, `parent` (the id of the Note it sits below, `""` for the root Note), `title`
+and `body` (the markdown after the frontmatter, the blank line that follows the frontmatter
+included). An id the base set does not hold fails with `not_found`.
 
 `--json` is a global flag, so it may stand before or after the command name.
 
