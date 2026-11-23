@@ -1,11 +1,13 @@
 ---
 title: Move the recap --since boundary out of internal/cli into internal/recap
-status: open
+status: done
 type: task
 priority: 3
 labels: [maturity, refactor]
 plan: 2026-11-23 - 01 - internal-cli-split-plan
 created: 2026-11-23T08:01:16Z
+closed: 2026-11-23T08:56:55Z
+reason: Resolved by plan 2026-11-23 - 01 - internal-cli-split-plan, item 3 (archived in b56a611)
 ---
 
 Resolving a `capcom recap --since` value (a date, `<n>d` or a git ref) to its boundary commit

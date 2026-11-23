@@ -1,11 +1,13 @@
 ---
 title: Move Note successor-list edits out of internal/cli into internal/ops
-status: open
+status: done
 type: task
 priority: 3
 labels: [maturity, refactor]
 plan: 2026-11-23 - 01 - internal-cli-split-plan
 created: 2026-11-23T08:01:16Z
+closed: 2026-11-23T08:56:55Z
+reason: Resolved by plan 2026-11-23 - 01 - internal-cli-split-plan, item 7 (archived in b56a611)
 ---
 
 `capcom know update` resolves Note names and applies the add and remove edits to a Note's

@@ -1,11 +1,13 @@
 ---
 title: Move the refs a removal breaks out of internal/cli into internal/knowledge
-status: open
+status: done
 type: task
 priority: 3
 labels: [maturity, refactor]
 plan: 2026-11-23 - 01 - internal-cli-split-plan
 created: 2026-11-23T08:01:16Z
+closed: 2026-11-23T08:56:56Z
+reason: Resolved by plan 2026-11-23 - 01 - internal-cli-split-plan, item 8 (archived in b56a611)
 ---
 
 After `rm` or `know rm`, `internal/cli/rm.go` (`brokenRefWarnings`) selects the Note refs

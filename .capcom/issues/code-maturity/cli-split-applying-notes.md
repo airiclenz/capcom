@@ -1,11 +1,13 @@
 ---
 title: Move the selection of an Issue's Notes out of internal/cli into internal/briefing
-status: open
+status: done
 type: task
 priority: 3
 labels: [maturity, refactor]
 plan: 2026-11-23 - 01 - internal-cli-split-plan
 created: 2026-11-23T08:01:16Z
+closed: 2026-11-23T08:56:55Z
+reason: Resolved by plan 2026-11-23 - 01 - internal-cli-split-plan, item 2 (archived in b56a611)
 ---
 
 `capcom context` decides which Notes apply to an Issue (Notes whose refs name a path the body
