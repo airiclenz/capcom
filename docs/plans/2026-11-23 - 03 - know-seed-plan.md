@@ -336,7 +336,11 @@ inherited flag (`--json`), `--help` and a placeholder each give the expected res
 
 **Commit:** `test(cli): check every command and flag the base Notes name`
 
-## 8. Document capcom know seed
+## 8. Document capcom know seed — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the new frontmatter description of `docs/site/concepts/knowledge.md`, and the `llms.txt` Knowledge entry with it, ends "..., Background Notes, know tree, know verify and the base set of Notes know seed adds."; the work-loop paragraph of `llms.txt` (line 5) is unchanged.
+NOTES (2026-11-23): the console examples in the new section "The base set: `know seed`" are the output of a binary built from this tree (three lines, then `...`); the Label example carries the version 0.17.0 that build stamped, and the `capcom check` warning line is composed from the wording of item 6, not captured.
+NOTES (2026-11-23): on "removing the seed Labels takes a Note out of both" the section says what the code does: removing the `seed-text` Label is what stops `--update` and the check warning, and on the root Note removing `seed:<root id>` makes `capcom know seed` fail as for a repository's own root.
 
 **What**
 **Goal:** the hand-written docs name `capcom know seed`, its `--dry-run`, `--show` and `--update`,

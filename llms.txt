@@ -21,7 +21,7 @@ Install: `brew install airiclenz/tap/capcom`, `scoop install capcom` (bucket `ai
 - [Issues](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/issues.md): What an Issue is in capcom: its file, its Id and Aliases, its place in the Tree, its Status, when it is Ready, how it is Closed and its Log.
 - [Dependencies](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/dependencies.md): How Dependencies decide which Issues are Ready, how Related links differ from them, the order capcom ready lists work in, and the dep graph.
 - [Branches and merging](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/branches-and-merging.md): Issues branch and merge with the code: what capcom reports from other branches (Elsewhere), how the Log merge driver merges Logs, and checking the store after a merge.
-- [Knowledge](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/knowledge.md): How capcom keeps project Knowledge as a Tree of small Notes: Labels, Refs and suspect Notes, Retired Notes and Supersession, Background Notes, know tree and know verify.
+- [Knowledge](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/knowledge.md): How capcom keeps project Knowledge as a Tree of small Notes: Labels, Refs and suspect Notes, Retired Notes and Supersession, Background Notes, know tree, know verify and the base set of Notes know seed adds.
 - [Tree locks](https://raw.githubusercontent.com/airiclenz/capcom/main/docs/site/concepts/tree-locks.md): The Tree lock: an advisory claim one agent session holds on a working tree, its Lock token, when it goes Stale, and acquire, touch, release, break, check and status.
 
 ## Agents

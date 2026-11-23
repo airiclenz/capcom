@@ -166,6 +166,8 @@ capcom know tree
 capcom know show release-steps code-style   # one Note or several
 capcom know search release
 capcom know verify              # Notes whose files or symbols are gone
+capcom know seed                # add the base set of Notes capcom ships; --dry-run writes nothing
+capcom know seed --update       # also replace the seeded Notes capcom ships a newer text for
 
 # Store and agents
 capcom ui                       # the terminal UI

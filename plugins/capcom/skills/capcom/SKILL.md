@@ -53,6 +53,8 @@ This plugin runs `capcom prime` at session start and before compaction in any re
 - `capcom apply <file>`: file a linked set of Issues in one call, all or none; `--dry-run` shows
   the outcome without writing it.
 - `capcom know tree`, then `capcom know show <id>`: read project Knowledge before starting.
+- `capcom know seed`: add the base set of Notes capcom ships, rules that hold in any repository;
+  it never changes a Note that exists, and `--dry-run` shows the outcome without writing it.
 
 When `capcom start --help` fails, the binary predates these two commands: claim with
 `capcom update <id> --status active` plus `capcom lock acquire --purpose <id>`, and close with

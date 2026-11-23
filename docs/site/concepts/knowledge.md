@@ -1,6 +1,6 @@
 ---
 title: "Knowledge"
-description: "How capcom keeps project Knowledge as a Tree of small Notes: Labels, Refs and suspect Notes, Retired Notes and Supersession, Background Notes, know tree and know verify."
+description: "How capcom keeps project Knowledge as a Tree of small Notes: Labels, Refs and suspect Notes, Retired Notes and Supersession, Background Notes, know tree, know verify and the base set of Notes know seed adds."
 sidebar: { order: 4 }
 ---
 
@@ -200,6 +200,67 @@ id leads straight to its replacement. `know verify`, `check` and `prime` skip th
 Notes. Retiring a Note in a store below format 3 fails, writing nothing, and names
 `capcom upgrade --format 3`, which raises the store for everyone only when the user agrees; see
 [Supersession](../reference/file-format.md#supersession).
+
+## The base set: `know seed`
+
+The **base set** is a small set of Notes that capcom ships in its binary: one root Note and the
+Notes below it, each a rule that holds in any repository, such as keeping secrets out of what git
+tracks. `capcom know seed` adds every Note of the set that the store lacks and prints one line per
+Note with its outcome:
+
+```console
+$ capcom know seed
+baseline  added
+baseline-dependencies  added
+baseline-destructive-actions  added
+...
+$ capcom know seed
+baseline  skipped (same)
+baseline-dependencies  skipped (same)
+baseline-destructive-actions  skipped (same)
+...
+```
+
+`capcom know seed --dry-run` prints the same lines and writes nothing.
+
+A seeded Note is the repository's own from then on: edit it, move it or retire it like any other
+Note. Plain `capcom know seed` never changes a Note that exists. An id of the set that the store
+already holds is skipped, and the line says why: `skipped (same)`, `skipped (differs)` for a Note
+that was edited or that was the repository's own before, `skipped (retired)`, or
+`skipped (alias of <id>)`. Where a seeded Note contradicts the repository's own Notes, the
+repository's own rule wins.
+
+Two Labels mark a seeded Note:
+
+```yaml
+labels: [seed:baseline, seed-text:0.17.0:92fb654fbd39]
+```
+
+`seed:<root id>` says the Note came from the base set. `seed-text:<version>:<hash>` holds the
+capcom version that added it and a hash of the title and body it was added with, which is how
+capcom tells a Note that is still as it was seeded from one that was edited since.
+
+A later capcom may ship a corrected text for a Note. A seeded Note that is still as it was seeded
+is then **outdated**: plain `capcom know seed` prints `skipped (outdated)` for it, and
+`capcom check` prints a warning that names its file. The warning is no problem, so the exit code
+of `capcom check` stays what it is without it:
+
+```console
+$ capcom check
+warning: .capcom/knowledge/baseline/baseline-secrets.md: seeded Note baseline-secrets is outdated: capcom know seed --update replaces it, capcom know seed --show baseline-secrets prints the new text
+```
+
+`capcom know seed --show <id>` prints the title and body this capcom ships for one Note of the
+set and writes nothing, to compare with the Note the store holds. `capcom know seed --update`
+replaces the title and body of every outdated Note with the shipped text, prints `updated` for it
+and keeps every other Label, Ref and Alias. It never changes an edited Note or a retired one, and
+like plain seed it adds the Notes the store lacks.
+
+Removing the `seed-text` Label takes a Note out of both: `--update` no longer replaces it and
+`capcom check` no longer warns about it. Remove the `seed:<root id>` Label with it to drop the
+mark of the base set altogether; on the root Note, though, that Label is what lets
+`capcom know seed` run again, which otherwise fails and writes nothing because the root is taken
+for the repository's own.
 
 ## Next
 
