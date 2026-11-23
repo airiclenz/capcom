@@ -160,7 +160,10 @@ it (`strings.Fields(command)[1:]`) through `runCLI`, and assert the stdout unmar
 
 **Commit:** `feat(init): wire capcom prime into GitHub Copilot with --copilot-hooks`
 
-## 4. Document the Copilot hooks
+## 4. Document the Copilot hooks — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): briefing.md's compaction bullet ("the hooks run `prime` again") was made false by adding Copilot to the hooked agents, so it now adds that Copilot's hook briefs only at session start; edited in place (the file is in the item's Files list).
+NOTES (2026-11-23): the agent-setup cloud-agent paragraph carries a minimal copilot-setup-steps.yml example (actions/setup-go@v5 + go install ...@latest); it is documentation only, init still writes no workflow.
 
 Depends on item 3.
 

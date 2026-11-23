@@ -1,6 +1,6 @@
 ---
 title: "Agent setup"
-description: "Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code, Codex and apogee, and the Claude Code plugin."
+description: "Wire capcom into a coding agent: the Managed block in AGENTS.md, session hooks that run capcom prime for Claude Code, Codex, apogee and GitHub Copilot, and the Claude Code plugin."
 sidebar: { order: 1 }
 ---
 
@@ -168,7 +168,8 @@ hooks = true
 ```
 
 The hook flags are independent and combine with each other and with `--merge-driver`:
-`capcom init --claude-hooks --codex-hooks --apogee-hooks` sets up all three agents at once.
+`capcom init --claude-hooks --codex-hooks --apogee-hooks --copilot-hooks` sets up all four agents at
+once.
 
 ## apogee hooks
 
@@ -215,6 +216,74 @@ the rest of the project config. apogee's retracted 1.x releases (v1.0.0 to v1.8.
 despite their higher numbers.
 
 Commit `.apogee/config.yaml` so every clone gets the reaction.
+
+## GitHub Copilot hooks
+
+`capcom init --copilot-hooks` does the same for GitHub Copilot, adding a `sessionStart` hook that
+runs `capcom prime --additional-context` to the repository's `.github/hooks/capcom.json`, the file
+GitHub Copilot CLI, VS Code and the Copilot cloud agent read:
+
+```console
+$ capcom init --copilot-hooks
+...
+added the capcom prime hook to .github/hooks/capcom.json
+needs GitHub Copilot CLI 1.0.22 or later
+```
+
+It creates the file when it is missing and otherwise adds one entry to `hooks.sessionStart`,
+keeping everything else in the file as it was:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "capcom prime --additional-context"
+      }
+    ]
+  }
+}
+```
+
+`--additional-context` prints the same Briefing as one JSON object, `{"additionalContext": "..."}`,
+the shape a Copilot `sessionStart` hook hands to the model. Run again, init reports that the file
+already runs the command and changes nothing.
+
+**Session start only.** Copilot briefs the model once, when a session starts. There is no
+re-brief around a compaction: the output of Copilot's `preCompact` hook never reaches the model,
+and Copilot has no event after the fold. After a long session is compacted, ask the agent to run
+`capcom prime` itself.
+
+**Which Copilot.** GitHub Copilot CLI 1.0.22 or later, the first release that fires `sessionStart`
+once per session. VS Code's agent hooks are in preview and may change.
+
+**Alongside `--claude-hooks`.** Copilot also runs the hooks in `.claude/settings.json`, so a
+repository set up with both flags runs a second, plain `capcom prime` at session start. It is
+harmless: its output is text, not JSON, and Copilot drops it. The Briefing reaches the model once,
+from `.github/hooks/capcom.json`.
+
+**The cloud agent.** The Copilot cloud agent reads `.github/hooks/capcom.json` from the
+repository's default branch, so the hook takes effect there once it is merged. The agent runs in
+its own environment, which has no `capcom` until `.github/workflows/copilot-setup-steps.yml`
+installs it; capcom does not write that workflow. A minimal one, using the Go install from the
+README (its job must be named `copilot-setup-steps`):
+
+```yaml
+name: Copilot Setup Steps
+on: workflow_dispatch
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go install github.com/airiclenz/capcom/cmd/capcom@latest
+```
+
+Commit `.github/hooks/capcom.json` so every clone gets the hook.
 
 ## Other agents
 
