@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -17,6 +19,10 @@ import (
 )
 
 const kindPrime = "prime"
+
+// flagAdditionalContext makes capcom prime print the Briefing as the JSON a GitHub Copilot
+// sessionStart hook reads (writeAdditionalContext).
+const flagAdditionalContext = "additional-context"
 
 // The advice the Briefing gives on this worktree's Tree lock, one line per state. A free, held or
 // stale lock has a second form, WithStart, for a store whose config.yaml declares a doing status:
@@ -84,7 +90,9 @@ const (
 		"It never fails: a part that cannot be read becomes a warning line, and the command exits " +
 		"0.\n\n" +
 		"init --claude-hooks and init --codex-hooks run it at session start and before compaction; " +
-		"init --apogee-hooks runs it at session start and after compaction."
+		"init --apogee-hooks runs it at session start and after compaction.\n\n" +
+		"With --additional-context it prints the same text as the additionalContext string of one " +
+		"JSON object, which a GitHub Copilot sessionStart hook reads."
 	primeExample = "  capcom prime          # the session-start Briefing\n" +
 		"  capcom prime --json   # the same Briefing as a JSON envelope"
 )
@@ -92,18 +100,53 @@ const (
 // newPrimeCommand prints the Briefing an agent session starts with: Ready work split planned and
 // unplanned, the issues in progress, every worktree's Tree lock, issue changes on other branches,
 // broken and unshared Note refs and the count of check problems. It never fails: a source that cannot be read
-// becomes one warning line, and the command exits 0.
+// becomes one warning line, and the command exits 0. With --additional-context it prints the
+// text as a GitHub Copilot sessionStart hook's JSON (writeAdditionalContext); combined with
+// --json that is a usage error.
 func (a *app) newPrimeCommand() *cobra.Command {
-	return &cobra.Command{
+	var isAdditionalContext bool
+	cmd := &cobra.Command{
 		Use:     "prime",
 		Short:   "Print the session Briefing: ready work, locks, other branches and store health",
 		Long:    primeLong,
 		Example: primeExample,
 		Args:    cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			return a.emit(cmd, primeResult(a.callerAncestry))
+			if !isAdditionalContext {
+				return a.emit(cmd, primeResult(a.callerAncestry))
+			}
+			if a.isJSON {
+				return output.UsageErrorf("--%s and --%s cannot be combined", flagAdditionalContext, flagJSON)
+			}
+			return a.writeAdditionalContext(cmd, primeResult(a.callerAncestry))
 		}),
 	}
+	cmd.Flags().BoolVar(&isAdditionalContext, flagAdditionalContext, false,
+		"print the Briefing as the JSON a GitHub Copilot sessionStart hook reads")
+	return cmd
+}
+
+// additionalContext is the JSON a GitHub Copilot sessionStart hook reads: the text Copilot adds to
+// the session's context.
+type additionalContext struct {
+	AdditionalContext string `json:"additionalContext"`
+}
+
+// writeAdditionalContext writes result to stdout as one additionalContext object and a line break,
+// its string byte for byte what plain prime prints: emit renders it as text, with the warnings it
+// adds, into a buffer first. The JSON is encoded without HTML escaping, so the text's < > & stay.
+func (a *app) writeAdditionalContext(cmd *cobra.Command, result output.Result) error {
+	var text bytes.Buffer
+	stdoutRenderer := a.renderer
+	a.renderer = output.NewRenderer(output.FormatText, &text, a.stderr)
+	err := a.emit(cmd, result)
+	a.renderer = stdoutRenderer
+	if err != nil {
+		return err
+	}
+	encoder := json.NewEncoder(a.stdout)
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(additionalContext{AdditionalContext: text.String()})
 }
 
 // primeResult composes the Briefing of the working directory and renders it, telling the holder

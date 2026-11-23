@@ -43,7 +43,9 @@ and `capcom init --copilot-hooks` wires that command into `.github/hooks/capcom.
 - 1 (re-check): guard folded; yields to `internal/cli/root.go` `withKV` doc comment
 - 3 (re-check): guard folded
 
-## 1. capcom prime --additional-context
+## 1. capcom prime --additional-context — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the text is rendered by swapping app.renderer for a text renderer into a buffer and calling app.emit itself (writeAdditionalContext), so emit's warnings are added by emit rather than copied; primeLong's new paragraph names the JSON as "the additionalContext string of one JSON object" instead of spelling `{"additionalContext": "<text>"}`, because gendocs copies Long into the Markdown reference as prose, where `<text>` would read as an HTML tag.
 
 **What:** Recast at the regression check (2026-11-23).
 **Goal:** `capcom prime --additional-context` writes exactly one JSON object and a line break to

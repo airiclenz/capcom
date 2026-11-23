@@ -17,6 +17,8 @@ It never fails: a part that cannot be read becomes a warning line, and the comma
 
 init --claude-hooks and init --codex-hooks run it at session start and before compaction; init --apogee-hooks runs it at session start and after compaction.
 
+With --additional-context it prints the same text as the additionalContext string of one JSON object, which a GitHub Copilot sessionStart hook reads.
+
 ```
 capcom prime [flags]
 ```
@@ -31,7 +33,8 @@ capcom prime [flags]
 ### Options
 
 ```
-  -h, --help   help for prime
+      --additional-context   print the Briefing as the JSON a GitHub Copilot sessionStart hook reads
+  -h, --help                 help for prime
 ```
 
 ### Options inherited from parent commands

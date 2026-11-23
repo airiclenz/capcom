@@ -639,3 +639,70 @@ func TestPrime_StandingParents_ListOnlyTheOpenChild(t *testing.T) {
 		t.Errorf("prime = %d, stderr %q, stdout:\n%s\nwant the Ready lists:\n%s", exitCode, stderr, stdout, want)
 	}
 }
+
+// decodeAdditionalContext decodes stdout as prime --additional-context's one JSON object, refusing
+// any member but additionalContext, and returns its string.
+func decodeAdditionalContext(t *testing.T, stdout string) string {
+	t.Helper()
+	decoder := json.NewDecoder(strings.NewReader(stdout))
+	decoder.DisallowUnknownFields()
+	var decoded struct {
+		AdditionalContext *string `json:"additionalContext"`
+	}
+	if err := decoder.Decode(&decoded); err != nil || decoded.AdditionalContext == nil {
+		t.Fatalf("stdout is not one additionalContext object (%v):\n%s", err, stdout)
+	}
+	return *decoded.AdditionalContext
+}
+
+func TestPrime_AdditionalContext_CarriesThePlainBriefingOnOneLine(t *testing.T) {
+	root := newPrimeStore(t)
+	plain, _, _ := runCLI(t, root, "prime")
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime", "--"+flagAdditionalContext)
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("prime --additional-context = %d, stderr %q", exitCode, stderr)
+	}
+	if strings.Count(stdout, "\n") != 1 || !strings.HasSuffix(stdout, "\n") {
+		t.Errorf("stdout %q, want one line ending in a line break", stdout)
+	}
+	if !strings.Contains(stdout, "--purpose <text>") {
+		t.Errorf("stdout %q, want the text's < and > unescaped", stdout)
+	}
+	if text := decodeAdditionalContext(t, stdout); text != plain {
+		t.Errorf("additionalContext:\n%s\nwant plain prime's stdout:\n%s", text, plain)
+	}
+}
+
+func TestPrime_AdditionalContextGarbageIndex_ExitsZeroWithTheWarningInside(t *testing.T) {
+	root := newIssueStore(t, map[string]string{"valid-issue.md": validIssue})
+	mustRun(t, root, "reindex")
+	indexPath := filepath.Join(root, ".git", "capcom", "index.db")
+	if err := os.WriteFile(indexPath, []byte(strings.Repeat("not a database ", 512)), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	stdout, stderr, exitCode := runCLI(t, root, "prime", "--"+flagAdditionalContext)
+
+	if exitCode != ExitOK || stderr != "" {
+		t.Fatalf("prime --additional-context = %d, stderr %q", exitCode, stderr)
+	}
+	if text := decodeAdditionalContext(t, stdout); !strings.HasPrefix(text, "warning: index: ") {
+		t.Errorf("additionalContext:\n%s\nwant it to start with the index warning", text)
+	}
+}
+
+func TestPrime_AdditionalContextWithJSON_IsAUsageErrorNamingBoth(t *testing.T) {
+	root := newPrimeStore(t)
+
+	stdout, _, exitCode := runCLI(t, root, "prime", "--"+flagAdditionalContext, "--json")
+
+	envelope := decodeEnvelope(t, stdout)
+	failure, _ := envelope["error"].(map[string]any)
+	message, _ := failure["message"].(string)
+	if exitCode != ExitUsage || !strings.Contains(message, "--additional-context") ||
+		!strings.Contains(message, "--json") {
+		t.Errorf("prime --additional-context --json = %d, stdout %q; want 2 naming both flags", exitCode, stdout)
+	}
+}
