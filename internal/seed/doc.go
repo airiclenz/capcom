@@ -7,4 +7,10 @@
 // Load reads the embedded set and LoadFS reads a set from any file system, so a caller's tests can
 // load a made-up one. Both check the whole set and fail naming the file that breaks it. A Set
 // answers with its root Note, with every Note root first, and with one Note by its id.
+//
+// A Note that capcom seeds carries two Labels, built by Set.Labels: `seed:<root id>` marks it as
+// seeded, which Set.IsSeeded reports, and `seed-text:<version>:<hash>` records the Hash of the
+// title and body it was seeded with. Set.State holds the store's Note of an id against the set's:
+// Same when the text is the set's, Outdated when it is still the text an earlier set seeded, and
+// Differs when it was edited or was never seeded.
 package seed

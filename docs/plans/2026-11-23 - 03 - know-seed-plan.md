@@ -91,7 +91,14 @@ through `seed.LoadFS` (`testing/fstest.MapFS`). No test holds a list or count of
 
 **Commit:** `feat(seed): embed the base set of Notes as markdown files`
 
-## 2. Hash, seed Labels and the state of a seeded Note
+## 2. Hash, seed Labels and the state of a seeded Note — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): `Set.Labels` takes the Note and the version, `Labels(note seed.Note, version string) []string`, not the version alone: the hash is of one Note's text, and a caller or test can build the Labels of an earlier text by passing a Note with that text.
+NOTES (2026-11-23): `State` is a string type with the values `same`, `outdated` and `differs`. `Set.State` returns `Differs` for an id the set holds no Note for. `Outdated` asks only for a readable `seed-text` Label with the hash of the Note's own text, as the item says; the `seed:<root id>` Label is not required for it.
+NOTES (2026-11-23): a `seed-text` Label is readable when a non-empty version, a colon and 12 lower-case hex digits follow the prefix; the hash is what follows the last colon. With several such Labels on one Note, any one that matches makes it `Outdated`.
+NOTES (2026-11-23): only line breaks at the end are trimmed before hashing and comparing; the blank line at the start of a body counts, so a body with a second leading newline is not `Same`.
+NOTES (2026-11-23): `internal/seed` now also imports `internal/edit`, for `edit.NormalizeNewlines`; item 1 described the package as importing `internal/knowledge` and `internal/tree` only.
+NOTES (2026-11-23): the tests run against the made-up set of `seed_test.go` (loaded with `LoadFS`), with one test over every Note of `seed.Load()`; none names a shipped Note.
 
 **What**
 **Goal:** `internal/seed` answers, for one Note of the set and the store's Note of that id, which
