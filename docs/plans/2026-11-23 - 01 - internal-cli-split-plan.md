@@ -182,7 +182,13 @@ direct test of the index fallback (every word first, else any word).
 **Closes:** cli-split-applying-notes
 **Commit:** `refactor(briefing): move the selection of an Issue's Notes out of internal/cli`
 
-## 3. Move the recap boundary to internal/recap
+## 3. Move the recap boundary to internal/recap — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the exported sentinel recap.Boundary fails with is the existing recap.ErrUnknownBoundary (wrapped with the --since value), so cli maps both Boundary's and Compute's unknown boundary to unknownSinceError through one errors.Is check; no new sentinel was added.
+
+NOTES (2026-11-23): consequential edit — internal/recap/recap.go: made necessary by Boundary also failing with ErrUnknownBoundary (its doc comment now names Compute and Boundary).
+
+NOTES (2026-11-23): boundary_test.go adds a "before the first commit" row (40d → "") and a direct unknown-since test ("no-such-ref", "-x") beside the days, date and ref rows the plan names.
 
 **What:**
 **Goal:** `internal/recap` resolves a `--since` value (a date, `<n>d`, or a git ref) to the boundary

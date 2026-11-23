@@ -34,7 +34,7 @@ const (
 	maxFileSize int64 = 1 << 20
 )
 
-// ErrUnknownBoundary is the error Compute fails with when the boundary names no commit.
+// ErrUnknownBoundary is the error Compute and Boundary fail with when the boundary names no commit.
 var ErrUnknownBoundary = errors.New("names no commit")
 
 // errNotRead reports a file copy load was asked for that readCopies did not read.

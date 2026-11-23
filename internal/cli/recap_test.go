@@ -52,8 +52,6 @@ func TestRecap_EachSinceForm_ListsTheChangesAfterTheBoundary(t *testing.T) {
 	}{
 		{name: "default", args: []string{"recap"}},
 		{name: "days", args: []string{"recap", "--since", "7d"}},
-		{name: "date", args: []string{"recap", "--since", time.Now().AddDate(0, 0, -10).Format(time.DateOnly)}},
-		{name: "ref", args: []string{"recap", "--since", "HEAD~1"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

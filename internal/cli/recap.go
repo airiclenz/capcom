@@ -3,15 +3,12 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/airiclenz/capcom/internal/cli/output"
-	"github.com/airiclenz/capcom/internal/gitx"
 	"github.com/airiclenz/capcom/internal/recap"
 )
 
@@ -21,18 +18,8 @@ const kindRecap = "recap"
 // flagSince names the start of the window capcom recap reports on.
 const flagSince = "since"
 
-// The --since forms of capcom recap other than a git ref.
-const (
-	// defaultSince is the window recap reports on without --since.
-	defaultSince = "7d"
-	// sinceDateLayout is the layout of a --since date, read as local midnight.
-	sinceDateLayout = "2006-01-02"
-	// sinceOptionPrefix starts a value git would read as an option, never a ref.
-	sinceOptionPrefix = "-"
-)
-
-// sinceDaysPattern matches a --since day count, <n>d.
-var sinceDaysPattern = regexp.MustCompile(`^([0-9]+)d$`)
+// defaultSince is the window recap reports on without --since.
+const defaultSince = "7d"
 
 // The text of capcom recap.
 const (
@@ -95,11 +82,11 @@ func (a *app) newRecapCommand() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{annotationIndex: storeOnly},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
-			boundary, err := a.recapBoundary(since)
-			if err != nil {
-				return err
+			boundary, err := recap.Boundary(a.store.WorktreeRoot, since, time.Now())
+			var report recap.Report
+			if err == nil {
+				report, err = recap.Compute(a.store, boundary)
 			}
-			report, err := recap.Compute(a.store, boundary)
 			if errors.Is(err, recap.ErrUnknownBoundary) {
 				return unknownSinceError(since)
 			}
@@ -111,44 +98,6 @@ func (a *app) newRecapCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&since, flagSince, defaultSince, "start of the window: YYYY-MM-DD, <n>d or a git ref")
 	return cmd
-}
-
-// recapBoundary resolves since to the commit the recap starts after: for a date or a day count, the
-// last commit on HEAD at or before that time, "" when there is none; else since names a commit
-// itself. A value git would read as an option, or one naming no commit, is invalid.
-func (a *app) recapBoundary(since string) (string, error) {
-	start, isTime := sinceTime(since, time.Now())
-	if isTime {
-		return gitx.CommitBefore(a.store.WorktreeRoot, start)
-	}
-	if strings.HasPrefix(since, sinceOptionPrefix) {
-		return "", unknownSinceError(since)
-	}
-	commit, err := gitx.ResolveCommit(a.store.WorktreeRoot, since)
-	if err != nil {
-		return "", err
-	}
-	if commit == "" {
-		return "", unknownSinceError(since)
-	}
-	return commit, nil
-}
-
-// sinceTime reads since as a date, local midnight, or as <n>d, n days before now. isTime is false
-// when since is neither, so it is a git ref.
-func sinceTime(since string, now time.Time) (start time.Time, isTime bool) {
-	if date, err := time.ParseInLocation(sinceDateLayout, since, time.Local); err == nil {
-		return date, true
-	}
-	match := sinceDaysPattern.FindStringSubmatch(since)
-	if match == nil {
-		return time.Time{}, false
-	}
-	days, err := strconv.Atoi(match[1])
-	if err != nil {
-		return time.Time{}, false
-	}
-	return now.AddDate(0, 0, -days), true
 }
 
 // unknownSinceError is the failure of a --since that is no date, day count or commit.
