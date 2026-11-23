@@ -1,11 +1,13 @@
 ---
 title: internal/cli holds 26k lines mixing commands with their logic
-status: open
+status: done
 type: task
 priority: 3
 labels: [maturity, refactor]
 plan: 2026-11-23 - 00 - agent-eval-ci-html-export-cli-split-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-23T08:04:33Z
+reason: "Resolved by plan '2026-11-23 - 00 - agent-eval-ci-html-export-cli-split-plan' (item 7), archived in bb09cad: docs/plans/2026-11-23 - 01 - internal-cli-split-plan.md classifies internal/cli and orders the moves; eight cli-split-* child Issues filed with plan: set."
 ---
 
 `internal/cli` is about 26k lines of non-test Go and `internal/ui` about 16k (measure with

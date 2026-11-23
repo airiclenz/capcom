@@ -1,11 +1,13 @@
 ---
 title: The agent eval harness runs only by hand, against one local model
-status: open
+status: done
 type: task
 priority: 3
 labels: [maturity, agent-eval]
 plan: 2026-11-23 - 00 - agent-eval-ci-html-export-cli-split-plan
 created: 2026-11-04T18:27:23Z
+closed: 2026-11-23T08:04:33Z
+reason: "Resolved by plan '2026-11-23 - 00 - agent-eval-ci-html-export-cli-split-plan' (items 1-3), archived in bb09cad: agent-eval.yml runs weekly and on dispatch, agenteval run --thresholds/--name fails below threshold (exit 3), docs/agent-eval.md documents it. thresholds.yaml ships models: {}, so a newly configured model needs an entry first (documented)."
 ---
 
 `cmd/agenteval` (documented in `docs/agent-eval.md`, Note `agent-eval`) runs 12 scenarios
