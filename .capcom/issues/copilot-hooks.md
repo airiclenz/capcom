@@ -1,11 +1,13 @@
 ---
 title: capcom init cannot wire capcom prime into GitHub Copilot
-status: open
+status: done
 type: feature
 priority: 2
 labels: [agents]
 plan: 2026-11-23 - 02 - copilot-hooks-plan
 created: 2026-11-23T09:14:45Z
+closed: 2026-11-23T09:51:36Z
+reason: "Resolved by plan 2026-11-23 - 02 - copilot-hooks-plan (archived in de43abb): prime --additional-context, init --copilot-hooks, Copilot docs"
 ---
 
 `capcom init --claude-hooks`, `--codex-hooks` and `--apogee-hooks` wire `capcom prime` into Claude
