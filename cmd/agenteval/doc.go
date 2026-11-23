@@ -2,11 +2,18 @@
 // an agent command, judges each from the store files the agent left behind, counts the capcom
 // calls the agent made, and writes a markdown report.
 //
-//	agenteval run --out eval.md [--capcom <path>] [--only <id,…>] [--timeout 15m] -- <agent argv…>
+//	agenteval run --out eval.md [--capcom <path>] [--only <id,…>] [--timeout 15m]
+//	    [--thresholds <file> --name <model>] -- <agent argv…>
 //
 // run gives each scenario a fresh git repo, seeded by the capcom build under test, and runs the
 // agent command there with the task's prompt on stdin. Each agent's output goes to
 // <out stem>.transcripts/<id>.log and its capcom calls to <id>.calls.jsonl beside it.
+//
+// --thresholds names a YAML file mapping each model to the fewest tasks its run must pass,
+// `models: {<name>: <min passed>}` (thresholds.yaml here holds the eval's own), and --name the
+// model this run is; one without the other, an unreadable file and a name the file has no entry
+// for are usage errors, exit 2, before any task runs. run exits 0 once the report is written,
+// whichever tasks failed, and 3 when the passed count is below the --name model's threshold.
 //
 // Started under the basename capcom (capcom.exe on Windows), the same executable is the call
 // shim instead: it runs the capcom build under test with its own arguments and standard
@@ -62,6 +69,7 @@
 //   - `score.go` — reads a task's call log and scores it to calls, failed and repeated failures
 //   - `shim.go` — the capcom call shim: runs the build under test and appends each call to the call log
 //   - `store.go` — reads what the agent left: issue and Note files, Log entries, the Tree lock
+//   - `thresholds.go` — the thresholds file, the --name model's threshold and its exit 3 shortfall
 //   - `workspace.go` — seeds a task's throwaway git repo through the seed helper and runs the agent
 //     in it behind the shim
 package main

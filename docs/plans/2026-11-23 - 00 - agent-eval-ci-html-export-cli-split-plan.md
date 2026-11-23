@@ -45,7 +45,10 @@ Issue per move step exist for splitting `internal/cli`.
 - Committing eval reports from CI; a markdown renderer; JavaScript in the export.
 - The stale capcom block in `AGENTS.md` that `capcom check` reports.
 
-## 1. agenteval run enforces a per-model pass threshold
+## 1. agenteval run enforces a per-model pass threshold — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): checkRunOptions now returns the resolved runThreshold alongside its error (PreRunE stores it in runOptions.threshold), so the file is loaded once, at command-line check time; the pair check, file load and name lookup live in thresholds.go's lookupThreshold, which checkRunOptions calls last.
+NOTES (2026-11-23): the met-threshold line is printed by enforceThreshold in thresholds.go, after runRun's `wrote …` line; the "met" run test asserts exit 0 and a passing row only (runNextClaimClose discards stdout); the met line's text is pinned by TestEnforceThreshold_JudgesThePassedCount.
 
 **What:**
 **Goal:** `agenteval run --thresholds <file> --name <model>` exits non-zero when the run's passed

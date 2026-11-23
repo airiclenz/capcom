@@ -11,11 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// The exit codes. A bad command line is told apart from a run that started and failed, so a
-// script or skill driving this program can react to each.
+// The exit codes. A bad command line is told apart from a run that started and failed, and both
+// from a run that finished with its passed count below the --name model's threshold, so a script
+// or skill driving this program can react to each.
 const (
-	exitRunFailed = 1
-	exitBadUsage  = 2
+	exitRunFailed      = 1
+	exitBadUsage       = 2
+	exitBelowThreshold = 3
 )
 
 // main runs the shim when the executable was started under the shim's name, the seed helper when
@@ -78,9 +80,15 @@ func runE(run func(*cobra.Command, []string) error) func(*cobra.Command, []strin
 	}
 }
 
-// exitCodeFor reports the status an error asks for: a run that started and failed exits 1, a
-// command line that never started one exits 2 with its usage printed.
+// exitCodeFor reports the status an error asks for: a run whose passed count is below the --name
+// model's threshold exits 3, a run that started and failed otherwise exits 1, and a command line
+// that never started one exits 2 with its usage printed. The threshold is checked first, because
+// runE wraps it in a runError too.
 func exitCodeFor(err error) int {
+	var shortfall belowThresholdError
+	if errors.As(err, &shortfall) {
+		return exitBelowThreshold
+	}
 	var failed runError
 	if errors.As(err, &failed) {
 		return exitRunFailed

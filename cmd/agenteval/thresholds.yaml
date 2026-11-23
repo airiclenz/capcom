@@ -1,0 +1,7 @@
+# The fewest tasks each model's run must pass. A run given `--thresholds <this file> --name <model>`
+# exits 3 when its passed count is below <model>'s threshold here, and exits 2 before any task runs
+# when <model> has no entry.
+#
+# models:
+#   <name>: <min passed>
+models: {}

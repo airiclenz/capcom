@@ -237,8 +237,10 @@ func mustReadCallLog(t *testing.T, path string) []shimCall {
 }
 
 func TestExitCodeFor_TellsARunFailureFromBadUsage(t *testing.T) {
-	failing := runE(func(*cobra.Command, []string) error { return errors.New("the run failed") })
-	runFailure := failing(&cobra.Command{}, nil)
+	failingWith := func(err error) error {
+		return runE(func(*cobra.Command, []string) error { return err })(&cobra.Command{}, nil)
+	}
+	runFailure := failingWith(errors.New("the run failed"))
 
 	tests := []struct {
 		name string
@@ -247,6 +249,10 @@ func TestExitCodeFor_TellsARunFailureFromBadUsage(t *testing.T) {
 	}{
 		{name: "run failure", err: runFailure, want: exitRunFailed},
 		{name: "usage error", err: errors.New("unknown flag"), want: exitBadUsage},
+		{
+			name: "below threshold", want: exitBelowThreshold,
+			err: failingWith(belowThresholdError{name: "qwen", passed: 1, total: 3, minPassed: 2}),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

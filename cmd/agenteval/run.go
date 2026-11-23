@@ -36,11 +36,15 @@ const capcomPackage = "./cmd/capcom"
 
 // runOptions is the run verb's command line.
 type runOptions struct {
-	out       string
-	capcom    string
-	only      []string
-	timeout   time.Duration
-	agentArgv []string
+	out        string
+	capcom     string
+	only       []string
+	timeout    time.Duration
+	thresholds string
+	name       string
+	agentArgv  []string
+	// threshold is what checkRunOptions resolves --thresholds and --name to.
+	threshold runThreshold
 }
 
 // runSettings is what every task of a run shares once the command line has been resolved.
@@ -52,7 +56,8 @@ type runSettings struct {
 }
 
 // newRunCommand builds the run verb. Its command line is checked before the run starts, so a
-// missing agent command or an unknown --only id is a usage error, exit 2.
+// missing agent command, an unknown --only id or a --name the --thresholds file has no entry for
+// is a usage error, exit 2.
 func newRunCommand() *cobra.Command {
 	var options runOptions
 	cmd := &cobra.Command{
@@ -63,13 +68,20 @@ func newRunCommand() *cobra.Command {
 			"and writes the markdown report to --out. Each agent's output goes to\n" +
 			"<out stem>.transcripts/<id>.log and its capcom calls to <id>.calls.jsonl there.\n" +
 			"Without --capcom, run builds ./cmd/capcom from the working directory first.\n" +
-			"It exits 0 once the report is written, whichever tasks failed.",
+			"With --thresholds and --name, the run must pass at least the --name model's threshold\n" +
+			"from that YAML file, a map `models: {<name>: <min passed>}`; a name the file has no\n" +
+			"entry for is a usage error, exit 2, before any task runs.\n" +
+			"It exits 0 once the report is written, whichever tasks failed, and 3 when the passed\n" +
+			"count is below the --name model's threshold.",
 		Example: "  agenteval run --out eval.md -- claude -p\n" +
-			"  agenteval run --out eval.md --capcom ./capcom --only next-claim-close -- ./my-agent",
+			"  agenteval run --out eval.md --capcom ./capcom --only next-claim-close -- ./my-agent\n" +
+			"  agenteval run --out eval.md --thresholds thresholds.yaml --name qwen -- ./my-agent",
 		Args: agentArgs,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			options.agentArgv = args[cmd.ArgsLenAtDash():]
-			return checkRunOptions(options)
+			threshold, err := checkRunOptions(options)
+			options.threshold = threshold
+			return err
 		},
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			return runRun(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), options)
@@ -80,6 +92,8 @@ func newRunCommand() *cobra.Command {
 	flags.StringVar(&options.capcom, "capcom", "", "the capcom build under test (default: build ./cmd/capcom)")
 	flags.StringSliceVar(&options.only, "only", nil, "run only these scenario ids; repeat or separate with commas")
 	flags.DurationVar(&options.timeout, "timeout", defaultTaskTimeout, "how long each task's agent may run")
+	flags.StringVar(&options.thresholds, "thresholds", "", "the YAML file of each model's pass threshold (needs --name)")
+	flags.StringVar(&options.name, "name", "", "the model whose threshold in --thresholds the run must meet")
 	if err := cmd.MarkFlagRequired("out"); err != nil {
 		panic(err) // the flag is declared just above; failing here is a defect of this program
 	}
@@ -98,22 +112,24 @@ func agentArgs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// checkRunOptions refuses a timeout that is not positive and an --only id no scenario has.
-func checkRunOptions(options runOptions) error {
+// checkRunOptions refuses a timeout that is not positive, an --only id no scenario has, and a
+// --thresholds and --name pair lookupThreshold refuses; it returns the threshold the run must meet.
+func checkRunOptions(options runOptions) (runThreshold, error) {
 	if options.timeout <= 0 {
-		return fmt.Errorf("--timeout must be positive, got %s", options.timeout)
+		return runThreshold{}, fmt.Errorf("--timeout must be positive, got %s", options.timeout)
 	}
 	for _, id := range options.only {
 		if _, isFound := findScenario(id); !isFound {
-			return fmt.Errorf("--only: no scenario %q", id)
+			return runThreshold{}, fmt.Errorf("--only: no scenario %q", id)
 		}
 	}
-	return nil
+	return lookupThreshold(options.thresholds, options.name)
 }
 
 // runRun runs the selected scenarios one after another and writes the report, then prints a line
 // naming it and the tasks passed. A task the agent fails is a row of the report, not an error; an
-// error is the run itself failing: the capcom build, a workspace, a call log or the report.
+// error is the run itself failing: the capcom build, a workspace, a call log or the report. With a
+// threshold, a passed count below it is a belowThresholdError, returned once the report is written.
 func runRun(ctx context.Context, stdout, stderr io.Writer, options runOptions) error {
 	outPath, err := filepath.Abs(options.out)
 	if err != nil {
@@ -157,8 +173,9 @@ func runRun(ctx context.Context, stdout, stderr io.Writer, options runOptions) e
 	if err := writeReport(outPath, info, results); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "wrote %s: %d/%d passed\n", outPath, countPassed(results), len(results))
-	return nil
+	passed := countPassed(results)
+	fmt.Fprintf(stdout, "wrote %s: %d/%d passed\n", outPath, passed, len(results))
+	return enforceThreshold(stdout, options.threshold, passed, len(results))
 }
 
 // selectScenarios returns the scenarios with the ids only names, in the order scenarios lists

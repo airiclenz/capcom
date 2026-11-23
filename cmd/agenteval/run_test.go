@@ -178,7 +178,10 @@ func TestRun_ASecondRunWithTheSameOutCountsTheSame(t *testing.T) {
 }
 
 func TestRunCommand_BadUsageExits2(t *testing.T) {
-	out := filepath.Join(t.TempDir(), "eval.md")
+	dir := t.TempDir()
+	out := filepath.Join(dir, "eval.md")
+	thresholds := writeThresholds(t, dir, "models:\n  qwen: 1\n")
+	missing := filepath.Join(dir, "no-such.yaml")
 	tests := []struct {
 		name string
 		args []string
@@ -189,6 +192,16 @@ func TestRunCommand_BadUsageExits2(t *testing.T) {
 		{name: "an unknown --only id", args: []string{"run", "--out", out, "--only", "no-such-task", "--", "agent"}},
 		{name: "no --out", args: []string{"run", "--", "agent"}},
 		{name: "a zero timeout", args: []string{"run", "--out", out, "--timeout", "0s", "--", "agent"}},
+		{name: "--thresholds without --name", args: []string{"run", "--out", out, "--thresholds", thresholds, "--", "agent"}},
+		{name: "--name without --thresholds", args: []string{"run", "--out", out, "--name", "qwen", "--", "agent"}},
+		{
+			name: "a --name the file has no entry for",
+			args: []string{"run", "--out", out, "--thresholds", thresholds, "--name", "llama", "--", "agent"},
+		},
+		{
+			name: "a missing --thresholds file",
+			args: []string{"run", "--out", out, "--thresholds", missing, "--name", "qwen", "--", "agent"},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -232,5 +245,43 @@ func TestRun_AnAgentThatCannotStartFailsTheRun(t *testing.T) {
 
 	if exitCode != exitRunFailed || !strings.Contains(errorText, "agent command") {
 		t.Errorf("exit = %d, error = %q; want %d naming the agent command", exitCode, errorText, exitRunFailed)
+	}
+}
+
+func TestRun_AtTheThresholdExits0(t *testing.T) {
+	dir := t.TempDir()
+	thresholds := writeThresholds(t, dir, "models:\n  qwen: 1\n")
+
+	_, report := runNextClaimClose(
+		t, filepath.Join(dir, "eval.md"), nextClaimCloseScript, "--thresholds", thresholds, "--name", "qwen",
+	)
+
+	if row := reportRow(t, report, "next-claim-close"); row[1] != resultPassed {
+		t.Errorf("next-claim-close row = %q, want a pass", row)
+	}
+}
+
+func TestRun_BelowTheThresholdExits3AfterWritingTheReport(t *testing.T) {
+	setHermeticGitEnv(t)
+	dir := t.TempDir()
+	t.Setenv(fakeScriptVariable, writeScript(t, dir, nil))
+	out := filepath.Join(dir, "eval.md")
+	thresholds := writeThresholds(t, dir, "models:\n  qwen: 1\n")
+
+	exitCode, _, errorText := executeCommand(t,
+		"run", "--out", out, "--capcom", copyTestBinary(t, dir, realCapcomName), "--only", "next-claim-close",
+		"--thresholds", thresholds, "--name", "qwen", "--", copyTestBinary(t, dir, fakeAgentName),
+	)
+
+	shortfall := "threshold qwen: 0/1 passed, need 1"
+	if exitCode != exitBelowThreshold || strings.Count(errorText, shortfall) != 1 {
+		t.Errorf("exit = %d, error = %q; want %d with %q once", exitCode, errorText, exitBelowThreshold, shortfall)
+	}
+	report, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("read the report: %v", err)
+	}
+	if row := reportRow(t, string(report), "next-claim-close"); row[1] != resultFailed {
+		t.Errorf("next-claim-close row = %q, want a fail", row)
 	}
 }
