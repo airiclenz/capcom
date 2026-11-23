@@ -371,7 +371,10 @@ Depends on item 6.
 
 **Commit:** `docs: describe capcom know seed and the base set`
 
-## 9. Record the decision: ADR 0020 and the glossary
+## 9. Record the decision: ADR 0020 and the glossary — ✅ DONE (2026-11-23)
+
+NOTES (2026-11-23): the `adr-0020` line in `decisions` was appended with `--body-append`, which put a blank line before it; a `--body-replace-old/--body-replace-new` pair removed the blank line so the list stays one list.
+NOTES (2026-11-23): `knowledge` body reads "facts about the repository, and rules it adopts, that agents consult on demand" (a comma added after "adopts") and its first paragraph was re-wrapped to the line width, both through `capcom know update`.
 
 **What**
 **Goal:** the Knowledge tree holds decision record `adr-0020` for the base set, a glossary term

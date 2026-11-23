@@ -28,3 +28,4 @@ The records:
 - `adr-0017`: A CLI write warns while another session holds the Tree lock; the holder's own writes and writes of the Issue the lock is held for stay silent
 - `adr-0018`: capcom does not serve its operations over MCP for now
 - `adr-0019`: A store format is raised only by capcom upgrade
+- `adr-0020`: capcom ships a base set of Notes embedded in the binary, and a seeded Note is the repository's own
