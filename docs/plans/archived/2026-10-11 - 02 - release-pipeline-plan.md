@@ -11,10 +11,10 @@ workflow, and two project-local release skills.
 **Closes:** release-pipeline
 
 **Sources:**
-- `/home/airic/repos/apogee/cmd/release/` (port source: code, tests, templates)
-- `/home/airic/repos/apogee/docs/adr/0098-the-repo-owns-its-release-pipeline.md`
-- `/home/airic/repos/apogee/.apogee/skills/release-apogee/`, `/home/airic/repos/apogee/.apogee/skills/release-notes-apogee/`
-- `/home/airic/repos/apogee/.github/workflows/tag-on-version-bump.yml`, `/home/airic/repos/apogee/.github/scripts/version-bump.sh`
+- `../apogee/cmd/release/` (port source: code, tests, templates)
+- `../apogee/docs/adr/0098-the-repo-owns-its-release-pipeline.md`
+- `../apogee/.apogee/skills/release-apogee/`, `../apogee/.apogee/skills/release-notes-apogee/`
+- `../apogee/.github/workflows/tag-on-version-bump.yml`, `../apogee/.github/scripts/version-bump.sh`
 - `docs/adr/0007-tests-use-real-temp-files-sqlite-and-git.md`, `CHANGELOG.md`, `version.go`
 
 **Ratified design calls:**
@@ -227,8 +227,8 @@ looks for it) add a `cross` job running `CGO_ENABLED=0 GOOS=… GOARCH=… go bu
 the six targets.
 **Regression guard.** Copy version-bump.sh with its 100755 mode kept (apogee holds it 100755; the workflow runs it directly, so a 100644 file fails every push with "Permission denied").
 **Files:** .github/workflows/tag-on-version-bump.yml, .github/scripts/version-bump.sh, .github/workflows/ci.yml
-**Read first:** /home/airic/repos/apogee/.github/scripts/version-bump.sh — read_version, bumps loop; /home/airic/repos/apogee/.github/workflows/tag-on-version-bump.yml — detect step, github-script createTag/createRef;
-.github/workflows/ci.yml — jobs.test; /home/airic/repos/apogee/.github/workflows/ci.yml — cross job; /home/airic/repos/apogee/cmd/release/gate.go — ciWorkflow; /home/airic/repos/apogee/cmd/release/publish.go — waitForTag
+**Read first:** ../apogee/.github/scripts/version-bump.sh — read_version, bumps loop; ../apogee/.github/workflows/tag-on-version-bump.yml — detect step, github-script createTag/createRef;
+.github/workflows/ci.yml — jobs.test; ../apogee/.github/workflows/ci.yml — cross job; ../apogee/cmd/release/gate.go — ciWorkflow; ../apogee/cmd/release/publish.go — waitForTag
 **Tests:** run the script locally on a throwaway repo: a commit bumping VERSION `0.0.0`→`0.0.1` yields `bumps=<sha>=v0.0.1`; a `v0.0.1` value is refused.
 **Acceptance:** `sh -n .github/scripts/version-bump.sh` ; `git ls-files -s .github/scripts/version-bump.sh | grep -q '^100755'` ; the throwaway-repo run above ; `CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -o /dev/null ./cmd/capcom` ; `grep -q '^  cross:' .github/workflows/ci.yml && grep -q 'goos: \[linux, darwin, windows\]' .github/workflows/ci.yml && grep -q 'goarch: \[amd64, arm64\]' .github/workflows/ci.yml && grep -q "CGO_ENABLED: '0'" .github/workflows/ci.yml` ; `grep -q 'contents: write' .github/workflows/tag-on-version-bump.yml && grep -q 'github-script' .github/workflows/tag-on-version-bump.yml && grep -q 'createTag' .github/workflows/tag-on-version-bump.yml`
 **Commit:** `ci: tag VERSION bumps and cross-build the release targets`
@@ -253,9 +253,9 @@ instruction plus frontmatter, like apogee's.
 **Regression guard.** Item 5's no-release baseline is tag "" with range HEAD; the skill reads that as "whole history": scouts read `git log HEAD` and diff from the root commit the skill derives with `git rev-list --max-parents=0 HEAD`; it never stops for a missing tag. Rename mapping: `.apogee/skills` → `.agents/skills` first (never `.capcom/skills`), then apogee → capcom.
 `prompts/changelog-scout.md` is rewritten too: one entry per `- ` bullet under `### Added/Changed/Fixed`, and the baseline heading is `## [X.Y.Z] - date` (hyphen). Add `/docs/skill-runs/` to the root `.gitignore` so a notes run leaves the tree clean for the release gate.
 **Files:** .agents/skills/release-notes-capcom/SKILL.md, .agents/skills/release-notes-capcom/prompts/*, .claude/skills/release-notes-capcom/SKILL.md, .gitignore
-**Read first:** /home/airic/repos/apogee/.apogee/skills/release-notes-apogee/SKILL.md — Phase 1 Baseline, phase table; /home/airic/repos/apogee/.apogee/skills/release-notes-apogee/prompts/changelog-scout.md — Group into entries;
-/home/airic/repos/apogee/.apogee/skills/release-notes-apogee/prompts/_apogee.md — user surfaces; /home/airic/repos/apogee/.apogee/skills/release-notes-apogee/prompts/surface-scout.md — git diff baseline.tag;
-/home/airic/repos/apogee/.claude/skills/release-notes-apogee/SKILL.md — pointer; .gitignore; docs/skill-runs/.gitignore
+**Read first:** ../apogee/.apogee/skills/release-notes-apogee/SKILL.md — Phase 1 Baseline, phase table; ../apogee/.apogee/skills/release-notes-apogee/prompts/changelog-scout.md — Group into entries;
+../apogee/.apogee/skills/release-notes-apogee/prompts/_apogee.md — user surfaces; ../apogee/.apogee/skills/release-notes-apogee/prompts/surface-scout.md — git diff baseline.tag;
+../apogee/.claude/skills/release-notes-apogee/SKILL.md — pointer; .gitignore; docs/skill-runs/.gitignore
 **Tests:** none (prose); acceptance greps.
 **Acceptance:** `! grep -rni apogee .agents/skills/release-notes-capcom .claude/skills/release-notes-capcom` ; `! grep -rn '\.capcom/skills' .agents/skills/release-notes-capcom .claude/skills/release-notes-capcom` ; every prompt file SKILL.md names exists under `prompts/` ; every `.agents/skills/...` path the files name exists ; `git check-ignore -q docs/skill-runs/x`
 **Depends on:** item 5
@@ -277,8 +277,8 @@ handles "no tag yet"; VERSION is bare and the tag is `v` + VERSION; the report n
 **Regression guard.** Same rename mapping as item 9 (`.apogee/skills` → `.agents/skills`, never `.capcom/skills`).
 ADR 0098 maps to `docs/adr/0008-the-repo-owns-its-release-pipeline.md` (item 11); drop the "retracted `v1.x` tags" clause from the version proposal.
 **Files:** .agents/skills/release-capcom/SKILL.md, .claude/skills/release-capcom/SKILL.md
-**Read first:** /home/airic/repos/apogee/.apogee/skills/release-apogee/SKILL.md — steps 1 (resume subjects), 2, 4, 6, 7, Abort, Report; /home/airic/repos/apogee/.claude/skills/release-apogee/SKILL.md — pointer;
-/home/airic/repos/apogee/cmd/release/publish.go — newPublishCommand flags (--notes-file, --dry-run, --tag-timeout); /home/airic/repos/apogee/cmd/release/status.go — statusReport HighestTag, readBaseline
+**Read first:** ../apogee/.apogee/skills/release-apogee/SKILL.md — steps 1 (resume subjects), 2, 4, 6, 7, Abort, Report; ../apogee/.claude/skills/release-apogee/SKILL.md — pointer;
+../apogee/cmd/release/publish.go — newPublishCommand flags (--notes-file, --dry-run, --tag-timeout); ../apogee/cmd/release/status.go — statusReport HighestTag, readBaseline
 **Tests:** none (prose); acceptance greps.
 **Acceptance:** `! grep -rni apogee .agents/skills/release-capcom .claude/skills/release-capcom` ; `! grep -rn '\.capcom/skills' .agents/skills/release-capcom .claude/skills/release-capcom` ; every repo path the skill names exists or is item 11's ADR ; every `cmd/release` verb and flag the skill names exists in `go run ./cmd/release --help` output of its verb
 **Depends on:** items 7, 9
@@ -302,7 +302,7 @@ capcom managed block.
 README's status banner ("there are no tagged releases yet, so build it from source") and its Go-requirement line are rewritten too, and the brew, scoop and winget commands are marked as available from the first published release until one exists.
 **Files:** docs/adr/0008-the-repo-owns-its-release-pipeline.md, docs/releasing.md, README.md, AGENTS.md
 **Read first:** README.md — status banner, ## Install; AGENTS.md — BEGIN CAPCOM/END CAPCOM markers; internal/agents/block.go — BeginMarker, EndMarker; internal/check/check.go — agentsBlock;
-docs/adr/0007-tests-use-real-temp-files-sqlite-and-git.md — ADR style; /home/airic/repos/apogee/docs/adr/0098-the-repo-owns-its-release-pipeline.md
+docs/adr/0007-tests-use-real-temp-files-sqlite-and-git.md — ADR style; ../apogee/docs/adr/0098-the-repo-owns-its-release-pipeline.md
 **Tests:** none (docs).
 **Acceptance:** every command and path the docs name exists (`go run ./cmd/release <verb> --help` for each verb named); `capcom check` reports no problems
 **Depends on:** item 10

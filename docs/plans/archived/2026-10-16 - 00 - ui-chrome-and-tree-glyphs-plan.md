@@ -18,7 +18,7 @@ gray ┝ ┕ │ connectors.
 
 **Sources:**
 - `docs/design/tui.md`
-- `/home/airic/repos/apogee/internal/tui/model.go` (`Model.renderScrollbar`, `Model.layout`), `boxdraw.go` (`scrollbarThumb`, `Model.joinScrollbar`), `theme.go` (`glyphScrollThumb`, `glyphScrollTrack`, `bodyRightGutter`)
+- `../apogee/internal/tui/model.go` (`Model.renderScrollbar`, `Model.layout`), `boxdraw.go` (`scrollbarThumb`, `Model.joinScrollbar`), `theme.go` (`glyphScrollThumb`, `glyphScrollTrack`, `bodyRightGutter`)
 
 **Ratified design calls** (user, 2026-10-16):
 - **Divider:** the pane divider is ` │ ` — one blank column each side of `│`.

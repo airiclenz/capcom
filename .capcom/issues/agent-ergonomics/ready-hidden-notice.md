@@ -13,7 +13,7 @@ When every Ready issue carries a label listed under `ready.hide`, `capcom ready`
 nothing on stdout or stderr and exits 0. That output is byte-identical to a store where
 nothing is Ready, so an agent concludes there is no work while Ready issues sit hidden.
 
-Reported by seqcom (request `ready-empty-when-hidden`, run 20261031T1731Z), re-checked on
+Reported by a dogfooding agent (request `ready-empty-when-hidden`, run 20261031T1731Z), re-checked on
 capcom 0.12.1 (run 20261101T1714Z); `internal/cli/ready.go` in 0.13.0 has no such notice.
 
 Wanted: when the Ready set is non-empty but all of it is hidden, one line naming the count

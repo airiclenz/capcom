@@ -12,7 +12,7 @@ and tmux, with a `copied N chars` notice. It is built the way apogee builds it.
 **Sources:**
 - `.capcom/issues/capcom-ui/ui-select-copy.md` (the authority for every behaviour below)
 - `docs/design/tui.md` (Keys → Mouse, Layout, the apogee-borrowing section)
-- apogee (`/home/airic/repos/apogee`): `internal/tui/mouse.go` (design comment, `transcriptSel`,
+- apogee (`../apogee`): `internal/tui/mouse.go` (design comment, `transcriptSel`,
   `spanUnchanged`, `shadeCells`, `transcriptSelectionText`), `internal/tui/clipboard.go`,
   `internal/present/clipboard.go`, `internal/security/execsafety.go`,
   `.capcom/knowledge/decisions/adr-0030.md` (one width authority)
@@ -80,8 +80,8 @@ path instead, as apogee's `EvalRealPath` does. Resolve `Root` with `filepath.Eva
 `t.TempDir()`, never literal unix paths, so the rows hold on macOS and Windows CI.
 **Files:** `internal/clipboard/clipboard.go`, `internal/clipboard/doc.go`, `internal/clipboard/clipboard_test.go`, `go.mod`, `go.sum`
 **Read first:** `internal/store/store.go` — RelativePath; `internal/gitx/gitx.go` — Discover; `internal/store/store_test.go` — skipSymlinkTest; `internal/elsewhere/elsewhere_test.go` — newRepo;
-`/home/airic/repos/apogee/internal/present/clipboard.go` — WriteSystem, systemCandidates; `/home/airic/repos/apogee/internal/security/execsafety.go` — ResolveProgram;
-`/home/airic/repos/apogee/internal/security/pathsafety.go` — EvalRealPath
+`../apogee/internal/present/clipboard.go` — WriteSystem, systemCandidates; `../apogee/internal/security/execsafety.go` — ResolveProgram;
+`../apogee/internal/security/pathsafety.go` — EvalRealPath
 **Tests:** a table over GOOS and env for the candidate order; a program under `Root` (and a
 symlink into it) refused with nothing run; `ErrDot` refused; tmux skipped without `TMUX`, argv
 pinned with it; Windows calls `WriteWindows` only. The fake `LookPath` answers real files under
@@ -124,7 +124,7 @@ slices from `offset` itself. Each item that adds a non-test file to `internal/ui
 `internal/ui/doc.go` in that same item, so `TestDocFileMap_MatchesDirectory` stays green: this
 item adds the `selection.go` entry.
 **Files:** `internal/ui/selection.go`, `internal/ui/selection_test.go`, `internal/ui/doc.go`
-**Read first:** `internal/ui/markdown/width.go` — Measure.Cut; `/home/airic/repos/apogee/internal/tui/mouse.go` — transcriptSel.spanUnchanged, shadeCells, transcriptSelectionText;
+**Read first:** `internal/ui/markdown/width.go` — Measure.Cut; `../apogee/internal/tui/mouse.go` — transcriptSel.spanUnchanged, shadeCells, transcriptSelectionText;
 `internal/ui/scrollbar.go` — scrolledPaneRows; `internal/ui/layout.go` — detailRows; `internal/ui/theme.go` — theme.selectedRow; `internal/ui/doc.go` — file map
 **Tests:** the text over two styled lines has no ANSI codes or trailing spaces; a reversed drag
 equals the forward one; a line with CJK and emoji cuts whole runes identically in `paint` and

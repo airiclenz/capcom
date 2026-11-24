@@ -2,7 +2,7 @@
 
 - Date: 2026-10-29
 - capcom: capcom 0.12.1
-- Agent: `agenteval agent --base-url http://192.168.0.55:1111/v1 --model Qwen3.8-27B-UD-Q4_K_M`
+- Agent: `agenteval agent --base-url http://<llm-host>:1111/v1 --model Qwen3.8-27B-UD-Q4_K_M`
 
 | Task | Result | Calls | Failed | Repeated failures | Time | Why |
 | --- | --- | ---: | ---: | ---: | ---: | --- |

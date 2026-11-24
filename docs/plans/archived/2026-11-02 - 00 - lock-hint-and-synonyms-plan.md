@@ -52,7 +52,7 @@ under another purpose (exit 3, code `locked`) carry a hint built from the held p
 The resume half `capcom lock acquire --purpose "foo"` appears only when a kept token file for
 purpose `foo` exists in this worktree; without one, the stale acquire/check hint is only the
 take-over half and the live one is `capcom lock status; ask the user before taking it over`.
-`lock touch` and `lock release` keep `capcom lock status`. Closes the defect seqcom hit in four runs.
+`lock touch` and `lock release` keep `capcom lock status`. Closes the defect a dogfooding agent hit in four runs.
 
 **Regression guard.** The helper treats any kept-token read error (`Locks.SessionToken` fails on an unreadable 0600 token file, `internal/lock/token.go:41-43`) as "no kept token": the refusal stays code `locked`, exit 3, never a plain exit-1 failure.
 Fix every refusal example in `docs/site` (`grep -rn 'hint: capcom lock status\|<token>, or capcom lock status' docs/site`; at base `docs/site/concepts/tree-locks.md:62`) to the new hint and add one stale example there.

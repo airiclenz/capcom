@@ -5,7 +5,7 @@ Starlight site renders at `/capcom/`. The CLI reference is generated from the co
 kept current by a test; every command gains `Long` and `Example` help text.
 **Date:** 2026-10-13
 **Status:** unexecuted
-**Repo:** `/Users/airic/Repos/capcom` (this file is drafted in airiclenz.com and moved there; every path below is relative to the capcom repo root)
+**Repo:** capcom (this file is drafted in airiclenz.com and moved there; every path below is relative to the capcom repo root)
 **sized for:** ~200k-context host
 **base:** d192883
 **Sources:** `README.md`; `docs/format.md`; `docs/migrating-from-beads.md`; `.capcom/knowledge/glossary/`; `.capcom/knowledge/docs-layout.md`; `internal/cli/root.go`; companion plan `2026-10-13 - 01 - capcom-manual-site-plan.md` (airiclenz.com)

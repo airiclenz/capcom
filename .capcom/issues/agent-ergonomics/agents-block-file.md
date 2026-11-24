@@ -16,7 +16,7 @@ may not write) cannot carry the block: `capcom know add` of a top-level Note, `k
 1 with "the capcom block is out of date". So such a workspace goes without the block and
 its generated Knowledge outline.
 
-Reported by seqcom (request `capcom-block-target`, capcom 0.7.0), reproduced on 0.9.0 and
+Reported by a dogfooding agent (request `capcom-block-target`, capcom 0.7.0), reproduced on 0.9.0 and
 0.12.1 (runs 20261018T2200Z, 20261030T1738Z, 20261101T1714Z): with the repo dir mode 555,
 `know add` warns `open .AGENTS.md.tmp-…: permission denied; the capcom block was not
 refreshed` and `check` exits 1.

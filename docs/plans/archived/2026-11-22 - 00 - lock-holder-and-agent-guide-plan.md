@@ -73,7 +73,7 @@ go.mod — golang.org/x/sys v0.46.0 (already a direct require, so go.mod needs n
 **Tests:** `Anchor` over fake chains: shells and wrappers skipped, first other name returned,
 all-shell chain gives false, `BASH.EXE` skipped. `Ancestry` on the test process: first entry's PID
 is `os.Getppid()` with a non-empty `Started`; two calls return equal chains.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/proc/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/proc/ && GOOS=windows go vet ./internal/proc/ && GOOS=darwin go vet ./internal/proc/ && GOOS=freebsd go vet ./internal/proc/`
+**Acceptance:** `go vet ./internal/proc/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/proc/ && GOOS=windows go vet ./internal/proc/ && GOOS=darwin go vet ./internal/proc/ && GOOS=freebsd go vet ./internal/proc/`
 **Commit:** `feat(proc): read the process ancestry and its harness anchor`
 
 ## 2. The lock record names the holder process — ✅ DONE (2026-11-22)
@@ -101,7 +101,7 @@ docs/site/reference/file-format.md — lock record field list
 **Tests:** acquire with a process stores it; resume with a different process replaces it; touch
 keeps it; `HeldBy` true for a chain containing it, false for a PID match with a different stamp,
 false for a record without one; a record JSON without `process` parses.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/lock/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/`
+**Acceptance:** `go vet ./internal/lock/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/`
 **Commit:** `feat(lock): record the holder process in the lock record`
 
 ## 3. A write from under the holder process stays silent — ✅ DONE (2026-11-22)
@@ -143,7 +143,7 @@ internal/cli/testharness_test.go — runCLI; internal/cli/write_test.go — runC
 chain B warn; acquire under A, resume under B, write under B is silent and under A warns. The
 chain-A/B tests acquire with `lock acquire --purpose batch`. agenteval: the seed's recorded process
 is not in the agent's ancestry, or the seed's capcom runs through the helper path.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/ ./cmd/agenteval/ && GOMEMLIMIT=2GiB go test -count=1 -run 'LockWarn|Lock|Start' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./cmd/agenteval/`
+**Acceptance:** `go vet ./internal/cli/ ./cmd/agenteval/ && GOMEMLIMIT=2GiB go test -count=1 -run 'LockWarn|Lock|Start' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./cmd/agenteval/`
 **Commit:** `fix(cli): keep the lock holder's own writes silent`
 
 ## 4. The holder renews by writing, and touches, releases and checks without a token — ✅ DONE (2026-11-22)
@@ -184,7 +184,7 @@ check exits 0; other chain: each bare verb exits 3; a non-holder's bare check ke
 `--take-stale` hint; a holder write of the purpose Issue after `start` moves the heartbeat
 (`TouchHolder` in `internal/lock/lock_test.go`); a write
 under a free lock creates nothing under the lock directory (`TestLockWarn_FreshRepo_CreatesNoLockFile` still passes).
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/lock/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Lock' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
+**Acceptance:** `go vet ./internal/lock/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/lock/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Lock' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(lock): let the holder renew, release and check without a token`
 
 ## 5. The warning to another session says what to do — ✅ DONE (2026-11-22)
@@ -208,7 +208,7 @@ constants in `internal/cli/prime.go` and the code choosing them get the holder c
 internal/cli/lock_warn_test.go — TestLockWarn_StaleLock_SaysItIsStale; internal/cli/prime_test.go — TestPrime_FreshLock_AdvisesItIsHeld
 **Tests:** live and stale warning text pinned in `lock_warn_test.go`; prime under the holder chain
 and under another chain pinned in `prime_test.go`; `grep -rn "carry on" internal/cli` is empty.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 -run 'LockWarn|Prime' ./internal/cli/ && ! grep -rn "carry on" internal/cli --include=*.go`
+**Acceptance:** `go vet ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 -run 'LockWarn|Prime' ./internal/cli/ && ! grep -rn "carry on" internal/cli --include=*.go`
 **Commit:** `fix(cli): tell another session what to do when it writes under a held lock`
 
 ## 6. Warnings print before the result in text output — ✅ DONE (2026-11-22)
@@ -240,7 +240,7 @@ internal/cli/ready_test.go — TestReady_Text_ReadyLineEndsWithWhatItUnblocks; i
 **Tests:** renderer test: warnings then text; a CLI test in `lock_warn_test.go` that `create` under
 a foreign lock prints the warning on line 1; every internal/cli test that pins a text `warning: `
 line after the result is updated to warnings-first.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/... && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/output/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`
+**Acceptance:** `go vet ./internal/cli/... && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/output/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/index/`
 **Commit:** `fix(output): print warnings before the result in text output`
 
 ## 7. search and know search match the words of the id — ✅ DONE (2026-11-22)
@@ -273,7 +273,7 @@ internal/cli/search.go — searchLong; internal/cli/read_test.go — TestSearch_
 internal/cli/golden_read_test.go — TestGolden_ReadKinds
 **Tests:** index: a word only in an id finds the Issue and the Note, ranked after title and body
 hits; CLI: `search` and `know search` on such a word, text and `--json`; the search goldens unchanged.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/index/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/index/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Search|Golden' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
+**Acceptance:** `go vet ./internal/index/ ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/index/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Search|Golden' ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(search): match the words of the id`
 
 ## 8. check says when it is needed, and writes that can fail it say so — ✅ DONE (2026-11-22)
@@ -305,7 +305,7 @@ Kind-by-Kind result as a dated NOTES line under this item.
 internal/cli/create.go — missingPlanWarnings; internal/cli/know_add.go — refWarnings; internal/cli/errors.go — unwarnedTreeProblems;
 internal/cli/write_test.go — TestCreateAndUpdate_MissingPlan_WritesAndWarnsLikeCheck; internal/cli/know_test.go — TestKnowAdd_MissingAndIgnoredRefs_WarnAndWrite
 **Tests:** `check --help` text; one test per write warning added.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
+**Acceptance:** `go vet ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/cli/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `docs(cli): say when capcom check is needed`
 
 ## 9. The managed block names search and the new lock rules — ✅ DONE (2026-11-22)
@@ -337,7 +337,7 @@ internal/cli/agents_test.go — TestCheck_AgentsBlockWithoutStoreMap_IsStaleUnti
 docs/site/reference/file-format.md — Managed block section
 **Closes:** agents-block-omits-search
 **Tests:** `block_test.go` golden; size pin kept; `agents_test.go` store-map paragraph.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/agents/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/agents/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Agents' ./internal/cli/ && grep -n "capcom search" AGENTS.md && grep -n "capcom know search" AGENTS.md && ! grep -n "carry on" AGENTS.md && go run ./cmd/capcom check`
+**Acceptance:** `go vet ./internal/agents/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/agents/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Agents' ./internal/cli/ && grep -n "capcom search" AGENTS.md && grep -n "capcom know search" AGENTS.md && ! grep -n "carry on" AGENTS.md && go run ./cmd/capcom check`
 **Commit:** `docs(agents): name search and the holder lock rules in the managed block`
 
 ## 10. Record the holder rule in the decisions, glossary and docs — ✅ DONE (2026-11-22)
@@ -371,5 +371,5 @@ it writes the purpose Issue, or says "carry on", is updated (`grep -rn "carry on
 .capcom/knowledge/decisions/adr-0005/adr-0005-decision.md; .capcom/knowledge/issue-workflow.md — lock paragraph; docs/site/concepts/tree-locks.md — warning example;
 docs/site/reference/file-format.md — lock record; plugins/capcom/skills/capcom/SKILL.md — Tree lock section
 **Tests:** none (docs).
-**Acceptance:** `cd /home/airic/repos/capcom && go run ./cmd/capcom know show adr-0017-amend-1122 && go run ./cmd/capcom know show adr-0016-amend-1122 && go run ./cmd/capcom know show adr-0005-amend-1122 && go run ./cmd/capcom know show holder-process && ! grep -rni "carry on\|purpose other than\|another purpose\|unless it writes" .capcom/knowledge docs/site plugins README.md --exclude-dir=decisions --exclude-dir=cli && go run ./cmd/capcom check`
+**Acceptance:** `go run ./cmd/capcom know show adr-0017-amend-1122 && go run ./cmd/capcom know show adr-0016-amend-1122 && go run ./cmd/capcom know show adr-0005-amend-1122 && go run ./cmd/capcom know show holder-process && ! grep -rni "carry on\|purpose other than\|another purpose\|unless it writes" .capcom/knowledge docs/site plugins README.md --exclude-dir=decisions --exclude-dir=cli && go run ./cmd/capcom check`
 **Commit:** `docs(lock): record the holder-process rule`

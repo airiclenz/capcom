@@ -25,7 +25,7 @@ and `capcom lock status` prints only the holder line.
 
 ## Why
 
-Seqcom, the autonomous agent on seqcom-pi4, found an abandoned run's lock at the start of four runs
+A dogfooding agent found an abandoned run's lock at the start of four runs
 (20261102T1404Z, 1700Z, 1720Z, 1803Z) and spent turns on each, one reading the raw token from
 `.git/capcom/locks/_main.*.token` because nothing pointed it at resuming by purpose. Seqcom's
 wrapper now frees the lock after every run, but any agent that inherits an abandoned lock hits the

@@ -13,7 +13,7 @@ Elsewhere, `capcom fmt`, Codex hooks and a complete beads migration guide.
 **Sources:**
 - `docs/handoffs/2026-10-11 - 01 - apogee-beads-migration-feasibility.md`
 - `docs/format.md`, `docs/migrating-from-beads.md`, ADRs `docs/adr/0004-*`, `docs/adr/0006-*`
-- `/home/airic/repos/apogee/.codex/hooks.json` (the Codex hooks shape)
+- `../apogee/.codex/hooks.json` (the Codex hooks shape)
 - Knowledge Notes `cli-test-harness`, `coding-conventions`, `error-messages`, `store-layout`
 
 **Ratified design calls** (user, 2026-10-11, unless marked):
@@ -446,7 +446,7 @@ shape `hooks → event → [{matcher, hooks: [{type, command}]}]`, and the merge
 change. Both flags call it. The Claude behaviour and output stay byte-identical.
 
 **Files:** internal/cli/init.go, internal/cli/init_test.go, README.md
-**Read first:** internal/cli/init.go — newInitCommand, mergeClaudeHooks, addHookGroup, settingsFailure, claudeHookEvents, claudeHooksSnippet, initData; /home/airic/repos/apogee/.codex/hooks.json;
+**Read first:** internal/cli/init.go — newInitCommand, mergeClaudeHooks, addHookGroup, settingsFailure, claudeHookEvents, claudeHooksSnippet, initData; ../apogee/.codex/hooks.json;
 internal/cli/init_test.go — TestInitClaudeHooks_ExistingSettings_ChangesOnlyHooksAndIsIdempotent, TestInitClaudeHooks_NoSettings_CreatesThem, TestInitClaudeHooks_UnusableSettings_FailWithPath,
 TestInit_Plain_PrintsTheHooksSnippetInTextModeOnly, writeClaudeSettings
 **Tests:** `init_test.go`:

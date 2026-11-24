@@ -69,7 +69,7 @@ internal/ui/session_test.go — TestSession_Do_ConcurrentCalls_RunOneAtATime
 **Tests:** `session_test.go`: `holder()` called from inside an access reports its purpose and a
 `since` no later than now; after the access returns it reports `isHeld == false`; `poll` reports
 `the index poll` through the session's test hook (or that sub-test is dropped, per the guard).
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Session' ./internal/ui/`
+**Acceptance:** `go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Session' ./internal/ui/`
 **Commit:** `feat(ui): record what holds the session's mutex`
 
 ## 2. Track the pending detail read and show a loading line — ✅ DONE (2026-11-08)
@@ -107,7 +107,7 @@ not replace a newer pending one; shown A, j (read B pending), k back to A before
 shown and nothing pending, B's late read is dropped, and a second j re-reads B; a reload's re-read
 of shown A held (`send`), k at the top row, then delivered shows A's edited body; the conflict path
 still applies.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/ui/`
+**Acceptance:** `go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/ui/`
 **Commit:** `fix(ui): track the pending detail read and say when the pane is loading`
 
 ## 3. Report a detail read that waits too long — ✅ DONE (2026-11-08)
@@ -141,7 +141,7 @@ test goroutine holds the session via `doFor(purposePoll, …)`: the status row r
 waiting 2s on the index poll`; a stale sequence changes nothing; delivering the read clears the
 notice; a tab switch that clears or replaces the pending read (an empty list, a selection already
 shown) clears it too.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Detail|StatusBar' ./internal/ui/`
+**Acceptance:** `go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Detail|StatusBar' ./internal/ui/`
 **Commit:** `feat(ui): report a detail read that waits on the session`
 
 ## 4. ctrl+l and the editor's return repaint the frame — ✅ DONE (2026-11-08)
@@ -169,7 +169,7 @@ internal/ui/editor_test.go — TestEdit_EditorFails_ShowsItsError; internal/ui/h
 **Tests:** `keys_test.go`: ctrl+l's command yields the clear-screen message; `editor_test.go`: the
 returned batch of a successful edit holds it, and a failed edit's command is `tea.ClearScreen`
 directly (`cmd() == tea.ClearScreen()`); help golden updated; the help screen still fits 80x24.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Key|Editor|Help|Golden' ./internal/ui/`
+**Acceptance:** `go vet ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 -run 'Key|Editor|Help|Golden' ./internal/ui/`
 **Commit:** `feat(ui): repaint the frame on ctrl+l and after the editor`
 
 ## 5. CAPCOM_UI_TRACE writes a detail-read trace — ✅ DONE (2026-11-08)
@@ -213,7 +213,7 @@ writes requested/applied/rendered lines with the id; two `View` calls over the s
 writes nothing; an unopenable path makes `ui.Run` fail with the stated text, the path named once,
 before `newModel` runs; a `poll` waiting over 100ms behind a held `doFor` writes a wait line; a
 write after `close` is dropped; every test that opens a tracer closes it in `t.Cleanup`.
-**Acceptance:** `cd /home/airic/repos/capcom && go vet ./internal/ui/ ./internal/cli/ ./internal/clidoc/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
+**Acceptance:** `go vet ./internal/ui/ ./internal/cli/ ./internal/clidoc/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/ui/ && GOMEMLIMIT=2GiB go test -count=1 ./internal/clidoc/`
 **Commit:** `feat(ui): trace detail reads to the file CAPCOM_UI_TRACE names`
 
 ## 6. A randomized interleaving test pins the detail pane — ✅ DONE (2026-11-08)
@@ -238,7 +238,7 @@ screen (`!m.isSinglePane() || m.isDetailOpen`), help and deps closed; check show
 **Read first:** internal/ui/harness_test.go — drive, newTestModel, newTestStore; internal/ui/model.go — showSelection;
 internal/ui/keys.go — handleKey; internal/ui/mouse.go — mouseClick, mouseWheel; internal/ui/layout.go — isSinglePane
 **Tests:** the file itself; it fails with the seed, the size and the step trace.
-**Acceptance:** `cd /home/airic/repos/capcom && GOMEMLIMIT=2GiB go test -count=1 -run 'Interleave' ./internal/ui/`
+**Acceptance:** `GOMEMLIMIT=2GiB go test -count=1 -run 'Interleave' ./internal/ui/`
 **Commit:** `test(ui): drive randomized interleavings against the detail pane`
 
 ## 7. Document the loading line, the slow-read notice, ctrl+l and the trace — ✅ DONE (2026-11-08)
@@ -260,5 +260,5 @@ until a read arrives, or lists the keys without ctrl+l, is updated
 docs/design/tui.md — ## Keys block, **Detail scroll** paragraph; internal/ui/help.go — helpLines (the key block mirrors it);
 docs/site/reference/cli/capcom_ui.md — generated by item 5, not hand-edited
 **Tests:** none (docs).
-**Acceptance:** `cd /home/airic/repos/capcom && grep -n "CAPCOM_UI_TRACE" docs/site/getting-started/terminal-ui.md && grep -n "ctrl+l" docs/site/getting-started/terminal-ui.md && grep -n "CAPCOM_UI_TRACE" docs/design/tui.md && grep -n "ctrl+l" docs/design/tui.md`
+**Acceptance:** `grep -n "CAPCOM_UI_TRACE" docs/site/getting-started/terminal-ui.md && grep -n "ctrl+l" docs/site/getting-started/terminal-ui.md && grep -n "CAPCOM_UI_TRACE" docs/design/tui.md && grep -n "ctrl+l" docs/design/tui.md`
 **Commit:** `docs(ui): describe the loading line, slow-read notice, repaint and trace`

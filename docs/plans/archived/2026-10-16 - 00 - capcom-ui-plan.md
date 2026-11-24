@@ -12,7 +12,7 @@ ops package guarded by ETag and the Tree lock, mouse, theme from a per-user conf
 - `docs/design/tui.md`
 - `.capcom/issues/capcom-ui.md` and `.capcom/issues/capcom-ui/*.md` (each child's `## Acceptance`)
 - `.capcom/knowledge/decisions/adr-0011/`, `adr-0012/`, `adr-0013/` (and their parent Notes)
-- `/home/airic/repos/apogee/internal/tui/` (`markdown.go`, `mdtable.go`, `wrap.go`, `width.go`, `listsurface.go`)
+- `../apogee/internal/tui/` (`markdown.go`, `mdtable.go`, `wrap.go`, `width.go`, `listsurface.go`)
 
 **Ratified design calls** (user, 2026-10-16):
 - **Outline code:** `visibleTree` and the issue/Note outline builders move from `internal/cli` to a new `internal/outline`; CLI and UI both call it.
@@ -318,7 +318,7 @@ NOTES (2026-10-16): table_test.go fixture cell "layout.md" changed to "layout.go
 tables, inline code and bold to a width measured in terminal cells (wide characters and ANSI
 sequences handled), with apogee's markdown, table, wrap and width tests ported and passing.
 Depends on item 6.
-**Approach (assumed at the header base):** copy from `/home/airic/repos/apogee/internal/tui/`:
+**Approach (assumed at the header base):** copy from `../apogee/internal/tui/`:
 `markdown.go`, `mdtable.go`, the helpers `wrapText`, `hangingPrefixes`, `hangCollapses`,
 `expandTabs` (`wrap.go`), `widthAuthority` (`width.go`, without `observe`), `blankLine`, `clampInt`
 and the table glyph constants; their tests from `markdown_test.go`, `mdtable_test.go`,
@@ -328,7 +328,7 @@ int) []string`. No dependency on apogee packages.
 **Regression guard.** keep apogee's `widthAuthority.observe(tea.ModeReportMsg)` so the measure switches to grapheme width on mode-2027 terminals; the UI model forwards `tea.ModeReportMsg` to the theme's measure, and the link regions of items 9 and 19 use that same measure. (This replaces the Approach's "without `observe`".) The Goal's ported tests are the tests of the copied functions (TestWrapTextHoldsTheWidthCap, TestWrapTextBreaksInThePaintersMeasure, the widthAuthority tests, observe included); the rails, clip, guttered, hanging-wrap and Model-rendering tests stay behind. `glyphBullet` (apogee theme.go) joins the copied constants, and a test helper `testTheme()` builds `markdown.Theme` from plain lipgloss styles in place of apogee's `newTheme(scheme.X)`.
 Re-check (2026-10-16): the measure is exported, `type Measure` with `Observe(tea.ModeReportMsg) Measure` and `Method()`, carried as `Theme.Measure`; the model test reads `Measure.Method()`. The ported test helpers (wrap_test.go) add `vs16Warning` and `paintMethods` (apogee paint_test.go). Every copied comment citing an apogee ADR, layout.md, render.go, doc.go or transcript is rewritten or dropped. go.mod: `github.com/charmbracelet/x/ansi` becomes a direct require (drop `// indirect`).
 **Files:** go.mod, internal/ui/markdown/markdown.go, internal/ui/markdown/table.go, internal/ui/markdown/wrap.go, internal/ui/markdown/width.go, internal/ui/markdown/theme.go, internal/ui/markdown/markdown_test.go, internal/ui/markdown/table_test.go, internal/ui/markdown/wrap_test.go, internal/ui/model.go, internal/ui/model_test.go
-**Read first:** /home/airic/repos/apogee/internal/tui/width.go — widthAuthority, observe; .../markdown.go — renderMarkdownBody, renderInline;
+**Read first:** ../apogee/internal/tui/width.go — widthAuthority, observe; .../markdown.go — renderMarkdownBody, renderInline;
 .../wrap.go — wrapText, hangingPrefixes; .../theme.go — glyphBullet; .../paint_test.go — vs16Warning, paintMethods
 **Tests:** the ported tests of the copied functions (width tests, observe included, folded into `wrap_test.go`);
 `internal/ui/model_test.go`: a mode-2027 `tea.ModeReportMsg` sent to the model switches the markdown measure to grapheme width (read through `Measure.Method()`).
@@ -357,7 +357,7 @@ recorded. `> ` blockquotes render with a bar prefix and wrap inside it. Depends 
 `Quote` styles; regions measured with `Theme.Measure`, never `len`.
 **Regression guard.** the ported tests that call the renderer (`table_test.go`'s 26 calls and `wrap_test.go`'s one, apogee's `renderMarkdownBody`) move to the new `Render` signature in this item, so `go test ./internal/ui/markdown/` compiles.
 **Files:** internal/ui/markdown/markdown.go, internal/ui/markdown/links.go, internal/ui/markdown/theme.go, internal/ui/markdown/links_test.go, internal/ui/markdown/markdown_test.go, internal/ui/markdown/table_test.go, internal/ui/markdown/wrap_test.go
-**Read first:** /home/airic/repos/apogee/internal/tui/markdown.go — renderInline, renderMarkdownBody; .../wrap.go — wrapText; .../mdtable.go — renderTable, wrapTableCell;
+**Read first:** ../apogee/internal/tui/markdown.go — renderInline, renderMarkdownBody; .../wrap.go — wrapText; .../mdtable.go — renderTable, wrapTableCell;
 .../width.go — widthAuthority.Width; .../mdtable_test.go — renderMarkdownBody callers
 **Closes:** ui-markdown
 **Tests:** link region after wide (CJK) characters; a link wrapped over two lines; an inline-code id;
@@ -394,7 +394,7 @@ an exact issue or Note id in the index.
 **Regression guard.** the detail loader collects the index's id set inside `session.do`; IsID reads that snapshot, never the index, and the rendered detail is cached per (body, width). The file is read with `nodestore.IssueReader(cfg)` (`nodestore.NoteReader()` in item 12) and `Reading.ETag`; a file that does not parse shows `<path>: <error>` in the detail pane in place of the body, with no ETag kept.
 **Files:** internal/ui/ready.go, internal/ui/detail.go, internal/ui/listcursor.go, internal/ui/model.go, internal/ui/ready_test.go, internal/ui/testdata/golden/
 **Read first:** internal/briefing/ready.go — ReadyList, ReadyOptions; internal/cli/ready.go — readyOptions.listOptions; internal/cli/show.go — issueFromFile;
-internal/cli/update.go — parseNodeFile; internal/index/index.go — Index.Issue; /home/airic/repos/apogee/internal/tui/listsurface.go — listCursor, listVerdict
+internal/cli/update.go — parseNodeFile; internal/index/index.go — Index.Issue; ../apogee/internal/tui/listsurface.go — listCursor, listVerdict
 **Closes:** ui-ready-tab
 **Tests:** sidebar ids equal `briefing.ReadyList` with those options; goldens of a populated queue
 with a selected issue (header and body) and of an empty queue; `ready <id>` selects; an id in the body renders as a link with IsID reading the snapshot;
@@ -653,7 +653,7 @@ handler reads; `tea.View.MouseMode = tea.MouseModeCellMotion`; rows use `listCur
 from apogee's `mouse.go`, no code copied.
 **Regression guard.** clicks and wheel are ignored while a prompt, status picker or help screen is open. A link to an id the tree hides (a closed issue, a retired or background Note) follows item 11's rule. The wheel over the sidebar moves the selection one row per notch (`listCursor.wheel`), which is what the Goal's "scrolls the sidebar" means; over the detail pane it scrolls the pane.
 **Files:** internal/ui/mouse.go, internal/ui/layout.go, internal/ui/model.go, internal/ui/mouse_test.go, internal/ui/tree.go, internal/ui/depview.go, internal/ui/detail.go
-**Read first:** /home/airic/repos/apogee/internal/tui/mouse.go — handleMouseClick; .../listsurface.go — listCursor.wheel, listCursor.move;
+**Read first:** ../apogee/internal/tui/mouse.go — handleMouseClick; .../listsurface.go — listCursor.wheel, listCursor.move;
 charm.land/bubbletea/v2@v2.0.8 tea.go — View.MouseMode, MouseModeCellMotion; .../mouse.go — MouseClickMsg, MouseWheelMsg; internal/cli/list.go — isShown
 **Closes:** ui-mouse
 **Tests:** `tea.MouseClickMsg` / `tea.MouseWheelMsg` at fixed coordinates for each target, at 120x30
