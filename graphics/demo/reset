@@ -144,5 +144,91 @@ note --id glossary --title "Glossary: link, slug, workspace" <<'EOF'
 - **Workspace**: one team's links, tokens, limits and domains.
 EOF
 
+# More of the backlog, so the 40-row screens are full.
+issue --id docker-image --parent v1-launch --title "Publish a Docker image" \
+	--priority 2 --label ops <<'EOF'
+Most self-hosters run containers. Publish a small image on every release.
+
+## Acceptance
+
+- `docker run ghcr.io/tern/tern` serves redirects with the default `tern.yaml`.
+EOF
+
+issue --id backup-restore --parent v1-launch --title "Backup and restore" \
+	--type feature --priority 2 --label ops <<'EOF'
+`tern backup` writes a consistent copy of the store while tern keeps serving.
+
+## Acceptance
+
+- `tern restore` brings a backup up on a fresh server with every link intact.
+EOF
+
+issue --id acme-tls --parent v1-launch --title "Automatic TLS with ACME" \
+	--type feature --priority 3 --label ops <<'EOF'
+Fetch and renew certificates for every domain tern serves, with no proxy in front.
+EOF
+
+issue --id analytics --title "Click analytics" --type feature --priority 2 <<'EOF'
+Workspaces want to know which links people follow, without tracking the people.
+EOF
+
+issue --id click-counts --parent analytics --title "Count clicks per link" \
+	--type feature --priority 2 <<'EOF'
+One counter per link and day, written off the redirect path.
+EOF
+
+issue --id referrer-stats --parent analytics --title "Top referrers" \
+	--type feature --priority 3 --dep click-counts <<'EOF'
+The ten sites sending the most clicks to a link, by day.
+EOF
+
+issue --id slug-collision --title "Slugs collide case-insensitively" \
+	--type bug --priority 2 --label api <<'EOF'
+`Docs` and `docs` are stored as two links, but some mail clients lower-case the path.
+EOF
+
+issue --id cache-headers --title "Redirects send no Cache-Control" \
+	--type bug --priority 3 <<'EOF'
+Browsers cache a `301` forever, so a changed link never reaches people who followed it once.
+EOF
+
+issue --id link-expiry --title "Links that expire" --type feature --priority 3 <<'EOF'
+A link created with `--expires 30d` answers `410 Gone` after that.
+EOF
+
+issue --id qr-codes --title "QR code for every link" --type feature --priority 3 <<'EOF'
+`GET /<slug>.png` serves the link's QR code.
+EOF
+
+issue --id csv-import --title "Import links from CSV" --type feature --priority 4 <<'EOF'
+Teams moving from another shortener bring thousands of links.
+EOF
+
+issue --id health-endpoint --title "GET /healthz" --priority 2 --label ops <<'EOF'
+Load balancers need an endpoint that answers while the store is reachable.
+EOF
+"$capcom" close health-endpoint --reason "serves 200 while SQLite answers" >/dev/null
+
+issue --id slug-generator --title "Shorter random slugs" --priority 3 <<'EOF'
+Random slugs are 8 characters; 6 are enough for a workspace's links.
+EOF
+"$capcom" close slug-generator --reason "6 characters from a 56-letter alphabet" >/dev/null
+
+note --id deployment --title "How tern is deployed" <<'EOF'
+One binary, one `tern.yaml`, one SQLite file. Nothing else runs beside it.
+EOF
+
+note --id config-file --parent deployment --title "tern.yaml is read once at start-up" <<'EOF'
+A change to `tern.yaml` needs a restart; tern never watches the file.
+EOF
+
+note --id security --title "Tokens are stored as argon2id hashes" <<'EOF'
+An admin token is shown once, at creation. The store keeps only its hash.
+EOF
+
+note --id testing --parent conventions --title "Tests run against a real server" <<'EOF'
+Start tern on a free port with `testserver.Start(t)` and wait for it to listen.
+EOF
+
 git add -A
 git commit -q -m "chore: file the v1 issues and the first Notes"

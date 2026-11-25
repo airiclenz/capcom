@@ -7,7 +7,7 @@
 #   photon render graphics/demo/storyboards/hero.yaml   # writes graphics/demo.gif
 clip: hero
 ship: ../../demo.gif
-frame: {cols: 120, rows: 40, padding: 16, font_size: 14, line_height: 1.2, scale: 2, width: 960, fps: 24, max_colors: 128}
+frame: {cols: 120, rows: 32, padding: 16, font_size: 14, line_height: 1.2, scale: 2, width: 960, fps: 24, max_colors: 128}
 expect:
   - seen: '~/tern · v\d+\.\d+\.\d+ · capcom'
     area: tabs
@@ -20,7 +20,7 @@ beats:
       - wait: {screen: 'rate-limit +open +P1 +feature', timeout: 10s}
       - pause: {for: 600ms}
     expect:
-      - seen: 'Ready \[4\]'
+      - seen: 'Ready \[13\]'
         area: tabs
       - seen: 'lock +free'
         area: status
@@ -38,7 +38,7 @@ beats:
     expect:
       - seen: 'held by claude: rate-limit'
         area: status
-      - seen: 'Ready \[3\]'
+      - seen: 'Ready \[12\]'
         area: tabs
   - id: 3
     title: what waits on it
@@ -46,15 +46,15 @@ beats:
     duration: 3500ms
     do:
       - click: {target: {text: 'Issues', area: tabs}}
-      - wait: {screen: 'v1-launch', timeout: 5s}
+      - wait: {screen: 'v1-launch +open +P1', timeout: 5s}
       - pause: {for: 360ms}
-      - key: {name: down, repeat: 2}
+      - click: {target: {text: 'v1-launch +open +P1', area: panes}}
       - wait: {screen: 'Ship tern v1\n', timeout: 5s}
       - pause: {for: 240ms}
       - key: {name: right}
-      - wait: {screen: 'abuse-reports', timeout: 5s}
+      - wait: {screen: 'abuse-reports +open', timeout: 5s}
       - pause: {for: 240ms}
-      - key: {name: down}
+      - click: {target: {text: 'abuse-reports +open +P2', area: panes}}
       - wait: {screen: 'Report abusive links\n', timeout: 5s}
       - pause: {for: 360ms}
       - type: {text: 'd', humanize: false}
@@ -89,13 +89,17 @@ beats:
   - id: 6
     title: the closed tab
     why: the Closed tab lists what was finished, newest first, with the reason the agent gave
-    duration: 3s
+    duration: 3500ms
     do:
       - type: {text: '4', humanize: false}
+      - wait: {screen: 'rate-limit +feature', timeout: 5s}
+      - pause: {for: 360ms}
+      # The tab kept the row it selected before rate-limit closed: click the newest one.
+      - click: {target: {text: 'rate-limit +feature', area: panes}}
       - wait: {screen: 'limiter merged, tests green', timeout: 5s}
       - pause: {for: 1500ms}
     expect:
-      - seen: 'Closed \[1\]'
+      - seen: 'Closed \[3\]'
         area: tabs
   - id: 7
     title: the knowledge
@@ -135,7 +139,7 @@ beats:
 camera:
   positions:
     # Beat 2: the lock badge on the status bar, the bottom row.
-    - {cell: {x: 24, y: 39}, at: {beat: 2}, hold: 4200ms}
+    - {cell: {x: 24, y: 31}, at: {beat: 2}, hold: 4200ms}
     # Beat 4: the dependency view in the detail pane.
     - {text: 'waits on:', at: {beat: 4}, hold: 4500ms}
   zooms:
