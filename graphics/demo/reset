@@ -1,13 +1,14 @@
 #!/bin/sh
-# Restores the stage photon films: a fresh git repository at $PHOTON_WORK/stage holding a small
+# Restores the stage photon films: a fresh git repository at $PHOTON_WORK/home/tern holding a small
 # fictional project, tern, a self-hosted link shortener, with a few issues and Notes. Every
 # file is written through the capcom binary that `photon setup` built, so the stage is always
 # in the format that binary writes. The user config pins the dark theme, so the clip never
-# depends on the terminal answering a background colour query.
+# depends on the terminal answering a background colour query. The stage sits under the launch's
+# HOME, so the tab bar names it ~/tern and no path of the machine that films it.
 set -eu
 
 capcom="$PHOTON_WORK/capcom"
-stage="$PHOTON_WORK/stage"
+stage="$PHOTON_WORK/home/tern"
 
 # The user config directory as Go's os.UserConfigDir finds it under the launch's HOME and
 # XDG_CONFIG_HOME, which photon.yaml points into the work dir.
@@ -16,11 +17,11 @@ Darwin) userconfig="$PHOTON_WORK/home/Library/Application Support/capcom" ;;
 *) userconfig="$PHOTON_WORK/config/capcom" ;;
 esac
 
-rm -rf "$stage" "$PHOTON_WORK/home" "$PHOTON_WORK/config"
+rm -rf "$PHOTON_WORK/home" "$PHOTON_WORK/config"
 mkdir -p "$stage" "$userconfig"
 printf 'ui:\n  theme: dark\n' >"$userconfig/config.yaml"
 # A wider sidebar than the default third, so the titles in the lists fit.
-printf 'ui:\n  sidebar_ratio: 0.5\n' >"$userconfig/state.yaml"
+printf 'ui:\n  sidebar_ratio: 0.56\n' >"$userconfig/state.yaml"
 
 cd "$stage"
 git init -q -b main
@@ -67,8 +68,7 @@ EOF
 
 issue --id abuse-reports --parent v1-launch --title "Report abusive links" \
 	--priority 2 --dep rate-limit <<'EOF'
-A link that points at malware should be one click away from a report. The report form shares
-the creation limiter, so it waits on `rate-limit`.
+A link that points at malware should be one click away from a report. The report form shares the creation limiter, so it waits on `rate-limit`.
 
 ## Acceptance
 
@@ -112,8 +112,7 @@ From a fresh server to a working tern: install, `tern.yaml`, TLS and backups.
 EOF
 
 note --id architecture --title "How tern is put together" <<'EOF'
-tern is one Go binary with two listeners: the **redirect path** on `:80` and the **admin API**
-on `:8080`. They share the SQLite store and nothing else.
+tern is one Go binary with two listeners: the **redirect path** on `:80` and the **admin API** on `:8080`. They share the SQLite store and nothing else.
 EOF
 
 note --id redirect-path --parent architecture \
@@ -130,8 +129,7 @@ link, err := store.Lookup(ctx, slug)
 EOF
 
 note --id storage --parent architecture --title "Links live in SQLite" <<'EOF'
-One database file, one table of links per workspace, so a workspace is dropped with one
-statement. Migrations run at start-up and never down.
+One database file, one table of links per workspace, so a workspace is dropped with one statement. Migrations run at start-up and never down.
 EOF
 
 note --id conventions --title "Errors, logging and tests" <<'EOF'

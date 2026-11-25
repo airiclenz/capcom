@@ -4,7 +4,7 @@ description: "A git-native issue tracker and knowledge base for coding agents: i
 sidebar: { order: 0 }
 ---
 
-![capcom ui: claim an issue, watch an agent close another, browse the Issue tree and the Knowledge](../../graphics/demo.gif)
+![capcom ui, the terminal UI: an AI coding agent takes the Tree lock on an issue, the dependency view and the Ready queue update live as it finishes, then the Closed tab and a Knowledge Note](../../graphics/demo.gif)
 
 **Mission control for a repository and the coding agents working in it.**
 

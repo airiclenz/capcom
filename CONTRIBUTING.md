@@ -91,7 +91,7 @@ GOMEMLIMIT=2GiB go test -run='^$' -bench='^BenchmarkLog$' -benchtime=1x ./intern
   that says so; anything stable that has to go is warned about for at least one minor release
   first.
 - The README's GIF, [`graphics/demo.gif`](graphics/demo.gif), is filmed with
-  [photon](https://github.com/airiclenz/photon) from
+  [photon](https://github.com/airiclenz/photon) 0.3.0 or later from
   [`graphics/demo/`](graphics/demo/). After a visible change to `capcom ui`, record it again on
   Linux or macOS: `photon setup graphics/demo/storyboards/hero.yaml` once, then
   `until photon record graphics/demo/storyboards/hero.yaml; do :; done` and

@@ -1,17 +1,30 @@
 #!/bin/sh
-# The coding agent working beside the person in the clip. It waits until the person claims
-# flaky-redirect-test in capcom ui, then finishes rate-limit through the CLI, as an agent
-# would: a Log entry, then the close that makes abuse-reports Ready. capcom ui shows both
-# without being told.
+# The coding agent working beside the person in the clip. It works rate-limit through the CLI as
+# an agent would: it takes the Tree lock and marks the issue active, logs progress and finishes
+# it, which frees the lock and makes abuse-reports Ready. capcom ui shows each step without being
+# told. It takes its cues from the selections capcom ui saves in ui-state.yaml: it starts once
+# the person moves to flaky-redirect-test on Ready, and finishes once they have looked at what
+# abuse-reports waits on. It names itself with --holder, so the lock never shows the user and
+# host of the machine that films it.
 set -eu
 
 capcom="$PHOTON_WORK/capcom"
-cd "$PHOTON_WORK/stage"
+cd "$PHOTON_WORK/home/tern"
+state=.git/capcom/ui-state.yaml
+
+# waitfor blocks until ui-state.yaml selects the id on the tab given, as <tab>: "<id>".
+waitfor() {
+	until grep -qs "$1\$" "$state"; do
+		sleep 0.1
+	done
+}
 
 echo "agent ready"
-until "$capcom" show flaky-redirect-test | grep -q '^status: active$'; do
-	sleep 0.2
-done
-sleep 1.2
-"$capcom" log rate-limit "429 with Retry-After lands; limits read from tern.yaml"
-"$capcom" close rate-limit --reason "limiter merged, tests green"
+waitfor "ready: \"flaky-redirect-test\""
+"$capcom" lock acquire --holder claude --purpose rate-limit >/dev/null
+"$capcom" update rate-limit --status active >/dev/null
+
+waitfor "issues: \"abuse-reports\""
+sleep 2.4
+"$capcom" log rate-limit "429 with Retry-After lands; limits read from tern.yaml" >/dev/null
+"$capcom" finish rate-limit --reason "limiter merged, tests green" >/dev/null

@@ -1,6 +1,7 @@
 # The rig that films capcom ui for the README's hero GIF. `photon setup` builds capcom into the
 # work dir; `reset` stages a small fictional repository before every take; the agent service
-# plays the coding agent that closes an issue while the clip runs.
+# plays the coding agent that takes the Tree lock, works an issue and finishes it while the clip
+# runs.
 #   photon setup  graphics/demo/storyboards/hero.yaml
 #   photon record graphics/demo/storyboards/hero.yaml
 #   photon render graphics/demo/storyboards/hero.yaml
@@ -10,8 +11,8 @@ setup: go build -o "$PHOTON_WORK/capcom" ../../cmd/capcom
 reset: ./reset
 
 launch:
-  # The stage is the repository capcom ui opens.
-  command: cd "$PHOTON_WORK/stage" && exec "$PHOTON_WORK/capcom" ui
+  # The stage is the repository capcom ui opens, under HOME so the tab bar shows ~/tern.
+  command: cd "$PHOTON_WORK/home/tern" && exec "$PHOTON_WORK/capcom" ui
   env:
     # The user config and state.yaml live in the work dir, never the operator's.
     HOME: ${PHOTON_WORK}/home
