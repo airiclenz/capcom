@@ -1,12 +1,13 @@
 # The README's hero clip: a person and a coding agent share one repository. The agent takes the
 # Tree lock on an issue, the person looks at what waits on it, the agent finishes it and the
-# waiting issue turns Ready, live; then the Closed tab and the Knowledge the agents read.
+# waiting issue turns Ready, live; then the Closed tab, the Knowledge the agents read, and a
+# click on the layout button that stacks the panes and back.
 #   photon setup  graphics/demo/storyboards/hero.yaml   # once: build capcom into the work dir
 #   until photon record graphics/demo/storyboards/hero.yaml; do :; done
 #   photon render graphics/demo/storyboards/hero.yaml   # writes graphics/demo.gif
 clip: hero
 ship: ../../demo.gif
-frame: {cols: 120, rows: 20, padding: 16, font_size: 14, line_height: 1.2, scale: 2, width: 960, fps: 24, max_colors: 128}
+frame: {cols: 120, rows: 40, padding: 16, font_size: 14, line_height: 1.2, scale: 2, width: 960, fps: 24, max_colors: 128}
 expect:
   - seen: '~/tern · v\d+\.\d+\.\d+ · capcom'
     area: tabs
@@ -113,11 +114,28 @@ beats:
       - pause: {for: 1440ms}
     expect:
       - seen: 'Redirects skip the admin API'
+  - id: 8
+    title: split or stacked
+    why: the layout button at the status bar's right edge stacks the panes, the sidebar above the detail pane, and v switches back
+    duration: 4500ms
+    hold: 1500ms
+    do:
+      - pause: {for: 300ms}
+      - click: {target: {text: '───$', area: status}}
+      - wait: {screen: 'q quit +│ ?$', timeout: 5s}
+      - pause: {for: 1800ms}
+      - type: {text: 'v', humanize: false}
+      - wait: {screen: 'q quit +───$', timeout: 5s}
+      - pause: {for: 900ms}
+    expect:
+      - seen: 'q quit +───$'
+        area: status
+      - run: 'grep -rqsE "layout: \"?split" config home'
 
 camera:
   positions:
     # Beat 2: the lock badge on the status bar, the bottom row.
-    - {cell: {x: 24, y: 19}, at: {beat: 2}, hold: 4200ms}
+    - {cell: {x: 24, y: 39}, at: {beat: 2}, hold: 4200ms}
     # Beat 4: the dependency view in the detail pane.
     - {text: 'waits on:', at: {beat: 4}, hold: 4500ms}
   zooms:
