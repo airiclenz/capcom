@@ -5,7 +5,7 @@
 [![Go version](https://img.shields.io/github/go-mod/go-version/airiclenz/capcom)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-![capcom ui: claim an issue, watch an agent close another, browse the Issue tree and the Knowledge](graphics/demo.gif)
+![capcom ui, the terminal UI: an AI coding agent takes the Tree lock on an issue, the dependency view and the Ready queue update live as it finishes, then the Closed tab and a Knowledge Note](graphics/demo.gif)
 
 **Mission control for your repository and the AI coding agents working in it.**
 
@@ -17,15 +17,32 @@ Go, with a command line for agents and a terminal UI for people. The name comes 
 where CAPCOM is the one voice on the ground that talks to the crew; capcom is not affiliated with
 Capcom Co., Ltd., the video game company.
 
-**Contents:** [Why](#why) · [Features](#features) · [Terminal UI](#terminal-ui) ·
-[Works with](#works-with-any-coding-agent) · [Install](#install) · [Quick start](#quick-start) ·
-[Commands](#commands) · [Non-goals](#non-goals) · [FAQ](#faq) · [License](#license)
+**Contents:** [Why](#why) · [The agent loop](#the-agent-loop) · [Features](#features) ·
+[Terminal UI](#terminal-ui) · [Works with](#works-with-any-coding-agent) · [Install](#install) ·
+[Quick start](#quick-start) · [Commands](#commands) · [Non-goals](#non-goals) · [FAQ](#faq) ·
+[License](#license)
 
 ## Why
 
 Most agent issue trackers keep a database and export a copy to git. The two drift apart, and
 keeping them in sync becomes a chore. capcom keeps one source of truth: files in git. Issues
 branch, merge and show up in code review, just like the code they describe.
+
+## The agent loop
+
+A handful of commands carry an agent from one task to the next:
+
+```sh
+capcom next                     # the most urgent ready issue, in full
+capcom context <id>             # the issue with its deps, plan and the Notes that apply
+capcom start <id>               # claim it and take the Tree lock
+capcom log <id> "<progress>"    # note progress as work lands
+capcom finish <id> --reason "<what was done>"   # close it, free the lock, name what is next
+```
+
+`capcom prime` briefs a new session, `capcom know show <id>` reads a Note, and `--json` turns any
+of it into a versioned envelope. Errors name the file and line, and most end with a `hint:`
+line naming the command that fixes them, so an agent recovers without guessing.
 
 ## Features
 
@@ -34,23 +51,37 @@ branch, merge and show up in code review, just like the code they describe.
   (`login-timeout-race`). Folders make the hierarchy.
 - **Ready-work queue.** `capcom ready` lists the open, unblocked issues, most urgent first.
 - **Dependencies and links.** Make an issue wait for another, or just link related issues.
+  `capcom dep graph` draws the dependencies as a Mermaid flowchart.
+- **Standing parents.** Mark a grouping issue `--standing`: it holds its children, is never
+  Ready and cannot be claimed or closed by mistake.
+- **Batch writes.** `capcom apply` files a linked set of issues, updates, logs and closes from
+  one YAML file, all or none, in a single call.
 - **Fast local index.** A SQLite cache under `.git/` answers queries quickly and rebuilds
   itself. It is never committed and never drifts.
 - **Your own statuses.** Name statuses as you like; each maps to `todo`, `doing`, `waiting`,
   `done` or `dropped`.
 - **Tree lock for parallel agents.** An agent claims the working tree while it edits. Others see
-  who holds it, why and since when. One lock per git worktree.
+  who holds it, why and since when, and a write from another session warns. The holder's own
+  writes renew the lock. One lock per git worktree.
 - **Project knowledge on demand.** Conventions, gotchas and design decisions live as small
   Notes under `.capcom/knowledge/`. Agents read only what they need instead of one huge
-  instructions file. `capcom know verify` flags Notes whose files or symbols are gone.
-- **Session briefing.** `capcom prime` shows ready work, work in progress, locks, unmerged
-  changes on other branches and store health.
+  instructions file. `capcom know verify` flags Notes whose files or symbols are gone; a Note
+  that no longer holds is retired or superseded, not deleted.
+- **Starter Knowledge.** `capcom know seed` adds a base set of Notes, rules that hold in any
+  repository (secrets, destructive actions, what done means), and `--update` keeps them current.
+- **Session briefing.** `capcom prime` shows ready work, work in progress, locks, broken Note
+  refs, unmerged changes on other branches and store health. `capcom recap` lists what changed
+  in `.capcom/` since a date or a commit.
 - **Static HTML export.** `capcom export --html <dir>` writes the Issues and Notes as a static
   site that opens from the file system, with no JavaScript and no external resources.
 - **Validator and formatter.** `capcom check` reports problems as `path:line: message`;
   `capcom fmt` keeps files in canonical form. Both work in CI.
-- **Machine-readable output.** Every command except `capcom ui` prints plain text, or JSON with
-  `--json`; the terminal UI refuses `--json`. Many also take `--kv` for `KEY=VALUE` lines.
+- **Machine-readable output.** Every command prints plain text, or a versioned JSON envelope
+  with `--json` (all but `capcom ui` and the bare command groups). Many also take `--kv` for
+  `KEY=VALUE` lines. Shell completion completes Issue and Note ids.
+- **Stable from release to release.** Every store format ever written is still read, and a
+  format is raised only by `capcom upgrade`, never by a write
+  ([Compatibility](docs/site/reference/compatibility.md)).
 
 ## Terminal UI
 
@@ -58,7 +89,9 @@ branch, merge and show up in code review, just like the code they describe.
 leaving the terminal.
 
 - **Four tabs:** Ready, Issues (a collapsible tree), Knowledge and Closed (the closed issues,
-  newest first).
+  newest first), on keys `1` to `4`, each with its count.
+- **Opens where you left off:** it remembers the tab and selection per worktree;
+  `capcom ui closed <id>` opens straight on a tab and an issue.
 - **Detail pane** with rendered markdown and clickable issue and Note links.
 - **Filter** with `/`: words, `status:<name>` and `label:<name>`.
 - **Quick edits:** claim (`a`), change status (`s`), close (`c`), reopen (`R`), add a log line
@@ -66,6 +99,8 @@ leaving the terminal.
 - **Dependency view** (`d`): what an issue waits on and what it blocks.
 - **Mouse support:** click tabs, rows and links, drag the divider to resize, drag over text to
   copy it to the clipboard.
+- **Split or stacked layout:** side by side on a wide terminal, stacked on a narrow one; `v` or
+  the layout button switches, `<` and `>` move the divider, and the choice is kept.
 - **Live refresh:** changes made by agents or other tools show up within a second.
 - **Dark and light themes,** picked from your terminal, with custom colours.
 - **Tree lock badge** in the status bar shows whether another session is editing.
@@ -76,11 +111,13 @@ Full guide: [docs/site/getting-started/terminal-ui.md](docs/site/getting-started
 
 capcom is a plain CLI, so any agent that can run a shell command can use it.
 
-- **`AGENTS.md`.** `capcom agents` writes a short how-to block into `AGENTS.md` and links it
-  from `CLAUDE.md` and `GEMINI.md` when they exist.
-- **Claude Code plugin.** In Claude Code, `/plugin install capcom --marketplace airiclenz/capcom`
-  adds a capcom skill and runs `capcom prime` at session start and before compaction in any
-  repository with a `.capcom/` ([Agent setup](https://airiclenz.com/capcom/agents/agent-setup/#claude-code-plugin)).
+- **`AGENTS.md`.** `capcom agents` writes a short how-to block into `AGENTS.md`, with the top of
+  the Knowledge tree, and imports it with `@AGENTS.md` from `CLAUDE.md` and `GEMINI.md` when
+  they exist. `capcom agents --check` fails in CI when the block is stale.
+- **Claude Code plugin.** In Claude Code 2.1.275 or later,
+  `/plugin install capcom --marketplace airiclenz/capcom` adds a capcom skill and runs
+  `capcom prime` at session start and before compaction in any repository with a `.capcom/`
+  ([Agent setup](docs/site/agents/agent-setup.md#claude-code-plugin)).
 - **Claude Code, Codex, apogee and GitHub Copilot hooks.** `capcom init --claude-hooks`,
   `--codex-hooks`, `--apogee-hooks` or `--copilot-hooks` runs `capcom prime` at session start, so
   every session begins with a briefing.
@@ -124,7 +161,7 @@ Prebuilt archives for Linux, macOS and Windows (amd64, arm64) are on the
 cd your-repo
 capcom init                     # create .capcom/ in this git repository
 capcom agents                   # tell your agents about capcom in AGENTS.md
-capcom create --id first-task --title "Try capcom"
+capcom create --id first-task --title "Try capcom" --acceptance "capcom ready lists it"
 capcom ready                    # what to work on next
 capcom ui                       # browse it all in the terminal UI
 git add .capcom AGENTS.md       # plus CLAUDE.md or GEMINI.md if capcom agents changed them
@@ -148,6 +185,7 @@ capcom update login-timeout-race --priority 1
 capcom start login-timeout-race   # claim it and the Tree lock; again to resume
 capcom log login-timeout-race "reproduced with two tabs"
 capcom dep add login-timeout-race token-store-rework   # wait for another issue
+capcom dep graph                # the dependencies as a Mermaid flowchart
 capcom related add login-timeout-race session-bug      # link without blocking
 capcom mv login-timeout-race --parent login-flow       # the old id stays an alias
 capcom finish login-timeout-race --reason "Fixed in 3f2a1c9"   # close, free the lock
@@ -172,6 +210,7 @@ capcom know seed --update       # also replace the seeded Notes capcom ships a n
 # Store and agents
 capcom ui                       # the terminal UI
 capcom prime                    # the session-start briefing
+capcom recap --since 7d         # what changed in .capcom in the last 7 days
 capcom agents                   # write or refresh the capcom block of AGENTS.md
 capcom check                    # validate every file
 capcom fmt                      # rewrite files in canonical form
@@ -202,8 +241,8 @@ process or a sync chore, so they will not be added:
 More answers are in the manual's [FAQ](docs/site/getting-started/faq.md).
 
 **Which coding agents does capcom work with?**
-Any agent that can run a shell command: Claude Code, OpenAI Codex, Cursor, Gemini CLI, Aider,
-GitHub Copilot and others. `capcom agents` writes the how-to block into `AGENTS.md`, and
+Any agent that can run a shell command: Claude Code, OpenAI Codex, apogee, Cursor, Gemini CLI,
+Aider, GitHub Copilot and others. `capcom agents` writes the how-to block into `AGENTS.md`, and
 `capcom init --claude-hooks`, `--codex-hooks`, `--apogee-hooks` or `--copilot-hooks` briefs every
 new session ([agent setup](docs/site/agents/agent-setup.md)).
 
@@ -212,6 +251,16 @@ Write it as Knowledge Notes under `.capcom/knowledge/`, committed with the code.
 only the Notes it needs with `capcom know tree` and `capcom know show <id>`, and
 `capcom know verify` flags Notes whose files or symbols are gone
 ([Knowledge](docs/site/concepts/knowledge.md)).
+
+**Does capcom have an MCP server?**
+Not for now. capcom is a CLI an agent runs through its shell tool, which every coding agent
+already has. In capcom's agent evals, agents lose time on the number of calls, not on flag
+syntax, so `capcom apply` and `capcom context` do in one call what would take several.
+
+**How does an agent keep track of its work between sessions?**
+The issues are the record: an agent logs progress with `capcom log` as it goes, and the next
+session starts from `capcom prime` and `capcom next`. Nothing lives in a chat history or in an
+agent's private memory, so another agent, or a person, picks up where it stopped.
 
 **Does capcom need a server, an account or a database?**
 No. Issues and Notes are files in your repository. The SQLite index is a local cache under the
@@ -232,7 +281,8 @@ there is no conflict to resolve by hand
 ([details](docs/site/reference/file-format.md#merge-conflicts-in-the-log)).
 
 **Can CI check the issue files?**
-Yes. `capcom check` and `capcom fmt --check` fail on problems and write nothing. A minimal
+Yes. `capcom check`, `capcom fmt --check` and `capcom agents --check` fail on problems and
+write nothing. A minimal
 GitHub Actions job:
 
 ```yaml
@@ -251,6 +301,7 @@ jobs:
       - run: go install github.com/airiclenz/capcom/cmd/capcom@latest
       - run: capcom check
       - run: capcom fmt --check
+      - run: capcom agents --check
 ```
 
 **How is capcom different from beads, GitHub Issues or Task Master?**
