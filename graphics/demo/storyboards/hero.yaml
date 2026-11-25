@@ -43,10 +43,12 @@ beats:
   - id: 3
     title: what waits on it
     why: the dependency view shows that abuse-reports waits on the issue the agent holds
-    duration: 4500ms
+    duration: 5500ms
     do:
       # photon glides the cursor to a click over the 900ms before it, so every click waits 1s
-      # after its target shows: the cursor never sets off towards a row not yet on screen.
+      # after its target shows: the cursor never sets off towards a row not yet on screen. The
+      # first waits for beat 2's zoom out of the status bar, which hides the tab bar, to end.
+      - pause: {for: 1s}
       - click: {target: {text: 'Issues', area: tabs}}
       - wait: {screen: 'v1-launch +open +P1', timeout: 5s}
       - pause: {for: 1s}
