@@ -3,10 +3,14 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -19,8 +23,10 @@ import (
 // The pieces of an issue's detail header.
 const (
 	headerSeparator = " · "
-	listSeparator   = ", "
-	codeMark        = "`"
+	// headerStatusPrefix opens the header line of an issue's status, priority and type.
+	headerStatusPrefix = "status: "
+	listSeparator      = ", "
+	codeMark           = "`"
 	// standingYes is the standing line's value for an issue that carries the standing mark.
 	standingYes = "yes"
 	// headerTimeLayout is how the header shows the created and closed times, in UTC.
@@ -74,6 +80,7 @@ type detailMsg struct {
 // changes, and IsID reads the ids snapshot, never the index.
 type issueDetail struct {
 	id     string
+	isNote bool
 	source string
 	// etag is the ETag of the file as read, which a write checks it against; "" when the file did
 	// not parse.
@@ -328,7 +335,7 @@ func issueSource(entry index.Entry, reading nodestore.Reading[issue.Issue], err 
 func issueHeader(entry index.Entry) string {
 	var text strings.Builder
 	fmt.Fprintf(&text, "# %s\n\n", oneLine(entry.Title))
-	fmt.Fprintf(&text, "status: %s%sP%d", entry.Status, headerSeparator, entry.Priority)
+	fmt.Fprintf(&text, "%s%s%s%s", headerStatusPrefix, entry.Status, headerSeparator, priorityText(entry.Priority))
 	if entry.Type != "" {
 		text.WriteString(headerSeparator + entry.Type)
 	}
@@ -349,6 +356,40 @@ func issueHeader(entry index.Entry) string {
 	writeHeaderLine(&text, "reason", oneLine(entry.Reason))
 	text.WriteString("\n")
 	return text.String()
+}
+
+// headerPriority matches the P<n> of an issue's rendered status line, after the status and before
+// the type, the line's end, or the separator a wrap before the type leaves at the line's end,
+// capturing P<n> and, within it, the priority.
+var headerPriority = regexp.MustCompile(` · (P([0-9]))(?: · | ·\s*$|\s*$)`)
+
+// paintHeaderPriority returns lines, the rendered detail of an issue, with the P<n> of its status
+// line painted as th paints that priority. The status line is the first after the title, which
+// issueHeader writes on one line, and the blank line under it, sought from the title's second
+// line on, since a blank title renders as a line with no text; a pane so narrow that the line
+// wraps before its P<n>, which then opens the next line, leaves it plain. lines is changed in place.
+func paintHeaderPriority(th theme, lines []string) []string {
+	if len(lines) == 0 {
+		return lines
+	}
+	statusLine := slices.IndexFunc(lines[1:], func(line string) bool {
+		return strings.TrimSpace(ansi.Strip(line)) == ""
+	}) + 2
+	if statusLine == 1 || statusLine >= len(lines) || !strings.HasPrefix(lines[statusLine], headerStatusPrefix) {
+		return lines
+	}
+	line := lines[statusLine]
+	match := headerPriority.FindStringSubmatchIndex(line)
+	if match == nil {
+		return lines
+	}
+	tokenStart, tokenEnd := match[2], match[3]
+	priority, err := strconv.Atoi(line[match[4]:match[5]])
+	if err != nil {
+		return lines
+	}
+	lines[statusLine] = line[:tokenStart] + th.priority(priority).Render(line[tokenStart:tokenEnd]) + line[tokenEnd:]
+	return lines
 }
 
 // writeHeaderLine writes the header line `<key>: <value>` to text, or nothing when value is
@@ -484,6 +525,7 @@ func (m model) applyDetail(msg detailMsg) model {
 	}
 	m.issue = issueDetail{
 		id:       msg.id,
+		isNote:   msg.isNote,
 		source:   msg.source,
 		etag:     msg.etag,
 		ids:      msg.ids,
@@ -547,6 +589,9 @@ func (m model) renderDetail() model {
 			width,
 			markdown.Options{IsID: m.issue.isID},
 		)
+		if !m.issue.isNote {
+			m.issue.rendered.Lines = paintHeaderPriority(m.theme, m.issue.rendered.Lines)
+		}
 		m.issue.renderedSource = m.issue.source
 		m.issue.renderedWidth = width
 		m.tracer.write(

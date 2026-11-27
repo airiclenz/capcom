@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"math"
 	"path"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -15,24 +16,27 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/airiclenz/capcom/internal/config"
+	"github.com/airiclenz/capcom/internal/issue"
 	"github.com/airiclenz/capcom/internal/ui/markdown"
 	"github.com/airiclenz/capcom/internal/userconfig"
 )
 
 // The colour roles of userconfig.Roles the UI paints with. A status role is statusRolePrefix
-// followed by a config.Category, so status-doing covers every status of the doing category.
+// followed by a config.Category, so status-doing covers every status of the doing category, and a
+// priority role is priorityRolePrefix followed by a priority, so priority-0 paints P0.
 const (
-	roleAccent       = "accent"
-	roleBorder       = "border"
-	roleMuted        = "muted"
-	roleLink         = "link"
-	roleSelection    = "selection"
-	roleHeading      = "heading"
-	roleCode         = "code"
-	roleLockHeld     = "lock-held"
-	roleLockFree     = "lock-free"
-	roleLayoutButton = "layout-button"
-	statusRolePrefix = "status-"
+	roleAccent         = "accent"
+	roleBorder         = "border"
+	roleMuted          = "muted"
+	roleLink           = "link"
+	roleSelection      = "selection"
+	roleHeading        = "heading"
+	roleCode           = "code"
+	roleLockHeld       = "lock-held"
+	roleLockFree       = "lock-free"
+	roleLayoutButton   = "layout-button"
+	statusRolePrefix   = "status-"
+	priorityRolePrefix = "priority-"
 )
 
 // The lock badge's text colours: black on a light fill, white on a dark one.
@@ -61,7 +65,8 @@ const (
 )
 
 // schemeFiles holds the colour schemes, one YAML file per preset under schemes/, named after
-// the theme key that picks it: one quoted "#rrggbb" per role of userconfig.Roles.
+// the theme key that picks it: one quoted "#rrggbb" per role of userconfig.Roles, or "" for a
+// role the preset leaves without a colour, as priority-2.
 //
 //go:embed schemes/*.yaml
 var schemeFiles embed.FS
@@ -73,7 +78,7 @@ const (
 )
 
 // presets maps each preset a theme key names, auto aside, to its colour for every role of
-// userconfig.Roles, written as a user config file writes an override.
+// userconfig.Roles, written as a user config file writes an override; "" is no colour.
 var presets = loadSchemes(schemeFiles)
 
 // loadSchemes returns every scheme file of files that schemeFilesPattern matches, keyed by its
@@ -369,6 +374,21 @@ func inputStyles(colors palette) textinput.Styles {
 // status returns the style of a status of category: the colour of its status role.
 func (t theme) status(category config.Category) lipgloss.Style {
 	return t.colors.foreground(statusRolePrefix + string(category))
+}
+
+// priority returns the style of the P<n> of an issue of priority: the colour of its priority role,
+// and bold for the most urgent priority, so it stands out without colour too.
+func (t theme) priority(priority int) lipgloss.Style {
+	style := t.colors.foreground(priorityRolePrefix + strconv.Itoa(priority))
+	if priority == issue.MinPriority {
+		style = style.Bold(true)
+	}
+	return style
+}
+
+// priorityText returns how a row or the detail header writes priority: P<n>.
+func priorityText(priority int) string {
+	return fmt.Sprintf("P%d", priority)
 }
 
 // themeOf returns the theme the model's user config, terminal background and NO_COLOR setting

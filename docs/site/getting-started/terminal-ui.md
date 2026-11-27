@@ -159,7 +159,7 @@ described under [The state file](../reference/file-format.md#the-state-file).
 - **Knowledge** shows the Note tree `capcom know tree` prints. Retired and Background Notes are
   hidden, as in `know tree`. The only write here is `e`, the editor.
 - **Closed** lists the Issues in a closed category, most recently closed first: each Issue's
-  Closed date (`2026-10-26`, in UTC), id and title; two closed at the same time sort by id. The
+  Closed date (`2026-10-26`, in UTC), id, priority, type and title; two closed at the same time sort by id. The
   only writes here are `R`, which reopens the Issue and takes it off the tab, and `e`; `a`, `s`,
   `c` and `L` do nothing.
 
@@ -403,9 +403,11 @@ ui:
 - `colors` overrides the preset by role: `accent`, `border`, `muted`, `link`, `selection`,
   `heading`, `code`, and one per Status category, `status-todo`, `status-doing`,
   `status-waiting`, `status-done` and `status-dropped`, each covering every Status of its
-  category, `lock-held` and `lock-free`, the status bar's lock badge, and `layout-button`, the fill
-  of the status bar's layout button. A value is a quoted
-  `"#rgb"` or `"#rrggbb"` colour or a 256-colour number from 0 to 255.
+  category, one per priority, `priority-0`, `priority-1`, `priority-2`, `priority-3` and
+  `priority-4`, each painting the `P<n>` of an Issue's row and detail header (the presets leave
+  `priority-2`, the default, in the terminal's own colour), `lock-held` and `lock-free`, the status
+  bar's lock badge, and `layout-button`, the fill of the status bar's layout button. A value is a
+  quoted `"#rgb"` or `"#rrggbb"` colour or a 256-colour number from 0 to 255.
 - `NO_COLOR` in the environment turns colour off, whatever the file says.
 
 The file is read when `capcom ui` starts: restart it after an edit. An unknown key or role is

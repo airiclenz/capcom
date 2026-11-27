@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `capcom ui` now colours an Issue's priority by its level, in every row that shows it (the Ready, Issues and Closed tabs and the dependency view) and in the detail header: P0 red and bold, P1 amber, P2 (the default) in the terminal's own colour, P3 muted and P4 dimmer still. The Closed tab's rows gain the priority, `<closed date>  id  P<n>  type  title`. `ui.colors` in the user config overrides each level by its role, `priority-0` to `priority-4`; under `NO_COLOR` nothing is coloured and P0 stays bold. As with the status colour, a row drawn whole in one style (the selected row under `NO_COLOR`, a muted row) shows the priority in that style.
+
 ## [0.17.1] - 2026-11-23
 
 - `capcom know seed` adds the base set of Knowledge Notes that capcom ships, a root Note and the rules below it, to the store. It adds every Note of the set the store lacks and never changes a Note that exists. Each added Note carries the Labels `seed:<root id>` and `seed-text:<version>:<hash>`. It prints one line per Note, `<id>  <outcome>`: `added`, `skipped (same)`, `skipped (differs)`, `skipped (retired)` or `skipped (alias of <id>)`. A root Note that exists without the `seed:<root id>` Label fails the command and nothing is written. `--dry-run` prints the same lines and writes nothing; `--json` gives kind `know-seed`.

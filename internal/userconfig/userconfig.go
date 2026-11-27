@@ -43,7 +43,8 @@ const (
 var themes = []string{ThemeAuto, ThemeDark, ThemeLight}
 
 // Roles lists every colour role a colors key may override, in the order the template documents
-// them. Each status role names a status category, so it covers every status of that category.
+// them. Each status role names a status category, so it covers every status of that category, and
+// each priority role names one priority, from issue.MinPriority to issue.MaxPriority.
 var Roles = []string{
 	"accent",
 	"border",
@@ -57,6 +58,11 @@ var Roles = []string{
 	"status-waiting",
 	"status-done",
 	"status-dropped",
+	"priority-0",
+	"priority-1",
+	"priority-2",
+	"priority-3",
+	"priority-4",
 	"lock-held",
 	"lock-free",
 	"layout-button",

@@ -126,6 +126,10 @@ func TestTheme_Presets_ColourEveryRole(t *testing.T) {
 // schemeColour matches the one colour form a scheme file writes, "#rrggbb" in either case.
 var schemeColour = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
+// uncolouredRoles are the roles every scheme file gives "", no colour, on purpose: P2, the default
+// priority, shows in the terminal's own colour.
+var uncolouredRoles = []string{"priority-2"}
+
 func TestTheme_SchemeFiles_ColourEveryRoleInHex(t *testing.T) {
 	want := slices.Clone(userconfig.Roles)
 	sort.Strings(want)
@@ -146,6 +150,12 @@ func TestTheme_SchemeFiles_ColourEveryRoleInHex(t *testing.T) {
 		got := make([]string, 0, len(colors))
 		for role, value := range colors {
 			got = append(got, role)
+			if slices.Contains(uncolouredRoles, role) {
+				if value != "" {
+					t.Errorf("%s: %s is %q, want \"\", no colour", name, role, value)
+				}
+				continue
+			}
 			if !schemeColour.MatchString(value) {
 				t.Errorf("%s: %s is %q, want a \"#rrggbb\" colour", name, role, value)
 			}
@@ -356,10 +366,11 @@ func sgrBefore(t *testing.T, row, text string) string {
 }
 
 func TestTheme_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
-	// dark's selection is #3a5fcd and its status-todo #b2b2b2.
+	// dark's selection is #3a5fcd, its status-todo #b2b2b2 and its priority-1 #e3b341.
 	const (
 		fill     = "48;2;58;95;205"
 		todoText = "38;2;178;178;178"
+		p1Text   = "38;2;227;179;65"
 	)
 	testCases := []struct {
 		name    string
@@ -383,6 +394,8 @@ func TestTheme_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
 				{text: "alpha", want: fill},
 				{text: "open", want: todoText},
 				{text: "open", want: fill},
+				{text: "P1", want: p1Text},
+				{text: "P1", want: fill},
 				{text: "Alpha task", want: fill},
 			} {
 				if got := sgrBefore(t, row, segment.text); !strings.Contains(got, segment.want) {

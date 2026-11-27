@@ -709,9 +709,10 @@ it never rewrites an existing file.
 #   # Colour overrides by role; none by default, so each role takes the preset's colour. A value
 #   # is a quoted "#rgb" or "#rrggbb" colour (an unquoted # starts a comment) or a number 0-255.
 #   # Roles: accent, border, muted, link, selection, heading, code, and one per status category:
-#   # status-todo, status-doing, status-waiting, status-done, status-dropped. The status bar's lock
-#   # badge: lock-held while another session holds the Tree lock, lock-free while it is free. The
-#   # status bar's layout button: layout-button.
+#   # status-todo, status-doing, status-waiting, status-done, status-dropped. One per priority, the
+#   # P<n> of an issue's row and detail header: priority-0, priority-1, priority-2, priority-3,
+#   # priority-4. The status bar's lock badge: lock-held while another session holds the Tree lock,
+#   # lock-free while it is free. The status bar's layout button: layout-button.
 #   colors:
 #     accent: "#7aa2f7"
 #     status-doing: 214
@@ -725,7 +726,9 @@ it never rewrites an existing file.
   role; none when absent. The roles are `accent`, `border`, `muted`, `link`, `selection`,
   `heading`, `code`, and one per Status category: `status-todo`, `status-doing`,
   `status-waiting`, `status-done` and `status-dropped`, each covering every Status of its
-  category. `lock-held` and `lock-free` fill the status bar's lock badge: `lock-held` while another
+  category. One per priority, `priority-0`, `priority-1`, `priority-2`, `priority-3` and
+  `priority-4`, paints the `P<n>` of an Issue's row and detail header; the presets leave
+  `priority-2`, the default priority, in the terminal's own colour. `lock-held` and `lock-free` fill the status bar's lock badge: `lock-held` while another
   session holds the Tree lock, `lock-free` while it is free. `layout-button` fills the status
   bar's layout button, its glyph in the `muted` colour. A colour is a quoted `"#rgb"` or
   `"#rrggbb"` (unquoted, `#` starts a YAML comment) or a 256-colour number from 0 to 255.

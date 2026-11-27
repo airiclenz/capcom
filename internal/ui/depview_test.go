@@ -33,10 +33,11 @@ func TestDepView_IssueWithBothSides_MatchesGolden(t *testing.T) {
 }
 
 func TestDepView_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
-	// dark's selection is #3a5fcd and its status-todo #b2b2b2.
+	// dark's selection is #3a5fcd, its status-todo #b2b2b2 and its priority-1 #e3b341.
 	const (
 		fill     = "48;2;58;95;205"
 		todoText = "38;2;178;178;178"
+		p1Text   = "38;2;227;179;65"
 	)
 	m := newThemeModel(t, depFiles, "ui:\n  theme: dark\n", false, func(options *Options) {
 		options.Tab = TabIssues
@@ -58,6 +59,8 @@ func TestDepView_SelectedRow_FillsTheBackgroundKeepingItsColours(t *testing.T) {
 		{text: "base", want: fill},
 		{text: "open", want: todoText},
 		{text: "open", want: fill},
+		{text: "P1", want: p1Text},
+		{text: "P1", want: fill},
 		{text: "Base", want: fill},
 	} {
 		if got := sgrBefore(t, row, segment.text); !strings.Contains(got, segment.want) {

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/airiclenz/capcom/internal/briefing"
@@ -171,7 +170,7 @@ func (m model) paintReadySidebar() model {
 	for row := start; row < end; row++ {
 		entry := m.ready.entries[row]
 		mark := m.theme.markOf(false, row == selected)
-		rows = append(rows, mark.render(readyRow(entry, m.theme.status(entry.Category), columns)...))
+		rows = append(rows, mark.render(readyRow(m.theme, entry, columns)...))
 	}
 	return m.withSidebar(rows, start, len(m.ready.entries))
 }
@@ -207,18 +206,20 @@ func padding(text string, width int) string {
 }
 
 // readyRow is the spans of the sidebar row of one issue, `id  status  P<n>  type  title`, its id,
-// its status and its type padded to columns and its status painted in status. A zero type width
-// leaves the type and its gap out, the row the dependency view shows as capcom dep list prints it.
-// The padding stays outside the status style, so a selected row's fill runs unbroken beneath it.
-func readyRow(entry index.Entry, status lipgloss.Style, columns columnWidths) []span {
-	rest := padding(entry.Status, columns.status) + readyColumnGap +
-		fmt.Sprintf("P%d", entry.Priority) + readyColumnGap
+// its status and its type padded to columns, its status painted in its category's colour of th and
+// its P<n> in its priority's. A zero type width leaves the type and its gap out, the row the
+// dependency view shows as capcom dep list prints it. The padding stays outside the status and
+// priority styles, so a selected row's fill runs unbroken beneath them.
+func readyRow(th theme, entry index.Entry, columns columnWidths) []span {
+	rest := readyColumnGap
 	if columns.issueType > 0 {
 		rest += typeCell(entry, columns.issueType) + readyColumnGap
 	}
 	return []span{
 		{text: entry.ID + padding(entry.ID, columns.id) + readyColumnGap},
-		{text: entry.Status, style: status},
+		{text: entry.Status, style: th.status(entry.Category)},
+		{text: padding(entry.Status, columns.status) + readyColumnGap},
+		{text: priorityText(entry.Priority), style: th.priority(entry.Priority)},
 		{text: rest + oneLine(entry.Title)},
 	}
 }

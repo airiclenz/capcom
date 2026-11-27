@@ -88,10 +88,10 @@ func TestClosedTab_Sidebar_ListsTheClosedIssuesNewestFirst(t *testing.T) {
 	got := strippedSidebar(m)
 
 	want := []string{
-		"2026-10-15  scrapped  task  Scrapped task",
-		"2026-10-13  aa        task  AA task",
-		"2026-10-13  zz        task  ZZ task",
-		"2026-10-12  finished  task  Finished",
+		"2026-10-15  scrapped  P2  task  Scrapped task",
+		"2026-10-13  aa        P2  task  AA task",
+		"2026-10-13  zz        P2  task  ZZ task",
+		"2026-10-12  finished  P2  task  Finished",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("Closed sidebar = %q, want %q", got, want)
@@ -108,9 +108,9 @@ func TestClosedTab_TypesOfDifferentWidths_StartEveryTypeAndTitleAtOneColumn(t *t
 	got := strippedSidebar(m)
 
 	want := []string{
-		"2026-10-14  fix   bug      Fix it",
-		"2026-10-13  feat  feature  Add it",
-		"2026-10-12  tidy  chore    Tidy it",
+		"2026-10-14  fix   P2  bug      Fix it",
+		"2026-10-13  feat  P2  feature  Add it",
+		"2026-10-12  tidy  P2  chore    Tidy it",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("Closed sidebar = %q, want %q", got, want)
@@ -127,8 +127,8 @@ func TestClosedTab_TypeWiderThanTheColumn_CutToItWithTheTitlesAligned(t *testing
 	got := strippedSidebar(m)
 
 	want := []string{
-		"2026-10-14  fix    bug         Fix it",
-		"2026-10-13  infra  infrastru…  Build it",
+		"2026-10-14  fix    P2  bug         Fix it",
+		"2026-10-13  infra  P2  infrastru…  Build it",
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("Closed sidebar = %q, want %q", got, want)

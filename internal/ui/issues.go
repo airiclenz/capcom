@@ -168,9 +168,10 @@ func (m model) paintIssuesSidebar() model {
 // issueTreeRow is the spans of one issue in the tree: `id  status  P<n>  type  title`, its id,
 // status and type padded to columns, which count the row's lead, so every row's status, P<n>, type
 // and title start at one column whatever its depth, then `(<closed>/<total> closed)` over all its
-// children, hidden ones included, when it has any. Its status is in its category's colour.
+// children, hidden ones included, when it has any. Its status is in its category's colour and its
+// P<n> in its priority's.
 func (m model) issueTreeRow(row outline.Row[index.Entry], columns columnWidths) []span {
-	spans := readyRow(row.Entry, m.theme.status(row.Entry.Category), columns.after(leadWidth(row.Depth)))
+	spans := readyRow(m.theme, row.Entry, columns.after(leadWidth(row.Depth)))
 	children := m.issues.tree.children(row.ID)
 	if len(children) == 0 {
 		return spans

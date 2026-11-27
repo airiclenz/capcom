@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 
 	"github.com/airiclenz/capcom/internal/index"
 	"github.com/airiclenz/capcom/internal/issue"
@@ -54,13 +53,13 @@ type depRow struct {
 	entry   index.Entry
 }
 
-// text returns the row's spans: `id  status  P<n>  title`, unaligned, its status painted in
-// status, or for a missing dep that dep and depsMissingLabel.
-func (r depRow) text(status lipgloss.Style) []span {
+// text returns the row's spans: `id  status  P<n>  title`, unaligned, its status and its P<n>
+// painted as th paints them, or for a missing dep that dep and depsMissingLabel.
+func (r depRow) text(th theme) []span {
 	if r.id == "" {
 		return []span{{text: oneLine(r.missing) + "  " + depsMissingLabel}}
 	}
-	return readyRow(r.entry, status, columnWidths{})
+	return readyRow(th, r.entry, columnWidths{})
 }
 
 // depView is the dependency view's state: whether it covers the detail pane, the issue it lists,
@@ -280,7 +279,7 @@ func (m model) paintDeps() model {
 // lines returns the dependency view's rows of text, the position of the selected one, -1 when
 // it has none, and, for each line, the position in rows of the row it draws, -1 for a heading or
 // a none line: the waits-on heading and rows, then the blocks heading and rows, a section with no
-// issue saying none, each status in its category's colour of th and the selected row marked by
+// issue saying none, each status and P<n> painted as th paints them and the selected row marked by
 // th's markOf. An issue with neither, and a read that failed, each take one row.
 func (v depView) lines(th theme) ([]string, int, []int) {
 	switch {
@@ -309,7 +308,7 @@ func (v depView) lines(th theme) ([]string, int, []int) {
 				selectedLine = len(lines)
 			}
 			mark := th.markOf(false, position == selected)
-			spans := append([]span{{text: depsRowIndent}}, row.text(th.status(row.entry.Category))...)
+			spans := append([]span{{text: depsRowIndent}}, row.text(th)...)
 			lines = append(lines, mark.render(spans...))
 			rowOfLine = append(rowOfLine, position)
 			position++

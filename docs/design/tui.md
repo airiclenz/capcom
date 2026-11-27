@@ -164,7 +164,7 @@ the top level. The only write here is `e` (`$EDITOR`).
 ### Closed tab
 
 The issues in a closed category, as an `index.List` over `config.ClosedCategories()`, newest
-Closed time first and, on a tie, by id. Each row is `<closed date>  id  type  title`: the Closed
+Closed time first and, on a tie, by id. Each row is `<closed date>  id  P<n>  type  title`: the Closed
 time's day in UTC as `2006-01-02`, the id padded to the widest id of the whole list, and the type
 padded to the widest type of the whole list, at most 10 cells, a longer type cut to that width
 ending in `…`, so scrolling never shifts the types or the titles. It shares Ready's flat entry list (`internal/ui/entrylist.go`). `R`
@@ -338,11 +338,17 @@ ui:
 - `auto` (the default) asks the terminal for its background colour and picks the light or dark
   preset; until the terminal answers the background counts as dark.
 - The presets' colours live in `internal/ui/schemes/dark.yaml` and `light.yaml`, embedded in the
-  binary: one quoted `"#rrggbb"` per role.
+  binary: one quoted `"#rrggbb"` per role, or `""` for no colour, which only `priority-2` has.
 - Overrides name roles, not elements: `accent`, `border`, `muted`, `link`, `selection`, `heading`,
   `code`, one per status category: `status-todo`, `status-doing`, `status-waiting`,
-  `status-done`, `status-dropped`, the status bar's lock badge: `lock-held`, `lock-free`, and
+  `status-done`, `status-dropped`, one per priority: `priority-0`, `priority-1`, `priority-2`,
+  `priority-3`, `priority-4`, the status bar's lock badge: `lock-held`, `lock-free`, and
   the status bar's layout button: `layout-button`. A value is a quoted `"#rgb"`/`"#rrggbb"` or a number 0-255.
+- An Issue's `P<n>`, in every row that shows it (Ready, Issues, Closed, the dependency view) and in
+  the detail header, is painted in its priority's role: red for P0, which is also bold so it shows
+  under `NO_COLOR`, amber for P1, none for P2, the default, and muted and dimmer still for P3 and
+  P4. The header's `P<n>` is painted after the markdown renders, so a pane narrow enough to wrap
+  the status line before the `P<n>`, moving it to the next line, leaves it plain.
 - The selected row of a list is filled with the `selection` colour, its text in its usual colours
   (a status keeps its category's); under `NO_COLOR` it is drawn in reverse instead.
 - `NO_COLOR` turns colour off, whatever the config says.

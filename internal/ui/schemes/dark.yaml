@@ -13,7 +13,10 @@
 # its colour comes from.
 #
 # Every role has exactly one key here, none missing and none extra. Values are quoted "#rrggbb"
-# hex — the quotes matter, because an unquoted # starts a YAML comment.
+# hex — the quotes matter, because an unquoted # starts a YAML comment. The one exception is
+# priority-2, the default priority: its value is "", no colour, so P2 shows in the terminal's own
+# colour and only the other priorities stand out. The priority colours are capcom's own, not
+# apogee's.
 
 accent: "#c396ff"         # apogee gauge: the open tab, the dragged divider, the filter and prompt cursor
 border: "#4a4a4a"         # apogee chrome: the frame, the tree connectors, the scrollbar track, rules in bodies
@@ -27,6 +30,11 @@ status-doing: "#58a6ff"   # apogee mode-allow-edits: every status of the doing c
 status-waiting: "#f0883e" # apogee mode-auto: every status of the waiting category
 status-done: "#43d389"    # apogee success: every status of the done category
 status-dropped: "#4a4a4a" # apogee chrome: every status of the dropped category
+priority-0: "#f85149"     # red, and bold: P0, the most urgent priority
+priority-1: "#e3b341"     # amber: P1
+priority-2: ""            # no colour: P2, the default priority, in the terminal's own colour
+priority-3: "#8a8a8a"     # the muted colour: P3
+priority-4: "#5c5c5c"     # dimmer than muted: P4, the least urgent priority
 lock-held: "#f0883e"      # apogee mode-auto: the status bar's lock badge while another session holds the Tree lock
 lock-free: "#43d389"      # apogee success: the status bar's lock badge while the Tree lock is free
 layout-button: "#4a4a4a" # apogee chrome: the status bar's layout button
